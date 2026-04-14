@@ -1,0 +1,127 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using ProwlersAndParagonsAutomation.Engine.Models;
+
+namespace ProwlersAndParagonsAutomation.Engine;
+
+/// <summary>
+/// Loads and caches all rules data from the data/rules/ JSON files.
+/// Each collection is loaded lazily on first access.
+/// </summary>
+public sealed class RulesRepository
+{
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+    };
+
+    private readonly string _dataPath;
+
+    // Lazy backing fields
+    private IReadOnlyList<TierModel>? _tiers;
+    private IReadOnlyList<AbilityModel>? _abilities;
+    private IReadOnlyList<TalentModel>? _talents;
+    private IReadOnlyList<PowerModel>? _powers;
+    private IReadOnlyList<ProModel>? _pros;
+    private IReadOnlyList<ConModel>? _cons;
+    private CreationRulesModel? _creationRules;
+
+    // Lookup dictionaries (built on first use)
+    private Dictionary<string, TierModel>? _tierMap;
+    private Dictionary<string, AbilityModel>? _abilityMap;
+    private Dictionary<string, TalentModel>? _talentMap;
+    private Dictionary<string, PowerModel>? _powerMap;
+    private Dictionary<string, ProModel>? _proMap;
+    private Dictionary<string, ConModel>? _conMap;
+
+    public RulesRepository(string dataRulesPath)
+    {
+        _dataPath = dataRulesPath;
+    }
+
+    /// <summary>
+    /// Convenience factory: appends "data/rules" to the provided base path.
+    /// Typically called with AppContext.BaseDirectory or the project root.
+    /// </summary>
+    public static RulesRepository FromBasePath(string basePath) =>
+        new(Path.Combine(basePath, "data", "rules"));
+
+    // ── Collections ───────────────────────────────────────────────────────
+
+    public IReadOnlyList<TierModel> Tiers =>
+        _tiers ??= Load<List<TierModel>>("tiers.json");
+
+    public IReadOnlyList<AbilityModel> Abilities =>
+        _abilities ??= Load<List<AbilityModel>>("abilities.json");
+
+    public IReadOnlyList<TalentModel> Talents =>
+        _talents ??= Load<List<TalentModel>>("talents.json");
+
+    public IReadOnlyList<PowerModel> Powers =>
+        _powers ??= LoadPowers();
+
+    public IReadOnlyList<ProModel> Pros =>
+        _pros ??= Load<List<ProModel>>("pros.json");
+
+    public IReadOnlyList<ConModel> Cons =>
+        _cons ??= Load<List<ConModel>>("cons.json");
+
+    public CreationRulesModel CreationRules =>
+        _creationRules ??= Load<CreationRulesModel>("creation_rules.json");
+
+    // ── Lookups ───────────────────────────────────────────────────────────
+
+    public TierModel? GetTier(string id) =>
+        (_tierMap ??= Tiers.ToDictionary(x => x.Id)).GetValueOrDefault(id);
+
+    public AbilityModel? GetAbility(string id) =>
+        (_abilityMap ??= Abilities.ToDictionary(x => x.Id)).GetValueOrDefault(id);
+
+    public TalentModel? GetTalent(string id) =>
+        (_talentMap ??= Talents.ToDictionary(x => x.Id)).GetValueOrDefault(id);
+
+    public PowerModel? GetPower(string id) =>
+        (_powerMap ??= Powers.ToDictionary(x => x.Id)).GetValueOrDefault(id);
+
+    public ProModel? GetPro(string id) =>
+        (_proMap ??= Pros.ToDictionary(x => x.Id)).GetValueOrDefault(id);
+
+    public ConModel? GetCon(string id) =>
+        (_conMap ??= Cons.ToDictionary(x => x.Id)).GetValueOrDefault(id);
+
+    // ── Private helpers ───────────────────────────────────────────────────
+
+    private T Load<T>(string fileName)
+    {
+        var path = Path.Combine(_dataPath, fileName);
+        var json = File.ReadAllText(path);
+        return JsonSerializer.Deserialize<T>(json, JsonOptions)
+               ?? throw new InvalidOperationException($"Failed to deserialize {fileName}.");
+    }
+
+    private IReadOnlyList<PowerModel> LoadPowers()
+    {
+        var powers = Load<List<PowerModel>>("powers.json");
+
+        // Post-load fixup: baseline_fixed powers carry their fixed baseline value
+        // in the human-readable description only ("3d"). We set FixedValue explicitly
+        // here so DerivedStatsCalculator can use it without string parsing.
+        // Currently only Running has baseline_fixed (3d).
+        var patched = powers.Select(p =>
+        {
+            if (p.Prerequisite?.Relationship == "baseline_fixed" && p.Prerequisite.FixedValue is null)
+            {
+                return p with
+                {
+                    Prerequisite = p.Prerequisite with { FixedValue = 3 }
+                };
+            }
+            return p;
+        }).ToList();
+
+        return patched;
+    }
+}
