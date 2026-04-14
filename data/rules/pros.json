@@ -1,0 +1,221 @@
+[
+  {
+    "id": "affect_inanimate",
+    "name": "Affect Inanimate",
+    "cost_modifier": 1,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "Applies to Powers that affect only living beings. The Power can also affect one type of inanimate being (characters with the Inanimate Power from one Source, chosen when purchased). Can be applied multiple times for additional Inanimate Sources.",
+    "narrative_constraint": null
+  },
+  {
+    "id": "area_burst",
+    "name": "Area / Burst (Area of Effect)",
+    "cost_modifier": null,
+    "cost_modifier_range": { "area": 2, "burst": 1 },
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "Applies to Ranged Powers. Area gives the option to target an area or individual; Burst means the Power always targets an area. Area of effect is 10-50 feet in diameter. Area costs +2 HP, Burst costs +1 HP. Active defense ranks are halved against area attacks unless defender forgoes next action to leap for cover.",
+    "narrative_constraint": null,
+    "needs_review": true,
+    "notes": "Variable cost — wizard should present Area (+2) and Burst (+1) as separate selectable options."
+  },
+  {
+    "id": "zone_nova",
+    "name": "Zone / Nova (Area of Effect)",
+    "cost_modifier": null,
+    "cost_modifier_range": { "zone_ranged": 2, "nova_ranged": 1, "zone_touch": 4, "nova_touch": 2 },
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "Applies to Ranged and Touch Powers. Zone targets the area within 5-25 feet of the user (or optionally an individual). Nova always targets that area. Zone costs +2 HP (Ranged) or +4 HP (Touch). Nova costs +1 HP (Ranged) or +2 HP (Touch).",
+    "narrative_constraint": null,
+    "needs_review": true,
+    "notes": "Variable cost depending on base Power range. Wizard should check if base Power is Ranged or Touch."
+  },
+  {
+    "id": "armor_piercing",
+    "name": "Armor Piercing",
+    "cost_modifier": 2,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "Applies to damage-inflicting Powers. Characters wearing mundane armor have their passive defenses halved against the Power. Active defenses are unaffected. Incompatible with the Weak Con.",
+    "narrative_constraint": null
+  },
+  {
+    "id": "carrier_attack",
+    "name": "Carrier Attack",
+    "cost_modifier": 6,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "Applies to attack Powers. The attack carries another Power on its heels. Whenever the carrier Power inflicts at least 1 point of damage or 1 page of special effect, make a second attack roll against the same target using the carrier attack; targets can only use passive defenses against it. Must also buy the carrier attack Power separately; carrier attacks cannot be used independently.",
+    "narrative_constraint": "Carrier attack Power must be purchased separately and cannot be used independently — it only triggers via this Pro."
+  },
+  {
+    "id": "close",
+    "name": "Close (as Pro)",
+    "cost_modifier": 2,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "Applies to Touch Powers. The Power can target subjects within Close Range even if they are not adjacent. (When applied to Ranged Powers, Close is instead a -2 Con — see cons.json.)",
+    "narrative_constraint": null
+  },
+  {
+    "id": "contagious",
+    "name": "Contagious",
+    "cost_modifier": 4,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "The Power affects not only the original target but also anyone who comes into physical contact with them. As long as the original target is affected, make an immediate attack roll against anyone who touches them (targets can only use passive defenses). New targets also become contagious. Effect always expires at the end of the scene for Heroes.",
+    "narrative_constraint": null
+  },
+  {
+    "id": "expansive",
+    "name": "Expansive",
+    "cost_modifier": null,
+    "cost_modifier_range": { "close_range": 6, "distant_range": 12, "extreme_range": 18 },
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "Applies to Zone Powers. Spend 1 Resolve to dramatically expand the area of effect for the rest of the scene. Close Range (~50 feet) costs +6 HP, Distant Range (~500 feet) costs +12 HP, Extreme Range (~5,000 feet) costs +18 HP. Cannot apply to direct-targeting Powers like Dazzle or Shockwave.",
+    "narrative_constraint": null,
+    "needs_review": true
+  },
+  {
+    "id": "fuse",
+    "name": "Fuse",
+    "cost_modifier": 2,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "Set the Power to activate after a chosen delay (up to hours equal to Willpower). Can deactivate at will while within Extreme Range.",
+    "narrative_constraint": null
+  },
+  {
+    "id": "imbue",
+    "name": "Imbue",
+    "cost_modifier": 4,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "Applies to self-only Powers. You can also use the Power on other characters and/or objects by touching them. Willpower equals the max number of subjects affected simultaneously. Cannot affect anything with a weight rank greater than your Willpower.",
+    "narrative_constraint": null
+  },
+  {
+    "id": "independent",
+    "name": "Independent",
+    "cost_modifier": 6,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "The Power has a mind of its own (like a homing missile). It can act as a separate character when you wish, using its rank for challenge rolls. On pages it acts independently, you cannot use the Power.",
+    "narrative_constraint": null
+  },
+  {
+    "id": "line_of_sight",
+    "name": "Line of Sight",
+    "cost_modifier": null,
+    "cost_modifier_range": { "from_distant_range": 2, "from_close_range": 4, "from_touch": 6 },
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "The Power can affect targets at Extreme Range. Costs +2 HP for Distant Range Powers, +4 HP for Close Range Powers, +6 HP for Touch Powers. When applied to a Zone Power, the area no longer needs to be centered on the user.",
+    "narrative_constraint": null,
+    "needs_review": true
+  },
+  {
+    "id": "ongoing",
+    "name": "Ongoing",
+    "cost_modifier": 6,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "Applies to damage-inflicting Powers. The Power keeps inflicting damage after the initial attack: 1 extra point at the start of each following page for a number of pages equal to initial damage inflicted. Not cumulative — only the longest ongoing duration applies. Target can spend 1 Resolve or forego next action to end all ongoing effects.",
+    "narrative_constraint": null
+  },
+  {
+    "id": "overload",
+    "name": "Overload",
+    "cost_modifier": 2,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "You can overload the Power, raising its effective rank for one page. +3d rank = Power lost for rest of scene. +6d rank = Power lost for rest of issue. Burns out Variant Powers linked to the same source as well.",
+    "narrative_constraint": null
+  },
+  {
+    "id": "penetrating",
+    "name": "Penetrating",
+    "cost_modifier": 4,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "Applies to physical or energy damage Powers. Halves passive defenses. Force Field Power is immune to this effect. Active defenses are unaffected. Incompatible with the Weak Con.",
+    "narrative_constraint": null
+  },
+  {
+    "id": "phase_shift",
+    "name": "Phase Shift",
+    "cost_modifier": 4,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "The Power affects insubstantial/incorporeal targets as if they were solid (e.g. Gaseous Form, Liquid Form, Phasing). Also allows incorporeal users to affect solid targets with the Power. GMs may prohibit Heroes from using this Pro if they can become incorporeal.",
+    "narrative_constraint": null
+  },
+  {
+    "id": "ranged",
+    "name": "Ranged (as Pro)",
+    "cost_modifier": null,
+    "cost_modifier_range": { "from_close_range": 2, "from_touch": 4 },
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "The Power can affect targets at Distant Range. +2 HP for Close Range Powers, +4 HP for Touch Powers. When applied to a Zone Power, the area no longer needs to be centered on the user.",
+    "narrative_constraint": null,
+    "needs_review": true
+  },
+  {
+    "id": "resisted",
+    "name": "Resisted",
+    "cost_modifier": 6,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "Applies to special-effect Powers that can normally be resisted with active defenses. The Power never misses — active defenses cannot be used against it. Subject to GM approval.",
+    "narrative_constraint": "GM must approve this Pro."
+  },
+  {
+    "id": "ricochet",
+    "name": "Ricochet",
+    "cost_modifier": 2,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "Applies to ranged attack Powers. You can bank the Power off multiple surfaces, targeting enemies around corners without attack roll penalties. Spend 1 Resolve to defeat twice as many Minions as usual by bouncing off multiple targets (no extra benefit if Power already does this).",
+    "narrative_constraint": null
+  },
+  {
+    "id": "selective",
+    "name": "Selective",
+    "cost_modifier": 4,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "The Power will not harm or affect anyone you choose to exclude. For area attacks, spend 1 Resolve when making the area attack to target only select individuals within the area of effect.",
+    "narrative_constraint": null
+  },
+  {
+    "id": "subtle",
+    "name": "Subtle",
+    "cost_modifier": 2,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "The Power creates no loud noise, bright light, or other easily detectable signs.",
+    "narrative_constraint": null
+  },
+  {
+    "id": "undetectable",
+    "name": "Undetectable",
+    "cost_modifier": 6,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "The Power cannot be detected or traced back to you. Gives no indication when used. Targets suffer a -3d penalty to active defense rolls against Undetectable physical/energy attacks unless they have Blind Fighting or similar. Subject to GM approval.",
+    "narrative_constraint": "GM must approve. GMs are within their rights to prohibit Heroes from using Undetectable."
+  },
+  {
+    "id": "trap",
+    "name": "Trap",
+    "cost_modifier": 2,
+    "cost_type": "flat",
+    "applicable_to": ["powers"],
+    "description": "You can set the Power as a trap triggered by anyone entering an area or handling an object. Each trap covers up to 15 feet long or 5-foot diameter. Willpower equals max number of traps set at once. Traps vanish at end of current issue if untriggered.",
+    "narrative_constraint": null
+  }
+]

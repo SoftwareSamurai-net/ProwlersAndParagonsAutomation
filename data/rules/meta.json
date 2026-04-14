@@ -1,0 +1,12 @@
+{
+  "system": "Prowlers & Paragons",
+  "edition": "Ultimate Edition",
+  "publisher": "LakeSide Games, Inc.",
+  "copyright": "2013-2021",
+  "authors": ["Leonard A. Pimentel", "Sean Patrick Fannon"],
+  "extracted_version": "1.0",
+  "source_pdf": "Prowlers_&_Paragons_Ultimate_Edition.pdf",
+  "total_pdf_pages": 195,
+  "chapters_extracted": [1, 2],
+  "notes": "Chapters 1 (Basics, PDF pp 12-14) and 2 (Characters, PDF pp 16-69) extracted. All dice are d6. Ranks = number of d6s in the pool; count successes (2 or 4 = 1 success, 6 = 2 successes). Currency is Hero Points (HP), not generic points — the rulebook uses the term Hero Points throughout."
+}

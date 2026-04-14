@@ -1,0 +1,116 @@
+[
+  {
+    "id": "agility",
+    "name": "Agility",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "description": "Covers coordination, dexterity, nimbleness, reflexes, and speed. Used for acrobatic/athletic activities (balancing, climbing, diving, jumping, running), firing mundane ranged weapons, and making active defense rolls in combat. Can substitute half your Agility for Covert when making rolls to hide, move quietly, or avoid detection.",
+    "contributes_to_edge": true,
+    "contributes_to_health": false,
+    "rank_guide": {
+      "1d": "Impaired",
+      "2d": "Undeveloped (ordinary human average)",
+      "3d": "Developed",
+      "4d": "Noteworthy",
+      "5d": "Exceptional",
+      "6d": "Peak (blurry line between exceptional and superhuman)"
+    }
+  },
+  {
+    "id": "intellect",
+    "name": "Intellect",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "description": "Represents intelligence, knowledge, memory, shrewdness, and overall level of education. Used for intelligence-based challenge rolls not covered by Talents. Can substitute half your Intellect for any Talent when making rolls to determine what you know about something (not when actually doing the activity).",
+    "contributes_to_edge": true,
+    "contributes_to_health": false,
+    "rank_guide": {
+      "1d": "Impaired",
+      "2d": "Undeveloped",
+      "3d": "Developed",
+      "4d": "Noteworthy",
+      "5d": "Exceptional",
+      "6d": "Peak"
+    }
+  },
+  {
+    "id": "might",
+    "name": "Might",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "description": "Sheer physical strength. Used for armed and unarmed close combat attacks and feats of strength (lifting, tearing). Also contributes to Health. The Weight table maps Might rank to maximum lifting capacity (e.g. 1d=50 lbs, 6d=1 ton, 12d=100 tons, 24d=1 megaton). The Brute Option Con (Overkill applied to Might) lets you buy Might at 1 HP per 2 ranks but doubles opponent active defense successes and halves the baseline rank it provides to powers like Martial Arts and Strike.",
+    "contributes_to_edge": false,
+    "contributes_to_health": true,
+    "rank_guide": {
+      "1d": "Impaired",
+      "2d": "Undeveloped",
+      "3d": "Developed",
+      "4d": "Noteworthy",
+      "5d": "Exceptional",
+      "6d": "Peak"
+    }
+  },
+  {
+    "id": "perception",
+    "name": "Perception",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "description": "Covers sensory acuity, empathy, intuition, and overall awareness. Used any time you need to detect or discern hidden things (assailants, clues, intentions). Determines how quickly you react to new information. Used as one component of Edge.",
+    "contributes_to_edge": true,
+    "contributes_to_health": false,
+    "rank_guide": {
+      "1d": "Impaired",
+      "2d": "Undeveloped",
+      "3d": "Developed",
+      "4d": "Noteworthy",
+      "5d": "Exceptional",
+      "6d": "Peak"
+    }
+  },
+  {
+    "id": "toughness",
+    "name": "Toughness",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "description": "Combines constitution, endurance, and physical resilience. Used to resist Powers that affect you physically and to resist diseases, drugs, and poisons. Contributes to Health. Also serves as the baseline or default rank for powers with a Tech or Super source.",
+    "contributes_to_edge": false,
+    "contributes_to_health": true,
+    "rank_guide": {
+      "1d": "Impaired",
+      "2d": "Undeveloped",
+      "3d": "Developed",
+      "4d": "Noteworthy",
+      "5d": "Exceptional",
+      "6d": "Peak"
+    }
+  },
+  {
+    "id": "willpower",
+    "name": "Willpower",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "description": "Represents courage, determination, and self-discipline; also the power of your spirit or psyche. Used to defend against Powers that affect the mind or soul and to resist negative emotions and impulses. Contributes to Health. Serves as default rank for Magic and Psychic source powers and as the baseline for Psi-Screen.",
+    "contributes_to_edge": false,
+    "contributes_to_health": true,
+    "rank_guide": {
+      "1d": "Impaired",
+      "2d": "Undeveloped",
+      "3d": "Developed",
+      "4d": "Noteworthy",
+      "5d": "Exceptional",
+      "6d": "Peak"
+    }
+  }
+]
