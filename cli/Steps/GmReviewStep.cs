@@ -1,0 +1,204 @@
+using ProwlersAndParagonsAutomation.Cli.Export;
+using ProwlersAndParagonsAutomation.Engine;
+using Spectre.Console;
+using EngineValidationResult = ProwlersAndParagonsAutomation.Engine.ValidationResult;
+
+namespace ProwlersAndParagonsAutomation.Cli.Steps;
+
+public sealed class GmReviewStep : IWizardStep
+{
+    private readonly CharacterValidator _validator;
+    private readonly CharacterSheetExporter _exporter;
+    private readonly string _projectRoot;
+
+    public string StepId => "gm_review";
+
+    public GmReviewStep(CharacterValidator validator, CharacterSheetExporter exporter, string projectRoot)
+    {
+        _validator   = validator;
+        _exporter    = exporter;
+        _projectRoot = projectRoot;
+    }
+
+    public void Execute(CharacterSheet sheet, RulesRepository rules,
+        CostCalculator costs, DerivedStatsCalculator derived)
+    {
+        AnsiConsole.Write(new Rule("[bold yellow]Step 6 — GM Review[/]").LeftJustified());
+        AnsiConsole.WriteLine();
+
+        RenderAbilities(sheet, rules);
+        RenderTalents(sheet, rules);
+        RenderPowers(sheet, rules, costs, derived);
+        RenderDerived(sheet, derived);
+        RenderNarrative(sheet);
+
+        AnsiConsole.WriteLine();
+
+        // Validate
+        var result = _validator.Validate(sheet);
+        RenderValidation(result);
+
+        AnsiConsole.WriteLine();
+
+        // Export
+        AnsiConsole.Status()
+            .Start("Saving character sheet…", ctx =>
+            {
+                var path = _exporter.Export(sheet, rules, costs, derived, result, _projectRoot);
+                ctx.Status("Done");
+                AnsiConsole.MarkupLine($"[green]✓ Saved:[/] {Markup.Escape(path)}");
+            });
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[bold green]Character creation complete.[/]");
+    }
+
+    // ── Rendering ─────────────────────────────────────────────────────────
+
+    private static void RenderAbilities(CharacterSheet sheet, RulesRepository rules)
+    {
+        var table = new Table()
+            .Title("[bold]ABILITIES[/]")
+            .BorderColor(Color.Grey)
+            .AddColumn("Ability")
+            .AddColumn(new TableColumn("Rank").Centered())
+            .AddColumn("Description");
+
+        foreach (var ab in rules.Abilities)
+        {
+            var rank = sheet.GetAbilityRank(ab.Id);
+            table.AddRow(
+                Markup.Escape(ab.Name),
+                rank > 0 ? $"[bold]{rank}d[/]" : "[grey]0d[/]",
+                Markup.Escape(ab.Description.Length > 60 ? ab.Description[..60] + "…" : ab.Description));
+        }
+
+        AnsiConsole.Write(table);
+    }
+
+    private static void RenderTalents(CharacterSheet sheet, RulesRepository rules)
+    {
+        var purchased = rules.Talents.Where(t => sheet.GetTalentRank(t.Id) > 0).ToList();
+        if (purchased.Count == 0) return;
+
+        var table = new Table()
+            .Title("[bold]TALENTS[/]")
+            .BorderColor(Color.Grey)
+            .AddColumn("Talent")
+            .AddColumn(new TableColumn("Rank").Centered())
+            .AddColumn("Linked Ability");
+
+        foreach (var ta in purchased)
+            table.AddRow(
+                Markup.Escape(ta.Name),
+                $"[bold]{sheet.GetTalentRank(ta.Id)}d[/]",
+                Markup.Escape(ta.LinkedAbility));
+
+        AnsiConsole.Write(table);
+    }
+
+    private static void RenderPowers(CharacterSheet sheet, RulesRepository rules,
+        CostCalculator costs, DerivedStatsCalculator derived)
+    {
+        if (sheet.SelectedPowers.Count == 0) return;
+
+        var table = new Table()
+            .Title("[bold]POWERS[/]")
+            .BorderColor(Color.Grey)
+            .AddColumn("Power")
+            .AddColumn(new TableColumn("Effective").Centered())
+            .AddColumn("Pros / Cons")
+            .AddColumn(new TableColumn("HP Cost").Centered());
+
+        foreach (var sp in sheet.SelectedPowers)
+        {
+            var power     = rules.GetPower(sp.PowerId);
+            var name      = power?.Name ?? sp.PowerId;
+            var baseline  = power is null ? 0 : derived.GetBaselineRank(power, sheet);
+            var effective = baseline + sp.PurchasedRanks;
+            var cost      = costs.PowerCost(sp);
+            var review    = power?.NeedsReview == true ? " [yellow]*[/]" : "";
+
+            var proConParts = new List<string>();
+            if (sp.Pros.Count > 0)
+                proConParts.Add("[green]+" + string.Join(", +", sp.Pros.Select(p =>
+                    Markup.Escape(p.VariantKey is null ? p.Id : $"{p.Id}:{p.VariantKey}"))) + "[/]");
+            if (sp.Cons.Count > 0)
+                proConParts.Add("[red]-" + string.Join(", -", sp.Cons.Select(c =>
+                    Markup.Escape(c.VariantKey is null ? c.Id : $"{c.Id}:{c.VariantKey}"))) + "[/]");
+
+            table.AddRow(
+                $"{Markup.Escape(name)}{review}",
+                $"[bold]{effective}d[/]",
+                proConParts.Count > 0 ? string.Join("  ", proConParts) : "[grey]—[/]",
+                $"[bold]{cost}[/]");
+        }
+
+        AnsiConsole.Write(table);
+    }
+
+    private static void RenderDerived(CharacterSheet sheet, DerivedStatsCalculator derived)
+    {
+        var table = new Table()
+            .Title("[bold]DERIVED STATS[/]")
+            .BorderColor(Color.Gold1)
+            .AddColumn("Stat")
+            .AddColumn(new TableColumn("Value").Centered());
+
+        table.AddRow("[bold]Edge[/]",   $"[bold green]{derived.CalculateEdge(sheet)}[/]");
+        table.AddRow("[bold]Health[/]", $"[bold green]{derived.CalculateHealth(sheet)}[/]");
+        table.AddRow("[bold]Resolve[/]", "[grey]see Chapter 5[/]");
+
+        AnsiConsole.Write(table);
+    }
+
+    private static void RenderNarrative(CharacterSheet sheet)
+    {
+        if (string.IsNullOrWhiteSpace(sheet.Name) &&
+            string.IsNullOrWhiteSpace(sheet.Motivation) &&
+            sheet.Flaws.Count == 0) return;
+
+        var panel = new Panel(
+            new Markup(
+                $"[bold]Name:[/]        {Markup.Escape(sheet.Name)}\n" +
+                $"[bold]Appearance:[/]  {Markup.Escape(sheet.Appearance)}\n" +
+                $"[bold]Motivation:[/]  {Markup.Escape(sheet.Motivation)}\n" +
+                $"[bold]Quote:[/]       [italic]\"{Markup.Escape(sheet.Quote)}\"[/]\n" +
+                $"[bold]Flaws:[/]       {(sheet.Flaws.Count > 0 ? string.Join(", ", sheet.Flaws.Select(Markup.Escape)) : "[grey]none[/]")}\n" +
+                $"[bold]Connections:[/] {(sheet.Connections.Count > 0 ? string.Join(", ", sheet.Connections.Select(Markup.Escape)) : "[grey]none[/]")}\n" +
+                $"[bold]Gear:[/]        {(sheet.Gear.Count > 0 ? string.Join(", ", sheet.Gear.Select(Markup.Escape)) : "[grey]none[/]")}"
+            ))
+            .Header("[bold]NARRATIVE[/]")
+            .BorderColor(Color.MediumPurple);
+
+        AnsiConsole.Write(panel);
+    }
+
+    private static void RenderValidation(EngineValidationResult result)
+    {
+        if (result.IsValid && !result.Warnings.Any())
+        {
+            AnsiConsole.Write(new Panel(new Markup("[bold green]✓ Character is VALID — no issues.[/]"))
+                .BorderColor(Color.Green));
+            return;
+        }
+
+        var lines = new List<string>();
+
+        if (!result.IsValid)
+            lines.Add("[bold red]✗ Character is INVALID[/]");
+        else
+            lines.Add("[bold green]✓ Character is VALID[/]");
+
+        foreach (var e in result.Errors)
+            lines.Add($"  [red]ERROR [{Markup.Escape(e.Code)}]:[/] {Markup.Escape(e.Message)}");
+
+        foreach (var w in result.Warnings)
+            lines.Add($"  [yellow]WARN  [{Markup.Escape(w.Code)}]:[/] {Markup.Escape(w.Message)}");
+
+        var color = result.IsValid ? Color.Yellow : Color.Red;
+        AnsiConsole.Write(new Panel(new Markup(string.Join("\n", lines)))
+            .Header("[bold]VALIDATION[/]")
+            .BorderColor(color));
+    }
+}
