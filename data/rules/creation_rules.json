@@ -1,0 +1,93 @@
+{
+  "sequence": [
+    "choose_tier",
+    "buy_characteristics",
+    "choose_gear",
+    "calculate_derived",
+    "finishing_touches",
+    "gm_review"
+  ],
+  "sequence_notes": {
+    "choose_tier": "GM sets the power level for the campaign. Determines Hero Points and Trait Cap.",
+    "buy_characteristics": "Spend Hero Points on Abilities, Talents, Powers, and Perks. Select Flaws (min 1, max 3 at creation). Step 2 in the rulebook.",
+    "choose_gear": "Pick mundane gear — anything the GM considers reasonable. No Hero Point cost for mundane gear.",
+    "calculate_derived": "Compute Edge, Health, and Resolve using the formulas below.",
+    "finishing_touches": "Narrative elements: name, description, motivation, quote, connections, details, origin.",
+    "gm_review": "Review character with GM for concept and rules fit."
+  },
+  "optional_packages": [
+    {
+      "id": "civilian_package",
+      "name": "Civilian Package",
+      "cost": 35,
+      "abilities_rank": 2,
+      "talents_rank": 2,
+      "description": "Gives 2d in all Abilities and Talents. Cannot lower any of these below the package rank."
+    },
+    {
+      "id": "hero_package",
+      "name": "Hero Package",
+      "cost": 40,
+      "abilities_rank": 3,
+      "talents_rank": 2,
+      "description": "Gives 3d in all Abilities and 2d in all Talents. Cannot lower any below the package rank."
+    },
+    {
+      "id": "superhero_package",
+      "name": "Superhero Package",
+      "cost": 50,
+      "abilities_rank": 3,
+      "talents_rank": 3,
+      "description": "Gives 3d in all Abilities and Talents. Cannot lower any below the package rank."
+    }
+  ],
+  "trait_costs": {
+    "abilities": "1 Hero Point per rank",
+    "talents": "1 Hero Point per rank",
+    "powers": "Varies by power — see powers.json",
+    "perks": "Varies by perk — most are flat Hero Point costs"
+  },
+  "trait_rank_limits": {
+    "minimum": 1,
+    "maximum": "trait_cap (set by tier)",
+    "notes": "No Trait can have a rank lower than 1d or higher than the game's Trait Cap. No Power can ever cost less than 1 Hero Point (or 1 HP per 2 ranks) regardless of Cons applied."
+  },
+  "flaw_rules": {
+    "min_at_creation": 1,
+    "max_at_creation": 3,
+    "max_ever": 6,
+    "extra_flaw_cost_hp": 3,
+    "notes": "4th, 5th, and 6th Flaws each cost 3 Hero Points. Flaws can be swapped (not added/removed) between stories without HP cost if GM approves."
+  },
+  "derived_characteristics": {
+    "edge": {
+      "formula": "Perception + max(Agility, Intellect)",
+      "notes": "Danger Sense, Lightning Reflexes, and Super Speed can modify Edge. Lightning Reflexes adds +6 to Edge directly."
+    },
+    "health": {
+      "formula": "max(avg(Toughness, Might), avg(Toughness, Willpower))",
+      "rounding": "round up halves",
+      "foe_modifier": "Foes use half the normal Health value",
+      "notes": "avg() here means (A + B) / 2 rounded up. Use whichever pairing gives more Health."
+    },
+    "resolve": {
+      "formula": "See Chapter 5 (not yet extracted)",
+      "notes": "Resolve depends on how close Ability and Power ranks are to the Trait Cap. Lower ranks = more Resolve. Only Heroes have Resolve. Determination Power and certain Flaws (Plot Hooks, Conditions) grant extra starting Resolve.",
+      "needs_review": true
+    }
+  },
+  "advancement": {
+    "hp_per_3_issues": 1,
+    "hp_for_noteworthy_achievement": 1,
+    "hp_for_major_life_event": 1,
+    "spending_notes": "New HP spend same as character creation. Raising a baseline Trait also raises the Power using it as baseline (e.g. raising Might raises Strike rank automatically).",
+    "trait_cap_options": {
+      "hard_cap": "Never changes.",
+      "floating_cap": "+1d per 10 HP earned through advancement (or GM sets timing instead)."
+    },
+    "retcons": "Players may completely redesign a Hero (same total HP cost) between stories with GM approval."
+  },
+  "global_caps": {
+    "notes": "The Trait Cap is defined by the chosen tier. Certain Power interactions (like Growth boosting Might) can push a Trait above the cap — GMs decide whether to allow these edge cases. The Overkill and Weak Cons can allow Traits to exceed the cap by up to 3 ranks (Trait Cap >= 9d) or 6 ranks (Trait Cap >= 18d) as an optional rule."
+  }
+}

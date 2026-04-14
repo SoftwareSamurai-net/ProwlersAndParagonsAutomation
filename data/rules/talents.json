@@ -1,0 +1,232 @@
+[
+  {
+    "id": "academics",
+    "name": "Academics",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "linked_ability": "intellect",
+    "description": "Knowledge of scholarly subjects: anthropology, archaeology, art, cultures, history, linguistics, philosophy, psychology, sociology, and esoteric topics like dimensional geography, magic, the occult, and mythical beings. A rank of 4d+ suggests highly educated or well-read.",
+    "rank_guide": {
+      "1d": "Clueless",
+      "2d": "Unskilled (untrained average)",
+      "3d": "Proficient",
+      "4d": "Advanced (trained average)",
+      "5d": "Expert",
+      "6d": "Master"
+    }
+  },
+  {
+    "id": "charm",
+    "name": "Charm",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "linked_ability": "willpower",
+    "description": "Reflects attractiveness, empathy, social skills, and force of personality. Used to bluff, charm, deceive, negotiate, persuade, or seduce. Acting also falls under Charm.",
+    "rank_guide": {
+      "1d": "Clueless",
+      "2d": "Unskilled",
+      "3d": "Proficient",
+      "4d": "Advanced",
+      "5d": "Expert",
+      "6d": "Master"
+    }
+  },
+  {
+    "id": "command",
+    "name": "Command",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "linked_ability": "willpower",
+    "description": "Getting others to do what you want through force of will. Used to command, frighten, intimidate, interrogate, motivate, or order people around. Also covers command structures and protocols.",
+    "rank_guide": {
+      "1d": "Clueless",
+      "2d": "Unskilled",
+      "3d": "Proficient",
+      "4d": "Advanced",
+      "5d": "Expert",
+      "6d": "Master"
+    }
+  },
+  {
+    "id": "covert",
+    "name": "Covert",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "linked_ability": "agility",
+    "description": "Intrusion, larceny, shadowing, stealth, and surveillance. Used to hide, move quietly, follow someone, conduct surveillance, defeat security (alarms, cameras, locks, traps), palm items, and pick pockets. Note: Agility can substitute at half rank for Covert rolls to hide, move quietly, or avoid detection.",
+    "rank_guide": {
+      "1d": "Clueless",
+      "2d": "Unskilled",
+      "3d": "Proficient",
+      "4d": "Advanced",
+      "5d": "Expert",
+      "6d": "Master"
+    }
+  },
+  {
+    "id": "investigation",
+    "name": "Investigation",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "linked_ability": "perception",
+    "description": "Conducting investigations, uncovering clues, performing research, interrogating witnesses, analyzing data, and making deductive or intuitive leaps. A rank of 4d+ means investigations may be admissible in court.",
+    "rank_guide": {
+      "1d": "Clueless",
+      "2d": "Unskilled",
+      "3d": "Proficient",
+      "4d": "Advanced",
+      "5d": "Expert",
+      "6d": "Master"
+    }
+  },
+  {
+    "id": "medicine",
+    "name": "Medicine",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "linked_ability": "intellect",
+    "description": "Academic and clinical knowledge of medicine and psychology. Can treat wounded characters with medical supplies: Hard (2) Medicine roll, heals 1 damage per net success. Treating yourself raises difficulty to Daunting (3). Once per patient per day (or once per week with Gritty Combat rules). A rank of 4d+ suggests a trained doctor.",
+    "special_use": {
+      "action": "treat_wounds",
+      "threshold": 2,
+      "threshold_self": 3,
+      "damage_healed_per_net_success": 1,
+      "frequency": "once_per_patient_per_day"
+    },
+    "rank_guide": {
+      "1d": "Clueless",
+      "2d": "Unskilled",
+      "3d": "Proficient",
+      "4d": "Advanced (likely a trained doctor)",
+      "5d": "Expert",
+      "6d": "Master"
+    }
+  },
+  {
+    "id": "professional",
+    "name": "Professional",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "linked_ability": "intellect",
+    "description": "Knowledge of the professional world: business, economics, finance, and basics of accounting, journalism, law, marketing, politics, public relations. The Expertise Power represents in-depth knowledge of a specific career.",
+    "rank_guide": {
+      "1d": "Clueless",
+      "2d": "Unskilled",
+      "3d": "Proficient",
+      "4d": "Advanced",
+      "5d": "Expert",
+      "6d": "Master"
+    }
+  },
+  {
+    "id": "science",
+    "name": "Science",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "linked_ability": "intellect",
+    "description": "Scientific topics: astronomy, biology, botany, chemistry, ecology, genetics, geology, metallurgy, oceanography, physics, quantum mechanics, and esoteric/fantastical science. A rank of 4d+ suggests a trained scientist.",
+    "rank_guide": {
+      "1d": "Clueless",
+      "2d": "Unskilled",
+      "3d": "Proficient",
+      "4d": "Advanced (likely a trained scientist)",
+      "5d": "Expert",
+      "6d": "Master"
+    }
+  },
+  {
+    "id": "streetwise",
+    "name": "Streetwise",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "linked_ability": "perception",
+    "description": "Knowledge of important locations, personalities, and happenings in the criminal underworld. Used to interact with criminals and navigate the underworld.",
+    "rank_guide": {
+      "1d": "Clueless",
+      "2d": "Unskilled",
+      "3d": "Proficient",
+      "4d": "Advanced",
+      "5d": "Expert",
+      "6d": "Master"
+    }
+  },
+  {
+    "id": "survival",
+    "name": "Survival",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "linked_ability": "might",
+    "description": "Surviving in the wild: building fires, finding food/water, securing shelter, setting traps, tracking. Also covers practical animal knowledge, handling animals, and riding mounts. A rank of 4d+ may allow caring for, taming, and training animals.",
+    "rank_guide": {
+      "1d": "Clueless",
+      "2d": "Unskilled",
+      "3d": "Proficient",
+      "4d": "Advanced",
+      "5d": "Expert",
+      "6d": "Master"
+    }
+  },
+  {
+    "id": "technology",
+    "name": "Technology",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "linked_ability": "intellect",
+    "description": "Creation, modification, and repair of mechanical and technological devices of all kinds (computers, electronics, machines, robots, vehicles, weapons). Also covers use of high-tech systems. Can repair damaged objects with proper tools: Hard (2) Technology roll, 1 point repaired per net success, once per object per day.",
+    "special_use": {
+      "action": "repair_object",
+      "threshold": 2,
+      "damage_repaired_per_net_success": 1,
+      "frequency": "once_per_object_per_day"
+    },
+    "rank_guide": {
+      "1d": "Clueless",
+      "2d": "Unskilled",
+      "3d": "Proficient",
+      "4d": "Advanced",
+      "5d": "Expert",
+      "6d": "Master"
+    }
+  },
+  {
+    "id": "vehicles",
+    "name": "Vehicles",
+    "cost_per_rank": 1,
+    "min_rank": 1,
+    "max_rank": null,
+    "ordinary_human_rank": 2,
+    "linked_ability": "agility",
+    "description": "Operating all sorts of vehicles: piloting, gunnery, navigation, operations, and basic maintenance. Ordinary vehicles (cars, motorcycles) typically accessible at any rank; more exotic vehicles (helicopters, aircraft) at 4d+; experimental or advanced vehicles at 7d+. GM has final say.",
+    "rank_guide": {
+      "1d": "Clueless",
+      "2d": "Unskilled (can drive basic vehicles)",
+      "3d": "Proficient",
+      "4d": "Advanced (helicopters, aircraft)",
+      "5d": "Expert",
+      "6d": "Master",
+      "7d+": "Esoteric/experimental vehicles"
+    }
+  }
+]

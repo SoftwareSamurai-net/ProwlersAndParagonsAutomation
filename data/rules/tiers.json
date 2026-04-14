@@ -1,0 +1,46 @@
+[
+  {
+    "id": "street_level",
+    "name": "Street Level",
+    "hero_points": 75,
+    "trait_cap_rank": 8,
+    "description": "Street-level vigilantes with limited superpowers. Specialty Power is available at this tier. Iconic minimum is not applicable."
+  },
+  {
+    "id": "low_level",
+    "name": "Low Level",
+    "hero_points": 100,
+    "trait_cap_rank": 10,
+    "description": "Low-powered heroes. Specialty Power is available at this tier."
+  },
+  {
+    "id": "standard",
+    "name": "Standard",
+    "hero_points": 125,
+    "trait_cap_rank": 12,
+    "description": "The default tier for most superhero campaigns."
+  },
+  {
+    "id": "high_level",
+    "name": "High Level",
+    "hero_points": 150,
+    "trait_cap_rank": 16,
+    "description": "Highly powerful heroes operating at a large scale."
+  },
+  {
+    "id": "legendary",
+    "name": "Legendary",
+    "hero_points": 175,
+    "trait_cap_rank": 20,
+    "description": "Near-cosmic heroes with vast power."
+  },
+  {
+    "id": "iconic",
+    "name": "Iconic",
+    "hero_points": 200,
+    "trait_cap_rank": 24,
+    "description": "Cosmic or godlike heroes. The 200 HP listed is a bare minimum for this tier.",
+    "notes": "The rulebook says '200+' Hero Points — the exact budget for Iconic heroes above 200 HP is at GM discretion. Flag for review.",
+    "needs_review": true
+  }
+]
