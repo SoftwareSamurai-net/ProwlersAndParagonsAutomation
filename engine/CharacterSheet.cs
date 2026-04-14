@@ -64,4 +64,13 @@ public class CharacterSheet
 
     public bool HasPower(string powerId) =>
         SelectedPowers.Any(p => p.PowerId == powerId);
+
+    // ── Narrative & flavour (CLI-facing, not used by engine logic) ────────
+
+    public string Name { get; set; } = "";
+    public string Appearance { get; set; } = "";
+    public string Motivation { get; set; } = "";
+    public string Quote { get; set; } = "";
+    public List<string> Connections { get; } = [];
+    public List<string> Gear { get; } = [];
 }
