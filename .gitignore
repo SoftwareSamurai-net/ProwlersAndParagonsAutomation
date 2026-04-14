@@ -1,0 +1,9 @@
+bin/
+obj/
+/packages/
+riderModule.iml
+/_ReSharper.Caches/
+.claude/
+
+# Source PDFs — obtain separately; not tracked in version control
+docs/**/*.pdf
