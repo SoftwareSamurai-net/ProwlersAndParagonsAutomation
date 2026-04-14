@@ -124,8 +124,9 @@ public sealed class ProConSelector
     {
         var cost = p.CostModifier.HasValue
             ? $"+{p.CostModifier} HP"
-            : "variable: " + string.Join(" / ",
-                p.CostModifierRange!.Select(kv => $"{kv.Key} +{kv.Value}"));
+            : p.CostModifierRange is not null
+                ? "variable: " + string.Join(" / ", p.CostModifierRange.Select(kv => $"{kv.Key} +{kv.Value}"))
+                : "special";
         return $"{p.Name}  ({cost})";
     }
 
@@ -133,8 +134,9 @@ public sealed class ProConSelector
     {
         var cost = c.CostModifier.HasValue
             ? $"{c.CostModifier} HP"
-            : "variable: " + string.Join(" / ",
-                c.CostModifierRange!.Select(kv => $"{kv.Key} {kv.Value}"));
+            : c.CostModifierRange is not null
+                ? "variable: " + string.Join(" / ", c.CostModifierRange.Select(kv => $"{kv.Key} {kv.Value}"))
+                : "special";
         return $"{c.Name}  ({cost})";
     }
 }
