@@ -53,6 +53,7 @@ public sealed class CharacterValidator
         }
 
         CheckFlawCount(sheet, issues);
+        CheckFlawIds(sheet, issues);
         CheckPowerCosts(sheet, issues);
         CheckNeedsReviewTraits(sheet, issues);
         CheckLightningReflexes(sheet, issues);
@@ -123,6 +124,16 @@ public sealed class CharacterValidator
             issues.Add(new(ValidationSeverity.Error, "FLAW_MAX_EXCEEDED",
                 $"Characters may have at most {flawRules.MaxAtCreation} flaws at creation " +
                 $"(currently {count}). Additional flaws each cost {flawRules.ExtraFlawCostHp} HP."));
+    }
+
+    private void CheckFlawIds(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        foreach (var sf in sheet.Flaws)
+        {
+            if (_rules.GetFlaw(sf.FlawId) is null)
+                issues.Add(new(ValidationSeverity.Error, "UNKNOWN_FLAW",
+                    $"Flaw '{sf.FlawId}' is not defined in flaws.json."));
+        }
     }
 
     private void CheckPowerCosts(CharacterSheet sheet, List<ValidationIssue> issues)

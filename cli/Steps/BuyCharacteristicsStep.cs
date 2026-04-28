@@ -135,60 +135,181 @@ public sealed class BuyCharacteristicsStep : IWizardStep
         AnsiConsole.Write(new Rule("[bold]Flaws[/]").LeftJustified());
 
         var flawRules = rules.CreationRules.FlawRules;
-        AnsiConsole.MarkupLine($"[grey]Flaws are narrative disadvantages. " +
-                               $"You must choose [bold]{flawRules.MinAtCreation}–{flawRules.MaxAtCreation}[/] " +
-                               $"at creation (max ever: {flawRules.MaxEver}). " +
-                               $"Each flaw beyond {flawRules.MaxAtCreation} costs {flawRules.ExtraFlawCostHp} HP.[/]");
-        AnsiConsole.MarkupLine("[grey]Enter flaws as free text — there is no flaws.json yet.[/]");
+        AnsiConsole.MarkupLine(
+            $"[grey]Flaws are narrative disadvantages that earn you Resolve when they cause trouble. " +
+            $"Choose [bold]{flawRules.MinAtCreation}–{flawRules.MaxAtCreation}[/] at creation " +
+            $"(max ever: {flawRules.MaxEver}). " +
+            $"Each flaw beyond {flawRules.MaxAtCreation} costs {flawRules.ExtraFlawCostHp} HP.[/]");
+        AnsiConsole.MarkupLine(
+            "[grey][[C]] = Condition (always in effect, +1 Resolve/issue)   " +
+            "[[PH]] = Plot Hook (GM-triggered, +1 Resolve/issue)[/]");
         AnsiConsole.WriteLine();
 
         while (true)
         {
-            AnsiConsole.MarkupLine($"[grey]Flaws so far ({sheet.Flaws.Count}):[/] " +
-                (sheet.Flaws.Count == 0
-                    ? "[grey]none[/]"
-                    : string.Join(", ", sheet.Flaws.Select(Markup.Escape))));
+            RenderFlawSummary(sheet, rules);
+            AnsiConsole.WriteLine();
 
             var canFinish = sheet.Flaws.Count >= flawRules.MinAtCreation;
             var atMax     = sheet.Flaws.Count >= flawRules.MaxAtCreation;
 
             var menuChoices = new List<string>();
-            menuChoices.Add("Add a flaw");
-            if (sheet.Flaws.Count > 0) menuChoices.Add("Remove last flaw");
+            if (!atMax)               menuChoices.Add("Add a flaw");
+            if (sheet.Flaws.Count > 0) menuChoices.Add("Remove a flaw");
             if (canFinish)             menuChoices.Add("Done — accept flaws");
+
+            var title = atMax
+                ? "[yellow]Maximum flaws at creation reached.[/]"
+                : $"Flaw menu ({sheet.Flaws.Count}/{flawRules.MaxAtCreation}):";
 
             var action = AnsiConsole.Prompt(
                 new SelectionPrompt<string>()
-                    .Title(atMax
-                        ? "[yellow]Maximum flaws at creation reached.[/]"
-                        : "Flaw menu:")
-                    .AddChoices(atMax
-                        ? new[] { "Remove last flaw", "Done — accept flaws" }
-                        : menuChoices));
+                    .Title(title)
+                    .AddChoices(menuChoices));
 
             if (action == "Done — accept flaws") break;
 
-            if (action == "Remove last flaw")
+            if (action == "Remove a flaw")
             {
-                var removed = sheet.Flaws[^1];
-                sheet.Flaws.RemoveAt(sheet.Flaws.Count - 1);
-                AnsiConsole.MarkupLine($"[red]Removed:[/] {Markup.Escape(removed)}");
+                RemoveFlaw(sheet, rules);
                 continue;
             }
 
             // Add a flaw
-            var flaw = AnsiConsole.Prompt(
-                new TextPrompt<string>("Flaw description:")
-                    .Validate(f => !string.IsNullOrWhiteSpace(f)
-                        ? Spectre.Console.ValidationResult.Success()
-                        : Spectre.Console.ValidationResult.Error("Flaw cannot be empty.")));
-
-            sheet.Flaws.Add(flaw.Trim());
-            AnsiConsole.MarkupLine($"  [yellow]Flaw added:[/] {Markup.Escape(flaw.Trim())}");
+            AddFlaw(sheet, rules);
         }
 
-        AnsiConsole.MarkupLine($"[green]✓[/] {sheet.Flaws.Count} flaw(s) set.");
+        AnsiConsole.MarkupLine($"[green]✓[/] {sheet.Flaws.Count} flaw(s) selected.");
     }
+
+    private static void AddFlaw(CharacterSheet sheet, RulesRepository rules)
+    {
+        var selectedIds = sheet.Flaws.Select(f => f.FlawId).ToHashSet();
+        var available   = rules.Flaws
+            .Where(f => !selectedIds.Contains(f.Id))
+            .OrderBy(f => f.Name)
+            .ToList();
+
+        if (available.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[grey]All flaws already selected.[/]");
+            return;
+        }
+
+        var choices = available
+            .Select(f => $"{f.Name}{FlawTypeSuffix(f.FlawType)}")
+            .Prepend("-- Back --")
+            .ToList();
+
+        var pick = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Choose a flaw:")
+                .EnableSearch()
+                .AddChoices(choices));
+
+        if (pick == "-- Back --") return;
+
+        var flaw = available[choices.IndexOf(pick) - 1]; // -1 for Back
+
+        // Show description
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule($"[bold]{Markup.Escape(flaw.Name)}[/]").LeftJustified());
+        AnsiConsole.MarkupLine(Markup.Escape(flaw.Description));
+        AnsiConsole.WriteLine();
+
+        // Prompt for narrative detail if required
+        string? narrativeDetail = null;
+        if (flaw.NarrativeConstraint is not null)
+        {
+            AnsiConsole.MarkupLine($"[yellow]Required detail:[/] {Markup.Escape(flaw.NarrativeConstraint)}");
+            narrativeDetail = AnsiConsole.Prompt(
+                new TextPrompt<string>("Your answer:")
+                    .Validate(v => !string.IsNullOrWhiteSpace(v)
+                        ? Spectre.Console.ValidationResult.Success()
+                        : Spectre.Console.ValidationResult.Error("Cannot be empty.")));
+        }
+
+        sheet.Flaws.Add(new SelectedFlaw(flaw.Id, narrativeDetail?.Trim()));
+        AnsiConsole.MarkupLine($"  [green]Added:[/] [bold]{Markup.Escape(flaw.Name)}[/]" +
+            (narrativeDetail is not null ? $" — {Markup.Escape(narrativeDetail.Trim())}" : ""));
+    }
+
+    private static void RemoveFlaw(CharacterSheet sheet, RulesRepository rules)
+    {
+        if (sheet.Flaws.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[grey]No flaws to remove.[/]");
+            return;
+        }
+
+        var choices = sheet.Flaws
+            .Select(sf =>
+            {
+                var flaw = rules.GetFlaw(sf.FlawId);
+                var label = flaw?.Name ?? sf.FlawId;
+                return sf.NarrativeDetail is not null
+                    ? $"{label} — {sf.NarrativeDetail}"
+                    : label;
+            })
+            .Prepend("-- Cancel --")
+            .ToList();
+
+        var pick = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Remove which flaw?")
+                .AddChoices(choices));
+
+        if (pick == "-- Cancel --") return;
+
+        var index = choices.IndexOf(pick) - 1;
+        var removed = sheet.Flaws[index];
+        sheet.Flaws.RemoveAt(index);
+
+        var removedName = rules.GetFlaw(removed.FlawId)?.Name ?? removed.FlawId;
+        AnsiConsole.MarkupLine($"[red]Removed:[/] {Markup.Escape(removedName)}");
+    }
+
+    private static void RenderFlawSummary(CharacterSheet sheet, RulesRepository rules)
+    {
+        if (sheet.Flaws.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[grey]No flaws selected yet.[/]");
+            return;
+        }
+
+        var table = new Table()
+            .BorderColor(Color.Grey)
+            .AddColumn("Flaw")
+            .AddColumn("Type")
+            .AddColumn("Detail");
+
+        foreach (var sf in sheet.Flaws)
+        {
+            var flaw = rules.GetFlaw(sf.FlawId);
+            table.AddRow(
+                Markup.Escape(flaw?.Name ?? sf.FlawId),
+                FlawTypeDisplay(flaw?.FlawType ?? "regular"),
+                sf.NarrativeDetail is not null ? Markup.Escape(sf.NarrativeDetail) : "[grey]—[/]");
+        }
+
+        AnsiConsole.Write(table);
+    }
+
+    private static string FlawTypeSuffix(string flawType) => flawType switch
+    {
+        "condition"              => " [C]",
+        "plot_hook"              => " [PH]",
+        "plot_hook_and_condition" => " [PH+C]",
+        _                        => ""
+    };
+
+    private static string FlawTypeDisplay(string flawType) => flawType switch
+    {
+        "condition"              => "[blue]Condition[/]",
+        "plot_hook"              => "[yellow]Plot Hook[/]",
+        "plot_hook_and_condition" => "[yellow]Plot Hook[/]+[blue]Condition[/]",
+        _                        => "[grey]Regular[/]"
+    };
 
     // ── Rendering helpers ──────────────────────────────────────────────────
 

@@ -31,7 +31,7 @@ public sealed class CharacterSheetExporter
         WriteAbilities(sb, sheet, rules);
         WriteTalents(sb, sheet, rules);
         WritePowers(sb, sheet, rules, costs, derived);
-        WriteFlaws(sb, sheet);
+        WriteFlaws(sb, sheet, rules);
         WriteGear(sb, sheet);
         WriteDerived(sb, sheet, derived);
         WriteNarrative(sb, sheet);
@@ -120,14 +120,31 @@ public sealed class CharacterSheetExporter
         sb.AppendLine();
     }
 
-    private static void WriteFlaws(StringBuilder sb, CharacterSheet sheet)
+    private static void WriteFlaws(StringBuilder sb, CharacterSheet sheet, RulesRepository rules)
     {
         sb.AppendLine("─── FLAWS ──────────────────────────────────────────────────");
         if (sheet.Flaws.Count == 0)
+        {
             sb.AppendLine("  (none)");
+        }
         else
-            foreach (var flaw in sheet.Flaws)
-                sb.AppendLine($"  • {flaw}");
+        {
+            foreach (var sf in sheet.Flaws)
+            {
+                var flaw = rules.GetFlaw(sf.FlawId);
+                var name = flaw?.Name ?? sf.FlawId;
+                var type = flaw?.FlawType switch
+                {
+                    "condition"               => " [Condition]",
+                    "plot_hook"               => " [Plot Hook]",
+                    "plot_hook_and_condition" => " [Plot Hook + Condition]",
+                    _                         => ""
+                };
+                sb.AppendLine($"  • {name}{type}");
+                if (sf.NarrativeDetail is not null)
+                    sb.AppendLine($"      Detail: {sf.NarrativeDetail}");
+            }
+        }
         sb.AppendLine();
     }
 

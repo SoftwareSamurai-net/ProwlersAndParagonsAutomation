@@ -1,6 +1,12 @@
 namespace ProwlersAndParagonsAutomation.Engine;
 
 /// <summary>
+/// Records a flaw selected for a character, pairing the flaw id with any
+/// narrative detail required by the flaw's NarrativeConstraint.
+/// </summary>
+public record SelectedFlaw(string FlawId, string? NarrativeDetail = null);
+
+/// <summary>
 /// Records which variant of a variable-cost pro/con the player has chosen.
 /// For a fixed-cost pro/con, VariantKey is null.
 /// For a variable-cost one (e.g. Charges, Area/Burst), VariantKey is the
@@ -48,8 +54,8 @@ public class CharacterSheet
     /// <summary>Powers on this character sheet.</summary>
     public List<SelectedPower> SelectedPowers { get; } = new();
 
-    /// <summary>Flaw ids selected for this character (min 1, max 3 at creation).</summary>
-    public List<string> Flaws { get; } = new();
+    /// <summary>Flaws selected for this character (min 1, max 3 at creation).</summary>
+    public List<SelectedFlaw> Flaws { get; } = new();
 
     // ── Convenience helpers ───────────────────────────────────────────────
 
