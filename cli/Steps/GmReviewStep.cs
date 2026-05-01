@@ -12,6 +12,7 @@ public sealed class GmReviewStep : IWizardStep
     private readonly string _projectRoot;
 
     public string StepId => "gm_review";
+    public string DisplayName => "GM Review";
 
     public GmReviewStep(CharacterValidator validator, CharacterSheetExporter exporter, string projectRoot)
     {
@@ -29,6 +30,7 @@ public sealed class GmReviewStep : IWizardStep
         RenderAbilities(sheet, rules);
         RenderTalents(sheet, rules);
         RenderPowers(sheet, rules, costs, derived);
+        RenderPerks(sheet, rules, costs);
         RenderDerived(sheet, derived);
         RenderNarrative(sheet, rules);
 
@@ -44,9 +46,10 @@ public sealed class GmReviewStep : IWizardStep
         AnsiConsole.Status()
             .Start("Saving character sheet…", ctx =>
             {
-                var path = _exporter.Export(sheet, rules, costs, derived, result, _projectRoot);
+                var (txtPath, jsonPath) = _exporter.Export(sheet, rules, costs, derived, result, _projectRoot);
                 ctx.Status("Done");
-                AnsiConsole.MarkupLine($"[green]✓ Saved:[/] {Markup.Escape(path)}");
+                AnsiConsole.MarkupLine($"[green]✓ Text:[/] {Markup.Escape(txtPath)}");
+                AnsiConsole.MarkupLine($"[green]✓ JSON:[/] {Markup.Escape(jsonPath)}");
             });
 
         AnsiConsole.WriteLine();
@@ -137,6 +140,32 @@ public sealed class GmReviewStep : IWizardStep
         AnsiConsole.Write(table);
     }
 
+    private static void RenderPerks(CharacterSheet sheet, RulesRepository rules, CostCalculator costs)
+    {
+        if (sheet.Perks.Count == 0) return;
+
+        var table = new Table()
+            .Title("[bold]PERKS[/]")
+            .BorderColor(Color.Grey)
+            .AddColumn("Perk")
+            .AddColumn(new TableColumn("Units").Centered())
+            .AddColumn(new TableColumn("HP Cost").Centered())
+            .AddColumn("Detail");
+
+        foreach (var sp in sheet.Perks)
+        {
+            var perk = rules.GetPerk(sp.PerkId);
+            var cost = costs.PerkCost(sp);
+            table.AddRow(
+                Markup.Escape(perk?.Name ?? sp.PerkId),
+                sp.Units > 1 ? sp.Units.ToString() : "[grey]—[/]",
+                $"[bold]{cost}[/]",
+                sp.NarrativeDetail is not null ? Markup.Escape(sp.NarrativeDetail) : "[grey]—[/]");
+        }
+
+        AnsiConsole.Write(table);
+    }
+
     private static void RenderDerived(CharacterSheet sheet, DerivedStatsCalculator derived)
     {
         var table = new Table()
@@ -145,9 +174,9 @@ public sealed class GmReviewStep : IWizardStep
             .AddColumn("Stat")
             .AddColumn(new TableColumn("Value").Centered());
 
-        table.AddRow("[bold]Edge[/]",   $"[bold green]{derived.CalculateEdge(sheet)}[/]");
-        table.AddRow("[bold]Health[/]", $"[bold green]{derived.CalculateHealth(sheet)}[/]");
-        table.AddRow("[bold]Resolve[/]", "[grey]see Chapter 5[/]");
+        table.AddRow("[bold]Edge[/]",    $"[bold green]{derived.CalculateEdge(sheet)}[/]");
+        table.AddRow("[bold]Health[/]",  $"[bold green]{derived.CalculateHealth(sheet)}[/]");
+        table.AddRow("[bold]Resolve[/]", $"[bold green]{derived.CalculateResolve(sheet)}[/]");
 
         AnsiConsole.Write(table);
     }

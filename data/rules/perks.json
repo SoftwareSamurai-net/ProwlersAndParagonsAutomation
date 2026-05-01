@@ -1,0 +1,123 @@
+[
+  {
+    "id": "authority",
+    "name": "Authority",
+    "cost_type": "flat",
+    "cost": 3,
+    "description": "You have more authority, rights, or social power than the average person. This could include access to secret government installations, diplomatic immunity, top secret security clearance, authority to arrest and detain people, or just being a member of the nobility or ruling class.",
+    "narrative_constraint": null,
+    "needs_review": false
+  },
+  {
+    "id": "contacts",
+    "name": "Contacts",
+    "cost_type": "per_unit",
+    "cost_per_unit": 1,
+    "unit_label": "contact type",
+    "description": "You know people who can provide you with information and the occasional favor. Each Hero Point spent gives you one type of contact. Common types include: academic, business, criminal, legal, media, military, police, political, and scientific.",
+    "narrative_constraint": "Name each type of contact you are purchasing.",
+    "needs_review": false
+  },
+  {
+    "id": "fame",
+    "name": "Fame",
+    "cost_type": "flat",
+    "cost": 3,
+    "description": "You are famous. People who recognize you generally react favorably, and some will fall all over themselves trying to get your attention, an autograph, or a selfie with you. If you have a secret identity, you must decide whether this Perk applies to your civilian identity or your heroic alter ego.",
+    "narrative_constraint": null,
+    "needs_review": false
+  },
+  {
+    "id": "fourth_wall",
+    "name": "Fourth Wall",
+    "cost_type": "flat",
+    "cost": 6,
+    "description": "You believe you are a character in a comic book (and you might be right). You often break the fourth wall to interact directly with the audience. Any time you break the fourth wall and crack a joke that gets everyone at the table laughing, you earn 1 point of Resolve. You can only do this once per scene. Best reserved for comedic or lighthearted games.",
+    "narrative_constraint": null,
+    "needs_review": false
+  },
+  {
+    "id": "headquarters",
+    "name": "Headquarters",
+    "cost_type": "per_unit",
+    "cost_per_unit": 1,
+    "unit_label": "Hero Point (= 3 Base Points)",
+    "description": "You have a base of operations or headquarters. Every Hero Point you spend on this Perk gives you 3 Base Points to spend on your headquarters. Multiple Heroes can apply their Base Points to the same headquarters. See Chapter 6 for rules on creating headquarters.",
+    "narrative_constraint": "Describe your headquarters concept (location, type, theme).",
+    "needs_review": false
+  },
+  {
+    "id": "infamy",
+    "name": "Infamy",
+    "cost_type": "flat",
+    "cost": 3,
+    "description": "You are infamous among the criminal underworld, known as a dangerous customer and someone to be feared. Ordinary criminals are afraid of you and may fall all over themselves trying to appease you, especially when you apply the right kind of pressure. Supervillains are usually less impressed.",
+    "narrative_constraint": null,
+    "needs_review": false
+  },
+  {
+    "id": "patron",
+    "name": "Patron",
+    "cost_type": "flat",
+    "cost": 3,
+    "description": "You are connected to a person, group, or organization that provides you with information, equipment, funding, and support for your heroic activities. Common patrons include government organizations, rebel groups, and wealthy humanitarians who just love adopting teenagers with superpowers.",
+    "narrative_constraint": "Describe your patron (who they are, what they provide, and what they expect in return).",
+    "needs_review": false
+  },
+  {
+    "id": "pet_sidekick",
+    "name": "Pet/Sidekick",
+    "cost_type": "per_unit",
+    "cost_per_unit": 1,
+    "unit_label": "Hero Point (= 10 Hero Points for companion)",
+    "description": "You have a pet or sidekick. Every Hero Point you spend on this Perk gives your companion 10 Hero Points to build with. Your companion can't have more than half your total Hero Points, and they must abide by the game's Trait Cap. Your companion earns 1 Hero Point for every 2 that you earn. Pets and sidekicks lack Resolve, but you can spend your Resolve on their behalf.",
+    "narrative_constraint": "Describe your companion (who they are, their role, and their concept).",
+    "needs_review": false
+  },
+  {
+    "id": "reputation",
+    "name": "Reputation",
+    "cost_type": "flat",
+    "cost": 3,
+    "description": "You have a reputation that works to your benefit — authority, credibility, or respect in a particular arena. For example, in your civilian life, you might be an attorney known to be an absolute terror in the courtroom. If you have a secret identity, you must decide whether this Perk applies to your civilian identity or your heroic alter ego.",
+    "narrative_constraint": "Describe the specific arena in which you have a reputation.",
+    "needs_review": false
+  },
+  {
+    "id": "resources",
+    "name": "Resources",
+    "cost_type": "flat",
+    "cost": 1,
+    "description": "You have access to an impressive supply of equipment of one sort or another — military weapons, ninja gear, tricked-out vehicles, etc. This often means you know someone who gets you these things, or you stumbled across a hidden cache. It does not mean you are rich (for that, see Wealth).",
+    "narrative_constraint": "Describe the nature of your resources and how you access them.",
+    "needs_review": false
+  },
+  {
+    "id": "unique_vehicle",
+    "name": "Unique Vehicle",
+    "cost_type": "per_unit",
+    "cost_per_unit": 1,
+    "unit_label": "Hero Point (= 25 Vehicle Points)",
+    "description": "You have one or more unique vehicles. Every Hero Point you spend on this Perk gives you 25 Vehicle Points to spend on your vehicles. See Chapter 6 for rules on creating unique vehicles.",
+    "narrative_constraint": "Describe your vehicle concept (type, name, theme).",
+    "needs_review": false
+  },
+  {
+    "id": "wealth",
+    "name": "Wealth",
+    "cost_type": "flat",
+    "cost": 3,
+    "description": "You are rich. You aren't comfortably well-off — you are truly wealthy. You can buy almost anything you want, legal or otherwise. You probably own several homes, have multiple vehicles, and employ at least a few domestic servants. If you are a tech-based Hero, you can easily fund your extracurricular activities out of your own pocket.",
+    "narrative_constraint": null,
+    "needs_review": false
+  },
+  {
+    "id": "great_wealth",
+    "name": "Great Wealth",
+    "cost_type": "flat",
+    "cost": 6,
+    "description": "You are one of the wealthiest people in the world. At this level, money is almost meaningless. Not only can you buy whatever you want, but you can spend 1 point of Resolve once per issue to make a truly absurd purchase — like buying an island or a major corporation. GMs may want to restrict Great Wealth, as characters with this much money can spend their way around most problems.",
+    "narrative_constraint": null,
+    "needs_review": false
+  }
+]

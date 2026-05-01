@@ -37,9 +37,19 @@ data/rules/   →   engine/   →   cli/
 |---|---|
 | `CharacterSheet` | Mutable wizard state — all purchases accumulate here |
 | `RulesRepository` | Lazy JSON loader with snake_case deserialization and cached lookup dictionaries |
-| `CostCalculator` | HP cost logic — `PowerCost()`, `TotalCost()`; all methods are pure |
-| `DerivedStatsCalculator` | Edge, Health, baseline/effective rank calculations |
+| `CostCalculator` | HP cost logic — `PowerCost()`, `PerkCost()`, `TotalCost()`; all methods are pure |
+| `DerivedStatsCalculator` | Edge, Health, Resolve, baseline/effective rank calculations |
 | `CharacterValidator` | Returns `ValidationResult` with `Error`/`Warning` severity issues |
+
+### Resolve formula
+
+```
+starting_resolve = max(0, (TraitCap − highestRelevantRank) × 2)
+                 + Determination purchased ranks
+                 + count of Condition/Plot Hook flaws
+```
+
+Highest relevant rank = max(all ability ranks, effective ranks of powers where `affects_resolve == true`). Talents excluded. Movement and Sensory category powers excluded by default; `PowerModel.AffectsResolve` overrides this per-power (`super_speed` is explicitly true; 11 non-combat Utility/Special powers are explicitly false).
 
 ### Power cost formula
 
@@ -63,6 +73,10 @@ Powers with a `Prerequisite` record get a free rank derived from an ability:
 
 `RulesRepository.LoadPowers()` patches `FixedValue = 3` onto `baseline_fixed` powers post-deserialisation so `DerivedStatsCalculator` can consume it without string parsing.
 
+### Perk cost formula
+
+Flat-cost perks: pay `Cost` HP. Per-unit perks: pay `CostPerUnit × Units` HP. `SelectedPerk(PerkId, Units, NarrativeDetail?)` — Units is always 1 for flat perks.
+
 ### Wizard flow
 
 `WizardOrchestrator.Run()` iterates `_steps` in order, rendering the HP budget panel before each step:
@@ -83,7 +97,10 @@ Powers with a `Prerequisite` record get a free rank derived from an ability:
 
 ## Known data gaps (roadmap)
 
-- `flaws.json` — structured flaw definitions (currently free-text in wizard)
-- Resolve formula — in Chapter 5, not yet extracted
+- Back-navigation between wizard steps
+- JSON character sheet export (alongside `.txt`)
+- Unit tests for the engine layer
+- Verify all `needs_review` entries against PDF
 - Lightning Reflexes Edge bonus may be flat +6 rather than +2/rank (`needs_review`)
 - Iconic tier HP budget is "200+" with no stated upper bound (`needs_review`)
+- Determination power Resolve-per-rank ratio unverified (`needs_review`)

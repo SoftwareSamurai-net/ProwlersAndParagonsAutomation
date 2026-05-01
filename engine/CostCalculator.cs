@@ -83,6 +83,31 @@ public sealed class CostCalculator
         return sheet.SelectedPowers.Sum(PowerCost);
     }
 
+    // ── Perks ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// HP cost for a single selected perk.
+    /// flat perks cost their fixed Cost value.
+    /// per_unit perks cost CostPerUnit × Units.
+    /// </summary>
+    public int PerkCost(SelectedPerk selection)
+    {
+        var perk = _rules.GetPerk(selection.PerkId)
+                   ?? throw new InvalidOperationException($"Unknown perk id '{selection.PerkId}'.");
+
+        return perk.CostType switch
+        {
+            "flat"     => perk.Cost ?? 0,
+            "per_unit" => (perk.CostPerUnit ?? 1) * selection.Units,
+            _          => throw new InvalidOperationException(
+                              $"Unknown cost_type '{perk.CostType}' on perk '{perk.Id}'.")
+        };
+    }
+
+    /// <summary>Total HP spent on all selected perks.</summary>
+    public int TotalPerksCost(CharacterSheet sheet) =>
+        sheet.Perks.Sum(PerkCost);
+
     // ── Total ────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -94,7 +119,8 @@ public sealed class CostCalculator
         return PackageCost(sheet)
              + AbilityCost(sheet)
              + TalentCost(sheet)
-             + TotalPowersCost(sheet);
+             + TotalPowersCost(sheet)
+             + TotalPerksCost(sheet);
     }
 
     // ── Private ──────────────────────────────────────────────────────────

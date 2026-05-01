@@ -1,6 +1,12 @@
 namespace ProwlersAndParagonsAutomation.Engine;
 
 /// <summary>
+/// Records a perk selected for a character. Units is always 1 for flat-cost perks;
+/// for per_unit perks it holds the quantity purchased (e.g. number of contact types).
+/// </summary>
+public record SelectedPerk(string PerkId, int Units = 1, string? NarrativeDetail = null);
+
+/// <summary>
 /// Records a flaw selected for a character, pairing the flaw id with any
 /// narrative detail required by the flaw's NarrativeConstraint.
 /// </summary>
@@ -53,6 +59,9 @@ public class CharacterSheet
 
     /// <summary>Powers on this character sheet.</summary>
     public List<SelectedPower> SelectedPowers { get; } = new();
+
+    /// <summary>Perks purchased for this character.</summary>
+    public List<SelectedPerk> Perks { get; } = new();
 
     /// <summary>Flaws selected for this character (min 1, max 3 at creation).</summary>
     public List<SelectedFlaw> Flaws { get; } = new();

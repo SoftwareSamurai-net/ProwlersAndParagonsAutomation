@@ -64,6 +64,75 @@ public sealed class DerivedStatsCalculator
         return Math.Max(mightHealth, willpowerHealth);
     }
 
+    // ── Resolve ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Starting Resolve at the beginning of an issue.
+    ///
+    /// Formula (Chapter 5):
+    ///   base = max(0, (TraitCap - highestRelevantRank) × 2)
+    ///   + Determination purchased ranks (1 per rank, needs_review)
+    ///   + 1 per Condition or Plot Hook flaw
+    ///
+    /// Relevant ranks: all Ability ranks; Power effective ranks where the power
+    /// affects Resolve. Talents excluded. Movement and Sensory category powers
+    /// excluded by default; explicit overrides via PowerModel.AffectsResolve.
+    /// </summary>
+    public int CalculateResolve(CharacterSheet sheet)
+    {
+        if (sheet.SelectedTierId is null) return 0;
+        var tier = _rules.GetTier(sheet.SelectedTierId);
+        if (tier is null) return 0;
+
+        var traitCap = tier.TraitCapRank;
+
+        var highestAbility = sheet.AbilityRanks.Values.DefaultIfEmpty(0).Max();
+
+        var highestPower = sheet.SelectedPowers
+            .Select(sp =>
+            {
+                var power = _rules.GetPower(sp.PowerId);
+                if (power is null || !ResolveAffectedByPower(power)) return 0;
+                return GetEffectiveRank(sp, sheet);
+            })
+            .DefaultIfEmpty(0)
+            .Max();
+
+        var highestRelevant = Math.Max(highestAbility, highestPower);
+        var baseResolve     = Math.Max(0, (traitCap - highestRelevant) * 2);
+
+        // Determination: +1 per purchased rank (needs_review — verify ratio)
+        var determination      = sheet.GetPower("determination");
+        var determinationBonus = determination?.PurchasedRanks ?? 0;
+
+        // Condition / Plot Hook flaws: +1 each at start of every issue
+        var flawBonus = sheet.Flaws.Count(sf =>
+        {
+            var flaw = _rules.GetFlaw(sf.FlawId);
+            return flaw?.FlawType is "condition" or "plot_hook" or "plot_hook_and_condition";
+        });
+
+        return baseResolve + determinationBonus + flawBonus;
+    }
+
+    /// <summary>
+    /// Returns whether a power's effective rank contributes to the Resolve calculation.
+    /// Movement and Sensory powers are excluded by default (cannot be used for
+    /// attack, defense, or to affect other characters/objects — Chapter 5).
+    /// An explicit AffectsResolve value on the model overrides the category default.
+    /// </summary>
+    public static bool ResolveAffectedByPower(PowerModel power)
+    {
+        if (power.AffectsResolve.HasValue) return power.AffectsResolve.Value;
+
+        return power.Category switch
+        {
+            "Movement" => false,
+            "Sensory"  => false,
+            _          => true
+        };
+    }
+
     // ── Baseline rank ─────────────────────────────────────────────────────
 
     /// <summary>

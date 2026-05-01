@@ -8,6 +8,7 @@ namespace ProwlersAndParagonsAutomation.Cli.Steps;
 public sealed class BuyCharacteristicsStep : IWizardStep
 {
     public string StepId => "buy_characteristics";
+    public string DisplayName => "Buy Characteristics";
 
     public void Execute(CharacterSheet sheet, RulesRepository rules,
         CostCalculator costs, DerivedStatsCalculator derived)
@@ -21,6 +22,7 @@ public sealed class BuyCharacteristicsStep : IWizardStep
         AnsiConsole.Write(new Rule("[bold]Powers[/]").LeftJustified());
         new PowerBrowser(rules, costs, derived).Run(sheet);
 
+        ChoosePerks(sheet, rules, costs);
         ChooseFlaws(sheet, rules);
     }
 
@@ -126,6 +128,189 @@ public sealed class BuyCharacteristicsStep : IWizardStep
         var sign  = delta >= 0 ? "+" : "";
         AnsiConsole.MarkupLine($"  [green]{Markup.Escape(label)}[/] → {newRank}d  " +
                                $"([grey]{sign}{delta}d[/])");
+    }
+
+    // ── Perks ─────────────────────────────────────────────────────────────
+
+    private static void ChoosePerks(CharacterSheet sheet, RulesRepository rules, CostCalculator costs)
+    {
+        AnsiConsole.Write(new Rule("[bold]Perks[/]").LeftJustified());
+        AnsiConsole.MarkupLine("[grey]Perks are social advantages from the world around you. " +
+                               "They have no ranks and don't take Pros or Cons. " +
+                               "Perks are optional — skip if you don't want any.[/]");
+        AnsiConsole.WriteLine();
+
+        while (true)
+        {
+            RenderPerkSummary(sheet, rules, costs);
+            AnsiConsole.WriteLine();
+
+            var action = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title("Perk menu:")
+                    .AddChoices(BuildPerkMenuChoices(sheet)));
+
+            if (action == "Done — finish perks") break;
+
+            if (action == "Remove a perk")
+            {
+                RemovePerk(sheet, rules, costs);
+                continue;
+            }
+
+            AddPerk(sheet, rules, costs);
+        }
+
+        var total = costs.TotalPerksCost(sheet);
+        AnsiConsole.MarkupLine($"[green]✓[/] {sheet.Perks.Count} perk(s) selected — {total} HP.");
+    }
+
+    private static IEnumerable<string> BuildPerkMenuChoices(CharacterSheet sheet)
+    {
+        yield return "Add a perk";
+        if (sheet.Perks.Count > 0) yield return "Remove a perk";
+        yield return "Done — finish perks";
+    }
+
+    private static void AddPerk(CharacterSheet sheet, RulesRepository rules, CostCalculator costs)
+    {
+        var selectedIds = sheet.Perks.Select(p => p.PerkId).ToHashSet();
+        var available   = rules.Perks
+            .Where(p => !selectedIds.Contains(p.Id))
+            .OrderBy(p => p.Name)
+            .ToList();
+
+        if (available.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[grey]All perks already selected.[/]");
+            return;
+        }
+
+        var choices = available
+            .Select(p => PerkLabel(p))
+            .Prepend("-- Back --")
+            .ToList();
+
+        var pick = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Choose a perk:")
+                .EnableSearch()
+                .AddChoices(choices));
+
+        if (pick == "-- Back --") return;
+
+        var perk = available[choices.IndexOf(pick) - 1];
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.Write(new Rule($"[bold]{Markup.Escape(perk.Name)}[/]").LeftJustified());
+        AnsiConsole.MarkupLine(Markup.Escape(perk.Description));
+        AnsiConsole.WriteLine();
+
+        int units = 1;
+        if (perk.CostType == "per_unit")
+        {
+            var unitLabel = perk.UnitLabel ?? "unit";
+            AnsiConsole.MarkupLine($"[grey]Cost: {perk.CostPerUnit} HP per {Markup.Escape(unitLabel)}[/]");
+            units = AnsiConsole.Prompt(
+                new TextPrompt<int>($"How many ({Markup.Escape(unitLabel)}s)?")
+                    .DefaultValue(1)
+                    .Validate(u => u >= 1
+                        ? Spectre.Console.ValidationResult.Success()
+                        : Spectre.Console.ValidationResult.Error("Must be at least 1.")));
+        }
+
+        string? narrativeDetail = null;
+        if (perk.NarrativeConstraint is not null)
+        {
+            AnsiConsole.MarkupLine($"[yellow]Required detail:[/] {Markup.Escape(perk.NarrativeConstraint)}");
+            narrativeDetail = AnsiConsole.Prompt(
+                new TextPrompt<string>("Your answer:")
+                    .Validate(v => !string.IsNullOrWhiteSpace(v)
+                        ? Spectre.Console.ValidationResult.Success()
+                        : Spectre.Console.ValidationResult.Error("Cannot be empty.")));
+        }
+
+        var selection = new SelectedPerk(perk.Id, units, narrativeDetail?.Trim());
+        sheet.Perks.Add(selection);
+
+        var cost = costs.PerkCost(selection);
+        AnsiConsole.MarkupLine($"  [green]Added:[/] [bold]{Markup.Escape(perk.Name)}[/]" +
+            (units > 1 ? $" ×{units}" : "") +
+            $" — [bold]{cost} HP[/]");
+    }
+
+    private static void RemovePerk(CharacterSheet sheet, RulesRepository rules, CostCalculator costs)
+    {
+        if (sheet.Perks.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[grey]No perks to remove.[/]");
+            return;
+        }
+
+        var choices = sheet.Perks
+            .Select(sp =>
+            {
+                var perk = rules.GetPerk(sp.PerkId);
+                var name = perk?.Name ?? sp.PerkId;
+                var cost = costs.PerkCost(sp);
+                return sp.Units > 1
+                    ? $"{name} ×{sp.Units} — {cost} HP"
+                    : $"{name} — {cost} HP";
+            })
+            .Prepend("-- Cancel --")
+            .ToList();
+
+        var pick = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Remove which perk?")
+                .AddChoices(choices));
+
+        if (pick == "-- Cancel --") return;
+
+        var index   = choices.IndexOf(pick) - 1;
+        var removed = sheet.Perks[index];
+        sheet.Perks.RemoveAt(index);
+
+        var removedName = rules.GetPerk(removed.PerkId)?.Name ?? removed.PerkId;
+        AnsiConsole.MarkupLine($"[red]Removed:[/] {Markup.Escape(removedName)}");
+    }
+
+    private static void RenderPerkSummary(CharacterSheet sheet, RulesRepository rules, CostCalculator costs)
+    {
+        if (sheet.Perks.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[grey]No perks selected yet.[/]");
+            return;
+        }
+
+        var table = new Table()
+            .BorderColor(Color.Grey)
+            .AddColumn("Perk")
+            .AddColumn(new TableColumn("Units").Centered())
+            .AddColumn(new TableColumn("HP Cost").Centered())
+            .AddColumn("Detail");
+
+        foreach (var sp in sheet.Perks)
+        {
+            var perk = rules.GetPerk(sp.PerkId);
+            var cost = costs.PerkCost(sp);
+            table.AddRow(
+                Markup.Escape(perk?.Name ?? sp.PerkId),
+                sp.Units > 1 ? sp.Units.ToString() : "[grey]—[/]",
+                $"[bold]{cost}[/]",
+                sp.NarrativeDetail is not null ? Markup.Escape(sp.NarrativeDetail) : "[grey]—[/]");
+        }
+
+        AnsiConsole.Write(table);
+        AnsiConsole.MarkupLine($"  [grey]Total perk cost: {costs.TotalPerksCost(sheet)} HP[/]");
+    }
+
+    private static string PerkLabel(PerkModel p)
+    {
+        var cost = p.CostType == "flat"
+            ? $"{p.Cost} HP"
+            : $"{p.CostPerUnit} HP/{p.UnitLabel ?? "unit"}";
+        return $"{p.Name}  [{cost}]";
     }
 
     // ── Flaws ─────────────────────────────────────────────────────────────

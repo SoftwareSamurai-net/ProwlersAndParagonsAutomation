@@ -71,9 +71,10 @@
       "notes": "avg() here means (A + B) / 2 rounded up. Use whichever pairing gives more Health."
     },
     "resolve": {
-      "formula": "See Chapter 5 (not yet extracted)",
-      "notes": "Resolve depends on how close Ability and Power ranks are to the Trait Cap. Lower ranks = more Resolve. Only Heroes have Resolve. Determination Power and certain Flaws (Plot Hooks, Conditions) grant extra starting Resolve.",
-      "needs_review": true
+      "formula": "max(0, (TraitCap - highestRelevantRank) * 2) + Determination ranks + Condition/PlotHook flaw count",
+      "resolve_table": { "trait_cap": 0, "trait_cap_minus_1": 2, "trait_cap_minus_2": 4, "trait_cap_minus_3": 6 },
+      "notes": "Uses highest of all Ability ranks and effective Power ranks that affect Resolve (Talents excluded; Movement and Sensory powers excluded by default). Determination adds +1/rank (needs_review). Each Condition or Plot Hook flaw adds +1. Only Heroes have Resolve.",
+      "needs_review": false
     }
   },
   "advancement": {

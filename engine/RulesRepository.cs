@@ -28,6 +28,7 @@ public sealed class RulesRepository
     private IReadOnlyList<ProModel>? _pros;
     private IReadOnlyList<ConModel>? _cons;
     private IReadOnlyList<FlawModel>? _flaws;
+    private IReadOnlyList<PerkModel>? _perks;
     private CreationRulesModel? _creationRules;
 
     // Lookup dictionaries (built on first use)
@@ -38,6 +39,7 @@ public sealed class RulesRepository
     private Dictionary<string, ProModel>? _proMap;
     private Dictionary<string, ConModel>? _conMap;
     private Dictionary<string, FlawModel>? _flawMap;
+    private Dictionary<string, PerkModel>? _perkMap;
 
     public RulesRepository(string dataRulesPath)
     {
@@ -74,6 +76,9 @@ public sealed class RulesRepository
     public IReadOnlyList<FlawModel> Flaws =>
         _flaws ??= Load<List<FlawModel>>("flaws.json");
 
+    public IReadOnlyList<PerkModel> Perks =>
+        _perks ??= Load<List<PerkModel>>("perks.json");
+
     public CreationRulesModel CreationRules =>
         _creationRules ??= Load<CreationRulesModel>("creation_rules.json");
 
@@ -99,6 +104,9 @@ public sealed class RulesRepository
 
     public FlawModel? GetFlaw(string id) =>
         (_flawMap ??= Flaws.ToDictionary(x => x.Id)).GetValueOrDefault(id);
+
+    public PerkModel? GetPerk(string id) =>
+        (_perkMap ??= Perks.ToDictionary(x => x.Id)).GetValueOrDefault(id);
 
     // ── Private helpers ───────────────────────────────────────────────────
 

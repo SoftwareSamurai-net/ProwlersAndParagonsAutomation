@@ -7,6 +7,7 @@ namespace ProwlersAndParagonsAutomation.Cli.Steps;
 public sealed class ChooseTierStep : IWizardStep
 {
     public string StepId => "choose_tier";
+    public string DisplayName => "Choose Tier";
 
     public void Execute(CharacterSheet sheet, RulesRepository rules,
         CostCalculator costs, DerivedStatsCalculator derived)
@@ -90,7 +91,11 @@ public sealed class ChooseTierStep : IWizardStep
                 .Title("Apply a starting package?")
                 .AddChoices(choices));
 
-        if (pkgPick.StartsWith("Skip")) return;
+        if (pkgPick.StartsWith("Skip"))
+        {
+            sheet.SelectedPackageId = null;
+            return;
+        }
 
         var selected = rules.CreationRules.OptionalPackages
             .First(p => pkgPick.StartsWith(p.Name));

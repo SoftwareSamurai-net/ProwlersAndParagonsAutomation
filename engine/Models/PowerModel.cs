@@ -25,4 +25,11 @@ public record PowerModel
     public IReadOnlyList<string> Tags { get; init; } = [];
     public bool NeedsReview { get; init; }
     public string? Notes { get; init; }
+
+    /// <summary>
+    /// Whether this power's effective rank counts toward the Resolve calculation.
+    /// Null means "use category default" (Movement and Sensory default to false; all others true).
+    /// Set explicitly in powers.json only for exceptions to the category rule.
+    /// </summary>
+    public bool? AffectsResolve { get; init; }
 }
