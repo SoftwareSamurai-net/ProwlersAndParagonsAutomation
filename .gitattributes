@@ -1,0 +1,19 @@
+# Normalise line endings so Windows checkouts and the Linux CI runners agree.
+# Text files are stored LF in the repository and checked out per-platform.
+* text=auto
+
+*.cs        text diff=csharp
+*.csproj    text
+*.sln       text eol=crlf
+*.json      text
+*.md        text
+*.yml       text
+*.yaml      text
+*.editorconfig text
+*.gitattributes text
+
+# Binary — never touch these.
+*.pdf       binary
+*.png       binary
+*.jpg       binary
+*.ico       binary
