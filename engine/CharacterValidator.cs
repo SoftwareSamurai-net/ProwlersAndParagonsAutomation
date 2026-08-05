@@ -1,3 +1,5 @@
+using ProwlersAndParagonsAutomation.Engine.Models;
+
 namespace ProwlersAndParagonsAutomation.Engine;
 
 public enum ValidationSeverity { Error, Warning }
@@ -70,7 +72,7 @@ public sealed class CharacterValidator
                 "No tier has been selected. Choose a tier before validating."));
     }
 
-    private void CheckHpBudget(CharacterSheet sheet, Engine.Models.TierModel tier, List<ValidationIssue> issues)
+    private void CheckHpBudget(CharacterSheet sheet, TierModel tier, List<ValidationIssue> issues)
     {
         var total = _costs.TotalCost(sheet);
         if (total > tier.HeroPoints)
@@ -79,7 +81,7 @@ public sealed class CharacterValidator
                 $"({total - tier.HeroPoints} HP over)."));
     }
 
-    private void CheckTraitCap(CharacterSheet sheet, Engine.Models.TierModel tier, List<ValidationIssue> issues)
+    private void CheckTraitCap(CharacterSheet sheet, TierModel tier, List<ValidationIssue> issues)
     {
         var cap = tier.TraitCapRank;
 
@@ -102,7 +104,7 @@ public sealed class CharacterValidator
         }
     }
 
-    private static void CheckIconicTier(Engine.Models.TierModel tier, List<ValidationIssue> issues)
+    private static void CheckIconicTier(TierModel tier, List<ValidationIssue> issues)
     {
         if (tier.NeedsReview || tier.Id == "iconic")
             issues.Add(new(ValidationSeverity.Warning, "ICONIC_TIER_OPEN_BUDGET",

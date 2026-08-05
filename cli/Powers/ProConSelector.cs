@@ -40,7 +40,7 @@ public sealed class ProConSelector
                     .Title("[grey]Add a Pro? (optional)[/]")
                     .AddChoices(choices));
 
-            if (pick.StartsWith("Done")) break;
+            if (pick.StartsWith("Done", StringComparison.Ordinal)) break;
 
             var proModel = available.First(p => FormatPro(p) == pick);
 
@@ -95,7 +95,7 @@ public sealed class ProConSelector
                     .Title("[grey]Add a Con? (optional)[/]")
                     .AddChoices(choices));
 
-            if (pick.StartsWith("Done")) break;
+            if (pick.StartsWith("Done", StringComparison.Ordinal)) break;
 
             var conModel = available.First(c => FormatCon(c) == pick);
 

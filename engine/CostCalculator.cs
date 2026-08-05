@@ -1,5 +1,3 @@
-using ProwlersAndParagonsAutomation.Engine.Models;
-
 namespace ProwlersAndParagonsAutomation.Engine;
 
 /// <summary>
