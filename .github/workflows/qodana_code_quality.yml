@@ -14,6 +14,9 @@ permissions:
   # Required for the action to annotate pull requests.
   pull-requests: write
   checks: write
+  # Required for the action to read its own workflow run. Without this it 403s
+  # with "Resource not accessible by integration" and skips its status report.
+  actions: read
 
 jobs:
   qodana:
@@ -22,7 +25,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Qodana needs the full history to compute the diff against the base branch.
           fetch-depth: 0
@@ -49,6 +52,6 @@ jobs:
       - name: Upload SARIF to GitHub code scanning
         if: always()
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ runner.temp }}/qodana/results/qodana.sarif.json
