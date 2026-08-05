@@ -1,0 +1,54 @@
+name: Qodana
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+  # Required for the action to upload SARIF results to GitHub code scanning.
+  security-events: write
+  # Required for the action to annotate pull requests.
+  pull-requests: write
+  checks: write
+
+jobs:
+  qodana:
+    name: Qodana Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          # Qodana needs the full history to compute the diff against the base branch.
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Qodana scan
+        uses: JetBrains/qodana-action@v2026.2
+        with:
+          # No fail-threshold yet: the first runs establish what the codebase actually
+          # reports. Once that is triaged, add `args: --baseline,qodana.sarif.json`
+          # (committing the baseline) so only NEW problems fail the build.
+          upload-result: true
+        env:
+          # Not required by the Community linter configured in qodana.yaml, which is
+          # why no secret is needed to make this workflow green. Set this secret only
+          # if you switch qodana.yaml to the release linter (jetbrains/qodana-dotnet),
+          # which refuses to start without a Qodana Cloud token.
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
+
+      # This repository is private, so code scanning requires GitHub Advanced Security.
+      # Without it this step 4xx's — non-fatal, because the scan itself already ran and
+      # `upload-result: true` above published the full report as a build artifact.
+      # Drop continue-on-error once the repo is public or GHAS is enabled.
+      - name: Upload SARIF to GitHub code scanning
+        if: always()
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ runner.temp }}/qodana/results/qodana.sarif.json
