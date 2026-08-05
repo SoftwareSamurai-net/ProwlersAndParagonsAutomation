@@ -45,12 +45,14 @@ jobs:
           # which refuses to start without a Qodana Cloud token.
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
 
-      # This repository is private, so code scanning requires GitHub Advanced Security.
-      # Without it this step 4xx's — non-fatal, because the scan itself already ran and
-      # `upload-result: true` above published the full report as a build artifact.
-      # Drop continue-on-error once the repo is public or GHAS is enabled.
+      # Code scanning needs GitHub Advanced Security on a private repository.
+      # This repo is private, so the step is skipped rather than run-and-swallowed:
+      # letting it fail left a red "Code scanning is not enabled" annotation on
+      # every run, which trains you to ignore annotations. The scan itself still
+      # runs above and `upload-result: true` publishes the report as an artifact.
+      # This condition turns the upload on by itself if the repo becomes public.
       - name: Upload SARIF to GitHub code scanning
-        if: always()
+        if: always() && github.event.repository.visibility == 'public'
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@v4
         with:
