@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Read PROGRESS.md first, and update it before you finish
+
+[`PROGRESS.md`](PROGRESS.md) is the single source of truth for what is done and what remains. Read it before starting anything so you do not re-implement finished work or re-verify locked data.
+
+**Updating it is part of the task, not a follow-up.** Any change that finishes a piece of work, moves a headline number, or uncovers a new gap updates `PROGRESS.md` in the same commit series. Do not leave the reasoning only in a commit message — commit messages are hard to find six months later.
+
+This used to live in two places (the README roadmap and a gaps list further down this file) and drifted out of step with the code. Both now point at `PROGRESS.md`. Do not reintroduce a second list.
+
 ## Commands
 
 ```bash
@@ -143,16 +151,22 @@ Steps 1–5 render a Back/Continue prompt (`WizardOrchestrator.PromptNavigation`
 - **Power `description` values are original text written from the rulebook entry, never rulebook prose.** Do not paste rulebook text in: only structured metadata plus this project's own explanations are redistributable here. Descriptions exist so a player can tell what they are choosing and what resists it, and they must agree with the mechanics beside them — `PowerDescriptionTests` fails a rankless power whose description claims per-rank scaling, which is how the original set went wrong on 44 of the 46 rankless powers.
 - `powers.json` has **141** entries. Form, Transformation and Super Senses are single Powers in the rulebook but each of their options is bought separately at its own cost, so each option is its own entry.
 
-## Known data gaps (roadmap)
+## Settled — do not redo
 
-Back-navigation, JSON export and engine unit tests are all **done** — do not re-implement them.
+Open work lives in [`PROGRESS.md`](PROGRESS.md), not here. What follows is the short list of things already decided, kept inline because the cost of re-litigating them is high.
 
-**All rules data in chapters 1–2 is verified and locked by tests.** Every one of the 141 power entries (range, rank type, cost, baseline, description) plus all tiers, abilities, talents, pros, cons, perks and flaws has been checked against the book, and no `needs_review` flag remains anywhere in `data/rules/`. Do not re-verify these, and do not reintroduce a uniform `cost_per_rank`. Settled questions: Lightning Reflexes is a **flat +6** Edge bonus on a flat 3 HP unranked Power; Determination is **5 HP per 1 Resolve** with no rank; the Iconic tier's "200+" is explicitly a bare minimum, so it is GM discretion rather than missing data; Overkill/Weak are a **−1 HP per rank** rate reduction.
+Back-navigation, JSON export and engine unit tests are **done** — do not re-implement them.
 
-Still open:
+**All rules data in chapters 1–2 is verified and locked by tests.** Every one of the 141 power entries (range, rank type, cost, baseline, description) plus all tiers, abilities, talents, pros, cons, perks and flaws has been checked against the book, and no `needs_review` flag remains anywhere in `data/rules/`. Do not re-verify these, and do not reintroduce a uniform `cost_per_rank`.
 
-- `available_pros` / `available_cons` are project guesses; the rulebook lists Pros and Cons inside each Power's entry and those have not been extracted. This is the largest remaining data gap, and it is what stops the published Heroes reconciling to exactly 125 HP.
-- Gear costs (Ch.6 Gear Limits) are not modelled — `ChooseGearStep` is free text with no HP cost.
-- **Sources** are not modelled. They set the stand-in rank for the 46 rankless (`rank_type: default`) powers — Toughness or Willpower depending on Source — which matters when one Power targets another
-- Only chapters 1–2 of the rulebook are extracted
-- Establish a Qodana baseline (`--baseline,qodana.sarif.json`) so only new problems fail CI
+Settled rules questions:
+
+- Lightning Reflexes is a **flat +6** Edge bonus on a flat 3 HP unranked Power
+- Danger Sense **replaces** Perception in the Edge calculation; it is not added to it
+- Super Speed sets Edge to **rank × 3**
+- Determination is **5 HP per 1 Resolve** with no rank
+- Overkill and Weak are a **−1 HP per rank** rate reduction, floored at 1 HP per 2 ranks — not a halving
+- The minimum power cost is **per rank**, not 1 HP per power
+- The Iconic tier's "200+" is explicitly a bare minimum, so it is GM discretion rather than missing data
+
+Each of these was wrong at some point and is now covered by a regression test naming the rule. If one appears to be violated, read `PROGRESS.md` and the test before changing the code.
