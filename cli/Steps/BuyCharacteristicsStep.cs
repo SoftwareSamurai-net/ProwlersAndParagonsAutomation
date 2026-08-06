@@ -51,10 +51,10 @@ public sealed class BuyCharacteristicsStep : IWizardStep
                     .Title("Adjust an ability rank (or Done):")
                     .AddChoices(abilityChoices));
 
-            if (pick.StartsWith("Done")) break;
+            if (pick.StartsWith("Done", StringComparison.Ordinal)) break;
 
             var ability = rules.Abilities.First(a =>
-                pick.StartsWith(a.Name));
+                pick.StartsWith(a.Name, StringComparison.Ordinal));
 
             AdjustRank(
                 label:     ability.Name,
@@ -89,10 +89,10 @@ public sealed class BuyCharacteristicsStep : IWizardStep
                     .Title("Adjust a talent rank (or Done):")
                     .AddChoices(talentChoices));
 
-            if (pick.StartsWith("Done")) break;
+            if (pick.StartsWith("Done", StringComparison.Ordinal)) break;
 
             var talent = rules.Talents.First(t =>
-                pick.StartsWith(t.Name));
+                pick.StartsWith(t.Name, StringComparison.Ordinal));
 
             AdjustRank(
                 label:     talent.Name,

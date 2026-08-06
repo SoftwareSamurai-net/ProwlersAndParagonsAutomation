@@ -118,7 +118,7 @@ public sealed class RulesRepository
                ?? throw new InvalidOperationException($"Failed to deserialize {fileName}.");
     }
 
-    private IReadOnlyList<PowerModel> LoadPowers()
+    private List<PowerModel> LoadPowers()
     {
         var powers = Load<List<PowerModel>>("powers.json");
 

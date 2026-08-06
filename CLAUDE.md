@@ -13,11 +13,22 @@ dotnet build
 
 # Run with a specific project file
 dotnet run --project ProwlersAndParagonsAutomation.csproj
+
+# Reproduce the CI build — analyzer warnings become errors
+dotnet build --configuration Release -p:ContinuousIntegrationBuild=true
 ```
 
 No test suite exists yet (unit tests for the engine are on the roadmap).
 
-The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestMinor` rollForward).
+The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestMinor` rollForward). The 9.x SDK cannot build it; install with `winget install --id Microsoft.DotNet.SDK.10`.
+
+## Static analysis
+
+- .NET analyzers run at `AnalysisLevel=latest-recommended` with `EnforceCodeStyleInBuild`. `TreatWarningsAsErrors` is conditional on `ContinuousIntegrationBuild`, so local builds stay warning-only while CI is strict. **Keep the CI build at zero warnings.**
+- Deliberate rule exceptions live in `.editorconfig` with an inline rationale — CA1305/CA1304 are off because all formatted output is human-facing terminal/sheet text, and CA1822 is a suggestion so `CostCalculator`/`DerivedStatsCalculator` keep a uniform instance API. Add rationale when adding an exception; do not add bare suppressions.
+- Qodana (`qodana.yaml`, `jetbrains/qodana-cdnet:2026.2`) runs ReSharper inspections in `.github/workflows/qodana_code_quality.yml`. Two non-obvious constraints: the `dotnet.solution` key is required (without it Qodana finds no project and reports nothing), and the **Community** linter (`cdnet`) is deliberate — the release linter (`dotnet`) refuses to start without a Qodana Cloud `QODANA_TOKEN`. Verified locally: 144 problems, 0 errors, exit 0.
+- Qodana's "redundant nullable warning suppression" hits on `JsonValue.Create(...)!` in `CharacterSheetExporter` are false positives — the method returns `JsonValue?`, so removing `!` breaks the warnings-as-errors build. Leave them.
+- `data/rules/*.json` is copied to the output directory by the csproj, so a published build works without the repo checked out.
 
 ## Architecture
 
@@ -86,7 +97,9 @@ Flat-cost perks: pay `Cost` HP. Per-unit perks: pay `CostPerUnit × Units` HP. `
 3. `ChooseGearStep` — free-text gear, no HP cost
 4. `CalculateDerivedStep` — displays computed Edge and Health
 5. `FinishingTouchesStep` — name, appearance, motivation, quote, connections
-6. `GmReviewStep` — full validation, sheet display, `.txt` export to `output/`
+6. `GmReviewStep` — full validation, sheet display, `.txt` **and** `.json` export to `output/`
+
+Steps 1–5 render a Back/Continue prompt (`WizardOrchestrator.PromptNavigation`); `gm_review` is the terminus and breaks the loop.
 
 ## JSON data conventions
 
@@ -97,10 +110,12 @@ Flat-cost perks: pay `Cost` HP. Per-unit perks: pay `CostPerUnit × Units` HP. `
 
 ## Known data gaps (roadmap)
 
-- Back-navigation between wizard steps
-- JSON character sheet export (alongside `.txt`)
-- Unit tests for the engine layer
-- Verify all `needs_review` entries against PDF
+Back-navigation and JSON export are both **done** — do not re-implement them.
+
+- Unit tests for the engine layer (nothing exists yet)
+- Verify remaining `needs_review` entries against the PDF: 73/125 powers, 10/28 cons, 5/23 pros, 1/6 tiers
 - Lightning Reflexes Edge bonus may be flat +6 rather than +2/rank (`needs_review`)
 - Iconic tier HP budget is "200+" with no stated upper bound (`needs_review`)
 - Determination power Resolve-per-rank ratio unverified (`needs_review`)
+- Only chapters 1–2 of the rulebook are extracted
+- Establish a Qodana baseline (`--baseline,qodana.sarif.json`) so only new problems fail CI

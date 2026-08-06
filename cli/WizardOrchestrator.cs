@@ -10,7 +10,6 @@ public sealed class WizardOrchestrator
     private readonly RulesRepository _rules;
     private readonly CostCalculator _costs;
     private readonly DerivedStatsCalculator _derived;
-    private readonly CharacterValidator _validator;
     private readonly HpBudgetDisplay _budget;
     private readonly IReadOnlyList<IWizardStep> _steps;
 
@@ -24,7 +23,7 @@ public sealed class WizardOrchestrator
         _rules     = rules;
         _costs     = costs;
         _derived   = derived;
-        _validator = validator;
+        // `validator` is not stored: GmReviewStep is the only consumer and takes it directly.
         _budget    = new HpBudgetDisplay(rules, costs);
 
         var exporter = new CharacterSheetExporter();
@@ -94,6 +93,7 @@ public sealed class WizardOrchestrator
                 .Title("[grey]─── Navigation ───[/]")
                 .AddChoices(choices));
 
-        return pick.StartsWith("←") ? -1 : 1;
+        // Ordinal: the sentinel is a literal this method just wrote into the choice list.
+        return pick.StartsWith('←') ? -1 : 1;
     }
 }

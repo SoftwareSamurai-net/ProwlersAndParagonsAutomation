@@ -4,5 +4,12 @@ obj/
 riderModule.iml
 /_ReSharper.Caches/
 
+# Qodana local scan cache and reports
+.qodana/
+qodana.sarif.json
+
+# Generated character sheets — user output, not source
+output/
+
 # Source PDFs — obtain separately; not tracked in version control
 docs/**/*.pdf

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
@@ -6,10 +6,27 @@
         <LangVersion>latest</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <RootNamespace>ProwlersAndParagonsAutomation</RootNamespace>
+        <InvariantGlobalization>false</InvariantGlobalization>
+    </PropertyGroup>
+
+    <!-- Static analysis. Warnings become errors only in CI so local iteration stays fast. -->
+    <PropertyGroup>
+        <EnableNETAnalyzers>true</EnableNETAnalyzers>
+        <AnalysisLevel>latest-recommended</AnalysisLevel>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+        <TreatWarningsAsErrors Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</TreatWarningsAsErrors>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="Spectre.Console" Version="0.49.*" />
+        <!-- Pinned exactly: a floating 0.49.* made restores non-reproducible. -->
+        <PackageReference Include="Spectre.Console" Version="0.49.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Rules data ships beside the binary so a published build works without the
+             repo present. Program.FindProjectRoot still prefers the repo copy in dev. -->
+        <Content Include="data\rules\*.json" CopyToOutputDirectory="PreserveNewest" LinkBase="data\rules\" />
     </ItemGroup>
 
 </Project>

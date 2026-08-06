@@ -91,14 +91,14 @@ public sealed class ChooseTierStep : IWizardStep
                 .Title("Apply a starting package?")
                 .AddChoices(choices));
 
-        if (pkgPick.StartsWith("Skip"))
+        if (pkgPick.StartsWith("Skip", StringComparison.Ordinal))
         {
             sheet.SelectedPackageId = null;
             return;
         }
 
         var selected = rules.CreationRules.OptionalPackages
-            .First(p => pkgPick.StartsWith(p.Name));
+            .First(p => pkgPick.StartsWith(p.Name, StringComparison.Ordinal));
 
         sheet.SelectedPackageId = selected.Id;
 
