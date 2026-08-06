@@ -15,11 +15,14 @@ public sealed class DerivedStatsCalculator
     // ── Edge ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Edge = Perception + max(Agility, Intellect) + Danger Sense bonus + Lightning Reflexes bonus.
-    ///
-    /// Danger Sense: if present, its effective rank (Perception + purchased ranks) is added.
-    /// Lightning Reflexes: +2 per purchased rank. NOTE: the rulebook may specify a flat +6 total —
-    /// this is flagged needs_review in powers.json. The validator will emit a warning.
+    /// Edge = Perception + max(Agility, Intellect), then the three Powers the rulebook
+    /// says can affect it (Ch.5):
+    /// <list type="bullet">
+    ///   <item>Danger Sense <b>replaces</b> Perception in the sum — "use this Power
+    ///   instead of Perception when determining your Edge" — it is not added on top.</item>
+    ///   <item>Lightning Reflexes adds a flat +6. It has no rank, so nothing scales.</item>
+    ///   <item>Super Speed sets Edge to its rank × 3, taken if that beats the total.</item>
+    /// </list>
     /// </summary>
     public int CalculateEdge(CharacterSheet sheet)
     {
@@ -27,25 +30,32 @@ public sealed class DerivedStatsCalculator
         var agility    = sheet.GetAbilityRank("agility");
         var intellect  = sheet.GetAbilityRank("intellect");
 
-        var edge = perception + Math.Max(agility, intellect);
+        // Danger Sense stands in for Perception when the character has it.
+        var dangerSense = sheet.GetPower("danger_sense");
+        var perceptual  = dangerSense is not null
+            ? GetEffectiveRank(dangerSense, sheet)
+            : perception;
 
-        // Danger Sense: effective rank = Perception + purchased ranks
-        var dangerSensePower = sheet.GetPower("danger_sense");
-        if (dangerSensePower is not null)
-        {
-            var dangerSenseEffective = GetEffectiveRank(dangerSensePower, sheet);
-            edge += dangerSenseEffective;
-        }
+        var edge = perceptual + Math.Max(agility, intellect);
 
-        // Lightning Reflexes: +2 per purchased rank (see needs_review note)
-        var lightningReflexesPower = sheet.GetPower("lightning_reflexes");
-        if (lightningReflexesPower is not null)
-        {
-            edge += lightningReflexesPower.PurchasedRanks * 2;
-        }
+        // Lightning Reflexes: flat +6, verified against Ch.2 ("Increase your Edge by 6").
+        if (sheet.HasPower("lightning_reflexes"))
+            edge += LightningReflexesEdgeBonus;
+
+        // Super Speed: "your Edge equals your Super Speed rank times 3". Treated as a
+        // floor rather than an override so it never lowers an already-higher Edge.
+        var superSpeed = sheet.GetPower("super_speed");
+        if (superSpeed is not null)
+            edge = Math.Max(edge, GetEffectiveRank(superSpeed, sheet) * 3);
 
         return edge;
     }
+
+    /// <summary>Flat Edge bonus granted by Lightning Reflexes (Ch.2).</summary>
+    public const int LightningReflexesEdgeBonus = 6;
+
+    /// <summary>Hero Points that buy 1 extra starting Resolve via Determination (Ch.2).</summary>
+    public const int DeterminationHpPerResolve = 5;
 
     // ── Health ───────────────────────────────────────────────────────────
 
@@ -69,9 +79,10 @@ public sealed class DerivedStatsCalculator
     /// <summary>
     /// Starting Resolve at the beginning of an issue.
     ///
-    /// Formula (Chapter 5):
+    /// Formula (Chapter 5): the Resolve table runs Trait Cap → 0, Cap-1d → 2, Cap-2d → 4,
+    /// which is the arithmetic below.
     ///   base = max(0, (TraitCap - highestRelevantRank) × 2)
-    ///   + Determination purchased ranks (1 per rank, needs_review)
+    ///   + 1 per <see cref="DeterminationHpPerResolve"/> HP spent on Determination
     ///   + 1 per Condition or Plot Hook flaw
     ///
     /// Relevant ranks: all Ability ranks; Power effective ranks where the power
@@ -101,9 +112,10 @@ public sealed class DerivedStatsCalculator
         var highestRelevant = Math.Max(highestAbility, highestPower);
         var baseResolve     = Math.Max(0, (traitCap - highestRelevant) * 2);
 
-        // Determination: +1 per purchased rank (needs_review — verify ratio)
+        // Determination has no rank: 5 HP buys 1 extra starting Resolve, and Units
+        // holds how many Resolve were bought.
         var determination      = sheet.GetPower("determination");
-        var determinationBonus = determination?.PurchasedRanks ?? 0;
+        var determinationBonus = determination?.Units ?? 0;
 
         // Condition / Plot Hook flaws: +1 each at start of every issue
         var flawBonus = sheet.Flaws.Count(sf =>
@@ -139,12 +151,14 @@ public sealed class DerivedStatsCalculator
     /// Returns the free baseline rank contributed by a character's ability scores
     /// for the given power's prerequisite relationship.
     ///
-    /// baseline_equal:  baseline = ability rank
-    /// baseline_half:   baseline = ⌈ability rank / 2⌉
-    /// baseline_fixed:  baseline = FixedValue (e.g. 3 for Running)
-    /// null prerequisite: baseline = 0
+    /// baseline_equal:          baseline = ability rank
+    /// baseline_half:           baseline = ⌈ability rank / 2⌉
+    /// baseline_fixed:          baseline = FixedValue (3 for Running)
+    /// baseline_greater_of:     baseline = max(ability rank, effective ranks of the named Powers)
+    /// baseline_selected_trait: baseline = rank of the Trait nominated on the selection
+    /// null prerequisite:       baseline = 0
     /// </summary>
-    public int GetBaselineRank(PowerModel power, CharacterSheet sheet)
+    public int GetBaselineRank(PowerModel power, CharacterSheet sheet, SelectedPower? selection = null)
     {
         var prereq = power.Prerequisite;
         if (prereq is null) return 0;
@@ -154,19 +168,56 @@ public sealed class DerivedStatsCalculator
             "baseline_equal" => sheet.GetAbilityRank(prereq.Ability!),
             "baseline_half"  => (int)Math.Ceiling(sheet.GetAbilityRank(prereq.Ability!) / 2.0),
             "baseline_fixed" => prereq.FixedValue ?? 0,
+
+            // Strike: the greater of Might and Martial Arts.
+            "baseline_greater_of" => prereq.Powers
+                .Select(id => sheet.GetPower(id) is { } sp ? GetEffectiveRank(sp, sheet) : 0)
+                .Append(prereq.Ability is not null ? sheet.GetAbilityRank(prereq.Ability) : 0)
+                .Max(),
+
+            // Boost and Expertise: the player nominates the Trait at purchase. Until
+            // they do, the baseline is 0 and the validator reports the gap.
+            "baseline_selected_trait" => selection?.BaselineTraitId is { } traitId
+                ? GetTraitRank(traitId, sheet)
+                : 0,
+
             _ => throw new InvalidOperationException(
                      $"Unknown prerequisite relationship '{prereq.Relationship}' on power '{power.Id}'.")
         };
     }
 
     /// <summary>
-    /// Returns the total effective rank of a selected power:
-    /// baseline rank (from ability) + purchased ranks.
+    /// Rank of any Trait by id — ability, talent or power — for the Powers whose
+    /// baseline is whatever Trait the player nominated.
+    /// </summary>
+    private int GetTraitRank(string traitId, CharacterSheet sheet)
+    {
+        if (sheet.AbilityRanks.TryGetValue(traitId, out var ability)) return ability;
+        if (sheet.TalentRanks.TryGetValue(traitId, out var talent))   return talent;
+
+        if (sheet.GetPower(traitId) is not { } sp) return 0;
+
+        // A nominated Power whose own baseline is player-nominated could point back
+        // here and recurse. Only these Powers create that indirection, so refusing to
+        // follow one is enough to make the resolution terminate.
+        var nominated = _rules.GetPower(traitId);
+        if (nominated?.Prerequisite?.Relationship == "baseline_selected_trait") return 0;
+
+        return GetEffectiveRank(sp, sheet);
+    }
+
+    /// <summary>
+    /// Total effective rank of a selected power: baseline rank + purchased ranks.
+    /// Powers the rulebook gives no rank (rank_type "default" or "special") have no
+    /// effective rank and return 0.
     /// </summary>
     public int GetEffectiveRank(SelectedPower selected, CharacterSheet sheet)
     {
         var power = _rules.GetPower(selected.PowerId)
                     ?? throw new InvalidOperationException($"Unknown power id '{selected.PowerId}'.");
-        return GetBaselineRank(power, sheet) + selected.PurchasedRanks;
+
+        if (power.RankType is "default" or "special") return 0;
+
+        return GetBaselineRank(power, sheet, selected) + selected.PurchasedRanks;
     }
 }

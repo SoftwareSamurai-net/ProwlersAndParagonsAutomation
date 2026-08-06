@@ -127,41 +127,37 @@ public sealed class PowerBrowser
         AnsiConsole.WriteLine();
         AnsiConsole.Write(new Rule($"[bold]{Markup.Escape(power.Name)}[/]").LeftJustified());
         AnsiConsole.MarkupLine($"[grey]Category:[/] {Markup.Escape(power.Category)}");
+        AnsiConsole.MarkupLine($"[grey]{Markup.Escape(PowerFormatter.StatLine(power))}[/]");
+        if (power.SourceRef is not null)
+            AnsiConsole.MarkupLine($"[grey]{Markup.Escape(power.SourceRef)}[/]");
+        AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine(Markup.Escape(power.Description));
+        if (power.Notes is not null)
+            AnsiConsole.MarkupLine($"[grey]{Markup.Escape(power.Notes)}[/]");
 
         if (power.NeedsReview)
-            AnsiConsole.MarkupLine("[yellow]⚠ This power is flagged needs_review — verify with GM.[/]");
+            AnsiConsole.MarkupLine("[yellow]⚠ Mechanics not fully verified against the rulebook — " +
+                                   "verify with GM.[/]");
 
         AnsiConsole.WriteLine();
 
-        var tier     = _rules.GetTier(sheet.SelectedTierId!)!;
-        var baseline = _derived.GetBaselineRank(power, sheet);
+        var tier = _rules.GetTier(sheet.SelectedTierId!)!;
+
+        // Powers whose baseline comes from a Trait the player picks need that first:
+        // it drives both the baseline rank and, for Boost, the cost per rank.
+        var baselineTraitId = PromptBaselineTrait(power, sheet);
+
+        // Variable-cost powers need their variant before any cost can be worked out.
+        var variantKey = PromptCostVariant(power);
+
+        var probe    = new SelectedPower(power.Id, 0) { BaselineTraitId = baselineTraitId };
+        var baseline = _derived.GetBaselineRank(power, sheet, probe);
 
         if (baseline > 0)
-            AnsiConsole.MarkupLine($"[grey]Baseline rank (free from ability): [bold]{baseline}d[/][/]");
+            AnsiConsole.MarkupLine($"[grey]Baseline rank (free): [bold]{baseline}d[/][/]");
 
-        var maxPurchasable = Math.Max(0,
-            Math.Min(power.MaxRank ?? tier.TraitCapRank, tier.TraitCapRank) - baseline);
-
-        int purchasedRanks;
-        if (maxPurchasable == 0)
-        {
-            AnsiConsole.MarkupLine("[grey]Effective rank fully covered by baseline — 0 purchased ranks.[/]");
-            purchasedRanks = 0;
-        }
-        else
-        {
-            purchasedRanks = AnsiConsole.Prompt(
-                new TextPrompt<int>($"Purchased ranks (0–{maxPurchasable}):")
-                    .DefaultValue(0)
-                    .Validate(r => r >= 0 && r <= maxPurchasable
-                        ? Spectre.Console.ValidationResult.Success()
-                        : Spectre.Console.ValidationResult.Error($"Must be 0–{maxPurchasable}.")));
-        }
-
-        var effectiveRank = baseline + purchasedRanks;
-        AnsiConsole.MarkupLine($"[grey]Effective rank: [bold]{effectiveRank}d[/] " +
-                               $"({baseline}d baseline + {purchasedRanks}d purchased)[/]");
+        var purchasedRanks = PromptPurchasedRanks(power, tier.TraitCapRank, baseline);
+        var units          = PromptUnits(power);
 
         // Pros and cons
         var selector = new ProConSelector(_rules);
@@ -172,17 +168,128 @@ public sealed class PowerBrowser
             power.Id,
             purchasedRanks,
             pros.AsReadOnly(),
-            cons.AsReadOnly());
+            cons.AsReadOnly())
+        {
+            CostVariantKey  = variantKey,
+            Units           = units,
+            BaselineTraitId = baselineTraitId
+        };
 
-        var cost = _costs.PowerCost(selection);
+        var cost          = _costs.PowerCost(selection);
+        var effectiveRank = _derived.GetEffectiveRank(selection, sheet);
 
         // Replace any existing entry for this power
         sheet.SelectedPowers.RemoveAll(sp => sp.PowerId == power.Id);
         sheet.SelectedPowers.Add(selection);
 
         AnsiConsole.WriteLine();
+        var rankText = effectiveRank > 0 ? $"effective {effectiveRank}d" : "no rank";
         AnsiConsole.MarkupLine($"[green]✓ Added:[/] [bold]{Markup.Escape(power.Name)}[/] — " +
-                               $"effective {effectiveRank}d — [bold]{cost} HP[/]");
+                               $"{rankText} — [bold]{cost} HP[/]");
+    }
+
+    /// <summary>
+    /// Ranks are only purchasable for Powers priced per rank. A Power with no rank, or
+    /// one bought for a flat or per-unit price, gets none.
+    /// </summary>
+    private static int PromptPurchasedRanks(PowerModel power, int traitCap, int baseline)
+    {
+        if (power.MaxRank == 0)
+        {
+            AnsiConsole.MarkupLine($"[grey]{Markup.Escape(PowerFormatter.RankType(power))} — " +
+                                   "no ranks are purchased for this Power.[/]");
+            return 0;
+        }
+
+        var maxPurchasable = Math.Max(0, traitCap - baseline);
+        if (maxPurchasable == 0)
+        {
+            AnsiConsole.MarkupLine("[grey]Baseline already reaches the trait cap — 0 purchased ranks.[/]");
+            return 0;
+        }
+
+        return AnsiConsole.Prompt(
+            new TextPrompt<int>($"Purchased ranks (0–{maxPurchasable}):")
+                .DefaultValue(0)
+                .Validate(r => r >= 0 && r <= maxPurchasable
+                    ? Spectre.Console.ValidationResult.Success()
+                    : Spectre.Console.ValidationResult.Error($"Must be 0–{maxPurchasable}.")));
+    }
+
+    /// <summary>Quantity for per-unit Powers: immunities, Resolve, power levels.</summary>
+    private static int PromptUnits(PowerModel power)
+    {
+        if (power.CostType != "per_unit") return 1;
+
+        var label = power.CostUnitLabel ?? "unit";
+        return AnsiConsole.Prompt(
+            new TextPrompt<int>($"How many {Markup.Escape(label)}(s)? " +
+                                $"({power.CostPerUnit} HP each):")
+                .DefaultValue(1)
+                .Validate(u => u >= 1
+                    ? Spectre.Console.ValidationResult.Success()
+                    : Spectre.Console.ValidationResult.Error("Must be at least 1.")));
+    }
+
+    private static string? PromptCostVariant(PowerModel power)
+    {
+        if (power.CostType is not ("per_rank_variable" or "flat_variable")) return null;
+        if (power.CostVariants is null or { Count: 0 }) return null;
+
+        var unit = power.CostType == "per_rank_variable" ? "HP per rank" : "HP";
+        var byLabel = power.CostVariants.ToDictionary(
+            v => $"{v.Key.Replace('_', ' ')} — {v.Value} {unit}",
+            v => v.Key);
+
+        var pick = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("This Power's cost varies. Which version?")
+                .AddChoices(byLabel.Keys));
+
+        return byLabel[pick];
+    }
+
+    /// <summary>
+    /// Boost and Expertise take their baseline rank from a Trait the player nominates.
+    /// </summary>
+    private string? PromptBaselineTrait(PowerModel power, CharacterSheet sheet)
+    {
+        if (power.Prerequisite?.Relationship != "baseline_selected_trait") return null;
+
+        // Only Traits the character actually has can serve as a baseline.
+        var options = sheet.AbilityRanks.Where(a => a.Value > 0)
+            .Select(a => (Id: a.Key, Rank: a.Value, Kind: "Ability"))
+            .Concat(sheet.TalentRanks.Where(t => t.Value > 0)
+                .Select(t => (Id: t.Key, Rank: t.Value, Kind: "Talent")))
+            .ToList();
+
+        // Boost can also raise another Power; Expertise is limited to Abilities and Talents.
+        if (power.Id == "boost")
+        {
+            options.AddRange(sheet.SelectedPowers
+                .Where(sp => sp.PowerId != power.Id)
+                .Select(sp => (Id: sp.PowerId,
+                               Rank: _derived.GetEffectiveRank(sp, sheet),
+                               Kind: "Power")));
+        }
+
+        if (options.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]⚠ This Power's baseline comes from a Trait you nominate, " +
+                                   "but you have no Traits yet. Buy abilities or talents first.[/]");
+            return null;
+        }
+
+        var byLabel = options.ToDictionary(
+            o => $"{o.Kind}: {o.Id.Replace('_', ' ')} ({o.Rank}d)",
+            o => o.Id);
+
+        var pick = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title($"{Markup.Escape(power.Name)} takes its baseline rank from which Trait?")
+                .AddChoices(byLabel.Keys));
+
+        return byLabel[pick];
     }
 
     // ── Remove ────────────────────────────────────────────────────────────
@@ -242,16 +349,16 @@ public sealed class PowerBrowser
         {
             var power    = _rules.GetPower(sp.PowerId);
             var name     = power is null ? sp.PowerId : power.Name;
-            var baseline = power is null ? 0 : _derived.GetBaselineRank(power, sheet);
-            var effective = baseline + sp.PurchasedRanks;
+            var baseline = power is null ? 0 : _derived.GetBaselineRank(power, sheet, sp);
+            var effective = power is null ? 0 : _derived.GetEffectiveRank(sp, sheet);
             var cost     = _costs.PowerCost(sp);
             var review   = power?.NeedsReview == true ? " [yellow]*[/]" : "";
 
             table.AddRow(
                 $"{Markup.Escape(name)}{review}",
                 baseline > 0 ? $"{baseline}d" : "—",
-                $"{sp.PurchasedRanks}d",
-                $"[bold]{effective}d[/]",
+                power?.MaxRank == 0 ? "—" : $"{sp.PurchasedRanks}d",
+                effective > 0 ? $"[bold]{effective}d[/]" : "[grey]no rank[/]",
                 sp.Pros.Count > 0 ? string.Join(", ", sp.Pros.Select(p => Markup.Escape(p.Id))) : "[grey]—[/]",
                 sp.Cons.Count > 0 ? string.Join(", ", sp.Cons.Select(c => Markup.Escape(c.Id))) : "[grey]—[/]",
                 $"[bold]{cost}[/]");

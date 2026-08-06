@@ -3,11 +3,13 @@
     "id": "adaptation",
     "name": "Adaptation",
     "category": "Defense",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 12,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can survive and function in hostile environments (vacuum, underwater, extreme temperatures, toxic atmospheres, etc.). Each rank covers one environment type. You do not need to eat, sleep, or breathe while adapted.",
+    "description": "Your body adapts instantly to hostile or alien surroundings, letting you breathe, move, sense and survive there — growing gills and pressure resistance underwater, for instance. One flat purchase covers any environment; there are no ranks.",
     "prerequisite": null,
     "available_pros": [
       "imbue"
@@ -24,18 +26,27 @@
       "environmental",
       "passive"
     ],
-    "needs_review": true,
-    "notes": "Number of environments per rank needs verification from PDF."
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.21"
   },
   {
     "id": "alternate_form",
     "name": "Alternate Form",
     "category": "Transformation",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "per_unit",
+    "cost_per_unit": 4,
+    "cost_unit_label": "power level",
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can transform into a radically different form (e.g. a cloud of bats, a swarm of insects, a monstrous shape). While transformed, you can use Powers associated with that form. Rank determines how quickly you transform and the range of forms available.",
+    "description": "You can turn into a different form, built as a separate character with its own Hero Point budget at the power level you pay for. Both forms must pay for this Power, and they share one Resolve pool — you use the lowest Resolve among them. Buy it again for each extra form.",
     "prerequisite": null,
     "available_pros": [
       "imbue"
@@ -55,17 +66,27 @@
       "transformation",
       "shapeshifting"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.21",
+    "notes": "Cost scales with the alternate form's power level: 4/8/12/16/20/24 Hero Points for Street Level through Iconic."
   },
   {
     "id": "animal_control",
     "name": "Animal Control",
     "category": "Control",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can command and control animals. Make an attack roll against the target animal's passive defense; success allows you to issue mental commands. Controlled animals act on your initiative. Rank determines how many animals you can control simultaneously and the complexity of commands.",
+    "description": "You can make animals do what you want for the Power's duration, whether by domination or friendly persuasion. Roll against the animal's Willpower.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -86,17 +107,27 @@
       "mental",
       "control",
       "animals"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.21"
   },
   {
     "id": "animal_empathy",
     "name": "Animal Empathy",
     "category": "Utility",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 1,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can sense the emotions and intentions of animals and communicate with them in a basic way. Higher ranks allow more complex communication and may allow you to calm or befriend animals automatically.",
+    "description": "You share an empathic understanding with animals. They will not attack you without good reason, and even then you may be able to talk them down.",
     "prerequisite": null,
     "available_pros": [
       "ranged"
@@ -110,18 +141,27 @@
       "social",
       "animals"
     ],
-    "needs_review": true,
-    "affects_resolve": false
+    "affects_resolve": false,
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.22"
   },
   {
     "id": "animal_mimicry",
     "name": "Animal Mimicry",
     "category": "Transformation",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can copy the physical traits and Powers of any animal (claws, enhanced senses, flight, venom, etc.). Rank determines the rank of the mimicked traits. You may mimic one animal's traits at a time.",
+    "description": "You can take on an animal's Powers, and its Agility, Might, Perception and Toughness, at the lower of the animal's rank or yours — and only where the animal's is higher than your own. Switching animals is a free action, once per page.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -137,17 +177,26 @@
       "mimicry",
       "animals"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.22"
   },
   {
     "id": "animation",
     "name": "Animation",
     "category": "Control",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can animate inanimate objects, causing them to move and act under your mental direction. The animated object uses your Power rank for challenge rolls. Rank determines size and number of objects you can animate simultaneously.",
+    "description": "You can bring images and objects to life until the scene ends or you dismiss them. An animated thing has Agility, Might and Toughness plus whatever Powers suit it: one Trait at your full rank, the rest at half. They obey your mental commands. You cannot animate anything whose Structure beats your rank.",
     "prerequisite": null,
     "available_pros": [
       "independent",
@@ -166,21 +215,30 @@
       "objects",
       "inanimate"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.22"
   },
   {
     "id": "armor",
     "name": "Armor",
     "category": "Defense",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "baseline",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You have a natural or constructed protective shell that reduces damage. Armor provides a passive defense bonus equal to its rank. Your effective Armor rank equals your Toughness rank divided by 2 (rounded up) plus any purchased ranks.",
+    "description": "Armour or a personal force field that turns damage aside. Use it as a passive defence against both physical and energy attacks, and ignore any attack whose rank is at or below half your Armor rank unless it is Penetrating.",
     "prerequisite": {
-      "ability": "toughness",
       "relationship": "baseline_half",
-      "description": "Baseline rank equals half Toughness rank (rounded up). Total Armor rank = baseline + purchased ranks."
+      "ability": "toughness",
+      "description": "Baseline rank is half your Toughness rank, rounded up."
     },
     "available_pros": [
       "phase_shift"
@@ -198,17 +256,27 @@
       "defense",
       "passive",
       "protection"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.22"
   },
   {
     "id": "astral_projection",
     "name": "Astral Projection",
     "category": "Movement",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 12,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can project your consciousness out of your body as an astral form. Your astral form is invisible and intangible (unless the Phase Shift Pro is purchased). Rank determines range and duration of projection. Your body remains inert while projecting.",
+    "description": "Your astral form can leave your body, gaining Invisibility, Phasing and Astral Sight, and flying as though you had Flight at your Willpower rank. Your body lies dormant meanwhile, though you know at once if it is moved or harmed.",
     "prerequisite": null,
     "available_pros": [
       "line_of_sight",
@@ -226,17 +294,26 @@
       "movement",
       "incorporeal"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.23"
   },
   {
     "id": "attuned",
     "name": "Attuned",
     "category": "Sensory",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You have a supernatural connection to a specific person, object, or type of thing. You always know the direction and approximate distance to your attuned subject. Higher ranks provide more precise information and longer range.",
+    "description": "You are attuned to an aspect of nature, a place, or the cosmos, and sense coming disturbances within it. Basic warnings arrive free; spend 1 Resolve to ask the GM for detail. What you learn may be incomplete, but it is never false.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -248,17 +325,26 @@
       "tracking",
       "detection"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.23"
   },
   {
     "id": "aura",
     "name": "Aura",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "Your body radiates a damaging energy field. Anyone who touches you or whom you touch suffers damage equal to your Aura rank. You may activate or deactivate the aura at will (unless the Constant Con is applied).",
+    "description": "Your body deals a chosen type of energy damage on contact — anyone touching or striking you in unarmed combat takes an attack at your Aura rank, resisted only by passive defences. You can also attack with it in close combat, and mundane objects weaker than your rank burn or melt near you.",
     "prerequisite": null,
     "available_pros": [
       "armor_piercing",
@@ -284,17 +370,27 @@
       "damage",
       "touch",
       "energy"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.23"
   },
   {
     "id": "banish",
     "name": "Banish",
     "category": "Control",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can banish extradimensional entities (demons, spirits, outsiders, etc.) back to their home dimension. Make an attack roll against the target's passive defense; success sends them back. Rank determines which types of entities you can banish and the permanence of the effect.",
+    "description": "You can banish a target to another time, place or dimension, resisted by Willpower (or Toughness, if you define it that way) and by active defences. You cannot send anyone somewhere harmful or inescapable.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -313,17 +409,26 @@
       "dimensional",
       "spirits"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.23"
   },
   {
     "id": "blast",
     "name": "Blast",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can project a ranged energy or force attack. Make an attack roll against the target; successes inflict damage. Blast is a Distant Range Power by default.",
+    "description": "A damaging ranged attack. Name the type of damage it inflicts when you buy it.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -373,17 +478,27 @@
       "ranged",
       "damage",
       "energy"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.24"
   },
   {
     "id": "blending",
     "name": "Blending",
     "category": "Stealth",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can camouflage yourself to match your surroundings. While blending, you are difficult to spot: opposing Perception rolls suffer a penalty based on your Blending rank. Unlike Invisibility, Blending requires you to remain still or move slowly to remain concealed.",
+    "description": "Your colouring shifts to match your surroundings, giving +3d on Covert rolls to avoid being seen. Stay still and you can roll Covert at half rank to go unnoticed even in the open.",
     "prerequisite": null,
     "available_pros": [
       "subtle"
@@ -400,17 +515,26 @@
       "stealth",
       "concealment"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.24"
   },
   {
     "id": "blind",
     "name": "Blind",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can temporarily blind a target by overwhelming their vision. Make an attack roll; success blinds the target for a number of pages equal to your net successes. Blinded characters suffer severe penalties on attacks and defense.",
+    "description": "You can blind a living target for the Power's duration, resisted by Toughness or an active defence. A blinded target takes -3d on attack and active defence rolls unless something like Blind Fighting or Radar covers for the loss.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -431,17 +555,27 @@
       "attack",
       "debuff",
       "sensory"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.24"
   },
   {
     "id": "blind_fighting",
     "name": "Blind Fighting",
     "category": "Combat",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can fight effectively without relying on sight. Rank reduces or eliminates attack penalties for blindness, darkness, or fighting Invisible or Undetectable opponents. At sufficient rank, you can detect opponents through sound, scent, or other non-visual senses.",
+    "description": "You do not rely on sight in a fight, so darkness or an unseen opponent costs you nothing, whatever the cause.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -453,17 +587,26 @@
       "sensory",
       "perception"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.24"
   },
   {
     "id": "blink",
     "name": "Blink",
     "category": "Movement",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can teleport short distances instantly. Rank determines maximum blink distance. Unlike full Teleportation, Blink is limited in range but can be used as part of movement or even in response to an attack.",
+    "description": "You flicker in and out of reality mid-fight — phasing, shifting size, stepping through portals, however you describe it. Use Blink in place of Might for close combat attacks and in place of Agility for active defence and movement rolls. It does not actually make you faster.",
     "prerequisite": null,
     "available_pros": [
       "selective"
@@ -480,18 +623,30 @@
       "teleportation",
       "short-range"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.24"
   },
   {
     "id": "boost",
     "name": "Boost",
     "category": "Support",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "special",
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can temporarily increase the rank of one of your own or an ally's Traits (Ability, Talent, or Power) by an amount up to your Boost rank. The effect lasts for the rest of the scene or until canceled. Define the specific Trait boosted when purchasing.",
-    "prerequisite": null,
+    "description": "You can raise one nominated Ability, Talent or Power up to this Power's rank. It costs as much per rank as the Trait it raises and uses that Trait as its baseline. It needs Cons describing when and how it works, or it means nothing.",
+    "prerequisite": {
+      "relationship": "baseline_selected_trait",
+      "ability": null,
+      "description": "Baseline rank equals the rank of the Ability, Talent or Power nominated by the player when this Power is purchased."
+    },
     "available_pros": [
       "imbue",
       "ranged"
@@ -510,17 +665,63 @@
       "enhancement",
       "buff"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.24",
+    "notes": "Cost is Special: this Power costs as many Hero Points per rank as the Trait it raises, and uses that Trait as its baseline rank. The player must nominate the affected Trait; CostCalculator resolves the rate from it."
+  },
+  {
+    "id": "buff",
+    "name": "Buff",
+    "category": "Support",
+    "range": "zone",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 12,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "Spend 1 Resolve to bolster yourself and every ally in the area with +1d on all challenge rolls for the rest of the scene. Allies must stay in the area to keep it. Activating costs an action; sustaining it is free. Buff never stacks, not even from different Sources.",
+    "prerequisite": null,
+    "available_pros": [
+      "imbue"
+    ],
+    "available_cons": [
+      "charges",
+      "concentration",
+      "limited",
+      "recharge",
+      "sustained"
+    ],
+    "tags": [
+      "support",
+      "resolve",
+      "area"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.25"
   },
   {
     "id": "clairvoyance",
     "name": "Clairvoyance",
     "category": "Sensory",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 9,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can project your senses to a distant location, perceiving what is happening there through sight and sound. Rank determines range and clarity. While using Clairvoyance, your awareness of your immediate surroundings is reduced.",
+    "description": "You can see distant places as though you stood there, at any distance. A shielded location calls for a Willpower roll against the shielding rank; another dimension needs a Superhuman (6) Willpower roll. You can focus on a familiar person or object instead, though that will not tell you where they are.",
     "prerequisite": null,
     "available_pros": [
       "line_of_sight"
@@ -536,17 +737,27 @@
       "sensory",
       "remote",
       "mental"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.25"
   },
   {
     "id": "cloud_minds",
     "name": "Cloud Minds",
     "category": "Mental",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can make people subconsciously ignore your presence. Unlike Invisibility, you remain physically visible \u2014 observers simply fail to register your presence as significant. Make a challenge roll vs. targets' Willpower. Effect ends if you take any hostile action.",
+    "description": "You cloud the minds of everyone within Distant Range, becoming undetectable to them by any sense. A target only gets a Willpower roll to shake it off if you close to Close Range or do something that gives you away. Costs an action each page to maintain.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -565,17 +776,27 @@
       "mental",
       "stealth",
       "social"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.25"
   },
   {
     "id": "communications",
     "name": "Communications",
     "category": "Utility",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can communicate over great distances, either by broadcasting your thoughts directly or by interfacing with communication systems. Rank determines range. You can also intercept, jam, or tap communications at equivalent rank.",
+    "description": "You can detect, receive, store and transmit across whatever networks the setting has, worldwide or further, with no need for towers or satellites. It works by itself, though secure channels may call for a Technology roll.",
     "prerequisite": null,
     "available_pros": [
       "ranged",
@@ -594,18 +815,27 @@
       "communication",
       "mental"
     ],
-    "needs_review": true,
-    "affects_resolve": false
+    "affects_resolve": false,
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.25"
   },
   {
     "id": "constructs",
     "name": "Constructs",
     "category": "Utility",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 3.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can create solid objects or structures out of energy or matter. Constructs have Health and passive defense based on your rank. You may use them as cover, barriers, platforms, weapons, or tools. Constructs last until destroyed or you dismiss them.",
+    "description": "You can build and move shapes of solid force — cages, ramps, walls, hammers, nets and the like. They have Structure equal to your rank and exert force with an effective Might equal to it.",
     "prerequisite": null,
     "available_pros": [
       "independent",
@@ -626,21 +856,30 @@
       "matter",
       "energy"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.25"
   },
   {
     "id": "danger_sense",
     "name": "Danger Sense",
     "category": "Sensory",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "baseline",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You have a preternatural awareness of threats. Your effective Danger Sense rank equals your Perception rank plus purchased ranks. Danger Sense is added to your Edge score (along with Perception and the higher of Agility or Intellect). You cannot be surprised.",
+    "description": "You feel immediate physical danger coming, even from sources no sense could reach, such as a bomb beneath the floor. Use this Power instead of Perception both to notice danger and to work out your Edge, and you may make active defence rolls even when taken by surprise.",
     "prerequisite": {
-      "ability": "perception",
       "relationship": "baseline_equal",
-      "description": "Baseline rank equals Perception rank. Total Danger Sense rank = Perception + purchased ranks. Adds to Edge."
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
     },
     "available_pros": [],
     "available_cons": [
@@ -653,17 +892,27 @@
       "defense",
       "initiative",
       "edge"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.25"
   },
   {
     "id": "darkness",
     "name": "Darkness",
     "category": "Control",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "zone",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 6,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can project or create areas of supernatural darkness that blocks light of all kinds. Rank determines the area covered and how thoroughly all light is blocked. Characters without alternative senses suffer blindness penalties within the darkness.",
+    "description": "You fill the zone with darkness, fog, smoke or another obscuring element that only you and those equipped for it can see through. Anyone else takes -3d on attack and active defence rolls unless a Power compensates.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -685,17 +934,27 @@
       "light",
       "environment",
       "area"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.25"
   },
   {
     "id": "dazzle",
     "name": "Dazzle",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "zone",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can overload a target's senses (sight, hearing, or other \u2014 chosen at purchase). Make an attack roll; success impairs the target's affected sense for a number of pages equal to your net successes. Targets can only use passive defense against Dazzle.",
+    "description": "A blinding flash that overwhelms every living being in range, friend and foe alike, resisted by Willpower or an active defence. Targets are stunned for one page — unable to move or act — and then blinded for the rest of the duration.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -717,17 +976,27 @@
       "attack",
       "debuff",
       "sensory"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.26"
   },
   {
     "id": "deflection",
     "name": "Deflection",
     "category": "Defense",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can deflect or redirect ranged attacks. On your turn you may forgo your action to use Deflection as a passive defense bonus against ranged attacks. At higher ranks you may redirect deflected attacks back at the attacker or at other targets.",
+    "description": "You can turn aside incoming ranged attacks of one chosen kind, physical or energy, using this rank as an active defence. When an attack fails to hurt you, spend a free action to send it back at the lower of its rank or yours. Area attacks cannot be deflected.",
     "prerequisite": null,
     "available_pros": [
       "selective",
@@ -746,17 +1015,26 @@
       "ranged",
       "passive"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.26"
   },
   {
     "id": "density",
     "name": "Density",
     "category": "Transformation",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can increase or decrease your body's density. Increasing density raises your effective Might and Armor rank but slows movement. Decreasing density makes you lighter and can grant partial intangibility. Rank determines the magnitude of density change.",
+    "description": "You can make yourself denser, substituting this rank for your Might and Toughness and gaining Armor at it too; where you already match or beat that, use your own rank +1d. You also get much heavier — at 3d or more your weight rank equals your Density rank.",
     "prerequisite": null,
     "available_pros": [
       "phase_shift"
@@ -778,17 +1056,26 @@
       "might",
       "defense"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.26"
   },
   {
     "id": "detection",
     "name": "Detection",
     "category": "Sensory",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can detect a specific type of thing (energy, life forms, power signatures, chemicals, etc. \u2014 defined at purchase). Rank determines range and precision. Multiple applications of this Power detect different things.",
+    "description": "You can sense and pinpoint something specific — a kind of energy, matter, creature, emotion or state. It usually works automatically, with a roll only for the faint or hidden, and unusually for a ranged Power it reaches Extreme Range.",
     "prerequisite": null,
     "available_pros": [
       "ranged"
@@ -801,17 +1088,28 @@
     "tags": [
       "sensory",
       "detection"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.26"
   },
   {
     "id": "determination",
     "name": "Determination",
     "category": "Utility",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "special",
+    "cost_type": "per_unit",
+    "cost_per_unit": 5,
+    "cost_unit_label": "resolve",
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You have extraordinary willpower and inner reserves. Each rank of Determination gives you 1 additional Resolve at the start of each scene. This Resolve is in addition to Resolve gained from normal character creation.",
+    "description": "Your determination is a byword even among Heroes. Every 5 Hero Points spent here gives you 1 extra Resolve at the start of each issue. It has no rank and cannot be absorbed, drained or mimicked. Heroes only.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [],
@@ -820,18 +1118,27 @@
       "resolve",
       "willpower"
     ],
-    "needs_review": true,
-    "notes": "Verify exact Resolve per rank ratio from PDF."
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.26",
+    "notes": "No rank. 5 Hero Points buys 1 extra starting Resolve per issue."
   },
   {
     "id": "dimensional_travel",
     "name": "Dimensional Travel",
     "category": "Movement",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 6,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can travel between dimensions or parallel worlds. Rank determines frequency of use, accuracy of destination, and the number of passengers you can bring. Lower ranks may limit you to adjacent dimensions; higher ranks allow travel to any known dimension.",
+    "description": "You can travel to other dimensions, at the cost of an action. An unfamiliar dimension drops you somewhere random; after that you return where you left, or spend 1 Resolve to arrive somewhere familiar. Free uses per issue equal your Willpower, then 1 Resolve each.",
     "prerequisite": null,
     "available_pros": [
       "selective"
@@ -848,17 +1155,26 @@
       "dimensional",
       "travel"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.26"
   },
   {
     "id": "dispel",
     "name": "Dispel",
     "category": "Control",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can cancel or suppress a target's Powers. Make an attack roll against the target's passive defense; success suppresses one Power (chosen by you) for a number of pages equal to your net successes. Rank determines which Powers you can affect.",
+    "description": "You can end any ongoing Power affecting a being or object, resisted by that Power's rank. It does not stop the Power working again — it only cuts the current duration short. Limited to one Source, chosen at purchase. Also usable as an active defence against special effects.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -878,17 +1194,26 @@
       "counter",
       "powers"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.26"
   },
   {
     "id": "drain",
     "name": "Drain",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can temporarily reduce the rank of a target's Trait (Ability, Talent, or Power \u2014 defined at purchase). Make an attack roll; each net success reduces the target's chosen Trait by 1d for the rest of the scene. Drained ranks recover at end of scene.",
+    "description": "You can drain Abilities, Talents and Powers of one chosen Source, rolling against the target's highest-ranked Trait of that Source. Drained Abilities and Talents fall to 1d and drained Powers stop entirely for the duration. Traits of other Sources are untouched and cannot resist.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -909,17 +1234,27 @@
       "attack",
       "debuff",
       "attribute"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.27"
   },
   {
     "id": "duplication",
     "name": "Duplication",
     "category": "Utility",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 25,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can create duplicate copies of yourself. Each duplicate is a separate character with the same stats as you. Rank determines the number of duplicates you can maintain simultaneously. Duplicates are fully independent but share your experiences when reabsorbed.",
+    "description": "Spend an action to create an exact duplicate of yourself, minus this Power. Duplicates share your limited-use Powers and have no Resolve of their own, though you may spend yours for them. A duplicate vanishes when either of you is defeated, and cannot return that scene.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -933,17 +1268,26 @@
       "duplication",
       "copies"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.27"
   },
   {
     "id": "elemental_control",
     "name": "Elemental Control",
     "category": "Control",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 3.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can manipulate a specific element (fire, water, earth, air, electricity, etc. \u2014 defined at purchase). Rank determines the volume of material you can affect and the precision of your control. You can use the element offensively (attack rolls) or defensively.",
+    "description": "You create and control one element — fire, ice, gravity, sound, plants, whatever you choose — and through it imitate other Powers at this rank, so long as the effect makes comic-book sense for your element.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -971,17 +1315,27 @@
       "elemental",
       "environment",
       "attack"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.27"
   },
   {
     "id": "emotion_control",
     "name": "Emotion Control",
     "category": "Mental",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can manipulate the emotional states of others (fear, courage, love, rage, despair, etc. \u2014 defined at purchase). Make an attack roll against the target's Willpower; success alters their emotional state for a number of pages equal to your net successes.",
+    "description": "You can flood anyone in range with an overwhelming feeling: rage, fear, love, confusion, despair. Resisted by Willpower. The GM decides how the target acts, and the reaction is often powerful and irrational.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -1005,17 +1359,30 @@
       "mental",
       "control",
       "social"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.28"
   },
   {
     "id": "energy_absorption",
     "name": "Energy Absorption",
     "category": "Defense",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
+    "range": "self",
+    "rank_type": "power",
+    "cost_type": "per_rank_variable",
+    "cost_variants": {
+      "standard": 1,
+      "kinetic": 3
+    },
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can absorb a specific type of energy attack (defined at purchase) and convert it to fuel your own Powers or reduce damage taken. Rank determines how much energy you can absorb per page. Excess absorbed energy may be redirected as an attack.",
+    "description": "You can absorb one type of energy, siphoned from a source or taken from an attack, up to the lesser of its rank and yours. You are immune to energy attacks at or below your rank and can use this as a passive defence above it. Absorbed energy must be spent at once — boosting a physical Ability, granting +1d to all rolls, firing out as a Blast, or healing damage.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1028,17 +1395,27 @@
       "energy",
       "absorption"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.28",
+    "notes": "Variable per-rank cost: 1 Hero Point per rank normally, 3 if you can absorb kinetic energy (subject to GM approval)."
   },
   {
     "id": "ensnare",
     "name": "Ensnare",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can trap and restrain a target with bonds of energy, webbing, ice, or similar. Make an attack roll; net successes reduce the target's ability to move and act. A restrained target cannot move and suffers penalties to attack and defense. The target may attempt to break free each page.",
+    "description": "You can bind a target in ice, webbing, vines or the like so they cannot take physical actions, resisted by Might, an active defence, or Aura used as a passive defence.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -1061,21 +1438,31 @@
       "attack",
       "restraint",
       "control"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.28"
   },
   {
     "id": "evasion",
     "name": "Evasion",
     "category": "Defense",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "baseline",
     "cost_type": "per_rank",
+    "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You have extraordinary defensive reflexes. Your effective Evasion rank equals your Agility rank plus purchased ranks. Evasion may be used as a passive defense rank in combat without spending an action. Evasion is used passively against attacks you are unaware of.",
+    "description": "You are never standing still. Use Evasion in place of Agility for active defence rolls, movement rolls, and combat stunts. It does not actually make you faster.",
     "prerequisite": {
-      "ability": "agility",
       "relationship": "baseline_equal",
-      "description": "Baseline rank equals Agility rank. Total Evasion rank = Agility + purchased ranks. Used as passive defense."
+      "ability": "agility",
+      "description": "Baseline rank equals your Agility rank."
     },
     "available_pros": [],
     "available_cons": [
@@ -1088,18 +1475,32 @@
       "passive",
       "agility",
       "combat"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.28"
   },
   {
     "id": "expertise",
     "name": "Expertise",
     "category": "Utility",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "baseline",
     "cost_type": "per_rank",
+    "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You have in-depth knowledge of a specific career, discipline, or field not covered by standard Talents (e.g. chef, architect, musician, spy tradecraft). Define the area of expertise when purchasing. Rank determines the depth and breadth of your knowledge.",
-    "prerequisite": null,
+    "description": "A specialisation — an area of knowledge, proficiency or skill that sits under one of your Abilities or Talents, named when you buy it. Use this Power's rank in place of that Trait whenever the specialisation applies. Its baseline rank is that Trait's rank.",
+    "prerequisite": {
+      "relationship": "baseline_selected_trait",
+      "ability": null,
+      "description": "Baseline rank equals the rank of the Ability, Talent or Power nominated by the player when this Power is purchased."
+    },
     "available_pros": [],
     "available_cons": [
       "item",
@@ -1110,18 +1511,28 @@
       "knowledge",
       "skill"
     ],
-    "needs_review": true,
-    "affects_resolve": false
+    "affects_resolve": false,
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.28",
+    "notes": "Baseline rank equals the rank of the Ability or Talent the specialisation falls under, nominated by the player at purchase."
   },
   {
     "id": "extra_limbs",
     "name": "Extra Limbs",
     "category": "Physical",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You have additional functional limbs (tentacles, tails, extra arms, etc.). Each rank provides one additional limb. Extra limbs allow you to carry more items, grapple more effectively, or perform additional actions with a limb without an action penalty.",
+    "description": "Extra arms, tentacles, a prehensile tail or similar, worth +2d on attack and defence rolls when grappling. The GM may extend that to anything else more limbs would plainly help, like climbing.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1133,17 +1544,26 @@
       "body",
       "combat"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.28"
   },
   {
     "id": "flight",
     "name": "Flight",
     "category": "Movement",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can fly under your own power. Rank determines flight speed. Flight is a sustained Power by nature \u2014 you must be actively using it to stay aloft.",
+    "description": "A Travel Power: you can fly. Flight needs room to manoeuvre, so halve your effective rank indoors unless the space is unusually large.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1159,17 +1579,27 @@
       "movement",
       "flight",
       "aerial"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.29"
   },
   {
     "id": "force_field",
     "name": "Force Field",
     "category": "Defense",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You project an active energy shield that provides a defense bonus against attacks. Unlike Armor, a Force Field is an active defense \u2014 it must be consciously maintained. Force Field is immune to the Penetrating Pro. Rank determines the strength of the field.",
+    "description": "A projected field that shields everyone inside it. Protected characters use your rank as a passive defence against physical and energy attacks, and are immune to any attack at or below half your rank.",
     "prerequisite": null,
     "available_pros": [
       "selective"
@@ -1190,17 +1620,27 @@
       "energy",
       "active",
       "shield"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.29"
   },
   {
     "id": "form_energy",
-    "name": "Form \u2014 Energy",
+    "name": "Form — Energy",
     "category": "Transformation",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 3.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can transform your body into a form of pure energy (light, electricity, plasma, etc. \u2014 defined at purchase). While in energy form you are immune to physical damage, can travel at high speed, and may affect targets with a touch attack. Rank determines duration and which Powers you can use in this form.",
+    "description": "You can become one type of energy, gaining Aura and Flight at this rank. You are weightless and immune to physical and energy attacks, but you can carry and touch nothing, objects and force fields can still contain you, and whatever affects your energy affects you.",
     "prerequisite": null,
     "available_pros": [
       "phase_shift"
@@ -1219,17 +1659,26 @@
       "energy",
       "incorporeal"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.30"
   },
   {
     "id": "form_gaseous",
-    "name": "Form \u2014 Gaseous",
+    "name": "Form — Gaseous",
     "category": "Transformation",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 6,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can transform your body into a cloud of gas. While in gaseous form you can move through small openings, are immune to physical strikes, and are nearly invisible at range. You cannot use most physical Powers while gaseous. Rank determines duration and gas volume.",
+    "description": "You can become a gas with 1d Flight — weightless, immune to physical and energy attacks, and able to slip through any opening a gas could. You can touch nothing physical, and you become vulnerable to what affects gases.",
     "prerequisite": null,
     "available_pros": [
       "phase_shift"
@@ -1248,17 +1697,26 @@
       "gaseous",
       "incorporeal"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.30"
   },
   {
     "id": "form_liquid",
-    "name": "Form \u2014 Liquid",
+    "name": "Form — Liquid",
     "category": "Transformation",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 12,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can transform your body into a liquid state. While in liquid form you can flow through tiny gaps, absorb physical impacts, and reform after being hit. Rank determines the properties of the liquid and which actions you can take while transformed.",
+    "description": "You can become a liquid or a mass of fine particles, immune to physical but not energy attacks, and able to flow through any gap a liquid could. You can still solidify enough to handle things and attack. Your body remains physical, so it can be contained or shoved.",
     "prerequisite": null,
     "available_pros": [
       "phase_shift"
@@ -1277,17 +1735,26 @@
       "liquid",
       "malleable"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.30"
   },
   {
     "id": "form_solid",
-    "name": "Form \u2014 Solid",
+    "name": "Form — Solid",
     "category": "Transformation",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can transform your body into a solid material (stone, metal, crystal, wood, etc. \u2014 defined at purchase). While in solid form you gain enhanced Armor and Might but may move more slowly. Rank determines the hardness of the material and related bonuses.",
+    "description": "You can become solid matter — ice, metal, stone, wood. Substitute this rank for your Might and Toughness and gain Armor at it; where you already match or beat that, use your own rank +1d.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1306,17 +1773,26 @@
       "physical",
       "defense"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.30"
   },
   {
     "id": "gestalt",
     "name": "Gestalt",
     "category": "Special",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can merge with one or more other characters (who must also have this Power) to form a single combined entity with enhanced traits and Powers. The combined form has stats and Powers based on all participants. Rank determines how many others you can merge with and the power of the gestalt form.",
+    "description": "Requires the Alter Ego Flaw. Your powered form is two people merged, each alter ego a separate character with their own Abilities, Talents and possibly Powers. Further alter egos cost 3 Hero Points each.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1328,17 +1804,26 @@
       "combination",
       "team"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.30"
   },
   {
     "id": "growth",
     "name": "Growth",
     "category": "Transformation",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can increase your physical size. Each rank of Growth increases your effective Might and Armor by 1d (you become harder to harm and more powerful), but also makes you easier to hit (opponents gain a bonus to attack rolls against you). Growth also increases your reach.",
+    "description": "You can grow enormous. From 4d your weight rank equals your Growth rank. Substitute this rank for your Might and Toughness, gain Armor at it, and gain Running at half it for the length of your stride; where you already match or beat those, use your own rank +1d.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1356,17 +1841,27 @@
       "size",
       "physical",
       "might"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.30"
   },
   {
     "id": "hard_to_kill",
     "name": "Hard to Kill",
     "category": "Defense",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 1,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You are extraordinarily difficult to kill. Each rank of Hard to Kill increases your Health by 2. You may also have enhanced thresholds for when you become incapacitated.",
+    "description": "You are hard to kill — it would take something extreme, like beheading or a volcano. Characters with this Power know it about themselves and can be played accordingly.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1378,18 +1873,26 @@
       "health",
       "survival"
     ],
-    "needs_review": true,
-    "notes": "Verify exact Health bonus per rank from PDF."
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.30"
   },
   {
     "id": "healing",
     "name": "Healing",
     "category": "Support",
-    "cost_per_rank": 1,
+    "range": "touch",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can heal the damage and injuries of others. Make a challenge roll; each net success heals 1 point of damage. Rank determines the maximum damage you can heal per use and your range (Touch by default). Cannot heal yourself unless the Imbue Pro is purchased.",
+    "description": "You can heal anyone you touch. Your rank is the maximum damage you can heal per day. The GM may let it cure disease on a successful roll, or for Resolve.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -1409,17 +1912,27 @@
       "support",
       "healing",
       "medical"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.31"
   },
   {
     "id": "hibernation",
     "name": "Hibernation",
     "category": "Utility",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 1,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can enter a state of suspended animation, dramatically reducing your biological functions. While hibernating you do not need food, water, or air, and you are immune to many environmental hazards. Rank determines how long you can hibernate and how quickly you can rouse yourself.",
+    "description": "You can enter suspended animation for as long as you like, barely ageing and needing no air, food or drink. You stay aware of your surroundings and can wake yourself at will.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1430,18 +1943,27 @@
       "survival",
       "suspended animation"
     ],
-    "needs_review": true,
-    "affects_resolve": false
+    "affects_resolve": false,
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.31"
   },
   {
     "id": "hyper_breath",
     "name": "Hyper Breath",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "special",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can project a powerful breath weapon (fire, ice, acid, force, sonic, etc. \u2014 defined at purchase). This is a Close Range cone attack by default, affecting all targets in the area. Make one attack roll against all targets. Rank determines damage and range.",
+    "description": "You can exhale gale-force wind to push or pull, rolling against the greater of each target's Might or weight rank. One or two net successes move them to you or out to Distant Range; three or more also knock them prone and cost them their next turn. Hits everyone in Close Range, or one target further out.",
     "prerequisite": null,
     "available_pros": [
       "armor_piercing",
@@ -1464,17 +1986,26 @@
       "area",
       "cone"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.31"
   },
   {
     "id": "illusions",
     "name": "Illusions",
     "category": "Mental",
-    "cost_per_rank": 1,
+    "range": "zone",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can create convincing sensory illusions that affect sight and sound (and other senses at higher ranks). Targets who interact with an illusion may make a Perception roll (vs. your Illusions rank) to disbelieve it. Rank determines realism, size, and number of illusions you can maintain.",
+    "description": "You can create illusions of any size up to the whole area, with sight and sound. They exist in the world and register on cameras and microphones. Observers accept them until given reason to doubt, then may roll Perception against your rank to see through them.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -1492,17 +2023,27 @@
       "mental",
       "sensory",
       "deception"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.31"
   },
   {
     "id": "immortality",
     "name": "Immortality",
     "category": "Defense",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You cannot be permanently killed. When your Health reaches 0 you are incapacitated but not dead \u2014 you will recover after a time determined by your rank. You also do not age. Higher ranks recover more quickly and may grant other life-sustaining benefits.",
+    "description": "You cannot die, or cannot stay dead, and you will not die of age. In a game where Heroes can die, GMs should charge more for this — somewhere between 6 and 12 Hero Points.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1516,17 +2057,27 @@
       "death",
       "regeneration"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.31"
   },
   {
     "id": "immunity",
     "name": "Immunity",
     "category": "Defense",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "per_unit",
+    "cost_per_unit": 3,
+    "cost_unit_label": "immunity",
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You are completely immune to a specific type of attack, hazard, or condition (defined at purchase \u2014 e.g. fire, poison, mind control, disease). Rank determines the breadth of the immunity. Multiple applications cover different immunity types.",
+    "description": "You are immune to specific attacks, energies, conditions, hazards or Powers. Each immunity is named and paid for separately.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1539,17 +2090,27 @@
       "immunity",
       "passive"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.31",
+    "notes": "Cost is 3 Hero Points per immunity selected."
   },
   {
     "id": "inanimate",
     "name": "Inanimate",
     "category": "Special",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "special",
+    "cost_type": "flat",
+    "cost_flat": 9,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You are, or can become, an inanimate object type (robot, golem, vehicle, etc. \u2014 defined at purchase as a Source). Characters with this Power may be immune to some Powers that affect living beings and vulnerable to others. Rank determines the extent of your inanimate nature.",
+    "description": "You are not alive in the ordinary sense — a construct, a robot, undead, something stranger. You are immune to physical attacks and to Powers that only touch the living, helpful ones included, and you effectively have Immunity (Life Support, Toxins). Your mind or spirit is still open to mental Powers. No rank, and it cannot be absorbed, drained or mimicked.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1562,18 +2123,27 @@
       "robot",
       "construct"
     ],
-    "needs_review": true,
-    "affects_resolve": false
+    "affects_resolve": false,
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.32"
   },
   {
     "id": "invisibility",
     "name": "Invisibility",
     "category": "Stealth",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 9,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can become invisible to normal sight. Rank determines whether other senses (hearing, scent, radar) also reveal your presence, and whether carried items also become invisible. Attacking while invisible ends the effect until your next turn.",
+    "description": "You can turn invisible. Other senses, Powers like Radar and Super Senses, and traces you leave in the world can still find you. Enemies who cannot see you take -3d on attack and active defence rolls against you, or -2d if they can detect you some other way.",
     "prerequisite": null,
     "available_pros": [
       "selective",
@@ -1594,17 +2164,27 @@
       "stealth",
       "concealment",
       "light"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.32"
   },
   {
     "id": "irritant",
     "name": "Irritant",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "zone",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can produce a substance or effect that causes intense irritation (tear gas, pepper spray, blinding powder, itching powder, etc.). Make an attack roll; success causes the target to suffer penalties on all actions for a number of pages equal to your net successes.",
+    "description": "You fill the area around you with something wretched — stinging sand, howling wind, gas, a swarm of insects. Everyone but you takes -2d on all challenge rolls except passive defences unless their Toughness (or Willpower, if you define it so) beats your rank. Activating costs an action; sustaining it is free.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -1624,17 +2204,26 @@
       "debuff",
       "chemical"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.32"
   },
   {
     "id": "languages",
     "name": "Languages",
     "category": "Utility",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 1,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You have an extraordinary facility with languages. Each rank allows you to understand and speak additional languages, or grants you the ability to understand any spoken or written language. Higher ranks may allow instant comprehension of any language encountered.",
+    "description": "You speak a number of extra languages equal to your Intellect, chosen in advance or on the spot.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1645,19 +2234,27 @@
       "communication",
       "social"
     ],
-    "needs_review": true,
-    "notes": "Verify whether this is per-language flat cost or per-rank with comprehension scaling.",
-    "affects_resolve": false
+    "affects_resolve": false,
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.32"
   },
   {
     "id": "leadership",
     "name": "Leadership",
     "category": "Support",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 6,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You have a supernatural ability to inspire and coordinate allies. Allies within range gain a bonus to their rolls equal to your Leadership rank. You may also use Leadership to coordinate team attacks, granting bonuses when allies act in concert.",
+    "description": "You lead your team in battle. While you can see and speak to them, spend a free action to let each ally reroll one challenge roll per combat scene.",
     "prerequisite": null,
     "available_pros": [
       "ranged",
@@ -1675,21 +2272,30 @@
       "team",
       "buff"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.32"
   },
   {
     "id": "leaping",
     "name": "Leaping",
     "category": "Movement",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "baseline",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can leap extraordinary distances. Your effective Leaping rank equals half your Might rank (rounded up) plus purchased ranks. Rank determines jump distance and height. At sufficient rank you can use Leaping as an attack (landing on opponents).",
+    "description": "A Travel Power: you jump enormous distances. Subtract 1d from your rank to find how high you can jump straight up. Its baseline is half your Might.",
     "prerequisite": {
-      "ability": "might",
       "relationship": "baseline_half",
-      "description": "Baseline rank equals half Might rank (rounded up). Total Leaping rank = baseline + purchased ranks."
+      "ability": "might",
+      "description": "Baseline rank is half your Might rank, rounded up."
     },
     "available_pros": [],
     "available_cons": [
@@ -1700,17 +2306,27 @@
       "movement",
       "physical",
       "might"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.32"
   },
   {
     "id": "life_drain",
     "name": "Life Drain",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "touch",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can drain the life force of a living being. Make an attack roll against the target; each net success inflicts 1 point of damage and heals 1 point of your own damage. Targets reduced to 0 Health by Life Drain may suffer additional effects at higher ranks.",
+    "description": "You drain the life from a living being you touch, resisted by Toughness (or Willpower, if you define it so) and by active defences, inflicting 1 damage per net success. If you are wounded, you heal 1 point for every 2 you inflict.",
     "prerequisite": null,
     "available_pros": [
       "contagious",
@@ -1731,17 +2347,26 @@
       "healing",
       "drain"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.33"
   },
   {
     "id": "light_effect",
     "name": "Light / Effect",
     "category": "Utility",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "special",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can create and control light, including generating illumination, laser effects, holograms, or blinding flashes. Rank determines brightness, precision, and range. Primarily a utility Power; offensive light effects are handled by Blast or Dazzle.",
+    "description": "You generate light — visible, or ultraviolet if you prefer — effortlessly, always as a free action. It can fill your zone or focus into a beam or harmless laser out to Distant Range, at any brightness short of incapacitating. Blinding people outright is Dazzle.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -1758,17 +2383,26 @@
       "light",
       "visual"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.33"
   },
   {
     "id": "lightning_reflexes",
     "name": "Lightning Reflexes",
     "category": "Combat",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You react with superhuman speed. Each rank of Lightning Reflexes adds +2 to your Edge score (in addition to Perception and the higher of Agility or Intellect). You also act earlier in the initiative order.",
+    "description": "Your reflexes are extraordinary: your Edge goes up by 6. You can also draw or stow any weapon instantly, which under the Gritty Combat Rules makes it impossible for anyone to get the drop on you.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1782,18 +2416,26 @@
       "edge",
       "speed"
     ],
-    "needs_review": true,
-    "notes": "Verify exact Edge bonus per rank (summary says +6 total for Lightning Reflexes \u2014 may be flat, not per-rank)."
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.33"
   },
   {
     "id": "luck",
     "name": "Luck",
     "category": "Special",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can manipulate probability in your favor. Rank determines how many times per scene you can invoke Luck and the magnitude of the effect (rerolling dice, forcing opponents to reroll, causing improbable coincidences). GM has final say on Luck's narrative effects.",
+    "description": "You are absurdly lucky, or so skilled it looks that way. Each issue you gain Luck dice equal to your rank, addable to either side of any challenge roll involving you — spend them to boost your own roll, or to roll against someone acting on you and subtract your successes from theirs.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1805,17 +2447,26 @@
       "probability",
       "meta"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.33"
   },
   {
     "id": "machine_control",
     "name": "Machine Control",
     "category": "Control",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can interface with and control mechanical and electronic devices. Rank determines the complexity of devices you can control and the range of control. At higher ranks you may be able to control complex systems such as vehicles, computers, or robot armies.",
+    "description": "You can control machines and electronics out to Distant Range — hacking a computer, killing a camera, driving a car from afar. Substitute this rank for whatever Trait operating the machine would normally need. Controlling several at once costs effectiveness.",
     "prerequisite": null,
     "available_pros": [
       "ranged",
@@ -1834,21 +2485,31 @@
       "control",
       "technology",
       "machines"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.33"
   },
   {
     "id": "martial_arts",
     "name": "Martial Arts",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "touch",
+    "rank_type": "baseline",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You are trained in a martial discipline. Your effective Martial Arts rank equals your Might rank plus purchased ranks. Martial Arts may be used for unarmed attacks and also as an active defense roll in combat. Martial Arts can substitute for Strike when used unarmed.",
+    "description": "You are a master of unarmed combat, using this Power to make and defend against close combat attacks. Substitute it for Might on grabs, holds, escapes and combat stunts, and for your Ability ranks when fighting with mundane melee weapons.",
     "prerequisite": {
-      "ability": "might",
       "relationship": "baseline_equal",
-      "description": "Baseline rank equals Might rank. Total Martial Arts rank = Might + purchased ranks. Can be used as active defense."
+      "ability": "might",
+      "description": "Baseline rank equals your Might rank."
     },
     "available_pros": [
       "armor_piercing",
@@ -1878,17 +2539,27 @@
       "unarmed",
       "defense",
       "combat"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.34"
   },
   {
     "id": "master_of_disguise",
     "name": "Master of Disguise",
     "category": "Utility",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can create extraordinarily convincing disguises. Rank determines how different from your natural appearance you can appear and how long the disguise takes to apply. At higher ranks you can also alter your voice, scent, and other identifying characteristics.",
+    "description": "You can build convincing disguises inside a short scene given basic materials, and you mimic voice and manner expertly. Roll Charm, usually against the target's Perception.",
     "prerequisite": null,
     "available_pros": [
       "subtle"
@@ -1904,17 +2575,26 @@
       "social",
       "deception"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.34"
   },
   {
     "id": "matter_chameleon",
     "name": "Matter Chameleon",
     "category": "Transformation",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can alter the material composition of your body to mimic other substances (metal, stone, rubber, etc.) without changing your shape. Each material grants different properties (hardness, conductivity, elasticity). Rank determines how many materials you can mimic and the quality of mimicry.",
+    "description": "You take on the properties of objects you touch for the rest of the scene. It works like Solid Form at the lesser of your rank or the object's Structure, and you also pick up its energetic properties as Aura — the heat of lava, for instance — at the lesser of your rank or that energy's.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -1930,17 +2610,26 @@
       "physical",
       "material"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.35"
   },
   {
     "id": "mind_blast",
     "name": "Mind Blast",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can project a powerful blast of psychic energy. Make an attack roll against the target's Willpower (passive); each net success inflicts damage directly to the target's mind. Mind Blast ignores physical armor. Targets resist with Psi-Screen if they have it.",
+    "description": "A mental attack on the mind or spirit that inflicts psychic damage on living beings, resisted by Willpower. It does nothing to inanimate objects and passes straight through them unless they have a psychic presence.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -1968,17 +2657,27 @@
       "psychic",
       "mental",
       "ranged"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.35"
   },
   {
     "id": "mind_control",
     "name": "Mind Control",
     "category": "Mental",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can take direct control of another person's mind and actions. Make an attack roll against the target's Willpower; success allows you to issue commands. Controlled targets act on your initiative. Rank determines how complex your commands can be and how many subjects you can control simultaneously.",
+    "description": "You can make any living being within Distant Range obey you for the duration, resisted by Willpower. Command them now, or spend 1 Resolve to plant a suggestion to trigger later, even months on. Targets get +2d to resist orders that are wholly against their nature.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -2003,17 +2702,27 @@
       "mental",
       "control",
       "psychic"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.35"
   },
   {
     "id": "nullify",
     "name": "Nullify",
     "category": "Control",
-    "cost_per_rank": 1,
+    "range": "zone",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can temporarily negate or suppress all Powers of a target (or Powers of a specific type \u2014 defined at purchase). Make an attack roll against the target's passive defense; success suppresses their Powers for a number of pages equal to your net successes.",
+    "description": "A dampening field that shuts down the Abilities, Talents and Powers of everyone in range, friend and foe alike. Nullified Abilities and Talents drop to 1d, nullified Powers stop entirely. It works automatically on any Trait at or below your rank, no roll needed, but only against one chosen Source, and you must concentrate to hold it.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -2033,17 +2742,29 @@
       "counter",
       "powers"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.35"
   },
   {
     "id": "omni_power",
     "name": "Omni-Power",
     "category": "Special",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
+    "range": "special",
+    "rank_type": "power",
+    "cost_type": "per_rank_variable",
+    "cost_variants": {
+      "narrow": 3,
+      "broad": 5
+    },
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You have a versatile pool of power that you can configure as needed. Each page you may redistribute your Omni-Power rank among any Powers you wish (up to one rank per Power, or all ranks into one Power). Requires GM approval and is subject to narrative constraints of your Power source.",
+    "description": "A versatile ability that mimics other Powers at this rank. You can switch between them instantly and use as many per page as you like, but every use after the first on the same page drops your effective rank by 1d for the rest of that page. A narrow Omni-Power costs less per rank than a broad one.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2056,18 +2777,27 @@
       "versatile",
       "flexible"
     ],
-    "needs_review": true,
-    "notes": "Cost structure and rank redistribution rules need verification from PDF."
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.35",
+    "notes": "Variable per-rank cost: narrow Omni-Powers cost 3 Hero Points per rank, broad ones 5. Cannot mimic Alternate Form, Determination, Inanimate, Life Drain, Luck, Nullify, Power Absorption, Power Mimicry, Preparation, Slay or Time Stop."
   },
   {
     "id": "phasing",
     "name": "Phasing",
     "category": "Movement",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 9,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can become intangible, allowing you to pass through solid objects and ignore physical attacks. While phasing you cannot affect the physical world (carry objects, make physical attacks) unless you buy the Phase Shift Pro for specific Powers. Rank determines duration and whether you can bring others along.",
+    "description": "You can shift out of phase with the physical world — immune to physical and energy attacks though not mental ones, and able to pass through solid matter but not force fields. You can touch nothing physical while phased. Switching on or off is a free action, but not both in the same turn.",
     "prerequisite": null,
     "available_pros": [
       "selective"
@@ -2088,17 +2818,27 @@
       "incorporeal",
       "defense",
       "intangible"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.36"
   },
   {
     "id": "plasticity",
     "name": "Plasticity",
     "category": "Physical",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "Your body is highly malleable and elastic. You can reshape body parts, squeeze through tight spaces, and alter your general appearance (not a full disguise). Rank determines the extent of reshaping possible, elasticity, and ability to absorb impacts.",
+    "description": "Your body is rubbery and elastic, so you can mould yourself into shapes and squeeze through the narrowest gaps. Shape yourself to imitate effects at this rank — a ball to Leap, a coil to hold something in place instead of using Might, a canopy to serve as a parachute.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2115,17 +2855,26 @@
       "elastic",
       "body"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.36"
   },
   {
     "id": "polymorph",
     "name": "Polymorph",
     "category": "Control",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can transform another character into a different form (an animal, an object, etc.). Make an attack roll against the target's passive defense; success transforms them for a duration based on your net successes. A transformed character cannot use most Powers. Rank determines how drastically you can transform targets.",
+    "description": "You can turn a living being into something harmless or helpless — a frog, a statue — resisted by Toughness (or Willpower, if you define it so) and by active defences. The change lasts for the duration.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -2146,17 +2895,26 @@
       "transformation",
       "attack"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.36"
   },
   {
     "id": "portable_storehouse",
     "name": "Portable Storehouse",
     "category": "Utility",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 6,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You have access to a pocket dimension or extradimensional space in which you can store equipment and supplies. Rank determines the volume of your storehouse and how quickly you can retrieve items from it. Living beings may not be stored.",
+    "description": "You can reach a store of mundane weapons, armour, gear and even vehicles from anywhere — teleported in, pulled from a bag, conjured, however you describe it. What you draw lasts until the scene ends unless you have Resources or Wealth.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2167,18 +2925,27 @@
       "storage",
       "dimensional"
     ],
-    "needs_review": true,
-    "affects_resolve": false
+    "affects_resolve": false,
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.36"
   },
   {
     "id": "possession",
     "name": "Possession",
     "category": "Mental",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can project your mind into another person's body and take control, displacing their consciousness. Make an attack roll against the target's Willpower; success allows possession for a number of pages equal to your net successes. Your own body falls inert while possessing another.",
+    "description": "You can take over a living body within Distant Range, resisted by Willpower. You use the host's physical Traits and your own mental ones. Your body lies dormant, though you know at once if it is moved or harmed, and you snap back to it if the host is defeated.",
     "prerequisite": null,
     "available_pros": [
       "ranged",
@@ -2198,17 +2965,27 @@
       "control",
       "psychic",
       "body"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.36"
   },
   {
     "id": "power_absorption",
     "name": "Power Absorption",
     "category": "Special",
-    "cost_per_rank": 1,
+    "range": "touch",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can temporarily steal the Powers of another character. Make an attack roll against the target's passive defense; success allows you to use one of their Powers at your Power Absorption rank for a number of pages equal to your net successes. The target loses access to the stolen Power while it is absorbed.",
+    "description": "You can steal a character's Abilities, Talents and Powers of one chosen Source by touch, rolling against their highest-ranked Trait of that Source or an active defence. Success knocks them out and you hold the stolen Traits at their rank for the duration. Traits you already have at equal or higher rank are unaffected.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2224,17 +3001,61 @@
       "drain",
       "theft"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.37"
+  },
+  {
+    "id": "precognition",
+    "name": "Precognition",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 12,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "You can rewrite what has just happened — through foresight, prediction, or actually winding time back. Spend Resolve to cancel an event; in combat that erases a character's turn and moves you straight to your next turn ahead of them. Declare it the moment their turn ends.",
+    "prerequisite": null,
+    "available_pros": [],
+    "available_cons": [
+      "charges",
+      "conditional",
+      "limited",
+      "recharge",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "mental",
+      "future",
+      "divination"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.37"
   },
   {
     "id": "power_mimicry",
     "name": "Power Mimicry",
     "category": "Special",
-    "cost_per_rank": 1,
+    "range": "touch",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can copy the Powers of other characters. Upon coming into contact with (or within range of) a character with Powers, you may copy one or more of their Powers at your Power Mimicry rank. Unlike Power Absorption, the target retains their Powers. Rank determines number of Powers copied and duration.",
+    "description": "You can copy a character's Abilities, Talents and Powers of one chosen Source by touch, rolling against their highest-ranked Trait of that Source or an active defence. You gain them at their rank for the duration and the target loses nothing. Traits you already have at equal or higher rank are unaffected.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2252,42 +3073,26 @@
       "copy",
       "mimicry"
     ],
-    "needs_review": true
-  },
-  {
-    "id": "precognition",
-    "name": "Precognition",
-    "category": "Sensory",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
-    "dice_per_rank": 1,
-    "description": "You can perceive future events. Precognition provides visions, feelings, or impressions about what may occur. Rank determines how far into the future you can see, how clear the visions are, and how reliably you can invoke the ability (vs. it being involuntary).",
-    "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "uncontrolled"
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
     ],
-    "tags": [
-      "sensory",
-      "mental",
-      "future",
-      "divination"
-    ]
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.37"
   },
   {
     "id": "preparation",
     "name": "Preparation",
     "category": "Utility",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "special",
+    "cost_type": "flat",
+    "cost_flat": 6,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can prepare equipment, traps, plans, or resources in advance that give significant advantages when deployed. Rank determines how many preparations you can have active at once and how quickly you can set them up. This Power represents extraordinary planning ability.",
+    "description": "Your meticulous research and planning make your narrations far more effective when your preparation explains them — declaring that you brought exactly the right tool, that you memorised the layout, that you planned for this.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2298,21 +3103,30 @@
       "planning",
       "tactical"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.38"
   },
   {
     "id": "psi_screen",
     "name": "Psi-Screen",
     "category": "Defense",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "baseline",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You have a powerful mental shield that defends against psychic attacks and mind-affecting Powers. Your effective Psi-Screen rank equals your Willpower rank plus purchased ranks. Psi-Screen acts as a passive defense against mental attacks (Mind Blast, Telepathy, Mind Control, etc.).",
+    "description": "Your mental and spiritual defences are honed. Use this instead of Willpower against mental attacks and to resist mental damage and effects. You also know when someone tries to read your surface thoughts, and can use this Power to stop them probing your mind.",
     "prerequisite": {
-      "ability": "willpower",
       "relationship": "baseline_equal",
-      "description": "Baseline rank equals Willpower rank. Total Psi-Screen rank = Willpower + purchased ranks. Acts as passive defense against mental attacks."
+      "ability": "willpower",
+      "description": "Baseline rank equals your Willpower rank."
     },
     "available_pros": [
       "selective"
@@ -2327,17 +3141,27 @@
       "mental",
       "psychic",
       "passive"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.38"
   },
   {
     "id": "psychometry",
     "name": "Psychometry",
     "category": "Sensory",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "touch",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 9,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "By touching an object or location, you can perceive its history \u2014 events that occurred in connection with it. Rank determines how far back in time you can perceive, how detailed the visions are, and whether you can perceive only significant events or mundane ones too.",
+    "description": "By touching an inanimate object you read impressions from it and may ask the GM its basic history. Spend 1 Resolve for depth about a person or event connected to it. What you learn may be incomplete or misleading, but it is always truthful and always on point.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2351,17 +3175,27 @@
       "mental",
       "history",
       "touch"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.38"
   },
   {
     "id": "quick_change",
     "name": "Quick Change",
     "category": "Utility",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can change into your costume or another outfit in an instant, without requiring a place to change or time to prepare. Rank determines how fast the change is and whether it includes other transformation effects (such as disguise or alternate identity).",
+    "description": "You can change clothes and grooming in an instant. Describe how. Using it takes an action.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2372,18 +3206,27 @@
       "identity",
       "costume"
     ],
-    "needs_review": true,
-    "affects_resolve": false
+    "affects_resolve": false,
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.38"
   },
   {
     "id": "radar",
     "name": "Radar",
     "category": "Sensory",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You have a radar or sonar sense that allows you to detect the location and movement of objects and beings regardless of light conditions. Rank determines range and resolution. Radar negates blindness penalties and can detect hidden or invisible objects.",
+    "description": "A radar sense giving you a three-dimensional picture of your surroundings. It cannot read flat images — print, photographs, screens.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2395,17 +3238,27 @@
       "sensory",
       "detection",
       "perception"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.38"
   },
   {
     "id": "regeneration",
     "name": "Regeneration",
     "category": "Defense",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 6,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You heal from injuries with extraordinary speed. Each rank of Regeneration allows you to recover 1 point of damage per page automatically. This healing occurs regardless of medical attention. At high ranks, regeneration may also repair severed limbs or counteract poisons and diseases.",
+    "description": "You heal 1 point of damage per hour. Knocked unconscious, you wake as soon as you heal a point, unless revived sooner.",
     "prerequisite": null,
     "available_pros": [
       "imbue"
@@ -2421,21 +3274,31 @@
       "defense",
       "healing",
       "recovery"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.38"
   },
   {
     "id": "resistance",
     "name": "Resistance",
     "category": "Defense",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "baseline",
     "cost_type": "per_rank",
+    "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You are resistant to a specific type of attack or hazard (defined at purchase \u2014 e.g. fire, poison, electricity, cold). Your effective Resistance rank equals your Toughness rank plus purchased ranks. Resistance provides a passive defense bonus against the specified attack type.",
+    "description": "You shrug off radiation, temperature extremes and toxins — disease, drugs and poison. Use this instead of Toughness to resist such hazards.",
     "prerequisite": {
-      "ability": "toughness",
       "relationship": "baseline_equal",
-      "description": "Baseline rank equals Toughness rank. Total Resistance rank = Toughness + purchased ranks. Applies only to the defined damage type."
+      "ability": "toughness",
+      "description": "Baseline rank equals your Toughness rank."
     },
     "available_pros": [],
     "available_cons": [
@@ -2446,21 +3309,32 @@
       "defense",
       "passive",
       "damage reduction"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
   {
     "id": "running",
     "name": "Running",
     "category": "Movement",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "baseline",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can run at superhuman speeds. Your effective Running rank starts at 3d (baseline) plus purchased ranks. Rank determines how fast you can move on foot. At higher ranks you may perform additional actions while running or have other super-speed effects.",
+    "description": "A Travel Power: you run faster than any human, or roll, skate or bounce if you prefer. Its 3d baseline is ordinary human running speed, so purchased ranks are what make you fast.",
     "prerequisite": {
-      "ability": null,
       "relationship": "baseline_fixed",
-      "description": "Baseline rank is fixed at 3d regardless of abilities. Total Running rank = 3d + purchased ranks."
+      "ability": null,
+      "fixed_value": 3,
+      "description": "Baseline rank is a flat 3d regardless of any Ability."
     },
     "available_pros": [],
     "available_cons": [
@@ -2474,17 +3348,27 @@
       "movement",
       "speed",
       "ground"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
   {
     "id": "separation",
     "name": "Separation",
     "category": "Physical",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can split your body into separate pieces that act independently and then recombine. Rank determines how many pieces you can create, how far apart they can be, and how independently they can act. Each piece retains a portion of your abilities.",
+    "description": "You can detach parts of your body without bleeding or screaming. Detached parts act independently and can do whatever a healthy detached part reasonably could, taking your other Powers into account.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2498,17 +3382,26 @@
       "body",
       "splitting"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
   {
     "id": "shockwave",
     "name": "Shockwave",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "zone",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can generate a powerful shockwave of force or energy that radiates outward from you, striking all nearby targets. Make one attack roll and apply it against all targets in the area. Active defense ranks are halved against Shockwave. Rank determines damage and range.",
+    "description": "A concussive wave striking everyone in range, friend and foe alike, rolled against the greater of each target's Might or weight rank. One or two net successes push them back with -1d on all rolls until after your next turn; three or more knock them further and harder.",
     "prerequisite": null,
     "available_pros": [
       "armor_piercing",
@@ -2532,17 +3425,26 @@
       "melee",
       "force"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
   {
     "id": "shrinking",
     "name": "Shrinking",
     "category": "Transformation",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can reduce your physical size. Rank determines how small you can become. Shrinking makes you harder to hit (opponents suffer attack penalties) and grants access to small spaces. At extreme ranks you can approach sub-atomic scale. Your Might decreases proportionally with size.",
+    "description": "You can shrink, dropping your weight rank by your current Shrinking rank until it reaches 0d. Substitute this rank for your Agility, and gain Leaping and Strike at half it; where you already match or beat those, use your own rank +1d. Being small also changes how easily you are hit.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2560,17 +3462,27 @@
       "size",
       "stealth",
       "movement"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
   {
     "id": "slay",
     "name": "Slay",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "touch",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You have the ability to instantly kill or destroy a specific type of target (defined at purchase \u2014 e.g. demons, undead, robots, a specific species). Make an attack roll; against the defined target type, success results in immediate incapacitation or death regardless of Health. Rank determines how powerful the targets you can affect are.",
+    "description": "You can wound a living target you touch, resisted by Toughness (or Willpower, if you define it so) and by active defences, inflicting 2 damage per net success. Armor does not protect against it at all.",
     "prerequisite": null,
     "available_pros": [
       "ranged"
@@ -2587,17 +3499,26 @@
       "kill",
       "instant"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
   {
     "id": "slick",
     "name": "Slick",
     "category": "Control",
-    "cost_per_rank": 1,
+    "range": "zone",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can create an extremely slippery surface (oil slick, ice patch, etc.) on the ground or another surface. Targets entering or attempting to move through the area must make challenge rolls or fall. Rank determines area covered and difficulty of the challenge rolls.",
+    "description": "You can make any part of the ground in range slippery for the rest of the scene or until you dismiss it. Crossing it calls for an Agility roll against your rank or the character falls prone; standing again costs an action and another roll.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -2616,17 +3537,26 @@
       "movement",
       "terrain"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
   {
     "id": "speak_with_dead",
     "name": "Speak with Dead",
     "category": "Sensory",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can communicate with the spirits or residual consciousness of deceased beings. Rank determines how long after death you can contact a spirit, how clear the communication is, and whether the spirit is compelled to answer or can choose to remain silent.",
+    "description": "You can briefly animate the dead to talk to them, asking a number of questions equal to your rank, which must be answered truthfully. The dead know only what they knew alive and speak only languages they knew. You need a body, or at least a head.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2641,17 +3571,26 @@
       "spirit",
       "divination"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
   {
     "id": "specialty",
     "name": "Specialty",
     "category": "Utility",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "special",
+    "cost_type": "flat",
+    "cost_flat": 0,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You have extraordinary expertise in a very specific application of a Talent or Ability (e.g. safecracking within Covert, forensic analysis within Investigation). Each rank provides a bonus die when performing that specific activity. Define the specialty when purchasing.",
+    "description": "Free, and only in Street Level and Low Level games. It gives each Hero one thing they alone excel at, so otherwise-similar characters stay distinct. One Specialty per Hero, and no two Heroes may share one.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2663,18 +3602,28 @@
       "skill",
       "expertise"
     ],
-    "needs_review": true,
-    "affects_resolve": false
+    "affects_resolve": false,
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.40",
+    "notes": "Free, and restricted to Street Level and Low Level games. Each Hero may have only one, and no two Heroes may share one."
   },
   {
     "id": "spinning",
     "name": "Spinning",
     "category": "Physical",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can spin your body at high speed, generating a centrifugal force effect. While spinning you deflect projectiles, create wind effects, and can use the spin as an attack against adjacent targets. Rank determines spin speed and the power of associated effects.",
+    "description": "You can spin on your axis at superhuman speed. Use Spinning in place of Might for close combat attacks and defence, grabs, holds, escapes and combat stunts, and in place of Agility where spinning would serve.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2690,17 +3639,26 @@
       "defense",
       "movement"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.40"
   },
   {
     "id": "star_gate",
     "name": "Star Gate",
     "category": "Movement",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can create stable portals that others can pass through, connecting two distant points in space or even between dimensions. Unlike Teleportation, Star Gates are two-way openings that persist for a duration. Rank determines size, range, stability, and duration of the gate.",
+    "description": "You can transport yourself instantly to distant worlds, at the cost of an action. An unfamiliar world drops you somewhere random; after that you return where you left, or spend 1 Resolve for a familiar destination. Free uses per issue equal your Willpower, then 1 Resolve each.",
     "prerequisite": null,
     "available_pros": [
       "selective"
@@ -2720,17 +3678,30 @@
       "portal",
       "dimensional"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.41"
   },
   {
     "id": "stretching",
     "name": "Stretching",
     "category": "Physical",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat_variable",
+    "cost_variants": {
+      "close_range": 1,
+      "distant_range": 3,
+      "extreme_range": 6
+    },
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can extend your limbs, neck, and torso to extraordinary lengths. Rank determines your maximum reach (allowing melee attacks at range), how many body parts you can extend simultaneously, and the maximum extension length.",
+    "description": "You can stretch or extend your body, making close combat and grappling attacks against targets who are not adjacent. The reach you pay for sets the range: Close, Distant or Extreme.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2747,21 +3718,34 @@
       "reach",
       "body"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.41",
+    "notes": "Variable flat cost by reach: 1 Hero Point for Close Range, 3 for Distant Range, 6 for Extreme Range."
   },
   {
     "id": "strike",
     "name": "Strike",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "touch",
+    "rank_type": "baseline",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You have enhanced melee striking power \u2014 through energy-charged fists, claws, a weapon, or sheer force. Your effective Strike rank equals your Might rank plus purchased ranks. Used in place of a standard Might attack roll in melee combat.",
+    "description": "A damaging close combat attack — claws, energised fists, a signature melee weapon — used both to attack and to defend in close combat. Name the damage type when you buy it. Its baseline is the greater of your Might and your Martial Arts.",
     "prerequisite": {
+      "relationship": "baseline_greater_of",
       "ability": "might",
-      "relationship": "baseline_equal",
-      "description": "Baseline rank equals Might rank. Total Strike rank = Might + purchased ranks."
+      "powers": [
+        "martial_arts"
+      ],
+      "description": "Baseline rank is the greater of your Might and your Martial Arts effective rank. Under the Brute Option, only half your Might counts."
     },
     "available_pros": [
       "armor_piercing",
@@ -2798,17 +3782,28 @@
       "melee",
       "damage",
       "physical"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.41",
+    "notes": "Baseline rank is Might or Martial Arts, whichever is greater. Under the Brute Option (Overkill applied to Might) only half your Might counts toward this baseline."
   },
   {
     "id": "stun",
     "name": "Stun",
     "category": "Attack",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can deliver an attack that stuns rather than injures. Make an attack roll; net successes stun the target for that many pages. A stunned target cannot act and has their defenses reduced. Stun attacks cause no lasting damage.",
+    "description": "You can take a living opponent out of the action — stunned, paralysed, asleep, disabled, however you describe it — resisted by Toughness (or Willpower, if you define it so) and by active defences.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -2828,17 +3823,26 @@
       "debuff",
       "nonlethal",
       "control"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.42"
   },
   {
     "id": "summoning",
     "name": "Summoning",
     "category": "Control",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
+    "range": "self",
+    "rank_type": "power",
+    "cost_type": "special",
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can call forth entities (spirits, demons, animals, constructs, etc. \u2014 defined at purchase) to serve you. Summoned beings arrive at your location and follow your commands. Rank determines how powerful the beings you can summon are and how many you can have active simultaneously.",
+    "description": "You can call Minions to serve you, your rank setting how many per scene. You fix their Threat rank at purchase, up to the Trait Cap −6d, or −3d if you summon no more than ten per scene. The cost per rank rises with the Threat you give them.",
     "prerequisite": null,
     "available_pros": [
       "independent"
@@ -2856,18 +3860,33 @@
       "control",
       "summoning",
       "entities"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.42",
+    "notes": "Cost is Special: 1 Hero Point per rank for every 2d of Threat given to the Minions (rounded up). Threat rank is chosen at purchase, capped at Trait Cap - 6d, or Trait Cap - 3d if you summon no more than 10 Minions per scene."
   },
   {
-    "id": "super_senses",
-    "name": "Super Senses",
+    "id": "super_senses_acute",
+    "name": "Super Senses — Acute (X)",
     "category": "Sensory",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "baseline",
     "cost_type": "per_rank",
+    "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You have enhanced or additional senses beyond normal human capability. Each application of this Power grants one enhanced sense or one new sense (defined at purchase). Examples include: Infravision, Microscopic Vision, Telescopic Vision, X-Ray Vision, Ultra-Hearing, Sonar, Tremor-Sense, Olfactory Tracking, Electromagnetic Sense. Rank determines the acuity of the sense.",
-    "prerequisite": null,
+    "description": "One sense is hyper-acute, chosen at purchase. Substitute this rank for your Perception on challenge rolls involving that sense — but not when working out your Edge.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
     "available_pros": [],
     "available_cons": [
       "conditional",
@@ -2877,20 +3896,584 @@
     ],
     "tags": [
       "sensory",
-      "perception",
-      "detection"
+      "perception"
     ],
-    "notes": "Each specific super sense should be purchased as a separate application of this Power."
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_analytic",
+    "name": "Super Senses — Analytic (X)",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 1,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "You can use one chosen sense to read the basic physical properties of whatever you concentrate on, including chemical make-up and whether it is organic.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_astral_sight",
+    "name": "Super Senses — Astral Sight",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 1,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "You can see into the astral realm, letting you deal with invisible spirits and astral projectors, and spot living beings hidden by Powers like Blending or Invisibility.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_circular_vision",
+    "name": "Super Senses — Circular Vision",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 1,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "You effectively have a 360-degree field of view.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_enhanced_hearing",
+    "name": "Super Senses — Enhanced Hearing",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 1,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "You can catch sounds too faint, distant or muffled for ordinary ears with a Perception roll at a GM-set threshold of 4 or higher, and you hear infrasound and ultrasound.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_hypersensitive_touch",
+    "name": "Super Senses — Hypersensitive Touch",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 1,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "Your touch is fine enough to read print with your fingertips, or to work out what is happening in the next room from the vibrations through a wall.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_lie_detection",
+    "name": "Super Senses — Lie Detection",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "You can tell when someone within Close Range is lying. Automatic, unless they are shielded from it, which calls for a Perception roll.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_microscopic_vision",
+    "name": "Super Senses — Microscopic Vision",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 1,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "Concentrating, you can see microscopic detail — down to atomic or quantum scale if the story asks for it.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_night_vision",
+    "name": "Super Senses — Night Vision",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "You can see in absolute darkness.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_radio_hearing",
+    "name": "Super Senses — Radio Hearing",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 1,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "You can hear radio frequencies and intercept radio transmissions.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_telescopic_vision",
+    "name": "Super Senses — Telescopic Vision",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 1,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "You can pick out small details at extreme distance, as far as the story needs.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_thermal_vision",
+    "name": "Super Senses — Thermal Vision",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 2,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "You see heat, letting you look through thin objects and follow faint residual warmth. It also serves in the dark, though extreme ambient temperatures or perfectly matched body heat can defeat it.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_tracking_scent",
+    "name": "Super Senses — Tracking Scent",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 1,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "You can identify, recognise and track people by scent, and even read their mood. These call for Perception rolls at thresholds of 4 to 6 in good conditions.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_true_sight",
+    "name": "Super Senses — True Sight",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 6,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "Concentrating, you see a being's true form through disguise, illusion and transformation of any kind, Blending and Invisibility included. Automatic unless the subject is shielded, which calls for a Perception roll.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_ultra_vision",
+    "name": "Super Senses — Ultra Vision",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 2,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "You see ultraviolet light, and you have low-light vision down to starlight — though not in total darkness.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
+  },
+  {
+    "id": "super_senses_x_ray_vision",
+    "name": "Super Senses — X-Ray Vision",
+    "category": "Sensory",
+    "range": "self",
+    "rank_type": "baseline",
+    "cost_type": "flat",
+    "cost_flat": 6,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "Concentrating, you can see through solid objects.",
+    "prerequisite": {
+      "relationship": "baseline_equal",
+      "ability": "perception",
+      "description": "Baseline rank equals your Perception rank."
+    },
+    "available_pros": [],
+    "available_cons": [
+      "conditional",
+      "limited",
+      "shutdown",
+      "uncontrolled"
+    ],
+    "tags": [
+      "sensory",
+      "perception"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
+    "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
   },
   {
     "id": "super_speed",
     "name": "Super Speed",
     "category": "Movement",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 3.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can move and act at superhuman speed. Super Speed provides exceptional movement rate and also allows extra actions per page (based on rank). At high ranks you can vibrate through matter, create wind vortexes, or perform time-affecting feats. Also adds to Edge.",
+    "description": "You move at superhuman speed. You run at Power rank speed, your Agility effectively equals this rank, and your Edge equals this rank times 3. Use it to attack and defend in close combat, and in place of Might when defending a grapple. At 9d or more you cross two range classes a page, run over water and up walls, and effectively gain Quick Change and Vanish.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2907,19 +4490,27 @@
       "combat",
       "edge"
     ],
-    "needs_review": true,
-    "notes": "Exact extra-actions mechanic and Edge bonus needs verification from PDF.",
-    "affects_resolve": true
+    "affects_resolve": true,
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.44"
   },
   {
     "id": "swimming",
     "name": "Swimming",
     "category": "Movement",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can swim at superhuman speeds and operate freely underwater. Rank determines swim speed and depth you can reach without environmental hazards. May include adaptations for underwater breathing if purchased with Adaptation.",
+    "description": "A Travel Power: you move through water at speed, breathe it, move and sense as freely below as above, and shrug off oceanic pressure and temperature.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2930,17 +4521,27 @@
       "movement",
       "water",
       "aquatic"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.44"
   },
   {
     "id": "swing_line",
     "name": "Swing Line",
     "category": "Movement",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can move rapidly through urban environments by firing lines, webs, or energy tethers and swinging between anchor points. Rank determines swing speed and range. In open terrain without anchor points, Swing Line may not be usable.",
+    "description": "A Travel Power: you ascend, descend and swing from place to place. It needs outdoors or a large indoor space, and anchors — buildings or tall trees — within Distant Range. Your lines have Structure equal to half your rank.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -2953,17 +4554,27 @@
       "movement",
       "urban",
       "acrobatic"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.44"
   },
   {
     "id": "telekinesis",
     "name": "Telekinesis",
     "category": "Mental",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can move objects and people with the power of your mind. Rank determines the weight you can lift and move (using the Weight table) and range. You can use Telekinesis for fine manipulation or as a blunt attack (damaging thrown objects or crushing force).",
+    "description": "You can move objects out to Distant Range with your mind, using this rank as your effective Might, to attack, immobilise, lift or throw. It also serves as an active defence against ranged attacks: physical ones directly, energy ones only by interposing an object.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -2991,17 +4602,27 @@
       "psychic",
       "physical",
       "movement"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.44"
   },
   {
     "id": "telepathy",
     "name": "Telepathy",
     "category": "Mental",
-    "cost_per_rank": 1,
+    "range": "ranged",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can read and send thoughts. Rank determines range, how deeply you can probe (surface thoughts vs. buried memories), and whether targets are aware of the intrusion. Contested by Psi-Screen as passive defense. Communication use does not require an attack roll.",
+    "description": "You can read minds and send thoughts within Distant Range. You sense the sentient minds around you, though other telepaths may cloak themselves. Reading surface thoughts is rolled against the higher of the target's Willpower or Telepathy, and telepaths feel it happen. You can also probe memories.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -3028,17 +4649,27 @@
       "psychic",
       "communication",
       "sensory"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.45"
   },
   {
     "id": "teleportation",
     "name": "Teleportation",
     "category": "Movement",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can instantly transport yourself (and others, at higher ranks) from one location to another. Rank determines range, accuracy, and number of passengers. You must have line of sight or a detailed mental image of the destination at lower ranks.",
+    "description": "You can travel instantly, through solid objects but not force fields. Places you can see or know well give no trouble. Teleporting somewhere unfamiliar means rolling two dice: 6 or less and you nearly materialise inside something solid, so the Power fails, you snap back, and the shock knocks you out.",
     "prerequisite": null,
     "available_pros": [
       "line_of_sight",
@@ -3057,17 +4688,27 @@
       "movement",
       "teleportation",
       "instant"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.45"
   },
   {
     "id": "time_stop",
     "name": "Time Stop",
     "category": "Special",
-    "cost_per_rank": 1,
+    "range": "zone",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 3.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can temporarily freeze time for everyone except yourself. While time is stopped you can move, manipulate objects, and prepare actions. Other characters cannot act, perceive you, or defend. Rank determines how long you can stop time per use and how often you can use it.",
+    "description": "You can freeze time in the area for a number of pages equal to your rank, or until you release it. The first use in a scene costs 1 Resolve, the second 2, and so on. Everything in the area is stuck; you can move about and move objects and people around freely.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -3084,17 +4725,26 @@
       "combat",
       "utility"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.45"
   },
   {
     "id": "time_travel",
     "name": "Time Travel",
     "category": "Movement",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can travel to different points in time. Rank determines how accurately you can target a time period, how many passengers you can bring, and how far into the past or future you can travel. Time paradox effects are at GM discretion.",
+    "description": "You can travel through time in either direction, at the cost of an action. Talk to your GM first — they decide how time travel works in the setting and may set conditions.",
     "prerequisite": null,
     "available_pros": [
       "selective"
@@ -3111,17 +4761,26 @@
       "time",
       "dimensional"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.46"
   },
   {
     "id": "total_recall",
     "name": "Total Recall",
     "category": "Utility",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You have a perfect eidetic memory. You remember everything you have ever seen, read, or heard with total clarity. Rank determines how quickly you can access memories and whether you can apply memories for practical bonuses (e.g. recalling a combat technique you once observed).",
+    "description": "You remember anything you paid attention to, automatically, and can roll Intellect against a GM threshold to recall background detail you never consciously noted.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -3133,18 +4792,27 @@
       "memory",
       "intellect"
     ],
-    "needs_review": true,
-    "affects_resolve": false
+    "affects_resolve": false,
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.46"
   },
   {
     "id": "tracer",
     "name": "Tracer",
     "category": "Sensory",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "touch",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can mark a target (by touch, by attaching a device, or by psychic imprint \u2014 defined at purchase) and then track them unerringly. Rank determines range at which you can track the target and how much detail you receive about their location and state.",
+    "description": "You can tag objects you touch and follow them anywhere in the world for the rest of the story. Automatic, unless the object reaches somewhere that blocks the Power, which calls for an Intellect roll. Anyone suspecting a tracer needs a Daunting (3) Perception roll to find it.",
     "prerequisite": null,
     "available_pros": [
       "ranged"
@@ -3160,17 +4828,26 @@
       "tracking",
       "detection"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.46"
   },
   {
     "id": "transformation_animal_forms",
-    "name": "Transformation \u2014 Animal Forms",
+    "name": "Transformation — Animal Forms",
     "category": "Transformation",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can transform into one or more specific animal forms (defined at purchase). While transformed you gain the physical capabilities and applicable Powers of the chosen animal at your Power rank. Rank determines transformation speed and how many different animal forms you have access to.",
+    "description": "You can turn into animals, taking their look, form, size and weight, and gaining their Agility, Might, Perception, Toughness and Powers at the lesser of their rank or yours. Any natural animal you know, living or extinct; magical creatures are the GM's call.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -3186,17 +4863,27 @@
       "transformation",
       "animals",
       "shapeshifting"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.46"
   },
   {
     "id": "transformation_doppelganger",
-    "name": "Transformation \u2014 Doppelganger",
+    "name": "Transformation — Doppelganger",
     "category": "Transformation",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 6,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can perfectly replicate the appearance of any person you have seen (or touched, at lower ranks). Rank determines how accurate the duplication is (appearance only vs. voice, scent, mannerisms) and whether your stats change to match the target.",
+    "description": "You can become an exact duplicate of anyone you have seen, so long as they are roughly humanoid and near your size. You will fool biometrics and even DNA analysis, but you gain none of their Abilities, Talents or Powers.",
     "prerequisite": null,
     "available_pros": [
       "subtle"
@@ -3214,17 +4901,27 @@
       "disguise",
       "identity",
       "shapeshifting"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.46"
   },
   {
     "id": "transformation_object_forms",
-    "name": "Transformation \u2014 Object Forms",
+    "name": "Transformation — Object Forms",
     "category": "Transformation",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can transform your body into a specific inanimate object or class of objects (defined at purchase). While transformed you are indistinguishable from the object and may gain the object's properties. Rank determines transformation speed and the range of objects you can become.",
+    "description": "You can turn into objects, from simple shapes to tools, weapons, machines and vehicles. As a shape you exert force or resistance at your rank; as a tool or weapon you add half your rank to the rolls of whoever wields you; as a machine or vehicle you gain its capabilities.",
     "prerequisite": null,
     "available_pros": [
       "subtle"
@@ -3242,17 +4939,27 @@
       "inanimate",
       "stealth",
       "shapeshifting"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.46"
   },
   {
     "id": "transformation_shapeshifting",
-    "name": "Transformation \u2014 Shapeshifting",
+    "name": "Transformation — Shapeshifting",
     "category": "Transformation",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can alter your physical form freely, changing your appearance, size (within limits), and gaining limited physical abilities of assumed forms. Unlike more specialized Transformation powers, Shapeshifting is broadly applicable. Rank determines the extent and speed of transformation and whether gained traits function mechanically.",
+    "description": "You can reshape your body at will. You have Hero Points equal to your rank to spend temporarily on raising Agility, Might and Toughness and on buying Powers representing claws, wings, gills, hide and the like. Nothing may exceed the game's Trait Cap.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -3270,17 +4977,26 @@
       "shapeshifting",
       "versatile"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.46"
   },
   {
     "id": "transmutation",
     "name": "Transmutation",
     "category": "Control",
-    "cost_per_rank": 1,
+    "range": "touch",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 2.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can change the material composition of objects (and at higher ranks, living beings) \u2014 turning lead to gold, stone to glass, etc. Make a challenge roll against the object's passive resistance (or a target's passive defense for living beings). Rank determines the volume of material you can affect and the complexity of transformation.",
+    "description": "You can alter the chemical make-up of inanimate matter you touch, and gas within Close Range automatically. Liquids and solids are rolled against the greater of their Structure or weight rank. You can raise Structure up to your rank or lower it freely, turning solids to liquids or gases and back.",
     "prerequisite": null,
     "available_pros": [
       "area_burst",
@@ -3301,17 +5017,63 @@
       "control",
       "matter",
       "transformation"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.47"
+  },
+  {
+    "id": "vanish",
+    "name": "Vanish",
+    "category": "Stealth",
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
+    "dice_per_rank": 1,
+    "description": "You vanish from sight in an instant and move as far as you can in one page without anyone seeing where you went, often behind a flash or a puff of smoke. It costs both an action and your movement.",
+    "prerequisite": null,
+    "available_pros": [
+      "subtle"
+    ],
+    "available_cons": [
+      "build_up",
+      "charges",
+      "conditional",
+      "limited",
+      "recharge"
+    ],
+    "tags": [
+      "stealth",
+      "movement",
+      "escape"
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.47"
   },
   {
     "id": "tunneling",
     "name": "Tunneling",
     "category": "Movement",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 1.0,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can burrow through solid matter. Rank determines tunneling speed and the hardness of material you can move through. You may leave a stable tunnel behind you or collapse it as you go. At higher ranks you can tunnel through nearly any material.",
+    "description": "A Travel Power: you travel by digging through the ground. Collapse the tunnel behind you or leave it open for others. Nothing shows above ground, which makes it an excellent way to surprise people.",
     "prerequisite": null,
     "available_pros": [
       "selective"
@@ -3326,17 +5088,27 @@
       "movement",
       "underground",
       "burrowing"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.47"
   },
   {
     "id": "two_dimensional",
     "name": "Two-Dimensional",
     "category": "Physical",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 6,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can flatten your body to a paper-thin two-dimensional state, allowing you to slide under doors, through cracks, and be virtually undetectable face-on. While two-dimensional you are extremely vulnerable to physical attacks from the side but immune to many conventional assaults.",
+    "description": "You can become two-dimensional, like a shadow, weightless and silent, while still affecting and being affected by the three-dimensional world. You can slide along any surface ignoring gravity, and slip through any crack wide enough for your form.",
     "prerequisite": null,
     "available_pros": [
       "subtle"
@@ -3354,17 +5126,26 @@
       "movement",
       "body"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.47"
   },
   {
     "id": "two_fisted",
     "name": "Two-Fisted",
     "category": "Combat",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can fight effectively with a weapon or attack in each hand simultaneously. Rank reduces or eliminates penalties for attacking with two weapons or two attacks per action. At higher ranks you may make additional off-hand attacks as free actions.",
+    "description": "You fight with both hands. Spend 1 Resolve to defeat twice the usual Minions — 2 per net success — on a physical attack, and you may decide after rolling. It adds nothing to attacks that already work that way. Dual-wielding mundane weapons also raises their Weapon Bonus by +1d.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -3376,44 +5157,26 @@
       "melee",
       "dual-wielding"
     ],
-    "needs_review": true
-  },
-  {
-    "id": "vanish",
-    "name": "Vanish",
-    "category": "Stealth",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
-    "dice_per_rank": 1,
-    "description": "You can disappear from sight in an instant, even when being directly observed. Unlike Invisibility (which is sustained), Vanish is instantaneous \u2014 you use it to break line of sight or escape observation. Rank determines how completely you disappear and whether technological sensors are also fooled.",
-    "prerequisite": null,
-    "available_pros": [
-      "subtle"
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
     ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "conditional",
-      "limited",
-      "recharge"
-    ],
-    "tags": [
-      "stealth",
-      "movement",
-      "escape"
-    ],
-    "needs_review": true
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.47"
   },
   {
     "id": "variant",
     "name": "Variant",
     "category": "Special",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "special",
+    "rank_type": "special",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "This Power is an alternate application of another Power you own, sharing the same source or device. A Variant costs fewer points because it piggybacks on an existing Power's infrastructure. The Variant Power cannot be used simultaneously with the Power it is a variant of (it shares the Exclusive Con by definition).",
+    "description": "A different version of a Power you already have. It costs a flat 3 Hero Points but must be worth as many Hero Points as the original, so the difference has to be made up with Cons.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -3424,18 +5187,27 @@
       "variant",
       "power"
     ],
-    "needs_review": true,
-    "notes": "Exact cost reduction and rules for Variant need verification from PDF."
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.48",
+    "notes": "Costs a flat 3 Hero Points but must be worth as many Hero Points as the Power it varies — the difference has to be made up with Cons. Cannot vary Alternate Form and several other Powers."
   },
   {
     "id": "ventriloquism",
     "name": "Ventriloquism",
     "category": "Utility",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can project your voice perfectly to any location within range, creating the impression that sound is coming from elsewhere. Rank determines range and how convincing the projection is. At higher ranks you can mimic other voices precisely.",
+    "description": "You are a master of mimicry and ventriloquism, able to imitate almost any sound or voice and throw it so it seems to come from elsewhere. Roll Charm, usually against the target's Perception.",
     "prerequisite": null,
     "available_pros": [
       "ranged",
@@ -3451,18 +5223,27 @@
       "deception",
       "social"
     ],
-    "needs_review": true,
-    "affects_resolve": false
+    "affects_resolve": false,
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.48"
   },
   {
     "id": "wall_crawling",
     "name": "Wall-Crawling",
     "category": "Movement",
-    "cost_per_rank": 1,
+    "range": "self",
+    "rank_type": "power",
     "cost_type": "per_rank",
+    "cost_per_rank": 0.5,
     "max_rank": null,
     "dice_per_rank": 1,
-    "description": "You can cling to and move freely on vertical surfaces and ceilings. You do not need to make challenge rolls to maintain your grip under normal conditions. Rank determines your movement speed while wall-crawling and the types of surfaces you can cling to.",
+    "description": "You can stick to walls and ceilings and move along them at your normal speed. If this rank is lower than your Might, it limits how much you can carry while crawling. Unusually slick surfaces may call for a roll.",
     "prerequisite": null,
     "available_pros": [],
     "available_cons": [
@@ -3475,17 +5256,27 @@
       "movement",
       "climbing",
       "physical"
-    ]
+    ],
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.48"
   },
   {
     "id": "weakness_detection",
     "name": "Weakness Detection",
     "category": "Sensory",
-    "cost_per_rank": 1,
-    "cost_type": "per_rank",
-    "max_rank": null,
+    "range": "self",
+    "rank_type": "default",
+    "cost_type": "flat",
+    "cost_flat": 3,
+    "max_rank": 0,
     "dice_per_rank": 1,
-    "description": "You can perceive the vulnerabilities and weak points of targets \u2014 physical, psychological, or Power-based. Rank determines how quickly you can identify weaknesses and how detailed the information you receive is. Using detected weaknesses may grant attack bonuses against that target.",
+    "description": "You can find the weak point of any person or object you observe in person. Spend 1 Resolve and your physical and energy attacks gain the Penetrating Pro against that target for the rest of the scene. It also tells you, free, about an object's structural flaws and stress points.",
     "prerequisite": null,
     "available_pros": [
       "ranged"
@@ -3501,6 +5292,13 @@
       "combat",
       "analysis"
     ],
-    "needs_review": true
+    "verified_fields": [
+      "range",
+      "rank_type",
+      "cost",
+      "prerequisite",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.48"
   }
 ]

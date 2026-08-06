@@ -29,7 +29,8 @@ public sealed class CalculateDerivedStep : IWizardStep
         table.AddRow(
             "[bold]Edge[/]",
             $"[bold green]{edge}[/]",
-            "Perception + max(Agility, Intellect) + Danger Sense + Lightning Reflexes bonuses");
+            "(Danger Sense or Perception) + max(Agility, Intellect) + Lightning Reflexes, "
+            + "at least Super Speed × 3");
 
         table.AddRow(
             "[bold]Health[/]",
@@ -43,26 +44,22 @@ public sealed class CalculateDerivedStep : IWizardStep
 
         AnsiConsole.Write(table);
 
-        if (sheet.HasPower("danger_sense"))
-        {
-            var ds = sheet.GetPower("danger_sense")!;
-            AnsiConsole.MarkupLine($"[grey]  Danger Sense effective rank: " +
-                                   $"{derived.GetEffectiveRank(ds, sheet)}d (adds to Edge)[/]");
-        }
+        if (sheet.GetPower("danger_sense") is { } ds)
+            AnsiConsole.MarkupLine($"[grey]  Danger Sense {derived.GetEffectiveRank(ds, sheet)}d " +
+                                   "stands in for Perception when working out Edge.[/]");
 
         if (sheet.HasPower("lightning_reflexes"))
-        {
-            var lr = sheet.GetPower("lightning_reflexes")!;
-            AnsiConsole.MarkupLine($"[yellow]  ⚠ Lightning Reflexes: +{lr.PurchasedRanks * 2} to Edge " +
-                                   $"(needs_review — verify with GM)[/]");
-        }
+            AnsiConsole.MarkupLine($"[grey]  Lightning Reflexes: " +
+                                   $"+{DerivedStatsCalculator.LightningReflexesEdgeBonus} to Edge (flat).[/]");
 
-        if (sheet.HasPower("determination"))
-        {
-            var det = sheet.GetPower("determination")!;
-            AnsiConsole.MarkupLine($"[yellow]  ⚠ Determination: +{det.PurchasedRanks} to Resolve " +
-                                   $"(needs_review — verify ratio with GM)[/]");
-        }
+        if (sheet.GetPower("super_speed") is { } ss)
+            AnsiConsole.MarkupLine($"[grey]  Super Speed {derived.GetEffectiveRank(ss, sheet)}d " +
+                                   $"sets Edge to at least {derived.GetEffectiveRank(ss, sheet) * 3}.[/]");
+
+        if (sheet.GetPower("determination") is { } det)
+            AnsiConsole.MarkupLine($"[grey]  Determination: +{det.Units} to Resolve " +
+                                   $"({det.Units * DerivedStatsCalculator.DeterminationHpPerResolve} HP " +
+                                   $"at {DerivedStatsCalculator.DeterminationHpPerResolve} HP per Resolve).[/]");
 
         AnsiConsole.WriteLine();
     }

@@ -117,8 +117,7 @@ public sealed class GmReviewStep : IWizardStep
         {
             var power     = rules.GetPower(sp.PowerId);
             var name      = power?.Name ?? sp.PowerId;
-            var baseline  = power is null ? 0 : derived.GetBaselineRank(power, sheet);
-            var effective = baseline + sp.PurchasedRanks;
+            var effective = power is null ? 0 : derived.GetEffectiveRank(sp, sheet);
             var cost      = costs.PowerCost(sp);
             var review    = power?.NeedsReview == true ? " [yellow]*[/]" : "";
 
@@ -132,7 +131,7 @@ public sealed class GmReviewStep : IWizardStep
 
             table.AddRow(
                 $"{Markup.Escape(name)}{review}",
-                $"[bold]{effective}d[/]",
+                effective > 0 ? $"[bold]{effective}d[/]" : "[grey]no rank[/]",
                 proConParts.Count > 0 ? string.Join("  ", proConParts) : "[grey]—[/]",
                 $"[bold]{cost}[/]");
         }

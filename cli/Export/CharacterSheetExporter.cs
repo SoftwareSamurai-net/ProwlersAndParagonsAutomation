@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using ProwlersAndParagonsAutomation.Cli.Powers;
 using ProwlersAndParagonsAutomation.Engine;
 using EngineValidationResult = ProwlersAndParagonsAutomation.Engine.ValidationResult;
 
@@ -116,18 +117,25 @@ public sealed class CharacterSheetExporter
             ["powers"] = new JsonArray(sheet.SelectedPowers.Select(sp =>
             {
                 var power      = rules.GetPower(sp.PowerId);
-                var baseline   = power is null ? 0 : derived.GetBaselineRank(power, sheet);
-                var effective  = baseline + sp.PurchasedRanks;
+                var baseline   = power is null ? 0 : derived.GetBaselineRank(power, sheet, sp);
+                var effective  = power is null ? 0 : derived.GetEffectiveRank(sp, sheet);
                 var powerCost  = costs.PowerCost(sp);
                 return (JsonNode)new JsonObject
                 {
                     ["id"]              = sp.PowerId,
                     ["name"]            = power?.Name ?? sp.PowerId,
+                    ["range"]           = power?.Range,
+                    ["rank_type"]       = power?.RankType,
+                    ["cost_type"]       = power?.CostType,
                     ["purchased_ranks"] = sp.PurchasedRanks,
                     ["baseline_rank"]   = baseline,
+                    ["baseline_trait"]  = sp.BaselineTraitId,
                     ["effective_rank"]  = effective,
+                    ["units"]           = sp.Units,
+                    ["cost_variant"]    = sp.CostVariantKey,
                     ["cost"]            = powerCost,
-                    ["needs_review"]    = power?.NeedsReview ?? false,
+                    ["mechanics_verified"] = power?.MechanicsVerified ?? false,
+                    ["source_ref"]      = power?.SourceRef,
                     ["pros"] = new JsonArray(sp.Pros.Select(p => (JsonNode)new JsonObject
                     {
                         ["id"]          = p.Id,
@@ -251,15 +259,19 @@ public sealed class CharacterSheetExporter
             {
                 var power     = rules.GetPower(sp.PowerId);
                 var name      = power?.Name ?? sp.PowerId;
-                var baseline  = power is null ? 0 : derived.GetBaselineRank(power, sheet);
-                var effective = baseline + sp.PurchasedRanks;
+                var baseline  = power is null ? 0 : derived.GetBaselineRank(power, sheet, sp);
+                var effective = power is null ? 0 : derived.GetEffectiveRank(sp, sheet);
                 var cost      = costs.PowerCost(sp);
-                var review    = power?.NeedsReview == true ? " [needs_review]" : "";
+                var review    = power?.NeedsReview == true ? " [mechanics unverified]" : "";
 
                 sb.AppendLine($"  {name}{review}");
-                sb.AppendLine($"    Effective rank: {effective}d  " +
-                              $"(baseline {baseline}d + purchased {sp.PurchasedRanks}d)  " +
-                              $"— {cost} HP");
+                if (power is not null)
+                    sb.AppendLine($"    {PowerFormatter.StatLine(power)}");
+
+                sb.AppendLine(effective > 0
+                    ? $"    Effective rank: {effective}d  " +
+                      $"(baseline {baseline}d + purchased {sp.PurchasedRanks}d)  — {cost} HP"
+                    : $"    No rank  — {cost} HP");
 
                 if (sp.Pros.Count > 0)
                     sb.AppendLine("    Pros: " + string.Join(", ",

@@ -33,6 +33,26 @@ public record SelectedPower(
 {
     public SelectedPower(string powerId, int purchasedRanks)
         : this(powerId, purchasedRanks, [], []) { }
+
+    /// <summary>
+    /// Which variant was chosen for a Power whose cost varies — a key from
+    /// <see cref="Models.PowerModel.CostVariants"/> such as "broad" for Omni-Power
+    /// or "extreme_range" for Stretching. Null for fixed-cost Powers.
+    /// </summary>
+    public string? CostVariantKey { get; init; }
+
+    /// <summary>
+    /// How many units were bought for a per_unit Power: immunities for Immunity,
+    /// Resolve for Determination, power levels for Alternate Form. Always 1 otherwise.
+    /// </summary>
+    public int Units { get; init; } = 1;
+
+    /// <summary>
+    /// The Trait the player nominated for a baseline_selected_trait Power (Boost,
+    /// Expertise). Holds an ability, talent or power id. For Boost this also sets
+    /// the per-rank cost, which matches the affected Trait's own cost per rank.
+    /// </summary>
+    public string? BaselineTraitId { get; init; }
 }
 
 /// <summary>

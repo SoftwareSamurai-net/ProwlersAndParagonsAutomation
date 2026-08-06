@@ -65,7 +65,7 @@ public sealed class RulesRepository
         _talents ??= Load<List<TalentModel>>("talents.json");
 
     public IReadOnlyList<PowerModel> Powers =>
-        _powers ??= LoadPowers();
+        _powers ??= Load<List<PowerModel>>("powers.json");
 
     public IReadOnlyList<ProModel> Pros =>
         _pros ??= Load<List<ProModel>>("pros.json");
@@ -118,26 +118,4 @@ public sealed class RulesRepository
                ?? throw new InvalidOperationException($"Failed to deserialize {fileName}.");
     }
 
-    private List<PowerModel> LoadPowers()
-    {
-        var powers = Load<List<PowerModel>>("powers.json");
-
-        // Post-load fixup: baseline_fixed powers carry their fixed baseline value
-        // in the human-readable description only ("3d"). We set FixedValue explicitly
-        // here so DerivedStatsCalculator can use it without string parsing.
-        // Currently only Running has baseline_fixed (3d).
-        var patched = powers.Select(p =>
-        {
-            if (p.Prerequisite?.Relationship == "baseline_fixed" && p.Prerequisite.FixedValue is null)
-            {
-                return p with
-                {
-                    Prerequisite = p.Prerequisite with { FixedValue = 3 }
-                };
-            }
-            return p;
-        }).ToList();
-
-        return patched;
-    }
 }
