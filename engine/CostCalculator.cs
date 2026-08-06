@@ -1,3 +1,5 @@
+using ProwlersAndParagonsAutomation.Engine.Models;
+
 namespace ProwlersAndParagonsAutomation.Engine;
 
 /// <summary>
@@ -45,35 +47,160 @@ public sealed class CostCalculator
     /// <summary>
     /// HP cost for a single selected power including its pros and cons.
     ///
-    /// Formula:
-    ///   1. Determine per-rank multiplier (normally 1.0; halved to 0.5 if Overkill or Weak con applied)
-    ///   2. base = ⌈purchasedRanks × multiplier⌉
-    ///   3. Add flat pro costs (or variant-key pro costs)
-    ///   4. Add flat con discounts (negative values reduce cost)
-    ///   5. Clamp to minimum 1
+    /// Ranked Powers (per_rank and its variable form):
+    ///   1. Start from the Power's HP per rank. Overkill and Weak each reduce that
+    ///      rate by 1 HP per rank, floored at 0.5 — the rulebook's "1 Hero Point per
+    ///      rank becomes 1 Hero Point per 2 ranks".
+    ///   2. base = ⌈purchasedRanks × rate⌉
+    ///   3. Add pro costs and con discounts (cons are stored negative).
+    ///   4. Floor the result at the rulebook minimum: no Power costs less than
+    ///      1 HP per rank, or 1 HP per 2 ranks once a rate-reducing Con applies.
     ///
-    /// Throws if the power has cost_type "special" with a null CostPerRank and no
-    /// special-case handling is defined — this signals a data gap to address.
+    /// Unranked Powers (flat, flat_variable, per_unit) ignore purchased ranks and are
+    /// floored at 1 HP, except Specialty, which the rulebook makes free.
     /// </summary>
     public int PowerCost(SelectedPower selection)
     {
         var power = _rules.GetPower(selection.PowerId)
                     ?? throw new InvalidOperationException($"Unknown power id '{selection.PowerId}'.");
 
-        // Detect special cons that halve the per-rank cost (Overkill / Weak)
-        var hasHalfCostCon = selection.Cons.Any(c => c.Id is "overkill" or "weak");
-        var perRankMultiplier = hasHalfCostCon ? 0.5 : (power.CostPerRank ?? throw new InvalidOperationException(
-            $"Power '{power.Id}' has null cost_per_rank with unhandled cost_type '{power.CostType}'. " +
-            "Extend CostCalculator to handle this case."));
+        var prosTotal = selection.Pros.Sum(ResolveProCost);
+        var consTotal = selection.Cons.Sum(ResolveConCost);
 
-        var baseCost = (int)Math.Ceiling(selection.PurchasedRanks * perRankMultiplier);
+        return power.CostType switch
+        {
+            "per_rank" or "per_rank_variable" or "special" =>
+                RankedCost(power, selection, prosTotal + consTotal),
 
-        var prosTotal = selection.Pros.Sum(p => ResolveProCost(p));
-        var consTotal = selection.Cons.Sum(c => ResolveConCost(c));
+            "flat" =>
+                FlatCost(power.CostFlat ?? throw MissingCost(power, "cost_flat"),
+                         prosTotal + consTotal, power.Id),
 
-        // consTotal values are negative; summing them reduces the cost
-        return Math.Max(1, baseCost + prosTotal + consTotal);
+            "flat_variable" =>
+                FlatCost((int)ResolveVariant(power, selection), prosTotal + consTotal, power.Id),
+
+            "per_unit" =>
+                FlatCost((power.CostPerUnit ?? throw MissingCost(power, "cost_per_unit")) * selection.Units,
+                         prosTotal + consTotal, power.Id),
+
+            _ => throw new InvalidOperationException(
+                     $"Unknown cost_type '{power.CostType}' on power '{power.Id}'.")
+        };
     }
+
+    /// <summary>
+    /// Cost of a Power priced per rank. <paramref name="modifiers"/> is the summed
+    /// pro/con total (cons negative).
+    /// </summary>
+    private int RankedCost(PowerModel power, SelectedPower selection, int modifiers)
+    {
+        var rate = PerRankRate(power, selection);
+
+        // Overkill and Weak reduce the rate by 1 HP per rank each rather than halving
+        // it (Ch.2: "reduces a Power's base cost by 1 Hero Point per rank"). For a
+        // 1 HP/rank Power that lands on 1 HP per 2 ranks, which is the rulebook floor.
+        var reductions = selection.Cons.Count(c => c.Id is "overkill" or "weak");
+        var effectiveRate = Math.Max(0.5, rate - reductions);
+
+        var baseCost = (int)Math.Ceiling(selection.PurchasedRanks * effectiveRate);
+        var minimum  = MinimumRankedCost(selection.PurchasedRanks, effectiveRate);
+
+        return Math.Max(minimum, baseCost + modifiers);
+    }
+
+    /// <summary>
+    /// The rulebook floor for a ranked Power: "No Power can ever cost less than
+    /// 1 Hero Point (or 1 Hero Point per 2 ranks) regardless of its Cons." The
+    /// per-2-ranks form applies once a rate-reducing Con has taken the rate to 0.5.
+    /// </summary>
+    private static int MinimumRankedCost(int purchasedRanks, double effectiveRate)
+    {
+        if (purchasedRanks <= 0) return 0;
+        return effectiveRate <= 0.5
+            ? Math.Max(1, (int)Math.Ceiling(purchasedRanks / 2.0))
+            : Math.Max(1, purchasedRanks);
+    }
+
+    /// <summary>
+    /// HP per rank before Cons. Resolves the variable cost types and the two Powers
+    /// whose rate the rulebook defines as Special.
+    /// </summary>
+    private double PerRankRate(PowerModel power, SelectedPower selection)
+    {
+        if (power.CostType == "per_rank_variable")
+            return ResolveVariant(power, selection);
+
+        if (power.CostType == "special")
+        {
+            return power.Id switch
+            {
+                // Boost costs as many HP per rank as the Trait it raises.
+                "boost" => BoostRate(selection),
+
+                // Summoning costs 1 HP per rank for every 2d of Minion Threat,
+                // rounded up. Units carries the chosen Threat rank.
+                "summoning" => Math.Max(1, Math.Ceiling(selection.Units / 2.0)),
+
+                _ => throw new InvalidOperationException(
+                         $"Power '{power.Id}' has cost_type 'special' with no handler. " +
+                         "Add one to CostCalculator.PerRankRate.")
+            };
+        }
+
+        return power.CostPerRank ?? throw MissingCost(power, "cost_per_rank");
+    }
+
+    /// <summary>
+    /// Boost's per-rank cost mirrors the nominated Trait: abilities and talents cost
+    /// 1 HP per rank, a Power costs whatever that Power costs per rank.
+    /// </summary>
+    private double BoostRate(SelectedPower selection)
+    {
+        var traitId = selection.BaselineTraitId
+            ?? throw new InvalidOperationException(
+                   "Boost requires BaselineTraitId — its cost per rank matches the Trait it raises.");
+
+        if (_rules.GetAbility(traitId) is not null || _rules.GetTalent(traitId) is not null)
+            return 1.0;
+
+        var target = _rules.GetPower(traitId)
+            ?? throw new InvalidOperationException(
+                   $"Boost names Trait '{traitId}', which is not a known ability, talent or power.");
+
+        return target.CostPerRank
+            ?? throw new InvalidOperationException(
+                   $"Boost cannot mirror power '{traitId}': it is not priced per rank.");
+    }
+
+    private double ResolveVariant(PowerModel power, SelectedPower selection)
+    {
+        var variants = power.CostVariants
+            ?? throw MissingCost(power, "cost_variants");
+
+        var key = selection.CostVariantKey
+            ?? throw new InvalidOperationException(
+                   $"Power '{power.Id}' has a variable cost and needs a CostVariantKey. " +
+                   $"Valid keys: {string.Join(", ", variants.Keys)}");
+
+        if (variants.TryGetValue(key, out var value)) return value;
+
+        throw new InvalidOperationException(
+            $"Power '{power.Id}' has no cost variant '{key}'. " +
+            $"Valid keys: {string.Join(", ", variants.Keys)}");
+    }
+
+    /// <summary>
+    /// Cost of a Power bought for a fixed price. Specialty is the one Power the
+    /// rulebook prices at 0 HP, so it is not floored at 1.
+    /// </summary>
+    private static int FlatCost(int cost, int modifiers, string powerId)
+    {
+        if (powerId == "specialty") return 0;
+        return Math.Max(1, cost + modifiers);
+    }
+
+    private static InvalidOperationException MissingCost(PowerModel power, string field) =>
+        new($"Power '{power.Id}' has cost_type '{power.CostType}' but no {field} value.");
 
     /// <summary>Total HP spent on all selected powers.</summary>
     public int TotalPowersCost(CharacterSheet sheet)

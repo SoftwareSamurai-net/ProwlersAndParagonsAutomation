@@ -11,5 +11,7 @@ qodana.sarif.json
 # Generated character sheets — user output, not source
 output/
 
-# Source PDFs — obtain separately; not tracked in version control
-docs/**/*.pdf
+# Source PDFs — obtain separately; never tracked in version control. The rulebook is
+# copyright LakeSide Games and must not be redistributed with this tool, so this is
+# deliberately broad rather than scoped to docs/. CI fails the build if one is tracked.
+*.pdf
