@@ -19,6 +19,19 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Refuse to ship the rulebook
+        # The rulebook is copyright LakeSide Games. This tool distributes structured
+        # rules metadata only, so a tracked PDF is a licensing problem, not a style one.
+        run: |
+          tracked=$(git ls-files '*.pdf')
+          if [ -n "$tracked" ]; then
+            echo "::error::PDF files are tracked in this repository:"
+            echo "$tracked"
+            echo "The rulebook must not be redistributed. Remove it with 'git rm --cached'."
+            exit 1
+          fi
+          echo "No PDFs tracked."
+
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
@@ -32,3 +45,8 @@ jobs:
         # ContinuousIntegrationBuild=true turns analyzer warnings into errors
         # (see ProwlersAndParagonsAutomation.csproj).
         run: dotnet build --no-restore --configuration Release -p:ContinuousIntegrationBuild=true
+
+      - name: Test
+        # The suite checks powers.json against the Range/Rank/Cost transcribed from the
+        # rulebook, so a data edit that contradicts the book fails here.
+        run: dotnet test --no-build --configuration Release -p:ContinuousIntegrationBuild=true
