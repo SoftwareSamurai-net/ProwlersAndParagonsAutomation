@@ -104,6 +104,7 @@ ProwlersAndParagonsAutomation/
 │   └── PrebuiltHeroTests.cs      # rebuilds each and checks their printed Edge/Health/Resolve
 │
 ├── output/                       # Generated character sheets (gitignored)
+├── PROGRESS.md                   # What is done and what remains — kept current
 ├── docs/RULES_EXTRACTION_GUIDE.md
 └── Program.cs                    # Entry point
 ```
@@ -315,14 +316,16 @@ To publish reports to Qodana Cloud, add a `QODANA_TOKEN` repository secret. With
 
 ## Roadmap
 
-- [x] Unit tests for the engine layer, run in CI
-- [x] Verify all 141 power entries against the PDF — range, rank type, cost, baseline and description
-- [x] Verify tiers, abilities, talents, pros, cons, perks and flaws — no `needs_review` flags remain
-- [ ] Model each power's own Pros and Cons — `available_pros` / `available_cons` are still project guesses rather than the lists printed inside each Power's entry. **This is what blocks exact Hero Point reconciliation:** rebuilding the 20 published Heroes lands within a few HP of their 125-point budgets, and the residual is the Power-specific Pros the sheets use (Regeneration's *Fast*, Strike's *Throw*, Telepathy's *Mind Link*) plus custom gear priced by Chapter 6
-- [ ] Model gear costs (Chapter 6 Gear Limits) — gear is currently free-text with no HP cost
-- [ ] Model Sources, which set the stand-in rank for the 46 rankless powers (Toughness or Willpower by Source)
-- [ ] Establish a Qodana baseline so only *new* problems fail CI
-- [ ] Extract the remaining rulebook chapters
+**[PROGRESS.md](PROGRESS.md) is the single source of truth** for what is done and what remains, with the reasoning behind each item. It is deliberately not duplicated here — this section used to carry a second copy and the two drifted apart.
+
+The short version of what is left, most-unblocking first:
+
+1. **Extract each power's own Pros and Cons** from its rulebook entry — `available_pros` / `available_cons` are still project guesses. This is what blocks exact Hero Point reconciliation.
+2. **Model gear costs** (Chapter 6 Gear Limits) — gear is currently free text with no HP cost.
+3. **Model Sources** — they set the stand-in rank for the 46 rankless powers.
+4. **Establish a Qodana baseline** so only *new* problems fail CI.
+5. **Extract the remaining rulebook chapters** (3–9).
+6. **Choose and apply a licence** — see [License](#license).
 
 ---
 
