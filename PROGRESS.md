@@ -57,7 +57,17 @@ Enforcing them would need roughly seven booleans on each of the 141 Powers — a
 
 ### 2. Sources
 
-Not modelled at all. A Source sets the stand-in rank for the 46 rankless (`rank_type: "default"`) Powers — Toughness or Willpower depending on Source — which matters whenever one Power targets another (Drain, Nullify, Dispel and Power Absorption all name a Source). The published Hero sheets group Powers under Source headings (`TECH POWERS`, `MAGIC POWERS`, `INNATE POWERS`, `TRAINED POWERS`), so the data is there to transcribe.
+Not modelled at all. A Source sets the stand-in rank for the 46 rankless (`rank_type: "default"`) Powers — Toughness or Willpower depending on Source — which matters whenever one Power targets another (Drain, Nullify, Dispel and Power Absorption all name a Source).
+
+**There are exactly six** (Ch.2 p.64, Random Sources table): Innate, Magic, Psychic, Super, Tech, Trained. The Ch.8 sheets use precisely these as headings — `INNATE POWERS`, `MAGIC POWERS`, `PSYCHIC POWERS`, `SUPER POWERS`, `TECH POWERS`, `TRAINED POWERS` — so the per-Power data is there to transcribe for all twenty Heroes.
+
+Three things to get right, because they are easy to assume wrong:
+
+- **A Source is a property of a Trait, not just of a Power.** Ch.2: *"These are the Sources for your Powers and Abilities with a rank of 7d or greater."* Abilities of 6d or less default to Innate and Talents default to Trained, but those defaults are explicitly not mandatory. So the model wants a Source on Abilities too, even though — see below — the sheet does not print it.
+- **This is a rendering change as well as a data one.** The `.txt` and `.json` exports and `GmReviewStep` currently list Powers flat. A published sheet groups them under Source headings, and reproducing that is part of the job, not a follow-up. Sequence checked on the published sheets: a character carries one or more groups, and where `TRAINED POWERS` appears alongside others it comes last — though that is a small sample, so treat it as an observation, not a rule to enforce.
+- **Abilities are printed as one flat block with no Source marking**, even at 7d and above. Stronghold shows 10d Intellect, Might and Toughness and Psidearm 10d Agility, and neither sheet marks a Source on them. So do not "fix" the renderer by adding Source headings to the Abilities block to match the rules text — the rule and the sheet layout genuinely differ here.
+
+**Heroes and Villains share this.** Ch.9 is explicit that Villains are created exactly like Heroes, minus the Hero Point budget, and Ch.9 prints no separate stat-block format — so one renderer serves both, and whatever Source grouping the Hero sheet gets is what the Villain sheet gets. See item 7.
 
 ### 3. Qodana baseline
 
@@ -98,7 +108,14 @@ validates it, and returns errors the caller can act on. That is close to what
 A proper sheet rather than the current `.txt` dump: blue and white for Heroes, black and red
 for Villains. Mechanically the two are identical — Ch.9 is explicit that Villains are built
 exactly like Heroes, just without a Hero Point budget — so this is presentation only, and
-belongs in the front end, not the engine.
+belongs in the front end, not the engine. One layout serves both; only the palette differs.
+
+**This depends on item 2.** A published sheet does not list Powers flat — it groups them
+under Source headings (`TECH POWERS`, `MAGIC POWERS`, and the rest), and Abilities are a
+single block with no Source marking even at 7d and above. So the sheet cannot be laid out
+faithfully until Powers carry a Source, and item 2 should land first or the two will have to
+be reworked together. The same applies to the existing `.txt` and `.json` exports, which are
+flat today.
 
 ### 8. Choose and apply a licence
 
