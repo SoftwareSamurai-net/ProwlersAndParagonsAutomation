@@ -72,6 +72,21 @@ public sealed class CharacterSession
         NotifyChanged();
     }
 
+    /// <summary>
+    /// Replaces the character with one of the samples, and sets the palette to match.
+    ///
+    /// <para>The mode follows the sample because that is the whole point of loading one —
+    /// seeing the sheet dressed as a Hero or as a Villain. It is still only a palette:
+    /// both samples are legal Standard-tier characters built by identical rules, and
+    /// nothing on either sheet records which it is.</para>
+    /// </summary>
+    public void LoadSample(SheetMode mode)
+    {
+        Sheet = mode == SheetMode.Hero ? SampleCharacters.Hero() : SampleCharacters.Villain();
+        _mode = mode;
+        NotifyChanged();
+    }
+
     // ── Questions the shell asks constantly ───────────────────────────────
 
     public int Spent => Costs.TotalCost(Sheet);
