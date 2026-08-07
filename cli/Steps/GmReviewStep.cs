@@ -105,15 +105,23 @@ public sealed class GmReviewStep : IWizardStep
     {
         if (sheet.SelectedPowers.Count == 0) return;
 
+        // Grouped under Source headings, the way a published sheet prints them.
+        foreach (var group in new SourceGrouping(rules).GroupPowers(sheet))
+            RenderPowerGroup(group, sheet, rules, costs, derived);
+    }
+
+    private static void RenderPowerGroup(SourceGrouping.Group group, CharacterSheet sheet,
+        RulesRepository rules, CostCalculator costs, DerivedStatsCalculator derived)
+    {
         var table = new Table()
-            .Title("[bold]POWERS[/]")
+            .Title($"[bold]{Markup.Escape(group.Heading)}[/]")
             .BorderColor(Color.Grey)
             .AddColumn("Power")
             .AddColumn(new TableColumn("Effective").Centered())
             .AddColumn("Pros / Cons")
             .AddColumn(new TableColumn("HP Cost").Centered());
 
-        foreach (var sp in sheet.SelectedPowers)
+        foreach (var sp in group.Powers)
         {
             var power     = rules.GetPower(sp.PowerId);
             var name      = power?.Name ?? sp.PowerId;

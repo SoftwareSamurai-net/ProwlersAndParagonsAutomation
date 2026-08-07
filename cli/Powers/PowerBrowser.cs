@@ -164,6 +164,8 @@ public sealed class PowerBrowser
         var pros = selector.SelectPros(power);
         var cons = selector.SelectCons(power);
 
+        var sourceId = PromptSource(power);
+
         var selection = new SelectedPower(
             power.Id,
             purchasedRanks,
@@ -172,7 +174,8 @@ public sealed class PowerBrowser
         {
             CostVariantKey  = variantKey,
             Units           = units,
-            BaselineTraitId = baselineTraitId
+            BaselineTraitId = baselineTraitId,
+            SourceId        = sourceId
         };
 
         var cost          = _costs.PowerCost(selection);
@@ -186,6 +189,34 @@ public sealed class PowerBrowser
         var rankText = effectiveRank > 0 ? $"effective {effectiveRank}d" : "no rank";
         AnsiConsole.MarkupLine($"[green]✓ Added:[/] [bold]{Markup.Escape(power.Name)}[/] — " +
                                $"{rankText} — [bold]{cost} HP[/]");
+    }
+
+    /// <summary>
+    /// Which of the six Sources the Power comes from (Ch.2, p.15). Costs nothing, but the
+    /// sheet groups Powers by it, and a Power with no rank of its own takes its default
+    /// rank from the Source's Ability — so the prompt says so when that applies.
+    /// </summary>
+    private string? PromptSource(PowerModel power)
+    {
+        AnsiConsole.WriteLine();
+
+        if (power.RankType is "default" or "special")
+            AnsiConsole.MarkupLine(
+                "[grey]This Power has no rank of its own, so its Source decides which Ability " +
+                "stands in when another Power acts on it.[/]");
+
+        var choices = _rules.Sources
+            .Select(s => $"{s.Name} — {s.Description} (default rank: {s.DefaultRankAbility})")
+            .Append("Not sure yet")
+            .ToList();
+
+        var pick = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title($"Source of [bold]{Markup.Escape(power.Name)}[/]:")
+                .PageSize(8)
+                .AddChoices(choices));
+
+        return pick == "Not sure yet" ? null : _rules.Sources[choices.IndexOf(pick)].Id;
     }
 
     /// <summary>

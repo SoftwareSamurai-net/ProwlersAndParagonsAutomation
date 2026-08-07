@@ -272,6 +272,141 @@ public static class PrebuiltHeroes
             ["Herald (Airmid)"]   = ("superhero_package", 2)
         };
 
+    /// <summary>One Source heading on a printed sheet, and the Powers listed beneath it.</summary>
+    public sealed record SourceGroup(string SourceId, string[] PowerIds);
+
+    /// <summary>
+    /// How each published sheet groups its Powers under Source headings, transcribed in the
+    /// printed order (Ch.8). This is the sheet's own layout, not an inference: Alabama
+    /// Slammer prints <c>INNATE POWERS</c> then <c>SUPER POWERS</c>, and Psidearm prints
+    /// three groups.
+    ///
+    /// <para>Ability Sources are printed too, but as an <c>Abilities (…)</c> entry inside a
+    /// Power group rather than on the Abilities block — Stronghold's four armoured
+    /// Abilities sit under <c>TECH POWERS</c>. Those are not transcribed here because the
+    /// engine gives Abilities no Source yet; see PROGRESS.md.</para>
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, SourceGroup[]> PowerSourcesByHero =
+        new Dictionary<string, SourceGroup[]>
+        {
+            ["Alabama Slammer"] =
+            [
+                new("innate", ["determination"]),
+                new("super",  ["phasing", "regeneration", "resistance", "super_speed"])
+            ],
+            ["Black Dragon"] =
+            [
+                new("psychic", ["boost", "danger_sense", "leaping", "regeneration",
+                                "resistance", "running", "super_senses_true_sight"]),
+                new("trained", ["blind_fighting", "martial_arts", "two_fisted"])
+            ],
+            ["Blastwave"] =
+            [
+                new("super",   ["energy_absorption"]),
+                new("trained", ["lightning_reflexes", "martial_arts", "running"])
+            ],
+            ["Citizen Soldier"] =
+            [
+                new("super",   ["armor", "regeneration"]),
+                new("trained", ["determination", "leadership"])
+            ],
+            ["Combustion"] =
+            [
+                new("innate",  ["determination"]),
+                new("super",   ["aura", "elemental_control", "flight", "immunity"]),
+                new("trained", ["expertise", "evasion"])
+            ],
+            ["Darkwolf"] =
+            [
+                new("super", ["animal_empathy", "hard_to_kill", "leaping", "regeneration",
+                              "running", "strike", "super_senses_acute",
+                              "super_senses_enhanced_hearing", "super_senses_tracking_scent",
+                              "super_senses_ultra_vision", "two_fisted"])
+            ],
+            ["Eidolon"] =
+            [
+                new("innate", ["omni_power", "light_effect"])
+            ],
+            ["Herald (Airmid)"] =
+            [
+                new("magic", ["alternate_form", "elemental_control", "expertise", "healing"])
+            ],
+            ["Herald (Scathach)"] =
+            [
+                new("magic", ["alternate_form", "attuned", "armor", "danger_sense",
+                              "determination", "expertise", "lightning_reflexes",
+                              "martial_arts", "regeneration", "strike", "weakness_detection"])
+            ],
+            ["Nano"] =
+            [
+                new("tech", ["communications", "determination", "form_gaseous", "immortality",
+                             "inanimate", "form_liquid", "machine_control", "separation",
+                             "transformation_shapeshifting", "super_senses_analytic",
+                             "super_senses_circular_vision", "super_senses_microscopic_vision"])
+            ],
+            ["Pandora"] =
+            [
+                new("magic",   ["omni_power"]),
+                new("trained", ["expertise"])
+            ],
+            ["Psi Lance"] =
+            [
+                new("psychic", ["armor", "mind_blast", "mind_control", "telekinesis", "telepathy"]),
+                new("trained", ["expertise"])
+            ],
+            ["Psidearm"] =
+            [
+                new("super",   ["telepathy"]),
+                new("tech",    ["armor", "communications", "immunity", "super_senses_night_vision"]),
+                new("trained", ["blast", "lightning_reflexes", "martial_arts",
+                                "master_of_disguise", "two_fisted"])
+            ],
+            ["Shadow"] =
+            [
+                new("tech",    ["armor", "blending", "communications", "immunity", "invisibility",
+                                "super_senses_acute", "super_senses_night_vision",
+                                "super_senses_telescopic_vision", "swing_line", "wall_crawling"]),
+                new("trained", ["determination", "martial_arts", "preparation", "strike", "two_fisted"])
+            ],
+            ["Siren"] =
+            [
+                new("innate", ["blending", "transformation_doppelganger", "radar", "running",
+                               "super_senses_ultra_vision", "swimming"]),
+                new("tech",   ["armor", "blast"])
+            ],
+            ["Stronghold"] =
+            [
+                new("tech", ["armor", "blast", "variant", "communications", "flight",
+                             "immunity", "omni_power"])
+            ],
+            ["T-Kay"] =
+            [
+                new("super", ["determination", "flight", "force_field",
+                              "lightning_reflexes", "telekinesis"])
+            ],
+            ["Talon"] =
+            [
+                new("tech", ["armor", "ensnare", "flight", "strike", "super_senses_acute",
+                             "super_senses_telescopic_vision", "super_senses_thermal_vision"])
+            ],
+            ["Vector"] =
+            [
+                new("magic",   ["attuned", "blink", "deflection", "immunity", "phasing",
+                                "regeneration", "telekinesis"]),
+                new("trained", ["expertise"])
+            ],
+            ["Vigilant"] =
+            [
+                new("tech",    ["super_senses_night_vision", "swing_line"]),
+                new("trained", ["leaping", "martial_arts", "preparation", "running",
+                                "two_fisted", "weakness_detection"])
+            ]
+        };
+
+    /// <summary>The Source a given Hero's Power is printed under.</summary>
+    public static string SourceOf(string heroName, string powerId) =>
+        PowerSourcesByHero[heroName].Single(g => g.PowerIds.Contains(powerId)).SourceId;
+
     /// <summary>
     /// Pros and Cons a sheet applies to an Ability rather than a Power, keyed
     /// "Hero|abilityId". Stronghold is the only published Hero who does this: his sheet

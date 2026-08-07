@@ -30,6 +30,7 @@ public sealed class RulesRepository
     private IReadOnlyList<FlawModel>? _flaws;
     private IReadOnlyList<PerkModel>? _perks;
     private IReadOnlyList<GearFeatureModel>? _gearFeatures;
+    private IReadOnlyList<SourceModel>? _sources;
     private CreationRulesModel? _creationRules;
 
     // Lookup dictionaries (built on first use)
@@ -42,6 +43,7 @@ public sealed class RulesRepository
     private Dictionary<string, FlawModel>? _flawMap;
     private Dictionary<string, PerkModel>? _perkMap;
     private Dictionary<string, GearFeatureModel>? _gearFeatureMap;
+    private Dictionary<string, SourceModel>? _sourceMap;
 
     public RulesRepository(string dataRulesPath)
     {
@@ -88,6 +90,13 @@ public sealed class RulesRepository
     public IReadOnlyList<GearFeatureModel> GearFeatures =>
         _gearFeatures ??= Load<List<GearFeatureModel>>("gear_features.json");
 
+    /// <summary>
+    /// The six Sources (Ch.2, p.15). A Source says what a Trait is meant to be, and sets
+    /// the default rank a rankless Power uses when Powers act on other Powers.
+    /// </summary>
+    public IReadOnlyList<SourceModel> Sources =>
+        _sources ??= Load<List<SourceModel>>("sources.json");
+
     public CreationRulesModel CreationRules =>
         _creationRules ??= Load<CreationRulesModel>("creation_rules.json");
 
@@ -119,6 +128,9 @@ public sealed class RulesRepository
 
     public GearFeatureModel? GetGearFeature(string id) =>
         (_gearFeatureMap ??= GearFeatures.ToDictionary(x => x.Id)).GetValueOrDefault(id);
+
+    public SourceModel? GetSource(string id) =>
+        (_sourceMap ??= Sources.ToDictionary(x => x.Id)).GetValueOrDefault(id);
 
     // ── Private helpers ───────────────────────────────────────────────────
 

@@ -18,6 +18,7 @@ The wizard walks players and GMs through the full creation process — tracking 
 - **23 generic pros and 28 generic cons**, including variable-cost variants (Charges, Area/Burst) and Overkill/Weak's −1 HP per rank
 - **106 power-specific pros and cons** the rulebook attaches to one named power — unlike the generic ones, several change a power's cost *per rank* rather than its total
 - **Generic pro/con applicability derived from the rulebook**, not curated per power — each option states which Powers it applies to, so nothing legal is hidden from the player
+- **The six Sources**, with Powers grouped under Source headings on every sheet the way the published ones print them
 - **53 flaws and 13 perks**, wired into Resolve and the HP budget
 - **Validation engine** — errors for budget overruns, trait-cap violations, flaw-count breaches, ranks bought on rankless powers and unresolved player choices; warnings for anything still unverified
 - **Every rules value verified against the rulebook and locked by tests** — the suite holds the printed Range, Rank and Cost of all 141 powers, so a data edit that contradicts the book fails CI
@@ -78,7 +79,8 @@ ProwlersAndParagonsAutomation/
 │   ├── cons.json                 # 28 Power Cons
 │   ├── flaws.json                # 53 flaws
 │   ├── perks.json                # 13 perks
-│   └── gear_features.json        # 12 custom gear features (Ch.6)
+│   ├── gear_features.json        # 12 custom gear features (Ch.6)
+│   └── sources.json              # 6 Sources and the default rank each supplies
 │
 ├── engine/                       # Rules logic — pure C#, zero Spectre.Console
 │   ├── Models/                   # Immutable records mapping to the JSON schemas
@@ -259,6 +261,7 @@ They have earned their keep twice over, catching two cost bugs that unit tests h
 | `talents.json` | 12 | Ch.2, p.17 |
 | `tiers.json` | 6 | Ch.2 Power Levels, p.17 |
 | `gear_features.json` | 12 | Ch.6 Equipment, p.92 — custom gear features |
+| `sources.json` | 6 | Ch.2 Sources, p.15 — default rank per Source |
 
 A single `needs_review` boolean could not tell a verified cost from a verified description, and it drifted badly: 27 power entries were unflagged while their costs were wrong. `powers.json` therefore carries `verified_fields` plus a `source_ref` page reference on every entry:
 
@@ -327,7 +330,7 @@ To publish reports to Qodana Cloud, add a `QODANA_TOKEN` repository secret. With
 The short version of what is left, most-unblocking first:
 
 1. **Close the last five Heroes** — 15 of the 20 published Heroes now rebuild to exactly 125 HP; the rest are within 2 for recorded reasons.
-2. **Model Sources** — they set the stand-in rank for the 46 rankless powers.
+2. **Sources on Abilities and Talents** — Powers have them; Abilities of 7d+ still need one.
 3. **Establish a Qodana baseline** so only *new* problems fail CI.
 4. **Extract the remaining rulebook chapters** (3–9).
 5. **Web SPA front end** for softwaresamurai.net — the `data → engine → cli` split exists to make this possible without touching rules logic.
