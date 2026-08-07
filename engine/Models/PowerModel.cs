@@ -61,8 +61,23 @@ public record PowerModel
     public string Description { get; init; } = "";
 
     public PowerPrerequisiteModel? Prerequisite { get; init; }
+
+    /// <summary>
+    /// Generic Pros from pros.json thought to suit this Power. Unlike
+    /// <see cref="PowerPros"/> these are a project judgement, not printed in the entry —
+    /// the rulebook states applicability in each generic Pro instead.
+    /// </summary>
     public IReadOnlyList<string> AvailablePros { get; init; } = [];
+
+    /// <summary>Generic Cons from cons.json thought to suit this Power. See <see cref="AvailablePros"/>.</summary>
     public IReadOnlyList<string> AvailableCons { get; init; } = [];
+
+    /// <summary>Pros printed inside this Power's own rulebook entry.</summary>
+    public IReadOnlyList<PowerProConModel> PowerPros { get; init; } = [];
+
+    /// <summary>Cons printed inside this Power's own rulebook entry.</summary>
+    public IReadOnlyList<PowerProConModel> PowerCons { get; init; } = [];
+
     public IReadOnlyList<string> Tags { get; init; } = [];
 
     /// <summary>

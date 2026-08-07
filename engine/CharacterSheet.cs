@@ -18,7 +18,15 @@ public record SelectedFlaw(string FlawId, string? NarrativeDetail = null);
 /// For a variable-cost one (e.g. Charges, Area/Burst), VariantKey is the
 /// key from CostModifierRange (e.g. "3_per_scene", "area").
 /// </summary>
-public record SelectedProCon(string Id, string? VariantKey = null);
+public record SelectedProCon(string Id, string? VariantKey = null)
+{
+    /// <summary>
+    /// Quantity for a Power-specific Pro or Con that scales — how many extra Sources
+    /// Also X covers, for instance. Null means "however many units the Power itself has",
+    /// which is what Alternate Form's Independent Forms wants.
+    /// </summary>
+    public int? Units { get; init; }
+}
 
 /// <summary>
 /// A power as it appears on the character sheet: the power id,

@@ -31,7 +31,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.21"
   },
@@ -62,6 +63,16 @@
       "recharge",
       "uncontrolled"
     ],
+    "power_cons": [
+      {
+        "id": "independent_forms",
+        "name": "Independent Forms",
+        "cost_type": "per_unit",
+        "cost_per_unit": -1,
+        "cost_unit_label": "power level",
+        "description": "Each form has its own identity, memory and personality, and they need not get along."
+      }
+    ],
     "tags": [
       "transformation",
       "shapeshifting"
@@ -71,7 +82,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.21",
     "notes": "Cost scales with the alternate form's power level: 4/8/12/16/20/24 Hero Points for Street Level through Iconic."
@@ -103,6 +115,27 @@
       "shutdown",
       "sustained"
     ],
+    "power_pros": [
+      {
+        "id": "calling",
+        "name": "Calling",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You can call to animals out to Extreme Range. They race to you, and the duration only starts once they arrive."
+      }
+    ],
+    "power_cons": [
+      {
+        "id": "only_x",
+        "name": "Only X",
+        "cost_type": "flat_variable",
+        "cost_modifier_range": {
+          "standard": -2,
+          "narrow": -4
+        },
+        "description": "You can only control one category of animal, named at purchase. Worth more if the group is narrow or of limited use, such as aquatic animals."
+      }
+    ],
     "tags": [
       "mental",
       "control",
@@ -113,7 +146,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.21"
   },
@@ -136,6 +170,15 @@
       "limited",
       "shutdown"
     ],
+    "power_pros": [
+      {
+        "id": "speech",
+        "name": "Speech",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You can talk with animals. How intelligent they are, and how they respond, is the GM's call."
+      }
+    ],
     "tags": [
       "sensory",
       "social",
@@ -147,7 +190,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.22"
   },
@@ -172,6 +216,22 @@
       "readied",
       "sustained"
     ],
+    "power_pros": [
+      {
+        "id": "enhanced",
+        "name": "Enhanced",
+        "cost_type": "flat",
+        "cost_modifier": 4,
+        "description": "When mimicking an animal you may use your Power rank in place of its highest-ranked Trait — one Trait per animal."
+      },
+      {
+        "id": "selection",
+        "name": "Selection",
+        "cost_type": "flat",
+        "cost_modifier": 4,
+        "description": "You can mimic several animals at once and take the best Traits among them, but your effective rank drops by 1d per extra animal."
+      }
+    ],
     "tags": [
       "transformation",
       "mimicry",
@@ -182,7 +242,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.22"
   },
@@ -220,7 +281,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.22"
   },
@@ -252,6 +314,22 @@
       "recharge",
       "shutdown"
     ],
+    "power_cons": [
+      {
+        "id": "activated",
+        "name": "Activated",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "The armour must be switched on — a free action — and it stops working if you are knocked out."
+      },
+      {
+        "id": "reactive",
+        "name": "Reactive",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "Bracers, a shield or similar that you actively interpose, so it counts as an active defence rather than a passive one."
+      }
+    ],
     "tags": [
       "defense",
       "passive",
@@ -262,7 +340,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.22"
   },
@@ -299,7 +378,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.23"
   },
@@ -330,7 +410,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.23"
   },
@@ -365,6 +446,15 @@
       "sustained",
       "uncontrolled"
     ],
+    "power_cons": [
+      {
+        "id": "spines",
+        "name": "Spines",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "Quills or spines inflicting physical rather than energy damage, which means the Power gives you no protection against physical attacks."
+      }
+    ],
     "tags": [
       "attack",
       "damage",
@@ -376,7 +466,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.23"
   },
@@ -414,7 +505,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.23"
   },
@@ -473,6 +565,38 @@
       "unreliable",
       "weak"
     ],
+    "power_pros": [
+      {
+        "id": "block",
+        "name": "Block",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You can shoot incoming ranged attacks down, using the Power as an active defence against them — though not against area attacks."
+      },
+      {
+        "id": "melee",
+        "name": "Melee",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You can use the Power as an active defence in close combat, which may change how it looks when you do."
+      }
+    ],
+    "power_cons": [
+      {
+        "id": "subdual",
+        "name": "Subdual",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "The Power inflicts subdual damage."
+      },
+      {
+        "id": "weapons",
+        "name": "Weapons",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "The Power is mastery of a group of weapons, as broad or narrow as you like, and you must be armed with one to use it."
+      }
+    ],
     "tags": [
       "attack",
       "ranged",
@@ -484,7 +608,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.24"
   },
@@ -520,7 +645,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.24"
   },
@@ -561,7 +687,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.24"
   },
@@ -592,7 +719,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.24"
   },
@@ -628,7 +756,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.24"
   },
@@ -660,6 +789,15 @@
       "recharge",
       "sustained"
     ],
+    "power_cons": [
+      {
+        "id": "rage",
+        "name": "Rage",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "The Power switches on when you lose your temper, but your Intellect and every Talent drop to 1d while the rage lasts. It always subsides by the end of a scene."
+      }
+    ],
     "tags": [
       "support",
       "enhancement",
@@ -670,7 +808,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.24",
     "notes": "Cost is Special: this Power costs as many Hero Points per rank as the Trait it raises, and uses that Trait as its baseline rank. The player must nominate the affected Trait; CostCalculator resolves the rate from it."
@@ -697,6 +836,15 @@
       "recharge",
       "sustained"
     ],
+    "power_pros": [
+      {
+        "id": "greater",
+        "name": "Greater",
+        "cost_type": "flat",
+        "cost_modifier": 6,
+        "description": "Spend extra Resolve to raise the bonus by +1d per point, up to +3d for 3 Resolve."
+      }
+    ],
     "tags": [
       "support",
       "resolve",
@@ -707,7 +855,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.25"
   },
@@ -743,7 +892,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.25"
   },
@@ -782,7 +932,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.25"
   },
@@ -821,7 +972,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.25"
   },
@@ -850,6 +1002,15 @@
       "recharge",
       "sustained"
     ],
+    "power_pros": [
+      {
+        "id": "devices",
+        "name": "Devices",
+        "cost_type": "per_rank",
+        "cost_per_rank": 2.0,
+        "description": "You can build complex machines and intricate shapes that imitate other Powers, working like a broad Omni-Power."
+      }
+    ],
     "tags": [
       "utility",
       "construction",
@@ -861,7 +1022,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.25"
   },
@@ -898,7 +1060,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.25"
   },
@@ -940,7 +1103,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.25"
   },
@@ -972,6 +1136,15 @@
       "shutdown",
       "touch"
     ],
+    "power_cons": [
+      {
+        "id": "deafen",
+        "name": "Deafen",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "Targets are left deafened rather than blinded once the stun wears off — disorienting, and worth -1d on their rolls, but preferable to blindness."
+      }
+    ],
     "tags": [
       "attack",
       "debuff",
@@ -982,7 +1155,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.26"
   },
@@ -1010,6 +1184,15 @@
       "recharge",
       "sustained"
     ],
+    "power_cons": [
+      {
+        "id": "only_x",
+        "name": "Only X",
+        "cost_type": "flat",
+        "cost_modifier": -4,
+        "description": "You can only deflect one specific type of object or energy, named at purchase."
+      }
+    ],
     "tags": [
       "defense",
       "ranged",
@@ -1020,7 +1203,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.26"
   },
@@ -1061,7 +1245,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.26"
   },
@@ -1085,6 +1270,15 @@
       "limited",
       "shutdown"
     ],
+    "power_pros": [
+      {
+        "id": "long_range",
+        "name": "Long Range",
+        "cost_type": "flat",
+        "cost_modifier": 1,
+        "description": "The Power reaches interplanetary distances — as far as the story needs, out to Plot Device Range."
+      }
+    ],
     "tags": [
       "sensory",
       "detection"
@@ -1094,7 +1288,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.26"
   },
@@ -1123,7 +1318,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.26",
     "notes": "No rank. 5 Hero Points buys 1 extra starting Resolve per issue."
@@ -1150,6 +1346,15 @@
       "limited",
       "recharge"
     ],
+    "power_pros": [
+      {
+        "id": "portal",
+        "name": "Portal",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You can open portals others can travel through."
+      }
+    ],
     "tags": [
       "movement",
       "dimensional",
@@ -1160,7 +1365,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.26"
   },
@@ -1189,6 +1395,16 @@
       "recharge",
       "shutdown"
     ],
+    "power_pros": [
+      {
+        "id": "also_x",
+        "name": "Also X",
+        "cost_type": "per_rank_per_unit",
+        "cost_per_rank": 0.5,
+        "cost_unit_label": "additional Source",
+        "description": "You can dispel Powers from more than one Source. Each extra Source adds 1 Hero Point per 2 ranks."
+      }
+    ],
     "tags": [
       "control",
       "counter",
@@ -1199,7 +1415,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.26"
   },
@@ -1230,6 +1447,28 @@
       "shutdown",
       "touch"
     ],
+    "power_pros": [
+      {
+        "id": "also_x",
+        "name": "Also X",
+        "cost_type": "per_rank_per_unit",
+        "cost_per_rank": 0.5,
+        "cost_unit_label": "additional Source",
+        "description": "You can affect Traits from more than one Source. Each extra Source adds 1 Hero Point per 2 ranks."
+      }
+    ],
+    "power_cons": [
+      {
+        "id": "only_x",
+        "name": "Only X",
+        "cost_type": "flat_variable",
+        "cost_modifier_range": {
+          "standard": -2,
+          "narrow": -4
+        },
+        "description": "You can only affect one kind of Trait — Abilities, Talents or Powers. Worth more if it is one specific Ability, Talent or Power."
+      }
+    ],
     "tags": [
       "attack",
       "debuff",
@@ -1240,7 +1479,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.27"
   },
@@ -1273,7 +1513,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.27"
   },
@@ -1310,6 +1551,24 @@
       "shutdown",
       "sustained"
     ],
+    "power_pros": [
+      {
+        "id": "matter_creation",
+        "name": "Matter Creation",
+        "cost_type": "per_rank",
+        "cost_per_rank": 1.0,
+        "description": "Matter you create is normally unstable and gone by the end of the scene; this lets you make it permanent."
+      }
+    ],
+    "power_cons": [
+      {
+        "id": "only_control",
+        "name": "Only Control",
+        "cost_type": "per_rank",
+        "cost_per_rank": -1.0,
+        "description": "You can control your element but not create it, so you depend on whatever is already in range."
+      }
+    ],
     "tags": [
       "control",
       "elemental",
@@ -1321,7 +1580,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.27"
   },
@@ -1355,6 +1615,22 @@
       "sustained",
       "touch"
     ],
+    "power_cons": [
+      {
+        "id": "only_x",
+        "name": "Only X",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "You can only produce one emotion or mental state, named at purchase."
+      },
+      {
+        "id": "pheromones",
+        "name": "Pheromones",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "The Power is chemical. Targets resist with the greater of Toughness or Willpower, and anything that does not breathe — or is sealed against the air — is immune."
+      }
+    ],
     "tags": [
       "mental",
       "control",
@@ -1365,7 +1641,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.28"
   },
@@ -1390,6 +1667,15 @@
       "limited",
       "shutdown"
     ],
+    "power_pros": [
+      {
+        "id": "also_x",
+        "name": "Also X",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "Absorb one extra type of energy per purchase. It cannot be used to add kinetic energy after the fact."
+      }
+    ],
     "tags": [
       "defense",
       "energy",
@@ -1400,7 +1686,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.28",
     "notes": "Variable per-rank cost: 1 Hero Point per rank normally, 3 if you can absorb kinetic energy (subject to GM approval)."
@@ -1434,6 +1721,24 @@
       "recharge",
       "touch"
     ],
+    "power_pros": [
+      {
+        "id": "line",
+        "name": "Line",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "A line or tether that also lets you reel an ensnared target in, provided their weight rank does not exceed your rank."
+      }
+    ],
+    "power_cons": [
+      {
+        "id": "immobilize",
+        "name": "Immobilize",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "You only pin targets in place. They cannot move, but they can still take any other physical action."
+      }
+    ],
     "tags": [
       "attack",
       "restraint",
@@ -1444,7 +1749,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.28"
   },
@@ -1481,7 +1787,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.28"
   },
@@ -1517,7 +1824,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.28",
     "notes": "Baseline rank equals the rank of the Ability or Talent the specialisation falls under, nominated by the player at purchase."
@@ -1549,7 +1857,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.28"
   },
@@ -1575,6 +1884,45 @@
       "recharge",
       "sustained"
     ],
+    "power_pros": [
+      {
+        "id": "spaceflight",
+        "name": "Spaceflight",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You can exceed light speed in open space, crossing interstellar distances — assuming you can survive out there."
+      }
+    ],
+    "power_cons": [
+      {
+        "id": "gliding",
+        "name": "Gliding",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "You glide rather than fly, losing at least a storey each page unless you find a rising current."
+      },
+      {
+        "id": "levitation",
+        "name": "Levitation",
+        "cost_type": "flat",
+        "cost_modifier": -4,
+        "description": "You can only rise, descend and hover."
+      },
+      {
+        "id": "slides",
+        "name": "Slides",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "You surf on matter or energy you lay down as you go, so you must stay within Distant Range of the ground or other large solid objects."
+      },
+      {
+        "id": "wings",
+        "name": "Wings",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "Wings need room, so you cannot fly in cramped spaces, thin atmosphere or vacuum."
+      }
+    ],
     "tags": [
       "movement",
       "flight",
@@ -1585,7 +1933,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.29"
   },
@@ -1615,6 +1964,38 @@
       "recharge",
       "sustained"
     ],
+    "power_pros": [
+      {
+        "id": "inviolate",
+        "name": "Inviolate",
+        "cost_type": "per_rank",
+        "cost_per_rank": 1.0,
+        "description": "Spend 1 Resolve when raising the field and it repels Power effects of equal or lower rank as well as direct attacks."
+      },
+      {
+        "id": "permeable",
+        "name": "Permeable",
+        "cost_type": "flat",
+        "cost_modifier": 6,
+        "description": "You can let attacks pass out through the field in one direction, so you and your allies can attack from inside it."
+      }
+    ],
+    "power_cons": [
+      {
+        "id": "collapsible",
+        "name": "Collapsible",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "The field collapses when hit by an attack above your rank. It still defends against that attack, but restoring it costs an action."
+      },
+      {
+        "id": "ward",
+        "name": "Ward",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "The field stops mental attacks rather than physical ones. It is the only kind that can hold someone using Phasing (Intangible)."
+      }
+    ],
     "tags": [
       "defense",
       "energy",
@@ -1626,7 +2007,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.29"
   },
@@ -1654,6 +2036,15 @@
       "readied",
       "sustained"
     ],
+    "power_pros": [
+      {
+        "id": "also_x",
+        "name": "Also X",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "One extra type of energy you can become, per purchase."
+      }
+    ],
     "tags": [
       "transformation",
       "energy",
@@ -1664,7 +2055,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.30"
   },
@@ -1702,7 +2094,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.30"
   },
@@ -1740,7 +2133,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.30"
   },
@@ -1778,7 +2172,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.30"
   },
@@ -1809,7 +2204,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.30"
   },
@@ -1847,7 +2243,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.30"
   },
@@ -1878,7 +2275,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.30"
   },
@@ -1908,6 +2306,15 @@
       "recharge",
       "touch"
     ],
+    "power_cons": [
+      {
+        "id": "repair",
+        "name": "Repair",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "Your touch mends inanimate things rather than living ones — androids, machines, robots, vehicles and most technology."
+      }
+    ],
     "tags": [
       "support",
       "healing",
@@ -1918,7 +2325,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.31"
   },
@@ -1949,7 +2357,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.31"
   },
@@ -1980,6 +2389,15 @@
       "shutdown",
       "side_effect"
     ],
+    "power_pros": [
+      {
+        "id": "freezing",
+        "name": "Freezing",
+        "cost_type": "per_rank",
+        "cost_per_rank": 1.0,
+        "description": "Your breath can also freeze, imitating Blast (cold) or Ensnare, but only within Close Range."
+      }
+    ],
     "tags": [
       "attack",
       "breath",
@@ -1991,7 +2409,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.31"
   },
@@ -2019,6 +2438,15 @@
       "recharge",
       "sustained"
     ],
+    "power_pros": [
+      {
+        "id": "mental",
+        "name": "Mental",
+        "cost_type": "per_rank",
+        "cost_per_rank": 2.0,
+        "description": "The illusions form in the minds of living beings, so a doubting observer resists with Willpower rather than Perception."
+      }
+    ],
     "tags": [
       "mental",
       "sensory",
@@ -2029,7 +2457,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.31"
   },
@@ -2051,6 +2480,15 @@
       "limited",
       "shutdown"
     ],
+    "power_cons": [
+      {
+        "id": "vulnerable",
+        "name": "Vulnerable",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "You can be killed, though not easily. Describe how."
+      }
+    ],
     "tags": [
       "defense",
       "survival",
@@ -2062,7 +2500,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.31"
   },
@@ -2095,7 +2534,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.31",
     "notes": "Cost is 3 Hero Points per immunity selected."
@@ -2117,6 +2557,15 @@
       "constant",
       "limited"
     ],
+    "power_pros": [
+      {
+        "id": "mindless",
+        "name": "Mindless",
+        "cost_type": "flat",
+        "cost_modifier": 9,
+        "description": "You have neither mind nor spirit — a true robot, or an animated skeleton — so mental attacks and Powers cannot touch you either."
+      }
+    ],
     "tags": [
       "special",
       "inanimate",
@@ -2129,7 +2578,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.32"
   },
@@ -2160,6 +2610,24 @@
       "sustained",
       "uncontrolled"
     ],
+    "power_pros": [
+      {
+        "id": "cloaking",
+        "name": "Cloaking",
+        "cost_type": "flat",
+        "cost_modifier": 3,
+        "description": "Turning invisible also hides you from Radar, every vision-based Super Sense, and sensors and equipment that would otherwise pick you up."
+      }
+    ],
+    "power_cons": [
+      {
+        "id": "jamming",
+        "name": "Jamming",
+        "cost_type": "flat",
+        "cost_modifier": -3,
+        "description": "You cannot turn invisible, but you can make yourself undetectable to Radar, vision-based Super Senses and equivalent sensors."
+      }
+    ],
     "tags": [
       "stealth",
       "concealment",
@@ -2170,7 +2638,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.32"
   },
@@ -2209,7 +2678,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.32"
   },
@@ -2229,6 +2699,22 @@
     "available_cons": [
       "limited"
     ],
+    "power_pros": [
+      {
+        "id": "hyper_translation",
+        "name": "Hyper Translation",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You are instantly fluent in any language you meet, barring ones your voice cannot produce or your senses cannot perceive."
+      },
+      {
+        "id": "polyglot",
+        "name": "Polyglot",
+        "cost_type": "flat",
+        "cost_modifier": 1,
+        "description": "Languages come naturally. You can get by in a new one within a day or two and master it in about a week."
+      }
+    ],
     "tags": [
       "utility",
       "communication",
@@ -2240,7 +2726,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.32"
   },
@@ -2277,7 +2764,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.32"
   },
@@ -2312,7 +2800,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.32"
   },
@@ -2341,6 +2830,15 @@
       "shutdown",
       "touch"
     ],
+    "power_pros": [
+      {
+        "id": "vampirism",
+        "name": "Vampirism",
+        "cost_type": "flat",
+        "cost_modifier": 1,
+        "description": "The Power inflicts real physical damage rather than draining life energy, so targets resist it as they would any physical attack."
+      }
+    ],
     "tags": [
       "attack",
       "damage",
@@ -2352,7 +2850,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.33"
   },
@@ -2388,7 +2887,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.33"
   },
@@ -2410,6 +2910,15 @@
       "limited",
       "shutdown"
     ],
+    "power_cons": [
+      {
+        "id": "fighting_marksmanship",
+        "name": "Fighting/Marksmanship",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "The Power applies only to close combat or only to ranged combat, and you can only quick-draw that type of weapon."
+      }
+    ],
     "tags": [
       "combat",
       "initiative",
@@ -2421,7 +2930,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.33"
   },
@@ -2442,6 +2952,22 @@
       "charges",
       "limited"
     ],
+    "power_pros": [
+      {
+        "id": "control",
+        "name": "Control",
+        "cost_type": "flat",
+        "cost_modifier": 4,
+        "description": "You bend probability deliberately rather than merely being lucky, letting you use Luck on yourself or anyone within Distant Range."
+      },
+      {
+        "id": "unbelievable",
+        "name": "Unbelievable",
+        "cost_type": "per_rank",
+        "cost_per_rank": 1.0,
+        "description": "You can also spend Luck dice on lucky breaks, and they tend to be more extreme than ones bought with Resolve."
+      }
+    ],
     "tags": [
       "special",
       "probability",
@@ -2452,7 +2978,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.33"
   },
@@ -2481,6 +3008,15 @@
       "recharge",
       "sustained"
     ],
+    "power_cons": [
+      {
+        "id": "interface",
+        "name": "Interface",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "You can only control computers — which still covers any machine a computer controls."
+      }
+    ],
     "tags": [
       "control",
       "technology",
@@ -2491,7 +3027,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.33"
   },
@@ -2533,6 +3070,22 @@
       "shutdown",
       "weak"
     ],
+    "power_pros": [
+      {
+        "id": "deflect",
+        "name": "Deflect",
+        "cost_type": "flat",
+        "cost_modifier": 4,
+        "description": "Use Martial Arts as an active defence against ranged physical and energy attacks, though not area attacks."
+      },
+      {
+        "id": "deflect_missiles",
+        "name": "Deflect Missiles",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "Use Martial Arts as an active defence against ranged physical attacks, though not area attacks."
+      }
+    ],
     "tags": [
       "attack",
       "melee",
@@ -2545,7 +3098,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.34"
   },
@@ -2580,7 +3134,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.34"
   },
@@ -2615,7 +3170,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.35"
   },
@@ -2663,7 +3219,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.35"
   },
@@ -2698,6 +3255,22 @@
       "sustained",
       "touch"
     ],
+    "power_cons": [
+      {
+        "id": "hypnosis",
+        "name": "Hypnosis",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "You need a calm face-to-face conversation with the target first, which makes it useless in combat."
+      },
+      {
+        "id": "pheromones",
+        "name": "Pheromones",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "The Power is chemical. Targets resist with the greater of Toughness or Willpower, and anything that does not breathe is immune."
+      }
+    ],
     "tags": [
       "mental",
       "control",
@@ -2708,7 +3281,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.35"
   },
@@ -2737,6 +3311,16 @@
       "recharge",
       "shutdown"
     ],
+    "power_pros": [
+      {
+        "id": "also_x",
+        "name": "Also X",
+        "cost_type": "per_rank_per_unit",
+        "cost_per_rank": 1,
+        "cost_unit_label": "additional Source",
+        "description": "You can nullify Traits from more than one Source. Each extra Source adds 1 Hero Point per rank."
+      }
+    ],
     "tags": [
       "control",
       "counter",
@@ -2747,7 +3331,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.35"
   },
@@ -2782,7 +3367,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.35",
     "notes": "Variable per-rank cost: narrow Omni-Powers cost 3 Hero Points per rank, broad ones 5. Cannot mimic Alternate Form, Determination, Inanimate, Life Drain, Luck, Nullify, Power Absorption, Power Mimicry, Preparation, Slay or Time Stop."
@@ -2813,6 +3399,15 @@
       "sustained",
       "uncontrolled"
     ],
+    "power_pros": [
+      {
+        "id": "intangible",
+        "name": "Intangible",
+        "cost_type": "flat",
+        "cost_modifier": 3,
+        "description": "Ordinary force fields cannot hold you. Ones with the Ward Con still can, unless your Willpower beats their rank."
+      }
+    ],
     "tags": [
       "movement",
       "incorporeal",
@@ -2824,7 +3419,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.36"
   },
@@ -2860,7 +3456,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.36"
   },
@@ -2900,7 +3497,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.36"
   },
@@ -2931,7 +3529,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.36"
   },
@@ -2960,6 +3559,15 @@
       "sustained",
       "touch"
     ],
+    "power_pros": [
+      {
+        "id": "meld",
+        "name": "Meld",
+        "cost_type": "flat",
+        "cost_modifier": 4,
+        "description": "Your body merges into the one you possess for the duration."
+      }
+    ],
     "tags": [
       "mental",
       "control",
@@ -2971,7 +3579,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.36"
   },
@@ -2995,6 +3604,28 @@
       "recharge",
       "touch"
     ],
+    "power_pros": [
+      {
+        "id": "also_x",
+        "name": "Also X",
+        "cost_type": "per_rank_per_unit",
+        "cost_per_rank": 1,
+        "cost_unit_label": "additional Source",
+        "description": "You can absorb Traits from more than one Source. Each extra Source adds 1 Hero Point per rank."
+      }
+    ],
+    "power_cons": [
+      {
+        "id": "only_x",
+        "name": "Only X",
+        "cost_type": "flat_variable",
+        "cost_modifier_range": {
+          "standard": -2,
+          "narrow": -4
+        },
+        "description": "You can only absorb one kind of Trait — Abilities, Talents or Powers. Worth more if it is one specific Trait."
+      }
+    ],
     "tags": [
       "special",
       "powers",
@@ -3006,7 +3637,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.37"
   },
@@ -3041,7 +3673,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.37"
   },
@@ -3067,6 +3700,28 @@
       "sustained",
       "touch"
     ],
+    "power_pros": [
+      {
+        "id": "also_x",
+        "name": "Also X",
+        "cost_type": "per_rank_per_unit",
+        "cost_per_rank": 1,
+        "cost_unit_label": "additional Source",
+        "description": "You can mimic Traits from more than one Source. Each extra Source adds 1 Hero Point per rank."
+      }
+    ],
+    "power_cons": [
+      {
+        "id": "only_x",
+        "name": "Only X",
+        "cost_type": "flat_variable",
+        "cost_modifier_range": {
+          "standard": -2,
+          "narrow": -4
+        },
+        "description": "You can only mimic one kind of Trait — Abilities, Talents or Powers. Worth more if it is one specific Trait."
+      }
+    ],
     "tags": [
       "special",
       "powers",
@@ -3078,7 +3733,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.37"
   },
@@ -3108,7 +3764,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.38"
   },
@@ -3136,6 +3793,15 @@
       "limited",
       "shutdown"
     ],
+    "power_pros": [
+      {
+        "id": "cloak_mind",
+        "name": "Cloak Mind",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You can hide your mental presence. A telepath must beat your Psi-Screen rank to detect you at all."
+      }
+    ],
     "tags": [
       "defense",
       "mental",
@@ -3147,7 +3813,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.38"
   },
@@ -3181,7 +3848,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.38"
   },
@@ -3201,6 +3869,15 @@
     "available_cons": [
       "limited"
     ],
+    "power_cons": [
+      {
+        "id": "costume",
+        "name": "Costume",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "You can only switch between your costume and whatever you were wearing when you last changed."
+      }
+    ],
     "tags": [
       "utility",
       "identity",
@@ -3212,7 +3889,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.38"
   },
@@ -3234,6 +3912,22 @@
       "limited",
       "shutdown"
     ],
+    "power_cons": [
+      {
+        "id": "sonar",
+        "name": "Sonar",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "The Power only works underwater."
+      },
+      {
+        "id": "tremor_sense",
+        "name": "Tremor Sense",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "You read vibrations in the ground instead, so you only detect things touching the ground or shaking it."
+      }
+    ],
     "tags": [
       "sensory",
       "detection",
@@ -3244,7 +3938,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.38"
   },
@@ -3270,6 +3965,22 @@
       "recharge",
       "shutdown"
     ],
+    "power_pros": [
+      {
+        "id": "fast",
+        "name": "Fast",
+        "cost_type": "flat",
+        "cost_modifier": 6,
+        "description": "You heal 1 point of damage per minute rather than per hour."
+      },
+      {
+        "id": "instant",
+        "name": "Instant",
+        "cost_type": "flat",
+        "cost_modifier": 18,
+        "description": "You heal 1 point of damage per page rather than per hour."
+      }
+    ],
     "tags": [
       "defense",
       "healing",
@@ -3280,7 +3991,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.38"
   },
@@ -3315,7 +4027,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
@@ -3344,6 +4057,15 @@
       "limited",
       "shutdown"
     ],
+    "power_pros": [
+      {
+        "id": "hover",
+        "name": "Hover",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You float a foot off the ground while moving, ignoring caltrops, pressure plates, tripwires, broken ground and the like."
+      }
+    ],
     "tags": [
       "movement",
       "speed",
@@ -3354,7 +4076,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
@@ -3387,7 +4110,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
@@ -3430,7 +4154,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
@@ -3468,7 +4193,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
@@ -3504,7 +4230,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
@@ -3542,7 +4269,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
@@ -3576,7 +4304,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
   },
@@ -3608,7 +4337,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.40",
     "notes": "Free, and restricted to Street Level and Low Level games. Each Hero may have only one, and no two Heroes may share one."
@@ -3644,7 +4374,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.40"
   },
@@ -3672,6 +4403,15 @@
       "recharge",
       "sustained"
     ],
+    "power_pros": [
+      {
+        "id": "portal",
+        "name": "Portal",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You can open portals others — ships included — can travel through."
+      }
+    ],
     "tags": [
       "movement",
       "teleportation",
@@ -3683,7 +4423,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.41"
   },
@@ -3712,6 +4453,15 @@
       "limited",
       "sustained"
     ],
+    "power_cons": [
+      {
+        "id": "long_reach",
+        "name": "Long Reach",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "You have long reach but cannot stretch your whole body."
+      }
+    ],
     "tags": [
       "physical",
       "melee",
@@ -3723,7 +4473,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.41",
     "notes": "Variable flat cost by reach: 1 Hero Point for Close Range, 3 for Distant Range, 6 for Extreme Range."
@@ -3777,6 +4528,52 @@
       "two_handed",
       "weak"
     ],
+    "power_pros": [
+      {
+        "id": "deflect",
+        "name": "Deflect",
+        "cost_type": "flat",
+        "cost_modifier": 4,
+        "description": "Use Strike as an active defence against ranged physical and energy attacks, though not area attacks."
+      },
+      {
+        "id": "deflect_missiles",
+        "name": "Deflect Missiles",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "Use Strike as an active defence against ranged physical attacks, though not area attacks."
+      },
+      {
+        "id": "reach_throw",
+        "name": "Reach/Throw",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You can hit targets within Close Range who are not adjacent, either through unusual reach or by throwing whatever you strike with."
+      },
+      {
+        "id": "sweep",
+        "name": "Sweep",
+        "cost_type": "flat",
+        "cost_modifier": 4,
+        "description": "The Power becomes an area attack covering a 90-degree arc within 5 to 25 feet — friend and foe alike, as area attacks always are."
+      }
+    ],
+    "power_cons": [
+      {
+        "id": "subdual",
+        "name": "Subdual",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "The Power inflicts subdual damage."
+      },
+      {
+        "id": "weapons",
+        "name": "Weapons",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "The Power is mastery of a group of weapons, as broad or narrow as you like, and you must be armed with one to use it."
+      }
+    ],
     "tags": [
       "attack",
       "melee",
@@ -3788,7 +4585,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.41",
     "notes": "Baseline rank is Might or Martial Arts, whichever is greater. Under the Brute Option (Overkill applied to Might) only half your Might counts toward this baseline."
@@ -3818,6 +4616,15 @@
       "recharge",
       "touch"
     ],
+    "power_cons": [
+      {
+        "id": "emp",
+        "name": "EMP",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "The Power affects characters with Inanimate from a Tech Source instead of living beings, and disables most electronics."
+      }
+    ],
     "tags": [
       "attack",
       "debuff",
@@ -3829,7 +4636,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.42"
   },
@@ -3856,6 +4664,50 @@
       "recharge",
       "sustained"
     ],
+    "power_pros": [
+      {
+        "id": "animals",
+        "name": "Animals",
+        "cost_type": "per_rank_variable",
+        "cost_per_rank_range": {
+          "narrow_selection": 1,
+          "wide_variety": 2
+        },
+        "description": "Your Minions are animals with the advantages that implies — keen senses, speed. Worth more for a wide variety than a narrow selection."
+      },
+      {
+        "id": "automatons",
+        "name": "Automatons",
+        "cost_type": "per_rank",
+        "cost_per_rank": 1.0,
+        "description": "Your Minions have the Inanimate (Mindless) Power."
+      },
+      {
+        "id": "duplicates",
+        "name": "Duplicates",
+        "cost_type": "per_rank",
+        "cost_per_rank": 2.0,
+        "description": "Your Minions are copies of you. They fight as Minions using their Threat, but share your distinctive abilities."
+      },
+      {
+        "id": "shooters",
+        "name": "Shooters",
+        "cost_type": "per_rank",
+        "cost_per_rank": 1.0,
+        "description": "Your Minions can attack at Distant Range as well as in close combat."
+      },
+      {
+        "id": "unique",
+        "name": "Unique",
+        "cost_type": "per_rank_variable",
+        "cost_per_rank_range": {
+          "minor": 1,
+          "moderate": 2,
+          "major": 4
+        },
+        "description": "Your Minions have abilities that would be Powers on a real character — acute senses, flight, walking through walls. Priced by how big an advantage it is."
+      }
+    ],
     "tags": [
       "control",
       "summoning",
@@ -3866,7 +4718,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.42",
     "notes": "Cost is Special: 1 Hero Point per rank for every 2d of Threat given to the Minions (rounded up). Threat rank is chosen at purchase, capped at Trait Cap - 6d, or Trait Cap - 3d if you summon no more than 10 Minions per scene."
@@ -3903,7 +4756,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -3940,7 +4794,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -3977,7 +4832,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -4014,7 +4870,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -4051,7 +4908,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -4088,7 +4946,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -4125,7 +4984,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -4162,7 +5022,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -4199,7 +5060,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -4236,7 +5098,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -4273,7 +5136,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -4310,7 +5174,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -4347,7 +5212,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -4384,7 +5250,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -4421,7 +5288,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -4458,7 +5326,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.43",
     "notes": "The rulebook treats all Super Senses options as a single Power whose effective rank is the greater of your Perception and your Acute rank. Each option is bought and paid for separately."
@@ -4496,7 +5365,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.44"
   },
@@ -4517,6 +5387,15 @@
       "conditional",
       "limited"
     ],
+    "power_cons": [
+      {
+        "id": "lungs",
+        "name": "Lungs",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "You cannot breathe water, though you can hold your breath a long time."
+      }
+    ],
     "tags": [
       "movement",
       "water",
@@ -4527,7 +5406,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.44"
   },
@@ -4550,6 +5430,15 @@
       "item",
       "limited"
     ],
+    "power_cons": [
+      {
+        "id": "natural",
+        "name": "Natural",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "You cannot make your own lines, so the Power only works where nature provides them — jungle vines and the like."
+      }
+    ],
     "tags": [
       "movement",
       "urban",
@@ -4560,7 +5449,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.44"
   },
@@ -4597,6 +5487,15 @@
       "shutdown",
       "sustained"
     ],
+    "power_cons": [
+      {
+        "id": "impel",
+        "name": "Impel",
+        "cost_type": "flat",
+        "cost_modifier": -4,
+        "description": "You can shove objects in a straight line or hold them still, but fine manipulation is beyond you."
+      }
+    ],
     "tags": [
       "mental",
       "psychic",
@@ -4608,7 +5507,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.44"
   },
@@ -4644,6 +5544,45 @@
       "sustained",
       "touch"
     ],
+    "power_pros": [
+      {
+        "id": "alter_memories",
+        "name": "Alter Memories",
+        "cost_type": "flat",
+        "cost_modifier": 6,
+        "description": "Three or more net successes on a mind probe let you rewrite the subject's memories. The change lasts the scene."
+      },
+      {
+        "id": "cloak_others",
+        "name": "Cloak Others",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You can hide the mental presence of everyone within Close Range of you, not just your own."
+      },
+      {
+        "id": "dream_travel",
+        "name": "Dream Travel",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You can enter and take part in the dreams of others. Inside a dream your physical Traits become the greater of your Willpower or Telepathy."
+      },
+      {
+        "id": "mind_link",
+        "name": "Mind Link",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You can link minds up to your Power rank so all of them can talk to each other. They must stay within Extreme Range of you."
+      }
+    ],
+    "power_cons": [
+      {
+        "id": "empathy",
+        "name": "Empathy",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "You are limited to sensing and sending emotions and moods — never words or images."
+      }
+    ],
     "tags": [
       "mental",
       "psychic",
@@ -4655,7 +5594,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.45"
   },
@@ -4684,6 +5624,24 @@
       "recharge",
       "touch"
     ],
+    "power_pros": [
+      {
+        "id": "portal",
+        "name": "Portal",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You can open portals others can travel through."
+      }
+    ],
+    "power_cons": [
+      {
+        "id": "medium",
+        "name": "Medium",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "You can only travel along or through some medium — power lines, shadows, reflective surfaces."
+      }
+    ],
     "tags": [
       "movement",
       "teleportation",
@@ -4694,7 +5652,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.45"
   },
@@ -4730,7 +5689,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.45"
   },
@@ -4756,6 +5716,15 @@
       "limited",
       "recharge"
     ],
+    "power_pros": [
+      {
+        "id": "portal",
+        "name": "Portal",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "You can open portals others can travel through."
+      }
+    ],
     "tags": [
       "movement",
       "time",
@@ -4766,7 +5735,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.46"
   },
@@ -4787,6 +5757,15 @@
       "limited",
       "shutdown"
     ],
+    "power_pros": [
+      {
+        "id": "playback",
+        "name": "Playback",
+        "cost_type": "flat",
+        "cost_modifier": 1,
+        "description": "Common among cyborgs and robots: your memories can be transferred, stored, copied and shown to others."
+      }
+    ],
     "tags": [
       "utility",
       "memory",
@@ -4798,7 +5777,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.46"
   },
@@ -4823,6 +5803,15 @@
       "limited",
       "touch"
     ],
+    "power_pros": [
+      {
+        "id": "tracking",
+        "name": "Tracking",
+        "cost_type": "flat",
+        "cost_modifier": 3,
+        "description": "An object the subject recently owned, or a place they visited in the last day or so, lets you track them as though you had tagged them."
+      }
+    ],
     "tags": [
       "sensory",
       "tracking",
@@ -4833,7 +5822,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.46"
   },
@@ -4859,6 +5849,27 @@
       "sustained",
       "uncontrolled"
     ],
+    "power_pros": [
+      {
+        "id": "enhanced",
+        "name": "Enhanced",
+        "cost_type": "flat",
+        "cost_modifier": 4,
+        "description": "When you take an animal's shape you may use your Power rank in place of its highest-ranked Trait — one Trait per animal."
+      }
+    ],
+    "power_cons": [
+      {
+        "id": "only_x",
+        "name": "Only X",
+        "cost_type": "flat_variable",
+        "cost_modifier_range": {
+          "standard": -2,
+          "narrow": -4
+        },
+        "description": "You can only become one category of animal, named at purchase. Worth more if it is a single animal or a very limited group."
+      }
+    ],
     "tags": [
       "transformation",
       "animals",
@@ -4869,7 +5880,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.46"
   },
@@ -4907,7 +5919,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.46"
   },
@@ -4945,7 +5958,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.46"
   },
@@ -4982,7 +5996,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.46"
   },
@@ -5013,6 +6028,15 @@
       "recharge",
       "touch"
     ],
+    "power_cons": [
+      {
+        "id": "fighting_marksmanship",
+        "name": "Fighting/Marksmanship",
+        "cost_type": "flat",
+        "cost_modifier": -1,
+        "description": "The Power applies only in close combat or only at range, and its bonus to mundane weapons is limited to that kind."
+      }
+    ],
     "tags": [
       "control",
       "matter",
@@ -5023,7 +6047,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.47"
   },
@@ -5059,7 +6084,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.47"
   },
@@ -5094,7 +6120,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.47"
   },
@@ -5131,7 +6158,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.47"
   },
@@ -5162,7 +6190,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.47"
   },
@@ -5192,7 +6221,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.48",
     "notes": "Costs a flat 3 Hero Points but must be worth as many Hero Points as the Power it varies — the difference has to be made up with Cons. Cannot vary Alternate Form and several other Powers."
@@ -5229,7 +6259,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.48"
   },
@@ -5262,7 +6293,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.48"
   },
@@ -5297,7 +6329,8 @@
       "rank_type",
       "cost",
       "prerequisite",
-      "description"
+      "description",
+      "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.48"
   }

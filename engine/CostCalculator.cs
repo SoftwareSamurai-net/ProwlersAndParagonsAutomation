@@ -64,24 +64,23 @@ public sealed class CostCalculator
         var power = _rules.GetPower(selection.PowerId)
                     ?? throw new InvalidOperationException($"Unknown power id '{selection.PowerId}'.");
 
-        var prosTotal = selection.Pros.Sum(ResolveProCost);
-        var consTotal = selection.Cons.Sum(ResolveConCost);
+        var (flatModifiers, rateModifiers) = ResolveModifiers(power, selection);
 
         return power.CostType switch
         {
             "per_rank" or "per_rank_variable" or "special" =>
-                RankedCost(power, selection, prosTotal + consTotal),
+                RankedCost(power, selection, flatModifiers, rateModifiers),
 
             "flat" =>
                 FlatCost(power.CostFlat ?? throw MissingCost(power, "cost_flat"),
-                         prosTotal + consTotal, power.Id),
+                         flatModifiers, power.Id),
 
             "flat_variable" =>
-                FlatCost((int)ResolveVariant(power, selection), prosTotal + consTotal, power.Id),
+                FlatCost((int)ResolveVariant(power, selection), flatModifiers, power.Id),
 
             "per_unit" =>
                 FlatCost((power.CostPerUnit ?? throw MissingCost(power, "cost_per_unit")) * selection.Units,
-                         prosTotal + consTotal, power.Id),
+                         flatModifiers, power.Id),
 
             _ => throw new InvalidOperationException(
                      $"Unknown cost_type '{power.CostType}' on power '{power.Id}'.")
@@ -89,12 +88,103 @@ public sealed class CostCalculator
     }
 
     /// <summary>
-    /// Cost of a Power priced per rank. <paramref name="modifiers"/> is the summed
-    /// pro/con total (cons negative).
+    /// Totals a selection's Pros and Cons, split by how they apply. Generic ones from
+    /// pros.json / cons.json are always flat; the ones printed inside a Power's own entry
+    /// can instead change its Hero Points per rank.
     /// </summary>
-    private int RankedCost(PowerModel power, SelectedPower selection, int modifiers)
+    private (int Flat, double Rate) ResolveModifiers(PowerModel power, SelectedPower selection)
     {
-        var rate = PerRankRate(power, selection);
+        var flat = 0;
+        var rate = 0.0;
+
+        foreach (var (choice, isPro) in selection.Pros.Select(p => (p, true))
+                                       .Concat(selection.Cons.Select(c => (c, false))))
+        {
+            // A Pro or Con printed in this Power's entry takes precedence over a generic
+            // one of the same name, since it is the one the entry is talking about.
+            var specific = (isPro ? power.PowerPros : power.PowerCons)
+                .FirstOrDefault(x => x.Id == choice.Id);
+
+            if (specific is not null)
+            {
+                var (f, r) = ResolvePowerProCon(power, specific, choice, selection);
+                flat += f;
+                rate += r;
+                continue;
+            }
+
+            flat += isPro ? ResolveProCost(choice) : ResolveConCost(choice);
+        }
+
+        return (flat, rate);
+    }
+
+    private static (int Flat, double Rate) ResolvePowerProCon(
+        PowerModel power, PowerProConModel entry, SelectedProCon choice, SelectedPower selection)
+    {
+        // Units defaults to the Power's own quantity, which is what Alternate Form's
+        // Independent Forms means by "per power level".
+        var units = choice.Units ?? selection.Units;
+
+        switch (entry.CostType)
+        {
+            case "flat":
+                return (entry.CostModifier ?? throw MissingProConCost(power, entry, "cost_modifier"), 0);
+
+            case "per_rank":
+                return (0, entry.CostPerRank ?? throw MissingProConCost(power, entry, "cost_per_rank"));
+
+            case "per_unit":
+                return ((entry.CostPerUnit ?? throw MissingProConCost(power, entry, "cost_per_unit")) * units, 0);
+
+            case "per_rank_per_unit":
+                return (0, (entry.CostPerRank ?? throw MissingProConCost(power, entry, "cost_per_rank")) * units);
+
+            case "flat_variable":
+            {
+                var range = entry.CostModifierRange ?? throw MissingProConCost(power, entry, "cost_modifier_range");
+                return (PickVariant(power, entry, choice, range), 0);
+            }
+
+            case "per_rank_variable":
+            {
+                var range = entry.CostPerRankRange ?? throw MissingProConCost(power, entry, "cost_per_rank_range");
+                return (0, PickVariant(power, entry, choice, range));
+            }
+
+            default:
+                throw new InvalidOperationException(
+                    $"Unknown cost_type '{entry.CostType}' on '{entry.Id}' of power '{power.Id}'.");
+        }
+    }
+
+    private static T PickVariant<T>(
+        PowerModel power, PowerProConModel entry, SelectedProCon choice, IReadOnlyDictionary<string, T> range)
+    {
+        var key = choice.VariantKey
+            ?? throw new InvalidOperationException(
+                   $"'{entry.Name}' on power '{power.Id}' has a variable cost and needs a variant. " +
+                   $"Valid keys: {string.Join(", ", range.Keys)}");
+
+        if (range.TryGetValue(key, out var value)) return value;
+
+        throw new InvalidOperationException(
+            $"'{entry.Name}' on power '{power.Id}' has no variant '{key}'. " +
+            $"Valid keys: {string.Join(", ", range.Keys)}");
+    }
+
+    private static InvalidOperationException MissingProConCost(
+        PowerModel power, PowerProConModel entry, string field) =>
+        new($"'{entry.Id}' on power '{power.Id}' has cost_type '{entry.CostType}' but no {field}.");
+
+    /// <summary>
+    /// Cost of a Power priced per rank. <paramref name="flatModifiers"/> is the summed
+    /// flat pro/con total (cons negative); <paramref name="rateModifiers"/> is the change
+    /// those Pros and Cons make to the Hero Points per rank.
+    /// </summary>
+    private int RankedCost(PowerModel power, SelectedPower selection, int flatModifiers, double rateModifiers)
+    {
+        var rate = PerRankRate(power, selection) + rateModifiers;
 
         // Overkill and Weak reduce the rate by 1 HP per rank each rather than halving
         // it (Ch.2: "reduces a Power's base cost by 1 Hero Point per rank"). For a
@@ -103,22 +193,22 @@ public sealed class CostCalculator
         var effectiveRate = Math.Max(0.5, rate - reductions);
 
         var baseCost = (int)Math.Ceiling(selection.PurchasedRanks * effectiveRate);
-        var minimum  = MinimumRankedCost(selection.PurchasedRanks, effectiveRate);
+        var minimum  = MinimumRankedCost(selection.PurchasedRanks);
 
-        return Math.Max(minimum, baseCost + modifiers);
+        return Math.Max(minimum, baseCost + flatModifiers);
     }
 
     /// <summary>
-    /// The rulebook floor for a ranked Power: "No Power can ever cost less than
-    /// 1 Hero Point (or 1 Hero Point per 2 ranks) regardless of its Cons." The
-    /// per-2-ranks form applies once a rate-reducing Con has taken the rate to 0.5.
+    /// The rulebook floor for a ranked Power: "No Power can ever cost less than 1 Hero
+    /// Point (or 1 Hero Point per 2 ranks) regardless of its Cons." The parenthesis is
+    /// the ranked form of the same rule, so the floor is 1 Hero Point per 2 ranks
+    /// whatever the Power's own rate — not 1 per rank. Reading it as 1 per rank made
+    /// every Con worthless on a Power priced at 1 Hero Point per rank.
     /// </summary>
-    private static int MinimumRankedCost(int purchasedRanks, double effectiveRate)
+    private static int MinimumRankedCost(int purchasedRanks)
     {
         if (purchasedRanks <= 0) return 0;
-        return effectiveRate <= 0.5
-            ? Math.Max(1, (int)Math.Ceiling(purchasedRanks / 2.0))
-            : Math.Max(1, purchasedRanks);
+        return Math.Max(1, (int)Math.Ceiling(purchasedRanks / 2.0));
     }
 
     /// <summary>
