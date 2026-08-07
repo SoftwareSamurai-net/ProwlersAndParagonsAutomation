@@ -20,7 +20,8 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Tests | 2588, run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two — the terminal wizard and a Blazor WebAssembly app, both on the same engine assembly |
-| Hosting | Cloudflare Pages, deployed from `master` by GitHub Actions and verified live; `pp.softwaresamurai.net` still to be attached |
+| Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
+| Printed sheet | Not fit to hand to a player — see [item 0](#0-the-sheet-is-not-fit-to-hand-to-a-player--this-is-the-next-slice) |
 | Known-wrong data | None outstanding |
 
 The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **15 of the 20 to exactly their 125 Hero Point budget**. The remaining five are all within 2 HP, each for a recorded reason — see [Close the last five Heroes](#1-close-the-last-five-heroes).
@@ -30,6 +31,18 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 ## Remaining work
 
 Roughly in the order that unblocks the most.
+
+### 0. The sheet is not fit to hand to a player — **this is the next slice**
+
+Task brief with the full detail: [`docs/HANDOVER-sheet-polish.md`](docs/HANDOVER-sheet-polish.md). Delete it when the slice is done.
+
+Three faults, all raised on seeing the deployed site used the way it is meant to be used. The tool is for the owner's friends, who do not care how it is built.
+
+**The printed sheet is bad, and this is the biggest of the three.** The entire print stylesheet is three lines that hide the navigation. There is no `@page` setup, no margins, no page-break control, no light-palette forcing — so a Villain sheet prints a full-bleed near-black page — and none of the ruled boxes a published sheet has. The `.txt` export is a fine data dump but nobody wants it on the table. This is the deliverable the whole tool exists to produce, and it is the least finished thing in it.
+
+**The UI talks to developers.** It names internal types and build commands at the player: the GM review step says the exports are "built by `CharacterSheetRenderer` in the shared sheets layer… byte-for-byte what `dotnet run` produces", and the derived-stats page credits `DerivedStatsCalculator`. Validation issues print their machine code (`NO_TIER_SELECTED`) at people who have no use for it. Rulebook references — chapters, page numbers, rule names — are the opposite and should stay: those are what a player actually wants.
+
+**The markup repeats itself.** 22 `class="panel"`, 21 `panel-head`, 19 `field`, 9 `sheet-section`, 8 `chosen`, 6 `stat-block`, 5 `options`, all hand-rolled at each site. Nothing shares a component, so a styling fix has to be made in twenty places and the print work above would have to be done twenty times over.
 
 ### 1. Close the last five Heroes
 
