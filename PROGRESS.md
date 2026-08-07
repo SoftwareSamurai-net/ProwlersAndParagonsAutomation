@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.92 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws — all verified, nothing flagged |
-| Tests | 2470, run in CI at the same strictness as the build |
+| Tests | 2504, run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Known-wrong data | None outstanding |
 
@@ -49,13 +49,25 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a *mimicked* Power. Pros are stored per Power, so there is nowhere for it to live. Eidolon reconciles anyway, so it costs nothing today.
 
-### 1b. `available_pros` / `available_cons` are still guesses
+### 1b. Semantic pro/con constraints are still unenforced
 
-Separate from the above. These lists say which *generic* Pros and Cons suit each Power, and they were invented by this project. The rulebook does not state applicability per Power — it states it inside each generic entry ("This Pro applies to Powers that inflict physical or energy damage"). So the honest fix is probably to drop the per-Power lists and filter generically from those constraints, rather than to keep curating 141 guesses. Worth deciding before the wizard leans on them further.
+The invented per-Power lists are gone — see the completed item below. What is left is the half of the constraints that cannot be checked against anything the rulebook prints per Power: "Powers that inflict physical or energy damage", "Powers that can be activated and deactivated at will", "attack Powers", "Powers that last or can be maintained". These are shown to the player as a caveat on the option and left to the GM, which is how Ch.2 frames the list.
+
+Enforcing them would need roughly seven booleans on each of the 141 Powers — about a thousand fresh judgements against the book. That is worth doing only if something downstream actually needs it, and the obvious candidate is item 6 (assisted creation), where a model proposing a character benefits from the engine ruling out illegal combinations. Until then the caveat is honest and the guess is not.
 
 ### 2. Sources
 
-Not modelled at all. A Source sets the stand-in rank for the 46 rankless (`rank_type: "default"`) Powers — Toughness or Willpower depending on Source — which matters whenever one Power targets another (Drain, Nullify, Dispel and Power Absorption all name a Source). The published Hero sheets group Powers under Source headings (`TECH POWERS`, `MAGIC POWERS`, `INNATE POWERS`, `TRAINED POWERS`), so the data is there to transcribe.
+Not modelled at all. A Source sets the stand-in rank for the 46 rankless (`rank_type: "default"`) Powers — Toughness or Willpower depending on Source — which matters whenever one Power targets another (Drain, Nullify, Dispel and Power Absorption all name a Source).
+
+**There are exactly six** (Ch.2 p.64, Random Sources table): Innate, Magic, Psychic, Super, Tech, Trained. The Ch.8 sheets use precisely these as headings — `INNATE POWERS`, `MAGIC POWERS`, `PSYCHIC POWERS`, `SUPER POWERS`, `TECH POWERS`, `TRAINED POWERS` — so the per-Power data is there to transcribe for all twenty Heroes.
+
+Three things to get right, because they are easy to assume wrong:
+
+- **A Source is a property of a Trait, not just of a Power.** Ch.2: *"These are the Sources for your Powers and Abilities with a rank of 7d or greater."* Abilities of 6d or less default to Innate and Talents default to Trained, but those defaults are explicitly not mandatory. So the model wants a Source on Abilities too, even though — see below — the sheet does not print it.
+- **This is a rendering change as well as a data one.** The `.txt` and `.json` exports and `GmReviewStep` currently list Powers flat. A published sheet groups them under Source headings, and reproducing that is part of the job, not a follow-up. Sequence checked on the published sheets: a character carries one or more groups, and where `TRAINED POWERS` appears alongside others it comes last — though that is a small sample, so treat it as an observation, not a rule to enforce.
+- **Abilities are printed as one flat block with no Source marking**, even at 7d and above. Stronghold shows 10d Intellect, Might and Toughness and Psidearm 10d Agility, and neither sheet marks a Source on them. So do not "fix" the renderer by adding Source headings to the Abilities block to match the rules text — the rule and the sheet layout genuinely differ here.
+
+**Heroes and Villains share this.** Ch.9 is explicit that Villains are created exactly like Heroes, minus the Hero Point budget, and Ch.9 prints no separate stat-block format — so one renderer serves both, and whatever Source grouping the Hero sheet gets is what the Villain sheet gets. See item 7.
 
 ### 3. Qodana baseline
 
@@ -96,7 +108,14 @@ validates it, and returns errors the caller can act on. That is close to what
 A proper sheet rather than the current `.txt` dump: blue and white for Heroes, black and red
 for Villains. Mechanically the two are identical — Ch.9 is explicit that Villains are built
 exactly like Heroes, just without a Hero Point budget — so this is presentation only, and
-belongs in the front end, not the engine.
+belongs in the front end, not the engine. One layout serves both; only the palette differs.
+
+**This depends on item 2.** A published sheet does not list Powers flat — it groups them
+under Source headings (`TECH POWERS`, `MAGIC POWERS`, and the rest), and Abilities are a
+single block with no Source marking even at 7d and above. So the sheet cannot be laid out
+faithfully until Powers carry a Source, and item 2 should land first or the two will have to
+be reworked together. The same applies to the existing `.txt` and `.json` exports, which are
+flat today.
 
 ### 8. Choose and apply a licence
 
@@ -107,6 +126,16 @@ The project is intended for open-source release but is currently unlicensed, whi
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Pro/Con applicability is derived, not guessed — [#14](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/14)
+
+Every Power carried hand-written `available_pros` / `available_cons` lists, and `ProConSelector` filtered on them absolutely — an option not on the list could not be selected at all. Those lists were this project's invention, and they were badly wrong: **68 of the 141 Powers offered no generic Pro whatsoever**, six Self-range Powers offered the Ranged Pro (which raises a Touch Power to Distant Range, and has nothing to raise on a Power that affects only you), and Self-range Teleportation offered the Touch Con for the same reason.
+
+The rulebook never states applicability per Power. It states it inside each generic option — *"This Pro applies to Zone Powers"*, *"applies to Powers that only affect you"*, *"applies to Power Rank Powers and Baseline Rank Powers"*. So the 141 lists are deleted and the answer is derived from the option instead, by `ProConApplicability`.
+
+**Ten entries constrain on something the rulebook prints for every Power** — its Range (Ch.2 p.19) or its Rank type. Those are enforced, each transcribed in a test naming the sentence it comes from. Every Power now offers Pros and Cons, and the counts move with Range as they should: 16 Pros on a Self Power, 18 on Zone, 19 on Touch and Ranged, and all 23 on the four Special-range Powers, where the book says the Power "works in some unique way discussed in the description" and so rules nothing out.
+
+**The rest are deliberately not enforced.** See item 1b: they would need about a thousand fresh per-Power judgements, which is the same mistake in a new shape. They travel as a caveat displayed beside the option, and a test asserts a caveat never acts as a silent filter.
 
 ### Toxin Pros/Cons, custom gear, and two more Heroes closed — [#13](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/13)
 
