@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.92 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws — all verified, nothing flagged |
-| Tests | 2470, run in CI at the same strictness as the build |
+| Tests | 2504, run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Known-wrong data | None outstanding |
 
@@ -49,9 +49,11 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a *mimicked* Power. Pros are stored per Power, so there is nowhere for it to live. Eidolon reconciles anyway, so it costs nothing today.
 
-### 1b. `available_pros` / `available_cons` are still guesses
+### 1b. Semantic pro/con constraints are still unenforced
 
-Separate from the above. These lists say which *generic* Pros and Cons suit each Power, and they were invented by this project. The rulebook does not state applicability per Power — it states it inside each generic entry ("This Pro applies to Powers that inflict physical or energy damage"). So the honest fix is probably to drop the per-Power lists and filter generically from those constraints, rather than to keep curating 141 guesses. Worth deciding before the wizard leans on them further.
+The invented per-Power lists are gone — see the completed item below. What is left is the half of the constraints that cannot be checked against anything the rulebook prints per Power: "Powers that inflict physical or energy damage", "Powers that can be activated and deactivated at will", "attack Powers", "Powers that last or can be maintained". These are shown to the player as a caveat on the option and left to the GM, which is how Ch.2 frames the list.
+
+Enforcing them would need roughly seven booleans on each of the 141 Powers — about a thousand fresh judgements against the book. That is worth doing only if something downstream actually needs it, and the obvious candidate is item 6 (assisted creation), where a model proposing a character benefits from the engine ruling out illegal combinations. Until then the caveat is honest and the guess is not.
 
 ### 2. Sources
 
@@ -107,6 +109,16 @@ The project is intended for open-source release but is currently unlicensed, whi
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Pro/Con applicability is derived, not guessed — [#14](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/14)
+
+Every Power carried hand-written `available_pros` / `available_cons` lists, and `ProConSelector` filtered on them absolutely — an option not on the list could not be selected at all. Those lists were this project's invention, and they were badly wrong: **68 of the 141 Powers offered no generic Pro whatsoever**, six Self-range Powers offered the Ranged Pro (which raises a Touch Power to Distant Range, and has nothing to raise on a Power that affects only you), and Self-range Teleportation offered the Touch Con for the same reason.
+
+The rulebook never states applicability per Power. It states it inside each generic option — *"This Pro applies to Zone Powers"*, *"applies to Powers that only affect you"*, *"applies to Power Rank Powers and Baseline Rank Powers"*. So the 141 lists are deleted and the answer is derived from the option instead, by `ProConApplicability`.
+
+**Ten entries constrain on something the rulebook prints for every Power** — its Range (Ch.2 p.19) or its Rank type. Those are enforced, each transcribed in a test naming the sentence it comes from. Every Power now offers Pros and Cons, and the counts move with Range as they should: 16 Pros on a Self Power, 18 on Zone, 19 on Touch and Ranged, and all 23 on the four Special-range Powers, where the book says the Power "works in some unique way discussed in the description" and so rules nothing out.
+
+**The rest are deliberately not enforced.** See item 1b: they would need about a thousand fresh per-Power judgements, which is the same mistake in a new shape. They travel as a caveat displayed beside the option, and a test asserts a caveat never acts as a silent filter.
 
 ### Toxin Pros/Cons, custom gear, and two more Heroes closed — [#13](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/13)
 

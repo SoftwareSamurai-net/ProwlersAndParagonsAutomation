@@ -17,6 +17,7 @@ The wizard walks players and GMs through the full creation process — tracking 
 - **27 baseline-rank powers** (Armor = ½ Toughness, Evasion = Agility, Running = flat 3d, Strike = Might *or* Martial Arts, Boost/Expertise = a Trait you nominate)
 - **23 generic pros and 28 generic cons**, including variable-cost variants (Charges, Area/Burst) and Overkill/Weak's −1 HP per rank
 - **106 power-specific pros and cons** the rulebook attaches to one named power — unlike the generic ones, several change a power's cost *per rank* rather than its total
+- **Generic pro/con applicability derived from the rulebook**, not curated per power — each option states which Powers it applies to, so nothing legal is hidden from the player
 - **53 flaws and 13 perks**, wired into Resolve and the HP budget
 - **Validation engine** — errors for budget overruns, trait-cap violations, flaw-count breaches, ranks bought on rankless powers and unresolved player choices; warnings for anything still unverified
 - **Every rules value verified against the rulebook and locked by tests** — the suite holds the printed Range, Rank and Cost of all 141 powers, so a data edit that contradicts the book fails CI
@@ -72,7 +73,7 @@ ProwlersAndParagonsAutomation/
 │   ├── creation_rules.json       # Creation sequence, packages, flaw rules
 │   ├── abilities.json            # 6 core abilities
 │   ├── talents.json              # 12 talents with linked abilities
-│   ├── powers.json               # 141 powers with range, rank type, cost and pro/con lists
+│   ├── powers.json               # 141 powers with range, rank type, cost and their own pros/cons
 │   ├── pros.json                 # 23 Power Pros
 │   ├── cons.json                 # 28 Power Cons
 │   ├── flaws.json                # 53 flaws
