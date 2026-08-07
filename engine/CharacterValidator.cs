@@ -79,7 +79,8 @@ public sealed class CharacterValidator
     {
         if (sheet.SelectedTierId is null)
             issues.Add(new(ValidationSeverity.Error, "NO_TIER_SELECTED",
-                "No tier has been selected. Choose a tier before validating."));
+                "No tier has been chosen. The tier sets the Hero Point budget and the Trait "
+                + "Cap, so nothing else can be checked until it is."));
     }
 
     private void CheckHpBudget(CharacterSheet sheet, TierModel tier, List<ValidationIssue> issues)
@@ -95,31 +96,44 @@ public sealed class CharacterValidator
     {
         var cap = tier.TraitCapRank;
 
+        // Every one of these names the Trait the way the rulebook prints it. They used to
+        // print the id — "Ability 'intellect'", "Power 'super_senses_thermal_vision'" — at a
+        // player holding a book that calls them Intellect and Super Senses — Thermal Vision.
         foreach (var (id, rank) in sheet.AbilityRanks)
             if (rank > cap)
                 issues.Add(new(ValidationSeverity.Error, "TRAIT_ABOVE_CAP",
-                    $"Ability '{id}' has rank {rank}d but the trait cap is {cap}d."));
+                    $"{_rules.GetAbility(id)?.Name ?? id} is {rank}d, above the Trait Cap of {cap}d."));
 
         foreach (var (id, rank) in sheet.TalentRanks)
             if (rank > cap)
                 issues.Add(new(ValidationSeverity.Error, "TRAIT_ABOVE_CAP",
-                    $"Talent '{id}' has rank {rank}d but the trait cap is {cap}d."));
+                    $"{_rules.GetTalent(id)?.Name ?? id} is {rank}d, above the Trait Cap of {cap}d."));
 
         foreach (var sp in sheet.SelectedPowers)
         {
+            // A Power the rules do not have cannot have an effective rank, and asking for
+            // one throws. CheckPowerSelections reports the unknown id; this must not turn
+            // that report into a crash on the way past. The same ordering trap was fixed
+            // for gear once already.
+            if (_rules.GetPower(sp.PowerId) is null) continue;
+
             var effective = _derived.GetEffectiveRank(sp, sheet);
             if (effective > cap)
                 issues.Add(new(ValidationSeverity.Error, "TRAIT_ABOVE_CAP",
-                    $"Power '{sp.PowerId}' has effective rank {effective}d but the trait cap is {cap}d."));
+                    $"{PowerName(sp.PowerId)} reaches {effective}d, above the Trait Cap of {cap}d."));
         }
     }
 
     private static void CheckIconicTier(TierModel tier, List<ValidationIssue> issues)
     {
+        // The message used to say the tier "is marked needs_review", which was both jargon
+        // and untrue — nothing in data/rules/ carries such a flag, and this fires on the
+        // Iconic tier's id regardless. What it is actually reporting is the rulebook's own
+        // open end: Ch.2 p.17 calls Iconic's 200 Hero Points a bare minimum.
         if (tier.NeedsReview || tier.Id == "iconic")
             issues.Add(new(ValidationSeverity.Warning, "ICONIC_TIER_OPEN_BUDGET",
-                $"Tier '{tier.Name}' is marked needs_review. The Hero Point budget and trait cap " +
-                "are subject to GM discretion at this power level."));
+                $"The {tier.Name} tier's Hero Point budget is a minimum rather than a limit " +
+                "(Ch.2, Power Level, p.17), so how far above it you go is the GM's call."));
     }
 
     private void CheckFlawCount(CharacterSheet sheet, List<ValidationIssue> issues)
@@ -129,13 +143,13 @@ public sealed class CharacterValidator
 
         if (count < flawRules.MinAtCreation)
             issues.Add(new(ValidationSeverity.Error, "FLAW_MIN_NOT_MET",
-                $"Characters must have at least {flawRules.MinAtCreation} flaw(s) at creation " +
-                $"(currently {count})."));
+                $"A character needs at least {Flaws(flawRules.MinAtCreation)} at creation, "
+                + $"and this one has {count}."));
 
         if (count > flawRules.MaxAtCreation)
             issues.Add(new(ValidationSeverity.Error, "FLAW_MAX_EXCEEDED",
-                $"Characters may have at most {flawRules.MaxAtCreation} flaws at creation " +
-                $"(currently {count}). Additional flaws each cost {flawRules.ExtraFlawCostHp} HP."));
+                $"A character may take at most {Flaws(flawRules.MaxAtCreation)} at creation, "
+                + $"and this one has {count}. Each one beyond that costs {flawRules.ExtraFlawCostHp} HP."));
     }
 
     private void CheckFlawIds(CharacterSheet sheet, List<ValidationIssue> issues)
@@ -144,7 +158,7 @@ public sealed class CharacterValidator
         {
             if (_rules.GetFlaw(sf.FlawId) is null)
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_FLAW",
-                    $"Flaw '{sf.FlawId}' is not defined in flaws.json."));
+                    $"There is no flaw called '{sf.FlawId}' in the rulebook data."));
         }
     }
 
@@ -169,8 +183,8 @@ public sealed class CharacterValidator
                 if (feature is null)
                 {
                     issues.Add(new(ValidationSeverity.Error, "UNKNOWN_GEAR_FEATURE",
-                        $"Gear '{gear.Name}' has feature '{f.FeatureId}', " +
-                        "which is not defined in gear_features.json."));
+                        $"{gear.Name} has a custom feature, '{f.FeatureId}', that is not one "
+                        + "the rulebook lists."));
                     itemResolvable = false;
                     continue;
                 }
@@ -178,8 +192,8 @@ public sealed class CharacterValidator
                 if (feature.CostType != "flat" && f.GradeKey is null)
                 {
                     issues.Add(new(ValidationSeverity.Error, "GEAR_FEATURE_NEEDS_GRADE",
-                        $"'{feature.Name}' on '{gear.Name}' is priced by grade and none was chosen. " +
-                        $"Valid grades: {string.Join(", ", feature.CostRange?.Keys ?? [])}."));
+                        $"{gear.Name}'s {feature.Name} feature is priced by grade, and no grade "
+                        + $"has been chosen. Pick one of: {Names(feature.CostRange?.Keys)}."));
                     itemResolvable = false;
                 }
             }
@@ -216,8 +230,8 @@ public sealed class CharacterValidator
             if (sp.SourceId is not null && _rules.GetSource(sp.SourceId) is null)
             {
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_SOURCE",
-                    $"Power '{sp.PowerId}' names Source '{sp.SourceId}', " +
-                    "which is not defined in sources.json."));
+                    $"{PowerName(sp.PowerId)} names a Source, '{sp.SourceId}', that is not one "
+                    + "of the six the rulebook gives."));
                 continue;
             }
 
@@ -271,8 +285,8 @@ public sealed class CharacterValidator
 
             if (power.MaxRank == 0 && sp.PurchasedRanks > 0)
                 issues.Add(new(ValidationSeverity.Error, "POWER_HAS_NO_RANK",
-                    $"Power '{power.Name}' has no purchasable rank ({power.RankType} rank, " +
-                    $"{power.CostType} cost) but {sp.PurchasedRanks} rank(s) were bought."));
+                    $"{power.Name} has no rank to buy — it is priced as a whole — but "
+                    + $"{sp.PurchasedRanks} {(sp.PurchasedRanks == 1 ? "rank was" : "ranks were")} bought."));
         }
     }
 
@@ -294,7 +308,7 @@ public sealed class CharacterValidator
             if (power is null)
             {
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_POWER",
-                    $"Power '{sp.PowerId}' is not defined in powers.json."));
+                    $"There is no Power called '{sp.PowerId}' in the rulebook data."));
                 resolvable = false;
                 continue;
             }
@@ -302,8 +316,8 @@ public sealed class CharacterValidator
             if (power.CostType is "per_rank_variable" or "flat_variable" && sp.CostVariantKey is null)
             {
                 issues.Add(new(ValidationSeverity.Error, "POWER_VARIANT_NOT_CHOSEN",
-                    $"Power '{power.Name}' has a variable cost and needs a variant chosen " +
-                    $"({string.Join(", ", power.CostVariants?.Keys ?? [])})."));
+                    $"{power.Name} costs a different amount depending on which version you "
+                    + $"take, and none has been chosen. Pick one of: {Names(power.CostVariants?.Keys)}."));
                 resolvable = false;
             }
 
@@ -334,9 +348,8 @@ public sealed class CharacterValidator
 
             if (power.NeedsReview)
                 issues.Add(new(ValidationSeverity.Warning, "POWER_MECHANICS_UNVERIFIED",
-                    $"Power '{power.Name}' has unverified mechanics (verified: " +
-                    $"{(power.VerifiedFields.Count > 0 ? string.Join(", ", power.VerifiedFields) : "nothing")}). " +
-                    "Confirm with GM before play."));
+                    $"{power.Name} has not been fully checked against the rulebook here. "
+                    + "Read its entry and agree the numbers with your GM before play."));
         }
 
         var unverifiedText = sheet.SelectedPowers
@@ -349,8 +362,42 @@ public sealed class CharacterValidator
 
         if (unverifiedText.Count > 0)
             issues.Add(new(ValidationSeverity.Warning, "POWER_DESCRIPTION_UNVERIFIED",
-                $"{unverifiedText.Count} power description(s) have not been checked against the " +
-                "rulebook entry. Costs and ranks are unaffected, but read the cited page before " +
-                $"relying on the wording: {string.Join(", ", unverifiedText)}."));
+                $"The wording shown for {string.Join(", ", unverifiedText)} has not been checked "
+                + "against the rulebook entry. Costs and ranks are unaffected — read the page "
+                + "cited on the Power before relying on the description."));
     }
+
+    /// <summary>
+    /// A Power's printed name, falling back to its id only when the rules do not have it —
+    /// which is itself an error reported elsewhere.
+    ///
+    /// <para>Every message here is shown to a player, on the GM review step and in both
+    /// exports. None of them may print an id, a file name or an internal flag; there is a
+    /// test that says so.</para>
+    /// </summary>
+    private string PowerName(string powerId) => _rules.GetPower(powerId)?.Name ?? powerId;
+
+    private static string Flaws(int count) => count == 1 ? "1 flaw" : $"{count} flaws";
+
+    /// <summary>
+    /// A list of grade or variant keys, set as prose. These are the one kind of value in the
+    /// rules with no printed name of its own — <c>very_accurate</c> is a dictionary key, not
+    /// a field in the data — so the key is all there is, and it at least gets sentence case
+    /// and an "or" before the last one.
+    /// </summary>
+    private static string Names(IEnumerable<string>? keys)
+    {
+        var names = (keys ?? []).Select(Humanise).ToList();
+
+        return names.Count switch
+        {
+            0 => "none",
+            1 => names[0],
+            _ => $"{string.Join(", ", names.Take(names.Count - 1))} or {names[^1]}"
+        };
+    }
+
+    private static string Humanise(string key) =>
+        string.Join(' ', key.Split('_', StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => char.ToUpperInvariant(w[0]) + w[1..]));
 }
