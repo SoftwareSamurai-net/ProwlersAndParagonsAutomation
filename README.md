@@ -1,8 +1,8 @@
 # Prowlers & Paragons Automation
 
-A CLI character-creation wizard for the **Prowlers & Paragons Ultimate Edition** tabletop RPG by LakeSide Games, Inc.
+A character-creation wizard for the **Prowlers & Paragons Ultimate Edition** tabletop RPG by LakeSide Games, Inc., in a terminal or in a browser.
 
-The wizard walks players and GMs through the full creation process — tracking the Hero Point budget live, validating every choice against the system rules, and exporting a finished character sheet.
+Either front end walks players and GMs through the full creation process — tracking the Hero Point budget live, validating every choice against the system rules, and exporting a finished character sheet. Both run the *same* rules engine: the browser build compiles it to WebAssembly rather than reimplementing it, so the two cannot disagree about what a Power costs.
 
 [![Build](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/build.yml/badge.svg)](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/build.yml)
 [![Qodana](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/qodana_code_quality.yml/badge.svg)](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/qodana_code_quality.yml)
@@ -22,7 +22,8 @@ The wizard walks players and GMs through the full creation process — tracking 
 - **53 flaws and 13 perks**, wired into Resolve and the HP budget
 - **Validation engine** — errors for budget overruns, trait-cap violations, flaw-count breaches, ranks bought on rankless powers and unresolved player choices; warnings for anything still unverified
 - **Every rules value verified against the rulebook and locked by tests** — the suite holds the printed Range, Rank and Cost of all 141 powers, so a data edit that contradicts the book fails CI
-- **Dual export** — formatted `.txt` and structured `.json` written to `output/`
+- **Dual export** — formatted `.txt` and structured `.json`, written to `output/` by the CLI and downloaded by the browser, from one implementation
+- **Two front ends on one engine** — a Spectre.Console wizard and a Blazor WebAssembly app that runs `CostCalculator` and `CharacterValidator` as the same compiled code, with Hero and Villain palettes
 
 ---
 
@@ -53,7 +54,15 @@ git clone https://github.com/DorianSheiles/ProwlersAndParagonsAutomation.git
 dotnet run
 ```
 
-The wizard launches immediately — no configuration required. All rules data is already extracted and lives in `data/rules/`.
+The terminal wizard launches immediately — no configuration required. All rules data is already extracted and lives in `data/rules/`.
+
+For the browser front end:
+
+```bash
+dotnet run --project web/ProwlersAndParagons.Web.csproj
+```
+
+Then open the address it prints. It is a static site — `dotnet publish web/ProwlersAndParagons.Web.csproj -c Release` produces a `wwwroot/` that any static host can serve, with no server-side component. The rules JSON is copied into `wwwroot/data/rules/` by the build and fetched over HTTP at startup; `data/rules/` remains the only copy in the repository.
 
 To run the test suite:
 
@@ -90,12 +99,24 @@ ProwlersAndParagonsAutomation/
 │   ├── DerivedStatsCalculator.cs # Edge, Health, Resolve, baseline/effective rank
 │   └── CharacterValidator.cs     # Validation with Error/Warning severity
 │
-├── cli/                          # Presentation only (Spectre.Console)
+├── sheets/                       # Rendering shared by both front ends, no host coupling
+│   ├── CharacterSheetRenderer.cs # The .txt and .json sheets, built as strings
+│   ├── PowerFormatter.cs         # A Power's rulebook stat line
+│   └── GearFormatter.cs          # A piece of gear as one line
+│
+├── cli/                          # Terminal presentation only (Spectre.Console)
 │   ├── Steps/                    # One class per wizard step, all IWizardStep
-│   ├── Powers/                   # PowerBrowser (browse + search), ProConSelector, PowerFormatter
-│   ├── Export/                   # CharacterSheetExporter (.txt + .json)
+│   ├── Powers/                   # PowerBrowser (browse + search), ProConSelector
+│   ├── Export/                   # CharacterSheetExporter — writes what sheets/ builds
 │   ├── WizardOrchestrator.cs     # Step sequencer, HP panel, back-navigation
 │   └── HpBudgetDisplay.cs        # Persistent budget panel
+│
+├── web/                          # Blazor WebAssembly front end — the engine, in a browser
+│   ├── Program.cs                # Fetches the rules over HTTP into an InMemoryRulesSource
+│   ├── Pages/                    # One page per creation step, mirroring the CLI's six
+│   ├── Components/               # HpBudgetBar, PowerEditor, ProConPicker, SheetView
+│   ├── Services/CharacterSession.cs  # The CharacterSheet plus the calculators
+│   └── wwwroot/css/theme.css     # The Hero and Villain palettes, as CSS custom properties
 │
 ├── tests/ProwlersAndParagonsAutomation.Tests/
 │   ├── CanonicalPowers.cs        # Range/Rank/Cost of all 141 powers, from the rulebook
@@ -111,25 +132,29 @@ ProwlersAndParagonsAutomation/
 ├── output/                       # Generated character sheets (gitignored)
 ├── PROGRESS.md                   # What is done and what remains — kept current
 ├── docs/RULES_EXTRACTION_GUIDE.md
-├── docs/HANDOVER-blazor-front-end.md  # next slice; delete when done
-└── Program.cs                    # Entry point
+└── Program.cs                    # CLI entry point
 ```
 
 ---
 
 ## Architecture
 
-Three layers with a strict no-upward-dependency rule:
+Four layers with a strict no-upward-dependency rule:
 
 ```
-data/rules/   →   engine/   →   cli/
+data/rules/   →   engine/   →   sheets/   →   cli/
+                                          ↘   web/
 ```
 
 | Layer | Rule |
 |---|---|
 | `data/rules/` | JSON only. No logic lives here. |
 | `engine/` | Pure C#, zero Spectre.Console references and no filesystem coupling — rules arrive through `IRulesSource`, so the same assembly runs in a browser. `CostCalculator` and `CharacterValidator` are the authority on cost and validity. |
-| `cli/` | Rendering and prompting only. **The CLI never tallies points itself.** |
+| `sheets/` | The exports, as strings. Shared because both front ends need the same two documents; separate from `engine/` because that layer stays free of presentation. |
+| `cli/` | Terminal rendering and prompting. **The CLI never tallies points itself.** |
+| `web/` | Browser rendering. Same rule, and it is now enforced by the build rather than by discipline — `web/` cannot reach a calculator it does not have, and it has no copy of one. |
+
+Each is its own project, which is what makes the arrows above true at compile time. `engine/` and `sheets/` were part of the root executable until the browser front end needed them without Spectre.Console attached.
 
 ---
 

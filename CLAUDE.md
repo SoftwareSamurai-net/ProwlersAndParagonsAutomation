@@ -13,8 +13,14 @@ This used to live in two places (the README roadmap and a gaps list further down
 ## Commands
 
 ```bash
-# Run the wizard
+# Run the terminal wizard
 dotnet run
+
+# Run the browser front end
+dotnet run --project web/ProwlersAndParagons.Web.csproj
+
+# Publish the browser front end as a static site
+dotnet publish web/ProwlersAndParagons.Web.csproj --configuration Release
 
 # Build without running
 dotnet build
@@ -39,7 +45,7 @@ dotnet test
 - **15 of the 20 Heroes rebuild to exactly 125 Hero Points** and are asserted as such. The other five are held at a recorded residual in `PrebuiltHeroes.BuildByHero`, none more than 2 HP out. Do not tune an ambiguous variant just to force one of those to zero — that is fitting the model to the answer. Fix the underlying gap instead.
 - The package each Hero used is inferred, not printed. `ExactlyOnePackageLandsAnExactHeroOn125` re-runs that inference and asserts exactly one package fits each exact Hero, so the attribution cannot quietly become a convenient guess; for the other five it is the closest fit. Vector is why that test exists — his package was recorded as Superhero on a closest-fit basis while his Deflection was underpriced, and correcting the Power made Hero the only fit.
 
-The root `.csproj` sits at the repository root, so it carries `<Compile Remove="tests\**" />`; without it the default `**/*.cs` glob pulls the test sources into the main project.
+The root `.csproj` sits at the repository root, so it carries a `<Compile Remove="…" />` for every sibling project directory; without them the default `**/*.cs` glob pulls their sources into the CLI. Shared build settings — target framework, nullability, the analyzer contract — live in `Directory.Build.props`, so the five projects cannot drift into different strictness.
 
 The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestMinor` rollForward). The 9.x SDK cannot build it; install with `winget install --id Microsoft.DotNet.SDK.10`.
 
@@ -53,15 +59,39 @@ The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestM
 
 ## Architecture
 
-Three layers with a strict no-upward-dependency rule:
+Four layers with a strict no-upward-dependency rule, one project each:
 
 ```
-data/rules/   →   engine/   →   cli/
+data/rules/   →   engine/   →   sheets/   →   cli/
+                                          ↘   web/
 ```
 
 - **`data/rules/`** — JSON files only. No logic. All rules data extracted from the P&P Ultimate Edition PDF lives here.
-- **`engine/`** — Pure C#, zero Spectre.Console references. `CostCalculator` and `CharacterValidator` are the authority on HP costs and validity. The CLI never tallies points itself.
-- **`cli/`** — Presentation only. Uses Spectre.Console for all rendering. Each wizard step implements `IWizardStep` and receives `CharacterSheet`, `RulesRepository`, `CostCalculator`, and `DerivedStatsCalculator` via `Execute()`.
+- **`engine/`** — Pure C#, zero Spectre.Console references, no filesystem access. `CostCalculator` and `CharacterValidator` are the authority on HP costs and validity. No front end tallies points itself.
+- **`sheets/`** — The `.txt` and `.json` exports, plus the stat-line and gear-line formatters, all returning strings. Shared by both front ends; writing a string somewhere is the host's job.
+- **`cli/`** — Terminal presentation. Uses Spectre.Console for all rendering. Each wizard step implements `IWizardStep` and receives `CharacterSheet`, `RulesRepository`, `CostCalculator`, and `DerivedStatsCalculator` via `Execute()`.
+- **`web/`** — Browser presentation. Blazor WebAssembly; see below.
+
+**These are separate projects on purpose, and splitting them was the point of the Blazor slice.** `engine/` and `sheets/` used to be compiled into the root executable, which a WebAssembly project cannot reference without dragging Spectre.Console in with it. Now the arrows above hold at compile time: `web/` has no calculator of its own and no reference that could reach one. Do not merge them back.
+
+### The browser front end
+
+Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the browser *as the same compiled code* the CLI and the tests run. That is the whole reason it is not an HTTP API with a JavaScript SPA — never reimplement cost or validation in the browser, made true by construction rather than by discipline.
+
+- `Program.cs` fetches every name in `RulesRepository.DataFileNames` **before the first render** and hands them to an `InMemoryRulesSource`. The engine is synchronous by design; a half-loaded repository throws.
+- **The rules are copied into `web/wwwroot/data/rules/` by the csproj, not committed there** (`wwwroot/data/` is gitignored). `Content Include` with `LinkBase` looks like it would do this and does not — the asset is registered against a content root the file is not under, so every request answers `200` with an empty body. Copy before static-asset discovery.
+- `CharacterSession` (scoped) owns the `CharacterSheet` and forwards to the calculators. **Anything resembling arithmetic in that file is a bug.**
+- `CharacterSession.TryCost` exists because the engine throws rather than guessing on an incomplete selection — a variable-cost Power with no variant. The editors never commit one, so this is only for the always-on budget bar.
+- **Trimming is disabled on publish.** `RulesRepository` deserializes by reflection, so the trimmer can quietly remove model properties and leave the site running on empty rules. See `PROGRESS.md` item 5 before turning it back on.
+
+### Hero and Villain are one app with two palettes
+
+Ch.9 builds Villains exactly like Heroes and prints no separate stat-block format, so the mode is presentation and nothing else.
+
+- Both palettes are CSS custom properties on `:root[data-mode="hero"]` and `[data-mode="villain"]` in `web/wwwroot/css/theme.css`. **No component ever names a colour** — that is what keeps the switch a one-attribute change, and there is a grep in the PR notes proving it holds.
+- `--primary` is a **fill** and `--heading` is **text**. They coincide in the Hero theme and must still be kept apart: Villain `--primary` measures 2.0:1 on its surface and is unreadable as type. Hero `--accent` is 1.8:1 for the same reason. Re-measure if you restyle; do not eyeball it.
+- **Do not add a Hero/Villain flag to `CharacterSheet`.** The only mechanical difference is that a Villain has no Hero Point budget, which the front end handles by hiding the bar and filtering `HP_BUDGET_EXCEEDED` from the display. The validator is never told the mode, so the export still records every issue.
+- Only the palette differs. If a layout change seems necessary for one mode, the layout is wrong for both.
 
 ### Key engine types
 
@@ -71,7 +101,8 @@ data/rules/   →   engine/   →   cli/
 | `RulesRepository` | Lazy JSON loader with snake_case deserialization and cached lookup dictionaries |
 | `CostCalculator` | HP cost logic — `PowerCost()`, `PerkCost()`, `TotalCost()`; all methods are pure |
 | `DerivedStatsCalculator` | Edge, Health, Resolve, baseline/effective rank calculations |
-| `PowerFormatter` (cli) | Renders a Power's rulebook stat line (`Self · Baseline Rank (½ Toughness) · 1 HP per rank`) so wizard output can be checked against the book |
+| `PowerFormatter` (sheets) | Renders a Power's rulebook stat line (`Self · Baseline Rank (½ Toughness) · 1 HP per rank`) so output can be checked against the book |
+| `CharacterSheetRenderer` (sheets) | Builds the `.txt` and `.json` exports as strings, for whichever host asked |
 | `CharacterValidator` | Returns `ValidationResult` with `Error`/`Warning` severity issues |
 
 ### Derived stats
@@ -235,5 +266,7 @@ Settled rules questions:
 - A rankless Power's **default rank** comes from its Source and applies **only** against other Powers — it is not its effective rank
 - Sheets group Powers under Source headings; **Abilities are not grouped**, matching the printed layout rather than the rules text
 - The Iconic tier's "200+" is explicitly a bare minimum, so it is GM discretion rather than missing data
+- Hero and Villain are **one app with two palettes**, and the mode is not a field on `CharacterSheet`
+- `engine/`, `sheets/`, `cli/` and `web/` are **separate projects**, so the dependency arrows hold at compile time rather than by convention
 
 Each of these was wrong at some point and is now covered by a regression test naming the rule. If one appears to be violated, read `PROGRESS.md` and the test before changing the code.

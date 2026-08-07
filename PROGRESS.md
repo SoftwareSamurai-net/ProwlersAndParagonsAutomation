@@ -19,6 +19,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
 | Tests | 2575, run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
+| Front ends | Two — the terminal wizard and a Blazor WebAssembly app, both on the same engine assembly |
 | Known-wrong data | None outstanding |
 
 The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **15 of the 20 to exactly their 125 Hero Point budget**. The remaining five are all within 2 HP, each for a recorded reason — see [Close the last five Heroes](#1-close-the-last-five-heroes).
@@ -63,7 +64,7 @@ Ch.2 p.15: *"These are the Sources for your Powers **and Abilities** with a rank
 
 **The published sheets do print this**, which is the argument for modelling it: an Ability's Source appears as an `Abilities (…)` entry *inside* a Power group, not as a marking on the Abilities block. Stronghold's `TECH POWERS` group opens with `Abilities (Agility, Might, Perception, Toughness) (Item: armor)`, and Alabama Slammer's `SUPER POWERS` with `Abilities (Perception, Toughness)`. So faithful rendering eventually needs it.
 
-Nothing consumes it yet, though — the default-rank rule is about Powers — so adding the field now would be unused data. Worth doing when the printable sheet (item 7) needs the line, and `PrebuiltHeroes.PowerSourcesByHero` is where the transcription would go.
+Nothing consumes it yet, though — the default-rank rule is about Powers — so adding the field now would be unused data. **There are two surfaces waiting for it now rather than one:** the `.txt` sheet and the browser's `SheetView`, which both group Powers by Source and both stop short of the `Abilities (…)` line. `PrebuiltHeroes.PowerSourcesByHero` is where the transcription would go.
 
 ### 3. Qodana baseline
 
@@ -73,17 +74,14 @@ Establish a committed baseline (`--baseline,qodana.sarif.json`) so only *new* pr
 
 Chapters 3–9 are not extracted, apart from the two pieces pulled out because the engine needed them: Ch.6's custom gear features and Ch.7's three toxin Pros/Cons. Rough order of usefulness to the wizard: 6 (the rest of Equipment), 5 (Resolve, already partly used), 4 (Combat), 8 (Friends and Foes), then the rest.
 
-### 5. Blazor WebAssembly front end, hosted on softwaresamurai.net
+### 5. Deploy the browser front end to softwaresamurai.net
 
-**This is the next slice.** There is a task brief with the full plan, the theming, and the exact seams to build against in [`docs/HANDOVER-blazor-front-end.md`](docs/HANDOVER-blazor-front-end.md) — delete it when the slice is done.
+The app itself is built — see the completed item below. What is left is the hosting: `dotnet publish web/ProwlersAndParagons.Web.csproj -c Release` produces a static `wwwroot/` with no server-side component, so this is a matter of pointing the domain at it and adding a publish step to CI. Nothing in the code blocks it.
 
-The wizard is CLI-only. The `data → engine → cli` split exists precisely so another front end can be added without touching the rules logic, and that promise has never been tested.
+Two things to settle when it happens:
 
-**Decided: Blazor WebAssembly**, not an HTTP API with a JavaScript SPA. `engine/` is pure C# with zero Spectre references, so it compiles to WASM and runs `CostCalculator` and `CharacterValidator` *as the same code*. That makes the one rule this architecture exists to protect — never reimplement cost or validation in the browser — true by construction rather than by discipline. It also ships as a static site with no server to run, which suits the hosting.
-
-**The loader blocker is cleared.** `RulesRepository` no longer reads the filesystem directly; it goes through `IRulesSource`. The browser build fetches the eleven files in `RulesRepository.DataFileNames` over HTTP at startup and hands them over as an `InMemoryRulesSource`. A test already builds a repository with no disk access at all and costs a character through it, so the path is proven before the front end exists.
-
-Villain styling belongs here too — see item 7. Mechanically Heroes and Villains are identical, so it is one app with two palettes, not two apps.
+- **`<base href="/">` in `web/wwwroot/index.html` assumes the site is served from the domain root.** Serving it from a subpath needs that changed, and getting it wrong breaks every asset fetch at once.
+- **Trimming is off** (`PublishTrimmed=false`), which makes the payload larger than it needs to be. See the completed item for why; re-enabling it wants either a trimmer-rooted engine assembly or source-generated JSON contexts, and either needs a machine that can actually run the trimmer to verify.
 
 ### 6. Assisted character creation from a description
 
@@ -97,21 +95,7 @@ Wants a machine-usable surface first: something that takes a structured characte
 validates it, and returns errors the caller can act on. That is close to what
 `CharacterSheetExporter`'s JSON already emits, read in reverse.
 
-### 7. Printable character sheet with hero/villain styling
-
-A proper sheet rather than the current `.txt` dump: blue and white for Heroes, black and red
-for Villains. Mechanically the two are identical — Ch.9 is explicit that Villains are built
-exactly like Heroes, just without a Hero Point budget — so this is presentation only, and
-belongs in the front end, not the engine. One layout serves both; only the palette differs.
-
-**Power grouping is done** — Powers carry a Source and the `.txt` sheet, the JSON export and
-the GM review all print `TECH POWERS`-style headings, so this can be laid out faithfully now.
-
-One piece is still missing: a published sheet also names an Ability's Source, as an
-`Abilities (…)` entry inside the relevant Power group. That is item 2, and it is the last
-thing this needs.
-
-### 8. Choose and apply a licence
+### 7. Choose and apply a licence
 
 The project is intended for open-source release but is currently unlicensed, which legally means nobody may use it. Apache 2.0 is the working preference: its NOTICE requirement makes the "no rulebook content here, you must own the rulebook" statement travel with any fork. Whatever is chosen must be explicit that it covers this project's code and original text only — not the game system, which is © LakeSide Games. Worth contacting LakeSide before any public release.
 
@@ -120,6 +104,25 @@ The project is intended for open-source release but is currently unlicensed, whi
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### A browser front end, on the same engine — [#17](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/17)
+
+A character can now be created end to end in a browser and exported, with the terminal wizard unchanged. This also closes what was item 7, the printable sheet with Hero and Villain styling — it belongs to a front end, and now there is one to put it in.
+
+**The engine and the sheet exports are their own projects now, and that was the substance of the change.** Both used to be compiled into the root executable. A Blazor WebAssembly project cannot reference that — it would drag in Spectre.Console — and referencing the CLI would have inverted the one dependency rule this architecture has. So `engine/` and `sheets/` became class libraries, and `data → engine → sheets → host` is a fact of the build rather than a convention. `web/` has no calculator of its own and no way to reach one it does not reference, which is the guarantee the whole slice existed to test.
+
+`sheets/` is new and is the less obvious half. `CharacterSheetExporter` built the two export documents and wrote them to disk in one method; the browser needs the same two documents but hands them to a download. The string-building moved out and the file-writing stayed, so both hosts emit byte-identical exports because there is only one copy of the code. It is a separate project because neither host may own it and `engine/` must stay free of presentation.
+
+**Nothing in `engine/` changed.** No presentation code, no duplicated rules logic, no Hero/Villain flag on `CharacterSheet` — the mode is a palette and the only mechanical difference, that a Villain has no Hero Point budget (Ch.9), is handled by hiding the bar and filtering `HP_BUDGET_EXCEEDED` from the display. The validator is never told which mode is active, so the JSON export still records every issue.
+
+Some things the build found:
+
+- **`Content Include="..\data\rules\*.json" LinkBase="wwwroot\data\rules"` looks right and silently is not.** The asset gets registered with a content root of `wwwroot/` while the file stays outside it, so every request answers `200` with an empty body and the engine reports the rulebook as malformed JSON. The csproj copies the files into `wwwroot/data/rules/` before static-asset discovery instead, and errors if it finds none — the failure it guards against is a site that loads and then cannot start.
+- **Trimming is off on publish.** `RulesRepository` deserializes with reflection-based `System.Text.Json`, so the trimmer may remove model properties it can only see through reflection, and the failure is not a build error but a silently empty rules set at runtime. Rooting the engine assembly would keep the smaller payload, but the local toolchain cannot run the trimmer at all — the ILLink task host crashes without the `wasm-tools` workload, on the stock template too — so that is a change nobody could verify here. Recorded in item 5.
+- **Pros and Cons on Abilities offer Cons only, and that is the rulebook's answer rather than a shortcut.** Each option's entry states what it may be applied to; of 23 Pros and 28 Cons, exactly two name Abilities and both are Cons. The picker filters on that field, so the list follows the data.
+- **Blazor's `#blazor-error-ui` needs a `display: none` rule of its own.** Without one it shows from the first paint and reports a failure that never happened — which it duly did, twice, before being noticed.
+
+The palettes live entirely in `web/wwwroot/css/theme.css` as CSS custom properties on `:root[data-mode="hero"]` and `[data-mode="villain"]`. No component names a colour: a grep for hex literals and colour keywords across `app.css` and every `.razor` file returns nothing, which is what keeps the switch a one-attribute change. The role split matters more than the values — `--primary` is a fill and `--heading` is text, and they are kept apart even in the Hero theme where they coincide, because Villain `--primary` measures 2.0:1 on its surface and would be unreadable as type.
 
 ### The rules loader is decoupled from the filesystem — [#16](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/16)
 
