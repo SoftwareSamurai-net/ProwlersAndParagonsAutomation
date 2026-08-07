@@ -109,7 +109,62 @@ categories, so `TotalCost` and the HP budget panel both need it.
 
 ---
 
-## Task 3 — Vector's −6 (investigation, timeboxed)
+## Task 3a — the residuals pair up, and that is a clue (do this first)
+
+The seven residuals are **−6, −1, −1, +1, +1, +2, +2**. Three matched pairs and one outlier.
+
+An earlier reading called this noise. That was too quick. Repeated *identical* values are
+what a shared cause looks like — both real bugs found so far announced themselves exactly
+this way (the starting-package double-charge hit seven Heroes at an identical +4; Stronghold's
+four Item Cons were exactly −4). Treat matching residuals as a signal to chase, not as
+rounding.
+
+The honest counterweight: seven values confined to an eight-point range will collide by
+chance fairly often, so pairing alone is weak evidence. It earns an investigation, not a
+conclusion.
+
+### An experiment already run, with a real result
+
+When a sheet writes `Super Senses (A, B, C) (Item: suit)`, the Con was recorded **once**,
+on the reasoning that the rulebook treats Super Senses as a single Power. That was flagged
+as arbitrary at the time. This project stores each option as its own entry with its own
+cost and its own floor, so the other defensible reading is that each option carries the Con.
+
+Applying the Con to **every** option in the group was tried:
+
+| Hero | Before | After |
+|---|---|---|
+| Talon | +1 | **0 — exact** |
+| Shadow | +2 | +1 |
+
+No Hero got worse, and Talon closes to the point. The shift is only −1 rather than −3 per
+group because most Super Senses options cost 1 HP flat, and a Power's floor of 1 stops the
+Con biting.
+
+**This was reverted, not shipped**, because it changes a modelling judgement rather than
+fixing an outright bug, and it deserves a decision made on the rules rather than on the
+scoreboard. Picking it up is small:
+
+1. In `PrebuiltHeroes.ProsConsByHero`, add `["<Hero>|super_senses_<option>"] = ["con:item"]`
+   for the remaining options in Shadow's and Talon's groups. Vigilant has a one-option
+   group, so nothing changes for him.
+2. Move Talon to the exact list in `BuildByHero` and in `HeroRebuildsToExactly125`; set
+   Shadow's residual to 1.
+3. `MostHeroesReconcileExactly` → **14**.
+
+Decide it on the rules first: is a Con written once against a Super Senses group one Con on
+one Power, or one Con per option bought through the item? Write the reasoning down either
+way. If you keep the current reading, record *why*, so the next person does not re-run this.
+
+### Pairs still unexplained after that
+
+`T-Kay −1 / Vigilant −1` and `Herald (Scathach) +1 / Shadow +1`. Look for something the
+members of each pair share. Known leads: Vigilant's Jo Sticks are *Upgraded* (a Task 2 gear
+feature, worth +2, which would take him to +1 and pair him with the others rather than
+resolve him); T-Kay's `Limited: only for Telekinesis` has no stated grade. Airmid's +2 has
+no partner once Shadow moves, which weakens the pairing story for that one.
+
+## Task 3b — Vector's −6 (investigation, timeboxed)
 
 `PrebuiltHeroes.BuildByHero["Vector"]` is `("superhero_package", -6)`: the rebuild costs 119
 where the sheet says 125. It is four times any other residual, so unlike the rest it is

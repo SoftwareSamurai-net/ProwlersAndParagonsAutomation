@@ -60,7 +60,11 @@ Thirteen of the twenty published Heroes now rebuild to exactly 125 Hero Points. 
 | Talon | +1 | Unresolved |
 | T-Kay | −1 | `Limited: only for Telekinesis` does not say which grade |
 
-Gear does not explain these — see the item below for why that earlier guess was wrong. The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for Telekinesis`) are guesses that could be revisited, but only ±1–2 HP hangs on them, so do not tune them just to force a zero — that would be fitting the model to the answer.
+**The residuals pair up: −6, −1, −1, +1, +1, +2, +2.** Repeated identical values are what a shared cause looks like — both bugs found so far did exactly this (the package double-charge hit seven Heroes at an identical +4; Stronghold's four Item Cons were exactly −4). Against that, seven values in an eight-point range collide by chance easily enough, so it earns an investigation rather than a conclusion.
+
+One experiment has already been run and produced a result: applying a Super Senses group's Item Con to **every** option rather than once takes **Talon to exactly 125** and Shadow from +2 to +1, with no Hero getting worse. It was reverted rather than shipped, because it changes a modelling judgement and should be decided on the rules, not the scoreboard. Details and the three-step change are in the handover.
+
+Gear does not explain these — see the item below for why that earlier guess was wrong. The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for Telekinesis`) are guesses that could be revisited, but do not tune them just to force a zero — that is fitting the model to the answer. Chasing a *shared* cause across a matched pair is a different thing, and worth doing.
 
 One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a *mimicked* Power. Pros are stored per Power, so there is nowhere for it to live. Eidolon reconciles anyway, so it costs nothing today.
 
