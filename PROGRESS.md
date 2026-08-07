@@ -17,11 +17,11 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.92 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 2588, run in CI at the same strictness as the build |
+| Tests | 2620, run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two — the terminal wizard and a Blazor WebAssembly app, both on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
-| Printed sheet | Not fit to hand to a player — see [item 0](#0-the-sheet-is-not-fit-to-hand-to-a-player--this-is-the-next-slice) |
+| Printed sheet | A4, ruled boxes, light palette in both modes, no mid-entry page breaks — see the completed item below |
 | Known-wrong data | None outstanding |
 
 The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **15 of the 20 to exactly their 125 Hero Point budget**. The remaining five are all within 2 HP, each for a recorded reason — see [Close the last five Heroes](#1-close-the-last-five-heroes).
@@ -31,18 +31,6 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 ## Remaining work
 
 Roughly in the order that unblocks the most.
-
-### 0. The sheet is not fit to hand to a player — **this is the next slice**
-
-Task brief with the full detail: [`docs/HANDOVER-sheet-polish.md`](docs/HANDOVER-sheet-polish.md). Delete it when the slice is done.
-
-Three faults, all raised on seeing the deployed site used the way it is meant to be used. The tool is for the owner's friends, who do not care how it is built.
-
-**The printed sheet is bad, and this is the biggest of the three.** The entire print stylesheet is three lines that hide the navigation. There is no `@page` setup, no margins, no page-break control, no light-palette forcing — so a Villain sheet prints a full-bleed near-black page — and none of the ruled boxes a published sheet has. The `.txt` export is a fine data dump but nobody wants it on the table. This is the deliverable the whole tool exists to produce, and it is the least finished thing in it.
-
-**The UI talks to developers.** It names internal types and build commands at the player: the GM review step says the exports are "built by `CharacterSheetRenderer` in the shared sheets layer… byte-for-byte what `dotnet run` produces", and the derived-stats page credits `DerivedStatsCalculator`. Validation issues print their machine code (`NO_TIER_SELECTED`) at people who have no use for it. Rulebook references — chapters, page numbers, rule names — are the opposite and should stay: those are what a player actually wants.
-
-**The markup repeats itself.** 22 `class="panel"`, 21 `panel-head`, 19 `field`, 9 `sheet-section`, 8 `chosen`, 6 `stat-block`, 5 `options`, all hand-rolled at each site. Nothing shares a component, so a styling fix has to be made in twenty places and the print work above would have to be done twenty times over.
 
 ### 1. Close the last five Heroes
 
@@ -140,6 +128,30 @@ The project is intended for open-source release but is currently unlicensed, whi
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### The sheet is fit to hand to a player — [#25](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/25)
+
+Presentation only; `engine/` and `sheets/` are untouched. Three faults, done in the order that made each one smaller.
+
+**The markup went behind components first.** 22 hand-written `class="panel"`, 21 `panel-head`, 19 `field`, 9 `sheet-section`, 8 `chosen`, 6 `stat-block`, 5 `options`, none of them shared. That is what made the print work expensive rather than the print work itself — ruled boxes and break rules had to reach every one of them. Eight components now: `Panel`, `Field`, `SheetSection`, `StatBlock`, `DerivedStatBlocks`, `OptionList`/`OptionRow`, `ChosenList`/`ChosenRow`, following the `RankRow`/`StepButtons` pattern that was already here.
+
+It found a real display bug on the way: **the sheet printed "Armor8d"**. Razor strips the leading whitespace inside a `<text>` block, so a Power's name and its rank ran together on every ranked entry.
+
+**The printed sheet is the substance of the slice.** The whole print stylesheet was three lines that hid the navigation, and every consequence of that followed: no paper size, no margins, entries cut in half by page boundaries, no boxes — the screen builds them from `box-shadow` and panel fills, none of which print — and the palette printed as-is, so a Villain sheet was a full-bleed near-black page.
+
+- **The palette is forced light for both modes**, as a third block of token overrides in `theme.css`. No rule anywhere else needs to know it is printing. `--primary` is a fill, so on paper it becomes white and the banner takes its weight from a doubled rule instead of a wash of ink; the derived tokens are restated rather than left as colour-mixes, because a mix of black into white is grey and grey prints as a smear.
+- **A4, 14mm margins, ruled boxes, break control** on `.power-entry`, `.stat-block`, table rows, list items and the section boxes. `break-inside: avoid` is a request, not a guarantee — a box too tall for any page is broken rather than clipped, which is exactly the fallback a long Powers group needs — so it is safe to ask for on every box, and it stops a four-line Gear box straddling a page for nothing.
+- **A running footer was tried and does not work.** `position: fixed` is not repeated per page by Chrome's print output; it renders once, at the top of page two, over the content. What does carry the character's name across every page is the **document title**, which the browser prints in its own header, so the review page leads its title with the name. A colophon prints once at the end.
+
+**The judging was done from the PDF, not the screen**, which is the only way this is checkable: the sheet markup was captured from the running app, rendered against the live stylesheets with headless Chrome's `--print-to-pdf`, and the pages rasterised and read back. A three-sheet document forced breaks through every kind of block. Computed styles cannot tell you whether a break lands mid-entry.
+
+**The copy stopped talking to developers.** The GM review step no longer says its exports are "built by `CharacterSheetRenderer` in the shared sheets layer… byte-for-byte what `dotnet run` produces"; the derived-stats page no longer credits `DerivedStatsCalculator`; validation findings no longer print `NO_TIER_SELECTED` at the reader. All of it stays in the `@* *@` comments and `@code` blocks, where it belongs. The machine codes are still in the `.json` export, because they are genuinely useful in a bug report, and the page says so. Rulebook references were left alone on purpose — chapters, page numbers and rule names are what a player wants.
+
+**32 new tests hold all three in place**, because none of them is visible to a compiler: no colour named outside `theme.css` (by hex, by keyword, and by `rgb()`/`hsl()` function syntax, which a hex grep misses); every palette token restated for print, or one mode's value survives through the cascade; nothing developer-facing in the visible markup, *and* the rulebook references still present, since deleting those would pass a naive version of the same test; one owner per repeated class; and the printed sheet's own rules, including no `position: fixed` in the print block — a regression guard, because that looks correct and lands on the wrong page.
+
+Also fixed, all small and all on the same surface: the page heading opened with a focus ring drawn round it on every navigation (`FocusOnNavigate` is worth keeping for screen readers, but a heading is not a control and takes no ring); gear rows were set flush right, because spanning both columns also made them the last cell; radii and durations became tokens so `prefers-reduced-motion` can switch every animation off in one place; and Rider's `.idea/` directory is no longer tracked.
+
+**What was not done: a rendering test.** Everything above is asserted against the source, which is honest for rules that *are* statements about the source, but it cannot catch the next "Armor8d" — a bug in what the components actually render. That needs bUnit and a test project that references `web/`, which is a bigger change than the rules it would check and pulls Blazor WebAssembly into a console test executable. Worth doing before the components grow much further.
 
 ### Two sample characters, for previewing a sheet — [#23](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/23)
 

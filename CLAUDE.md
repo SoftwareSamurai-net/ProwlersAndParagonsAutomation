@@ -105,6 +105,30 @@ Cloudflare Pages at `pp.softwaresamurai.net`, by `.github/workflows/deploy.yml` 
 - **`SampleCharacterTests` holds them to the rules** — legal, inside budget, fully priceable, every section filled, at least one Source heading, and both exports rendering. Writing them caught three real mistakes: ranks bought on rankless Powers (`invisibility`, `lightning_reflexes` are `max_rank: 0`), and Danger Sense and Resistance pushed over the Trait Cap because both take a **baseline equal to** an Ability rather than half it. Check `rank_type` and `prerequisite` before adding ranks to a sample.
 - The Villain deliberately leaves one Power without a Source, so the sheet shows the plain `POWERS` fallback heading and the review step shows a warning. Both are things a preview should exercise; it is not an oversight.
 
+### The printed sheet is the deliverable
+
+`web/wwwroot/css/app.css` ends with the print stylesheet and it is load-bearing. **Judge it by the PDF, never by the screen** — computed styles cannot tell you whether a page break lands mid-entry.
+
+How to actually look at one, since the browser pane cannot screenshot and headless Chrome cannot wait for Blazor to boot: capture `document.querySelector('.sheet').outerHTML` from the running app, render it in a static page against the real `theme.css` and `app.css`, and print that with `chrome --headless --print-to-pdf`. Rasterising the result needs a PDF library (there is no `pdftoppm` or Python on this machine); Docnet.Core plus ImageSharp 3.1.x in a scratch console project works. Pin ImageSharp below 4.0, which refuses to build without a licence key. Repeat the sheet three times in the harness to force breaks through every kind of block.
+
+- **Both modes print light**, forced by a third block of token overrides at the bottom of `theme.css`. Restate *every* token the two palettes declare — a token left out keeps its mode's value through the cascade, which is how a Villain sheet came to print as a full-bleed near-black page. There is a test.
+- **`break-inside: avoid` on `.sheet-section` is safe** even though a Powers group can exceed a page: the property is a request, and a box that fits on no page is broken rather than clipped. Do not "fix" it back to `auto` — that is what let a four-line Gear box straddle a page.
+- **A `position: fixed` running footer does not work.** Chrome's print output renders it once, at the top of page two, over the content. The character's name repeats across pages via the **document title**, which the browser prints in its own header — that is why `Review.razor`'s `<PageTitle>` leads with the name. A test asserts `position: fixed` never returns to the print block.
+- `h1 { display: none }` in print: the page heading is the tool's, not the sheet's.
+
+### The browser front end's three presentation rules
+
+All three are asserted by `WebPresentationTests`, which reads the source because none of them is visible to a compiler.
+
+1. **No component names a colour.** Checked by hex, by keyword, *and* by `rgb()`/`hsl()`/`oklch()` function syntax — that last one is the loophole a hex grep leaves open. `transparent` is allowed; it is the absence of a colour. Radii and durations are tokens for the same reason, and `prefers-reduced-motion` turns every animation off by setting three duration tokens to `0.01ms` — not `0`, which makes some engines skip `transitionend` entirely.
+2. **Nothing on screen names an internal type or a build command.** Asserted on visible markup only: `@* *@` comments and `@code` blocks are stripped first, because that is where engineering detail belongs. The reverse is asserted too — `Ch.6`, `Ch.9`, `Trait Cap` and `Hero Point` must still appear, since deleting the rulebook references would satisfy a naive reading of this rule and ruin the app.
+3. **One component owns each repeated class.** `Panel`, `Field`, `SheetSection`, `StatBlock`, `DerivedStatBlocks`, `OptionList`/`OptionRow`, `ChosenList`/`ChosenRow`. Writing `class="panel"` by hand anywhere else fails a test. The budget bar's live fill width is the **only** inline style left, and it is the sole justification for `style-src 'unsafe-inline'` in the CSP.
+
+Two Razor traps this surface has already hit:
+
+- **Razor strips the leading whitespace inside a `<text>` block.** `<text> @(rank)d</text>` after a name printed `Armor8d` on every ranked Power for as long as the sheet existed. Use one expression.
+- **Blazor will not mix named and unnamed child content.** A component with an `Actions` fragment cannot also take implicit `ChildContent`; `ChosenRow` therefore names both slots `Body` and `Actions`.
+
 ### Hero and Villain are one app with two palettes
 
 Ch.9 builds Villains exactly like Heroes and prints no separate stat-block format, so the mode is presentation and nothing else.

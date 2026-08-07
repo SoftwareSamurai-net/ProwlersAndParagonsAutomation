@@ -25,6 +25,7 @@ Either front end walks players and GMs through the full creation process — tra
 - **Dual export** — formatted `.txt` and structured `.json`, written to `output/` by the CLI and downloaded by the browser, from one implementation
 - **Two front ends on one engine** — a Spectre.Console wizard and a Blazor WebAssembly app that runs `CostCalculator` and `CharacterValidator` as the same compiled code, with Hero and Villain palettes
 - **Two sample characters** — a finished Hero and Villain, loadable in one click, for seeing a sheet without building one first; both held to the rules by tests
+- **A printed sheet you would hand to someone** — A4 with proper margins, ruled boxes, Powers under small-caps Source headings, and no entry cut in half by a page boundary. Both modes print black on white: paper has no dark mode
 
 ---
 
@@ -116,10 +117,11 @@ ProwlersAndParagonsAutomation/
 ├── web/                          # Blazor WebAssembly front end — the engine, in a browser
 │   ├── Program.cs                # Fetches the rules over HTTP into an InMemoryRulesSource
 │   ├── Pages/                    # One page per creation step, mirroring the CLI's six
-│   ├── Components/               # HpBudgetBar, PowerEditor, ProConPicker, SheetView
+│   ├── Components/               # Panel, Field, SheetSection, OptionRow… and SheetView
 │   ├── Services/CharacterSession.cs  # The CharacterSheet plus the calculators
 │   └── wwwroot/
-│       ├── css/theme.css         # The Hero and Villain palettes, as CSS custom properties
+│       ├── css/theme.css         # Hero, Villain and print palettes, as CSS custom properties
+│       ├── css/app.css           # Layout, components and the print stylesheet. Names no colour
 │       ├── js/download.js        # The whole of the JavaScript: a blob download and the mode switch
 │       ├── _redirects            # Cloudflare: every path serves the app, with a 200
 │       └── data/rules/           # Staged from data/rules/ by the build (gitignored)
@@ -134,7 +136,8 @@ ProwlersAndParagonsAutomation/
 │   ├── CharacterValidatorTests.cs
 │   ├── PrebuiltHeroes.cs         # the 20 published Heroes from Ch.8, transcribed
 │   ├── PrebuiltHeroTests.cs      # rebuilds each and checks their printed Edge/Health/Resolve
-│   └── SampleCharacterTests.cs   # the two preview characters must be legal and printable
+│   ├── SampleCharacterTests.cs   # the two preview characters must be legal and printable
+│   └── WebPresentationTests.cs   # no colour outside theme.css, no jargon on screen, print rules
 │
 ├── scripts/
 │   └── write-cloudflare-headers.sh   # Generates _headers, hashing the inline import map
@@ -150,7 +153,6 @@ ProwlersAndParagonsAutomation/
 ├── PROGRESS.md                   # What is done and what remains — kept current
 ├── CLAUDE.md                     # Working notes: the decisions that are expensive to re-derive
 ├── docs/RULES_EXTRACTION_GUIDE.md
-├── docs/HANDOVER-sheet-polish.md # next slice; delete when done
 └── Program.cs                    # CLI entry point
 ```
 
