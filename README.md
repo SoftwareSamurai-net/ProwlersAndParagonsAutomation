@@ -16,7 +16,7 @@ The wizard walks players and GMs through the full creation process — tracking 
 - **141 powers**, every one carrying its rulebook Range, rank type and cost — flat, per rank, per 2 ranks, per unit, variable or Special
 - **27 baseline-rank powers** (Armor = ½ Toughness, Evasion = Agility, Running = flat 3d, Strike = Might *or* Martial Arts, Boost/Expertise = a Trait you nominate)
 - **23 generic pros and 28 generic cons**, including variable-cost variants (Charges, Area/Burst) and Overkill/Weak's −1 HP per rank
-- **102 power-specific pros and cons** printed inside individual power entries — unlike the generic ones, several change a power's cost *per rank* rather than its total
+- **106 power-specific pros and cons** the rulebook attaches to one named power — unlike the generic ones, several change a power's cost *per rank* rather than its total
 - **53 flaws and 13 perks**, wired into Resolve and the HP budget
 - **Validation engine** — errors for budget overruns, trait-cap violations, flaw-count breaches, ranks bought on rankless powers and unresolved player choices; warnings for anything still unverified
 - **Every rules value verified against the rulebook and locked by tests** — the suite holds the printed Range, Rank and Cost of all 141 powers, so a data edit that contradicts the book fails CI
@@ -76,7 +76,8 @@ ProwlersAndParagonsAutomation/
 │   ├── pros.json                 # 23 Power Pros
 │   ├── cons.json                 # 28 Power Cons
 │   ├── flaws.json                # 53 flaws
-│   └── perks.json                # 13 perks
+│   ├── perks.json                # 13 perks
+│   └── gear_features.json        # 12 custom gear features (Ch.6)
 │
 ├── engine/                       # Rules logic — pure C#, zero Spectre.Console
 │   ├── Models/                   # Immutable records mapping to the JSON schemas
@@ -107,7 +108,6 @@ ProwlersAndParagonsAutomation/
 ├── output/                       # Generated character sheets (gitignored)
 ├── PROGRESS.md                   # What is done and what remains — kept current
 ├── docs/RULES_EXTRACTION_GUIDE.md
-├── docs/HANDOVER-toxins-and-gear.md  # task brief; delete when done
 └── Program.cs                    # Entry point
 ```
 
@@ -135,7 +135,7 @@ data/rules/   →   engine/   →   cli/
 |---|---|---|
 | 1 | **Choose Tier** | Pick power level (Street Level → Iconic), optionally apply a starting package |
 | 2 | **Buy Characteristics** | Ability and talent ranks; browse/search powers with pros & cons; flaws and perks |
-| 3 | **Choose Gear** | Free-text mundane gear — correctly free, per Ch.6 |
+| 3 | **Choose Gear** | Free-text mundane gear, correctly free per Ch.6, plus optional custom features at 1–2 HP |
 | 4 | **Derived Stats** | Edge, Health and Resolve calculated and displayed |
 | 5 | **Finishing Touches** | Name, appearance, motivation, quote, connections |
 | 6 | **GM Review** | Full sheet display, validation results, export to `output/` |
@@ -237,7 +237,7 @@ Resolve's base term is the rulebook's Resolve table (Trait Cap → 0, Cap−1d �
 
 Every entry in every rules file has been checked against chapters 1–2 of the rulebook, and **the test suite is what keeps it that way** — `CanonicalPowers.cs` holds the Range, Rank and Cost printed for all 141 Powers, and `RulesDataTests` holds the tier, ability, talent, pro, con, perk and flaw values. A data edit that contradicts the book fails a test.
 
-On top of that, the **20 pre-built Heroes from Chapter 8** are transcribed and rebuilt through the engine. They are finished, playable Standard-tier characters the authors published, so they check the rules as *applied* rather than as transcribed. The engine reproduces all sixty of their printed Edge, Health and Resolve values, and rebuilds **13 of the 20 to exactly their 125 Hero Point budget**; the other seven are within 6 HP for reasons recorded in [PROGRESS.md](PROGRESS.md).
+On top of that, the **20 pre-built Heroes from Chapter 8** are transcribed and rebuilt through the engine. They are finished, playable Standard-tier characters the authors published, so they check the rules as *applied* rather than as transcribed. The engine reproduces all sixty of their printed Edge, Health and Resolve values, and rebuilds **15 of the 20 to exactly their 125 Hero Point budget**; the other five are within 2 HP for reasons recorded in [PROGRESS.md](PROGRESS.md).
 
 They have earned their keep twice over, catching two cost bugs that unit tests had missed — the minimum-cost floor, and a starting package being charged on top of the ranks it grants. Three of them also pin down rules that are easy to read wrongly:
 
@@ -257,6 +257,7 @@ They have earned their keep twice over, catching two cost bugs that unit tests h
 | `abilities.json` | 6 | Ch.2, p.17 |
 | `talents.json` | 12 | Ch.2, p.17 |
 | `tiers.json` | 6 | Ch.2 Power Levels, p.17 |
+| `gear_features.json` | 12 | Ch.6 Equipment, p.92 — custom gear features |
 
 A single `needs_review` boolean could not tell a verified cost from a verified description, and it drifted badly: 27 power entries were unflagged while their costs were wrong. `powers.json` therefore carries `verified_fields` plus a `source_ref` page reference on every entry:
 
@@ -324,15 +325,14 @@ To publish reports to Qodana Cloud, add a `QODANA_TOKEN` repository secret. With
 
 The short version of what is left, most-unblocking first:
 
-1. **Close the last seven Heroes** — 13 of the 20 published Heroes now rebuild to exactly 125 HP; the rest are within 6 for recorded reasons.
-2. **Model custom gear features** (Chapter 6) — mundane gear is correctly free; custom features cost 1–6 HP each and are not modelled.
-3. **Model Sources** — they set the stand-in rank for the 46 rankless powers.
-4. **Establish a Qodana baseline** so only *new* problems fail CI.
-5. **Extract the remaining rulebook chapters** (3–9).
-6. **Web SPA front end** for softwaresamurai.net — the `data → engine → cli` split exists to make this possible without touching rules logic.
-7. **Assisted character creation from a description**, with the engine validating whatever a model proposes.
-8. **Printable character sheet** — blue/white for Heroes, black/red for Villains.
-9. **Choose and apply a licence** — see [License](#license).
+1. **Close the last five Heroes** — 15 of the 20 published Heroes now rebuild to exactly 125 HP; the rest are within 2 for recorded reasons.
+2. **Model Sources** — they set the stand-in rank for the 46 rankless powers.
+3. **Establish a Qodana baseline** so only *new* problems fail CI.
+4. **Extract the remaining rulebook chapters** (3–9).
+5. **Web SPA front end** for softwaresamurai.net — the `data → engine → cli` split exists to make this possible without touching rules logic.
+6. **Assisted character creation from a description**, with the engine validating whatever a model proposes.
+7. **Printable character sheet** — blue/white for Heroes, black/red for Villains.
+8. **Choose and apply a licence** — see [License](#license).
 
 ---
 

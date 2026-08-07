@@ -64,6 +64,42 @@ public record SelectedPower(
 }
 
 /// <summary>
+/// A custom feature bought for a piece of gear. GradeKey picks between the two grades of
+/// the features the rulebook prices at 1 to 2 HP (Accurate/Very Accurate,
+/// Powerful/Very Powerful); it is null for the ten flat ones.
+/// </summary>
+public record SelectedGearFeature(string FeatureId, string? GradeKey = null);
+
+/// <summary>
+/// A piece of gear on the character sheet.
+///
+/// <para>Ch.6 makes mundane gear free and explicitly untracked, so a plain item is just a
+/// name and costs nothing. Only custom features and Pros and Cons cost Hero Points.</para>
+/// </summary>
+public record SelectedGear(string Name)
+{
+    /// <summary>Custom features bought for this item (Ch.6, p.92). Usually empty.</summary>
+    public IReadOnlyList<SelectedGearFeature> Features { get; init; } = [];
+
+    /// <summary>Pros applied to this item. They cost the same on gear as on a Power.</summary>
+    public IReadOnlyList<SelectedProCon> Pros { get; init; } = [];
+
+    /// <summary>Cons applied to this item. They never pay out — gear floors at 0 HP.</summary>
+    public IReadOnlyList<SelectedProCon> Cons { get; init; } = [];
+
+    /// <summary>
+    /// Set when this entry stands for a matched pair customised under the Two-Fisted
+    /// Power, which the rulebook lets you buy "for the price of one". Recording the pair
+    /// as a single item already charges once; the flag exists so the sheet says why, and
+    /// so the validator can check the Power is actually there.
+    /// </summary>
+    public bool PairedUnderTwoFisted { get; init; }
+
+    /// <summary>True if this item costs Hero Points at all.</summary>
+    public bool IsCustomised => Features.Count > 0 || Pros.Count > 0 || Cons.Count > 0;
+}
+
+/// <summary>
 /// Mutable state object for a character being built in the wizard.
 /// All calculators and validators receive this and read from it.
 /// </summary>
@@ -122,5 +158,11 @@ public class CharacterSheet
     public string Motivation { get; set; } = "";
     public string Quote { get; set; } = "";
     public List<string> Connections { get; } = [];
-    public List<string> Gear { get; } = [];
+
+    /// <summary>
+    /// Gear carried. Mundane gear is free, so most entries cost nothing and this stays a
+    /// narrative list — but a customised item does spend Hero Points, which is why it is
+    /// not simply a list of strings. See <see cref="CostCalculator.TotalGearCost"/>.
+    /// </summary>
+    public List<SelectedGear> Gear { get; } = [];
 }

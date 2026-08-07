@@ -175,6 +175,64 @@ public sealed class CostCalculatorTests
         Assert.Equal(1, cost);
     }
 
+    // ── Super Senses is one Power ────────────────────────────────────────────
+
+    private static CharacterSheet SuperSensesSheet(params SelectedPower[] options)
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.SelectedPowers.Clear();
+        foreach (var o in options) sheet.SelectedPowers.Add(o);
+        return sheet;
+    }
+
+    /// <summary>
+    /// Ch.2: "Regardless of the options you select, Super Senses is always considered a
+    /// single Power." The options are separate entries in powers.json only because each
+    /// has its own price, so a total must add them up before applying the floor once.
+    /// </summary>
+    [Fact]
+    public void SuperSensesOptionsShareOneMinimumCostFloor()
+    {
+        // Acute X at 10 ranks is 1 HP per 2 ranks = 5; Telescopic 1 flat; Thermal 2 flat.
+        var sheet = SuperSensesSheet(
+            new SelectedPower("super_senses_acute", 10, [], [new SelectedProCon("item")]),
+            new SelectedPower("super_senses_telescopic_vision", 0),
+            new SelectedPower("super_senses_thermal_vision", 0));
+
+        // 8 gross, less the Item Con, against the group's single floor of ⌈10/2⌉ = 5.
+        Assert.Equal(7, _f.Costs.TotalPowersCost(sheet));
+
+        // Per option the Con would vanish: Acute's own floor of 5 swallows it whole.
+        Assert.Equal(5, _f.Costs.PowerCost(sheet.SelectedPowers[0]));
+    }
+
+    [Fact]
+    public void ASingleSuperSenseCostsTheSameEitherWay()
+    {
+        var sheet = SuperSensesSheet(
+            new SelectedPower("super_senses_night_vision", 0, [], [new SelectedProCon("item")]));
+
+        // Night Vision is 3 HP flat, so the Con bites without help from the grouping.
+        Assert.Equal(2, _f.Costs.TotalPowersCost(sheet));
+        Assert.Equal(2, _f.Costs.PowerCost(sheet.SelectedPowers[0]));
+    }
+
+    /// <summary>
+    /// Super Senses is the only group the rulebook calls a single Power. Transformation
+    /// says "Regardless of which Transformation Power you possess" — plural — and Form
+    /// makes no such claim, so both stay priced one entry at a time.
+    /// </summary>
+    [Fact]
+    public void TransformationOptionsAreStillSeparatePowers()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.SelectedPowers.Clear();
+        sheet.SelectedPowers.Add(new SelectedPower("transformation_animal_forms", 4));
+        sheet.SelectedPowers.Add(new SelectedPower("transformation_shapeshifting", 4));
+
+        Assert.Equal(sheet.SelectedPowers.Sum(_f.Costs.PowerCost), _f.Costs.TotalPowersCost(sheet));
+    }
+
     // ── Abilities, talents, totals ───────────────────────────────────────────
 
     [Fact]

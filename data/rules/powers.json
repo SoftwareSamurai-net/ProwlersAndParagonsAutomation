@@ -1184,6 +1184,15 @@
       "recharge",
       "sustained"
     ],
+    "power_pros": [
+      {
+        "id": "both_types",
+        "name": "Physical and Energy",
+        "cost_type": "per_rank",
+        "cost_per_rank": 1,
+        "description": "You deflect both physical and energy attacks rather than picking one when the Power is bought. The rulebook states this as doubling the Power's cost to 2 Hero Points per rank; since nothing else changes its rate, adding 1 per rank is the same number."
+      }
+    ],
     "power_cons": [
       {
         "id": "only_x",
@@ -4220,6 +4229,15 @@
       "recharge",
       "touch"
     ],
+    "power_pros": [
+      {
+        "id": "lethal_disease",
+        "name": "Lethal Disease",
+        "cost_type": "flat",
+        "cost_modifier": 6,
+        "description": "The damage lands at the end of the issue rather than at once, leaving the target incapacitated until then. Whether a cure is possible before that, and how hard it is, is the GM's call. Symptoms may take days or weeks to show."
+      }
+    ],
     "tags": [
       "attack",
       "kill",
@@ -4233,7 +4251,8 @@
       "description",
       "pros_cons"
     ],
-    "source_ref": "Ultimate Edition, Ch.2 Powers, p.39"
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.39",
+    "notes": "Lethal Disease is printed in Ch.7's Toxins section (p.108), not with the Power's own entry in Ch.2. Toxin Pros and Cons apply only to mundane diseases, drugs and poisons unless the GM rules otherwise."
   },
   {
     "id": "slick",
@@ -4616,6 +4635,15 @@
       "recharge",
       "touch"
     ],
+    "power_pros": [
+      {
+        "id": "non_lethal_disease",
+        "name": "Non-Lethal Disease",
+        "cost_type": "flat",
+        "cost_modifier": 2,
+        "description": "The target is not incapacitated but takes a -2d penalty to every challenge roll for the rest of the issue. Whether a cure is possible before that, and how hard it is, is the GM's call. Symptoms may take days or weeks to show."
+      }
+    ],
     "power_cons": [
       {
         "id": "emp",
@@ -4623,6 +4651,13 @@
         "cost_type": "flat",
         "cost_modifier": -2,
         "description": "The Power affects characters with Inanimate from a Tech Source instead of living beings, and disables most electronics."
+      },
+      {
+        "id": "caustic",
+        "name": "Caustic",
+        "cost_type": "flat",
+        "cost_modifier": -2,
+        "description": "The target is not incapacitated but takes a -2d penalty to every challenge roll while the Power lasts. Delivered as a gas, it attacks everyone in its area at the start of each page."
       }
     ],
     "tags": [
@@ -4639,7 +4674,8 @@
       "description",
       "pros_cons"
     ],
-    "source_ref": "Ultimate Edition, Ch.2 Powers, p.42"
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.42",
+    "notes": "Caustic and Non-Lethal Disease are printed in Ch.7's Toxins section (p.108), not with the Power's own entry in Ch.2. Toxin Pros and Cons apply only to mundane diseases, drugs and poisons unless the GM rules otherwise."
   },
   {
     "id": "summoning",

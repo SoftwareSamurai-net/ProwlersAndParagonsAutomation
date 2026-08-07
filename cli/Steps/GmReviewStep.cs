@@ -32,7 +32,7 @@ public sealed class GmReviewStep : IWizardStep
         RenderPowers(sheet, rules, costs, derived);
         RenderPerks(sheet, rules, costs);
         RenderDerived(sheet, derived);
-        RenderNarrative(sheet, rules);
+        RenderNarrative(sheet, rules, costs);
 
         AnsiConsole.WriteLine();
 
@@ -180,7 +180,7 @@ public sealed class GmReviewStep : IWizardStep
         AnsiConsole.Write(table);
     }
 
-    private static void RenderNarrative(CharacterSheet sheet, RulesRepository rules)
+    private static void RenderNarrative(CharacterSheet sheet, RulesRepository rules, CostCalculator costs)
     {
         if (string.IsNullOrWhiteSpace(sheet.Name) &&
             string.IsNullOrWhiteSpace(sheet.Motivation) &&
@@ -194,7 +194,7 @@ public sealed class GmReviewStep : IWizardStep
                 $"[bold]Quote:[/]       [italic]\"{Markup.Escape(sheet.Quote)}\"[/]\n" +
                 $"[bold]Flaws:[/]       {(sheet.Flaws.Count > 0 ? string.Join(", ", sheet.Flaws.Select(sf => Markup.Escape(rules.GetFlaw(sf.FlawId)?.Name ?? sf.FlawId))) : "[grey]none[/]")}\n" +
                 $"[bold]Connections:[/] {(sheet.Connections.Count > 0 ? string.Join(", ", sheet.Connections.Select(Markup.Escape)) : "[grey]none[/]")}\n" +
-                $"[bold]Gear:[/]        {(sheet.Gear.Count > 0 ? string.Join(", ", sheet.Gear.Select(Markup.Escape)) : "[grey]none[/]")}"
+                $"[bold]Gear:[/]        {(sheet.Gear.Count > 0 ? string.Join(", ", sheet.Gear.Select(g => Markup.Escape(GearFormatter.Describe(g, rules, costs)))) : "[grey]none[/]")}"
             ))
             .Header("[bold]NARRATIVE[/]")
             .BorderColor(Color.MediumPurple);

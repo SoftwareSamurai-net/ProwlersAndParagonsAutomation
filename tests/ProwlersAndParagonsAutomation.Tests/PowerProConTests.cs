@@ -56,17 +56,60 @@ public sealed class PowerProConTests
     // ── Against the rulebook ─────────────────────────────────────────────────
 
     [Fact]
-    public void TheRulebookPrints102PowerSpecificProsAndCons()
+    public void TheRulebookPrints106PowerSpecificProsAndCons()
     {
+        // 102 carry a PRO/CON marker inside a Power entry in Ch.2, and three more carry
+        // one in Ch.7's Toxins section (p.108). Deflection's "Physical and Energy" is the
+        // one entry with no marker: the Power's own text states it as prose (p.26).
         var actual = _f.Rules.Powers.Sum(p => p.PowerPros.Count + p.PowerCons.Count);
 
-        Assert.Equal(102, CanonicalPowerProsCons.All.Count);
-        Assert.Equal(102, actual);
+        Assert.Equal(106, CanonicalPowerProsCons.All.Count);
+        Assert.Equal(106, actual);
+    }
+
+    /// <summary>
+    /// Ch.2, Deflection (p.26): "Decide whether you can deflect physical attacks or energy
+    /// attacks when you select this Power... If you wish, you can double the cost of this
+    /// Power and spend 2 Hero Points per rank to be able to deflect both."
+    ///
+    /// <para>It is modelled as a per-rank Pro rather than a second cost variant so the
+    /// Power's printed stat line stays 1 Hero Point per rank, which is what
+    /// <see cref="CanonicalPowers"/> transcribes. Nothing else changes Deflection's rate,
+    /// so +1 per rank and doubling are the same number.</para>
+    /// </summary>
+    [Fact]
+    public void DeflectingBothTypesDoublesTheCost()
+    {
+        var oneType  = _f.Costs.PowerCost(new SelectedPower("deflection", 10));
+        var bothTypes = _f.Costs.PowerCost(new SelectedPower("deflection", 10,
+                            [new SelectedProCon("both_types")], []));
+
+        Assert.Equal(10, oneType);
+        Assert.Equal(oneType * 2, bothTypes);
     }
 
     [Fact]
-    public void SixtyOnePowersCarryAtLeastOne() =>
-        Assert.Equal(61, _f.Rules.Powers.Count(p => p.PowerPros.Count + p.PowerCons.Count > 0));
+    public void SixtyTwoPowersCarryAtLeastOne() =>
+        Assert.Equal(62, _f.Rules.Powers.Count(p => p.PowerPros.Count + p.PowerCons.Count > 0));
+
+    /// <summary>
+    /// The three toxin entries are the only Pros and Cons the rulebook prints outside
+    /// Chapter 2, and each names the one Power it applies to. Non-Lethal Disease is Stun,
+    /// not Slay, which is easy to get backwards given it sits beside Lethal Disease.
+    /// </summary>
+    [Theory]
+    [InlineData("stun", "con", "caustic", -2)]
+    [InlineData("slay", "pro", "lethal_disease", 6)]
+    [InlineData("stun", "pro", "non_lethal_disease", 2)]
+    public void TheToxinEntriesBelongToTheirNamedPower(string powerId, string kind, string id, int modifier)
+    {
+        Assert.Equal(modifier, Find(powerId, kind, id).CostModifier);
+
+        // ...and to no other Power.
+        var others = _f.Rules.Powers.Where(p => p.Id != powerId);
+        Assert.All(others, p => Assert.DoesNotContain(
+            p.PowerPros.Concat(p.PowerCons), x => x.Id == id));
+    }
 
     [Theory]
     [MemberData(nameof(AllEntries))]
