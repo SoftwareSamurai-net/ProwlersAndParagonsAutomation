@@ -1,0 +1,64 @@
+@implements IDisposable
+@inject CharacterSession Session
+
+@* The Hero Point budget, straight from CostCalculator — nothing here adds anything up.
+   Hidden entirely in Villain mode: Ch.9 gives Villains no budget, so a bar showing 0/0
+   and an over-budget error would both be wrong rather than merely unhelpful. *@
+
+@if (Session.ShowBudget && Session.Sheet.SelectedTierId is not null)
+{
+    var budget = Session.Budget;
+    var spent  = CharacterSession.TryCost(() => Session.Spent);
+
+    <section class="budget" aria-label="Hero Point budget">
+        @if (spent is null)
+        {
+            <div class="budget-line">
+                <span class="muted">Not costable yet — a selection is still missing a
+                    variant or a grade. The GM review step names it.</span>
+            </div>
+        }
+        else
+        {
+            var remaining = budget - spent.Value;
+            var over      = remaining < 0;
+            var pct       = budget <= 0 ? 0 : Math.Min(100, spent.Value * 100 / budget);
+
+            <div class="budget-line">
+                <span><strong class="num">@spent.Value</strong> <span class="muted small">of @budget HP spent</span></span>
+                <span class="spacer"></span>
+                @if (over)
+                {
+                    <span class="over-text num">@(-remaining) HP over budget</span>
+                }
+                else
+                {
+                    <span class="num"><strong>@remaining</strong> <span class="muted small">remaining</span></span>
+                }
+            </div>
+
+            <div class="budget-track" role="progressbar" aria-valuenow="@spent.Value" aria-valuemin="0" aria-valuemax="@budget">
+                <div class="budget-fill @(over ? "over" : "")" style="width:@(pct)%"></div>
+            </div>
+        }
+
+        <div class="breakdown">
+            <span>Package <b class="num">@Cost(() => Session.Costs.PackageCost(Session.Sheet))</b></span>
+            <span>Abilities <b class="num">@Cost(() => Session.Costs.AbilityCost(Session.Sheet))</b></span>
+            <span>Talents <b class="num">@Cost(() => Session.Costs.TalentCost(Session.Sheet))</b></span>
+            <span>Powers <b class="num">@Cost(() => Session.Costs.TotalPowersCost(Session.Sheet))</b></span>
+            <span>Perks <b class="num">@Cost(() => Session.Costs.TotalPerksCost(Session.Sheet))</b></span>
+            <span>Gear <b class="num">@Cost(() => Session.Costs.TotalGearCost(Session.Sheet))</b></span>
+            <span>Trait cap <b class="num">@Session.TraitCap<span class="muted">d</span></b></span>
+        </div>
+    </section>
+}
+
+@code {
+    protected override void OnInitialized() => Session.Changed += StateHasChanged;
+
+    private static string Cost(Func<int> cost) =>
+        CharacterSession.TryCost(cost)?.ToString() ?? "—";
+
+    public void Dispose() => Session.Changed -= StateHasChanged;
+}

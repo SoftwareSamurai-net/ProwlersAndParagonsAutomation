@@ -1,0 +1,91 @@
+@page "/finishing"
+@inject CharacterSession Session
+
+<PageTitle>Finishing touches — Prowlers &amp; Paragons</PageTitle>
+
+<h1>Finishing touches</h1>
+<p class="muted">None of this costs Hero Points. It is what makes the numbers a character.</p>
+
+<section class="panel">
+    <div class="field">
+        <label for="ft-name">Name</label>
+        <input id="ft-name" type="text" style="width:100%"
+               value="@Session.Sheet.Name" @oninput="e => Set(s => s.Name = Text(e))" />
+    </div>
+
+    <div class="field">
+        <label for="ft-appearance">Appearance</label>
+        <textarea id="ft-appearance" rows="3"
+                  value="@Session.Sheet.Appearance" @oninput="e => Set(s => s.Appearance = Text(e))"></textarea>
+    </div>
+
+    <div class="field">
+        <label for="ft-motivation">Motivation — why do they put the costume on?</label>
+        <textarea id="ft-motivation" rows="2"
+                  value="@Session.Sheet.Motivation" @oninput="e => Set(s => s.Motivation = Text(e))"></textarea>
+    </div>
+
+    <div class="field">
+        <label for="ft-quote">Catchphrase or quote</label>
+        <input id="ft-quote" type="text" style="width:100%"
+               value="@Session.Sheet.Quote" @oninput="e => Set(s => s.Quote = Text(e))" />
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-head">
+        <h2>Connections</h2>
+        <span class="muted small">People and places that tie the character to the world</span>
+    </div>
+
+    @if (Session.Sheet.Connections.Count == 0)
+    {
+        <p class="small muted">None yet.</p>
+    }
+    else
+    {
+        <ul class="chosen">
+            @foreach (var connection in Session.Sheet.Connections.ToList())
+            {
+                <li>
+                    <div class="body">@connection</div>
+                    <button type="button" class="btn small danger" @onclick="() => RemoveConnection(connection)">Remove</button>
+                </li>
+            }
+        </ul>
+    }
+
+    <div class="inline" style="margin-top:0.75rem">
+        <input type="text" placeholder="Add a connection" @bind="_newConnection" @bind:event="oninput"
+               @onkeydown="@(e => { if (e.Key == "Enter") AddConnection(); })" aria-label="New connection" />
+        <button type="button" class="btn" disabled="@string.IsNullOrWhiteSpace(_newConnection)" @onclick="AddConnection">Add</button>
+    </div>
+</section>
+
+<StepButtons Back="derived" BackLabel="Derived stats" Next="review" NextLabel="GM review" />
+
+@code {
+    private string _newConnection = "";
+
+    private static string Text(ChangeEventArgs e) => e.Value?.ToString() ?? "";
+
+    private void Set(Action<CharacterSheet> edit)
+    {
+        edit(Session.Sheet);
+        Session.NotifyChanged();
+    }
+
+    private void AddConnection()
+    {
+        if (string.IsNullOrWhiteSpace(_newConnection)) return;
+        Session.Sheet.Connections.Add(_newConnection.Trim());
+        _newConnection = "";
+        Session.NotifyChanged();
+    }
+
+    private void RemoveConnection(string connection)
+    {
+        Session.Sheet.Connections.Remove(connection);
+        Session.NotifyChanged();
+    }
+}

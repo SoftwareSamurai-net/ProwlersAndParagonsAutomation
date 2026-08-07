@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- The rules engine, as a library rather than part of the CLI executable.
+
+         It was compiled into the root project until the browser front end needed it: a
+         Blazor WebAssembly app cannot reference an executable that pulls in Spectre.Console,
+         and referencing the CLI would have inverted the one dependency rule this
+         architecture has. Splitting it out makes `data -> engine -> host` a fact of the
+         build rather than a convention, so nothing here can reach for a renderer. -->
+
+    <PropertyGroup>
+        <RootNamespace>ProwlersAndParagonsAutomation.Engine</RootNamespace>
+        <AssemblyName>ProwlersAndParagons.Engine</AssemblyName>
+    </PropertyGroup>
+
+</Project>

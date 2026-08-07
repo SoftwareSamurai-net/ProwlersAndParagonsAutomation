@@ -1,0 +1,122 @@
+@page "/"
+@inject CharacterSession Session
+@inject NavigationManager Nav
+
+<PageTitle>Tier — Prowlers &amp; Paragons</PageTitle>
+
+<h1>Choose a tier</h1>
+<p class="muted">
+    The tier sets the Hero Point budget and the Trait Cap — the highest rank any single
+    Trait may reach. Everything after this is measured against those two numbers.
+</p>
+
+<div class="grid two">
+    @foreach (var tier in Session.Rules.Tiers)
+    {
+        var selected = Session.Sheet.SelectedTierId == tier.Id;
+        <div class="panel">
+            <div class="panel-head">
+                <h2>@tier.Name</h2>
+                @if (selected)
+                {
+                    <span class="tag own">Selected</span>
+                }
+            </div>
+            <p class="small">@tier.Description</p>
+            <p class="small num">
+                <b>@tier.HeroPoints</b> Hero Points · Trait Cap <b>@tier.TraitCapRank</b>d
+            </p>
+            @if (tier.Notes is not null)
+            {
+                <p class="small muted">@tier.Notes</p>
+            }
+            <button type="button" class="btn @(selected ? "" : "primary")"
+                    disabled="@selected"
+                    @onclick="() => SelectTier(tier.Id)">
+                @(selected ? "Current tier" : "Choose " + tier.Name)
+            </button>
+        </div>
+    }
+</div>
+
+<section class="panel">
+    <div class="panel-head">
+        <h2>Starting package</h2>
+        <span class="muted small">Optional</span>
+    </div>
+    <p class="small muted">
+        A package buys the ranks it grants, at a small discount — the Superhero Package is
+        50 HP for what would cost 54 bought rank by rank. You can still buy higher ranks on
+        top; only the ranks above the package's own are charged again.
+    </p>
+
+    <ul class="chosen">
+        <li>
+            <div class="body">
+                <div><b>No package</b></div>
+                <div class="small muted">Buy every rank yourself.</div>
+            </div>
+            <button type="button" class="btn small"
+                    disabled="@(Session.Sheet.SelectedPackageId is null)"
+                    @onclick="() => SelectPackage(null)">
+                @(Session.Sheet.SelectedPackageId is null ? "Current" : "Choose")
+            </button>
+        </li>
+        @foreach (var pkg in Session.Rules.CreationRules.OptionalPackages)
+        {
+            var chosen = Session.Sheet.SelectedPackageId == pkg.Id;
+            <li>
+                <div class="body">
+                    <div>
+                        <b>@pkg.Name</b>
+                        <span class="muted small">
+                            — @(pkg.AbilitiesRank)d in every Ability, @(pkg.TalentsRank)d in every Talent
+                        </span>
+                    </div>
+                    <div class="small muted">@pkg.Description</div>
+                </div>
+                <span class="cost">@pkg.Cost HP</span>
+                <button type="button" class="btn small" disabled="@chosen"
+                        @onclick="() => SelectPackage(pkg.Id)">
+                    @(chosen ? "Current" : "Choose")
+                </button>
+            </li>
+        }
+    </ul>
+</section>
+
+<StepButtons Next="characteristics" NextLabel="Buy characteristics"
+             NextDisabled="@(Session.Sheet.SelectedTierId is null)" />
+
+@code {
+    private void SelectTier(string id)
+    {
+        Session.Sheet.SelectedTierId = id;
+        Session.NotifyChanged();
+    }
+
+    /// <summary>
+    /// Applying a package sets every Ability and Talent it grants to its rank, unless the
+    /// character has already bought higher. Removing one leaves those ranks alone — they
+    /// are the character's now, and silently deleting a player's choices to undo a
+    /// discount would lose work rather than save Hero Points.
+    /// </summary>
+    private void SelectPackage(string? id)
+    {
+        Session.Sheet.SelectedPackageId = id;
+
+        if (id is not null &&
+            Session.Rules.CreationRules.OptionalPackages.FirstOrDefault(p => p.Id == id) is { } pkg)
+        {
+            foreach (var ability in Session.Rules.Abilities)
+                if (Session.Sheet.GetAbilityRank(ability.Id) < pkg.AbilitiesRank)
+                    Session.Sheet.AbilityRanks[ability.Id] = pkg.AbilitiesRank;
+
+            foreach (var talent in Session.Rules.Talents)
+                if (Session.Sheet.GetTalentRank(talent.Id) < pkg.TalentsRank)
+                    Session.Sheet.TalentRanks[talent.Id] = pkg.TalentsRank;
+        }
+
+        Session.NotifyChanged();
+    }
+}

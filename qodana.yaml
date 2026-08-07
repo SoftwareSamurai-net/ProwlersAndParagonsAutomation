@@ -35,9 +35,12 @@ dotnet:
 
 exclude:
   # Generated character sheets and build output carry nothing worth inspecting.
+  # web/wwwroot/data is the rules JSON the browser build stages there; data/rules is
+  # the copy that actually lives in the repository.
   - name: All
     paths:
       - output
       - bin
       - obj
       - .qodana
+      - web/wwwroot/data

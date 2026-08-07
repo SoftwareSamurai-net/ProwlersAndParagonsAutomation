@@ -1,0 +1,139 @@
+@inject CharacterSession Session
+
+<section class="panel">
+    <div class="panel-head">
+        <h2>Flaws</h2>
+        <span class="muted small">
+            @Rules.MinAtCreation–@Rules.MaxAtCreation at creation, @Rules.MaxEver ever ·
+            each one beyond @Rules.MaxAtCreation costs @Rules.ExtraFlawCostHp HP
+        </span>
+        <span class="cost">@Session.Sheet.Flaws.Count chosen</span>
+    </div>
+
+    <p class="small muted">
+        Flaws are narrative disadvantages that earn Resolve when they cause trouble. A
+        Condition is always in effect; a Plot Hook is something the GM can reach for. Each
+        of either adds 1 to starting Resolve, which is why the count is a rules matter and
+        not just flavour.
+    </p>
+
+    @if (Session.Sheet.Flaws.Count == 0)
+    {
+        <p class="small muted">None yet.</p>
+    }
+    else
+    {
+        <ul class="chosen">
+            @foreach (var sf in Session.Sheet.Flaws.ToList())
+            {
+                var chosen = Session.Rules.GetFlaw(sf.FlawId);
+                <li>
+                    <div class="body">
+                        <div>
+                            <b>@(chosen?.Name ?? sf.FlawId)</b>
+                            <span class="tag">@TypeLabel(chosen?.FlawType ?? "regular")</span>
+                        </div>
+                        @if (sf.NarrativeDetail is not null)
+                        {
+                            <div class="small muted">@sf.NarrativeDetail</div>
+                        }
+                    </div>
+                    <button type="button" class="btn small danger" @onclick="() => Remove(sf)">Remove</button>
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+@if (_pending is { } flaw)
+{
+    <section class="panel">
+        <div class="panel-head">
+            <h3>@flaw.Name</h3>
+            <span class="tag">@TypeLabel(flaw.FlawType)</span>
+        </div>
+        <p class="small">@flaw.Description</p>
+
+        @if (flaw.NarrativeConstraint is not null)
+        {
+            <div class="field">
+                <label for="fl-detail">@flaw.NarrativeConstraint</label>
+                <input id="fl-detail" type="text" @bind="_detail" @bind:event="oninput" style="width:100%" />
+            </div>
+        }
+
+        <div class="inline">
+            <button type="button" class="btn primary" disabled="@(!CanAdd(flaw))" @onclick="() => Add(flaw)">Add flaw</button>
+            <button type="button" class="btn" @onclick="() => _pending = null">Cancel</button>
+        </div>
+    </section>
+}
+else
+{
+    <section class="panel">
+        <div class="panel-head"><h3>Add a flaw</h3></div>
+        <div class="options">
+            @foreach (var option in Available)
+            {
+                <button type="button" class="option" @onclick="() => Begin(option)">
+                    <span class="body">
+                        <span class="name">@option.Name</span>
+                        <span class="caveat">@option.Description</span>
+                    </span>
+                    <span class="cost">@TypeLabel(option.FlawType)</span>
+                </button>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    private FlawModel? _pending;
+    private string _detail = "";
+
+    private FlawRules Rules => Session.Rules.CreationRules.FlawRules;
+
+    private List<FlawModel> Available =>
+        Session.Rules.Flaws
+            .Where(f => Session.Sheet.Flaws.All(sf => sf.FlawId != f.Id))
+            .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    private void Begin(FlawModel flaw)
+    {
+        _pending = flaw;
+        _detail  = "";
+    }
+
+    private bool CanAdd(FlawModel flaw) =>
+        flaw.NarrativeConstraint is null || !string.IsNullOrWhiteSpace(_detail);
+
+    /// <summary>
+    /// The count is not capped here. CharacterValidator owns the creation minimum and
+    /// maximum and reports them on the review step, and a page that quietly refused the
+    /// fourth flaw would be a second copy of that rule in a place with no test on it.
+    /// </summary>
+    private void Add(FlawModel flaw)
+    {
+        Session.Sheet.Flaws.Add(new SelectedFlaw(
+            flaw.Id,
+            string.IsNullOrWhiteSpace(_detail) ? null : _detail.Trim()));
+
+        _pending = null;
+        Session.NotifyChanged();
+    }
+
+    private void Remove(SelectedFlaw sf)
+    {
+        Session.Sheet.Flaws.Remove(sf);
+        Session.NotifyChanged();
+    }
+
+    private static string TypeLabel(string flawType) => flawType switch
+    {
+        "condition"               => "Condition",
+        "plot_hook"               => "Plot Hook",
+        "plot_hook_and_condition" => "Plot Hook + Condition",
+        _                         => "Regular"
+    };
+}

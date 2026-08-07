@@ -1,6 +1,6 @@
 using ProwlersAndParagonsAutomation.Engine;
 
-namespace ProwlersAndParagonsAutomation.Cli;
+namespace ProwlersAndParagonsAutomation.Sheets;
 
 /// <summary>
 /// Renders a piece of gear as one line, the way a published sheet writes it:

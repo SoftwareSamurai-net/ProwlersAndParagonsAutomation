@@ -1,27 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+    <!-- The terminal wizard. Everything shared with the browser front end lives in
+         engine/ (rules and arithmetic) and sheets/ (the .txt and .json exports); what is
+         left here is Spectre.Console presentation and the file writing. -->
+
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net10.0</TargetFramework>
-        <LangVersion>latest</LangVersion>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
         <RootNamespace>ProwlersAndParagonsAutomation</RootNamespace>
-        <InvariantGlobalization>false</InvariantGlobalization>
-    </PropertyGroup>
-
-    <!-- Static analysis. Warnings become errors only in CI so local iteration stays fast. -->
-    <PropertyGroup>
-        <EnableNETAnalyzers>true</EnableNETAnalyzers>
-        <AnalysisLevel>latest-recommended</AnalysisLevel>
-        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-        <TreatWarningsAsErrors Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</TreatWarningsAsErrors>
     </PropertyGroup>
 
     <ItemGroup>
         <!-- This project sits at the repository root, so the default **/*.cs glob would
-             otherwise pull the test project's sources in alongside its own. -->
+             otherwise pull in every sibling project's sources alongside its own. -->
+        <Compile Remove="engine\**" />
+        <Compile Remove="sheets\**" />
+        <Compile Remove="web\**" />
         <Compile Remove="tests\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="engine\ProwlersAndParagons.Engine.csproj" />
+        <ProjectReference Include="sheets\ProwlersAndParagons.Sheets.csproj" />
     </ItemGroup>
 
     <ItemGroup>

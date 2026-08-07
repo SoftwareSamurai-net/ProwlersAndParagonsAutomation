@@ -1,0 +1,257 @@
+@inject CharacterSession Session
+
+@* The character sheet, laid out the way the published ones are: a banner strip, stat
+   blocks in ruled boxes, and Powers under Source headings in small caps.
+
+   One layout serves Hero and Villain. Ch.9 builds Villains exactly like Heroes and prints
+   no separate stat-block format, so only the palette differs — and every colour here comes
+   from a token, so the difference is one attribute on <html>. If a layout change ever
+   looks necessary for one mode, that is a sign the layout is wrong for both. *@
+
+<article class="sheet">
+    <header class="sheet-banner">
+        <div class="name">@(string.IsNullOrWhiteSpace(Session.Sheet.Name) ? "Unnamed" : Session.Sheet.Name)</div>
+        <div class="sub">
+            @(Tier?.Name ?? "No tier")
+            @if (Package is { } pkg)
+            {
+                <text> · @pkg.Name</text>
+            }
+            @if (Session.ShowBudget && Tier is not null && Spent is { } spent)
+            {
+                <text> · @spent of @Tier.HeroPoints HP</text>
+            }
+        </div>
+    </header>
+
+    <div class="sheet-body">
+        <section class="sheet-section">
+            <div class="stat-blocks">
+                <div class="stat-block">
+                    <div class="label">Edge</div>
+                    <div class="value">@Session.Derived.CalculateEdge(Session.Sheet)</div>
+                </div>
+                <div class="stat-block">
+                    <div class="label">Health</div>
+                    <div class="value">@Session.Derived.CalculateHealth(Session.Sheet)</div>
+                </div>
+                <div class="stat-block">
+                    <div class="label">Resolve</div>
+                    <div class="value">@Session.Derived.CalculateResolve(Session.Sheet)</div>
+                </div>
+            </div>
+        </section>
+
+        <div class="grid two">
+            <section class="sheet-section">
+                <h3>Abilities</h3>
+                <table class="stat-table">
+                    @foreach (var ability in Session.Rules.Abilities)
+                    {
+                        <tr>
+                            <td>@ability.Name</td>
+                            <td>@(Session.Sheet.GetAbilityRank(ability.Id))d</td>
+                        </tr>
+                    }
+                </table>
+            </section>
+
+            <section class="sheet-section">
+                <h3>Talents</h3>
+                @if (Session.Rules.Talents.All(t => Session.Sheet.GetTalentRank(t.Id) == 0))
+                {
+                    <p class="small muted">None.</p>
+                }
+                else
+                {
+                    <table class="stat-table">
+                        @foreach (var talent in Session.Rules.Talents.Where(t => Session.Sheet.GetTalentRank(t.Id) > 0))
+                        {
+                            <tr>
+                                <td>@talent.Name</td>
+                                <td>@(Session.Sheet.GetTalentRank(talent.Id))d</td>
+                            </tr>
+                        }
+                    </table>
+                }
+            </section>
+        </div>
+
+        @if (Session.Sheet.SelectedPowers.Count == 0)
+        {
+            <section class="sheet-section">
+                <h3>Powers</h3>
+                <p class="small muted">None.</p>
+            </section>
+        }
+        else
+        {
+            @* SourceGrouping is the engine's answer, shared with the text sheet and the
+               JSON export, so all three print the same headings in the same order. A
+               Power with no Source still appears, under a plain POWERS heading at the
+               end — leaving one off its own character sheet would be worse. *@
+            @foreach (var group in Session.Grouping.GroupPowers(Session.Sheet))
+            {
+                <section class="sheet-section">
+                    <h3>@group.Heading</h3>
+                    @foreach (var sp in group.Powers)
+                    {
+                        var power = Session.Rules.GetPower(sp.PowerId);
+                        var rank  = power is null ? 0 : Session.Derived.GetEffectiveRank(sp, Session.Sheet);
+                        <div class="power-entry">
+                            <div class="head">
+                                <span class="pname">
+                                    @(power?.Name ?? sp.PowerId)
+                                    @if (rank > 0)
+                                    {
+                                        <text> @(rank)d</text>
+                                    }
+                                </span>
+                                <span class="num">@(CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—") HP</span>
+                            </div>
+                            @if (power is not null)
+                            {
+                                <div class="statline">@PowerFormatter.StatLine(power)</div>
+                            }
+                            @if (sp.Pros.Count > 0 || sp.Cons.Count > 0)
+                            {
+                                <div class="statline">@string.Join(", ", sp.Pros.Concat(sp.Cons).Select(c => Label(c, power)))</div>
+                            }
+                        </div>
+                    }
+                </section>
+            }
+        }
+
+        <div class="grid two">
+            <section class="sheet-section">
+                <h3>Perks</h3>
+                @if (Session.Sheet.Perks.Count == 0)
+                {
+                    <p class="small muted">None.</p>
+                }
+                else
+                {
+                    <table class="stat-table">
+                        @foreach (var sp in Session.Sheet.Perks)
+                        {
+                            <tr>
+                                <td>
+                                    @(Session.Rules.GetPerk(sp.PerkId)?.Name ?? sp.PerkId)@(sp.Units > 1 ? $" ×{sp.Units}" : "")
+                                    @if (sp.NarrativeDetail is not null)
+                                    {
+                                        <span class="muted small"> — @sp.NarrativeDetail</span>
+                                    }
+                                </td>
+                                <td>@Session.Costs.PerkCost(sp) HP</td>
+                            </tr>
+                        }
+                    </table>
+                }
+            </section>
+
+            <section class="sheet-section">
+                <h3>Flaws</h3>
+                @if (Session.Sheet.Flaws.Count == 0)
+                {
+                    <p class="small muted">None.</p>
+                }
+                else
+                {
+                    <table class="stat-table">
+                        @foreach (var sf in Session.Sheet.Flaws)
+                        {
+                            var flaw = Session.Rules.GetFlaw(sf.FlawId);
+                            <tr>
+                                <td>
+                                    @(flaw?.Name ?? sf.FlawId)
+                                    @if (sf.NarrativeDetail is not null)
+                                    {
+                                        <span class="muted small"> — @sf.NarrativeDetail</span>
+                                    }
+                                </td>
+                                <td>@FlawType(flaw?.FlawType ?? "regular")</td>
+                            </tr>
+                        }
+                    </table>
+                }
+            </section>
+        </div>
+
+        <section class="sheet-section">
+            <h3>Gear</h3>
+            @if (Session.Sheet.Gear.Count == 0)
+            {
+                <p class="small muted">None.</p>
+            }
+            else
+            {
+                <table class="stat-table">
+                    @foreach (var item in Session.Sheet.Gear)
+                    {
+                        <tr><td colspan="2">@GearFormatter.Describe(item, Session.Rules, Session.Costs)</td></tr>
+                    }
+                </table>
+            }
+        </section>
+
+        @if (HasNarrative)
+        {
+            <section class="sheet-section">
+                <h3>The character</h3>
+                @if (!string.IsNullOrWhiteSpace(Session.Sheet.Quote))
+                {
+                    <p><i>“@Session.Sheet.Quote”</i></p>
+                }
+                @if (!string.IsNullOrWhiteSpace(Session.Sheet.Appearance))
+                {
+                    <p class="small">@Session.Sheet.Appearance</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(Session.Sheet.Motivation))
+                {
+                    <p class="small"><b>Motivation.</b> @Session.Sheet.Motivation</p>
+                }
+                @if (Session.Sheet.Connections.Count > 0)
+                {
+                    <p class="small"><b>Connections.</b> @string.Join(" · ", Session.Sheet.Connections)</p>
+                }
+            </section>
+        }
+    </div>
+</article>
+
+@code {
+    private TierModel? Tier =>
+        Session.Sheet.SelectedTierId is null ? null : Session.Rules.GetTier(Session.Sheet.SelectedTierId);
+
+    private OptionalPackage? Package =>
+        Session.Sheet.SelectedPackageId is null
+            ? null
+            : Session.Rules.CreationRules.OptionalPackages
+                .FirstOrDefault(p => p.Id == Session.Sheet.SelectedPackageId);
+
+    private int? Spent => CharacterSession.TryCost(() => Session.Spent);
+
+    private bool HasNarrative =>
+        !string.IsNullOrWhiteSpace(Session.Sheet.Quote)
+        || !string.IsNullOrWhiteSpace(Session.Sheet.Appearance)
+        || !string.IsNullOrWhiteSpace(Session.Sheet.Motivation)
+        || Session.Sheet.Connections.Count > 0;
+
+    private static string FlawType(string flawType) => flawType switch
+    {
+        "condition"               => "Condition",
+        "plot_hook"               => "Plot Hook",
+        "plot_hook_and_condition" => "Plot Hook + Condition",
+        _                         => ""
+    };
+
+    private string Label(SelectedProCon choice, PowerModel? power)
+    {
+        var name = power?.PowerPros.Concat(power.PowerCons).FirstOrDefault(e => e.Id == choice.Id)?.Name
+                   ?? Session.Rules.GetPro(choice.Id)?.Name
+                   ?? Session.Rules.GetCon(choice.Id)?.Name
+                   ?? choice.Id;
+        return choice.VariantKey is null ? name : $"{name} ({choice.VariantKey.Replace('_', ' ')})";
+    }
+}

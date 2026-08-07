@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Rendering that is not tied to a single host: the rulebook stat line, the gear
+         line, and the .txt and .json character sheets.
+
+         It is a project of its own because two hosts need the same answer and neither may
+         own it. It cannot live in engine/ — that layer stays free of presentation — and it
+         cannot live in cli/, because the browser would then depend on Spectre.Console.
+         Everything here returns a string; writing it somewhere is the host's job. -->
+
+    <PropertyGroup>
+        <RootNamespace>ProwlersAndParagonsAutomation.Sheets</RootNamespace>
+        <AssemblyName>ProwlersAndParagons.Sheets</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\engine\ProwlersAndParagons.Engine.csproj" />
+    </ItemGroup>
+
+</Project>

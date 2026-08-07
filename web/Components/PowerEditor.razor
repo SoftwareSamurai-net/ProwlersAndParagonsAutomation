@@ -1,0 +1,271 @@
+@inject CharacterSession Session
+
+@* Configures one Power, in the same order the CLI's PowerBrowser asks: the nominated
+   Trait first (it drives both the baseline rank and, for Boost, the cost per rank), then
+   the cost variant, then ranks, units, Pros, Cons and the Source.
+
+   Nothing is added to the sheet until every question the engine needs an answer to has
+   one. That is why CostCalculator can throw on an incomplete selection and the pages here
+   never trip it. *@
+
+<div class="panel">
+    <div class="panel-head">
+        <h2>@Power.Name</h2>
+        @if (Power.NeedsReview)
+        {
+            <span class="tag warn">mechanics unverified</span>
+        }
+        <span class="muted small">@Power.Category</span>
+    </div>
+
+    <p class="small muted">@PowerFormatter.StatLine(Power)</p>
+    <p class="small">@Power.Description</p>
+    @if (Power.Notes is not null)
+    {
+        <p class="small muted">@Power.Notes</p>
+    }
+    @if (Power.SourceRef is not null)
+    {
+        <p class="small muted">@Power.SourceRef</p>
+    }
+
+    @if (NeedsBaselineTrait)
+    {
+        <div class="field">
+            <label for="pe-trait">
+                @Power.Name takes its baseline rank from a Trait you nominate.
+                @if (Power.Id == "boost")
+                {
+                    <text>Its cost per rank matches that Trait's own.</text>
+                }
+            </label>
+            @if (TraitOptions.Count == 0)
+            {
+                <p class="small">
+                    You have no Traits yet — buy an Ability or a Talent first.
+                </p>
+            }
+            else
+            {
+                <select id="pe-trait" @bind="_baselineTraitId" @bind:after="Recompute">
+                    <option value="">Choose a Trait…</option>
+                    @foreach (var t in TraitOptions)
+                    {
+                        <option value="@t.Id">@t.Kind: @Humanise(t.Id) (@(t.Rank)d)</option>
+                    }
+                </select>
+            }
+        </div>
+    }
+
+    @if (Power.CostType is "per_rank_variable" or "flat_variable" && Power.CostVariants is { Count: > 0 } variants)
+    {
+        <div class="field">
+            <label for="pe-variant">This Power's cost varies. Which version?</label>
+            <select id="pe-variant" @bind="_costVariantKey" @bind:after="Recompute">
+                <option value="">Choose…</option>
+                @foreach (var v in variants)
+                {
+                    <option value="@v.Key">
+                        @Humanise(v.Key) — @v.Value HP@(Power.CostType == "per_rank_variable" ? " per rank" : "")
+                    </option>
+                }
+            </select>
+        </div>
+    }
+
+    @if (Power.CostType == "per_unit")
+    {
+        <div class="field">
+            <label for="pe-units">
+                How many @(Power.CostUnitLabel ?? "unit")s? (@Power.CostPerUnit HP each)
+            </label>
+            <input id="pe-units" type="number" min="1" @bind="_units" @bind:after="Recompute" />
+        </div>
+    }
+    else if (Power.Id == "summoning")
+    {
+        @* Summoning's rate is Special: 1 HP per rank for every 2d of Minion Threat,
+           rounded up. Units carries the Threat rank. *@
+        <div class="field">
+            <label for="pe-threat">Minion Threat rank</label>
+            <input id="pe-threat" type="number" min="1" max="@Session.TraitCap" @bind="_units" @bind:after="Recompute" />
+        </div>
+    }
+
+    <div class="field">
+        <label>Ranks</label>
+        @if (Power.MaxRank == 0)
+        {
+            <p class="small muted">@PowerFormatter.RankType(Power) — no ranks are purchased for this Power.</p>
+        }
+        else if (MaxPurchasable == 0)
+        {
+            <p class="small muted">The baseline already reaches the Trait Cap — no ranks to buy.</p>
+        }
+        else
+        {
+            <div class="stepper">
+                <button type="button" @onclick="() => SetRanks(_ranks - 1)" disabled="@(_ranks <= 0)" aria-label="Fewer ranks">−</button>
+                <span class="value">@(_ranks)d</span>
+                <button type="button" @onclick="() => SetRanks(_ranks + 1)" disabled="@(_ranks >= MaxPurchasable)" aria-label="More ranks">+</button>
+                <span class="small muted">of @(MaxPurchasable)d purchasable</span>
+            </div>
+            @if (Baseline > 0)
+            {
+                <p class="small muted">
+                    Baseline @(Baseline)d is free, so this is an effective @(Baseline + _ranks)d.
+                </p>
+            }
+        }
+    </div>
+
+    <ProConPicker Power="Power" Selected="_pros" IsPro="true" OnChanged="Recompute" />
+    <ProConPicker Power="Power" Selected="_cons" IsPro="false" OnChanged="Recompute" />
+
+    <div class="field">
+        <label for="pe-source">
+            Source
+            @if (Power.RankType is "default" or "special")
+            {
+                <text>
+                    — this Power has no rank of its own, so its Source decides which Ability
+                    stands in when another Power acts on it.
+                </text>
+            }
+        </label>
+        <select id="pe-source" @bind="_sourceId" @bind:after="Recompute">
+            <option value="">Not sure yet</option>
+            @foreach (var s in Session.Rules.Sources)
+            {
+                <option value="@s.Id">@s.Name — default rank @Humanise(s.DefaultRankAbility)</option>
+            }
+        </select>
+    </div>
+
+    <div class="nav-buttons">
+        <span class="cost">
+            @if (_cost is { } c)
+            {
+                <text>@c HP</text>
+                @if (_effectiveRank > 0)
+                {
+                    <span class="muted small"> · effective @(_effectiveRank)d</span>
+                }
+            }
+            else
+            {
+                <span class="muted">Answer the questions above to see the cost.</span>
+            }
+        </span>
+        <span class="spacer"></span>
+        <button type="button" class="btn" @onclick="OnCancel">Cancel</button>
+        <button type="button" class="btn primary" disabled="@(_cost is null)" @onclick="Commit">
+            @(Existing is null ? "Add Power" : "Save changes")
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PowerModel Power { get; set; } = default!;
+
+    /// <summary>The selection being edited, or null when the Power is being added fresh.</summary>
+    [Parameter] public SelectedPower? Existing { get; set; }
+
+    [Parameter] public EventCallback<SelectedPower> OnCommit { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private int _ranks;
+    private int _units = 1;
+    private string _costVariantKey = "";
+    private string _baselineTraitId = "";
+    private string _sourceId = "";
+    private List<SelectedProCon> _pros = [];
+    private List<SelectedProCon> _cons = [];
+
+    private int? _cost;
+    private int _effectiveRank;
+
+    protected override void OnParametersSet()
+    {
+        _ranks           = Existing?.PurchasedRanks ?? 0;
+        _units           = Existing?.Units ?? 1;
+        _costVariantKey  = Existing?.CostVariantKey ?? "";
+        _baselineTraitId = Existing?.BaselineTraitId ?? "";
+        _sourceId        = Existing?.SourceId ?? "";
+        _pros            = Existing?.Pros.ToList() ?? [];
+        _cons            = Existing?.Cons.ToList() ?? [];
+        Recompute();
+    }
+
+    private bool NeedsBaselineTrait =>
+        Power.Prerequisite?.Relationship == "baseline_selected_trait";
+
+    private sealed record TraitOption(string Id, int Rank, string Kind);
+
+    /// <summary>
+    /// Only Traits the character actually has can serve as a baseline. Boost can also
+    /// raise another Power; Expertise is limited to Abilities and Talents.
+    /// </summary>
+    private List<TraitOption> TraitOptions
+    {
+        get
+        {
+            var sheet = Session.Sheet;
+
+            var options = sheet.AbilityRanks.Where(a => a.Value > 0)
+                .Select(a => new TraitOption(a.Key, a.Value, "Ability"))
+                .Concat(sheet.TalentRanks.Where(t => t.Value > 0)
+                    .Select(t => new TraitOption(t.Key, t.Value, "Talent")))
+                .ToList();
+
+            if (Power.Id == "boost")
+                options.AddRange(sheet.SelectedPowers
+                    .Where(sp => sp.PowerId != Power.Id)
+                    .Select(sp => new TraitOption(sp.PowerId, Session.Derived.GetEffectiveRank(sp, sheet), "Power")));
+
+            return options;
+        }
+    }
+
+    private int Baseline =>
+        Session.Derived.GetBaselineRank(Power, Session.Sheet, Draft());
+
+    private int MaxPurchasable => Math.Max(0, Session.TraitCap - Baseline);
+
+    private void SetRanks(int value)
+    {
+        _ranks = Math.Clamp(value, 0, MaxPurchasable);
+        Recompute();
+    }
+
+    /// <summary>The selection as it currently stands, whether or not it can be priced.</summary>
+    private SelectedPower Draft() =>
+        new(Power.Id, _ranks, _pros.AsReadOnly(), _cons.AsReadOnly())
+        {
+            CostVariantKey  = string.IsNullOrEmpty(_costVariantKey) ? null : _costVariantKey,
+            Units           = _units,
+            BaselineTraitId = string.IsNullOrEmpty(_baselineTraitId) ? null : _baselineTraitId,
+            SourceId        = string.IsNullOrEmpty(_sourceId) ? null : _sourceId
+        };
+
+    /// <summary>
+    /// Asks the engine what the draft costs. A null answer means a question is still
+    /// unanswered — the engine throws rather than guessing — and the Add button stays
+    /// disabled until it is, so nothing incomplete ever reaches the sheet.
+    /// </summary>
+    private void Recompute()
+    {
+        var draft = Draft();
+        _cost = CharacterSession.TryCost(() => Session.Costs.PowerCost(draft));
+        _effectiveRank = _cost is null ? 0 : Session.Derived.GetEffectiveRank(draft, Session.Sheet);
+    }
+
+    private async Task Commit()
+    {
+        if (_cost is null) return;
+        await OnCommit.InvokeAsync(Draft());
+    }
+
+    private static string Humanise(string id) => id.Replace('_', ' ');
+}

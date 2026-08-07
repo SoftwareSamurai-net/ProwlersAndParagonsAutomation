@@ -1,0 +1,35 @@
+@inject CharacterSession Session
+
+<section class="panel">
+    <div class="panel-head">
+        <h2>Talents</h2>
+        <span class="muted small">1 HP per rank · an ordinary human averages 2d</span>
+        <span class="cost">@Session.Costs.TalentCost(Session.Sheet) HP</span>
+    </div>
+
+    @foreach (var talent in Session.Rules.Talents)
+    {
+        var id = talent.Id;
+        <RankRow Name="@talent.Name"
+                 Sub="@($"linked to {Session.Rules.GetAbility(talent.LinkedAbility)?.Name ?? talent.LinkedAbility}")"
+                 Rank="Session.Sheet.GetTalentRank(id)"
+                 Floor="0"
+                 PackageFloor="@PackageTalentRank"
+                 Max="@Session.TraitCap"
+                 RankChanged="rank => SetTalent(id, rank)" />
+    }
+</section>
+
+@code {
+    private int PackageTalentRank =>
+        Session.Sheet.SelectedPackageId is null
+            ? 0
+            : Session.Rules.CreationRules.OptionalPackages
+                .FirstOrDefault(p => p.Id == Session.Sheet.SelectedPackageId)?.TalentsRank ?? 0;
+
+    private void SetTalent(string id, int rank)
+    {
+        Session.Sheet.TalentRanks[id] = rank;
+        Session.NotifyChanged();
+    }
+}

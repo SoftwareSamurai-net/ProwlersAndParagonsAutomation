@@ -1,0 +1,85 @@
+@page "/derived"
+@inject CharacterSession Session
+
+<PageTitle>Derived stats — Prowlers &amp; Paragons</PageTitle>
+
+<h1>Derived stats</h1>
+<p class="muted">
+    Nothing on this page is bought. All three are computed from what is already on the
+    sheet, by <code>DerivedStatsCalculator</code> — the same code the terminal wizard and
+    the tests run.
+</p>
+
+<section class="panel">
+    <div class="stat-blocks">
+        <div class="stat-block">
+            <div class="label">Edge</div>
+            <div class="value">@Session.Derived.CalculateEdge(Session.Sheet)</div>
+        </div>
+        <div class="stat-block">
+            <div class="label">Health</div>
+            <div class="value">@Session.Derived.CalculateHealth(Session.Sheet)</div>
+        </div>
+        <div class="stat-block">
+            <div class="label">Resolve</div>
+            <div class="value">@Session.Derived.CalculateResolve(Session.Sheet)</div>
+        </div>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-head"><h2>Where they come from</h2></div>
+
+    <h3>Edge</h3>
+    <p class="small">
+        Perception + the better of Agility and Intellect. Three details are easy to get
+        wrong and were all bugs at one point: <b>Danger Sense replaces</b> Perception rather
+        than adding to it, <b>Lightning Reflexes is a flat +6</b> with no rank, and
+        <b>Super Speed</b> floors Edge at its rank × 3.
+    </p>
+    <ul class="small muted">
+        <li>Perception @Session.Sheet.GetAbilityRank("perception")d, Agility @Session.Sheet.GetAbilityRank("agility")d, Intellect @Session.Sheet.GetAbilityRank("intellect")d</li>
+        @if (Session.Sheet.HasPower("danger_sense"))
+        {
+            <li>Danger Sense is on the sheet, so it stands in for Perception.</li>
+        }
+        @if (Session.Sheet.HasPower("lightning_reflexes"))
+        {
+            <li>Lightning Reflexes adds a flat +@DerivedStatsCalculator.LightningReflexesEdgeBonus.</li>
+        }
+        @if (Session.Sheet.HasPower("super_speed"))
+        {
+            <li>Super Speed sets a floor of its rank × 3.</li>
+        }
+    </ul>
+
+    <h3>Health</h3>
+    <p class="small">
+        The better of (Toughness + Might) and (Toughness + Willpower), halved and rounded
+        up. Halves always round up — the rulebook has a global rule for it in Ch.1.
+    </p>
+    <p class="small muted">
+        Toughness @Session.Sheet.GetAbilityRank("toughness")d,
+        Might @Session.Sheet.GetAbilityRank("might")d,
+        Willpower @Session.Sheet.GetAbilityRank("willpower")d
+    </p>
+
+    <h3>Resolve</h3>
+    <p class="small">
+        Twice the gap between the Trait Cap and your highest relevant rank, plus one for
+        each point of Determination bought (@DerivedStatsCalculator.DeterminationHpPerResolve HP
+        apiece), plus one for every Condition and Plot Hook flaw. A specialist with a rank
+        at the cap starts on nothing; a generalist starts with room to spend.
+    </p>
+    <p class="small muted">
+        Trait Cap @(Session.TraitCap)d ·
+        @Session.Sheet.Flaws.Count(IsResolveFlaw) Condition/Plot Hook flaw(s)
+    </p>
+</section>
+
+<StepButtons Back="gear" BackLabel="Gear" Next="finishing" NextLabel="Finishing touches" />
+
+@code {
+    private bool IsResolveFlaw(SelectedFlaw sf) =>
+        Session.Rules.GetFlaw(sf.FlawId)?.FlawType is "condition" or "plot_hook" or "plot_hook_and_condition";
+}
