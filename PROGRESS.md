@@ -12,59 +12,40 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 
 | | |
 |---|---|
-| Rulebook coverage | Chapters 1–2 (Basics, Characters) fully extracted and verified |
+| Rulebook coverage | Chapters 1–2 (Basics, Characters) fully extracted and verified; Ch.6 custom gear and Ch.7 toxin Pros/Cons extracted |
 | Powers | 141 entries, all mechanically verified against Ch.2 pp.21–48 |
-| Power-specific Pros/Cons | 102 entries across 61 Powers, verified |
+| Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
+| Custom gear features | 12 entries, verified against Ch.6 p.92 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws — all verified, nothing flagged |
-| Tests | 2406, run in CI at the same strictness as the build |
+| Tests | 2470, run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Known-wrong data | None outstanding |
 
-The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **13 of the 20 to exactly their 125 Hero Point budget**. The remaining seven are within 6 HP, each for a recorded reason — see [Close the last seven Heroes](#1-close-the-last-seven-heroes).
+The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **15 of the 20 to exactly their 125 Hero Point budget**. The remaining five are all within 2 HP, each for a recorded reason — see [Close the last five Heroes](#1-close-the-last-five-heroes).
 
 ---
 
 ## Remaining work
 
-Roughly in the order that unblocks the most. Items 1–3 have a task brief with the exact
-rulebook line numbers and data shapes in
-[`docs/HANDOVER-toxins-and-gear.md`](docs/HANDOVER-toxins-and-gear.md).
+Roughly in the order that unblocks the most.
 
-### 0. Three toxin Pros/Cons are missing
+### 1. Close the last five Heroes
 
-The original Pros/Cons extraction was scoped to Chapter 2. Sweeping the **whole** book for
-`^(PRO|CON) [+-]\d+ Hero Point` turns up exactly three more, all in Ch.7's Toxins section
-(lines 4090–4112), and each applies to a specific Power:
-
-| Name | Kind | Cost | Applies to |
-|---|---|---|---|
-| Caustic | con | −2 | Stun |
-| Lethal Disease | pro | +6 | Slay |
-| Non-Lethal Disease | pro | +2 | Stun |
-
-Small and certain. They belong in `power_pros` / `power_cons` on `stun` and `slay`, and move
-the totals to 105 entries across 62 Powers. This is the last known gap in Pros and Cons —
-the sweep was exhaustive.
-
-### 1. Close the last seven Heroes
-
-Thirteen of the twenty published Heroes now rebuild to exactly 125 Hero Points. The other seven are held at a known residual in `PrebuiltHeroes.BuildByHero`, each with a reason:
+Fifteen of the twenty published Heroes now rebuild to exactly 125 Hero Points. The other five are held at a known residual in `PrebuiltHeroes.BuildByHero`, each with a reason:
 
 | Hero | Residual | Why |
 |---|---|---|
-| Vector | −6 | Four times any other residual, so worth one look. His sheet reads `Deflection (Physical and Energy)`, but the Power says to pick *one* type — covering both is probably not free |
-| Vigilant | −1 | Its Jo Sticks are *Upgraded*, a custom gear feature not modelled |
-| Shadow | +2 | Unexplained |
 | Herald (Airmid) | +2 | Unresolved |
 | Herald (Scathach) | +1 | Strike carries four Pros and Cons at once — most likely a variant reading |
-| Talon | +1 | Unresolved |
+| Shadow | +1 | Unexplained |
 | T-Kay | −1 | `Limited: only for Telekinesis` does not say which grade |
+| Vigilant | −1 | Its Jo Sticks are *Upgraded*, a custom gear feature worth +2 — which would take him to +1, not to zero |
 
-**The residuals pair up: −6, −1, −1, +1, +1, +2, +2.** Repeated identical values are what a shared cause looks like — both bugs found so far did exactly this (the package double-charge hit seven Heroes at an identical +4; Stronghold's four Item Cons were exactly −4). Against that, seven values in an eight-point range collide by chance easily enough, so it earns an investigation rather than a conclusion.
+Nothing left is more than 2 HP out, and the test asserting that bound has been tightened from 6 to 2 so it stays true.
 
-One experiment has already been run and produced a result: applying a Super Senses group's Item Con to **every** option rather than once takes **Talon to exactly 125** and Shadow from +2 to +1, with no Hero getting worse. It was reverted rather than shipped, because it changes a modelling judgement and should be decided on the rules, not the scoreboard. Details and the three-step change are in the handover.
+**The "residuals pair up" lead is spent.** It was worth chasing and it paid twice — see the completed item below — but what closed Vector and Talon was reading the rulebook entry in each case, not the pattern. What is left is −1, −1, +1, +1, +2, and five values in a four-point range pair up by chance. Do not read more into it.
 
-Gear does not explain these — see the item below for why that earlier guess was wrong. The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for Telekinesis`) are guesses that could be revisited, but do not tune them just to force a zero — that is fitting the model to the answer. Chasing a *shared* cause across a matched pair is a different thing, and worth doing.
+The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for Telekinesis`) remain guesses that could be revisited, but do not tune them just to force a zero — that is fitting the model to the answer.
 
 One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a *mimicked* Power. Pros are stored per Power, so there is nowhere for it to live. Eidolon reconciles anyway, so it costs nothing today.
 
@@ -72,37 +53,19 @@ One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (M
 
 Separate from the above. These lists say which *generic* Pros and Cons suit each Power, and they were invented by this project. The rulebook does not state applicability per Power — it states it inside each generic entry ("This Pro applies to Powers that inflict physical or energy damage"). So the honest fix is probably to drop the per-Power lists and filter generically from those constraints, rather than to keep curating 141 guesses. Worth deciding before the wizard leans on them further.
 
-### 2. Custom gear features (Chapter 6)
-
-**Correcting an earlier assumption.** Gear was listed here as an unpriced cost. Chapter 6 says the opposite for most of it: *"Players don't have to worry about buying mundane gear… none of this needs to be tracked."* A **Gear Limit** caps the Trait rank you can apply while using mundane gear (6d by default) — it is not a budget and costs nothing. So `ChooseGearStep` charging nothing for free-text gear is **correct**, and the Heroes' residuals are not explained by gear as previously recorded.
-
-Gear comes in three tiers, and only one of them is missing:
-
-| Tier | Cost | Modelled? |
-|---|---|---|
-| Mundane gear | Free, untracked | Yes — free text, correctly free |
-| Signature equipment | A Power with the Item Con | Yes |
-| **Custom features on mundane gear** | **1–6 HP each** | **No** |
-
-The gap is the third. Twelve features, 1–2 HP each (Ch.6 lines 3247–3285): Accurate/Very Accurate, Bonded, Collapsible, Concealed, Deflecting, Fitted, Hardened, Masterpiece, Powerful/Very Powerful, Reinforced, Silenced, Upgraded. Gear can also take ordinary Pros and Cons, and has its own floor — no piece costs less than **0** HP, unlike a Power's floor of 1. Two-Fisted customises two identical weapons for the price of one.
-
-This would be the first thing to spend Hero Points outside `TotalCost`'s current four categories, so the budget panel needs it too.
-
-Only one published Hero's residual looks like this: Vigilant's Jo Sticks are *Upgraded*, and he is 1 HP short. Shadow's *Silenced* pistols and Psidearm's *Thrown* batons point the other way, since Psidearm already reconciles exactly — so the authors may not have charged for them consistently. Do not tune to these.
-
-### 3. Sources
+### 2. Sources
 
 Not modelled at all. A Source sets the stand-in rank for the 46 rankless (`rank_type: "default"`) Powers — Toughness or Willpower depending on Source — which matters whenever one Power targets another (Drain, Nullify, Dispel and Power Absorption all name a Source). The published Hero sheets group Powers under Source headings (`TECH POWERS`, `MAGIC POWERS`, `INNATE POWERS`, `TRAINED POWERS`), so the data is there to transcribe.
 
-### 4. Qodana baseline
+### 3. Qodana baseline
 
 Establish a committed baseline (`--baseline,qodana.sarif.json`) so only *new* problems fail CI. The last recorded scan found 144 problems, 0 errors, all style or dead-code notes — but that figure predates the test project, so re-scan before baselining.
 
-### 5. Remaining rulebook chapters
+### 4. Remaining rulebook chapters
 
-Chapters 3–9 are not extracted. Rough order of usefulness to the wizard: 6 (Equipment, needed for gear costs), 5 (Resolve, already partly used), 4 (Combat), 8 (Friends and Foes), then the rest.
+Chapters 3–9 are not extracted, apart from the two pieces pulled out because the engine needed them: Ch.6's custom gear features and Ch.7's three toxin Pros/Cons. Rough order of usefulness to the wizard: 6 (the rest of Equipment), 5 (Resolve, already partly used), 4 (Combat), 8 (Friends and Foes), then the rest.
 
-### 6. Web SPA front end, hosted on softwaresamurai.net
+### 5. Web SPA front end, hosted on softwaresamurai.net
 
 The wizard is CLI-only. The `data → engine → cli` split exists precisely so another front
 end can be added without touching the rules logic, and that promise has not been tested yet.
@@ -116,7 +79,7 @@ exists to protect, and duplicating it would guarantee drift from the tests.
 The extraction guide's original condition still applies: build this after the CLI handles
 the full creation flow, which it now does.
 
-### 7. Assisted character creation from a description
+### 6. Assisted character creation from a description
 
 Give the tool a prompt like "a washed-up boxer who punches through time" and have it produce
 a legal, costed character. This is worth doing *because* the rules engine is now trustworthy:
@@ -128,14 +91,14 @@ Wants a machine-usable surface first: something that takes a structured characte
 validates it, and returns errors the caller can act on. That is close to what
 `CharacterSheetExporter`'s JSON already emits, read in reverse.
 
-### 8. Printable character sheet with hero/villain styling
+### 7. Printable character sheet with hero/villain styling
 
 A proper sheet rather than the current `.txt` dump: blue and white for Heroes, black and red
 for Villains. Mechanically the two are identical — Ch.9 is explicit that Villains are built
 exactly like Heroes, just without a Hero Point budget — so this is presentation only, and
 belongs in the front end, not the engine.
 
-### 9. Choose and apply a licence
+### 8. Choose and apply a licence
 
 The project is intended for open-source release but is currently unlicensed, which legally means nobody may use it. Apache 2.0 is the working preference: its NOTICE requirement makes the "no rulebook content here, you must own the rulebook" statement travel with any fork. Whatever is chosen must be explicit that it covers this project's code and original text only — not the game system, which is © LakeSide Games. Worth contacting LakeSide before any public release.
 
@@ -144,6 +107,20 @@ The project is intended for open-source release but is currently unlicensed, whi
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Toxin Pros/Cons, custom gear, and two more Heroes closed — [#13](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/13)
+
+Four pieces of work, two of which found real cost bugs.
+
+**The three toxin Pros/Cons (Ch.7, p.108).** The original extraction was scoped to Chapter 2, so it missed Caustic (−2) and Non-Lethal Disease (+2) on Stun, and Lethal Disease (+6) on Slay. A sweep of the whole book for a PRO/CON Hero Point marker returns exactly these three outside Ch.2 and nothing else, so Pros and Cons are now complete. Note Non-Lethal Disease is Stun, not Slay, despite being printed under Lethal Disease.
+
+**Custom gear features (Ch.6, p.92).** Twelve features at 1–2 HP each, ten flat and two graded, plus ordinary Pros and Cons applied to a piece of gear. Gear has its own floor: *"no piece of gear can cost less than 0 Hero Points"*, where a Power floors at 1. The Item Con is deliberately **not** credited — Ch.6 says every piece of gear has it as a statement of what gear *is*, and Item is absent from the list of Cons the same page calls common on gear; crediting it would make every 1 HP feature free. Free-text mundane gear stays the wizard's default, since nearly all gear is free. Gear is the first thing to spend HP outside `TotalCost`'s four existing categories.
+
+**Super Senses is one Power, and it was being overcharged.** Ch.2 says so outright: *"Regardless of the options you select, Super Senses is always considered a single Power."* Each option is a separate entry here only because each carries its own price — a storage decision that was leaking into the arithmetic. Cons and the minimum-cost floor are both written per Power, so both apply once to the group. The floor is what bit: most options cost 1 HP flat, so an Item Con recorded against a gear-mounted sense was swallowed by that option's own floor and worth nothing. The handover proposed a different fix for the same symptom — apply the Con to every option — which reaches the same numbers but multiplies a Con the sheet wrote once; rejected on the rules rather than the result. **Talon** closes exactly, Shadow moves +2 → +1, and Psidearm and Vigilant have one-option groups and correctly do not move. Super Senses is the only such group: Transformation says *"Regardless of which Transformation Power you possess"*, plural, and there is a test so this is not over-generalised.
+
+**Vector's −6, the largest gap left, was Deflection.** Its entry says you pick physical *or* energy, and *"you can double the cost of this Power and spend 2 Hero Points per rank to be able to deflect both."* His sheet reads `Deflection (Physical and Energy) 10d`, so the parenthesis was buying that for free — worth +10. The other 4 was his starting package: packages are never printed and are inferred as whichever lands the rebuild on 125, and his Superhero attribution was a closest fit made while Deflection was underpriced. With it corrected the Hero Package is the only one that fits. To keep that honest, a new test re-runs the inference for every exact Hero and asserts exactly one package works — it passes for all fifteen, so no Hero rests on a package chosen because it helped.
+
+**15 of 20 Heroes now rebuild to exactly 125**, and nothing left is more than 2 HP out, so that test's bound tightened from 6 to 2. Writing the gear validator also surfaced an ordering bug: gear that cannot be priced threw instead of reporting the gap, which the validator already guards against for Power selections. Fixed with the same pattern.
 
 ### Pros and Cons on Abilities, and what gear actually costs — [#9](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/9)
 
