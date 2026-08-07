@@ -1,6 +1,6 @@
 using ProwlersAndParagonsAutomation.Engine.Models;
 
-namespace ProwlersAndParagonsAutomation.Cli.Powers;
+namespace ProwlersAndParagonsAutomation.Sheets;
 
 /// <summary>
 /// Renders a Power's rulebook stat line — Range, Rank and Cost — the way the

@@ -1,5 +1,6 @@
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Engine.Models;
+using ProwlersAndParagonsAutomation.Sheets;
 using Spectre.Console;
 
 namespace ProwlersAndParagonsAutomation.Cli.Steps;

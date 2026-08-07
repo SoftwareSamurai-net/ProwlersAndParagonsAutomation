@@ -1,23 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+    <!-- Target framework, nullability and the analyzer contract come from the repository
+         root's Directory.Build.props, shared with every other project. -->
+
     <PropertyGroup>
         <!-- xunit.v3 test projects are executables. -->
         <OutputType>Exe</OutputType>
-        <TargetFramework>net10.0</TargetFramework>
-        <LangVersion>latest</LangVersion>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
         <RootNamespace>ProwlersAndParagonsAutomation.Tests</RootNamespace>
-        <InvariantGlobalization>false</InvariantGlobalization>
         <IsPackable>false</IsPackable>
-    </PropertyGroup>
-
-    <!-- Same analyzer contract as the main project: warnings become errors in CI only. -->
-    <PropertyGroup>
-        <EnableNETAnalyzers>true</EnableNETAnalyzers>
-        <AnalysisLevel>latest-recommended</AnalysisLevel>
-        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-        <TreatWarningsAsErrors Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</TreatWarningsAsErrors>
     </PropertyGroup>
 
     <ItemGroup>
@@ -27,6 +17,9 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- The CLI, which brings engine and sheets with it. The suite covers all three:
+             it asserts on the rules data, on the engine's arithmetic, and on the text
+             sheet the exporter writes. -->
         <ProjectReference Include="..\..\ProwlersAndParagonsAutomation.csproj" />
     </ItemGroup>
 

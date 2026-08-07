@@ -1,0 +1,22 @@
+<Project>
+
+    <!-- Shared by every project in the repository. There are four now — engine, sheets,
+         cli and web — and the analyzer contract has to be identical across them or CI's
+         strictness would depend on which project a file happened to live in. -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <InvariantGlobalization>false</InvariantGlobalization>
+    </PropertyGroup>
+
+    <!-- Static analysis. Warnings become errors only in CI so local iteration stays fast. -->
+    <PropertyGroup>
+        <EnableNETAnalyzers>true</EnableNETAnalyzers>
+        <AnalysisLevel>latest-recommended</AnalysisLevel>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+        <TreatWarningsAsErrors Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+</Project>
