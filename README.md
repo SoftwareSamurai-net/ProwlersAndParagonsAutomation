@@ -111,6 +111,7 @@ ProwlersAndParagonsAutomation/
 ├── output/                       # Generated character sheets (gitignored)
 ├── PROGRESS.md                   # What is done and what remains — kept current
 ├── docs/RULES_EXTRACTION_GUIDE.md
+├── docs/HANDOVER-blazor-front-end.md  # next slice; delete when done
 └── Program.cs                    # Entry point
 ```
 
@@ -127,7 +128,7 @@ data/rules/   →   engine/   →   cli/
 | Layer | Rule |
 |---|---|
 | `data/rules/` | JSON only. No logic lives here. |
-| `engine/` | Pure C#, zero Spectre.Console references. `CostCalculator` and `CharacterValidator` are the authority on cost and validity. |
+| `engine/` | Pure C#, zero Spectre.Console references and no filesystem coupling — rules arrive through `IRulesSource`, so the same assembly runs in a browser. `CostCalculator` and `CharacterValidator` are the authority on cost and validity. |
 | `cli/` | Rendering and prompting only. **The CLI never tallies points itself.** |
 
 ---
@@ -333,7 +334,7 @@ The short version of what is left, most-unblocking first:
 2. **Sources on Abilities and Talents** — Powers have them; Abilities of 7d+ still need one.
 3. **Establish a Qodana baseline** so only *new* problems fail CI.
 4. **Extract the remaining rulebook chapters** (3–9).
-5. **Web SPA front end** for softwaresamurai.net — the `data → engine → cli` split exists to make this possible without touching rules logic.
+5. **Blazor WebAssembly front end** for softwaresamurai.net — the engine compiles to WASM and runs as the same code in the browser, so cost and validation are never reimplemented. Hero and Villain palettes ship with it.
 6. **Assisted character creation from a description**, with the engine validating whatever a model proposes.
 7. **Printable character sheet** — blue/white for Heroes, black/red for Villains.
 8. **Choose and apply a licence** — see [License](#license).
