@@ -17,11 +17,33 @@ public sealed class CostCalculator
     /// <summary>
     /// HP spent on abilities, 1 per rank. A package already covers every ability up to
     /// its own rank, so only the ranks bought above that are charged again here.
+    ///
+    /// <para>Abilities can carry Pros and Cons of their own. Overkill on Might is the
+    /// rulebook's Brute Option, which halves it; other modifiers are flat. An Ability
+    /// never costs less than nothing, however many Cons are piled on it.</para>
     /// </summary>
     public int AbilityCost(CharacterSheet sheet)
     {
         var covered = SelectedPackage(sheet)?.AbilitiesRank ?? 0;
-        return sheet.AbilityRanks.Values.Sum(rank => Math.Max(0, rank - covered));
+
+        return sheet.AbilityRanks.Sum(entry =>
+        {
+            var chargeable = Math.Max(0, entry.Value - covered);
+            if (chargeable == 0) return 0;
+
+            var modifiers = sheet.AbilityModifiers.GetValueOrDefault(entry.Key) ?? [];
+
+            // The Brute Option: Overkill on Might buys it at 1 HP per 2 ranks.
+            var cost = modifiers.Any(m => m.Id is "overkill" or "weak")
+                ? (int)Math.Ceiling(chargeable / 2.0)
+                : chargeable;
+
+            var flat = modifiers
+                .Where(m => m.Id is not ("overkill" or "weak"))
+                .Sum(m => _rules.GetCon(m.Id) is not null ? ResolveConCost(m) : ResolveProCost(m));
+
+            return Math.Max(0, cost + flat);
+        });
     }
 
     // ── Talents ──────────────────────────────────────────────────────────

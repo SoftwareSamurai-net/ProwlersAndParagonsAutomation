@@ -36,7 +36,7 @@ dotnet test
 - The suite loads the **real** `data/rules/*.json` via `RulesFixture`, not hand-built fixtures. That is deliberate: its main job is to catch a rules file drifting away from the rulebook.
 - `CanonicalPowers.cs` is the transcribed Range/Rank/Cost of all 141 Powers, and `RulesDataTests` holds the tier/ability/talent/pro/con/perk/flaw values. **Do not "fix" a failing test by editing these to match the code** — they are the rulebook. Check the page named in the entry's `source_ref` and fix whichever side is wrong.
 - `PrebuiltHeroes.cs` transcribes the 20 published Heroes from Ch.8 and `PrebuiltHeroTests` rebuilds each one, asserting the printed Edge, Health and Resolve. Same rule applies: those numbers are the authors', not ours. They are the only tests that check the rules as *applied* rather than as transcribed, so a failure there usually means a rule was misread, not that a number is stale.
-- **12 of the 20 Heroes rebuild to exactly 125 Hero Points** and are asserted as such. The other eight are held at a recorded residual in `PrebuiltHeroes.BuildByHero`, mostly Ch.6 gear that is not modelled. Do not tune an ambiguous variant just to force one of those to zero — that is fitting the model to the answer. Fix the underlying gap instead.
+- **13 of the 20 Heroes rebuild to exactly 125 Hero Points** and are asserted as such. The other seven are held at a recorded residual in `PrebuiltHeroes.BuildByHero`. Do not tune an ambiguous variant just to force one of those to zero — that is fitting the model to the answer. Fix the underlying gap instead.
 - The package each Hero used is inferred, not printed. For the twelve exact ones only one package lands the total on the point, so it is safe; for the rest it is the closest fit.
 
 The root `.csproj` sits at the repository root, so it carries `<Compile Remove="tests\**" />`; without it the default `**/*.cs` glob pulls the test sources into the main project.
@@ -131,6 +131,14 @@ Then pro costs and con discounts are summed in (cons are negative in the data).
 ### Starting packages
 
 A package **buys the ranks it grants** — `AbilityCost`/`TalentCost` only charge for ranks above the package's own rank. The Superhero Package is 50 HP for 3d in six Abilities and twelve Talents, which is 54 bought separately; the rulebook sells packages "at a small discount", so charging the price on top of full-rate ranks double-pays and makes a package strictly worse than none. That was a real bug, found because seven published Heroes came out exactly 4 HP over — the Superhero discount.
+
+### Pros and Cons on Abilities
+
+Abilities can carry them too, not just Powers — `CharacterSheet.AbilityModifiers`. Overkill on Might is the Brute Option and halves it; everything else is flat, floored at 0. Only ranks the package does not already cover are discountable.
+
+### Gear costs nothing (mostly)
+
+Ch.6: mundane gear is free and **explicitly not tracked**, so `ChooseGearStep` taking free text with no HP cost is correct — do not "fix" it. A Gear Limit caps the Trait rank usable with mundane gear (6d default); it is not a budget. Signature equipment is a Power with the Item Con. The one real gap is custom *features* on mundane gear (Upgraded, Silenced, Accurate…) at 1-6 HP each, which are not modelled.
 
 ### Perk cost formula
 
