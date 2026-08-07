@@ -399,10 +399,74 @@ public sealed class CostCalculator
     public int TotalPerksCost(CharacterSheet sheet) =>
         sheet.Perks.Sum(PerkCost);
 
+    // ── Gear ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// HP cost of one piece of gear: its custom features, plus any Pros and Cons applied
+    /// to it, which "cost the same when applied to gear as when applied to Powers".
+    ///
+    /// <para>The gear itself is free. Ch.6 is explicit that mundane gear is not tracked at
+    /// all, so an item with nothing bought for it costs nothing, and this returns 0.</para>
+    ///
+    /// <para>Gear has its own floor and it is not a Power's: "Regardless of Cons, no piece
+    /// of gear can cost less than 0 Hero Points (in other words, no piece of gear will end
+    /// up granting you extra Hero Points)." So Cons discount an item down to free and stop,
+    /// where a Power floors at 1.</para>
+    ///
+    /// <para>The Item Con is not charged or credited here. Ch.6 says "As physical objects,
+    /// every piece of gear has the Item Con" — a statement of what gear is, not a discount
+    /// to claim, and Item is absent from the list of Cons the same page says are commonly
+    /// applied to gear. Crediting it would make every 1 HP feature free and leave the
+    /// printed prices meaningless.</para>
+    /// </summary>
+    public int GearCost(SelectedGear gear)
+    {
+        var features = gear.Features.Sum(FeatureCost);
+        var modifiers = gear.Pros.Sum(ResolveProCost) + gear.Cons.Sum(ResolveConCost);
+
+        return Math.Max(0, features + modifiers);
+    }
+
+    private int FeatureCost(SelectedGearFeature selection)
+    {
+        var feature = _rules.GetGearFeature(selection.FeatureId)
+            ?? throw new InvalidOperationException($"Unknown gear feature id '{selection.FeatureId}'.");
+
+        if (feature.CostType == "flat")
+            return feature.Cost
+                ?? throw new InvalidOperationException(
+                       $"Gear feature '{feature.Id}' has cost_type 'flat' but no cost.");
+
+        var grades = feature.CostRange
+            ?? throw new InvalidOperationException(
+                   $"Gear feature '{feature.Id}' has cost_type '{feature.CostType}' but no cost_range.");
+
+        var key = selection.GradeKey
+            ?? throw new InvalidOperationException(
+                   $"Gear feature '{feature.Name}' is graded and needs a grade. " +
+                   $"Valid keys: {string.Join(", ", grades.Keys)}");
+
+        if (grades.TryGetValue(key, out var cost)) return cost;
+
+        throw new InvalidOperationException(
+            $"Gear feature '{feature.Name}' has no grade '{key}'. " +
+            $"Valid keys: {string.Join(", ", grades.Keys)}");
+    }
+
+    /// <summary>
+    /// Total HP spent on gear. Nearly always 0 — only customised items cost anything.
+    ///
+    /// <para>Two-Fisted lets a matched pair of weapons be customised "for the price of
+    /// one". A pair is recorded as a single item with
+    /// <see cref="SelectedGear.PairedUnderTwoFisted"/> set, so it is already charged once
+    /// and needs no arithmetic of its own.</para>
+    /// </summary>
+    public int TotalGearCost(CharacterSheet sheet) => sheet.Gear.Sum(GearCost);
+
     // ── Total ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Grand total HP spend: package + abilities + talents + powers.
+    /// Grand total HP spend: package + abilities + talents + powers + perks + gear.
     /// This is compared against the tier's HeroPoints budget by CharacterValidator.
     /// </summary>
     public int TotalCost(CharacterSheet sheet)
@@ -411,7 +475,8 @@ public sealed class CostCalculator
              + AbilityCost(sheet)
              + TalentCost(sheet)
              + TotalPowersCost(sheet)
-             + TotalPerksCost(sheet);
+             + TotalPerksCost(sheet)
+             + TotalGearCost(sheet);
     }
 
     // ── Private ──────────────────────────────────────────────────────────

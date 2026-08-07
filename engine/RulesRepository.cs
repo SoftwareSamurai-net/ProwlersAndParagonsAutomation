@@ -29,6 +29,7 @@ public sealed class RulesRepository
     private IReadOnlyList<ConModel>? _cons;
     private IReadOnlyList<FlawModel>? _flaws;
     private IReadOnlyList<PerkModel>? _perks;
+    private IReadOnlyList<GearFeatureModel>? _gearFeatures;
     private CreationRulesModel? _creationRules;
 
     // Lookup dictionaries (built on first use)
@@ -40,6 +41,7 @@ public sealed class RulesRepository
     private Dictionary<string, ConModel>? _conMap;
     private Dictionary<string, FlawModel>? _flawMap;
     private Dictionary<string, PerkModel>? _perkMap;
+    private Dictionary<string, GearFeatureModel>? _gearFeatureMap;
 
     public RulesRepository(string dataRulesPath)
     {
@@ -79,6 +81,13 @@ public sealed class RulesRepository
     public IReadOnlyList<PerkModel> Perks =>
         _perks ??= Load<List<PerkModel>>("perks.json");
 
+    /// <summary>
+    /// Custom features that can be bought for a piece of mundane gear (Ch.6, p.92). The
+    /// gear itself is free; these are the only part of it that costs Hero Points.
+    /// </summary>
+    public IReadOnlyList<GearFeatureModel> GearFeatures =>
+        _gearFeatures ??= Load<List<GearFeatureModel>>("gear_features.json");
+
     public CreationRulesModel CreationRules =>
         _creationRules ??= Load<CreationRulesModel>("creation_rules.json");
 
@@ -107,6 +116,9 @@ public sealed class RulesRepository
 
     public PerkModel? GetPerk(string id) =>
         (_perkMap ??= Perks.ToDictionary(x => x.Id)).GetValueOrDefault(id);
+
+    public GearFeatureModel? GetGearFeature(string id) =>
+        (_gearFeatureMap ??= GearFeatures.ToDictionary(x => x.Id)).GetValueOrDefault(id);
 
     // ── Private helpers ───────────────────────────────────────────────────
 

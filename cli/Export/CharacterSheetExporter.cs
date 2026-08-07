@@ -44,7 +44,7 @@ public sealed class CharacterSheetExporter
         WritePowers(sb, sheet, rules, costs, derived);
         WritePerks(sb, sheet, rules, costs);
         WriteFlaws(sb, sheet, rules);
-        WriteGear(sb, sheet);
+        WriteGear(sb, sheet, rules, costs);
         WriteDerived(sb, sheet, derived);
         WriteNarrative(sb, sheet);
         WriteValidation(sb, validation);
@@ -172,7 +172,20 @@ public sealed class CharacterSheetExporter
                     ["narrative_detail"] = sf.NarrativeDetail
                 };
             }).ToArray()),
-            ["gear"] = new JsonArray(sheet.Gear.Select(g => (JsonNode)JsonValue.Create(g)!).ToArray()),
+            ["gear"] = new JsonArray(sheet.Gear.Select(g => (JsonNode)new JsonObject
+            {
+                ["name"]     = g.Name,
+                ["cost"]     = costs.GearCost(g),
+                ["paired_under_two_fisted"] = g.PairedUnderTwoFisted,
+                ["features"] = new JsonArray(g.Features.Select(f => (JsonNode)new JsonObject
+                {
+                    ["id"]    = f.FeatureId,
+                    ["name"]  = rules.GetGearFeature(f.FeatureId)?.Name ?? f.FeatureId,
+                    ["grade"] = f.GradeKey
+                }).ToArray()),
+                ["pros"] = new JsonArray(g.Pros.Select(p => (JsonNode)JsonValue.Create(p.Id)!).ToArray()),
+                ["cons"] = new JsonArray(g.Cons.Select(c => (JsonNode)JsonValue.Create(c.Id)!).ToArray())
+            }).ToArray()),
             ["derived"] = new JsonObject
             {
                 ["edge"]    = derived.CalculateEdge(sheet),
@@ -336,14 +349,23 @@ public sealed class CharacterSheetExporter
         sb.AppendLine();
     }
 
-    private static void WriteGear(StringBuilder sb, CharacterSheet sheet)
+    private static void WriteGear(StringBuilder sb, CharacterSheet sheet,
+        RulesRepository rules, CostCalculator costs)
     {
         sb.AppendLine("─── GEAR ───────────────────────────────────────────────────");
         if (sheet.Gear.Count == 0)
+        {
             sb.AppendLine("  (none)");
+        }
         else
+        {
             foreach (var item in sheet.Gear)
-                sb.AppendLine($"  • {item}");
+                sb.AppendLine($"  • {GearFormatter.Describe(item, rules, costs)}");
+
+            // Mundane gear is free, so this is 0 unless something was customised.
+            var spent = costs.TotalGearCost(sheet);
+            if (spent > 0) sb.AppendLine($"  Gear total: {spent} HP");
+        }
         sb.AppendLine();
     }
 

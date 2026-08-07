@@ -53,9 +53,13 @@ public sealed class CharacterValidator
         CheckPowerRanks(sheet, issues);
         var selectionsResolvable = CheckPowerSelections(sheet, issues);
 
+        // Same reason, for gear: an unknown feature or a graded one with no grade cannot
+        // be priced, so the gap has to be reported before anything asks for a total.
+        var gearResolvable = CheckGear(sheet, issues);
+
         if (tier is not null)
         {
-            if (selectionsResolvable) CheckHpBudget(sheet, tier, issues);
+            if (selectionsResolvable && gearResolvable) CheckHpBudget(sheet, tier, issues);
             CheckTraitCap(sheet, tier, issues);
             CheckIconicTier(tier, issues);
         }
@@ -141,6 +145,62 @@ public sealed class CharacterValidator
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_FLAW",
                     $"Flaw '{sf.FlawId}' is not defined in flaws.json."));
         }
+    }
+
+    /// <summary>
+    /// Custom gear (Ch.6, p.92). Mundane gear is free and untracked, so an uncustomised
+    /// item is never an issue; these only bite once Hero Points are involved.
+    ///
+    /// <para>Returns false if any item cannot be priced at all, which stops the caller
+    /// asking for a total that would throw.</para>
+    /// </summary>
+    private bool CheckGear(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        var resolvable = true;
+
+        foreach (var gear in sheet.Gear)
+        {
+            var itemResolvable = true;
+
+            foreach (var f in gear.Features)
+            {
+                var feature = _rules.GetGearFeature(f.FeatureId);
+                if (feature is null)
+                {
+                    issues.Add(new(ValidationSeverity.Error, "UNKNOWN_GEAR_FEATURE",
+                        $"Gear '{gear.Name}' has feature '{f.FeatureId}', " +
+                        "which is not defined in gear_features.json."));
+                    itemResolvable = false;
+                    continue;
+                }
+
+                if (feature.CostType != "flat" && f.GradeKey is null)
+                {
+                    issues.Add(new(ValidationSeverity.Error, "GEAR_FEATURE_NEEDS_GRADE",
+                        $"'{feature.Name}' on '{gear.Name}' is priced by grade and none was chosen. " +
+                        $"Valid grades: {string.Join(", ", feature.CostRange?.Keys ?? [])}."));
+                    itemResolvable = false;
+                }
+            }
+
+            resolvable &= itemResolvable;
+
+            // "Regardless of Cons, no piece of gear can cost less than 0 Hero Points."
+            // Cons past that point buy the character nothing, so say so rather than
+            // letting a player think they are still saving.
+            if (itemResolvable && gear.Cons.Count > 0 && _costs.GearCost(gear) == 0)
+                issues.Add(new(ValidationSeverity.Warning, "GEAR_COST_AT_MINIMUM",
+                    $"Gear '{gear.Name}' is already free after its cons. " +
+                    "No piece of gear can cost less than 0 HP, so further cons will not help."));
+
+            // Two-Fisted is what allows a matched pair to be customised for one price.
+            if (gear.PairedUnderTwoFisted && !sheet.HasPower("two_fisted"))
+                issues.Add(new(ValidationSeverity.Error, "TWO_FISTED_PAIR_WITHOUT_POWER",
+                    $"Gear '{gear.Name}' is recorded as a Two-Fisted pair, but the character " +
+                    "does not have the Two-Fisted Power that allows paying once for both."));
+        }
+
+        return resolvable;
     }
 
     private void CheckPowerCosts(CharacterSheet sheet, List<ValidationIssue> issues)
