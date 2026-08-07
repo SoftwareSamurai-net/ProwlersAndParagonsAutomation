@@ -1,0 +1,43 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject CharacterSession Session
+@inject IJSRuntime Js
+
+<header class="banner">
+    <div class="banner-title">
+        Prowlers &amp; Paragons
+        <small>Character creation — @(Session.Mode == SheetMode.Hero ? "Hero" : "Villain")</small>
+    </div>
+
+    <div class="mode-switch" role="group" aria-label="Sheet mode">
+        <button type="button"
+                aria-pressed="@(Session.Mode == SheetMode.Hero)"
+                @onclick="() => SetMode(SheetMode.Hero)">Hero</button>
+        <button type="button"
+                aria-pressed="@(Session.Mode == SheetMode.Villain)"
+                @onclick="() => SetMode(SheetMode.Villain)">Villain</button>
+    </div>
+</header>
+
+<main class="shell">
+    <StepNav />
+    <HpBudgetBar />
+    @Body
+</main>
+
+@code {
+    protected override void OnInitialized() => Session.Changed += StateHasChanged;
+
+    /// <summary>
+    /// The palette is a data-mode attribute on the document element, set through interop
+    /// rather than by re-rendering: it has to reach index.html's own markup, which is
+    /// outside the component tree.
+    /// </summary>
+    private async Task SetMode(SheetMode mode)
+    {
+        Session.Mode = mode;
+        await Js.InvokeVoidAsync("ppSetMode", mode == SheetMode.Hero ? "hero" : "villain");
+    }
+
+    public void Dispose() => Session.Changed -= StateHasChanged;
+}

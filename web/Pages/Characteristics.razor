@@ -1,0 +1,57 @@
+@page "/characteristics"
+@implements IDisposable
+@inject CharacterSession Session
+
+<PageTitle>Characteristics — Prowlers &amp; Paragons</PageTitle>
+
+<h1>Buy characteristics</h1>
+
+@if (Session.Sheet.SelectedTierId is null)
+{
+    <div class="panel">
+        <p>Choose a tier first — it sets the budget and the Trait Cap everything here is measured against.</p>
+        <a class="btn primary" href="">Back to tiers</a>
+    </div>
+}
+else
+{
+    <div class="tabs" role="tablist">
+        @foreach (var tab in Tabs)
+        {
+            <button type="button" role="tab" aria-selected="@(_tab == tab.Key)" @onclick="() => _tab = tab.Key">
+                @tab.Label <span class="tab-count">@tab.Count()</span>
+            </button>
+        }
+    </div>
+
+    @switch (_tab)
+    {
+        case "abilities": <AbilitiesTab />; break;
+        case "talents":   <TalentsTab />;   break;
+        case "powers":    <PowersTab />;    break;
+        case "perks":     <PerksTab />;     break;
+        default:          <FlawsTab />;     break;
+    }
+
+    <StepButtons Back="" BackLabel="Tier" Next="gear" NextLabel="Gear" />
+}
+
+@code {
+    private string _tab = "abilities";
+
+    // The tab strip counts what the tabs contain, so it has to redraw when one of them
+    // changes something — a Power added inside PowersTab moves the Powers count here.
+    protected override void OnInitialized() => Session.Changed += StateHasChanged;
+
+    public void Dispose() => Session.Changed -= StateHasChanged;
+
+    private sealed record Tab(string Key, string Label, Func<string> Count);
+
+    private Tab[] Tabs => [
+        new("abilities", "Abilities", () => $"{Session.Costs.AbilityCost(Session.Sheet)} HP"),
+        new("talents",   "Talents",   () => $"{Session.Costs.TalentCost(Session.Sheet)} HP"),
+        new("powers",    "Powers",    () => $"{Session.Sheet.SelectedPowers.Count}"),
+        new("perks",     "Perks",     () => $"{Session.Sheet.Perks.Count}"),
+        new("flaws",     "Flaws",     () => $"{Session.Sheet.Flaws.Count}"),
+    ];
+}

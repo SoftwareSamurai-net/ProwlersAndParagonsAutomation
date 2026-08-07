@@ -15,3 +15,7 @@ output/
 # copyright LakeSide Games and must not be redistributed with this tool, so this is
 # deliberately broad rather than scoped to docs/. CI fails the build if one is tracked.
 *.pdf
+
+# Rules data staged into the browser build. data/rules/ is the one copy in the repository;
+# web/ProwlersAndParagons.Web.csproj copies it here so the static site can serve it.
+web/wwwroot/data/

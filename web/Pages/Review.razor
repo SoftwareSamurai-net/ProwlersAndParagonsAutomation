@@ -1,0 +1,102 @@
+@page "/review"
+@inject CharacterSession Session
+@inject IJSRuntime Js
+
+<PageTitle>GM review — Prowlers &amp; Paragons</PageTitle>
+
+<h1>GM review</h1>
+
+<section class="panel no-print">
+    <div class="panel-head">
+        <h2>Validation</h2>
+        <span class="verdict @(Validation.IsValid ? "" : "invalid")">
+            @(Validation.IsValid ? "Legal" : "Not legal yet")
+        </span>
+    </div>
+
+    @if (Issues.Count == 0)
+    {
+        <p class="small muted">Nothing to report.</p>
+    }
+    else
+    {
+        <ul class="issues">
+            @foreach (var issue in Issues)
+            {
+                <li class="@(issue.Severity == ValidationSeverity.Error ? "error" : "warning")">
+                    @issue.Message
+                    <div><code>@issue.Code</code></div>
+                </li>
+            }
+        </ul>
+    }
+
+    @if (!Session.ShowBudget)
+    {
+        <p class="small muted">
+            Villain mode: Ch.9 gives Villains no Hero Point budget, so budget findings are
+            not shown. Everything else — Trait Caps, flaw counts, unpriceable selections —
+            still applies, because a Villain is built by exactly the same rules.
+        </p>
+    }
+</section>
+
+<section class="panel no-print">
+    <div class="panel-head">
+        <h2>Export</h2>
+        <span class="muted small">The same two documents the terminal wizard writes</span>
+    </div>
+    <div class="inline">
+        <button type="button" class="btn primary" @onclick="DownloadText">Download .txt</button>
+        <button type="button" class="btn" @onclick="DownloadJson">Download .json</button>
+        <button type="button" class="btn" @onclick="Print">Print this sheet</button>
+    </div>
+    <p class="small muted" style="margin-top:0.5rem">
+        Both are built by <code>CharacterSheetRenderer</code> in the shared sheets layer, so
+        they are byte-for-byte what <code>dotnet run</code> produces for the same character.
+    </p>
+</section>
+
+<SheetView />
+
+<StepButtons Back="finishing" BackLabel="Finishing touches" />
+
+@code {
+    private ValidationResult Validation => Session.Validate();
+
+    /// <summary>
+    /// Budget findings are hidden in Villain mode because a Villain has no budget to
+    /// exceed. This filters the display and nothing else — the validator is not told
+    /// about the mode, so the rules stay in one place and the JSON export still records
+    /// every issue.
+    /// </summary>
+    private List<ValidationIssue> Issues =>
+        Validation.Issues
+            .Where(i => Session.ShowBudget || i.Code != "HP_BUDGET_EXCEEDED")
+            .ToList();
+
+    private Task Print() => Js.InvokeVoidAsync("print").AsTask();
+
+    private Task DownloadText() =>
+        Download(".txt", "text/plain;charset=utf-8", CharacterSheetRenderer.RenderText);
+
+    private Task DownloadJson() =>
+        Download(".json", "application/json;charset=utf-8", CharacterSheetRenderer.RenderJson);
+
+    private delegate string Render(
+        CharacterSheet sheet, RulesRepository rules, CostCalculator costs,
+        DerivedStatsCalculator derived, ValidationResult validation, DateTime generatedAt);
+
+    /// <summary>
+    /// One timestamp for both the file name and the document, so the two agree — the CLI's
+    /// exporter stamps them together for the same reason.
+    /// </summary>
+    private Task Download(string extension, string mimeType, Render render)
+    {
+        var generatedAt = DateTime.Now;
+        var name = CharacterSheetRenderer.BaseFileName(Session.Sheet, generatedAt) + extension;
+        var body = render(Session.Sheet, Session.Rules, Session.Costs, Session.Derived, Validation, generatedAt);
+
+        return Js.InvokeVoidAsync("ppDownload", name, mimeType, body).AsTask();
+    }
+}

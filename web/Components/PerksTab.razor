@@ -1,0 +1,140 @@
+@inject CharacterSession Session
+
+<section class="panel">
+    <div class="panel-head">
+        <h2>Perks</h2>
+        <span class="muted small">Social advantages from the world around you — no ranks, no Pros or Cons</span>
+        <span class="cost">@Session.Costs.TotalPerksCost(Session.Sheet) HP</span>
+    </div>
+
+    @if (Session.Sheet.Perks.Count == 0)
+    {
+        <p class="small muted">None. Perks are optional.</p>
+    }
+    else
+    {
+        <ul class="chosen">
+            @foreach (var sp in Session.Sheet.Perks.ToList())
+            {
+                <li>
+                    <div class="body">
+                        <div>
+                            <b>@(Session.Rules.GetPerk(sp.PerkId)?.Name ?? sp.PerkId)</b>
+                            @if (sp.Units > 1)
+                            {
+                                <span class="muted"> ×@sp.Units</span>
+                            }
+                        </div>
+                        @if (sp.NarrativeDetail is not null)
+                        {
+                            <div class="small muted">@sp.NarrativeDetail</div>
+                        }
+                    </div>
+                    <span class="cost">@Session.Costs.PerkCost(sp) HP</span>
+                    <button type="button" class="btn small danger" @onclick="() => Remove(sp)">Remove</button>
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+@if (_pending is { } perk)
+{
+    <section class="panel">
+        <div class="panel-head"><h3>@perk.Name</h3></div>
+        <p class="small">@perk.Description</p>
+
+        @if (perk.CostType == "per_unit")
+        {
+            <div class="field">
+                <label for="pk-units">
+                    How many @(perk.UnitLabel ?? "unit")s? (@perk.CostPerUnit HP each)
+                </label>
+                <input id="pk-units" type="number" min="1" @bind="_units" />
+            </div>
+        }
+
+        @if (perk.NarrativeConstraint is not null)
+        {
+            <div class="field">
+                <label for="pk-detail">@perk.NarrativeConstraint</label>
+                <input id="pk-detail" type="text" @bind="_detail" @bind:event="oninput" style="width:100%" />
+            </div>
+        }
+
+        <div class="inline">
+            <button type="button" class="btn primary" disabled="@(!CanAdd(perk))" @onclick="() => Add(perk)">Add perk</button>
+            <button type="button" class="btn" @onclick="() => _pending = null">Cancel</button>
+        </div>
+    </section>
+}
+else
+{
+    <section class="panel">
+        <div class="panel-head"><h3>Add a perk</h3></div>
+        <div class="options">
+            @foreach (var option in Available)
+            {
+                <button type="button" class="option" @onclick="() => Begin(option)">
+                    <span class="body">
+                        <span class="name">@option.Name</span>
+                        <span class="caveat">@option.Description</span>
+                    </span>
+                    <span class="cost">
+                        @(option.CostType == "flat"
+                            ? $"{option.Cost} HP"
+                            : $"{option.CostPerUnit} HP per {option.UnitLabel ?? "unit"}")
+                    </span>
+                </button>
+            }
+        </div>
+        @if (Available.Count == 0)
+        {
+            <p class="small muted">Every perk is already on the sheet.</p>
+        }
+    </section>
+}
+
+@code {
+    private PerkModel? _pending;
+    private int _units = 1;
+    private string _detail = "";
+
+    private List<PerkModel> Available =>
+        Session.Rules.Perks
+            .Where(p => Session.Sheet.Perks.All(sp => sp.PerkId != p.Id))
+            .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    private void Begin(PerkModel perk)
+    {
+        _pending = perk;
+        _units   = 1;
+        _detail  = "";
+    }
+
+    /// <summary>
+    /// A perk that states a narrative constraint needs an answer before it means anything
+    /// — "Contacts" with no contact type named is not a perk, it is a blank. The CLI
+    /// refuses an empty answer for the same reason.
+    /// </summary>
+    private bool CanAdd(PerkModel perk) =>
+        perk.NarrativeConstraint is null || !string.IsNullOrWhiteSpace(_detail);
+
+    private void Add(PerkModel perk)
+    {
+        Session.Sheet.Perks.Add(new SelectedPerk(
+            perk.Id,
+            perk.CostType == "per_unit" ? Math.Max(1, _units) : 1,
+            string.IsNullOrWhiteSpace(_detail) ? null : _detail.Trim()));
+
+        _pending = null;
+        Session.NotifyChanged();
+    }
+
+    private void Remove(SelectedPerk sp)
+    {
+        Session.Sheet.Perks.Remove(sp);
+        Session.NotifyChanged();
+    }
+}

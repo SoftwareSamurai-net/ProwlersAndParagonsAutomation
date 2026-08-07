@@ -1,0 +1,288 @@
+@* Adds and removes Pros and Cons.
+
+   Which generic options are on offer is ProConApplicability's answer, never this
+   component's: the rulebook states applicability inside each option ("This Pro applies to
+   Zone Powers"), not inside the Power, and the per-Power lists that used to exist here
+   were invented and wrong. Anything the option states that the data cannot check travels
+   as a caveat shown beside it — a caveat must never become a filter, and there is a test
+   in the engine's suite that says so.
+
+   A Power's own Pros and Cons come first, marked, because they are printed in its
+   rulebook entry and are what a player reading the book expects to be offered. *@
+
+<div class="field">
+    <label>@(IsPro ? "Pros" : "Cons")</label>
+
+    @if (Selected.Count == 0)
+    {
+        <p class="small muted">None.</p>
+    }
+    else
+    {
+        <ul class="chosen">
+            @foreach (var choice in Selected.ToList())
+            {
+                <li>
+                    <div class="body">
+                        <b>@DisplayName(choice.Id)</b>
+                        @if (choice.VariantKey is not null)
+                        {
+                            <span class="muted small"> — @Humanise(choice.VariantKey)</span>
+                        }
+                        @if (choice.Units is { } u)
+                        {
+                            <span class="muted small"> ×@u</span>
+                        }
+                        @if (Own(choice.Id) is not null)
+                        {
+                            <span class="tag own">this Power</span>
+                        }
+                    </div>
+                    <button type="button" class="btn small danger" @onclick="() => Remove(choice)">Remove</button>
+                </li>
+            }
+        </ul>
+    }
+
+    @if (_pending is null)
+    {
+        <button type="button" class="btn small" @onclick="() => _adding = !_adding">
+            @(_adding ? "Cancel" : $"Add a {(IsPro ? "Pro" : "Con")}")
+        </button>
+    }
+
+    @if (_adding && _pending is null)
+    {
+        <div class="options" style="margin-top:0.5rem">
+            @foreach (var own in OwnEntries)
+            {
+                <button type="button" class="option" @onclick="() => Begin(own.Id)">
+                    <span class="body">
+                        <span class="name">@own.Name <span class="tag own">this Power</span></span>
+                        <span class="caveat">@own.Description</span>
+                    </span>
+                    <span class="cost">@PowerProConCost(own)</span>
+                </button>
+            }
+            @foreach (var option in GenericOptions)
+            {
+                <button type="button" class="option" @onclick="() => Begin(option.Id)">
+                    <span class="body">
+                        <span class="name">@option.Name</span>
+                        @if (option.ApplicabilityCaveat is not null)
+                        {
+                            <span class="caveat">@option.ApplicabilityCaveat The GM decides.</span>
+                        }
+                    </span>
+                    <span class="cost">@GenericCost(option)</span>
+                </button>
+            }
+        </div>
+    }
+
+    @if (_pending is { } pending)
+    {
+        <div class="panel" style="margin-top:0.5rem">
+            <b>@DisplayName(pending.Id)</b>
+
+            @if (VariantsFor(pending.Id) is { Count: > 0 } variants)
+            {
+                <div class="field">
+                    <label for="pcv">This one is graded — which version?</label>
+                    <select id="pcv" @bind="_variantKey">
+                        <option value="">Choose…</option>
+                        @foreach (var v in variants)
+                        {
+                            <option value="@v.Key">@Humanise(v.Key) — @v.Value</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (NeedsUnits(pending.Id))
+            {
+                <div class="field">
+                    <label for="pcu">How many @(Own(pending.Id)?.CostUnitLabel ?? "unit")s?</label>
+                    <input id="pcu" type="number" min="1" @bind="_units" />
+                </div>
+            }
+
+            <div class="inline">
+                <button type="button" class="btn primary small" disabled="@(!CanConfirm())" @onclick="Confirm">Add</button>
+                <button type="button" class="btn small" @onclick="() => _pending = null">Cancel</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>What the Pros and Cons are being applied to.</summary>
+    public enum Target
+    {
+        /// <summary>A Power. Range and rank-type constraints apply, via ProConApplicability.</summary>
+        Power,
+
+        /// <summary>
+        /// An Ability. The rulebook allows this — Overkill on Might is the Brute Option,
+        /// and Stronghold buys four Abilities through his armour with the Item Con — and
+        /// each option's own entry says whether it can be. Exactly two Cons and no Pros
+        /// name Abilities, which is why this is a filter rather than the whole list.
+        /// </summary>
+        Ability,
+
+        /// <summary>
+        /// A piece of gear. Ch.6: Pros and Cons "cost the same when applied to gear as
+        /// when applied to Powers", and the page names no further constraint, so the
+        /// Power list stands. Gear floors at 0 HP rather than 1, but that is
+        /// CostCalculator's business, not this component's.
+        /// </summary>
+        Gear
+    }
+
+    /// <summary>The Power these apply to. Null unless <see cref="Scope"/> is Power.</summary>
+    [Parameter] public PowerModel? Power { get; set; }
+
+    [Parameter] public Target Scope { get; set; } = Target.Power;
+
+    [Parameter, EditorRequired] public List<SelectedProCon> Selected { get; set; } = [];
+    [Parameter] public bool IsPro { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    [Inject] private CharacterSession Session { get; set; } = default!;
+
+    private bool _adding;
+    private SelectedProCon? _pending;
+    private string _variantKey = "";
+    private int _units = 1;
+
+    /// <summary>
+    /// The Power's own Pros or Cons, printed inside its rulebook entry. An Ability or a
+    /// piece of gear has none — they take the generic options only.
+    /// </summary>
+    private IReadOnlyList<PowerProConModel> OwnEntries =>
+        Power is null ? [] : (IsPro ? Power.PowerPros : Power.PowerCons);
+
+    private IReadOnlyList<IGenericProCon> GenericOptions
+    {
+        get
+        {
+            var all = IsPro
+                ? Session.Rules.Pros.Cast<IGenericProCon>().ToList()
+                : Session.Rules.Cons.Cast<IGenericProCon>().ToList();
+
+            return Scope switch
+            {
+                // Range and rank type, and nothing else — see ProConApplicability.
+                Target.Power when Power is not null => IsPro
+                    ? Session.Applicability.ProsFor(Power).Cast<IGenericProCon>().ToList()
+                    : Session.Applicability.ConsFor(Power).Cast<IGenericProCon>().ToList(),
+
+                // Each option's entry says what it may be applied to. Two Cons name
+                // Abilities; no Pro does.
+                Target.Ability => all.Where(NamesAbilities).ToList(),
+
+                _ => all
+            };
+        }
+    }
+
+    private static bool NamesAbilities(IGenericProCon option) => option switch
+    {
+        ProModel p => p.ApplicableTo.Contains("abilities", StringComparer.Ordinal),
+        ConModel c => c.ApplicableTo.Contains("abilities", StringComparer.Ordinal),
+        _          => false
+    };
+
+    private PowerProConModel? Own(string id) => OwnEntries.FirstOrDefault(e => e.Id == id);
+
+    private string DisplayName(string id) =>
+        Own(id)?.Name
+        ?? (IsPro ? Session.Rules.GetPro(id)?.Name : Session.Rules.GetCon(id)?.Name)
+        ?? id;
+
+    private void Begin(string id)
+    {
+        _pending    = new SelectedProCon(id);
+        _variantKey = "";
+        _units      = 1;
+        _adding     = false;
+    }
+
+    private async Task Confirm()
+    {
+        if (_pending is null) return;
+
+        Selected.Add(new SelectedProCon(
+            _pending.Id,
+            string.IsNullOrEmpty(_variantKey) ? null : _variantKey)
+        {
+            Units = NeedsUnits(_pending.Id) ? _units : null
+        });
+
+        _pending = null;
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task Remove(SelectedProCon choice)
+    {
+        Selected.Remove(choice);
+        await OnChanged.InvokeAsync();
+    }
+
+    private bool CanConfirm() =>
+        _pending is not null
+        && (VariantsFor(_pending.Id) is not { Count: > 0 } || !string.IsNullOrEmpty(_variantKey));
+
+    /// <summary>
+    /// The grades an option offers, as label/price pairs. A Power's own entry can be
+    /// graded per rank as well as flat — Constructs' Devices is +2 HP <i>per rank</i>, so
+    /// the price shown has to say which.
+    /// </summary>
+    private Dictionary<string, string>? VariantsFor(string id)
+    {
+        if (Own(id) is { } own)
+        {
+            if (own.CostModifierRange is { } flat)
+                return flat.ToDictionary(kv => kv.Key, kv => $"{Signed(kv.Value)} HP");
+            if (own.CostPerRankRange is { } rate)
+                return rate.ToDictionary(kv => kv.Key, kv => $"{Signed(rate[kv.Key])} HP per rank");
+            return null;
+        }
+
+        var range = IsPro
+            ? Session.Rules.GetPro(id)?.CostModifierRange
+            : Session.Rules.GetCon(id)?.CostModifierRange;
+
+        return range?.ToDictionary(kv => kv.Key, kv => $"{Signed(kv.Value)} HP");
+    }
+
+    private bool NeedsUnits(string id) => Own(id)?.CostType == "per_rank_per_unit";
+
+    private string PowerProConCost(PowerProConModel e) => e.CostType switch
+    {
+        "flat"              => $"{Signed(e.CostModifier ?? 0)} HP",
+        "per_rank"          => $"{Signed(e.CostPerRank ?? 0)} HP per rank",
+        "per_unit"          => $"{Signed(e.CostPerUnit ?? 0)} HP per {e.CostUnitLabel}",
+        "per_rank_per_unit" => $"{Signed(e.CostPerRank ?? 0)} HP per rank per {e.CostUnitLabel}",
+        "flat_variable"     => "graded",
+        "per_rank_variable" => "graded, per rank",
+        _                   => e.CostType
+    };
+
+    /// <summary>
+    /// Overkill and Weak are the two options priced "special": they reduce the Power's
+    /// rate by 1 HP per rank rather than changing its total, so there is no flat figure to
+    /// print. CostCalculator applies them; saying "graded" here would be a lie.
+    /// </summary>
+    private static string GenericCost(IGenericProCon option) => option switch
+    {
+        ProModel { CostModifier: { } m } => $"{Signed(m)} HP",
+        ConModel { CostModifier: { } m } => $"{Signed(m)} HP",
+        ProModel { CostType: "special" } or ConModel { CostType: "special" } => "−1 HP per rank",
+        _                                => "graded"
+    };
+
+    private static string Signed(double value) => value > 0 ? $"+{value:0.##}" : $"{value:0.##}";
+
+    private static string Humanise(string key) => key.Replace('_', ' ');
+}

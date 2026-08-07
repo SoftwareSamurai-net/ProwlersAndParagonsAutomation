@@ -1,0 +1,72 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Two palettes, one layout.
+
+   Ch.9 builds Villains exactly like Heroes and prints no separate stat-block
+   format, so the mode is a palette swap and nothing else. Every component in
+   this app is written against the tokens below and never names a colour of its
+   own — that is what keeps the switch a one-attribute change and stops the two
+   themes drifting apart.
+
+   The roles are not interchangeable:
+
+     --primary     a FILL. Banner and bar backgrounds. Never text.
+     --on-primary  text that sits on --primary.
+     --heading     heading and active-nav TEXT.
+     --accent      pips, bar fills, focus rings. Never text.
+
+   Villain --primary (#8B0F1D) measures 2.0:1 on --surface, so using it as text
+   would be unreadable; it reads fine as a banner behind bone. Hero --accent is
+   1.8:1 for the same reason. Both are enforced by convention here, not by the
+   browser — if you restyle, re-measure rather than eyeball it.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Hero — "four-colour daylight". Bright, optimistic, newsprint primaries. */
+:root,
+:root[data-mode="hero"] {
+    --surface:      #F7F9FC;   /* page background, near-white with a cool cast */
+    --panel:        #FFFFFF;   /* stat blocks, cards                           */
+    --ink:          #0F1B2D;   /* body text — navy-black, never pure black     */
+    --heading:      #1B4F9C;   /* headings, active nav — TEXT       (7.5:1)    */
+    --primary:      #1B4F9C;   /* banner and bar FILL                          */
+    --on-primary:   #FFFFFF;   /* text on --primary                 (7.9:1)    */
+    --accent:       #E8B923;   /* pips, bar fill, focus rings — NEVER text     */
+    --danger:       #C0392B;   /* over budget, validation errors    (5.2:1)    */
+    --rule:         #C9D6E8;   /* hairlines between sections                   */
+
+    /* Derived from the palette rather than added to it, so a new theme only has
+       to state the nine tokens above. */
+    --muted:        color-mix(in srgb, var(--ink) 58%, var(--surface));
+    --panel-sunk:   color-mix(in srgb, var(--panel) 92%, var(--ink));
+    --accent-soft:  color-mix(in srgb, var(--accent) 22%, var(--panel));
+    --danger-soft:  color-mix(in srgb, var(--danger) 12%, var(--panel));
+    --shadow:       0 1px 2px rgb(15 27 45 / 8%), 0 4px 14px rgb(15 27 45 / 6%);
+
+    --rule-weight:  1px;
+    --heading-track: 0.01em;   /* letter-spacing on headings */
+    --banner-track: 0.06em;
+}
+
+/* Villain — "midnight and blood". Same geometry, inverted weight: heavier
+   rules, tighter headings, a little more panel contrast than a naive inversion
+   gives. A dark theme built by flipping the light one reads washed out. */
+:root[data-mode="villain"] {
+    --surface:      #111114;   /* page background, near-black                  */
+    --panel:        #1C1C22;   /* stat blocks, cards                           */
+    --ink:          #EDE8E4;   /* body text — bone, never pure white           */
+    --heading:      #B8873B;   /* tarnished brass — TEXT            (5.9:1)    */
+    --primary:      #8B0F1D;   /* banner and bar FILL ONLY          (2.0:1!)   */
+    --on-primary:   #EDE8E4;   /* text on --primary                 (7.9:1)    */
+    --accent:       #B8873B;   /* pips, bar fill, focus rings                  */
+    --danger:       #E4572E;   /* over budget, validation errors    (5.1:1)    */
+    --rule:         #3A3A44;   /* hairlines                                    */
+
+    --muted:        color-mix(in srgb, var(--ink) 52%, var(--surface));
+    --panel-sunk:   color-mix(in srgb, var(--panel) 80%, #000);
+    --accent-soft:  color-mix(in srgb, var(--accent) 18%, var(--panel));
+    --danger-soft:  color-mix(in srgb, var(--danger) 14%, var(--panel));
+    --shadow:       0 1px 2px rgb(0 0 0 / 55%), 0 6px 20px rgb(0 0 0 / 45%);
+
+    --rule-weight:  2px;
+    --heading-track: -0.005em;
+    --banner-track: 0.08em;
+}

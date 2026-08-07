@@ -1,0 +1,32 @@
+@* The six creation steps, in the order the CLI wizard runs them. Every step stays
+   reachable at any time — the terminal wizard has back-navigation for the same reason,
+   and a browser that only moved forwards would be a step backwards from it. *@
+
+<nav aria-label="Creation steps">
+    <ul class="steps">
+        @for (var i = 0; i < Steps.Length; i++)
+        {
+            var step = Steps[i];
+            var index = i + 1;
+            <li>
+                <NavLink class="" href="@step.Href" Match="NavLinkMatch.All" ActiveClass="active">
+                    <span class="step-index">@index</span>@step.Label
+                </NavLink>
+            </li>
+        }
+    </ul>
+</nav>
+
+@code {
+    private sealed record Step(string Href, string Label);
+
+    private static readonly Step[] Steps =
+    [
+        new("", "Tier"),
+        new("characteristics", "Characteristics"),
+        new("gear", "Gear"),
+        new("derived", "Derived stats"),
+        new("finishing", "Finishing touches"),
+        new("review", "GM review"),
+    ];
+}

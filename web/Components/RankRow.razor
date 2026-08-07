@@ -1,0 +1,49 @@
+@* One Ability or Talent: name, a stepper, and pips showing how the rank divides between
+   what a package granted and what was bought on top. A package buys the ranks it grants,
+   so those pips are already paid for — CostCalculator only charges for the rest. *@
+
+<div class="rank-row">
+    <div class="rank-name">
+        @Name
+        @if (Sub is not null)
+        {
+            <small>@Sub</small>
+        }
+    </div>
+
+    <div class="pips" aria-hidden="true">
+        @for (var i = 1; i <= Max; i++)
+        {
+            var cls = i <= PackageFloor ? "pip on package" : i <= Rank ? "pip on" : "pip";
+            <span class="@cls"></span>
+        }
+    </div>
+
+    <div class="stepper">
+        <button type="button" aria-label="@($"Lower {Name}")"
+                disabled="@(Rank <= Floor)"
+                @onclick="() => Set(Rank - 1)">−</button>
+        <span class="value">@(Rank)d</span>
+        <button type="button" aria-label="@($"Raise {Name}")"
+                disabled="@(Rank >= Max)"
+                @onclick="() => Set(Rank + 1)">+</button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+    [Parameter] public string? Sub { get; set; }
+    [Parameter] public int Rank { get; set; }
+    [Parameter] public int Max { get; set; }
+
+    /// <summary>The lowest rank allowed at all — 1d for an Ability, 0d for a Talent.</summary>
+    [Parameter] public int Floor { get; set; }
+
+    /// <summary>The rank a starting package already grants, and so pays for.</summary>
+    [Parameter] public int PackageFloor { get; set; }
+
+    [Parameter] public EventCallback<int> RankChanged { get; set; }
+
+    private Task Set(int value) =>
+        RankChanged.InvokeAsync(Math.Clamp(value, Math.Max(Floor, PackageFloor), Max));
+}

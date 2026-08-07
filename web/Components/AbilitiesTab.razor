@@ -1,0 +1,106 @@
+@inject CharacterSession Session
+
+<section class="panel">
+    <div class="panel-head">
+        <h2>Abilities</h2>
+        <span class="muted small">1 HP per rank · an ordinary human averages 2d</span>
+        <span class="cost">@Session.Costs.AbilityCost(Session.Sheet) HP</span>
+    </div>
+
+    @foreach (var ability in Session.Rules.Abilities)
+    {
+        var id = ability.Id;
+        <RankRow Name="@ability.Name"
+                 Sub="@LinkedTalents(id)"
+                 Rank="Session.Sheet.GetAbilityRank(id)"
+                 Floor="1"
+                 PackageFloor="@PackageAbilityRank"
+                 Max="@Session.TraitCap"
+                 RankChanged="rank => SetAbility(id, rank)" />
+
+        @if (Modifiers(id) is { Count: > 0 } mods)
+        {
+            <p class="small muted" style="margin:0 0 0.5rem 0.2rem">
+                @string.Join(", ", mods.Select(m => Session.Rules.GetCon(m.Id)?.Name
+                                                    ?? Session.Rules.GetPro(m.Id)?.Name ?? m.Id))
+            </p>
+        }
+    }
+</section>
+
+<section class="panel">
+    <div class="panel-head">
+        <h3>Pros and Cons on an Ability</h3>
+    </div>
+    <p class="small muted">
+        The rulebook allows these on Abilities as well as Powers. Overkill on Might is the
+        Brute Option, which buys it at 1 HP per 2 ranks; Stronghold's four armoured
+        Abilities carry the Item Con. Only the ranks a package does not already cover can
+        be discounted, and an Ability never costs less than nothing.
+    </p>
+
+    <div class="field">
+        <label for="ab-target">Ability</label>
+        <select id="ab-target" @bind="_target" @bind:after="StateHasChanged">
+            @foreach (var ability in Session.Rules.Abilities)
+            {
+                <option value="@ability.Id">@ability.Name</option>
+            }
+        </select>
+    </div>
+
+    @* Cons only, and that is the rulebook's answer rather than a simplification: of the
+       23 Pros and 28 Cons, exactly two name Abilities and both are Cons. The picker
+       filters on each option's own entry, so if that ever changes in the data this list
+       changes with it. *@
+    <ProConPicker Scope="ProConPicker.Target.Ability" IsPro="false"
+                  Selected="ModifiersFor(_target)" OnChanged="Changed" />
+</section>
+
+@code {
+    private string _target = "";
+
+    protected override void OnInitialized() =>
+        _target = Session.Rules.Abilities.FirstOrDefault()?.Id ?? "";
+
+    private int PackageAbilityRank =>
+        Session.Sheet.SelectedPackageId is null
+            ? 0
+            : Session.Rules.CreationRules.OptionalPackages
+                .FirstOrDefault(p => p.Id == Session.Sheet.SelectedPackageId)?.AbilitiesRank ?? 0;
+
+    private string? LinkedTalents(string abilityId)
+    {
+        var linked = Session.Rules.Talents.Where(t => t.LinkedAbility == abilityId).Select(t => t.Name).ToList();
+        return linked.Count == 0 ? null : string.Join(", ", linked);
+    }
+
+    private void SetAbility(string id, int rank)
+    {
+        Session.Sheet.AbilityRanks[id] = rank;
+        Session.NotifyChanged();
+    }
+
+    private List<SelectedProCon>? Modifiers(string abilityId) =>
+        Session.Sheet.AbilityModifiers.GetValueOrDefault(abilityId);
+
+    /// <summary>
+    /// The live list on the sheet, created on demand so the picker can add to it directly.
+    /// <see cref="Changed"/> drops it again if it ends up empty, so an untouched Ability
+    /// does not acquire an empty entry.
+    /// </summary>
+    private List<SelectedProCon> ModifiersFor(string abilityId)
+    {
+        if (!Session.Sheet.AbilityModifiers.TryGetValue(abilityId, out var list))
+            Session.Sheet.AbilityModifiers[abilityId] = list = [];
+        return list;
+    }
+
+    private void Changed()
+    {
+        if (Session.Sheet.AbilityModifiers.TryGetValue(_target, out var list) && list.Count == 0)
+            Session.Sheet.AbilityModifiers.Remove(_target);
+
+        Session.NotifyChanged();
+    }
+}

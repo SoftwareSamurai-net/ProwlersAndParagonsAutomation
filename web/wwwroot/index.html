@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Prowlers &amp; Paragons — Character Creation</title>
+    <base href="/" />
+    <link rel="preload" id="webassembly" />
+    <link rel="stylesheet" href="css/theme.css" />
+    <link rel="stylesheet" href="css/app.css" />
+    <!-- No scoped-CSS bundle is linked. Every component is written against the tokens in
+         theme.css, which is what keeps the Hero/Villain switch to one attribute; a
+         per-component stylesheet is where that discipline would start to leak. Blazor only
+         emits the bundle when a .razor.css file exists, so linking it now would be a 404. -->
+    <script type="importmap"></script>
+</head>
+
+<body>
+    <div id="app">
+        <div class="boot">
+            <p class="boot-title">Prowlers &amp; Paragons</p>
+            <p class="boot-sub">Loading the rulebook…</p>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui">
+        Something went wrong.
+        <a href="." class="reload">Reload</a>
+        <span class="dismiss">🗙</span>
+    </div>
+
+    <script src="js/download.js"></script>
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+</body>
+
+</html>

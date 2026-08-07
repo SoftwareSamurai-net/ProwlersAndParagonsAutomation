@@ -1,0 +1,169 @@
+@inject CharacterSession Session
+
+@if (_editing is { } editing)
+{
+    <PowerEditor Power="editing.Power" Existing="editing.Existing"
+                 OnCommit="Commit" OnCancel="() => _editing = null" />
+}
+else
+{
+    <section class="panel">
+        <div class="panel-head">
+            <h2>Powers on this character</h2>
+            <span class="cost">@PowersCost()</span>
+        </div>
+
+        @if (Session.Sheet.SelectedPowers.Count == 0)
+        {
+            <p class="small muted">None yet.</p>
+        }
+        else
+        {
+            @* Grouped under Source headings the way a published sheet prints them —
+               TECH POWERS, MAGIC POWERS. SourceGrouping is the engine's answer, shared
+               with the text sheet and the JSON export. *@
+            @foreach (var group in Session.Grouping.GroupPowers(Session.Sheet))
+            {
+                <h3>@group.Heading</h3>
+                <ul class="chosen">
+                    @foreach (var sp in group.Powers)
+                    {
+                        var power = Session.Rules.GetPower(sp.PowerId);
+                        var rank  = power is null ? 0 : Session.Derived.GetEffectiveRank(sp, Session.Sheet);
+                        <li>
+                            <div class="body">
+                                <div>
+                                    <b>@(power?.Name ?? sp.PowerId)</b>
+                                    @if (rank > 0)
+                                    {
+                                        <span class="muted"> @(rank)d</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="muted small"> no rank</span>
+                                    }
+                                    @if (power?.NeedsReview == true)
+                                    {
+                                        <span class="tag warn">unverified</span>
+                                    }
+                                </div>
+                                @if (sp.Pros.Count > 0 || sp.Cons.Count > 0)
+                                {
+                                    <div class="small muted">
+                                        @string.Join(", ", sp.Pros.Concat(sp.Cons).Select(c => Label(c, power)))
+                                    </div>
+                                }
+                            </div>
+                            <span class="cost">@(CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—") HP</span>
+                            <button type="button" class="btn small" @onclick="() => Edit(sp)">Edit</button>
+                            <button type="button" class="btn small danger" @onclick="() => Remove(sp)">Remove</button>
+                        </li>
+                    }
+                </ul>
+            }
+        }
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <h2>Add a Power</h2>
+            <span class="muted small">@Matches.Count of @Session.Rules.Powers.Count</span>
+        </div>
+
+        <div class="inline field">
+            <input type="search" placeholder="Search by name or tag" @bind="_query" @bind:event="oninput" aria-label="Search Powers" />
+            <select @bind="_category" aria-label="Category">
+                <option value="">Every category</option>
+                @foreach (var c in Categories)
+                {
+                    <option value="@c">@c</option>
+                }
+            </select>
+        </div>
+
+        <div class="options">
+            @foreach (var power in Matches)
+            {
+                <button type="button" class="option" @onclick="() => Add(power)">
+                    <span class="body">
+                        <span class="name">
+                            @power.Name
+                            @if (Session.Sheet.HasPower(power.Id))
+                            {
+                                <span class="tag own">on the sheet</span>
+                            }
+                        </span>
+                        <span class="caveat">@PowerFormatter.StatLine(power)</span>
+                    </span>
+                    <span class="cost">@power.Category</span>
+                </button>
+            }
+        </div>
+    </section>
+}
+
+@code {
+    private sealed record Editing(PowerModel Power, SelectedPower? Existing);
+
+    private Editing? _editing;
+    private string _query = "";
+    private string _category = "";
+
+    private IEnumerable<string> Categories =>
+        Session.Rules.Powers.Select(p => p.Category).Distinct().Order();
+
+    private List<PowerModel> Matches =>
+        Session.Rules.Powers
+            .Where(p => _category.Length == 0 || p.Category == _category)
+            .Where(p => _query.Length == 0
+                        || p.Name.Contains(_query, StringComparison.OrdinalIgnoreCase)
+                        || p.Tags.Any(t => t.Contains(_query, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    private void Add(PowerModel power) =>
+        _editing = new Editing(power, Session.Sheet.GetPower(power.Id));
+
+    private void Edit(SelectedPower sp)
+    {
+        if (Session.Rules.GetPower(sp.PowerId) is { } power)
+            _editing = new Editing(power, sp);
+    }
+
+    /// <summary>
+    /// One entry per Power, as the CLI does: configuring a Power already on the sheet
+    /// replaces it rather than adding a second copy.
+    /// </summary>
+    private void Commit(SelectedPower selection)
+    {
+        Session.Sheet.SelectedPowers.RemoveAll(sp => sp.PowerId == selection.PowerId);
+        Session.Sheet.SelectedPowers.Add(selection);
+        _editing = null;
+        Session.NotifyChanged();
+    }
+
+    private void Remove(SelectedPower sp)
+    {
+        Session.Sheet.SelectedPowers.Remove(sp);
+        Session.NotifyChanged();
+    }
+
+    private string PowersCost() =>
+        CharacterSession.TryCost(() => Session.Costs.TotalPowersCost(Session.Sheet)) is { } c
+            ? $"{c} HP"
+            : "not costable yet";
+
+    /// <summary>
+    /// A Power's own Pro or Con takes precedence over a generic one of the same id — it is
+    /// the one its rulebook entry is talking about, and CostCalculator resolves it the
+    /// same way round.
+    /// </summary>
+    private string Label(SelectedProCon choice, PowerModel? power)
+    {
+        var name = power?.PowerPros.Concat(power.PowerCons).FirstOrDefault(e => e.Id == choice.Id)?.Name
+                   ?? Session.Rules.GetPro(choice.Id)?.Name
+                   ?? Session.Rules.GetCon(choice.Id)?.Name
+                   ?? choice.Id;
+        return choice.VariantKey is null ? name : $"{name} ({choice.VariantKey.Replace('_', ' ')})";
+    }
+}

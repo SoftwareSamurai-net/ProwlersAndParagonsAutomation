@@ -1,0 +1,67 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+    <!-- The browser front end. It ships as a static site: the engine compiles to
+         WebAssembly and runs CostCalculator and CharacterValidator as the same code the
+         CLI runs, which is the whole reason this is Blazor and not a JavaScript SPA
+         talking to an API. See PROGRESS.md. -->
+
+    <PropertyGroup>
+        <RootNamespace>ProwlersAndParagonsAutomation.Web</RootNamespace>
+        <AssemblyName>ProwlersAndParagons.Web</AssemblyName>
+        <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+
+        <!-- Blazor trims on publish by default. RulesRepository deserializes the rules
+             with reflection-based System.Text.Json, so the trimmer is free to remove the
+             model properties it can only see through reflection — and the failure mode is
+             not a build error but a silently empty rules set at runtime, which is the one
+             thing this project cannot afford to ship. Rooting the engine assembly instead
+             would keep the smaller payload, but the local toolchain cannot run the trimmer
+             at all (the ILLink task host crashes without the wasm-tools workload, on the
+             stock template too), so that is a change nobody here could verify. Correct and
+             larger beats smaller and unproven. See PROGRESS.md. -->
+        <PublishTrimmed>false</PublishTrimmed>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.10" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.10" PrivateAssets="all" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\engine\ProwlersAndParagons.Engine.csproj" />
+        <ProjectReference Include="..\sheets\ProwlersAndParagons.Sheets.csproj" />
+    </ItemGroup>
+
+    <!-- The rules are served, not read: a browser has no filesystem, so Program.cs fetches
+         these over HTTP and hands them to an InMemoryRulesSource.
+
+         They are copied into wwwroot rather than committed there, so there is still one set
+         of rules data in the repository — wwwroot/data/ is gitignored. A plain
+         `Content Include="..\data\rules\*.json" LinkBase="wwwroot\data\rules"` looks like it
+         should do this and does not: the static web asset gets a content root of wwwroot/
+         while the file stays outside it, so every request answers 200 with an empty body and
+         the engine reports the rules as malformed JSON. Copy first, then register. -->
+    <ItemGroup>
+        <RulesDataFile Include="..\data\rules\*.json" />
+    </ItemGroup>
+
+    <Target Name="StageRulesDataInWwwroot" BeforeTargets="ResolveProjectStaticWebAssets">
+        <!-- The failure this guards against is silent: with no rules served, the site
+             loads, fetches nothing, and reports the rulebook as malformed at runtime.
+             Better to fail the build. -->
+        <Error Condition="'@(RulesDataFile)' == ''"
+               Text="No rules files found at ..\data\rules\*.json. The browser build serves these; without them the site cannot start." />
+
+        <Copy SourceFiles="@(RulesDataFile)"
+              DestinationFolder="$(MSBuildProjectDirectory)\wwwroot\data\rules"
+              SkipUnchangedFiles="true" />
+
+        <!-- Added here rather than in an evaluation-time ItemGroup because the files do not
+             exist yet on a clean checkout, and a glob that matched nothing would leave the
+             published site without its rules. -->
+        <ItemGroup>
+            <Content Include="wwwroot\data\rules\*.json" Exclude="@(Content)" />
+        </ItemGroup>
+    </Target>
+
+</Project>

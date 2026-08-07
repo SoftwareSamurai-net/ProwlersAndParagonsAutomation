@@ -50,3 +50,23 @@ jobs:
         # The suite checks powers.json against the Range/Rank/Cost transcribed from the
         # rulebook, so a data edit that contradicts the book fails here.
         run: dotnet test --no-build --configuration Release -p:ContinuousIntegrationBuild=true
+
+      - name: Publish the browser front end
+        # The static site is the deliverable for web/, and publishing exercises things a
+        # plain build does not — chiefly staging data/rules into wwwroot. Nothing checks
+        # the served payload, so assert the rules are actually in it: without them the
+        # site loads and then cannot start, which is a failure no build error would catch.
+        run: |
+          dotnet publish web/ProwlersAndParagons.Web.csproj \
+            --configuration Release -p:ContinuousIntegrationBuild=true -o publish
+
+          missing=0
+          for f in $(ls data/rules/*.json); do
+            name=$(basename "$f")
+            if [ ! -s "publish/wwwroot/data/rules/$name" ]; then
+              echo "::error::$name is missing or empty in the published site."
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] && echo "All rules files present in the published site."
+          exit "$missing"

@@ -1,0 +1,26 @@
+@* Back/Continue, the browser's version of WizardOrchestrator.PromptNavigation. *@
+
+<div class="nav-buttons">
+    @if (Back is not null)
+    {
+        <a class="btn" href="@Back">← @(BackLabel ?? "Back")</a>
+    }
+    <span class="spacer"></span>
+    @if (Next is not null)
+    {
+        <a class="btn primary @(NextDisabled ? "disabled" : "")"
+           href="@(NextDisabled ? null : Next)"
+           aria-disabled="@NextDisabled"
+           tabindex="@(NextDisabled ? "-1" : null)">
+            @(NextLabel ?? "Continue") →
+        </a>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Back { get; set; }
+    [Parameter] public string? BackLabel { get; set; }
+    [Parameter] public string? Next { get; set; }
+    [Parameter] public string? NextLabel { get; set; }
+    [Parameter] public bool NextDisabled { get; set; }
+}
