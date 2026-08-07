@@ -95,7 +95,14 @@ cat > "$root/_headers" <<HEADERS
 /_framework/*
   Cache-Control: public, max-age=31536000, immutable
 
+# Both spellings. Cloudflare matches _headers rules against the requested path, not the
+# file it resolves to, so a rule for /index.html does not cover "/" — which is the URL
+# almost everyone actually asks for. Left alone, the front page falls back to the
+# platform default and the rule reads as though it were doing something it is not.
 /index.html
+  Cache-Control: no-cache
+
+/
   Cache-Control: no-cache
 
 # The rules data is not fingerprinted and is what the engine runs on, so a stale copy is a
