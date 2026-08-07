@@ -110,7 +110,11 @@ public sealed class PrebuiltHeroTests
             // Determination records how much Resolve was bought, not a rank.
             if (p.Id == "determination")
             {
-                sheet.SelectedPowers.Add(new SelectedPower(p.Id, 0) { Units = hero.DeterminationResolve });
+                sheet.SelectedPowers.Add(new SelectedPower(p.Id, 0)
+                {
+                    Units    = hero.DeterminationResolve,
+                    SourceId = PrebuiltHeroes.SourceOf(hero.Name, p.Id)
+                });
                 continue;
             }
 
@@ -120,7 +124,8 @@ public sealed class PrebuiltHeroTests
                 {
                     BaselineTraitId = p.BaselineTrait,
                     Units           = p.Units,
-                    CostVariantKey  = p.CostVariant
+                    CostVariantKey  = p.CostVariant,
+                    SourceId        = PrebuiltHeroes.SourceOf(hero.Name, p.Id)
                 });
                 continue;
             }
@@ -133,7 +138,8 @@ public sealed class PrebuiltHeroTests
             {
                 BaselineTraitId = p.BaselineTrait,
                 Units           = p.Units,
-                CostVariantKey  = p.CostVariant
+                CostVariantKey  = p.CostVariant,
+                SourceId        = PrebuiltHeroes.SourceOf(hero.Name, p.Id)
             });
         }
 
@@ -386,6 +392,46 @@ public sealed class PrebuiltHeroTests
         foreach (var kv in PrebuiltHeroes.BuildByHero.Where(kv => kv.Value.Residual == 0))
             data.Add(kv.Key);
         return data;
+    }
+
+    /// <summary>
+    /// Every Power a published sheet prints sits under a Source heading, so every Power in
+    /// the transcription must have one — no gaps, and nothing named twice.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(HeroNames))]
+    public void EveryPowerOnASheetHasASource(string name)
+    {
+        var hero   = PrebuiltHeroes.All.Single(h => h.Name == name);
+        var groups = PrebuiltHeroes.PowerSourcesByHero[name];
+        var listed = groups.SelectMany(g => g.PowerIds).ToList();
+
+        Assert.All(groups, g => Assert.NotNull(_f.Rules.GetSource(g.SourceId)));
+        Assert.Equal(listed.Count, listed.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(hero.Powers.Select(p => p.Id).Order(), listed.Order());
+    }
+
+    /// <summary>
+    /// The engine's Source grouping reproduces the headings the sheet actually prints, in
+    /// the order it prints them. This is the check that the layout is faithful rather than
+    /// merely plausible — Psidearm carries three groups, Alabama Slammer two, Talon one.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(HeroNames))]
+    public void SourceGroupingReproducesThePrintedHeadings(string name)
+    {
+        var hero  = PrebuiltHeroes.All.Single(h => h.Name == name);
+        var sheet = Build(hero);
+
+        var expected = PrebuiltHeroes.PowerSourcesByHero[name]
+            .Select(g => SourceGrouping.HeadingFor(_f.Rules.GetSource(g.SourceId)));
+
+        var actual = new SourceGrouping(_f.Rules).GroupPowers(sheet).Select(g => g.Heading);
+
+        Assert.Equal(expected.Order(), actual.Order());
+
+        // Nothing falls through to the unsourced bucket.
+        Assert.DoesNotContain("POWERS", actual);
     }
 
     [Fact]

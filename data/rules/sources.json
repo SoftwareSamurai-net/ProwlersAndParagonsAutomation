@@ -1,0 +1,44 @@
+[
+  {
+    "id": "innate",
+    "name": "Innate",
+    "default_rank_ability": "toughness",
+    "description": "The Trait comes with the character's kind — something every member of their race or species has.",
+    "source_ref": "Ultimate Edition, Ch.2 Sources, p.15"
+  },
+  {
+    "id": "magic",
+    "name": "Magic",
+    "default_rank_ability": "willpower",
+    "description": "The Trait is magical, divine, infernal or otherwise from beyond the ordinary world.",
+    "source_ref": "Ultimate Edition, Ch.2 Sources, p.15"
+  },
+  {
+    "id": "psychic",
+    "name": "Psychic",
+    "default_rank_ability": "willpower",
+    "description": "The Trait wells up from a mental or mystical source inside the character.",
+    "source_ref": "Ultimate Edition, Ch.2 Sources, p.15"
+  },
+  {
+    "id": "super",
+    "name": "Super",
+    "default_rank_ability": "toughness",
+    "description": "The Trait comes from a mutation or a one-off alteration particular to this character.",
+    "source_ref": "Ultimate Edition, Ch.2 Sources, p.15"
+  },
+  {
+    "id": "tech",
+    "name": "Tech",
+    "default_rank_ability": "toughness",
+    "description": "The Trait is mechanical or technological.",
+    "source_ref": "Ultimate Edition, Ch.2 Sources, p.15"
+  },
+  {
+    "id": "trained",
+    "name": "Trained",
+    "default_rank_ability": "willpower",
+    "description": "The Trait was built up by practice, study or training.",
+    "source_ref": "Ultimate Edition, Ch.2 Sources, p.15"
+  }
+]

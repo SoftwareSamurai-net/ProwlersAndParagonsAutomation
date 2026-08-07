@@ -68,6 +68,7 @@ public sealed class CharacterValidator
         CheckFlawIds(sheet, issues);
         if (selectionsResolvable) CheckPowerCosts(sheet, issues);
         CheckUnverifiedPowers(sheet, issues);
+        CheckSources(sheet, issues);
 
         return new ValidationResult(issues);
     }
@@ -201,6 +202,38 @@ public sealed class CharacterValidator
         }
 
         return resolvable;
+    }
+
+    /// <summary>
+    /// Sources (Ch.2, p.15). A Source costs nothing and changes no rank, so a missing one
+    /// is never an error — but a Power the rulebook gives no rank needs its Source to know
+    /// which Ability stands in when another Power acts on it, so that gap is worth saying.
+    /// </summary>
+    private void CheckSources(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        foreach (var sp in sheet.SelectedPowers)
+        {
+            if (sp.SourceId is not null && _rules.GetSource(sp.SourceId) is null)
+            {
+                issues.Add(new(ValidationSeverity.Error, "UNKNOWN_SOURCE",
+                    $"Power '{sp.PowerId}' names Source '{sp.SourceId}', " +
+                    "which is not defined in sources.json."));
+                continue;
+            }
+
+            var power = _rules.GetPower(sp.PowerId);
+            if (power is null || sp.SourceId is not null) continue;
+
+            if (power.RankType is "default" or "special")
+                issues.Add(new(ValidationSeverity.Warning, "RANKLESS_POWER_WITHOUT_SOURCE",
+                    $"Power '{power.Name}' has no rank of its own, so it needs a Source to " +
+                    "supply the default rank used when another Power acts on it " +
+                    "(Drain, Nullify, Dispel, Power Absorption, Power Mimicry)."));
+            else
+                issues.Add(new(ValidationSeverity.Warning, "POWER_WITHOUT_SOURCE",
+                    $"Power '{power.Name}' has no Source recorded. A published sheet groups " +
+                    "Powers under Source headings, so the sheet will list it as unsourced."));
+        }
     }
 
     private void CheckPowerCosts(CharacterSheet sheet, List<ValidationIssue> issues)

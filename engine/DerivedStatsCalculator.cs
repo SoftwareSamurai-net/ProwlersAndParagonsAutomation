@@ -220,4 +220,40 @@ public sealed class DerivedStatsCalculator
 
         return GetBaselineRank(power, sheet, selected) + selected.PurchasedRanks;
     }
+
+    /// <summary>
+    /// The rank a Power uses when another Power acts on it — Drain, Nullify, Dispel, Power
+    /// Absorption, Power Mimicry.
+    ///
+    /// <para>For a ranked Power that is simply its effective rank. For one the rulebook
+    /// gives no rank, Ch.2 p.15 substitutes a <em>default rank</em> taken from an Ability
+    /// chosen by the Power's Source: Toughness for Innate, Super and Tech; Willpower for
+    /// Magic, Psychic and Trained.</para>
+    ///
+    /// <para>Deliberately separate from <see cref="GetEffectiveRank"/>, which still answers
+    /// 0 for a rankless Power. The default rank stands in only against other Powers; it is
+    /// not the Power's rank, and folding it into the effective rank would feed Edge and
+    /// Resolve figures the published Hero sheets contradict.</para>
+    ///
+    /// <para>Returns 0 for a rankless Power with no Source recorded, since there is then
+    /// no Ability to read. The validator reports that gap.</para>
+    /// </summary>
+    public int GetRankAgainstPowers(SelectedPower selected, CharacterSheet sheet)
+    {
+        ArgumentNullException.ThrowIfNull(selected);
+
+        var power = _rules.GetPower(selected.PowerId)
+                    ?? throw new InvalidOperationException($"Unknown power id '{selected.PowerId}'.");
+
+        if (power.RankType is not ("default" or "special"))
+            return GetEffectiveRank(selected, sheet);
+
+        if (selected.SourceId is null) return 0;
+
+        var source = _rules.GetSource(selected.SourceId)
+                     ?? throw new InvalidOperationException(
+                            $"Power '{selected.PowerId}' names unknown Source '{selected.SourceId}'.");
+
+        return sheet?.GetAbilityRank(source.DefaultRankAbility) ?? 0;
+    }
 }

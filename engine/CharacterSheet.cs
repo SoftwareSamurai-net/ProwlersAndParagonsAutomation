@@ -61,6 +61,14 @@ public record SelectedPower(
     /// the per-rank cost, which matches the affected Trait's own cost per rank.
     /// </summary>
     public string? BaselineTraitId { get; init; }
+
+    /// <summary>
+    /// Which of the six Sources this Power comes from (Ch.2 p.15). Costs nothing and never
+    /// changes a Power's rank, but a published sheet groups Powers under Source headings,
+    /// and a rankless Power takes its default rank from the Source's Ability. Null means
+    /// the player has not said yet.
+    /// </summary>
+    public string? SourceId { get; init; }
 }
 
 /// <summary>
