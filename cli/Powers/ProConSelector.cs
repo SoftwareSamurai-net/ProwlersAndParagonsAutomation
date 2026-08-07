@@ -14,13 +14,17 @@ public sealed class ProConSelector
     {
         var selected = new List<SelectedProCon>();
 
+        // The Power's own Pros come first: they are printed in its rulebook entry, so
+        // they are the ones a player reading the book expects to see offered.
+        var specific = power.PowerPros.ToList();
+
         var available = power.AvailablePros
             .Select(id => _rules.GetPro(id))
             .Where(p => p is not null)
             .Cast<ProModel>()
             .ToList();
 
-        if (available.Count == 0) return selected;
+        if (specific.Count == 0 && available.Count == 0) return selected;
 
         while (true)
         {
@@ -30,8 +34,9 @@ public sealed class ProConSelector
                     ? "[grey]none[/]"
                     : string.Join(", ", selected.Select(s => Markup.Escape(s.Id)))));
 
-            var choices = available
-                .Select(p => FormatPro(p))
+            var choices = specific
+                .Select(FormatPowerProCon)
+                .Concat(available.Select(FormatPro))
                 .Prepend("Done — no more pros")
                 .ToList();
 
@@ -41,6 +46,13 @@ public sealed class ProConSelector
                     .AddChoices(choices));
 
             if (pick.StartsWith("Done", StringComparison.Ordinal)) break;
+
+            if (specific.FirstOrDefault(s => FormatPowerProCon(s) == pick) is { } own)
+            {
+                selected.Add(BuildSelection(own));
+                AnsiConsole.MarkupLine($"  [green]Pro added:[/] {Markup.Escape(own.Name)}");
+                continue;
+            }
 
             var proModel = available.First(p => FormatPro(p) == pick);
 
@@ -69,13 +81,15 @@ public sealed class ProConSelector
     {
         var selected = new List<SelectedProCon>();
 
+        var specific = power.PowerCons.ToList();
+
         var available = power.AvailableCons
             .Select(id => _rules.GetCon(id))
             .Where(c => c is not null)
             .Cast<ConModel>()
             .ToList();
 
-        if (available.Count == 0) return selected;
+        if (specific.Count == 0 && available.Count == 0) return selected;
 
         while (true)
         {
@@ -85,8 +99,9 @@ public sealed class ProConSelector
                     ? "[grey]none[/]"
                     : string.Join(", ", selected.Select(s => Markup.Escape(s.Id)))));
 
-            var choices = available
-                .Select(c => FormatCon(c))
+            var choices = specific
+                .Select(FormatPowerProCon)
+                .Concat(available.Select(FormatCon))
                 .Prepend("Done — no more cons")
                 .ToList();
 
@@ -96,6 +111,13 @@ public sealed class ProConSelector
                     .AddChoices(choices));
 
             if (pick.StartsWith("Done", StringComparison.Ordinal)) break;
+
+            if (specific.FirstOrDefault(s => FormatPowerProCon(s) == pick) is { } own)
+            {
+                selected.Add(BuildSelection(own));
+                AnsiConsole.MarkupLine($"  [yellow]Con added:[/] {Markup.Escape(own.Name)}");
+                continue;
+            }
 
             var conModel = available.First(c => FormatCon(c) == pick);
 
@@ -118,6 +140,69 @@ public sealed class ProConSelector
         }
 
         return selected;
+    }
+
+    /// <summary>
+    /// Prompts for whatever a Power-specific Pro or Con still needs: a variant when it is
+    /// graded, and a quantity when it scales (how many extra Sources, for instance).
+    /// </summary>
+    private static SelectedProCon BuildSelection(PowerProConModel entry)
+    {
+        AnsiConsole.MarkupLine($"  [grey]{Markup.Escape(entry.Description)}[/]");
+
+        string? variantKey = null;
+        if (entry.NeedsVariant)
+        {
+            var options = entry.CostModifierRange is not null
+                ? entry.CostModifierRange.ToDictionary(kv => kv.Key, kv => (double)kv.Value)
+                : entry.CostPerRankRange!.ToDictionary(kv => kv.Key, kv => kv.Value);
+
+            var suffix = entry.CostType == "per_rank_variable" ? " HP per rank" : " HP";
+            var byLabel = options.ToDictionary(
+                kv => $"{kv.Key.Replace('_', ' ')} — {kv.Value:+#;-#;0}{suffix}",
+                kv => kv.Key);
+
+            var pick = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title($"Which version of [bold]{Markup.Escape(entry.Name)}[/]?")
+                    .AddChoices(byLabel.Keys));
+
+            variantKey = byLabel[pick];
+        }
+
+        int? units = null;
+        if (entry.CostType == "per_rank_per_unit")
+        {
+            units = AnsiConsole.Prompt(
+                new TextPrompt<int>($"How many {Markup.Escape(entry.CostUnitLabel ?? "unit")}(s)?")
+                    .DefaultValue(1)
+                    .Validate(u => u >= 1
+                        ? Spectre.Console.ValidationResult.Success()
+                        : Spectre.Console.ValidationResult.Error("Must be at least 1.")));
+        }
+
+        return new SelectedProCon(entry.Id, variantKey) { Units = units };
+    }
+
+    private static string FormatPowerProCon(PowerProConModel e)
+    {
+        var cost = e.CostType switch
+        {
+            "flat"              => $"{e.CostModifier:+#;-#;0} HP",
+            "per_rank"          => $"{e.CostPerRank:+#;-#;0} HP per rank",
+            "per_unit"          => $"{e.CostPerUnit:+#;-#;0} HP per {e.CostUnitLabel}",
+            "per_rank_per_unit" => $"{e.CostPerRank:+#;-#;0} HP per rank per {e.CostUnitLabel}",
+            "flat_variable"     => string.Join(" / ",
+                                       (e.CostModifierRange ?? new Dictionary<string, int>())
+                                           .Select(kv => $"{kv.Value:+#;-#;0}")) + " HP",
+            "per_rank_variable" => string.Join(" / ",
+                                       (e.CostPerRankRange ?? new Dictionary<string, double>())
+                                           .Select(kv => $"{kv.Value:+#;-#;0}")) + " HP per rank",
+            _ => e.CostType
+        };
+
+        // Marked so it is obvious these come from the Power's own entry.
+        return $"{e.Name}  ({cost})  ‹this Power›";
     }
 
     private static string FormatPro(ProModel p)

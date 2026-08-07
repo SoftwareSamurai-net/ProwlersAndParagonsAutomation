@@ -15,7 +15,8 @@ The wizard walks players and GMs through the full creation process — tracking 
 - **Live HP budget tracking** — colour-coded remaining points rendered before every step
 - **141 powers**, every one carrying its rulebook Range, rank type and cost — flat, per rank, per 2 ranks, per unit, variable or Special
 - **27 baseline-rank powers** (Armor = ½ Toughness, Evasion = Agility, Running = flat 3d, Strike = Might *or* Martial Arts, Boost/Expertise = a Trait you nominate)
-- **23 pros and 28 cons**, including variable-cost variants (Charges, Area/Burst) and Overkill/Weak's −1 HP per rank
+- **23 generic pros and 28 generic cons**, including variable-cost variants (Charges, Area/Burst) and Overkill/Weak's −1 HP per rank
+- **102 power-specific pros and cons** printed inside individual power entries — unlike the generic ones, several change a power's cost *per rank* rather than its total
 - **53 flaws and 13 perks**, wired into Resolve and the HP budget
 - **Validation engine** — errors for budget overruns, trait-cap violations, flaw-count breaches, ranks bought on rankless powers and unresolved player choices; warnings for anything still unverified
 - **Every rules value verified against the rulebook and locked by tests** — the suite holds the printed Range, Rank and Cost of all 141 powers, so a data edit that contradicts the book fails CI
@@ -320,8 +321,8 @@ To publish reports to Qodana Cloud, add a `QODANA_TOKEN` repository secret. With
 
 The short version of what is left, most-unblocking first:
 
-1. **Extract each power's own Pros and Cons** from its rulebook entry — `available_pros` / `available_cons` are still project guesses. This is what blocks exact Hero Point reconciliation.
-2. **Model gear costs** (Chapter 6 Gear Limits) — gear is currently free text with no HP cost.
+1. **Reconcile the published Heroes' Hero Point totals** — their own Pros and Cons are extracted now; what remains is transcribing the ones each sheet carries.
+2. **Model gear costs** (Chapter 6 Gear Limits) — gear is currently free text with no HP cost, and it is the other half of the Hero Point gap.
 3. **Model Sources** — they set the stand-in rank for the 46 rankless powers.
 4. **Establish a Qodana baseline** so only *new* problems fail CI.
 5. **Extract the remaining rulebook chapters** (3–9).
