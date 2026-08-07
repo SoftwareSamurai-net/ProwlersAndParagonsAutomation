@@ -1,0 +1,93 @@
+name: Deploy
+
+# Publishes the browser front end to Cloudflare Pages.
+#
+# Only ever from master, and never from `pull_request`. That is the security-relevant
+# line in this file: a pull_request trigger runs the workflow with the base repository's
+# secrets, so anyone who opened a PR could add a step that printed the Cloudflare token.
+# push-to-master runs only code a maintainer has already merged.
+on:
+  push:
+    branches:
+      - master
+    # Nothing outside these paths can change the published site, so a docs-only commit
+    # does not spend a deploy.
+    paths:
+      - 'web/**'
+      - 'engine/**'
+      - 'sheets/**'
+      - 'data/rules/**'
+      - 'scripts/write-cloudflare-headers.sh'
+      - 'Directory.Build.props'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+# Read-only. The job publishes to Cloudflare, not to this repository, so it needs no
+# write access to anything here.
+permissions:
+  contents: read
+
+# A newer commit supersedes an older deploy rather than racing it. Not cancelled
+# in-flight: a half-uploaded site is worse than a briefly stale one.
+concurrency:
+  group: deploy-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Cloudflare Pages
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Publish the static site
+        run: |
+          dotnet publish web/ProwlersAndParagons.Web.csproj \
+            --configuration Release -p:ContinuousIntegrationBuild=true -o publish
+
+      - name: Write security headers
+        # The Content-Security-Policy hashes the inline import map Blazor emits into
+        # index.html, which changes whenever the framework assets are re-fingerprinted.
+        # The script fails rather than shipping a policy that would stop the app booting.
+        run: ./scripts/write-cloudflare-headers.sh publish/wwwroot
+
+      - name: Check the site is complete
+        # A site that uploads cleanly and then cannot start is the failure worth catching
+        # here: the rules are fetched at runtime, so their absence is invisible until a
+        # visitor loads the page.
+        run: |
+          missing=0
+          for f in data/rules/*.json; do
+            name=$(basename "$f")
+            if [ ! -s "publish/wwwroot/data/rules/$name" ]; then
+              echo "::error::$name is missing or empty in the published site."
+              missing=1
+            fi
+          done
+          for required in index.html _headers _redirects; do
+            if [ ! -s "publish/wwwroot/$required" ]; then
+              echo "::error::$required is missing or empty in the published site."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            pages deploy publish/wwwroot
+            --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'prowlers-and-paragons' }}
+            --branch=master

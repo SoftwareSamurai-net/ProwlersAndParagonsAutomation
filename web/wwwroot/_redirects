@@ -1,0 +1,10 @@
+# Cloudflare Pages routing.
+#
+# Every path serves the app, because routing happens in the browser: /review is a
+# Blazor route, not a file. The 200 matters — a 302 to / would lose the path the
+# visitor asked for, so a shared link to a step would always land on step one.
+#
+# App.razor renders its own "No such page" for anything it does not recognise, so an
+# unknown path is answered by the app rather than by Cloudflare. Assets that do exist
+# on disk are served before this rule is consulted.
+/*    /index.html   200

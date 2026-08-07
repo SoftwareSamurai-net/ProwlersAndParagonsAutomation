@@ -74,14 +74,20 @@ Establish a committed baseline (`--baseline,qodana.sarif.json`) so only *new* pr
 
 Chapters 3–9 are not extracted, apart from the two pieces pulled out because the engine needed them: Ch.6's custom gear features and Ch.7's three toxin Pros/Cons. Rough order of usefulness to the wizard: 6 (the rest of Equipment), 5 (Resolve, already partly used), 4 (Combat), 8 (Friends and Foes), then the rest.
 
-### 5. Deploy the browser front end to softwaresamurai.net
+### 5. Shrink the browser payload
 
-The app itself is built — see the completed item below. What is left is the hosting: `dotnet publish web/ProwlersAndParagons.Web.csproj -c Release` produces a static `wwwroot/` with no server-side component, so this is a matter of pointing the domain at it and adding a publish step to CI. Nothing in the code blocks it.
+Deployment is done — see the completed item below. What it left open is size: the first load is **27 MiB uncompressed**, about a third of that over the wire once Cloudflare applies Brotli, and cached hard afterwards because every framework asset is fingerprinted.
 
-Two things to settle when it happens:
+It is that large because **IL trimming is disabled**. `RulesRepository` deserializes with reflection-based `System.Text.Json`, so the trimmer is free to remove model properties it can only see through reflection, and the failure mode is not a build error but a silently empty rules set at runtime. `System.Private.Xml` alone is 3 MB of assembly nothing references.
 
-- **`<base href="/">` in `web/wwwroot/index.html` assumes the site is served from the domain root.** Serving it from a subpath needs that changed, and getting it wrong breaks every asset fetch at once.
-- **Trimming is off** (`PublishTrimmed=false`), which makes the payload larger than it needs to be. See the completed item for why; re-enabling it wants either a trimmer-rooted engine assembly or source-generated JSON contexts, and either needs a machine that can actually run the trimmer to verify.
+Two ways to close it, neither free:
+
+- **Root the engine assembly** for the trimmer (`TrimmerRootAssembly`). Smallest change, but it only preserves what is named, and a Power model gaining a property later would be trimmed away without a warning.
+- **Source-generate the JSON contexts** (`JsonSerializerContext`) so deserialization stops being reflective at all. Better, and it would speed up startup, but it touches `RulesRepository` — which every test runs through — and the engine is deliberately the part of this project that does not churn.
+
+**Either needs a machine that can run the trimmer to verify.** It cannot run locally: the ILLink task host crashes without the `wasm-tools` workload, on the stock Blazor template too. CI can, so the work is possible — but "it built" is not evidence here, because a trimmed-away model is a runtime silence. Whatever is done needs a check that actually loads the published site and reads a rule out of it.
+
+Not urgent. The site works, and a returning visitor pays nothing.
 
 ### 6. Assisted character creation from a description
 
@@ -104,6 +110,23 @@ The project is intended for open-source release but is currently unlicensed, whi
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Hosted on Cloudflare Pages — [#18](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/18)
+
+`pp.softwaresamurai.net`, deployed by GitHub Actions on every push to `master` that touches the app, the engine, the rules or the deploy itself. Direct upload rather than Cloudflare's Git integration, so there is one deploy path rather than two that can disagree. Setup and the token scoping are in the README.
+
+**The Content-Security-Policy is generated, and that is the part worth remembering.** Blazor emits an inline `<script type="importmap">` into `index.html` naming the fingerprinted framework assets, so its contents change whenever those are rebuilt. Under `script-src 'self'` an inline script is blocked and the app never boots — and the easy way out, `'unsafe-inline'`, gives up most of what the policy is for. `scripts/write-cloudflare-headers.sh` hashes the inline scripts of the `index.html` that was actually published, and **exits non-zero if it finds none**, because a hard-coded hash would rot silently and take the site down on some later deploy. CI runs the same script, so a policy that would break the app fails on the pull request instead.
+
+`style-src` still carries `'unsafe-inline'`: the budget bar's width is a live number and arrives as an inline style attribute. That is the one concession, and it is scoped to styles.
+
+The policy was verified by serving the published output through a host that applies `_headers`, not by reading it: the app boots with no violations, deep links resolve through `_redirects`, the mode switch works through JS interop, and — the one genuinely uncertain case — the `blob:` URL the `.txt`/`.json` download builds is not blocked.
+
+Two security choices behind the arrangement, both about blast radius rather than the site itself, which is static and holds nothing:
+
+- **The workflow never triggers on `pull_request`.** That trigger runs a contributor's workflow changes with the base repository's secrets in scope, which would put the Cloudflare token one PR away from anyone.
+- **A subdomain and a token scoped to Pages on one account.** A leaked token can redeploy this one site and nothing else, and a mistake in the Pages config cannot reach the apex domain.
+
+What it left open is payload size — see item 5.
 
 ### A browser front end, on the same engine — [#17](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/17)
 
