@@ -161,6 +161,22 @@ Only constraints the book prints for every Power are enforced: `applies_to_range
 
 Everything else an option states — "Powers that inflict physical or energy damage", "that can be activated and deactivated at will" — is an `applicability_caveat`: shown to the player, never enforced. Enforcing it would mean ~7 booleans × 141 Powers of fresh guesswork. Ch.2 calls the list "not intended to cover every possible option" and puts it under GM approval, so a caveat is the honest model. **A caveat must never become a filter** — there is a test.
 
+### Sources, and the default rank
+
+Six of them (Ch.2 p.15), in `sources.json`: Innate, Magic, Psychic, Super, Tech, Trained. Each names the Ability that stands in as a **rankless** Power's rank whenever Powers act on other Powers (Drain, Nullify, Dispel, Power Absorption, Power Mimicry). Innate/Super/Tech → Toughness; Magic/Psychic/**Trained** → Willpower. Trained is the one people guess wrong.
+
+`DerivedStatsCalculator.GetRankAgainstPowers` answers that. It is **deliberately separate from `GetEffectiveRank`**, which still returns 0 for a rankless Power. The default rank substitutes only against other Powers — it is not the Power's rank, and folding it in would change Edge and Resolve away from the figures the published sheets print. There is a test; do not "simplify" the two into one.
+
+A Source costs nothing and changes no rank, so a missing one is a warning, not an error.
+
+### Sheets group Powers by Source
+
+`SourceGrouping` lives in `engine/`, not in a renderer, because the text sheet, the JSON export, the GM review and any future front end all need the same answer. Published sheets print `TECH POWERS`, `MAGIC POWERS` and so on rather than one flat list, and all three surfaces now do too.
+
+- Groups follow `sources.json` order, so a sheet does not reshuffle as Powers are added.
+- A Power with **no** Source still prints, under a plain `POWERS` heading at the end. Do not "tidy" this by filtering it out — leaving a Power off its own character sheet is worse than showing it unsourced, and the validator already warns.
+- **Abilities are not grouped, and that is correct.** The rulebook gives a Source to any Ability of 7d or greater, but the sheets record it as an `Abilities (…)` entry *inside* a Power group — Stronghold's four armoured Abilities sit under `TECH POWERS` — never as a marking on the Abilities block. Abilities carry no Source in the engine yet; see `PROGRESS.md` item 2.
+
 ### Perk cost formula
 
 Flat-cost perks: pay `Cost` HP. Per-unit perks: pay `CostPerUnit × Units` HP. `SelectedPerk(PerkId, Units, NarrativeDetail?)` — Units is always 1 for flat perks.
@@ -208,6 +224,8 @@ Settled rules questions:
 - Deflection covers one attack type; covering **both doubles its rate** to 2 HP per rank, stated in the Power's own text rather than as a marked Pro
 - The Item Con is **not** credited against a piece of gear
 - Generic Pro/Con applicability is **derived from the option**, never listed on the Power; unenforceable constraints are caveats, not filters
+- A rankless Power's **default rank** comes from its Source and applies **only** against other Powers — it is not its effective rank
+- Sheets group Powers under Source headings; **Abilities are not grouped**, matching the printed layout rather than the rules text
 - The Iconic tier's "200+" is explicitly a bare minimum, so it is GM discretion rather than missing data
 
 Each of these was wrong at some point and is now covered by a regression test naming the rule. If one appears to be violated, read `PROGRESS.md` and the test before changing the code.

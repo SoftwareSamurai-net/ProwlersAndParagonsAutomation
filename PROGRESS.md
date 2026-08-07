@@ -16,8 +16,8 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Powers | 141 entries, all mechanically verified against Ch.2 pp.21–48 |
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.92 |
-| Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws — all verified, nothing flagged |
-| Tests | 2504, run in CI at the same strictness as the build |
+| Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
+| Tests | 2568, run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Known-wrong data | None outstanding |
 
@@ -55,19 +55,15 @@ The invented per-Power lists are gone — see the completed item below. What is 
 
 Enforcing them would need roughly seven booleans on each of the 141 Powers — about a thousand fresh judgements against the book. That is worth doing only if something downstream actually needs it, and the obvious candidate is item 6 (assisted creation), where a model proposing a character benefits from the engine ruling out illegal combinations. Until then the caveat is honest and the guess is not.
 
-### 2. Sources
+### 2. Sources on Abilities and Talents
 
-Not modelled at all. A Source sets the stand-in rank for the 46 rankless (`rank_type: "default"`) Powers — Toughness or Willpower depending on Source — which matters whenever one Power targets another (Drain, Nullify, Dispel and Power Absorption all name a Source).
+Powers now carry a Source and every sheet groups by it — see the completed item below. What is left is the other half of the rule.
 
-**There are exactly six** (Ch.2 p.64, Random Sources table): Innate, Magic, Psychic, Super, Tech, Trained. The Ch.8 sheets use precisely these as headings — `INNATE POWERS`, `MAGIC POWERS`, `PSYCHIC POWERS`, `SUPER POWERS`, `TECH POWERS`, `TRAINED POWERS` — so the per-Power data is there to transcribe for all twenty Heroes.
+Ch.2 p.15: *"These are the Sources for your Powers **and Abilities** with a rank of 7d or greater."* Abilities of 6d or less default to Innate and Talents to Trained, and the book is explicit those defaults are not mandatory. The engine gives a Source only to Powers, so a 10d Ability bought through powered armour has nowhere to say so.
 
-Three things to get right, because they are easy to assume wrong:
+**The published sheets do print this**, which is the argument for modelling it: an Ability's Source appears as an `Abilities (…)` entry *inside* a Power group, not as a marking on the Abilities block. Stronghold's `TECH POWERS` group opens with `Abilities (Agility, Might, Perception, Toughness) (Item: armor)`, and Alabama Slammer's `SUPER POWERS` with `Abilities (Perception, Toughness)`. So faithful rendering eventually needs it.
 
-- **A Source is a property of a Trait, not just of a Power.** Ch.2: *"These are the Sources for your Powers and Abilities with a rank of 7d or greater."* Abilities of 6d or less default to Innate and Talents default to Trained, but those defaults are explicitly not mandatory. So the model wants a Source on Abilities too, even though — see below — the sheet does not print it.
-- **This is a rendering change as well as a data one.** The `.txt` and `.json` exports and `GmReviewStep` currently list Powers flat. A published sheet groups them under Source headings, and reproducing that is part of the job, not a follow-up. Sequence checked on the published sheets: a character carries one or more groups, and where `TRAINED POWERS` appears alongside others it comes last — though that is a small sample, so treat it as an observation, not a rule to enforce.
-- **Abilities are printed as one flat block with no Source marking**, even at 7d and above. Stronghold shows 10d Intellect, Might and Toughness and Psidearm 10d Agility, and neither sheet marks a Source on them. So do not "fix" the renderer by adding Source headings to the Abilities block to match the rules text — the rule and the sheet layout genuinely differ here.
-
-**Heroes and Villains share this.** Ch.9 is explicit that Villains are created exactly like Heroes, minus the Hero Point budget, and Ch.9 prints no separate stat-block format — so one renderer serves both, and whatever Source grouping the Hero sheet gets is what the Villain sheet gets. See item 7.
+Nothing consumes it yet, though — the default-rank rule is about Powers — so adding the field now would be unused data. Worth doing when the printable sheet (item 7) needs the line, and `PrebuiltHeroes.PowerSourcesByHero` is where the transcription would go.
 
 ### 3. Qodana baseline
 
@@ -110,12 +106,12 @@ for Villains. Mechanically the two are identical — Ch.9 is explicit that Villa
 exactly like Heroes, just without a Hero Point budget — so this is presentation only, and
 belongs in the front end, not the engine. One layout serves both; only the palette differs.
 
-**This depends on item 2.** A published sheet does not list Powers flat — it groups them
-under Source headings (`TECH POWERS`, `MAGIC POWERS`, and the rest), and Abilities are a
-single block with no Source marking even at 7d and above. So the sheet cannot be laid out
-faithfully until Powers carry a Source, and item 2 should land first or the two will have to
-be reworked together. The same applies to the existing `.txt` and `.json` exports, which are
-flat today.
+**Power grouping is done** — Powers carry a Source and the `.txt` sheet, the JSON export and
+the GM review all print `TECH POWERS`-style headings, so this can be laid out faithfully now.
+
+One piece is still missing: a published sheet also names an Ability's Source, as an
+`Abilities (…)` entry inside the relevant Power group. That is item 2, and it is the last
+thing this needs.
 
 ### 8. Choose and apply a licence
 
@@ -126,6 +122,18 @@ The project is intended for open-source release but is currently unlicensed, whi
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Sources, and Powers grouped by them on every sheet — [#15](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/15)
+
+**Six Sources** (Ch.2 p.15): Innate, Magic, Psychic, Super, Tech, Trained. Each names the Ability that stands in as a rankless Power's rank whenever Powers act on other Powers — Drain, Nullify, Dispel, Power Absorption, Power Mimicry. The split is even but not intuitive: Innate, Super and Tech use Toughness; **Trained uses Willpower**, not Toughness.
+
+`GetRankAgainstPowers` is deliberately separate from `GetEffectiveRank`, which still answers 0 for a rankless Power. The default rank stands in *only* against other Powers; it is not the Power's rank. Folding it into the effective rank would feed Edge and Resolve figures the published sheets contradict, and a test pins that distinction.
+
+**It is a rendering change too, and that was the point.** The `.txt` sheet, the JSON export and the wizard's GM review all listed Powers flat; they now print Source headings the way a published sheet does. The JSON gains `source`, `source_heading` and `rank_against_powers` — that last one is otherwise invisible, and is where the rule shows: Tech-Source Communications exports `effective_rank: 0` alongside `rank_against_powers: 5`.
+
+All twenty published sheets have their grouping transcribed and a test asserts the engine reproduces each one's printed headings — Psidearm carries three groups, Alabama Slammer two, Talon one. A Power with no Source still prints, under a plain heading at the end, rather than being dropped from its own sheet.
+
+**A correction to what this file said before.** It recorded that Abilities are printed with no Source marking. That is true of the Abilities block, but incomplete: the sheets record an Ability's Source as an `Abilities (…)` entry inside a Power group — Stronghold's four armoured Abilities sit under `TECH POWERS`. See item 2, which is now scoped to exactly that.
 
 ### Pro/Con applicability is derived, not guessed — [#14](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/14)
 
