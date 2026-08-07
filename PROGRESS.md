@@ -17,11 +17,12 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.92 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 2620, run in CI at the same strictness as the build |
+| Tests | 2690, run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two — the terminal wizard and a Blazor WebAssembly app, both on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
 | Printed sheet | A4, ruled boxes, light palette in both modes, no mid-entry page breaks — see the completed item below |
+| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero |
 | Known-wrong data | None outstanding |
 
 The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **15 of the 20 to exactly their 125 Hero Point budget**. The remaining five are all within 2 HP, each for a recorded reason — see [Close the last five Heroes](#1-close-the-last-five-heroes).
@@ -68,25 +69,15 @@ Ch.2 p.15: *"These are the Sources for your Powers **and Abilities** with a rank
 
 Nothing consumes it yet, though — the default-rank rule is about Powers — so adding the field now would be unused data. **There are two surfaces waiting for it now rather than one:** the `.txt` sheet and the browser's `SheetView`, which both group Powers by Source and both stop short of the `Abilities (…)` line. `PrebuiltHeroes.PowerSourcesByHero` is where the transcription would go.
 
-### 3. Qodana baseline
+### 3. What the sheet still cannot say, and what the app still cannot keep
 
-Establish a committed baseline (`--baseline,qodana.sarif.json`) so only *new* problems fail CI. **This is now the blocker on Qodana being useful at all**, and the Blazor slice is what proved it.
+Both found by adversarial audits during the sheet-polish slice, both real, neither in scope for it.
 
-Qodana runs in pull-request mode, so it inspects changed files and reports every finding in them as new. Moving a file therefore re-reports all of it. #17 moved `engine/` and `sheets/` into their own projects and the count went 144 → **249 "new problems"** without a line of that code changing. Two genuine findings in the new code were buried in it, and only came out by downloading the SARIF and grouping by file:
+**A printed page in the middle of a sheet is anonymous.** The name is on page one and in a colophon on the last page; every page between them relies on the browser's own print header, which the user can switch off — and "Save as PDF" with headers unticked is a normal thing to do. CSS has no portable answer: `position: fixed` renders once at the top of page two in Chrome, and Chrome supports neither `@page` margin boxes nor `counter(page)`. The only mechanism that genuinely repeats per page is a table `<thead>`, which would mean rebuilding the sheet as one table. A Powers group that runs to a second page also loses its Source heading, for the same reason.
 
-| Where the 249 actually were | Count |
-|---|---|
-| `engine/Models/*.cs` — setters that exist for `System.Text.Json` to bind, nothing else | ~130 |
-| `tests/**` — transcription records with deliberately unread positional properties | ~40 |
-| Notices: primary constructors, `field` keyword, get-only properties | ~60 |
-| Genuinely actionable, all in new code | 6 |
+**Nothing survives a refresh.** The character lives in a scoped `CharacterSession` and nowhere else, so a reload, a bookmark, or a shared deep link silently drops it and lands on "Choose a tier first". `_redirects` deliberately serves deep links with a 200 so that links *can* be shared, which makes the gap worse rather than better. `localStorage` plus the existing JSON export format is the obvious shape; the JSON is already a complete description of a character, read in reverse (see item 6).
 
-A report where 243 of 249 entries are noise is one nobody reads, which is the state to fix. Two things worth doing together:
-
-- **Commit the baseline** so only new findings surface.
-- **Suppress the two families that are structurally expected** rather than baselining them line by line: unused accessors on the JSON model records, and unread positional properties on the test transcription records. Both are "this data exists to be deserialized or to document a source", not dead code, and a baseline would silently re-flag them the next time a model gains a field.
-
-Retrieving the detail: `gh run download <run-id>`, unzip, read `qodana.sarif.json`. The summary comment gives counts by rule, never by file.
+Smaller, from the same audits: the GM review step lists findings with no route back to the step that caused them; a fresh sheet starts every Ability at 0d although the editor's floor is 1d, and nothing objects; and an empty character prints five boxes saying "None." rather than a blank form anyone could fill in by hand.
 
 ### 4. Remaining rulebook chapters
 
@@ -129,29 +120,44 @@ The project is intended for open-source release but is currently unlicensed, whi
 
 Newest first. Link the PR so the reasoning stays findable.
 
+### Qodana reports zero, and the fix was not a baseline — [#25](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/25)
+
+This closes what was item 3, and the conclusion was the opposite of the plan. A whole-tree scan reported **242** problems. 46 were real and were fixed. The remaining ~200 were three structural facts restated, and they are now silenced by name and by path in **`.editorconfig`** with the reason beside each — not baselined, and not by a severity floor, because both hide a finding rather than answer it.
+
+**`qodana.yaml`'s `exclude:` list was the trap.** It accepts an inspection name, looks like it works, and does nothing: the .NET linter is ReSharper, which takes severities from EditorConfig. A named exclusion there is silently ignored and the finding still reports — verified by running the scan both ways, which is the only way to tell. The upside of the real mechanism is that Rider and the ReSharper command-line tools now agree with CI, which a `qodana.yaml` entry would never have given.
+
+What is silenced, in one line each: `engine/Models/*.cs` exists to be deserialized by reflection and must keep its setters (four inspections, ~150 findings); the test transcription records document a rulebook page rather than being read; a `[Theory]` body asserting on its parameter is not a precondition guard; `JsonValue.Create(...)!` is load-bearing and removing it fails the warnings-as-errors build; and this codebase writes explicit constructors and named backing fields on purpose.
+
+Among the 46 that were fixed, two were worth having: `PowerFormatter` compared a `double?` cost rate with `==`, and `CharacterSession` and `FileSystemRulesSource` carried three genuinely dead public members. Note that Qodana in CI runs in **pull-request mode** and inspects only changed files, so its count there is not comparable to a full scan — the command to reproduce one is in `CLAUDE.md`.
+
 ### The sheet is fit to hand to a player — [#25](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/25)
 
-Presentation only; `engine/` and `sheets/` are untouched. Three faults, done in the order that made each one smaller.
+Mostly presentation. The engine is touched in three places and each is noted below: the validator's user-facing messages, one ordering bug it exposed, and a dead property. Three faults, done in the order that made each one smaller.
 
-**The markup went behind components first.** 22 hand-written `class="panel"`, 21 `panel-head`, 19 `field`, 9 `sheet-section`, 8 `chosen`, 6 `stat-block`, 5 `options`, none of them shared. That is what made the print work expensive rather than the print work itself — ruled boxes and break rules had to reach every one of them. Eight components now: `Panel`, `Field`, `SheetSection`, `StatBlock`, `DerivedStatBlocks`, `OptionList`/`OptionRow`, `ChosenList`/`ChosenRow`, following the `RankRow`/`StepButtons` pattern that was already here.
+**The markup went behind components first.** 22 hand-written `class="panel"`, 21 `panel-head`, 19 `field`, 9 `sheet-section`, 8 `chosen`, 6 `stat-block`, 5 `options`, none of them shared. That is what made the print work expensive rather than the print work itself — ruled boxes and break rules had to reach every one of them. Nine components now: `Panel`, `Field`, `SheetSection`, `StatBlock`, `DerivedStatBlocks`, `OptionList`/`OptionRow`, `ChosenList`/`ChosenRow`, following the `RankRow`/`StepButtons` pattern that was already here.
 
-It found a real display bug on the way: **the sheet printed "Armor8d"**. Razor strips the leading whitespace inside a `<text>` block, so a Power's name and its rank ran together on every ranked entry.
+It found a real display bug on the way: **the sheet printed "Armor8d"**. Razor strips the leading whitespace inside a `<text>` block, so a Power's name and its rank ran together on every ranked entry — and an adversarial pass then found the *same bug* still live on the Powers tab, where the separator sat inside a `<span>` instead. Both are one expression now.
 
 **The printed sheet is the substance of the slice.** The whole print stylesheet was three lines that hid the navigation, and every consequence of that followed: no paper size, no margins, entries cut in half by page boundaries, no boxes — the screen builds them from `box-shadow` and panel fills, none of which print — and the palette printed as-is, so a Villain sheet was a full-bleed near-black page.
 
 - **The palette is forced light for both modes**, as a third block of token overrides in `theme.css`. No rule anywhere else needs to know it is printing. `--primary` is a fill, so on paper it becomes white and the banner takes its weight from a doubled rule instead of a wash of ink; the derived tokens are restated rather than left as colour-mixes, because a mix of black into white is grey and grey prints as a smear.
 - **A4, 14mm margins, ruled boxes, break control** on `.power-entry`, `.stat-block`, table rows, list items and the section boxes. `break-inside: avoid` is a request, not a guarantee — a box too tall for any page is broken rather than clipped, which is exactly the fallback a long Powers group needs — so it is safe to ask for on every box, and it stops a four-line Gear box straddling a page for nothing.
-- **A running footer was tried and does not work.** `position: fixed` is not repeated per page by Chrome's print output; it renders once, at the top of page two, over the content. What does carry the character's name across every page is the **document title**, which the browser prints in its own header, so the review page leads its title with the name. A colophon prints once at the end.
+- **A running footer was tried and does not work.** `position: fixed` is not repeated per page by Chrome's print output; it renders once, at the top of page two, over the content. What does carry the character's name across every page is the **document title**, which the browser prints in its own header, so the review page leads its title with the name. A colophon prints once at the end. This is a real limitation rather than a solved problem: with the browser's own headers switched off, pages 2..n−1 carry no identification at all, and CSS has no portable answer — Chrome supports neither `@page` margin boxes nor page counters.
+- **The sheet gained the Trait Cap and, for a Villain, a point total.** The Trait Cap lived only in the budget bar, which does not print, and it is a number a player consults mid-session. The Villain sheet printed no total at all, because the HP figure was gated on the budget being shown — but "how much character is this" is exactly what a GM wants from an antagonist.
 
 **The judging was done from the PDF, not the screen**, which is the only way this is checkable: the sheet markup was captured from the running app, rendered against the live stylesheets with headless Chrome's `--print-to-pdf`, and the pages rasterised and read back. A three-sheet document forced breaks through every kind of block. Computed styles cannot tell you whether a break lands mid-entry.
 
 **The copy stopped talking to developers.** The GM review step no longer says its exports are "built by `CharacterSheetRenderer` in the shared sheets layer… byte-for-byte what `dotnet run` produces"; the derived-stats page no longer credits `DerivedStatsCalculator`; validation findings no longer print `NO_TIER_SELECTED` at the reader. All of it stays in the `@* *@` comments and `@code` blocks, where it belongs. The machine codes are still in the `.json` export, because they are genuinely useful in a bug report, and the page says so. Rulebook references were left alone on purpose — chapters, page numbers and rule names are what a player wants.
 
-**32 new tests hold all three in place**, because none of them is visible to a compiler: no colour named outside `theme.css` (by hex, by keyword, and by `rgb()`/`hsl()` function syntax, which a hex grep misses); every palette token restated for print, or one mode's value survives through the cascade; nothing developer-facing in the visible markup, *and* the rulebook references still present, since deleting those would pass a naive version of the same test; one owner per repeated class; and the printed sheet's own rules, including no `position: fixed` in the print block — a regression guard, because that looks correct and lands on the wrong page.
+**The tests were adversarially audited, and the first version of them was theatre.** An agent with no context on the work applied *thirteen* violations to `web/` at once — white ink on white paper, every page-break rule flipped to `auto`, the whole working UI un-hidden, a second `@media print` block undoing the first, a `<style>` block carrying `rgb()`, `class="wrapper panel"`, `<code class="tech">`, and the "Armor8d" bug reinstated — and all thirty-two tests passed. It also produced four *false* failures on legitimate edits, one of which was an em-dash entity (`&#8212;`) read as a hex colour.
 
-Also fixed, all small and all on the same surface: the page heading opened with a focus ring drawn round it on every navigation (`FocusOnNavigate` is worth keeping for screen readers, but a heading is not a control and takes no ring); gear rows were set flush right, because spanning both columns also made them the last cell; radii and durations became tokens so `prefers-reduced-motion` can switch every animation off in one place; and Rider's `.idea/` directory is no longer tracked.
+That is worth recording because the lesson generalises: **a substring check against a whole file is almost always satisfied by something other than the thing being tested.** The rewrite parses instead — the print block is split into rules so a selector and its declaration are checked *together*, tokens are checked by value rather than by presence, and prose is derived by stripping tags, attributes, Razor expressions, comments and the `@code` block so a type name in a paragraph can be told apart from one in an expression. Where a test could not be made honest it was replaced by a general rule: no compound PascalCase type from `engine/` or `sheets/` in visible prose, rather than a denylist of the four phrases that prompted it.
 
-**What was not done: a rendering test.** Everything above is asserted against the source, which is honest for rules that *are* statements about the source, but it cannot catch the next "Armor8d" — a bug in what the components actually render. That needs bUnit and a test project that references `web/`, which is a bigger change than the rules it would check and pulls Blazor WebAssembly into a console test executable. Worth doing before the components grow much further.
+**The validator's messages turned out to be the largest remaining developer-facing surface**, and no test in `web/` could ever have seen them — they are engine strings, printed verbatim on the GM review step and in both exports. They named files (`flaws.json`), printed raw ids at a player holding a book (`Power 'super_senses_thermal_vision'`), used form-field plurals (`flaw(s)`), and one told every Iconic-tier character that its tier "is marked needs_review" — jargon, and **false**: nothing in `data/rules/` carries such a flag and the check fires on the tier id regardless. `ValidationMessageTests` provokes every message from real sheets and holds them all to the rule, which found one more thing on the way: **an unknown Power id crashed the validator** rather than being reported, because the Trait Cap check asked for an effective rank before the unknown-id check had run. The same ordering trap had already been fixed once for gear.
+
+Also fixed, from the same audits: `aria-pressed`/`aria-selected` were rendered as `aria-pressed=""` — Blazor's spelling for a true bool, which is invalid ARIA that reads as *not* pressed, so both controls announced the opposite of their state; a half-built `role="tablist"` with no tabpanel, no `aria-controls` and no roving focus, now plain buttons with `aria-current`; two sibling Pro/Con pickers emitting the same DOM ids, so a label focused its neighbour's control; the review page never redrawing on a mode switch, leaving an over-budget finding on a Villain sheet; `--muted` failing AA at 3.8–4.5:1 where it carries almost all the explanatory prose, now 6.0–7.5:1; a Hero focus ring at 1.8:1 that nobody could see, now its own token; every generic Pro and Con offered as a bare name and a price with its description unused; `"How many Hero Point (= 25 Vehicle Points)s?"`; ids humanised into `super senses thermal vision`; a rankless Power offered as a Boost baseline it could never raise; `color-mix()` with no flat fallback, which would have dropped the banner to unreadable rather than unstyled; gear rows set flush right; and the page heading opening with a focus ring drawn round it on every navigation.
+
+**What was not done: a rendering test.** Everything here is asserted against source. That is honest for rules that *are* statements about the source, and it is why the Armor8d bug survived on a second surface for a whole slice — no test in this repository can see what a component actually renders. Closing it needs bUnit and a test project that references `web/`. It is the single highest-value thing left on this surface.
 
 ### Two sample characters, for previewing a sheet — [#23](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/23)
 

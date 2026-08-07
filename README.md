@@ -119,6 +119,7 @@ ProwlersAndParagonsAutomation/
 │   ├── Pages/                    # One page per creation step, mirroring the CLI's six
 │   ├── Components/               # Panel, Field, SheetSection, OptionRow… and SheetView
 │   ├── Services/CharacterSession.cs  # The CharacterSheet plus the calculators
+│   ├── Services/Labels.cs        # Turns a rules key into something a player can read
 │   └── wwwroot/
 │       ├── css/theme.css         # Hero, Villain and print palettes, as CSS custom properties
 │       ├── css/app.css           # Layout, components and the print stylesheet. Names no colour
@@ -137,7 +138,8 @@ ProwlersAndParagonsAutomation/
 │   ├── PrebuiltHeroes.cs         # the 20 published Heroes from Ch.8, transcribed
 │   ├── PrebuiltHeroTests.cs      # rebuilds each and checks their printed Edge/Health/Resolve
 │   ├── SampleCharacterTests.cs   # the two preview characters must be legal and printable
-│   └── WebPresentationTests.cs   # no colour outside theme.css, no jargon on screen, print rules
+│   ├── WebPresentationTests.cs   # no colour outside theme.css, no jargon on screen, print rules
+│   └── ValidationMessageTests.cs # every message a player can be shown, held to the same rule
 │
 ├── scripts/
 │   └── write-cloudflare-headers.sh   # Generates _headers, hashing the inline import map
