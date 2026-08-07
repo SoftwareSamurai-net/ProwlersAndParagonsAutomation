@@ -292,7 +292,7 @@ public sealed class PrebuiltHeroTests
     }
 
     /// <summary>
-    /// Twelve of the twenty rebuild to exactly their 125 Hero Point budget. That is the
+    /// Fourteen of the twenty rebuild to exactly their 125 Hero Point budget. That is the
     /// whole engine end to end — ability and talent costs against a starting package,
     /// baseline ranks, every cost type, and both generic and Power-specific Pros and Cons
     /// — landing on a number the authors published.
@@ -311,6 +311,7 @@ public sealed class PrebuiltHeroTests
     [InlineData("Psidearm")]
     [InlineData("Siren")]
     [InlineData("Stronghold")]
+    [InlineData("Talon")]
     public void HeroRebuildsToExactly125(string name)
     {
         var hero = PrebuiltHeroes.All.Single(h => h.Name == name);
@@ -320,17 +321,15 @@ public sealed class PrebuiltHeroTests
     }
 
     /// <summary>
-    /// The other eight, held at the residual they currently show so a change that moves
-    /// one is noticed. Each residual has a reason recorded in
-    /// <see cref="PrebuiltHeroes.BuildByHero"/>; closing the Chapter 6 gear gap should
-    /// take several of them to zero.
+    /// The other six, held at the residual they currently show so a change that moves one
+    /// is noticed. Each residual has a reason recorded in
+    /// <see cref="PrebuiltHeroes.BuildByHero"/>.
     /// </summary>
     [Theory]
     [InlineData("Herald (Airmid)")]
     [InlineData("Herald (Scathach)")]
     [InlineData("Shadow")]
     [InlineData("T-Kay")]
-    [InlineData("Talon")]
     [InlineData("Vector")]
     [InlineData("Vigilant")]
     public void HeroRebuildsToItsKnownResidual(string name)
@@ -346,7 +345,7 @@ public sealed class PrebuiltHeroTests
     public void MostHeroesReconcileExactly()
     {
         var exact = PrebuiltHeroes.BuildByHero.Count(kv => kv.Value.Residual == 0);
-        Assert.Equal(13, exact);
+        Assert.Equal(14, exact);
 
         // Nothing is more than 6 Hero Points out.
         Assert.All(PrebuiltHeroes.BuildByHero,

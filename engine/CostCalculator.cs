@@ -93,32 +93,48 @@ public sealed class CostCalculator
     /// Unranked Powers (flat, flat_variable, per_unit) ignore purchased ranks and are
     /// floored at 1 HP, except Specialty, which the rulebook makes free.
     /// </summary>
-    public int PowerCost(SelectedPower selection)
+    public int PowerCost(SelectedPower selection) => CostParts.For(this, selection).Total();
+
+    /// <summary>
+    /// A Power's cost taken apart: the price its ranks or flat rate come to, the flat
+    /// change its Pros and Cons make, and the rulebook floor beneath the two combined.
+    ///
+    /// <para>They are kept separate only because Super Senses needs them that way — it is
+    /// a single Power bought as several entries here, so its options are summed before the
+    /// Cons and the floor are applied once. See <see cref="SuperSensesCost"/>.</para>
+    /// </summary>
+    private readonly record struct CostParts(int Base, int Flat, int Minimum)
     {
-        var power = _rules.GetPower(selection.PowerId)
-                    ?? throw new InvalidOperationException($"Unknown power id '{selection.PowerId}'.");
+        public int Total() => Math.Max(Minimum, Base + Flat);
 
-        var (flatModifiers, rateModifiers) = ResolveModifiers(power, selection);
-
-        return power.CostType switch
+        public static CostParts For(CostCalculator calc, SelectedPower selection)
         {
-            "per_rank" or "per_rank_variable" or "special" =>
-                RankedCost(power, selection, flatModifiers, rateModifiers),
+            var power = calc._rules.GetPower(selection.PowerId)
+                        ?? throw new InvalidOperationException($"Unknown power id '{selection.PowerId}'.");
 
-            "flat" =>
-                FlatCost(power.CostFlat ?? throw MissingCost(power, "cost_flat"),
-                         flatModifiers, power.Id),
+            var (flat, rate) = calc.ResolveModifiers(power, selection);
 
-            "flat_variable" =>
-                FlatCost((int)ResolveVariant(power, selection), flatModifiers, power.Id),
+            // Specialty is the one Power the rulebook prices at 0 HP, so it has no floor.
+            CostParts Fixed(int cost) => power.Id == "specialty" ? new(0, 0, 0) : new(cost, flat, 1);
 
-            "per_unit" =>
-                FlatCost((power.CostPerUnit ?? throw MissingCost(power, "cost_per_unit")) * selection.Units,
-                         flatModifiers, power.Id),
+            return power.CostType switch
+            {
+                "per_rank" or "per_rank_variable" or "special" =>
+                    calc.RankedParts(power, selection, flat, rate),
 
-            _ => throw new InvalidOperationException(
-                     $"Unknown cost_type '{power.CostType}' on power '{power.Id}'.")
-        };
+                "flat" =>
+                    Fixed(power.CostFlat ?? throw MissingCost(power, "cost_flat")),
+
+                "flat_variable" =>
+                    Fixed((int)calc.ResolveVariant(power, selection)),
+
+                "per_unit" =>
+                    Fixed((power.CostPerUnit ?? throw MissingCost(power, "cost_per_unit")) * selection.Units),
+
+                _ => throw new InvalidOperationException(
+                         $"Unknown cost_type '{power.CostType}' on power '{power.Id}'.")
+            };
+        }
     }
 
     /// <summary>
@@ -216,7 +232,7 @@ public sealed class CostCalculator
     /// flat pro/con total (cons negative); <paramref name="rateModifiers"/> is the change
     /// those Pros and Cons make to the Hero Points per rank.
     /// </summary>
-    private int RankedCost(PowerModel power, SelectedPower selection, int flatModifiers, double rateModifiers)
+    private CostParts RankedParts(PowerModel power, SelectedPower selection, int flatModifiers, double rateModifiers)
     {
         var rate = PerRankRate(power, selection) + rateModifiers;
 
@@ -226,10 +242,9 @@ public sealed class CostCalculator
         var reductions = selection.Cons.Count(c => c.Id is "overkill" or "weak");
         var effectiveRate = Math.Max(0.5, rate - reductions);
 
-        var baseCost = (int)Math.Ceiling(selection.PurchasedRanks * effectiveRate);
-        var minimum  = MinimumRankedCost(selection.PurchasedRanks);
-
-        return Math.Max(minimum, baseCost + flatModifiers);
+        return new((int)Math.Ceiling(selection.PurchasedRanks * effectiveRate),
+                   flatModifiers,
+                   MinimumRankedCost(selection.PurchasedRanks));
     }
 
     /// <summary>
@@ -313,23 +328,50 @@ public sealed class CostCalculator
             $"Valid keys: {string.Join(", ", variants.Keys)}");
     }
 
-    /// <summary>
-    /// Cost of a Power bought for a fixed price. Specialty is the one Power the
-    /// rulebook prices at 0 HP, so it is not floored at 1.
-    /// </summary>
-    private static int FlatCost(int cost, int modifiers, string powerId)
-    {
-        if (powerId == "specialty") return 0;
-        return Math.Max(1, cost + modifiers);
-    }
-
     private static InvalidOperationException MissingCost(PowerModel power, string field) =>
         new($"Power '{power.Id}' has cost_type '{power.CostType}' but no {field} value.");
 
+    /// <summary>
+    /// Every Super Senses option shares this id prefix. They are separate entries in
+    /// powers.json because each has its own price, but the rulebook is explicit that
+    /// they are not separate Powers — see <see cref="SuperSensesCost"/>.
+    /// </summary>
+    private const string SuperSensesPrefix = "super_senses_";
+
+    private static bool IsSuperSense(SelectedPower selection) =>
+        selection.PowerId.StartsWith(SuperSensesPrefix, StringComparison.Ordinal);
+
     /// <summary>Total HP spent on all selected powers.</summary>
-    public int TotalPowersCost(CharacterSheet sheet)
+    public int TotalPowersCost(CharacterSheet sheet) =>
+        sheet.SelectedPowers.Where(p => !IsSuperSense(p)).Sum(PowerCost)
+        + SuperSensesCost(sheet.SelectedPowers.Where(IsSuperSense));
+
+    /// <summary>
+    /// Super Senses costs as one Power, not as one per option.
+    ///
+    /// <para>Ch.2: "Regardless of the options you select, Super Senses is always considered
+    /// a single Power with an effective rank equal to your Perception or your Acute X rank,
+    /// whichever is greater." Each option is its own entry here only because each carries
+    /// its own price; that is a storage decision, and the rulebook is explicit that it does
+    /// not make them separate Powers.</para>
+    ///
+    /// <para>Two rules are stated per Power and so apply once to the whole group: a Con
+    /// written against the group discounts the group, and the minimum-cost floor is one
+    /// floor rather than one per option. The floor is what actually bites — most options
+    /// cost 1 HP flat, so per option a Con would be swallowed by that option's own floor
+    /// and be worth nothing at all.</para>
+    ///
+    /// <para>Super Senses is the only such group. Form leaves each version independent,
+    /// and Transformation says "Regardless of which Transformation Power you possess",
+    /// naming them Powers in the plural — so both stay priced separately.</para>
+    /// </summary>
+    private int SuperSensesCost(IEnumerable<SelectedPower> options)
     {
-        return sheet.SelectedPowers.Sum(PowerCost);
+        var parts = options.Select(o => CostParts.For(this, o)).ToList();
+        if (parts.Count == 0) return 0;
+
+        return Math.Max(parts.Max(p => p.Minimum),
+                        parts.Sum(p => p.Base) + parts.Sum(p => p.Flat));
     }
 
     // ── Perks ─────────────────────────────────────────────────────────────

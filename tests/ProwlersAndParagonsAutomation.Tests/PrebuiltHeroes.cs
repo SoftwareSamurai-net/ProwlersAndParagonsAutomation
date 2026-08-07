@@ -258,16 +258,16 @@ public static class PrebuiltHeroes
             ["Pandora"]           = ("hero_package", 0),
             ["Blastwave"]         = ("civilian_package", 0),
             ["Stronghold"]        = ("superhero_package", 0),
+            ["Talon"]             = ("superhero_package", 0),
 
             // Not exact. Closest package, with what is left over. None of these is explained by
             // gear: Ch.6 makes mundane gear free, so that earlier guess was wrong.
             ["Herald (Scathach)"] = ("hero_package", 1),        // Strike carries four Pros/Cons at once
-            ["Talon"]             = ("superhero_package", 1),
+            ["Shadow"]            = ("superhero_package", 1),   // unexplained
             ["T-Kay"]             = ("superhero_package", -1),  // Limited grade is not stated
             ["Vigilant"]          = ("superhero_package", -1),  // Jo Sticks are Upgraded, a custom feature not modelled
             ["Herald (Airmid)"]   = ("superhero_package", 2),
-            ["Shadow"]            = ("superhero_package", 2),   // unexplained
-            
+
             ["Vector"]            = ("superhero_package", -6)   // unexplained; the largest gap left
         };
 
