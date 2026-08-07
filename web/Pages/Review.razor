@@ -2,60 +2,60 @@
 @inject CharacterSession Session
 @inject IJSRuntime Js
 
-<PageTitle>GM review — Prowlers &amp; Paragons</PageTitle>
+@* The character's name leads the title because the browser prints the document title in
+   its own page header, which is the one thing that reliably repeats on every printed page.
+   That is what identifies page three of a sheet lying face-up on a table. *@
+<PageTitle>@(string.IsNullOrWhiteSpace(Session.Sheet.Name) ? "GM review" : Session.Sheet.Name) — Prowlers &amp; Paragons</PageTitle>
 
 <h1>GM review</h1>
 
-<section class="panel no-print">
-    <div class="panel-head">
-        <h2>Validation</h2>
+<Panel Title="Checks against the rules" NoPrint="true">
+    <Head>
         <span class="verdict @(Validation.IsValid ? "" : "invalid")">
             @(Validation.IsValid ? "Legal" : "Not legal yet")
         </span>
-    </div>
+    </Head>
+    <ChildContent>
+        @if (Issues.Count == 0)
+        {
+            <p class="small muted">Nothing to report — this character is ready to play.</p>
+        }
+        else
+        {
+            <ul class="issues">
+                @foreach (var issue in Issues)
+                {
+                    <li class="@(issue.Severity == ValidationSeverity.Error ? "error" : "warning")">
+                        @issue.Message
+                    </li>
+                }
+            </ul>
+        }
 
-    @if (Issues.Count == 0)
-    {
-        <p class="small muted">Nothing to report.</p>
-    }
-    else
-    {
-        <ul class="issues">
-            @foreach (var issue in Issues)
-            {
-                <li class="@(issue.Severity == ValidationSeverity.Error ? "error" : "warning")">
-                    @issue.Message
-                    <div><code>@issue.Code</code></div>
-                </li>
-            }
-        </ul>
-    }
+        @if (!Session.ShowBudget)
+        {
+            <p class="small muted">
+                Villain mode: Ch.9 gives Villains no Hero Point budget, so anything about
+                the budget is left out here. Everything else — Trait Caps, flaw counts,
+                selections that still need an answer — still applies, because a Villain is
+                built by exactly the same rules.
+            </p>
+        }
+    </ChildContent>
+</Panel>
 
-    @if (!Session.ShowBudget)
-    {
-        <p class="small muted">
-            Villain mode: Ch.9 gives Villains no Hero Point budget, so budget findings are
-            not shown. Everything else — Trait Caps, flaw counts, unpriceable selections —
-            still applies, because a Villain is built by exactly the same rules.
-        </p>
-    }
-</section>
-
-<section class="panel no-print">
-    <div class="panel-head">
-        <h2>Export</h2>
-        <span class="muted small">The same two documents the terminal wizard writes</span>
-    </div>
+<Panel Title="Take it away" NoPrint="true">
     <div class="inline">
-        <button type="button" class="btn primary" @onclick="DownloadText">Download .txt</button>
-        <button type="button" class="btn" @onclick="DownloadJson">Download .json</button>
-        <button type="button" class="btn" @onclick="Print">Print this sheet</button>
+        <button type="button" class="btn primary" @onclick="Print">Print this sheet</button>
+        <button type="button" class="btn" @onclick="DownloadText">Download as text</button>
+        <button type="button" class="btn" @onclick="DownloadJson">Download as data</button>
     </div>
-    <p class="small muted" style="margin-top:0.5rem">
-        Both are built by <code>CharacterSheetRenderer</code> in the shared sheets layer, so
-        they are byte-for-byte what <code>dotnet run</code> produces for the same character.
+    <p class="small muted spaced">
+        Printing gives you the sheet below on paper, or as a PDF if you pick "Save as PDF"
+        in the print dialogue. The text file is the same sheet for pasting into notes; the
+        data file is for other tools, and records every check above with its reference code.
     </p>
-</section>
+</Panel>
 
 <SheetView />
 

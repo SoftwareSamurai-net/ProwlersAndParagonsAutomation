@@ -5,31 +5,15 @@
 
 <h1>Derived stats</h1>
 <p class="muted">
-    Nothing on this page is bought. All three are computed from what is already on the
-    sheet, by <code>DerivedStatsCalculator</code> — the same code the terminal wizard and
-    the tests run.
+    Nothing on this page is bought. All three follow from what is already on the sheet, and
+    they change as you change it.
 </p>
 
-<section class="panel">
-    <div class="stat-blocks">
-        <div class="stat-block">
-            <div class="label">Edge</div>
-            <div class="value">@Session.Derived.CalculateEdge(Session.Sheet)</div>
-        </div>
-        <div class="stat-block">
-            <div class="label">Health</div>
-            <div class="value">@Session.Derived.CalculateHealth(Session.Sheet)</div>
-        </div>
-        <div class="stat-block">
-            <div class="label">Resolve</div>
-            <div class="value">@Session.Derived.CalculateResolve(Session.Sheet)</div>
-        </div>
-    </div>
-</section>
+<Panel>
+    <DerivedStatBlocks />
+</Panel>
 
-<section class="panel">
-    <div class="panel-head"><h2>Where they come from</h2></div>
-
+<Panel Title="Where they come from">
     <h3>Edge</h3>
     <p class="small">
         Perception + the better of Agility and Intellect. Three details are easy to get
@@ -75,7 +59,7 @@
         Trait Cap @(Session.TraitCap)d ·
         @Session.Sheet.Flaws.Count(IsResolveFlaw) Condition/Plot Hook flaw(s)
     </p>
-</section>
+</Panel>
 
 <StepButtons Back="gear" BackLabel="Gear" Next="finishing" NextLabel="Finishing touches" />
 
