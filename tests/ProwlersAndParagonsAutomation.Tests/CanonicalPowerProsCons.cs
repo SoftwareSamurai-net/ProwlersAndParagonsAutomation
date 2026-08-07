@@ -1,10 +1,15 @@
 namespace ProwlersAndParagonsAutomation.Tests;
 
 /// <summary>
-/// Every Pro and Con printed inside an individual Power's entry in Chapter 2, with the
-/// Hero Point change the rulebook gives it. These are distinct from the generic Pros
+/// Every Pro and Con the rulebook attaches to one named Power rather than to Powers in
+/// general, with the Hero Point change it gives. These are distinct from the generic Pros
 /// and Cons in pros.json / cons.json, and unlike those, several change the Power's cost
 /// per rank rather than its total.
+///
+/// <para>Almost all are printed inside the Power's own entry in Chapter 2. Three are not:
+/// Caustic, Lethal Disease and Non-Lethal Disease sit in Chapter 7's Toxins section (p.108)
+/// and name Stun or Slay in their text. Sweeping the whole book for a PRO/CON Hero Point
+/// marker returns those three and nothing else outside Chapter 2.</para>
 ///
 /// <para>Transcribed from the rulebook. If a test using this fails, check the page in the
 /// Power's <c>source_ref</c> — do not edit this table to match the code.</para>
@@ -87,6 +92,7 @@ public static class CanonicalPowerProsCons
         new("regeneration", "pro", "fast", "flat=6"),
         new("regeneration", "pro", "instant", "flat=18"),
         new("running", "pro", "hover", "flat=2"),
+        new("slay", "pro", "lethal_disease", "flat=6"),
         new("star_gate", "pro", "portal", "flat=2"),
         new("stretching", "con", "long_reach", "flat=-1"),
         new("strike", "pro", "deflect", "flat=4"),
@@ -95,6 +101,8 @@ public static class CanonicalPowerProsCons
         new("strike", "pro", "sweep", "flat=4"),
         new("strike", "con", "subdual", "flat=-1"),
         new("strike", "con", "weapons", "flat=-1"),
+        new("stun", "pro", "non_lethal_disease", "flat=2"),
+        new("stun", "con", "caustic", "flat=-2"),
         new("stun", "con", "emp", "flat=-2"),
         new("summoning", "pro", "animals", "per_rank_variable=narrow_selection:1,wide_variety:2"),
         new("summoning", "pro", "automatons", "per_rank=1"),

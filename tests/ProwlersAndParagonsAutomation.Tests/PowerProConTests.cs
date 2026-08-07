@@ -56,17 +56,37 @@ public sealed class PowerProConTests
     // ── Against the rulebook ─────────────────────────────────────────────────
 
     [Fact]
-    public void TheRulebookPrints102PowerSpecificProsAndCons()
+    public void TheRulebookPrints105PowerSpecificProsAndCons()
     {
+        // 102 inside Power entries in Ch.2, plus the three toxin ones in Ch.7 (p.108).
         var actual = _f.Rules.Powers.Sum(p => p.PowerPros.Count + p.PowerCons.Count);
 
-        Assert.Equal(102, CanonicalPowerProsCons.All.Count);
-        Assert.Equal(102, actual);
+        Assert.Equal(105, CanonicalPowerProsCons.All.Count);
+        Assert.Equal(105, actual);
     }
 
     [Fact]
-    public void SixtyOnePowersCarryAtLeastOne() =>
-        Assert.Equal(61, _f.Rules.Powers.Count(p => p.PowerPros.Count + p.PowerCons.Count > 0));
+    public void SixtyTwoPowersCarryAtLeastOne() =>
+        Assert.Equal(62, _f.Rules.Powers.Count(p => p.PowerPros.Count + p.PowerCons.Count > 0));
+
+    /// <summary>
+    /// The three toxin entries are the only Pros and Cons the rulebook prints outside
+    /// Chapter 2, and each names the one Power it applies to. Non-Lethal Disease is Stun,
+    /// not Slay, which is easy to get backwards given it sits beside Lethal Disease.
+    /// </summary>
+    [Theory]
+    [InlineData("stun", "con", "caustic", -2)]
+    [InlineData("slay", "pro", "lethal_disease", 6)]
+    [InlineData("stun", "pro", "non_lethal_disease", 2)]
+    public void TheToxinEntriesBelongToTheirNamedPower(string powerId, string kind, string id, int modifier)
+    {
+        Assert.Equal(modifier, Find(powerId, kind, id).CostModifier);
+
+        // ...and to no other Power.
+        var others = _f.Rules.Powers.Where(p => p.Id != powerId);
+        Assert.All(others, p => Assert.DoesNotContain(
+            p.PowerPros.Concat(p.PowerCons), x => x.Id == id));
+    }
 
     [Theory]
     [MemberData(nameof(AllEntries))]
