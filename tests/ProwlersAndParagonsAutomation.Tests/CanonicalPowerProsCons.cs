@@ -37,6 +37,7 @@ public static class CanonicalPowerProsCons
         new("buff", "pro", "greater", "flat=6"),
         new("constructs", "pro", "devices", "per_rank=2"),
         new("dazzle", "con", "deafen", "flat=-1"),
+        new("deflection", "pro", "both_types", "per_rank=1"),
         new("deflection", "con", "only_x", "flat=-4"),
         new("detection", "pro", "long_range", "flat=1"),
         new("dimensional_travel", "pro", "portal", "flat=2"),

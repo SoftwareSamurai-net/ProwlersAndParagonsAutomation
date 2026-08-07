@@ -56,13 +56,36 @@ public sealed class PowerProConTests
     // ── Against the rulebook ─────────────────────────────────────────────────
 
     [Fact]
-    public void TheRulebookPrints105PowerSpecificProsAndCons()
+    public void TheRulebookPrints106PowerSpecificProsAndCons()
     {
-        // 102 inside Power entries in Ch.2, plus the three toxin ones in Ch.7 (p.108).
+        // 102 carry a PRO/CON marker inside a Power entry in Ch.2, and three more carry
+        // one in Ch.7's Toxins section (p.108). Deflection's "Physical and Energy" is the
+        // one entry with no marker: the Power's own text states it as prose (p.26).
         var actual = _f.Rules.Powers.Sum(p => p.PowerPros.Count + p.PowerCons.Count);
 
-        Assert.Equal(105, CanonicalPowerProsCons.All.Count);
-        Assert.Equal(105, actual);
+        Assert.Equal(106, CanonicalPowerProsCons.All.Count);
+        Assert.Equal(106, actual);
+    }
+
+    /// <summary>
+    /// Ch.2, Deflection (p.26): "Decide whether you can deflect physical attacks or energy
+    /// attacks when you select this Power... If you wish, you can double the cost of this
+    /// Power and spend 2 Hero Points per rank to be able to deflect both."
+    ///
+    /// <para>It is modelled as a per-rank Pro rather than a second cost variant so the
+    /// Power's printed stat line stays 1 Hero Point per rank, which is what
+    /// <see cref="CanonicalPowers"/> transcribes. Nothing else changes Deflection's rate,
+    /// so +1 per rank and doubling are the same number.</para>
+    /// </summary>
+    [Fact]
+    public void DeflectingBothTypesDoublesTheCost()
+    {
+        var oneType  = _f.Costs.PowerCost(new SelectedPower("deflection", 10));
+        var bothTypes = _f.Costs.PowerCost(new SelectedPower("deflection", 10,
+                            [new SelectedProCon("both_types")], []));
+
+        Assert.Equal(10, oneType);
+        Assert.Equal(oneType * 2, bothTypes);
     }
 
     [Fact]

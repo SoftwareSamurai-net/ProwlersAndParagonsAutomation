@@ -292,7 +292,7 @@ public sealed class PrebuiltHeroTests
     }
 
     /// <summary>
-    /// Fourteen of the twenty rebuild to exactly their 125 Hero Point budget. That is the
+    /// Fifteen of the twenty rebuild to exactly their 125 Hero Point budget. That is the
     /// whole engine end to end — ability and talent costs against a starting package,
     /// baseline ranks, every cost type, and both generic and Power-specific Pros and Cons
     /// — landing on a number the authors published.
@@ -312,6 +312,7 @@ public sealed class PrebuiltHeroTests
     [InlineData("Siren")]
     [InlineData("Stronghold")]
     [InlineData("Talon")]
+    [InlineData("Vector")]
     public void HeroRebuildsToExactly125(string name)
     {
         var hero = PrebuiltHeroes.All.Single(h => h.Name == name);
@@ -321,16 +322,15 @@ public sealed class PrebuiltHeroTests
     }
 
     /// <summary>
-    /// The other six, held at the residual they currently show so a change that moves one
+    /// The other five, held at the residual they currently show so a change that moves one
     /// is noticed. Each residual has a reason recorded in
-    /// <see cref="PrebuiltHeroes.BuildByHero"/>.
+    /// <see cref="PrebuiltHeroes.BuildByHero"/>. All five are within 2 Hero Points.
     /// </summary>
     [Theory]
     [InlineData("Herald (Airmid)")]
     [InlineData("Herald (Scathach)")]
     [InlineData("Shadow")]
     [InlineData("T-Kay")]
-    [InlineData("Vector")]
     [InlineData("Vigilant")]
     public void HeroRebuildsToItsKnownResidual(string name)
     {
@@ -345,11 +345,47 @@ public sealed class PrebuiltHeroTests
     public void MostHeroesReconcileExactly()
     {
         var exact = PrebuiltHeroes.BuildByHero.Count(kv => kv.Value.Residual == 0);
-        Assert.Equal(14, exact);
+        Assert.Equal(15, exact);
 
-        // Nothing is more than 6 Hero Points out.
+        // Nothing is more than 2 Hero Points out.
         Assert.All(PrebuiltHeroes.BuildByHero,
-            kv => Assert.True(Math.Abs(kv.Value.Residual) <= 6, $"{kv.Key} is {kv.Value.Residual} out."));
+            kv => Assert.True(Math.Abs(kv.Value.Residual) <= 2, $"{kv.Key} is {kv.Value.Residual} out."));
+    }
+
+    /// <summary>
+    /// The sheets never print which starting package a Hero took, so it is inferred: the
+    /// one that lands the rebuild on 125. That inference is only trustworthy where exactly
+    /// one package does, which is the claim this test makes for every exact Hero.
+    ///
+    /// <para>It also keeps the inference honest when a cost changes. Vector was recorded
+    /// on the Superhero Package as a closest fit while his Deflection was underpriced;
+    /// once it was corrected, the Hero Package became the only one that fits.</para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ExactHeroNames))]
+    public void ExactlyOnePackageLandsAnExactHeroOn125(string name)
+    {
+        var hero = PrebuiltHeroes.All.Single(h => h.Name == name);
+
+        var fits = _f.Rules.CreationRules.OptionalPackages
+            .Where(p =>
+            {
+                var sheet = Build(hero);
+                sheet.SelectedPackageId = p.Id;
+                return _f.Costs.TotalCost(sheet) == 125;
+            })
+            .Select(p => p.Id)
+            .ToList();
+
+        Assert.Equal([PrebuiltHeroes.BuildByHero[name].Package], fits);
+    }
+
+    public static TheoryData<string> ExactHeroNames()
+    {
+        var data = new TheoryData<string>();
+        foreach (var kv in PrebuiltHeroes.BuildByHero.Where(kv => kv.Value.Residual == 0))
+            data.Add(kv.Key);
+        return data;
     }
 
     [Fact]

@@ -221,7 +221,9 @@ public static class PrebuiltHeroes
 
             // Vector
             ["Vector|blink"]        = ["con:exclusive"],
-            ["Vector|deflection"]   = ["con:exclusive"],
+            // "Deflection (Physical and Energy)" — the Power picks one type unless you
+            // pay double, which is what the parenthesis on the sheet is buying.
+            ["Vector|deflection"]   = ["pro:both_types", "con:exclusive"],
             ["Vector|phasing"]      = ["con:exclusive"],
             ["Vector|regeneration"] = ["con:conditional:often_works"],
             ["Vector|telekinesis"]  = ["con:exclusive"],
@@ -259,6 +261,7 @@ public static class PrebuiltHeroes
             ["Blastwave"]         = ("civilian_package", 0),
             ["Stronghold"]        = ("superhero_package", 0),
             ["Talon"]             = ("superhero_package", 0),
+            ["Vector"]            = ("hero_package", 0),
 
             // Not exact. Closest package, with what is left over. None of these is explained by
             // gear: Ch.6 makes mundane gear free, so that earlier guess was wrong.
@@ -266,9 +269,7 @@ public static class PrebuiltHeroes
             ["Shadow"]            = ("superhero_package", 1),   // unexplained
             ["T-Kay"]             = ("superhero_package", -1),  // Limited grade is not stated
             ["Vigilant"]          = ("superhero_package", -1),  // Jo Sticks are Upgraded, a custom feature not modelled
-            ["Herald (Airmid)"]   = ("superhero_package", 2),
-
-            ["Vector"]            = ("superhero_package", -6)   // unexplained; the largest gap left
+            ["Herald (Airmid)"]   = ("superhero_package", 2)
         };
 
     /// <summary>

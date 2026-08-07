@@ -1184,6 +1184,15 @@
       "recharge",
       "sustained"
     ],
+    "power_pros": [
+      {
+        "id": "both_types",
+        "name": "Physical and Energy",
+        "cost_type": "per_rank",
+        "cost_per_rank": 1,
+        "description": "You deflect both physical and energy attacks rather than picking one when the Power is bought. The rulebook states this as doubling the Power's cost to 2 Hero Points per rank; since nothing else changes its rate, adding 1 per rank is the same number."
+      }
+    ],
     "power_cons": [
       {
         "id": "only_x",
