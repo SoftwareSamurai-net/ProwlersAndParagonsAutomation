@@ -24,6 +24,7 @@ Either front end walks players and GMs through the full creation process — tra
 - **Every rules value verified against the rulebook and locked by tests** — the suite holds the printed Range, Rank and Cost of all 141 powers, so a data edit that contradicts the book fails CI
 - **Dual export** — formatted `.txt` and structured `.json`, written to `output/` by the CLI and downloaded by the browser, from one implementation
 - **Two front ends on one engine** — a Spectre.Console wizard and a Blazor WebAssembly app that runs `CostCalculator` and `CharacterValidator` as the same compiled code, with Hero and Villain palettes
+- **Two sample characters** — a finished Hero and Villain, loadable in one click, for seeing a sheet without building one first; both held to the rules by tests
 
 ---
 
@@ -97,7 +98,8 @@ ProwlersAndParagonsAutomation/
 │   ├── RulesRepository.cs        # Lazy JSON loader (snake_case, cached lookups)
 │   ├── CostCalculator.cs         # HP cost logic for every trait type
 │   ├── DerivedStatsCalculator.cs # Edge, Health, Resolve, baseline/effective rank
-│   └── CharacterValidator.cs     # Validation with Error/Warning severity
+│   ├── CharacterValidator.cs     # Validation with Error/Warning severity
+│   └── SampleCharacters.cs       # Two finished characters for preview — no rules logic
 │
 ├── sheets/                       # Rendering shared by both front ends, no host coupling
 │   ├── CharacterSheetRenderer.cs # The .txt and .json sheets, built as strings
@@ -131,7 +133,8 @@ ProwlersAndParagonsAutomation/
 │   ├── DerivedStatsCalculatorTests.cs
 │   ├── CharacterValidatorTests.cs
 │   ├── PrebuiltHeroes.cs         # the 20 published Heroes from Ch.8, transcribed
-│   └── PrebuiltHeroTests.cs      # rebuilds each and checks their printed Edge/Health/Resolve
+│   ├── PrebuiltHeroTests.cs      # rebuilds each and checks their printed Edge/Health/Resolve
+│   └── SampleCharacterTests.cs   # the two preview characters must be legal and printable
 │
 ├── scripts/
 │   └── write-cloudflare-headers.sh   # Generates _headers, hashing the inline import map
@@ -147,6 +150,7 @@ ProwlersAndParagonsAutomation/
 ├── PROGRESS.md                   # What is done and what remains — kept current
 ├── CLAUDE.md                     # Working notes: the decisions that are expensive to re-derive
 ├── docs/RULES_EXTRACTION_GUIDE.md
+├── docs/HANDOVER-sheet-polish.md # next slice; delete when done
 └── Program.cs                    # CLI entry point
 ```
 
@@ -370,7 +374,7 @@ To publish reports to Qodana Cloud, add a `QODANA_TOKEN` repository secret. With
 
 ## Deploying the browser front end
 
-The site is hosted on **Cloudflare Pages** at `pp.softwaresamurai.net`, deployed by [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) on every push to `master` that touches the app, the engine, the rules or the deploy itself.
+The site is **live on Cloudflare Pages** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed by [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) on every push to `master` that touches the app, the engine, the rules or the deploy itself. The custom domain `pp.softwaresamurai.net` is **not attached yet** — that is step 5 below.
 
 There is no server-side component and no build step on Cloudflare's side: the workflow runs `dotnet publish`, writes the security headers, and uploads the result.
 
