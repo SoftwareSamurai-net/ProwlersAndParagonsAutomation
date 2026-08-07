@@ -18,7 +18,7 @@ public sealed class RulesRepository
         ReadCommentHandling = JsonCommentHandling.Skip,
     };
 
-    private readonly string _dataPath;
+    private readonly IRulesSource _source;
 
     // Lazy backing fields
     private IReadOnlyList<TierModel>? _tiers;
@@ -45,10 +45,23 @@ public sealed class RulesRepository
     private Dictionary<string, GearFeatureModel>? _gearFeatureMap;
     private Dictionary<string, SourceModel>? _sourceMap;
 
+    /// <summary>
+    /// Every rules file the engine loads. A host that fetches the data itself — a browser
+    /// build, which has no filesystem — needs all of these before it can build a repository.
+    /// </summary>
+    public static IReadOnlyList<string> DataFileNames { get; } =
+    [
+        "tiers.json", "abilities.json", "talents.json", "powers.json",
+        "pros.json", "cons.json", "flaws.json", "perks.json",
+        "gear_features.json", "sources.json", "creation_rules.json"
+    ];
+
+    /// <summary>Reads the rules from an arbitrary source — a directory, memory, anywhere.</summary>
+    public RulesRepository(IRulesSource source) => _source = source;
+
+    /// <summary>Reads the rules from a directory on disk.</summary>
     public RulesRepository(string dataRulesPath)
-    {
-        _dataPath = dataRulesPath;
-    }
+        : this(new FileSystemRulesSource(dataRulesPath)) { }
 
     /// <summary>
     /// Convenience factory: appends "data/rules" to the provided base path.
@@ -136,8 +149,7 @@ public sealed class RulesRepository
 
     private T Load<T>(string fileName)
     {
-        var path = Path.Combine(_dataPath, fileName);
-        var json = File.ReadAllText(path);
+        var json = _source.ReadAllText(fileName);
         return JsonSerializer.Deserialize<T>(json, JsonOptions)
                ?? throw new InvalidOperationException($"Failed to deserialize {fileName}.");
     }

@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.92 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 2568, run in CI at the same strictness as the build |
+| Tests | 2575, run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Known-wrong data | None outstanding |
 
@@ -73,19 +73,17 @@ Establish a committed baseline (`--baseline,qodana.sarif.json`) so only *new* pr
 
 Chapters 3–9 are not extracted, apart from the two pieces pulled out because the engine needed them: Ch.6's custom gear features and Ch.7's three toxin Pros/Cons. Rough order of usefulness to the wizard: 6 (the rest of Equipment), 5 (Resolve, already partly used), 4 (Combat), 8 (Friends and Foes), then the rest.
 
-### 5. Web SPA front end, hosted on softwaresamurai.net
+### 5. Blazor WebAssembly front end, hosted on softwaresamurai.net
 
-The wizard is CLI-only. The `data → engine → cli` split exists precisely so another front
-end can be added without touching the rules logic, and that promise has not been tested yet.
+**This is the next slice.** There is a task brief with the full plan, the theming, and the exact seams to build against in [`docs/HANDOVER-blazor-front-end.md`](docs/HANDOVER-blazor-front-end.md) — delete it when the slice is done.
 
-The shape that keeps the promise: a `web/` layer alongside `cli/`, with the engine exposed
-over a small HTTP API (or compiled to WebAssembly, which would let the whole thing be a
-static site with no server to run). Both keep `engine/` free of presentation. Do **not**
-reimplement cost or validation logic in the browser — that is the one rule the architecture
-exists to protect, and duplicating it would guarantee drift from the tests.
+The wizard is CLI-only. The `data → engine → cli` split exists precisely so another front end can be added without touching the rules logic, and that promise has never been tested.
 
-The extraction guide's original condition still applies: build this after the CLI handles
-the full creation flow, which it now does.
+**Decided: Blazor WebAssembly**, not an HTTP API with a JavaScript SPA. `engine/` is pure C# with zero Spectre references, so it compiles to WASM and runs `CostCalculator` and `CharacterValidator` *as the same code*. That makes the one rule this architecture exists to protect — never reimplement cost or validation in the browser — true by construction rather than by discipline. It also ships as a static site with no server to run, which suits the hosting.
+
+**The loader blocker is cleared.** `RulesRepository` no longer reads the filesystem directly; it goes through `IRulesSource`. The browser build fetches the eleven files in `RulesRepository.DataFileNames` over HTTP at startup and hands them over as an `InMemoryRulesSource`. A test already builds a repository with no disk access at all and costs a character through it, so the path is proven before the front end exists.
+
+Villain styling belongs here too — see item 7. Mechanically Heroes and Villains are identical, so it is one app with two palettes, not two apps.
 
 ### 6. Assisted character creation from a description
 
@@ -122,6 +120,16 @@ The project is intended for open-source release but is currently unlicensed, whi
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### The rules loader is decoupled from the filesystem — [#16](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/16)
+
+`RulesRepository` called `File.ReadAllText` itself. A browser has no filesystem, so a Blazor WebAssembly build could not have run the engine at all — and the alternative, reimplementing cost and validation in JavaScript, is the one thing the architecture exists to prevent. `IRulesSource` is the seam, with a file-backed implementation for the CLI and an in-memory one for hosts that load the data themselves.
+
+**The interface is deliberately synchronous.** Making it async would push `await` through every lazy collection on the repository and from there into `CostCalculator` and `CharacterValidator`, turning a pure instantly-callable engine into an async one for nothing. A host that can only load asynchronously does so once at startup and hands over strings. Fetching is the host's problem; answering questions about the rules is the engine's.
+
+Both existing entry points are untouched, so no call site moved. `RulesRepository.DataFileNames` is new and is the contract a self-loading host works from — it cannot glob a directory that isn't there — with a test asserting it matches what actually ships, since a rules file added and not listed would leave a browser build silently running on an incomplete set. A missing file now throws naming the file and where it looked, rather than surfacing later as a null somewhere unrelated.
+
+The tests hold the seam open rather than merely covering it: one builds a repository with no disk access whatsoever and checks it costs a character identically to the disk-backed one. That is the Blazor path, proven before the front end exists.
 
 ### Sources, and Powers grouped by them on every sheet — [#15](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/15)
 
