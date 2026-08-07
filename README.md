@@ -11,8 +11,8 @@ Either front end walks players and GMs through the full creation process — tra
 
 ## Features
 
-- **Interactive step-by-step wizard** covering all six creation phases, with back-navigation between steps
-- **Live HP budget tracking** — colour-coded remaining points rendered before every step
+- **Interactive step-by-step wizard** covering all six creation phases, with free navigation between steps
+- **Live HP budget tracking** — remaining points and a per-category breakdown, always on screen; hidden in Villain mode, which Ch.9 gives no budget
 - **141 powers**, every one carrying its rulebook Range, rank type and cost — flat, per rank, per 2 ranks, per unit, variable or Special
 - **27 baseline-rank powers** (Armor = ½ Toughness, Evasion = Agility, Running = flat 3d, Strike = Might *or* Martial Arts, Boost/Expertise = a Trait you nominate)
 - **23 generic pros and 28 generic cons**, including variable-cost variants (Charges, Area/Burst) and Overkill/Weak's −1 HP per rank
@@ -116,7 +116,11 @@ ProwlersAndParagonsAutomation/
 │   ├── Pages/                    # One page per creation step, mirroring the CLI's six
 │   ├── Components/               # HpBudgetBar, PowerEditor, ProConPicker, SheetView
 │   ├── Services/CharacterSession.cs  # The CharacterSheet plus the calculators
-│   └── wwwroot/css/theme.css     # The Hero and Villain palettes, as CSS custom properties
+│   └── wwwroot/
+│       ├── css/theme.css         # The Hero and Villain palettes, as CSS custom properties
+│       ├── js/download.js        # The whole of the JavaScript: a blob download and the mode switch
+│       ├── _redirects            # Cloudflare: every path serves the app, with a 200
+│       └── data/rules/           # Staged from data/rules/ by the build (gitignored)
 │
 ├── tests/ProwlersAndParagonsAutomation.Tests/
 │   ├── CanonicalPowers.cs        # Range/Rank/Cost of all 141 powers, from the rulebook
@@ -129,8 +133,19 @@ ProwlersAndParagonsAutomation/
 │   ├── PrebuiltHeroes.cs         # the 20 published Heroes from Ch.8, transcribed
 │   └── PrebuiltHeroTests.cs      # rebuilds each and checks their printed Edge/Health/Resolve
 │
+├── scripts/
+│   └── write-cloudflare-headers.sh   # Generates _headers, hashing the inline import map
+│
+├── .github/workflows/
+│   ├── build.yml                 # Build, test, publish the site and check it is complete
+│   ├── deploy.yml                # Cloudflare Pages, on push to master only
+│   └── qodana_code_quality.yml   # ReSharper inspections
+│
 ├── output/                       # Generated character sheets (gitignored)
+├── Directory.Build.props         # Target framework and the analyzer contract, shared by all five projects
+├── qodana.yaml                   # Linter, profile and the load-bearing dotnet.solution key
 ├── PROGRESS.md                   # What is done and what remains — kept current
+├── CLAUDE.md                     # Working notes: the decisions that are expensive to re-derive
 ├── docs/RULES_EXTRACTION_GUIDE.md
 └── Program.cs                    # CLI entry point
 ```
@@ -167,9 +182,9 @@ Each is its own project, which is what makes the arrows above true at compile ti
 | 3 | **Choose Gear** | Free-text mundane gear, correctly free per Ch.6, plus optional custom features at 1–2 HP |
 | 4 | **Derived Stats** | Edge, Health and Resolve calculated and displayed |
 | 5 | **Finishing Touches** | Name, appearance, motivation, quote, connections |
-| 6 | **GM Review** | Full sheet display, validation results, export to `output/` |
+| 6 | **GM Review** | Full sheet display, validation results, export |
 
-Steps 1–5 offer a **← Back** option; GM Review is the terminus.
+Both front ends run these same six steps against the same engine. The terminal wizard offers **← Back** on steps 1–5 and treats GM Review as the terminus, writing its exports to `output/`; the browser keeps every step reachable from the step bar and hands the same two documents to a download.
 
 ---
 
@@ -184,7 +199,7 @@ Steps 1–5 offer a **← Back** option; GM Review is the terminus.
 | Legendary | 175 | 20d |
 | Iconic | 200 | 24d |
 
-Iconic is stated as "200+" in the rulebook with no upper bound; the data uses a flat 200 and flags the entry `needs_review`.
+Iconic is stated as "200+" in the rulebook with no upper bound, so the data records a flat 200 and the entry carries a note saying why. It is **not** flagged for review — the verification pass settled that the open end is GM discretion rather than a value nobody has checked. `CharacterValidator` says so with an `ICONIC_TIER_OPEN_BUDGET` notice instead.
 
 ---
 
@@ -206,7 +221,7 @@ Each power's `cost_type` decides how it is paid for. Only the per-rank types con
 Pro costs and con discounts are then added (cons are stored as **negative** integers, pros positive).
 
 - **Overkill** and **Weak** each reduce the rate by **1 HP per rank**, not by half — the rulebook wording is "reduces a Power's base cost by 1 Hero Point per rank (or changes its base cost from 1 Hero Point per rank to 1 Hero Point per 2 ranks)". Halving is only equivalent for powers already at 1 HP/rank. (The *Brute Option* is the separate rule for applying Overkill to **Might**.)
-- The minimum is per rank, not per power: no power costs less than **1 HP per rank**, or 1 HP per 2 ranks once a rate-reducing con applies. `CharacterValidator` warns when a power has bottomed out.
+- The minimum is per rank, not per power, and it is **1 HP per 2 ranks** — the ranked form of the rulebook's "no Power can ever cost less than 1 Hero Point (or 1 Hero Point per 2 ranks) regardless of its Cons". Reading it as 1 HP per *rank* puts the floor exactly at the undiscounted cost of a 1 HP/rank power, which silently voids every Con on it; that was a real bug, and it is why the wording matters. `CharacterValidator` warns when a power has bottomed out.
 - Specialty is the one power the rulebook prices at 0 HP.
 
 ### Rank types
@@ -264,7 +279,7 @@ Resolve's base term is the rulebook's Resolve table (Trait Cap → 0, Cap−1d �
 
 ### Verification coverage
 
-Every entry in every rules file has been checked against chapters 1–2 of the rulebook, and **the test suite is what keeps it that way** — `CanonicalPowers.cs` holds the Range, Rank and Cost printed for all 141 Powers, and `RulesDataTests` holds the tier, ability, talent, pro, con, perk and flaw values. A data edit that contradicts the book fails a test.
+Every entry in every rules file has been checked against the rulebook — chapters 1–2 throughout, plus Ch.6 for the gear features and Ch.7 for the three toxin Pros and Cons — and **the test suite is what keeps it that way** — `CanonicalPowers.cs` holds the Range, Rank and Cost printed for all 141 Powers, and `RulesDataTests` holds the tier, ability, talent, pro, con, perk and flaw values. A data edit that contradicts the book fails a test.
 
 On top of that, the **20 pre-built Heroes from Chapter 8** are transcribed and rebuilt through the engine. They are finished, playable Standard-tier characters the authors published, so they check the rules as *applied* rather than as transcribed. The engine reproduces all sixty of their printed Edge, Health and Resolve values, and rebuilds **15 of the 20 to exactly their 125 Hero Point budget**; the other five are within 2 HP for reasons recorded in [PROGRESS.md](PROGRESS.md).
 
@@ -322,7 +337,7 @@ Tests and static analysis both run on every push and pull request.
 
 - **Tests** run with `dotnet test` under the same CI flags as the build, so the rules-data checks gate every change.
 - **.NET analyzers** at `latest-recommended`, with `EnforceCodeStyleInBuild`. Warnings become **errors** in CI (`ContinuousIntegrationBuild=true`) but stay warnings locally, so iteration is not blocked. The test project uses the same contract.
-- **Qodana Community for .NET** (`jetbrains/qodana-cdnet:2026.2`, `qodana.recommended` profile) runs ReSharper inspections and publishes the report as a build artifact. SARIF upload to GitHub code scanning is attempted but non-fatal — this repo is private, so that path needs GitHub Advanced Security.
+- **Qodana Community for .NET** (`jetbrains/qodana-cdnet:2026.2`, `qodana.recommended` profile) runs ReSharper inspections and publishes the report as a build artifact. Upload to GitHub code scanning is **skipped** while the repository is private, because that path needs GitHub Advanced Security; the step turns itself on if the repository becomes public. It is skipped rather than run-and-swallowed on purpose — letting it fail left a red annotation on every run, which trains you to ignore annotations.
 - Deliberate analyzer exceptions are documented inline in `.editorconfig` rather than left as bare suppressions.
 
 > **Why the Community linter?** Since 2023.2 the *release* linters (`jetbrains/qodana-dotnet`) refuse to start without a Qodana Cloud `QODANA_TOKEN`, which would fail CI outright. `qodana-cdnet` needs no token or account. To upgrade: register at [qodana.cloud](https://qodana.cloud), add the project token as a `QODANA_TOKEN` repository secret (the workflow already passes it through), and change the `linter:` line in `qodana.yaml`.
@@ -349,7 +364,7 @@ Run Qodana locally (requires Docker and the [Qodana CLI](https://github.com/JetB
 qodana scan --show-report
 ```
 
-To publish reports to Qodana Cloud, add a `QODANA_TOKEN` repository secret. Without it the scan still runs and results land in GitHub code scanning.
+To publish reports to Qodana Cloud, add a `QODANA_TOKEN` repository secret. Without it the scan still runs and the report is downloadable from the workflow run: `gh run download <run-id>`, then read `qodana.sarif.json`. That is currently the only way to see *which files* the findings are in.
 
 ---
 
@@ -397,18 +412,9 @@ The first load is about **27 MiB uncompressed** (roughly a third of that over th
 
 ## Roadmap
 
-**[PROGRESS.md](PROGRESS.md) is the single source of truth** for what is done and what remains, with the reasoning behind each item. It is deliberately not duplicated here — this section used to carry a second copy and the two drifted apart.
+**[PROGRESS.md](PROGRESS.md) is the single source of truth** for what is done and what remains, with the reasoning behind each item.
 
-The short version of what is left, most-unblocking first:
-
-1. **Close the last five Heroes** — 15 of the 20 published Heroes now rebuild to exactly 125 HP; the rest are within 2 for recorded reasons.
-2. **Sources on Abilities and Talents** — Powers have them; Abilities of 7d+ still need one.
-3. **Establish a Qodana baseline** so only *new* problems fail CI.
-4. **Extract the remaining rulebook chapters** (3–9).
-5. **Blazor WebAssembly front end** for softwaresamurai.net — the engine compiles to WASM and runs as the same code in the browser, so cost and validation are never reimplemented. Hero and Villain palettes ship with it.
-6. **Assisted character creation from a description**, with the engine validating whatever a model proposes.
-7. **Printable character sheet** — blue/white for Heroes, black/red for Villains.
-8. **Choose and apply a licence** — see [License](#license).
+It is deliberately **not** summarised here. This section twice grew a numbered copy of that list, and both times it drifted: the second one still advertised the Blazor front end and the Hero/Villain sheet as future work after both had shipped. A short version is not cheaper than one list — it is a second list that nobody remembers to update.
 
 ---
 
