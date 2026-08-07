@@ -16,11 +16,11 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Powers | 141 entries, all mechanically verified against Ch.2 pp.21–48 |
 | Power-specific Pros/Cons | 102 entries across 61 Powers, verified |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws — all verified, nothing flagged |
-| Tests | 2402, run in CI at the same strictness as the build |
+| Tests | 2406, run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Known-wrong data | None outstanding |
 
-The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **12 of the 20 to exactly their 125 Hero Point budget**. The remaining eight are within 6 HP, each for a recorded reason — see [Close the last eight Heroes](#1-close-the-last-eight-heroes).
+The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **13 of the 20 to exactly their 125 Hero Point budget**. The remaining seven are within 6 HP, each for a recorded reason — see [Close the last seven Heroes](#1-close-the-last-seven-heroes).
 
 ---
 
@@ -28,21 +28,21 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 Roughly in the order that unblocks the most.
 
-### 1. Close the last eight Heroes
+### 1. Close the last seven Heroes
 
-Twelve of the twenty published Heroes now rebuild to exactly 125 Hero Points. The other eight are held at a known residual in `PrebuiltHeroes.BuildByHero`, each with a reason:
+Thirteen of the twenty published Heroes now rebuild to exactly 125 Hero Points. The other seven are held at a known residual in `PrebuiltHeroes.BuildByHero`, each with a reason:
 
 | Hero | Residual | Why |
 |---|---|---|
-| Vector | −6 | Gear (padded costume) is not modelled, and gear costs would push it up |
-| Vigilant, Shadow | ∓1, +2 | Gear again |
-| Stronghold | +4 | Its sheet puts the Item Con on its *Abilities*; cons on abilities are not modelled |
+| Vector | −6 | Unexplained, and the largest gap left |
+| Vigilant | −1 | Its Jo Sticks are *Upgraded*, a custom gear feature not modelled |
+| Shadow | +2 | Unexplained |
 | Herald (Airmid) | +2 | Unresolved |
 | Herald (Scathach) | +1 | Strike carries four Pros and Cons at once — most likely a variant reading |
 | Talon | +1 | Unresolved |
 | T-Kay | −1 | `Limited: only for Telekinesis` does not say which grade |
 
-Most of this is the gear item below. The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for Telekinesis`) are guesses that could be revisited, but only ±1–2 HP hangs on them, so do not tune them just to force a zero — that would be fitting the model to the answer.
+Gear does not explain these — see the item below for why that earlier guess was wrong. The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for Telekinesis`) are guesses that could be revisited, but only ±1–2 HP hangs on them, so do not tune them just to force a zero — that would be fitting the model to the answer.
 
 One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a *mimicked* Power. Pros are stored per Power, so there is nowhere for it to live. Eidolon reconciles anyway, so it costs nothing today.
 
@@ -50,9 +50,21 @@ One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (M
 
 Separate from the above. These lists say which *generic* Pros and Cons suit each Power, and they were invented by this project. The rulebook does not state applicability per Power — it states it inside each generic entry ("This Pro applies to Powers that inflict physical or energy damage"). So the honest fix is probably to drop the per-Power lists and filter generically from those constraints, rather than to keep curating 141 guesses. Worth deciding before the wizard leans on them further.
 
-### 2. Gear costs (Chapter 6)
+### 2. Custom gear features (Chapter 6)
 
-Gear is currently free text with no HP cost (`ChooseGearStep`). Chapter 6 prices custom gear against a Gear Limit derived from Resources. Several published Heroes carry gear that costs Hero Points — Vector's padded costume, Vigilant's armoured suit — so this is a second contributor to the Hero Point gap above, and it needs Chapter 6 extracted first.
+**Correcting an earlier assumption.** Gear was listed here as an unpriced cost. Chapter 6 says the opposite for most of it: *"Players don't have to worry about buying mundane gear… none of this needs to be tracked."* A **Gear Limit** caps the Trait rank you can apply while using mundane gear (6d by default) — it is not a budget and costs nothing. So `ChooseGearStep` charging nothing for free-text gear is **correct**, and the Heroes' residuals are not explained by gear as previously recorded.
+
+Gear comes in three tiers, and only one of them is missing:
+
+| Tier | Cost | Modelled? |
+|---|---|---|
+| Mundane gear | Free, untracked | Yes — free text, correctly free |
+| Signature equipment | A Power with the Item Con | Yes |
+| **Custom features on mundane gear** | **1–6 HP each** | **No** |
+
+The gap is the third: Accurate/Very Accurate, Bonded, Concealed, Hardened, Masterpiece, Upgraded, Very Powerful and the rest, at 1–6 HP each, plus Pros and Cons applied to a piece of gear. Custom gear also has its own floor — no piece can cost less than 0 HP, so Cons never pay out.
+
+Only one published Hero's residual looks like this: Vigilant's Jo Sticks are *Upgraded*, and he is 1 HP short. Shadow's *Silenced* pistols and Psidearm's *Thrown* batons point the other way, since Psidearm already reconciles exactly — so the authors may not have charged for them consistently. Do not tune to these.
 
 ### 3. Sources
 
@@ -75,6 +87,12 @@ The project is intended for open-source release but is currently unlicensed, whi
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Pros and Cons on Abilities, and what gear actually costs — [#9](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/9)
+
+**Abilities can carry Pros and Cons.** The rulebook's Brute Option is Overkill applied to Might, and Stronghold buys four Abilities through his powered armour, so his sheet reads `Abilities (Agility, Might, Perception, Toughness) (Item: armor)`. Nothing modelled that. `CharacterSheet.AbilityModifiers` and `CostCalculator.AbilityCost` now do, including the Brute Option's half price and a floor of zero. Stronghold's Item Con on four Abilities is worth exactly −4, which is exactly what he was over by: **13 of 20 Heroes now rebuild to exactly 125**.
+
+**Gear turned out to be a wrong assumption, not a missing feature.** This file previously listed gear as an unpriced cost contributing to the Hero Point gap. Chapter 6 says mundane gear is free and explicitly not tracked, and a Gear Limit is a cap on the Trait rank you can apply while using it, not a budget. So the wizard's free-text gear step was right all along, and the residuals recorded against "has gear" were misattributed — they are now corrected. What genuinely remains is custom *features* on mundane gear at 1–6 HP each, which is a much smaller and better-defined gap.
 
 ### Hero Pros/Cons transcription, and the package double-charge — [#8](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/8)
 

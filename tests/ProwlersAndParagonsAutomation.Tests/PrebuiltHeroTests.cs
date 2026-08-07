@@ -80,6 +80,15 @@ public sealed class PrebuiltHeroTests
         sheet.AbilityRanks["toughness"]  = hero.Toughness;
         sheet.AbilityRanks["willpower"]  = hero.Willpower;
 
+        foreach (var abilityId in sheet.AbilityRanks.Keys.ToList())
+        {
+            if (!PrebuiltHeroes.AbilityModifiersByHero.TryGetValue($"{hero.Name}|{abilityId}", out var mods))
+                continue;
+
+            sheet.AbilityModifiers[abilityId] =
+                mods.Select(m => new SelectedProCon(m.Split(':')[1])).ToList();
+        }
+
         var talents = PrebuiltHeroes.TalentsByHero[hero.Name];
         Assert.Equal(PrebuiltHeroes.TalentIds.Length, talents.Length);
         for (var i = 0; i < talents.Length; i++)
@@ -222,10 +231,25 @@ public sealed class PrebuiltHeroTests
         var package = _f.Rules.CreationRules.OptionalPackages
             .Single(p => p.Id == PrebuiltHeroes.BuildByHero[hero.Name].Package);
 
-        int[] abilities = [hero.Agility, hero.Intellect, hero.Might,
-                           hero.Perception, hero.Toughness, hero.Willpower];
+        (string Id, int Rank)[] abilities =
+        [
+            ("agility", hero.Agility), ("intellect", hero.Intellect), ("might", hero.Might),
+            ("perception", hero.Perception), ("toughness", hero.Toughness), ("willpower", hero.Willpower)
+        ];
 
-        var expectedAbilities = abilities.Sum(r => Math.Max(0, r - package.AbilitiesRank));
+        var expectedAbilities = abilities.Sum(a =>
+        {
+            var chargeable = Math.Max(0, a.Rank - package.AbilitiesRank);
+            if (chargeable == 0) return 0;
+
+            // An Ability the sheet buys through an item carries the Item Con like any
+            // other purchase would.
+            var mods = PrebuiltHeroes.AbilityModifiersByHero
+                .GetValueOrDefault($"{hero.Name}|{a.Id}", []);
+            var flat = mods.Sum(m => _f.Rules.GetCon(m.Split(':')[1])?.CostModifier ?? 0);
+
+            return Math.Max(0, chargeable + flat);
+        });
         var expectedTalents   = PrebuiltHeroes.TalentsByHero[hero.Name]
                                     .Sum(r => Math.Max(0, r - package.TalentsRank));
 
@@ -286,6 +310,7 @@ public sealed class PrebuiltHeroTests
     [InlineData("Psi Lance")]
     [InlineData("Psidearm")]
     [InlineData("Siren")]
+    [InlineData("Stronghold")]
     public void HeroRebuildsToExactly125(string name)
     {
         var hero = PrebuiltHeroes.All.Single(h => h.Name == name);
@@ -304,7 +329,6 @@ public sealed class PrebuiltHeroTests
     [InlineData("Herald (Airmid)")]
     [InlineData("Herald (Scathach)")]
     [InlineData("Shadow")]
-    [InlineData("Stronghold")]
     [InlineData("T-Kay")]
     [InlineData("Talon")]
     [InlineData("Vector")]
@@ -322,7 +346,7 @@ public sealed class PrebuiltHeroTests
     public void MostHeroesReconcileExactly()
     {
         var exact = PrebuiltHeroes.BuildByHero.Count(kv => kv.Value.Residual == 0);
-        Assert.Equal(12, exact);
+        Assert.Equal(13, exact);
 
         // Nothing is more than 6 Hero Points out.
         Assert.All(PrebuiltHeroes.BuildByHero,

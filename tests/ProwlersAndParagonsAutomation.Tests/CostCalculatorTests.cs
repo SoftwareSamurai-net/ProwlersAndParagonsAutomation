@@ -242,6 +242,51 @@ public sealed class CostCalculatorTests
         Assert.Equal(49, _f.Costs.TotalCost(sheet));
     }
 
+    // ── Pros and Cons on Abilities ───────────────────────────────────────────
+
+    [Fact]
+    public void AConOnAnAbilityReducesItsCost()
+    {
+        // Stronghold buys four Abilities through his armour, so they carry the Item Con.
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilityRanks["might"] = 10;
+        sheet.AbilityModifiers["might"] = [new SelectedProCon("item")];
+
+        Assert.Equal(9, _f.Costs.AbilityCost(sheet));
+    }
+
+    [Fact]
+    public void TheBruteOptionBuysMightAtHalfPrice()
+    {
+        // Ch.1: applying Overkill to Might means "1 Hero Point for every 2 ranks".
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilityRanks["might"] = 9;
+        sheet.AbilityModifiers["might"] = [new SelectedProCon("overkill")];
+
+        Assert.Equal(5, _f.Costs.AbilityCost(sheet));   // ⌈9 / 2⌉
+    }
+
+    [Fact]
+    public void AnAbilityNeverCostsLessThanNothing()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilityRanks["might"] = 1;
+        sheet.AbilityModifiers["might"] = [new SelectedProCon("item"), new SelectedProCon("costly")];
+
+        Assert.Equal(0, _f.Costs.AbilityCost(sheet));
+    }
+
+    [Fact]
+    public void AbilityModifiersOnlyApplyToRanksThePackageDoesNotCover()
+    {
+        var sheet = new CharacterSheet { SelectedTierId = "standard", SelectedPackageId = "superhero_package" };
+        sheet.AbilityRanks["might"] = 3;                              // entirely covered
+        sheet.AbilityModifiers["might"] = [new SelectedProCon("item")];
+
+        // Nothing is chargeable, so the Con has nothing to discount and cannot pay out.
+        Assert.Equal(0, _f.Costs.AbilityCost(sheet));
+    }
+
     [Fact]
     public void TotalCostSumsEveryCategory()
     {

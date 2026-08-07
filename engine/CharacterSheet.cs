@@ -82,6 +82,13 @@ public class CharacterSheet
     /// <summary>Purchased ability ranks, keyed by ability id.</summary>
     public Dictionary<string, int> AbilityRanks { get; } = new();
 
+    /// <summary>
+    /// Pros and Cons applied to an Ability rather than a Power, keyed by ability id.
+    /// The rulebook allows this — the Brute Option is Overkill on Might, and the
+    /// published Stronghold buys four Abilities through his armour with the Item Con.
+    /// </summary>
+    public Dictionary<string, List<SelectedProCon>> AbilityModifiers { get; } = new();
+
     /// <summary>Purchased talent ranks, keyed by talent id.</summary>
     public Dictionary<string, int> TalentRanks { get; } = new();
 
