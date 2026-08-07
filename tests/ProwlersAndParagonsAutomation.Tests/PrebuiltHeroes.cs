@@ -46,7 +46,9 @@ public static class PrebuiltHeroes
         int Edge,
         int Health,
         int Resolve,
-        /// <summary>Resolve bought through Determination, printed as "(+N Resolve)".</summary>
+        // Resolve bought through Determination, printed on the sheet as "(+N Resolve)".
+        // A plain comment, not XML: a positional parameter is not a language element a
+        // <summary> can be attached to, and the compiler does not read it there either.
         int DeterminationResolve = 0,
         string? Note = null);
 
@@ -464,7 +466,7 @@ public static class PrebuiltHeroes
             Powers:
             [
                 P("determination"), P("aura", 9), P("elemental_control", 12), P("flight", 8),
-                new("immunity", 0, null, 1), new("expertise", 4, "professional"), P("evasion", 8)
+                P("immunity"), new("expertise", 4, "professional"), P("evasion", 8)
             ],
             Flaws: ["finite_power", "quirk", "relationship"],
             Edge: 7, Health: 4, Resolve: 2, DeterminationResolve: 1),
@@ -541,7 +543,7 @@ public static class PrebuiltHeroes
             Agility: 10, Intellect: 3, Might: 3, Perception: 6, Toughness: 5, Willpower: 9,
             Powers:
             [
-                P("telepathy", 9), P("armor", 6), P("communications"), new("immunity", 0, null, 1),
+                P("telepathy", 9), P("armor", 6), P("communications"), P("immunity"),
                 P("super_senses_night_vision"), P("blast", 10), P("lightning_reflexes"),
                 P("martial_arts", 6), P("master_of_disguise"), P("two_fisted")
             ],
@@ -552,7 +554,7 @@ public static class PrebuiltHeroes
             Agility: 10, Intellect: 3, Might: 3, Perception: 8, Toughness: 4, Willpower: 6,
             Powers:
             [
-                P("armor", 6), P("blending"), P("communications"), new("immunity", 0, null, 1),
+                P("armor", 6), P("blending"), P("communications"), P("immunity"),
                 P("invisibility"), P("super_senses_acute", 10), P("super_senses_night_vision"),
                 P("super_senses_telescopic_vision"), P("swing_line", 6), P("wall_crawling", 4),
                 P("determination"), P("martial_arts", 8), P("preparation"), P("strike", 10),
@@ -607,7 +609,7 @@ public static class PrebuiltHeroes
             Agility: 3, Intellect: 6, Might: 3, Perception: 4, Toughness: 4, Willpower: 4,
             Powers:
             [
-                P("attuned"), P("blink", 10), P("deflection", 10), new("immunity", 0, null, 1),
+                P("attuned"), P("blink", 10), P("deflection", 10), P("immunity"),
                 P("phasing"), P("regeneration"), P("telekinesis", 6),
                 new("expertise", 12, "science")
             ],

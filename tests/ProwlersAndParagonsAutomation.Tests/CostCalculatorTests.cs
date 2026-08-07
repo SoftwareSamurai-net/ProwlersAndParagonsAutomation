@@ -337,9 +337,13 @@ public sealed class CostCalculatorTests
     [Fact]
     public void AbilityModifiersOnlyApplyToRanksThePackageDoesNotCover()
     {
-        var sheet = new CharacterSheet { SelectedTierId = "standard", SelectedPackageId = "superhero_package" };
-        sheet.AbilityRanks["might"] = 3;                              // entirely covered
-        sheet.AbilityModifiers["might"] = [new SelectedProCon("item")];
+        var sheet = new CharacterSheet
+        {
+            SelectedTierId    = "standard",
+            SelectedPackageId = "superhero_package",
+            AbilityRanks      = { ["might"] = 3 },                    // entirely covered
+            AbilityModifiers  = { ["might"] = [new SelectedProCon("item")] }
+        };
 
         // Nothing is chargeable, so the Con has nothing to discount and cannot pay out.
         Assert.Equal(0, _f.Costs.AbilityCost(sheet));

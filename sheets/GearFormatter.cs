@@ -11,7 +11,7 @@ public static class GearFormatter
 {
     public static string Describe(SelectedGear gear, RulesRepository rules, CostCalculator costs)
     {
-        if (!gear.IsCustomised && !gear.PairedUnderTwoFisted) return gear.Name;
+        if (gear is { IsCustomised: false, PairedUnderTwoFisted: false }) return gear.Name;
 
         var parts = new List<string>();
 

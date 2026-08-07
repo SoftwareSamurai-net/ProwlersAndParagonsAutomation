@@ -70,15 +70,17 @@ public sealed class PrebuiltHeroTests
         var sheet = new CharacterSheet
         {
             SelectedTierId    = "standard",
-            SelectedPackageId = PrebuiltHeroes.BuildByHero[hero.Name].Package
+            SelectedPackageId = PrebuiltHeroes.BuildByHero[hero.Name].Package,
+            AbilityRanks =
+            {
+                ["agility"]    = hero.Agility,
+                ["intellect"]  = hero.Intellect,
+                ["might"]      = hero.Might,
+                ["perception"] = hero.Perception,
+                ["toughness"]  = hero.Toughness,
+                ["willpower"]  = hero.Willpower
+            }
         };
-
-        sheet.AbilityRanks["agility"]    = hero.Agility;
-        sheet.AbilityRanks["intellect"]  = hero.Intellect;
-        sheet.AbilityRanks["might"]      = hero.Might;
-        sheet.AbilityRanks["perception"] = hero.Perception;
-        sheet.AbilityRanks["toughness"]  = hero.Toughness;
-        sheet.AbilityRanks["willpower"]  = hero.Willpower;
 
         foreach (var abilityId in sheet.AbilityRanks.Keys.ToList())
         {
@@ -424,9 +426,10 @@ public sealed class PrebuiltHeroTests
         var sheet = Build(hero);
 
         var expected = PrebuiltHeroes.PowerSourcesByHero[name]
-            .Select(g => SourceGrouping.HeadingFor(_f.Rules.GetSource(g.SourceId)));
+            .Select(g => SourceGrouping.HeadingFor(_f.Rules.GetSource(g.SourceId)))
+            .ToList();
 
-        var actual = new SourceGrouping(_f.Rules).GroupPowers(sheet).Select(g => g.Heading);
+        var actual = new SourceGrouping(_f.Rules).GroupPowers(sheet).Select(g => g.Heading).ToList();
 
         Assert.Equal(expected.Order(), actual.Order());
 
@@ -444,6 +447,6 @@ public sealed class PrebuiltHeroTests
         Assert.Equal(20, PrebuiltHeroes.All.Count);
 
     [Fact]
-    public void EveryHeroIsStandardTierAndSoCapsAt12d() =>
+    public void EveryHeroIsStandardTierAndSoCapsAtTwelveDice() =>
         Assert.Equal(12, _f.Rules.GetTier("standard")!.TraitCapRank);
 }

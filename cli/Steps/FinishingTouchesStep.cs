@@ -54,10 +54,9 @@ public sealed class FinishingTouchesStep : IWizardStep
                 sheet.Connections.Clear();
         }
 
-        if (sheet.Connections.Count == 0)
-            AnsiConsole.MarkupLine("[grey]Enter connections one per line — blank line to finish.[/]");
-        else
-            AnsiConsole.MarkupLine("[grey]Add more connections — blank line to finish.[/]");
+        AnsiConsole.MarkupLine(sheet.Connections.Count == 0
+            ? "[grey]Enter connections one per line — blank line to finish.[/]"
+            : "[grey]Add more connections — blank line to finish.[/]");
 
         while (true)
         {

@@ -117,7 +117,7 @@ public sealed class SourceTests
 
         Assert.Equal(0, _f.Derived.GetRankAgainstPowers(attuned, sheet));
         Assert.Contains(_f.Validator.Validate(sheet).Issues,
-            i => i.Code == "RANKLESS_POWER_WITHOUT_SOURCE" && i.Severity == ValidationSeverity.Warning);
+            i => i is { Code: "RANKLESS_POWER_WITHOUT_SOURCE", Severity: ValidationSeverity.Warning });
     }
 
     [Fact]
@@ -127,7 +127,7 @@ public sealed class SourceTests
         sheet.SelectedPowers.Add(new SelectedPower("blast", 4) { SourceId = "cosmic" });
 
         Assert.Contains(_f.Validator.Validate(sheet).Issues,
-            i => i.Code == "UNKNOWN_SOURCE" && i.Severity == ValidationSeverity.Error);
+            i => i is { Code: "UNKNOWN_SOURCE", Severity: ValidationSeverity.Error });
     }
 
     /// <summary>A Source costs nothing — it says what a Trait is, it does not buy anything.</summary>

@@ -204,7 +204,7 @@ public sealed class GearTests
         var sheet = SheetWith(new SelectedGear("Mystery box") { Features = [new("teleporting")] });
 
         Assert.Contains(_f.Validator.Validate(sheet).Issues,
-            i => i.Code == "UNKNOWN_GEAR_FEATURE" && i.Severity == ValidationSeverity.Error);
+            i => i is { Code: "UNKNOWN_GEAR_FEATURE", Severity: ValidationSeverity.Error });
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public sealed class GearTests
         var sheet = SheetWith(new SelectedGear("Pistol") { Features = [new("accurate")] });
 
         Assert.Contains(_f.Validator.Validate(sheet).Issues,
-            i => i.Code == "GEAR_FEATURE_NEEDS_GRADE" && i.Severity == ValidationSeverity.Error);
+            i => i is { Code: "GEAR_FEATURE_NEEDS_GRADE", Severity: ValidationSeverity.Error });
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public sealed class GearTests
         });
 
         Assert.Contains(_f.Validator.Validate(sheet).Issues,
-            i => i.Code == "GEAR_COST_AT_MINIMUM" && i.Severity == ValidationSeverity.Warning);
+            i => i is { Code: "GEAR_COST_AT_MINIMUM", Severity: ValidationSeverity.Warning });
     }
 
     /// <summary>
@@ -244,7 +244,7 @@ public sealed class GearTests
 
         var without = SheetWith(gear);
         Assert.Contains(_f.Validator.Validate(without).Issues,
-            i => i.Code == "TWO_FISTED_PAIR_WITHOUT_POWER" && i.Severity == ValidationSeverity.Error);
+            i => i is { Code: "TWO_FISTED_PAIR_WITHOUT_POWER", Severity: ValidationSeverity.Error });
 
         var with = SheetWith(gear);
         with.SelectedPowers.Add(new SelectedPower("two_fisted", 0));

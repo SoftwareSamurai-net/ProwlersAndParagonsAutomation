@@ -241,6 +241,7 @@ public sealed class DerivedStatsCalculator
     public int GetRankAgainstPowers(SelectedPower selected, CharacterSheet sheet)
     {
         ArgumentNullException.ThrowIfNull(selected);
+        ArgumentNullException.ThrowIfNull(sheet);
 
         var power = _rules.GetPower(selected.PowerId)
                     ?? throw new InvalidOperationException($"Unknown power id '{selected.PowerId}'.");
@@ -254,6 +255,6 @@ public sealed class DerivedStatsCalculator
                      ?? throw new InvalidOperationException(
                             $"Power '{selected.PowerId}' names unknown Source '{selected.SourceId}'.");
 
-        return sheet?.GetAbilityRank(source.DefaultRankAbility) ?? 0;
+        return sheet.GetAbilityRank(source.DefaultRankAbility);
     }
 }

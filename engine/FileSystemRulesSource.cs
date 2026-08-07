@@ -10,9 +10,6 @@ public sealed class FileSystemRulesSource : IRulesSource
 
     public FileSystemRulesSource(string dataRulesPath) => _dataRulesPath = dataRulesPath;
 
-    /// <summary>The directory being read, for diagnostics.</summary>
-    public string DataRulesPath => _dataRulesPath;
-
     public string ReadAllText(string fileName)
     {
         var path = Path.Combine(_dataRulesPath, fileName);

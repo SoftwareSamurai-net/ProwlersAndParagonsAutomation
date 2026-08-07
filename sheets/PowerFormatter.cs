@@ -8,7 +8,7 @@ namespace ProwlersAndParagonsAutomation.Sheets;
 /// </summary>
 public static class PowerFormatter
 {
-    public static string Range(PowerModel p) => p.Range switch
+    private static string Range(PowerModel p) => p.Range switch
     {
         "self"    => "Self",
         "touch"   => "Touch",
@@ -38,9 +38,13 @@ public static class PowerFormatter
         _                         => Title(q.Ability)
     };
 
-    public static string Cost(PowerModel p) => p.CostType switch
+    private static string Cost(PowerModel p) => p.CostType switch
     {
-        "per_rank" => p.CostPerRank == 0.5
+        // A constant pattern rather than ==. The rates the rulebook prints are 0.5, 1, 2
+        // and 3, all exact in binary floating point, so this comparison is safe — but a
+        // reader (and an inspection) is right to be suspicious of `== 0.5` on a double,
+        // and the pattern says "is this rate" rather than "is this arithmetic equal".
+        "per_rank" => p.CostPerRank is 0.5
             ? "1 HP per 2 ranks"
             : $"{p.CostPerRank} HP per rank",
 

@@ -220,12 +220,12 @@ public sealed class GmReviewStep : IWizardStep
             return;
         }
 
-        var lines = new List<string>();
-
-        if (!result.IsValid)
-            lines.Add("[bold red]✗ Character is INVALID[/]");
-        else
-            lines.Add("[bold green]✓ Character is VALID[/]");
+        var lines = new List<string>
+        {
+            result.IsValid
+                ? "[bold green]✓ Character is VALID[/]"
+                : "[bold red]✗ Character is INVALID[/]"
+        };
 
         foreach (var e in result.Errors)
             lines.Add($"  [red]ERROR [{Markup.Escape(e.Code)}]:[/] {Markup.Escape(e.Message)}");
