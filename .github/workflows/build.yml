@@ -53,20 +53,34 @@ jobs:
 
       - name: Publish the browser front end
         # The static site is the deliverable for web/, and publishing exercises things a
-        # plain build does not — chiefly staging data/rules into wwwroot. Nothing checks
-        # the served payload, so assert the rules are actually in it: without them the
-        # site loads and then cannot start, which is a failure no build error would catch.
+        # plain build does not — chiefly staging data/rules into wwwroot.
         run: |
           dotnet publish web/ProwlersAndParagons.Web.csproj \
             --configuration Release -p:ContinuousIntegrationBuild=true -o publish
 
+      - name: Write security headers
+        # Run here as well as on deploy so a change that breaks the Content-Security-Policy
+        # fails on the pull request rather than on the way to production. The script exits
+        # non-zero if it cannot find the inline import map to hash.
+        run: ./scripts/write-cloudflare-headers.sh publish/wwwroot
+
+      - name: Check the published site is complete
+        # Nothing else checks the served payload. The rules are fetched at runtime, so
+        # their absence is a site that loads and then cannot start — invisible to a build.
+        run: |
           missing=0
-          for f in $(ls data/rules/*.json); do
+          for f in data/rules/*.json; do
             name=$(basename "$f")
             if [ ! -s "publish/wwwroot/data/rules/$name" ]; then
               echo "::error::$name is missing or empty in the published site."
               missing=1
             fi
           done
-          [ "$missing" -eq 0 ] && echo "All rules files present in the published site."
+          for required in index.html _headers _redirects; do
+            if [ ! -s "publish/wwwroot/$required" ]; then
+              echo "::error::$required is missing or empty in the published site."
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] && echo "Published site is complete."
           exit "$missing"
