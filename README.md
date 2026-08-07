@@ -107,6 +107,7 @@ ProwlersAndParagonsAutomation/
 ├── output/                       # Generated character sheets (gitignored)
 ├── PROGRESS.md                   # What is done and what remains — kept current
 ├── docs/RULES_EXTRACTION_GUIDE.md
+├── docs/HANDOVER-toxins-and-gear.md  # task brief; delete when done
 └── Program.cs                    # Entry point
 ```
 
@@ -328,7 +329,10 @@ The short version of what is left, most-unblocking first:
 3. **Model Sources** — they set the stand-in rank for the 46 rankless powers.
 4. **Establish a Qodana baseline** so only *new* problems fail CI.
 5. **Extract the remaining rulebook chapters** (3–9).
-6. **Choose and apply a licence** — see [License](#license).
+6. **Web SPA front end** for softwaresamurai.net — the `data → engine → cli` split exists to make this possible without touching rules logic.
+7. **Assisted character creation from a description**, with the engine validating whatever a model proposes.
+8. **Printable character sheet** — blue/white for Heroes, black/red for Villains.
+9. **Choose and apply a licence** — see [License](#license).
 
 ---
 

@@ -26,7 +26,25 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 ## Remaining work
 
-Roughly in the order that unblocks the most.
+Roughly in the order that unblocks the most. Items 1–3 have a task brief with the exact
+rulebook line numbers and data shapes in
+[`docs/HANDOVER-toxins-and-gear.md`](docs/HANDOVER-toxins-and-gear.md).
+
+### 0. Three toxin Pros/Cons are missing
+
+The original Pros/Cons extraction was scoped to Chapter 2. Sweeping the **whole** book for
+`^(PRO|CON) [+-]\d+ Hero Point` turns up exactly three more, all in Ch.7's Toxins section
+(lines 4090–4112), and each applies to a specific Power:
+
+| Name | Kind | Cost | Applies to |
+|---|---|---|---|
+| Caustic | con | −2 | Stun |
+| Lethal Disease | pro | +6 | Slay |
+| Non-Lethal Disease | pro | +2 | Stun |
+
+Small and certain. They belong in `power_pros` / `power_cons` on `stun` and `slay`, and move
+the totals to 105 entries across 62 Powers. This is the last known gap in Pros and Cons —
+the sweep was exhaustive.
 
 ### 1. Close the last seven Heroes
 
@@ -34,7 +52,7 @@ Thirteen of the twenty published Heroes now rebuild to exactly 125 Hero Points. 
 
 | Hero | Residual | Why |
 |---|---|---|
-| Vector | −6 | Unexplained, and the largest gap left |
+| Vector | −6 | Four times any other residual, so worth one look. His sheet reads `Deflection (Physical and Energy)`, but the Power says to pick *one* type — covering both is probably not free |
 | Vigilant | −1 | Its Jo Sticks are *Upgraded*, a custom gear feature not modelled |
 | Shadow | +2 | Unexplained |
 | Herald (Airmid) | +2 | Unresolved |
@@ -62,7 +80,9 @@ Gear comes in three tiers, and only one of them is missing:
 | Signature equipment | A Power with the Item Con | Yes |
 | **Custom features on mundane gear** | **1–6 HP each** | **No** |
 
-The gap is the third: Accurate/Very Accurate, Bonded, Concealed, Hardened, Masterpiece, Upgraded, Very Powerful and the rest, at 1–6 HP each, plus Pros and Cons applied to a piece of gear. Custom gear also has its own floor — no piece can cost less than 0 HP, so Cons never pay out.
+The gap is the third. Twelve features, 1–2 HP each (Ch.6 lines 3247–3285): Accurate/Very Accurate, Bonded, Collapsible, Concealed, Deflecting, Fitted, Hardened, Masterpiece, Powerful/Very Powerful, Reinforced, Silenced, Upgraded. Gear can also take ordinary Pros and Cons, and has its own floor — no piece costs less than **0** HP, unlike a Power's floor of 1. Two-Fisted customises two identical weapons for the price of one.
+
+This would be the first thing to spend Hero Points outside `TotalCost`'s current four categories, so the budget panel needs it too.
 
 Only one published Hero's residual looks like this: Vigilant's Jo Sticks are *Upgraded*, and he is 1 HP short. Shadow's *Silenced* pistols and Psidearm's *Thrown* batons point the other way, since Psidearm already reconciles exactly — so the authors may not have charged for them consistently. Do not tune to these.
 
@@ -78,7 +98,40 @@ Establish a committed baseline (`--baseline,qodana.sarif.json`) so only *new* pr
 
 Chapters 3–9 are not extracted. Rough order of usefulness to the wizard: 6 (Equipment, needed for gear costs), 5 (Resolve, already partly used), 4 (Combat), 8 (Friends and Foes), then the rest.
 
-### 6. Choose and apply a licence
+### 6. Web SPA front end, hosted on softwaresamurai.net
+
+The wizard is CLI-only. The `data → engine → cli` split exists precisely so another front
+end can be added without touching the rules logic, and that promise has not been tested yet.
+
+The shape that keeps the promise: a `web/` layer alongside `cli/`, with the engine exposed
+over a small HTTP API (or compiled to WebAssembly, which would let the whole thing be a
+static site with no server to run). Both keep `engine/` free of presentation. Do **not**
+reimplement cost or validation logic in the browser — that is the one rule the architecture
+exists to protect, and duplicating it would guarantee drift from the tests.
+
+The extraction guide's original condition still applies: build this after the CLI handles
+the full creation flow, which it now does.
+
+### 7. Assisted character creation from a description
+
+Give the tool a prompt like "a washed-up boxer who punches through time" and have it produce
+a legal, costed character. This is worth doing *because* the rules engine is now trustworthy:
+the model proposes, and `CostCalculator` and `CharacterValidator` decide what is legal, so it
+cannot invent a character that does not add up. That ordering is the whole value — a model
+inventing costs directly would be a random number generator with good prose.
+
+Wants a machine-usable surface first: something that takes a structured character definition,
+validates it, and returns errors the caller can act on. That is close to what
+`CharacterSheetExporter`'s JSON already emits, read in reverse.
+
+### 8. Printable character sheet with hero/villain styling
+
+A proper sheet rather than the current `.txt` dump: blue and white for Heroes, black and red
+for Villains. Mechanically the two are identical — Ch.9 is explicit that Villains are built
+exactly like Heroes, just without a Hero Point budget — so this is presentation only, and
+belongs in the front end, not the engine.
+
+### 9. Choose and apply a licence
 
 The project is intended for open-source release but is currently unlicensed, which legally means nobody may use it. Apache 2.0 is the working preference: its NOTICE requirement makes the "no rulebook content here, you must own the rulebook" statement travel with any fork. Whatever is chosen must be explicit that it covers this project's code and original text only — not the game system, which is © LakeSide Games. Worth contacting LakeSide before any public release.
 
