@@ -11,8 +11,11 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// <list type="bullet">
 ///   <item><c>Abilities (...)</c> and <c>Abilities and Talents (All)</c> are Source tags
 ///   marking which Traits are superhuman, not Powers, and cost nothing.</item>
-///   <item>Gear is bought against the Gear Limit rather than with Hero Points (Ch.6),
-///   so it does not enter any of these calculations.</item>
+///   <item>Gear on the GEAR line is mundane, and Ch.6 is explicit that mundane gear costs
+///   nothing and is not tracked. A Gear Limit caps the Trait rank you can apply while
+///   using it; it is not a budget. Signature equipment is bought as a Power with the Item
+///   Con instead, which is transcribed. Custom features on mundane gear (Upgraded,
+///   Silenced, Thrown) do cost Hero Points, and those are not modelled yet.</item>
 /// </list>
 /// </summary>
 public static class PrebuiltHeroes
@@ -254,16 +257,33 @@ public static class PrebuiltHeroes
             ["Nano"]              = ("hero_package", 0),
             ["Pandora"]           = ("hero_package", 0),
             ["Blastwave"]         = ("civilian_package", 0),
+            ["Stronghold"]        = ("superhero_package", 0),
 
-            // Not exact. Closest package, with what is left over.
+            // Not exact. Closest package, with what is left over. None of these is explained by
+            // gear: Ch.6 makes mundane gear free, so that earlier guess was wrong.
             ["Herald (Scathach)"] = ("hero_package", 1),        // Strike carries four Pros/Cons at once
             ["Talon"]             = ("superhero_package", 1),
             ["T-Kay"]             = ("superhero_package", -1),  // Limited grade is not stated
-            ["Vigilant"]          = ("superhero_package", -1),  // has gear
+            ["Vigilant"]          = ("superhero_package", -1),  // Jo Sticks are Upgraded, a custom feature not modelled
             ["Herald (Airmid)"]   = ("superhero_package", 2),
-            ["Shadow"]            = ("superhero_package", 2),   // has gear
-            ["Stronghold"]        = ("superhero_package", 4),   // Item Con on its Abilities is not modelled
-            ["Vector"]            = ("superhero_package", -6)   // has gear
+            ["Shadow"]            = ("superhero_package", 2),   // unexplained
+            
+            ["Vector"]            = ("superhero_package", -6)   // unexplained; the largest gap left
+        };
+
+    /// <summary>
+    /// Pros and Cons a sheet applies to an Ability rather than a Power, keyed
+    /// "Hero|abilityId". Stronghold is the only published Hero who does this: his sheet
+    /// reads <c>Abilities (Agility, Might, Perception, Toughness) (Item: armor)</c>, so
+    /// those four come from the armour and carry the Item Con.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string[]> AbilityModifiersByHero =
+        new Dictionary<string, string[]>
+        {
+            ["Stronghold|agility"]    = ["con:item"],
+            ["Stronghold|might"]      = ["con:item"],
+            ["Stronghold|perception"] = ["con:item"],
+            ["Stronghold|toughness"]  = ["con:item"]
         };
 
     public static readonly IReadOnlyList<Hero> All =
