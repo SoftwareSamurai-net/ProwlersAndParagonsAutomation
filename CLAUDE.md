@@ -36,7 +36,8 @@ dotnet test
 - The suite loads the **real** `data/rules/*.json` via `RulesFixture`, not hand-built fixtures. That is deliberate: its main job is to catch a rules file drifting away from the rulebook.
 - `CanonicalPowers.cs` is the transcribed Range/Rank/Cost of all 141 Powers, and `RulesDataTests` holds the tier/ability/talent/pro/con/perk/flaw values. **Do not "fix" a failing test by editing these to match the code** — they are the rulebook. Check the page named in the entry's `source_ref` and fix whichever side is wrong.
 - `PrebuiltHeroes.cs` transcribes the 20 published Heroes from Ch.8 and `PrebuiltHeroTests` rebuilds each one, asserting the printed Edge, Health and Resolve. Same rule applies: those numbers are the authors', not ours. They are the only tests that check the rules as *applied* rather than as transcribed, so a failure there usually means a rule was misread, not that a number is stale.
-- Hero Point **totals** are deliberately not asserted against the 125-point budgets. The sheets use Power-specific Pros this project has not extracted (see the roadmap), which push a rebuild a few HP under, and some carry Ch.6 gear costs, which are not modelled at all. `HeroAbilityTalentAndPerkCostsAreExact` asserts the part that is fully determined.
+- **12 of the 20 Heroes rebuild to exactly 125 Hero Points** and are asserted as such. The other eight are held at a recorded residual in `PrebuiltHeroes.BuildByHero`, mostly Ch.6 gear that is not modelled. Do not tune an ambiguous variant just to force one of those to zero — that is fitting the model to the answer. Fix the underlying gap instead.
+- The package each Hero used is inferred, not printed. For the twelve exact ones only one package lands the total on the point, so it is safe; for the rest it is the closest fit.
 
 The root `.csproj` sits at the repository root, so it carries `<Compile Remove="tests\**" />`; without it the default `**/*.cs` glob pulls the test sources into the main project.
 
@@ -126,6 +127,10 @@ Then pro costs and con discounts are summed in (cons are negative in the data).
 | `baseline_selected_trait` | rank of `SelectedPower.BaselineTraitId` + purchased — Boost, Expertise |
 
 `fixed_value` now lives in the JSON, so the old `RulesRepository.LoadPowers()` post-load patch is gone. `baseline_selected_trait` powers need `BaselineTraitId` on the selection; without it the baseline is 0 and the validator raises an error. Boost's *cost* also comes from that nomination.
+
+### Starting packages
+
+A package **buys the ranks it grants** — `AbilityCost`/`TalentCost` only charge for ranks above the package's own rank. The Superhero Package is 50 HP for 3d in six Abilities and twelve Talents, which is 54 bought separately; the rulebook sells packages "at a small discount", so charging the price on top of full-rate ranks double-pays and makes a package strictly worse than none. That was a real bug, found because seven published Heroes came out exactly 4 HP over — the Superhero discount.
 
 ### Perk cost formula
 
