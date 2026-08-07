@@ -1,6 +1,5 @@
 @page "/"
 @inject CharacterSession Session
-@inject NavigationManager Nav
 @inject IJSRuntime Js
 
 <PageTitle>Tier — Prowlers &amp; Paragons</PageTitle>
@@ -18,9 +17,9 @@
        Aside="Replaces anything already on the sheet"
        NoPrint="true">
     <p class="small muted">
-        Two samples written for this tool, filling every section a printed sheet has. Handy
-        for judging the layout, the Source headings and the print view without spending
-        twenty minutes on a character first.
+        Two characters written for this tool, filling in every section a sheet has. The
+        quickest way to see what you get at the end — and what a printed sheet looks like —
+        without spending twenty minutes building one first.
     </p>
     <div class="inline">
         <button type="button" class="btn" @onclick="() => LoadSample(SheetMode.Hero)">

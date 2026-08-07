@@ -1,11 +1,13 @@
 @page "/review"
+@implements IDisposable
 @inject CharacterSession Session
 @inject IJSRuntime Js
 
 @* The character's name leads the title because the browser prints the document title in
    its own page header, which is the one thing that reliably repeats on every printed page.
-   That is what identifies page three of a sheet lying face-up on a table. *@
-<PageTitle>@(string.IsNullOrWhiteSpace(Session.Sheet.Name) ? "GM review" : Session.Sheet.Name) — Prowlers &amp; Paragons</PageTitle>
+   That is what identifies page three of a sheet lying face-up on a table — so an unnamed
+   character says so rather than falling back to the name of the step. *@
+<PageTitle>@(string.IsNullOrWhiteSpace(Session.Sheet.Name) ? "Unnamed character" : Session.Sheet.Name) — Prowlers &amp; Paragons</PageTitle>
 
 <h1>GM review</h1>
 
@@ -62,6 +64,16 @@
 <StepButtons Back="finishing" BackLabel="Finishing touches" />
 
 @code {
+    /// <summary>
+    /// This page reads the sheet on every render but never changes it, so it is easy to
+    /// miss that it still has to redraw: switching to Villain mode from here hid the budget
+    /// bar in the shell and left an over-budget finding sitting on this list, with the
+    /// explanation of why budget findings are hidden not shown.
+    /// </summary>
+    protected override void OnInitialized() => Session.Changed += StateHasChanged;
+
+    public void Dispose() => Session.Changed -= StateHasChanged;
+
     private ValidationResult Validation => Session.Validate();
 
     /// <summary>

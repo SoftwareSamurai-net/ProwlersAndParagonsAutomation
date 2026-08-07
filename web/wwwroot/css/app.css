@@ -107,6 +107,10 @@ hr {
 /* ── Shell ───────────────────────────────────────────────────────────────── */
 
 .banner {
+    /* The flat fill first: if color-mix is unsupported the whole gradient declaration is
+       invalid and dropped, and without a fallback that leaves --on-primary text sitting on
+       --surface, which is unreadable rather than merely unstyled. */
+    background: var(--primary);
     background: linear-gradient(
         180deg,
         color-mix(in srgb, var(--primary) 88%, var(--on-primary)),
@@ -280,7 +284,10 @@ hr {
 .panel-head h2, .panel-head h3 { margin: 0; margin-right: auto; }
 .panel-head .cost { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
 
-.grid { display: grid; gap: 0.9rem; }
+/* `start`, not the default `stretch`. Two boxes side by side are rarely the same length —
+   one Perk against three Flaws — and stretching the short one draws a ruled box around a
+   column of nothing. On paper that void can run the whole height of a page. */
+.grid { display: grid; gap: 0.9rem; align-items: start; }
 .grid.two { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .grid.three { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
 
@@ -321,8 +328,11 @@ hr {
    needs to look and behave as unavailable. */
 .btn.disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
 
+/* --focus, not --accent. A focus ring is a non-text control indicator and WCAG 1.4.11 asks
+   for 3:1 against what surrounds it; Hero --accent is 1.8:1 on --surface, which is a ring
+   you cannot see. */
 :where(button, a, input, select, textarea):focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
 }
 
@@ -385,7 +395,7 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
                 box-shadow var(--swap) var(--ease);
 }
 .tabs button:hover { color: var(--ink); border-color: var(--heading); }
-.tabs button[aria-selected="true"] {
+.tabs button[aria-current="true"] {
     color: var(--heading);
     border-color: var(--heading);
     font-weight: 700;
@@ -526,6 +536,10 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     animation: rise var(--enter) var(--ease) both;
 }
 .sheet-banner {
+    /* The flat fill first: if color-mix is unsupported the whole gradient declaration is
+       invalid and dropped, and without a fallback that leaves --on-primary text sitting on
+       --surface, which is unreadable rather than merely unstyled. */
+    background: var(--primary);
     background: linear-gradient(
         180deg,
         color-mix(in srgb, var(--primary) 88%, var(--on-primary)),
@@ -653,10 +667,12 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 
     /* Ruled boxes, the way the published sheets set them.
 
-       `break-inside: avoid` is a request, not a guarantee: a box that would not fit on any
-       page is broken anyway rather than clipped, which is exactly the fallback a long
-       Powers group needs. So it is safe to ask for every box, and it stops the common case
-       — a four-line Gear box straddling a page for no reason. */
+       Every box asks not to be broken, which stops the common nuisance — a four-line Gear
+       box straddling a page for no reason. A Powers group is the exception and opts back
+       out below: `break-inside: avoid` is only a request, but Chrome honours it by pushing
+       the box to the next page first, and a fifteen-Power group is tall enough that doing
+       so left two thirds of page one white. Small boxes benefit; the one box that can
+       exceed a page does not. */
     .sheet-section {
         border: 1px solid var(--rule);
         border-radius: 0;
@@ -664,6 +680,10 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
         margin-bottom: 0.6rem;
         break-inside: avoid;
         page-break-inside: avoid;
+    }
+    .sheet-section.powers {
+        break-inside: auto;
+        page-break-inside: auto;
     }
     .sheet-section > h3 {
         font-size: 9.5pt;

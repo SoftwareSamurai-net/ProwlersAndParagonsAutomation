@@ -51,7 +51,7 @@
                         <option value="">Choose a Trait…</option>
                         @foreach (var t in TraitOptions)
                         {
-                            <option value="@t.Id">@t.Kind: @Humanise(t.Id) (@(t.Rank)d)</option>
+                            <option value="@t.Id">@t.Kind: @t.Name (@(t.Rank)d)</option>
                         }
                     </select>
                 }
@@ -67,7 +67,7 @@
                 @foreach (var v in variants)
                 {
                     <option value="@v.Key">
-                        @Humanise(v.Key) — @v.Value HP@(Power.CostType == "per_rank_variable" ? " per rank" : "")
+                        @Labels.Humanise(v.Key) — @v.Value HP@(Power.CostType == "per_rank_variable" ? " per rank" : "")
                     </option>
                 }
             </select>
@@ -135,7 +135,7 @@
                 <option value="">Not sure yet</option>
                 @foreach (var s in Session.Rules.Sources)
                 {
-                    <option value="@s.Id">@s.Name — default rank @Humanise(s.DefaultRankAbility)</option>
+                    <option value="@s.Id">@s.Name — default rank @(Session.Rules.GetAbility(s.DefaultRankAbility)?.Name ?? s.DefaultRankAbility)</option>
                 }
             </select>
         </ChildContent>
@@ -167,7 +167,7 @@
 </Panel>
 
 @code {
-    [Parameter, EditorRequired] public PowerModel Power { get; set; } = default!;
+    [Parameter, EditorRequired] public PowerModel Power { get; set; } = null!;
 
     /// <summary>The selection being edited, or null when the Power is being added fresh.</summary>
     [Parameter] public SelectedPower? Existing { get; set; }
@@ -201,11 +201,18 @@
     private bool NeedsBaselineTrait =>
         Power.Prerequisite?.Relationship == "baseline_selected_trait";
 
-    private sealed record TraitOption(string Id, int Rank, string Kind);
+    private sealed record TraitOption(string Id, string Name, int Rank, string Kind);
 
     /// <summary>
     /// Only Traits the character actually has can serve as a baseline. Boost can also
     /// raise another Power; Expertise is limited to Abilities and Talents.
+    ///
+    /// <para>Each option carries the rulebook's own name for the Trait. Turning the id into
+    /// prose by swapping underscores for spaces printed "super senses thermal vision" at a
+    /// player reading a book that calls it "Super Senses — Thermal Vision".</para>
+    ///
+    /// <para>A rankless Power is not offered. Its rank is 0, so nominating it as a baseline
+    /// buys nothing and the purchase is meaningless.</para>
     /// </summary>
     private List<TraitOption> TraitOptions
     {
@@ -214,15 +221,20 @@
             var sheet = Session.Sheet;
 
             var options = sheet.AbilityRanks.Where(a => a.Value > 0)
-                .Select(a => new TraitOption(a.Key, a.Value, "Ability"))
+                .Select(a => new TraitOption(a.Key, Session.Rules.GetAbility(a.Key)?.Name ?? a.Key, a.Value, "Ability"))
                 .Concat(sheet.TalentRanks.Where(t => t.Value > 0)
-                    .Select(t => new TraitOption(t.Key, t.Value, "Talent")))
+                    .Select(t => new TraitOption(t.Key, Session.Rules.GetTalent(t.Key)?.Name ?? t.Key, t.Value, "Talent")))
                 .ToList();
 
             if (Power.Id == "boost")
                 options.AddRange(sheet.SelectedPowers
                     .Where(sp => sp.PowerId != Power.Id)
-                    .Select(sp => new TraitOption(sp.PowerId, Session.Derived.GetEffectiveRank(sp, sheet), "Power")));
+                    .Select(sp => new TraitOption(
+                        sp.PowerId,
+                        Session.Rules.GetPower(sp.PowerId)?.Name ?? sp.PowerId,
+                        Session.Derived.GetEffectiveRank(sp, sheet),
+                        "Power"))
+                    .Where(t => t.Rank > 0));
 
             return options;
         }
@@ -267,5 +279,4 @@
         await OnCommit.InvokeAsync(Draft());
     }
 
-    private static string Humanise(string id) => id.Replace('_', ' ');
 }

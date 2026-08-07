@@ -25,7 +25,7 @@
                         <b>@DisplayName(choice.Id)</b>
                         @if (choice.VariantKey is not null)
                         {
-                            <span class="muted small"> — @Humanise(choice.VariantKey)</span>
+                            <span class="muted small"> — @Labels.Humanise(choice.VariantKey)</span>
                         }
                         @if (choice.Units is { } u)
                         {
@@ -63,10 +63,14 @@
                     </NameExtra>
                 </OptionRow>
             }
+            @* A Power's own Pros and Cons showed their description and the generic ones did
+               not, so half this list was bare names and prices — unusable without the book
+               open. Both halves describe themselves now, and the applicability caveat is
+               appended where the option states one the data cannot check. *@
             @foreach (var option in GenericOptions)
             {
                 <OptionRow Name="@option.Name"
-                           Caveat="@(option.ApplicabilityCaveat is null ? null : $"{option.ApplicabilityCaveat} The GM decides.")"
+                           Caveat="@GenericCaveat(option)"
                            Cost="@GenericCost(option)"
                            OnSelect="() => Begin(option.Id)" />
             }
@@ -78,14 +82,18 @@
         <Panel Class="spaced">
             <b>@DisplayName(pending.Id)</b>
 
+            @* The ids carry an instance suffix because two of these are on screen at once —
+               the Pros picker and the Cons picker — and a page with two id="pcv" points
+               both <label for> at the first one, so clicking the Cons label focuses the
+               Pros control and a screen reader reads out the wrong question. *@
             @if (VariantsFor(pending.Id) is { Count: > 0 } variants)
             {
-                <Field For="pcv" Label="This one is graded — which version?">
-                    <select id="pcv" @bind="_variantKey">
+                <Field For="@($"pcv-{Slot}")" Label="This one is graded — which version?">
+                    <select id="@($"pcv-{Slot}")" @bind="_variantKey">
                         <option value="">Choose…</option>
                         @foreach (var v in variants)
                         {
-                            <option value="@v.Key">@Humanise(v.Key) — @v.Value</option>
+                            <option value="@v.Key">@Labels.Humanise(v.Key) — @v.Value</option>
                         }
                     </select>
                 </Field>
@@ -93,8 +101,8 @@
 
             @if (NeedsUnits(pending.Id))
             {
-                <Field For="pcu" Label="@($"How many {Own(pending.Id)?.CostUnitLabel ?? "unit"}s?")">
-                    <input id="pcu" type="number" min="1" @bind="_units" />
+                <Field For="@($"pcu-{Slot}")" Label="@($"How many {Own(pending.Id)?.CostUnitLabel ?? "unit"}s?")">
+                    <input id="@($"pcu-{Slot}")" type="number" min="1" @bind="_units" />
                 </Field>
             }
 
@@ -139,7 +147,15 @@
     [Parameter] public bool IsPro { get; set; }
     [Parameter] public EventCallback OnChanged { get; set; }
 
-    [Inject] private CharacterSession Session { get; set; } = default!;
+    [Inject] private CharacterSession Session { get; set; } = null!;
+
+    /// <summary>
+    /// Distinguishes this picker's control ids from its sibling's. Only ever two of these
+    /// are on screen together — a Pros picker and a Cons picker on the same target — so the
+    /// pair of values is enough, and being derived rather than random keeps the ids stable
+    /// across renders.
+    /// </summary>
+    private string Slot => IsPro ? "pro" : "con";
 
     private bool _adding;
     private SelectedProCon? _pending;
@@ -273,7 +289,26 @@
         _                                => "graded"
     };
 
+    /// <summary>
+    /// What a generic option says about itself: its description, then the constraint its own
+    /// rulebook entry states where that constraint is one the data cannot check for us. The
+    /// caveat is shown, never enforced — see ProConApplicability.
+    /// </summary>
+    private static string? GenericCaveat(IGenericProCon option)
+    {
+        var description = option switch
+        {
+            ProModel p => p.Description,
+            ConModel c => c.Description,
+            _          => null
+        };
+
+        var caveat = option.ApplicabilityCaveat is null ? null : $"{option.ApplicabilityCaveat} The GM decides.";
+
+        return string.Join(" ", new[] { description, caveat }.Where(s => !string.IsNullOrWhiteSpace(s)))
+            is { Length: > 0 } text ? text : null;
+    }
+
     private static string Signed(double value) => value > 0 ? $"+{value:0.##}" : $"{value:0.##}";
 
-    private static string Humanise(string key) => key.Replace('_', ' ');
 }

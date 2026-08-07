@@ -17,16 +17,24 @@
     <h3>Edge</h3>
     <p class="small">
         Perception + the better of Agility and Intellect. Three details are easy to get
-        wrong and were all bugs at one point: <b>Danger Sense replaces</b> Perception rather
-        than adding to it, <b>Lightning Reflexes is a flat +6</b> with no rank, and
-        <b>Super Speed</b> floors Edge at its rank × 3.
+        wrong: <b>Danger Sense replaces</b> Perception rather than adding to it,
+        <b>Lightning Reflexes is a flat +6</b> with no rank, and <b>Super Speed</b> floors
+        Edge at its rank × 3.
     </p>
+
+    @* The working, with the numbers actually used. This list showed Perception even when
+       Danger Sense had replaced it, so the figures on the page added up to something other
+       than the Edge printed above them, and there was no way to see why. *@
     <ul class="small muted">
-        <li>Perception @Session.Sheet.GetAbilityRank("perception")d, Agility @Session.Sheet.GetAbilityRank("agility")d, Intellect @Session.Sheet.GetAbilityRank("intellect")d</li>
-        @if (Session.Sheet.HasPower("danger_sense"))
+        @if (DangerSenseRank is { } danger)
         {
-            <li>Danger Sense is on the sheet, so it stands in for Perception.</li>
+            <li>Danger Sense @(danger)d stands in for Perception @Session.Sheet.GetAbilityRank("perception")d.</li>
         }
+        else
+        {
+            <li>Perception @Session.Sheet.GetAbilityRank("perception")d.</li>
+        }
+        <li>The better of Agility @Session.Sheet.GetAbilityRank("agility")d and Intellect @Session.Sheet.GetAbilityRank("intellect")d.</li>
         @if (Session.Sheet.HasPower("lightning_reflexes"))
         {
             <li>Lightning Reflexes adds a flat +@DerivedStatsCalculator.LightningReflexesEdgeBonus.</li>
@@ -55,15 +63,34 @@
         apiece), plus one for every Condition and Plot Hook flaw. A specialist with a rank
         at the cap starts on nothing; a generalist starts with room to spend.
     </p>
-    <p class="small muted">
-        Trait Cap @(Session.TraitCap)d ·
-        @Session.Sheet.Flaws.Count(IsResolveFlaw) Condition/Plot Hook flaw(s)
-    </p>
+    <ul class="small muted">
+        <li>Trait Cap @(Session.TraitCap)d.</li>
+        <li>@Plural(ResolveFlaws, "Condition or Plot Hook flaw", "Condition or Plot Hook flaws").</li>
+        @if (DeterminationResolve > 0)
+        {
+            <li>Determination, bought for @DeterminationResolve more.</li>
+        }
+    </ul>
 </Panel>
 
 <StepButtons Back="gear" BackLabel="Gear" Next="finishing" NextLabel="Finishing touches" />
 
 @code {
+    private int ResolveFlaws => Session.Sheet.Flaws.Count(IsResolveFlaw);
+
     private bool IsResolveFlaw(SelectedFlaw sf) =>
         Session.Rules.GetFlaw(sf.FlawId)?.FlawType is "condition" or "plot_hook" or "plot_hook_and_condition";
+
+    /// <summary>Danger Sense's effective rank when it is on the sheet, else null.</summary>
+    private int? DangerSenseRank =>
+        Session.Sheet.SelectedPowers.FirstOrDefault(sp => sp.PowerId == "danger_sense") is { } ds
+            ? Session.Derived.GetEffectiveRank(ds, Session.Sheet)
+            : null;
+
+    private int DeterminationResolve =>
+        Session.Sheet.SelectedPowers.FirstOrDefault(sp => sp.PowerId == "determination")?.Units ?? 0;
+
+    /// <summary>"1 flaw", "2 flaws". Never "flaw(s)", which is a form field, not a sentence.</summary>
+    private static string Plural(int count, string one, string many) =>
+        $"{count} {(count == 1 ? one : many)}";
 }

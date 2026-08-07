@@ -43,8 +43,11 @@
 
         @if (perk.CostType == "per_unit")
         {
+            @* "How many" and the unit as written, not "{unit}s?". Several unit labels carry
+               their own parenthetical — "Hero Point (= 25 Vehicle Points)" — and pluralising
+               by appending an s produced "How many Hero Point (= 25 Vehicle Points)s?". *@
             <Field For="pk-units"
-                   Label="@($"How many {perk.UnitLabel ?? "unit"}s? ({perk.CostPerUnit} HP each)")">
+                   Label="@($"How many, at {perk.CostPerUnit} HP per {perk.UnitLabel ?? "unit"}?")">
                 <input id="pk-units" type="number" min="1" @bind="_units" />
             </Field>
         }

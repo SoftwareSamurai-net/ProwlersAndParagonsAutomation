@@ -27,15 +27,18 @@ else
                         var rank  = power is null ? 0 : Session.Derived.GetEffectiveRank(sp, Session.Sheet);
                         <ChosenRow Cost="@($"{CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—"} HP")">
                             <Body>
+                                @* One expression for the name and the rank. A leading space
+                                   inside the following element is stripped by Razor, which
+                                   is what printed "Armor8d" here and on the sheet. *@
                                 <div>
                                     <b>@(power?.Name ?? sp.PowerId)</b>
                                     @if (rank > 0)
                                     {
-                                        <span class="muted"> @(rank)d</span>
+                                        <span class="muted">@($" {rank}d")</span>
                                     }
                                     else
                                     {
-                                        <span class="muted small"> no rank</span>
+                                        <span class="muted small">@(" no rank")</span>
                                     }
                                     @if (power?.NeedsReview == true)
                                     {
@@ -153,6 +156,6 @@ else
                    ?? Session.Rules.GetPro(choice.Id)?.Name
                    ?? Session.Rules.GetCon(choice.Id)?.Name
                    ?? choice.Id;
-        return choice.VariantKey is null ? name : $"{name} ({choice.VariantKey.Replace('_', ' ')})";
+        return choice.VariantKey is null ? name : $"{name} ({Labels.Humanise(choice.VariantKey)})";
     }
 }

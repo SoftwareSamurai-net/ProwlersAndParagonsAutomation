@@ -15,10 +15,20 @@
 }
 else
 {
-    <div class="tabs" role="tablist">
+    @* Not role="tablist"/role="tab". That pattern promises a role="tabpanel" for each tab,
+       aria-controls pointing at it, and arrow-key roving focus, and this had none of the
+       three — a half-built ARIA pattern tells assistive technology to expect behaviour that
+       is not there, which is worse than plain buttons that behave as they look.
+
+       aria-current is written as a string for the same reason MainLayout's aria-pressed is:
+       Blazor renders a true bool as an empty attribute value, which is invalid and reads as
+       the opposite of what is meant. *@
+    <div class="tabs" role="group" aria-label="Sections of this step">
         @foreach (var tab in Tabs)
         {
-            <button type="button" role="tab" aria-selected="@(_tab == tab.Key)" @onclick="() => _tab = tab.Key">
+            <button type="button"
+                    aria-current="@(_tab == tab.Key ? "true" : "false")"
+                    @onclick="() => _tab = tab.Key">
                 @tab.Label <span class="tab-count">@tab.Count()</span>
             </button>
         }

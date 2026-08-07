@@ -8,7 +8,7 @@
     Ch.6 makes mundane gear free and explicitly untracked, so most of this list is just a
     note of what the character carries. A <b>Gear Limit</b> caps the Trait rank you can use
     with mundane gear; it is not a budget. Signature equipment is a Power with the Item Con,
-    bought back on the Powers tab.
+    bought on the Powers tab.
 </p>
 
 <Panel Title="Carried" Cost="@($"{Session.Costs.TotalGearCost(Session.Sheet)} HP")">
@@ -60,7 +60,7 @@
                                 <b>@(Session.Rules.GetGearFeature(f.FeatureId)?.Name ?? f.FeatureId)</b>
                                 @if (f.GradeKey is not null)
                                 {
-                                    <span class="muted small"> — @f.GradeKey.Replace('_', ' ')</span>
+                                    <span class="muted small"> — @Labels.Humanise(f.GradeKey)</span>
                                 }
                             </Body>
                             <Actions>
