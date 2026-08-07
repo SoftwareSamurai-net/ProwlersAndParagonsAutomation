@@ -25,6 +25,13 @@ public sealed class RulesFixture
     /// <summary>The data/rules directory the fixture loaded, for tests that read the raw JSON.</summary>
     public static string DataPath => Path.Combine(FindRepoRoot(), "data", "rules");
 
+    /// <summary>
+    /// The repository root, for tests that read source files rather than call into them —
+    /// <see cref="WebPresentationTests"/> holds the browser front end to rules that are
+    /// about how its markup and stylesheets are written, which no assembly exposes.
+    /// </summary>
+    public static string RepoRoot => FindRepoRoot();
+
     /// <summary>A Standard-tier sheet (125 HP, 12d trait cap) with no traits bought.</summary>
     public static CharacterSheet StandardSheet() => new() { SelectedTierId = "standard" };
 
