@@ -1,0 +1,10 @@
+@inject CharacterSession Session
+
+@* Edge, Health and Resolve as three ruled boxes. The derived-stats step and the sheet
+   itself both show them, and they must never disagree, so they ask once from here. *@
+
+<div class="stat-blocks">
+    <StatBlock Label="Edge" Value="@Session.Derived.CalculateEdge(Session.Sheet).ToString()" />
+    <StatBlock Label="Health" Value="@Session.Derived.CalculateHealth(Session.Sheet).ToString()" />
+    <StatBlock Label="Resolve" Value="@Session.Derived.CalculateResolve(Session.Sheet).ToString()" />
+</div>

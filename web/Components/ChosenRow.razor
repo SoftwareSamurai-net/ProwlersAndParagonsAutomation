@@ -1,0 +1,22 @@
+@* One entry in a <ChosenList>: what was chosen, what it cost, and what can be done to it.
+
+   Both slots are named because Blazor will not mix named child content with unnamed. *@
+
+<li>
+    <div class="body">@Body</div>
+    @if (Cost is not null)
+    {
+        <span class="cost">@Cost</span>
+    }
+    @Actions
+</li>
+
+@code {
+    [Parameter] public RenderFragment? Body { get; set; }
+
+    /// <summary>A Hero Point figure, between the body and the buttons.</summary>
+    [Parameter] public string? Cost { get; set; }
+
+    /// <summary>Edit, Remove, Choose — whatever this row offers.</summary>
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

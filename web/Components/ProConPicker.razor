@@ -10,20 +10,18 @@
    A Power's own Pros and Cons come first, marked, because they are printed in its
    rulebook entry and are what a player reading the book expects to be offered. *@
 
-<div class="field">
-    <label>@(IsPro ? "Pros" : "Cons")</label>
-
+<Field Label="@(IsPro ? "Pros" : "Cons")">
     @if (Selected.Count == 0)
     {
         <p class="small muted">None.</p>
     }
     else
     {
-        <ul class="chosen">
+        <ChosenList>
             @foreach (var choice in Selected.ToList())
             {
-                <li>
-                    <div class="body">
+                <ChosenRow>
+                    <Body>
                         <b>@DisplayName(choice.Id)</b>
                         @if (choice.VariantKey is not null)
                         {
@@ -37,11 +35,13 @@
                         {
                             <span class="tag own">this Power</span>
                         }
-                    </div>
-                    <button type="button" class="btn small danger" @onclick="() => Remove(choice)">Remove</button>
-                </li>
+                    </Body>
+                    <Actions>
+                        <button type="button" class="btn small danger" @onclick="() => Remove(choice)">Remove</button>
+                    </Actions>
+                </ChosenRow>
             }
-        </ul>
+        </ChosenList>
     }
 
     @if (_pending is null)
@@ -53,42 +53,34 @@
 
     @if (_adding && _pending is null)
     {
-        <div class="options" style="margin-top:0.5rem">
+        <OptionList Class="spaced">
             @foreach (var own in OwnEntries)
             {
-                <button type="button" class="option" @onclick="() => Begin(own.Id)">
-                    <span class="body">
-                        <span class="name">@own.Name <span class="tag own">this Power</span></span>
-                        <span class="caveat">@own.Description</span>
-                    </span>
-                    <span class="cost">@PowerProConCost(own)</span>
-                </button>
+                <OptionRow Name="@own.Name" Caveat="@own.Description" Cost="@PowerProConCost(own)"
+                           OnSelect="() => Begin(own.Id)">
+                    <NameExtra>
+                        <span class="tag own">this Power</span>
+                    </NameExtra>
+                </OptionRow>
             }
             @foreach (var option in GenericOptions)
             {
-                <button type="button" class="option" @onclick="() => Begin(option.Id)">
-                    <span class="body">
-                        <span class="name">@option.Name</span>
-                        @if (option.ApplicabilityCaveat is not null)
-                        {
-                            <span class="caveat">@option.ApplicabilityCaveat The GM decides.</span>
-                        }
-                    </span>
-                    <span class="cost">@GenericCost(option)</span>
-                </button>
+                <OptionRow Name="@option.Name"
+                           Caveat="@(option.ApplicabilityCaveat is null ? null : $"{option.ApplicabilityCaveat} The GM decides.")"
+                           Cost="@GenericCost(option)"
+                           OnSelect="() => Begin(option.Id)" />
             }
-        </div>
+        </OptionList>
     }
 
     @if (_pending is { } pending)
     {
-        <div class="panel" style="margin-top:0.5rem">
+        <Panel Class="spaced">
             <b>@DisplayName(pending.Id)</b>
 
             @if (VariantsFor(pending.Id) is { Count: > 0 } variants)
             {
-                <div class="field">
-                    <label for="pcv">This one is graded — which version?</label>
+                <Field For="pcv" Label="This one is graded — which version?">
                     <select id="pcv" @bind="_variantKey">
                         <option value="">Choose…</option>
                         @foreach (var v in variants)
@@ -96,24 +88,23 @@
                             <option value="@v.Key">@Humanise(v.Key) — @v.Value</option>
                         }
                     </select>
-                </div>
+                </Field>
             }
 
             @if (NeedsUnits(pending.Id))
             {
-                <div class="field">
-                    <label for="pcu">How many @(Own(pending.Id)?.CostUnitLabel ?? "unit")s?</label>
+                <Field For="pcu" Label="@($"How many {Own(pending.Id)?.CostUnitLabel ?? "unit"}s?")">
                     <input id="pcu" type="number" min="1" @bind="_units" />
-                </div>
+                </Field>
             }
 
             <div class="inline">
                 <button type="button" class="btn primary small" disabled="@(!CanConfirm())" @onclick="Confirm">Add</button>
                 <button type="button" class="btn small" @onclick="() => _pending = null">Cancel</button>
             </div>
-        </div>
+        </Panel>
     }
-</div>
+</Field>
 
 @code {
     /// <summary>What the Pros and Cons are being applied to.</summary>

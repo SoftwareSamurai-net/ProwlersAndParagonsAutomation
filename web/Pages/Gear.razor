@@ -11,44 +11,37 @@
     bought back on the Powers tab.
 </p>
 
-<section class="panel">
-    <div class="panel-head">
-        <h2>Carried</h2>
-        <span class="cost">@Session.Costs.TotalGearCost(Session.Sheet) HP</span>
-    </div>
-
+<Panel Title="Carried" Cost="@($"{Session.Costs.TotalGearCost(Session.Sheet)} HP")">
     @if (Session.Sheet.Gear.Count == 0)
     {
         <p class="small muted">Nothing yet.</p>
     }
     else
     {
-        <ul class="chosen">
+        <ChosenList>
             @foreach (var item in Session.Sheet.Gear.ToList())
             {
-                <li>
-                    <div class="body">@GearFormatter.Describe(item, Session.Rules, Session.Costs)</div>
-                    <button type="button" class="btn small" @onclick="() => BeginEdit(item)">Customise</button>
-                    <button type="button" class="btn small danger" @onclick="() => Remove(item)">Remove</button>
-                </li>
+                <ChosenRow>
+                    <Body>@GearFormatter.Describe(item, Session.Rules, Session.Costs)</Body>
+                    <Actions>
+                        <button type="button" class="btn small" @onclick="() => BeginEdit(item)">Customise</button>
+                        <button type="button" class="btn small danger" @onclick="() => Remove(item)">Remove</button>
+                    </Actions>
+                </ChosenRow>
             }
-        </ul>
+        </ChosenList>
     }
 
-    <div class="inline" style="margin-top:0.75rem">
+    <div class="inline spaced">
         <input type="text" placeholder="Add an item" @bind="_newItem" @bind:event="oninput"
                @onkeydown="@(e => { if (e.Key == "Enter") Add(); })" aria-label="New gear item" />
         <button type="button" class="btn" disabled="@string.IsNullOrWhiteSpace(_newItem)" @onclick="Add">Add</button>
     </div>
-</section>
+</Panel>
 
 @if (_editing is { } target)
 {
-    <section class="panel">
-        <div class="panel-head">
-            <h2>@target.Name</h2>
-            <span class="cost">@Session.Costs.GearCost(target) HP</span>
-        </div>
+    <Panel Title="@target.Name" Cost="@($"{Session.Costs.GearCost(target)} HP")">
         <p class="small muted">
             Custom features and ordinary Pros and Cons are the only parts of a piece of gear
             that cost Hero Points, and gear floors at <b>0</b> rather than 1 — Cons discount
@@ -56,40 +49,37 @@
             piece of gear has it as a statement of what gear is, not a discount to claim.
         </p>
 
-        <div class="field">
-            <label>Custom features (Ch.6, p.92)</label>
+        <Field Label="Custom features (Ch.6, p.92)">
             @if (target.Features.Count > 0)
             {
-                <ul class="chosen">
+                <ChosenList>
                     @foreach (var f in target.Features.ToList())
                     {
-                        <li>
-                            <div class="body">
+                        <ChosenRow>
+                            <Body>
                                 <b>@(Session.Rules.GetGearFeature(f.FeatureId)?.Name ?? f.FeatureId)</b>
                                 @if (f.GradeKey is not null)
                                 {
                                     <span class="muted small"> — @f.GradeKey.Replace('_', ' ')</span>
                                 }
-                            </div>
-                            <button type="button" class="btn small danger" @onclick="() => RemoveFeature(target, f)">Remove</button>
-                        </li>
+                            </Body>
+                            <Actions>
+                                <button type="button" class="btn small danger" @onclick="() => RemoveFeature(target, f)">Remove</button>
+                            </Actions>
+                        </ChosenRow>
                     }
-                </ul>
+                </ChosenList>
             }
 
-            <div class="options">
+            <OptionList>
                 @foreach (var feature in AvailableFeatures(target))
                 {
-                    <button type="button" class="option" @onclick="() => AddFeature(target, feature)">
-                        <span class="body">
-                            <span class="name">@feature.Name</span>
-                            <span class="caveat">@feature.Description</span>
-                        </span>
-                        <span class="cost">@PriceLabel(feature)</span>
-                    </button>
+                    <OptionRow Name="@feature.Name" Caveat="@feature.Description"
+                               Cost="@PriceLabel(feature)"
+                               OnSelect="() => AddFeature(target, feature)" />
                 }
-            </div>
-        </div>
+            </OptionList>
+        </Field>
 
         <ProConPicker Scope="ProConPicker.Target.Gear" IsPro="true"
                       Selected="_pros" OnChanged="() => Save(target)" />
@@ -98,19 +88,19 @@
 
         @if (Session.Sheet.HasPower("two_fisted"))
         {
-            <div class="field">
-                <label>
+            <Field>
+                <LabelContent>
                     <input type="checkbox" checked="@target.PairedUnderTwoFisted"
                            @onchange="e => SetPaired(target, (bool)(e.Value ?? false))" />
                     A matched pair customised under Two-Fisted — one price for both.
-                </label>
-            </div>
+                </LabelContent>
+            </Field>
         }
 
         <div class="inline">
             <button type="button" class="btn" @onclick="() => _editing = null">Done</button>
         </div>
-    </section>
+    </Panel>
 }
 
 <StepButtons Back="characteristics" BackLabel="Characteristics" Next="derived" NextLabel="Derived stats" />

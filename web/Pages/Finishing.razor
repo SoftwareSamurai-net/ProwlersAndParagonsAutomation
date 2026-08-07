@@ -6,61 +6,54 @@
 <h1>Finishing touches</h1>
 <p class="muted">None of this costs Hero Points. It is what makes the numbers a character.</p>
 
-<section class="panel">
-    <div class="field">
-        <label for="ft-name">Name</label>
-        <input id="ft-name" type="text" style="width:100%"
+<Panel>
+    <Field Label="Name" For="ft-name">
+        <input id="ft-name" type="text" class="wide"
                value="@Session.Sheet.Name" @oninput="e => Set(s => s.Name = Text(e))" />
-    </div>
+    </Field>
 
-    <div class="field">
-        <label for="ft-appearance">Appearance</label>
+    <Field Label="Appearance" For="ft-appearance">
         <textarea id="ft-appearance" rows="3"
                   value="@Session.Sheet.Appearance" @oninput="e => Set(s => s.Appearance = Text(e))"></textarea>
-    </div>
+    </Field>
 
-    <div class="field">
-        <label for="ft-motivation">Motivation — why do they put the costume on?</label>
+    <Field Label="Motivation — why do they put the costume on?" For="ft-motivation">
         <textarea id="ft-motivation" rows="2"
                   value="@Session.Sheet.Motivation" @oninput="e => Set(s => s.Motivation = Text(e))"></textarea>
-    </div>
+    </Field>
 
-    <div class="field">
-        <label for="ft-quote">Catchphrase or quote</label>
-        <input id="ft-quote" type="text" style="width:100%"
+    <Field Label="Catchphrase or quote" For="ft-quote">
+        <input id="ft-quote" type="text" class="wide"
                value="@Session.Sheet.Quote" @oninput="e => Set(s => s.Quote = Text(e))" />
-    </div>
-</section>
+    </Field>
+</Panel>
 
-<section class="panel">
-    <div class="panel-head">
-        <h2>Connections</h2>
-        <span class="muted small">People and places that tie the character to the world</span>
-    </div>
-
+<Panel Title="Connections" Aside="People and places that tie the character to the world">
     @if (Session.Sheet.Connections.Count == 0)
     {
         <p class="small muted">None yet.</p>
     }
     else
     {
-        <ul class="chosen">
+        <ChosenList>
             @foreach (var connection in Session.Sheet.Connections.ToList())
             {
-                <li>
-                    <div class="body">@connection</div>
-                    <button type="button" class="btn small danger" @onclick="() => RemoveConnection(connection)">Remove</button>
-                </li>
+                <ChosenRow>
+                    <Body>@connection</Body>
+                    <Actions>
+                        <button type="button" class="btn small danger" @onclick="() => RemoveConnection(connection)">Remove</button>
+                    </Actions>
+                </ChosenRow>
             }
-        </ul>
+        </ChosenList>
     }
 
-    <div class="inline" style="margin-top:0.75rem">
+    <div class="inline spaced">
         <input type="text" placeholder="Add a connection" @bind="_newConnection" @bind:event="oninput"
                @onkeydown="@(e => { if (e.Key == "Enter") AddConnection(); })" aria-label="New connection" />
         <button type="button" class="btn" disabled="@string.IsNullOrWhiteSpace(_newConnection)" @onclick="AddConnection">Add</button>
     </div>
-</section>
+</Panel>
 
 <StepButtons Back="derived" BackLabel="Derived stats" Next="review" NextLabel="GM review" />
 

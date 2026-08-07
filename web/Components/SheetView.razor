@@ -25,46 +25,31 @@
     </header>
 
     <div class="sheet-body">
-        <section class="sheet-section">
-            <div class="stat-blocks">
-                <div class="stat-block">
-                    <div class="label">Edge</div>
-                    <div class="value">@Session.Derived.CalculateEdge(Session.Sheet)</div>
-                </div>
-                <div class="stat-block">
-                    <div class="label">Health</div>
-                    <div class="value">@Session.Derived.CalculateHealth(Session.Sheet)</div>
-                </div>
-                <div class="stat-block">
-                    <div class="label">Resolve</div>
-                    <div class="value">@Session.Derived.CalculateResolve(Session.Sheet)</div>
-                </div>
-            </div>
-        </section>
+        @* The only section with no heading of its own: the three derived numbers are the
+           masthead of the sheet, not a list under a title, so in print they take no box. *@
+        <SheetSection Class="headline">
+            <DerivedStatBlocks />
+        </SheetSection>
 
         <div class="grid two">
-            <section class="sheet-section">
-                <h3>Abilities</h3>
+            <SheetSection Title="Abilities">
                 <table class="stat-table">
-                    @foreach (var ability in Session.Rules.Abilities)
-                    {
-                        <tr>
-                            <td>@ability.Name</td>
-                            <td>@(Session.Sheet.GetAbilityRank(ability.Id))d</td>
-                        </tr>
-                    }
+                    <tbody>
+                        @foreach (var ability in Session.Rules.Abilities)
+                        {
+                            <tr>
+                                <td>@ability.Name</td>
+                                <td>@(Session.Sheet.GetAbilityRank(ability.Id))d</td>
+                            </tr>
+                        }
+                    </tbody>
                 </table>
-            </section>
+            </SheetSection>
 
-            <section class="sheet-section">
-                <h3>Talents</h3>
-                @if (Session.Rules.Talents.All(t => Session.Sheet.GetTalentRank(t.Id) == 0))
-                {
-                    <p class="small muted">None.</p>
-                }
-                else
-                {
-                    <table class="stat-table">
+            <SheetSection Title="Talents"
+                          Empty="@Session.Rules.Talents.All(t => Session.Sheet.GetTalentRank(t.Id) == 0)">
+                <table class="stat-table">
+                    <tbody>
                         @foreach (var talent in Session.Rules.Talents.Where(t => Session.Sheet.GetTalentRank(t.Id) > 0))
                         {
                             <tr>
@@ -72,17 +57,14 @@
                                 <td>@(Session.Sheet.GetTalentRank(talent.Id))d</td>
                             </tr>
                         }
-                    </table>
-                }
-            </section>
+                    </tbody>
+                </table>
+            </SheetSection>
         </div>
 
         @if (Session.Sheet.SelectedPowers.Count == 0)
         {
-            <section class="sheet-section">
-                <h3>Powers</h3>
-                <p class="small muted">None.</p>
-            </section>
+            <SheetSection Title="Powers" Empty="true" />
         }
         else
         {
@@ -92,21 +74,17 @@
                end — leaving one off its own character sheet would be worse. *@
             @foreach (var group in Session.Grouping.GroupPowers(Session.Sheet))
             {
-                <section class="sheet-section">
-                    <h3>@group.Heading</h3>
+                <SheetSection Title="@group.Heading">
                     @foreach (var sp in group.Powers)
                     {
                         var power = Session.Rules.GetPower(sp.PowerId);
                         var rank  = power is null ? 0 : Session.Derived.GetEffectiveRank(sp, Session.Sheet);
                         <div class="power-entry">
                             <div class="head">
-                                <span class="pname">
-                                    @(power?.Name ?? sp.PowerId)
-                                    @if (rank > 0)
-                                    {
-                                        <text> @(rank)d</text>
-                                    }
-                                </span>
+                                @* One expression rather than a <text> block: Razor strips
+                                   the leading whitespace inside one, which printed
+                                   "Armor8d" on every ranked Power. *@
+                                <span class="pname">@(power?.Name ?? sp.PowerId)@(rank > 0 ? $" {rank}d" : "")</span>
                                 <span class="num">@(CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—") HP</span>
                             </div>
                             @if (power is not null)
@@ -119,20 +97,14 @@
                             }
                         </div>
                     }
-                </section>
+                </SheetSection>
             }
         }
 
         <div class="grid two">
-            <section class="sheet-section">
-                <h3>Perks</h3>
-                @if (Session.Sheet.Perks.Count == 0)
-                {
-                    <p class="small muted">None.</p>
-                }
-                else
-                {
-                    <table class="stat-table">
+            <SheetSection Title="Perks" Empty="@(Session.Sheet.Perks.Count == 0)">
+                <table class="stat-table">
+                    <tbody>
                         @foreach (var sp in Session.Sheet.Perks)
                         {
                             <tr>
@@ -146,19 +118,13 @@
                                 <td>@Session.Costs.PerkCost(sp) HP</td>
                             </tr>
                         }
-                    </table>
-                }
-            </section>
+                    </tbody>
+                </table>
+            </SheetSection>
 
-            <section class="sheet-section">
-                <h3>Flaws</h3>
-                @if (Session.Sheet.Flaws.Count == 0)
-                {
-                    <p class="small muted">None.</p>
-                }
-                else
-                {
-                    <table class="stat-table">
+            <SheetSection Title="Flaws" Empty="@(Session.Sheet.Flaws.Count == 0)">
+                <table class="stat-table">
+                    <tbody>
                         @foreach (var sf in Session.Sheet.Flaws)
                         {
                             var flaw = Session.Rules.GetFlaw(sf.FlawId);
@@ -173,35 +139,28 @@
                                 <td>@FlawType(flaw?.FlawType ?? "regular")</td>
                             </tr>
                         }
-                    </table>
-                }
-            </section>
+                    </tbody>
+                </table>
+            </SheetSection>
         </div>
 
-        <section class="sheet-section">
-            <h3>Gear</h3>
-            @if (Session.Sheet.Gear.Count == 0)
-            {
-                <p class="small muted">None.</p>
-            }
-            else
-            {
-                <table class="stat-table">
+        <SheetSection Title="Gear" Empty="@(Session.Sheet.Gear.Count == 0)">
+            <table class="stat-table">
+                <tbody>
                     @foreach (var item in Session.Sheet.Gear)
                     {
                         <tr><td colspan="2">@GearFormatter.Describe(item, Session.Rules, Session.Costs)</td></tr>
                     }
-                </table>
-            }
-        </section>
+                </tbody>
+            </table>
+        </SheetSection>
 
         @if (HasNarrative)
         {
-            <section class="sheet-section">
-                <h3>The character</h3>
+            <SheetSection Title="The character">
                 @if (!string.IsNullOrWhiteSpace(Session.Sheet.Quote))
                 {
-                    <p><i>“@Session.Sheet.Quote”</i></p>
+                    <p class="quote">“@Session.Sheet.Quote”</p>
                 }
                 @if (!string.IsNullOrWhiteSpace(Session.Sheet.Appearance))
                 {
@@ -215,9 +174,22 @@
                 {
                     <p class="small"><b>Connections.</b> @string.Join(" · ", Session.Sheet.Connections)</p>
                 }
-            </section>
+            </SheetSection>
         }
     </div>
+
+    @* A colophon, printed once at the end and never shown on screen, so the last page of a
+       sheet that has come apart on a table still says whose it is.
+
+       It was a running footer on every page first, and that does not work: `position:
+       fixed` in Chrome's print output lands the element at the top of page two rather than
+       in each page's bottom margin. What carries the name across every page instead is the
+       document title — the review page sets it to the character's name, and the browser's
+       own print header prints it. *@
+    <footer class="sheet-footer">
+        @(string.IsNullOrWhiteSpace(Session.Sheet.Name) ? "Unnamed" : Session.Sheet.Name)
+        · Prowlers &amp; Paragons@(Tier is null ? "" : $" · {Tier.Name}")
+    </footer>
 </article>
 
 @code {

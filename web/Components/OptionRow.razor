@@ -1,0 +1,31 @@
+@* One pickable row: a name, an optional line of explanation under it, and a price or
+   category on the right. The whole row is the button, so the target is the full width. *@
+
+<button type="button" class="option" @onclick="OnSelect">
+    <span class="body">
+        <span class="name">@Name@NameExtra</span>
+        @if (Caveat is not null)
+        {
+            <span class="caveat">@Caveat</span>
+        }
+    </span>
+    @if (Cost is not null)
+    {
+        <span class="cost">@Cost</span>
+    }
+</button>
+
+@code {
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+
+    /// <summary>A tag or note that belongs beside the name rather than under it.</summary>
+    [Parameter] public RenderFragment? NameExtra { get; set; }
+
+    /// <summary>The quiet second line — a stat line, a description, an applicability note.</summary>
+    [Parameter] public string? Caveat { get; set; }
+
+    /// <summary>Right-hand column: a price, or a category where there is no price.</summary>
+    [Parameter] public string? Cost { get; set; }
+
+    [Parameter] public EventCallback OnSelect { get; set; }
+}

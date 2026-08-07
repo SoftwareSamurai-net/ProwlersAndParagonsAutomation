@@ -7,12 +7,7 @@
 }
 else
 {
-    <section class="panel">
-        <div class="panel-head">
-            <h2>Powers on this character</h2>
-            <span class="cost">@PowersCost()</span>
-        </div>
-
+    <Panel Title="Powers on this character" Cost="@PowersCost()">
         @if (Session.Sheet.SelectedPowers.Count == 0)
         {
             <p class="small muted">None yet.</p>
@@ -25,13 +20,13 @@ else
             @foreach (var group in Session.Grouping.GroupPowers(Session.Sheet))
             {
                 <h3>@group.Heading</h3>
-                <ul class="chosen">
+                <ChosenList>
                     @foreach (var sp in group.Powers)
                     {
                         var power = Session.Rules.GetPower(sp.PowerId);
                         var rank  = power is null ? 0 : Session.Derived.GetEffectiveRank(sp, Session.Sheet);
-                        <li>
-                            <div class="body">
+                        <ChosenRow Cost="@($"{CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—"} HP")">
+                            <Body>
                                 <div>
                                     <b>@(power?.Name ?? sp.PowerId)</b>
                                     @if (rank > 0)
@@ -44,7 +39,7 @@ else
                                     }
                                     @if (power?.NeedsReview == true)
                                     {
-                                        <span class="tag warn">unverified</span>
+                                        <span class="tag warn">not checked against the book</span>
                                     }
                                 </div>
                                 @if (sp.Pros.Count > 0 || sp.Cons.Count > 0)
@@ -53,24 +48,20 @@ else
                                         @string.Join(", ", sp.Pros.Concat(sp.Cons).Select(c => Label(c, power)))
                                     </div>
                                 }
-                            </div>
-                            <span class="cost">@(CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—") HP</span>
-                            <button type="button" class="btn small" @onclick="() => Edit(sp)">Edit</button>
-                            <button type="button" class="btn small danger" @onclick="() => Remove(sp)">Remove</button>
-                        </li>
+                            </Body>
+                            <Actions>
+                                <button type="button" class="btn small" @onclick="() => Edit(sp)">Edit</button>
+                                <button type="button" class="btn small danger" @onclick="() => Remove(sp)">Remove</button>
+                            </Actions>
+                        </ChosenRow>
                     }
-                </ul>
+                </ChosenList>
             }
         }
-    </section>
+    </Panel>
 
-    <section class="panel">
-        <div class="panel-head">
-            <h2>Add a Power</h2>
-            <span class="muted small">@Matches.Count of @Session.Rules.Powers.Count</span>
-        </div>
-
-        <div class="inline field">
+    <Panel Title="Add a Power" Aside="@($"{Matches.Count} of {Session.Rules.Powers.Count}")">
+        <Field Class="inline">
             <input type="search" placeholder="Search by name or tag" @bind="_query" @bind:event="oninput" aria-label="Search Powers" />
             <select @bind="_category" aria-label="Category">
                 <option value="">Every category</option>
@@ -79,27 +70,25 @@ else
                     <option value="@c">@c</option>
                 }
             </select>
-        </div>
+        </Field>
 
-        <div class="options">
+        <OptionList>
             @foreach (var power in Matches)
             {
-                <button type="button" class="option" @onclick="() => Add(power)">
-                    <span class="body">
-                        <span class="name">
-                            @power.Name
-                            @if (Session.Sheet.HasPower(power.Id))
-                            {
-                                <span class="tag own">on the sheet</span>
-                            }
-                        </span>
-                        <span class="caveat">@PowerFormatter.StatLine(power)</span>
-                    </span>
-                    <span class="cost">@power.Category</span>
-                </button>
+                <OptionRow Name="@power.Name"
+                           Caveat="@PowerFormatter.StatLine(power)"
+                           Cost="@power.Category"
+                           OnSelect="() => Add(power)">
+                    <NameExtra>
+                        @if (Session.Sheet.HasPower(power.Id))
+                        {
+                            <span class="tag own">on the sheet</span>
+                        }
+                    </NameExtra>
+                </OptionRow>
             }
-        </div>
-    </section>
+        </OptionList>
+    </Panel>
 }
 
 @code {

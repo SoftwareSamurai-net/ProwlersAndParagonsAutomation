@@ -1,0 +1,13 @@
+@* The scrolling list of things that can be picked — Powers, Perks, Flaws, gear features,
+   Pros and Cons. Holds <OptionRow> children. *@
+
+<div class="@ClassName">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string ClassName => string.IsNullOrEmpty(Class) ? "options" : $"options {Class}";
+}

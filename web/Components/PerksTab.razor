@@ -1,11 +1,8 @@
 @inject CharacterSession Session
 
-<section class="panel">
-    <div class="panel-head">
-        <h2>Perks</h2>
-        <span class="muted small">Social advantages from the world around you — no ranks, no Pros or Cons</span>
-        <span class="cost">@Session.Costs.TotalPerksCost(Session.Sheet) HP</span>
-    </div>
+<Panel Title="Perks"
+       Aside="Social advantages from the world around you — no ranks, no Pros or Cons"
+       Cost="@($"{Session.Costs.TotalPerksCost(Session.Sheet)} HP")">
 
     @if (Session.Sheet.Perks.Count == 0)
     {
@@ -13,11 +10,11 @@
     }
     else
     {
-        <ul class="chosen">
+        <ChosenList>
             @foreach (var sp in Session.Sheet.Perks.ToList())
             {
-                <li>
-                    <div class="body">
+                <ChosenRow Cost="@($"{Session.Costs.PerkCost(sp)} HP")">
+                    <Body>
                         <div>
                             <b>@(Session.Rules.GetPerk(sp.PerkId)?.Name ?? sp.PerkId)</b>
                             @if (sp.Units > 1)
@@ -29,70 +26,61 @@
                         {
                             <div class="small muted">@sp.NarrativeDetail</div>
                         }
-                    </div>
-                    <span class="cost">@Session.Costs.PerkCost(sp) HP</span>
-                    <button type="button" class="btn small danger" @onclick="() => Remove(sp)">Remove</button>
-                </li>
+                    </Body>
+                    <Actions>
+                        <button type="button" class="btn small danger" @onclick="() => Remove(sp)">Remove</button>
+                    </Actions>
+                </ChosenRow>
             }
-        </ul>
+        </ChosenList>
     }
-</section>
+</Panel>
 
 @if (_pending is { } perk)
 {
-    <section class="panel">
-        <div class="panel-head"><h3>@perk.Name</h3></div>
+    <Panel Title="@perk.Name" Level="3">
         <p class="small">@perk.Description</p>
 
         @if (perk.CostType == "per_unit")
         {
-            <div class="field">
-                <label for="pk-units">
-                    How many @(perk.UnitLabel ?? "unit")s? (@perk.CostPerUnit HP each)
-                </label>
+            <Field For="pk-units"
+                   Label="@($"How many {perk.UnitLabel ?? "unit"}s? ({perk.CostPerUnit} HP each)")">
                 <input id="pk-units" type="number" min="1" @bind="_units" />
-            </div>
+            </Field>
         }
 
         @if (perk.NarrativeConstraint is not null)
         {
-            <div class="field">
-                <label for="pk-detail">@perk.NarrativeConstraint</label>
-                <input id="pk-detail" type="text" @bind="_detail" @bind:event="oninput" style="width:100%" />
-            </div>
+            <Field For="pk-detail" Label="@perk.NarrativeConstraint">
+                <input id="pk-detail" type="text" class="wide" @bind="_detail" @bind:event="oninput" />
+            </Field>
         }
 
         <div class="inline">
             <button type="button" class="btn primary" disabled="@(!CanAdd(perk))" @onclick="() => Add(perk)">Add perk</button>
             <button type="button" class="btn" @onclick="() => _pending = null">Cancel</button>
         </div>
-    </section>
+    </Panel>
 }
 else
 {
-    <section class="panel">
-        <div class="panel-head"><h3>Add a perk</h3></div>
-        <div class="options">
+    <Panel Title="Add a perk" Level="3">
+        <OptionList>
             @foreach (var option in Available)
             {
-                <button type="button" class="option" @onclick="() => Begin(option)">
-                    <span class="body">
-                        <span class="name">@option.Name</span>
-                        <span class="caveat">@option.Description</span>
-                    </span>
-                    <span class="cost">
-                        @(option.CostType == "flat"
-                            ? $"{option.Cost} HP"
-                            : $"{option.CostPerUnit} HP per {option.UnitLabel ?? "unit"}")
-                    </span>
-                </button>
+                <OptionRow Name="@option.Name"
+                           Caveat="@option.Description"
+                           Cost="@(option.CostType == "flat"
+                                     ? $"{option.Cost} HP"
+                                     : $"{option.CostPerUnit} HP per {option.UnitLabel ?? "unit"}")"
+                           OnSelect="() => Begin(option)" />
             }
-        </div>
+        </OptionList>
         @if (Available.Count == 0)
         {
             <p class="small muted">Every perk is already on the sheet.</p>
         }
-    </section>
+    </Panel>
 }
 
 @code {
