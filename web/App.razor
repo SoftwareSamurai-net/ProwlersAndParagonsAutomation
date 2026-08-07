@@ -1,13 +1,13 @@
-<Router AppAssembly="@typeof(App).Assembly">
+@* NotFoundPage, not a <NotFound> fragment: the fragment is obsolete in .NET 10.
+
+   Worth knowing how that was caught, because the build cannot catch it. Razor sets a
+   component parameter by string key rather than by referencing the property, so the C#
+   compiler never sees the [Obsolete] attribute and `dotnet build` reports zero warnings
+   even with warnings-as-errors on. Qodana's Razor-aware inspection found it. *@
+
+<Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFoundPage)">
     <Found Context="routeData">
         <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
         <FocusOnNavigate RouteData="@routeData" Selector="h1" />
     </Found>
-    <NotFound>
-        <LayoutView Layout="@typeof(MainLayout)">
-            <h1>No such page</h1>
-            <p>That address is not part of the character creator.</p>
-            <a class="btn" href="">Back to the start</a>
-        </LayoutView>
-    </NotFound>
 </Router>

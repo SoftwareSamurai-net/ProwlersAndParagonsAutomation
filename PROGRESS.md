@@ -68,7 +68,23 @@ Nothing consumes it yet, though — the default-rank rule is about Powers — so
 
 ### 3. Qodana baseline
 
-Establish a committed baseline (`--baseline,qodana.sarif.json`) so only *new* problems fail CI. The last recorded scan found 144 problems, 0 errors, all style or dead-code notes — but that figure predates the test project, so re-scan before baselining.
+Establish a committed baseline (`--baseline,qodana.sarif.json`) so only *new* problems fail CI. **This is now the blocker on Qodana being useful at all**, and the Blazor slice is what proved it.
+
+Qodana runs in pull-request mode, so it inspects changed files and reports every finding in them as new. Moving a file therefore re-reports all of it. #17 moved `engine/` and `sheets/` into their own projects and the count went 144 → **249 "new problems"** without a line of that code changing. Two genuine findings in the new code were buried in it, and only came out by downloading the SARIF and grouping by file:
+
+| Where the 249 actually were | Count |
+|---|---|
+| `engine/Models/*.cs` — setters that exist for `System.Text.Json` to bind, nothing else | ~130 |
+| `tests/**` — transcription records with deliberately unread positional properties | ~40 |
+| Notices: primary constructors, `field` keyword, get-only properties | ~60 |
+| Genuinely actionable, all in new code | 6 |
+
+A report where 243 of 249 entries are noise is one nobody reads, which is the state to fix. Two things worth doing together:
+
+- **Commit the baseline** so only new findings surface.
+- **Suppress the two families that are structurally expected** rather than baselining them line by line: unused accessors on the JSON model records, and unread positional properties on the test transcription records. Both are "this data exists to be deserialized or to document a source", not dead code, and a baseline would silently re-flag them the next time a model gains a field.
+
+Retrieving the detail: `gh run download <run-id>`, unzip, read `qodana.sarif.json`. The summary comment gives counts by rule, never by file.
 
 ### 4. Remaining rulebook chapters
 

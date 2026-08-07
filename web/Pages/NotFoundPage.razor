@@ -1,0 +1,14 @@
+@page "/not-found"
+@layout MainLayout
+
+@* Reached through Router's NotFoundPage rather than by anyone linking here.
+
+   Cloudflare answers every unknown path with index.html and a 200 — see
+   web/wwwroot/_redirects — so an address that is not a creation step arrives at the app
+   rather than at the host's own error page, and this is what the app says about it. *@
+
+<PageTitle>No such page — Prowlers &amp; Paragons</PageTitle>
+
+<h1>No such page</h1>
+<p>That address is not part of the character creator.</p>
+<a class="btn" href="">Back to the start</a>
