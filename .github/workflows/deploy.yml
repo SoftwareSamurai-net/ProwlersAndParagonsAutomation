@@ -82,12 +82,38 @@ jobs:
           done
           exit "$missing"
 
-      - name: Deploy to Cloudflare Pages
+      - name: Ask Cloudflare which branch it treats as production
         # --branch is a label Cloudflare compares against the project's configured
-        # production branch, not a branch it reads. They must match or the deploy lands
-        # as a preview: it succeeds, reports a master.<project>.pages.dev alias, and
-        # leaves the production URL and the custom domain on 404. Cloudflare defaults new
-        # projects to `main`, so this one needs setting to `master` — see the README.
+        # production branch; it is not a branch it reads. If the two differ the deploy
+        # lands as a preview — it succeeds, prints a <branch>.<project>.pages.dev alias,
+        # and leaves the production URL and any custom domain on 404, saying nothing.
+        #
+        # Rather than require the project to be configured to match this repository (new
+        # projects default to `main`, this repo is `master`), ask the project what it
+        # calls production and use that. Then the two cannot disagree.
+        id: production_branch
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT || 'prowlers-and-paragons' }}
+        run: |
+          api="https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/pages/projects/${PROJECT}"
+          response=$(curl -s -H "Authorization: Bearer ${CF_API_TOKEN}" "$api") || response=''
+
+          branch=$(printf '%s' "$response" | jq -r '.result.production_branch // empty' 2>/dev/null || true)
+
+          if [ -z "$branch" ]; then
+            # Degrade to the repository's own branch rather than blocking the deploy: a
+            # lookup hiccup should not stop a release, and the check after the deploy
+            # still catches it if the guess is wrong.
+            echo "::warning::Could not read the production branch from Cloudflare; falling back to 'master'."
+            branch=master
+          fi
+
+          echo "Cloudflare treats '$branch' as production for project '$PROJECT'."
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -95,7 +121,7 @@ jobs:
           command: >-
             pages deploy publish/wwwroot
             --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'prowlers-and-paragons' }}
-            --branch=master
+            --branch=${{ steps.production_branch.outputs.branch }}
 
       - name: Confirm the production URL is live
         # The deploy step passes whether or not the deployment became production, so
@@ -103,6 +129,7 @@ jobs:
         # hostname specifically, not the per-deploy alias.
         env:
           PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT || 'prowlers-and-paragons' }}
+          DEPLOYED_BRANCH: ${{ steps.production_branch.outputs.branch }}
         run: |
           url="https://${PROJECT}.pages.dev/"
           # Cloudflare needs a moment to route a fresh production deployment.
@@ -115,7 +142,8 @@ jobs:
             sleep 10
           done
           echo "::error::$url returned $code, so this deploy did not become production."
-          echo "::error::Set the Pages project's production branch to 'master' (Settings"
-          echo "::error::-> Builds & deployments). Cloudflare defaults it to 'main', which"
-          echo "::error::makes every deploy a preview."
+          echo "::error::The deploy used branch '${DEPLOYED_BRANCH}', read from the Pages"
+          echo "::error::project itself, so a branch mismatch is unlikely — check the"
+          echo "::error::project name in the CLOUDFLARE_PAGES_PROJECT variable, and that"
+          echo "::error::the API token can read the project (Cloudflare Pages: Edit)."
           exit 1

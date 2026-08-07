@@ -381,10 +381,15 @@ There is no server-side component and no build step on Cloudflare's side: the wo
    - Permission: **Account → Cloudflare Pages → Edit**, and nothing else.
    - Account Resources: **only** the account holding this project.
    - Not the Global API Key, which can do anything to every zone on the account.
-3. **Set the project's production branch to `master`.** Pages project → Settings → Builds & deployments → *Production branch*. Cloudflare defaults this to `main`, and it is the label it uses to decide whether a deploy is production or a preview — not a branch it reads. Leave it wrong and every deploy succeeds, reports a `master.<project>.pages.dev` alias, and leaves `<project>.pages.dev` and your custom domain answering **404**. Nothing in the logs calls this out, which is what makes it worth its own step.
-4. **Add the repository secrets** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (Settings → Secrets and variables → Actions).
-5. **Deploy once and check it before touching DNS.** `gh workflow run deploy.yml --ref master`, then open the `*.pages.dev` URL. Attaching the domain first means debugging the site and the DNS at the same time.
-6. **Attach the custom domain.** Pages project → Custom domains → `pp.softwaresamurai.net`. Cloudflare creates the CNAME itself. The custom domain serves the **production** deployment, so it stays 404 until step 3 is right.
+3. **Add the repository secrets** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (Settings → Secrets and variables → Actions).
+4. **Deploy once and check it before touching DNS.** `gh workflow run deploy.yml --ref master`, then open the `*.pages.dev` URL. Attaching the domain first means debugging the site and the DNS at the same time.
+5. **Attach the custom domain.** Pages project → Custom domains → `pp.softwaresamurai.net`. Cloudflare creates the CNAME itself. It serves the **production** deployment, so get step 4 green first.
+
+You do **not** need to line the project's production branch up with this repository's.
+
+That deserves a word, because it is a trap the first deploy fell into. Wrangler's `--branch` is a **label Cloudflare compares against the project's configured production branch** — not a branch it reads. If the two differ, the deploy lands as a *preview*: it succeeds, prints a `<branch>.<project>.pages.dev` alias, the workflow goes green, and the production URL and any custom domain answer **404**, with nothing in the logs to say why. New projects default to `main`; this repository is `master`.
+
+So the workflow asks the project what it calls production and deploys to that, and then checks the production hostname actually serves a page before it will pass. The mismatch cannot happen, and if the site is somehow still not up, the deploy fails instead of reporting success.
 
 ### Notes on keeping it safe
 
