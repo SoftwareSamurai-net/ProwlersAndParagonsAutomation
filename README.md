@@ -236,7 +236,9 @@ Resolve's base term is the rulebook's Resolve table (Trait Cap → 0, Cap−1d �
 
 Every entry in every rules file has been checked against chapters 1–2 of the rulebook, and **the test suite is what keeps it that way** — `CanonicalPowers.cs` holds the Range, Rank and Cost printed for all 141 Powers, and `RulesDataTests` holds the tier, ability, talent, pro, con, perk and flaw values. A data edit that contradicts the book fails a test.
 
-On top of that, the **20 pre-built Heroes from Chapter 8** are transcribed and rebuilt through the engine. They are finished, playable Standard-tier characters the authors published with their Edge, Health and Resolve already worked out, so they check the rules as *applied* rather than as transcribed — and they caught nothing, which is the point: the engine reproduces all sixty of those numbers. Three of them pin down rules that are easy to read wrongly:
+On top of that, the **20 pre-built Heroes from Chapter 8** are transcribed and rebuilt through the engine. They are finished, playable Standard-tier characters the authors published, so they check the rules as *applied* rather than as transcribed. The engine reproduces all sixty of their printed Edge, Health and Resolve values, and rebuilds **12 of the 20 to exactly their 125 Hero Point budget**; the other eight are within 6 HP for reasons recorded in [PROGRESS.md](PROGRESS.md), mostly unmodelled Chapter 6 gear.
+
+They have earned their keep twice over, catching two cost bugs that unit tests had missed — the minimum-cost floor, and a starting package being charged on top of the ranks it grants. Three of them also pin down rules that are easy to read wrongly:
 
 | Hero | What it proves |
 |---|---|
@@ -321,8 +323,8 @@ To publish reports to Qodana Cloud, add a `QODANA_TOKEN` repository secret. With
 
 The short version of what is left, most-unblocking first:
 
-1. **Reconcile the published Heroes' Hero Point totals** — their own Pros and Cons are extracted now; what remains is transcribing the ones each sheet carries.
-2. **Model gear costs** (Chapter 6 Gear Limits) — gear is currently free text with no HP cost, and it is the other half of the Hero Point gap.
+1. **Close the last eight Heroes** — 12 of the 20 published Heroes now rebuild to exactly 125 HP; the rest are within 6 for recorded reasons.
+2. **Model gear costs** (Chapter 6 Gear Limits) — gear is currently free text with no HP cost, and it accounts for most of the remaining gap.
 3. **Model Sources** — they set the stand-in rank for the 46 rankless powers.
 4. **Establish a Qodana baseline** so only *new* problems fail CI.
 5. **Extract the remaining rulebook chapters** (3–9).

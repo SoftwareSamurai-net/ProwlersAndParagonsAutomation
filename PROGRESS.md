@@ -16,11 +16,11 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Powers | 141 entries, all mechanically verified against Ch.2 pp.21–48 |
 | Power-specific Pros/Cons | 102 entries across 61 Powers, verified |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws — all verified, nothing flagged |
-| Tests | 2375, run in CI at the same strictness as the build |
+| Tests | 2402, run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Known-wrong data | None outstanding |
 
-The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8. Hero Point *totals* do not yet reconcile exactly — see [Reconcile the published Heroes' Hero Point totals](#1-reconcile-the-published-heroes-hero-point-totals).
+The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **12 of the 20 to exactly their 125 Hero Point budget**. The remaining eight are within 6 HP, each for a recorded reason — see [Close the last eight Heroes](#1-close-the-last-eight-heroes).
 
 ---
 
@@ -28,16 +28,23 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 Roughly in the order that unblocks the most.
 
-### 1. Reconcile the published Heroes' Hero Point totals
+### 1. Close the last eight Heroes
 
-The Pros and Cons each Power prints in its own entry are now extracted and priced, which was the blocker. What remains is to **transcribe the ones the 20 published Hero sheets actually carry** into `PrebuiltHeroes.cs` and see which Heroes then land on exactly 125.
+Twelve of the twenty published Heroes now rebuild to exactly 125 Hero Points. The other eight are held at a known residual in `PrebuiltHeroes.BuildByHero`, each with a reason:
 
-The sheets write them in parentheses after the Power — `Regeneration (Fast)`, `Strike (Deflect, Item, Phase Shift, Throw)`, `Telepathy (Cloak Others, Mind Link)`. Most map straight onto either a Power-specific entry or a generic one. Two things to watch:
+| Hero | Residual | Why |
+|---|---|---|
+| Vector | −6 | Gear (padded costume) is not modelled, and gear costs would push it up |
+| Vigilant, Shadow | ∓1, +2 | Gear again |
+| Stronghold | +4 | Its sheet puts the Item Con on its *Abilities*; cons on abilities are not modelled |
+| Herald (Airmid) | +2 | Unresolved |
+| Herald (Scathach) | +1 | Strike carries four Pros and Cons at once — most likely a variant reading |
+| Talon | +1 | Unresolved |
+| T-Kay | −1 | `Limited: only for Telekinesis` does not say which grade |
 
-- A few are ambiguous about which graded variant is meant. Blastwave's `Side Effect: collateral damage` could be any of the three, and T-Kay's `Limited: only for Telekinesis` likewise.
-- Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a mimicked Power, which the data models per-Power and so will not resolve directly.
+Most of this is the gear item below. The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for Telekinesis`) are guesses that could be revisited, but only ±1–2 HP hangs on them, so do not tune them just to force a zero — that would be fitting the model to the answer.
 
-Five Heroes will still not reconcile after this, because their sheets carry custom gear — see the next item. The other fifteen should.
+One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a *mimicked* Power. Pros are stored per Power, so there is nowhere for it to live. Eidolon reconciles anyway, so it costs nothing today.
 
 ### 1b. `available_pros` / `available_cons` are still guesses
 
@@ -68,6 +75,16 @@ The project is intended for open-source release but is currently unlicensed, whi
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Hero Pros/Cons transcription, and the package double-charge — [#8](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/8)
+
+Transcribed the Pros and Cons each published Hero sheet carries, which turned the Hero Point reconstruction from a rough check into an exact one for most of them.
+
+**It found a second cost bug, and a bigger one than the last.** With the Pros and Cons in, seven Heroes came out over budget by exactly 4 — including Citizen Soldier, who has no Pros or Cons at all, so it could not have been the new data. 4 is exactly what the Superhero Package saves: it costs 50 Hero Points for 3d in six Abilities and twelve Talents, which is 54 bought separately. `TotalCost` had been adding the package price **on top of** every rank at full price, charging twice for the ranks the package grants. That made taking a package strictly worse than not taking one, which cannot be right for something the rulebook sells "at a small discount".
+
+With packages paying for what they grant, **12 of the 20 Heroes rebuild to exactly 125** — seven on the Superhero Package, four on the Hero Package, one on the Civilian. The sheets never print which package was taken, but for those twelve exactly one package lands the total on the point, so the inference is safe.
+
+That is the whole engine end to end against numbers the authors published: package-aware ability and talent costs, baseline ranks, every cost type, and both generic and Power-specific Pros and Cons.
 
 ### Power-specific Pros and Cons — [#7](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/7)
 

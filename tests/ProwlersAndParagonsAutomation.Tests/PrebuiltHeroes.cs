@@ -117,6 +117,155 @@ public static class PrebuiltHeroes
             ["Vigilant"]          = [new("contacts", 3), new("wealth")]
         };
 
+    /// <summary>
+    /// The Pros and Cons each sheet prints in parentheses after a Power, keyed
+    /// "Hero|powerId". Each entry is <c>kind:id</c>, optionally <c>:variant</c> and
+    /// <c>#units</c> — so <c>"con:charges:3_per_scene"</c> or <c>"pro:also_x#5"</c>.
+    ///
+    /// <para>Parentheses that merely name what the Power does are not Pros or Cons and
+    /// are not listed: Aura (Fire), Strike (Physical), Omni-Power (Sorcery),
+    /// Attuned (Space-Time Disturbances) and the like.</para>
+    ///
+    /// <para>Where a sheet writes one Con for a Super Senses group, it is recorded
+    /// against a single option. The rulebook treats Super Senses as one Power, so the
+    /// Con applies once even though this project stores each option separately.</para>
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string[]> ProsConsByHero =
+        new Dictionary<string, string[]>
+        {
+            // Alabama Slammer
+            ["Alabama Slammer|phasing"] = ["con:concentration"],
+
+            // Black Dragon
+            ["Black Dragon|boost"]        = ["con:charges:3_per_scene"],
+            ["Black Dragon|martial_arts"] = ["pro:penetrating"],
+
+            // Blastwave — the sheet lists six energy types, so five are extra.
+            ["Blastwave|energy_absorption"] = ["pro:also_x", "pro:also_x", "pro:also_x",
+                                               "pro:also_x", "pro:also_x",
+                                               "con:side_effect:detrimental"],
+
+            // Combustion
+            ["Combustion|elemental_control"] = ["pro:area_burst:area"],
+            ["Combustion|flight"]            = ["con:signature"],
+
+            // Darkwolf
+            ["Darkwolf|regeneration"] = ["pro:fast"],
+
+            // Herald (Airmid)
+            ["Herald (Airmid)|alternate_form"]    = ["con:independent_forms"],
+            ["Herald (Airmid)|elemental_control"] = ["pro:area_burst:area", "pro:zone_nova:zone_ranged"],
+
+            // Herald (Scathach)
+            ["Herald (Scathach)|alternate_form"] = ["con:independent_forms"],
+            ["Herald (Scathach)|armor"]          = ["con:item"],
+            ["Herald (Scathach)|strike"]         = ["pro:deflect", "con:item",
+                                                    "pro:phase_shift", "pro:reach_throw"],
+
+            // Pandora
+            ["Pandora|omni_power"] = ["pro:area_burst:area"],
+
+            // Psi Lance
+            ["Psi Lance|armor"]        = ["con:activated"],
+            ["Psi Lance|mind_control"] = ["con:costly"],
+            ["Psi Lance|telepathy"]    = ["pro:cloak_others", "pro:mind_link"],
+
+            // Psidearm
+            ["Psidearm|telepathy"]                 = ["pro:mind_link"],
+            ["Psidearm|armor"]                     = ["con:item"],
+            ["Psidearm|communications"]            = ["con:item"],
+            ["Psidearm|immunity"]                  = ["con:item"],
+            ["Psidearm|super_senses_night_vision"] = ["con:item"],
+            ["Psidearm|blast"]                     = ["con:weapons"],
+
+            // Shadow
+            ["Shadow|armor"]              = ["con:item"],
+            ["Shadow|blending"]           = ["con:item"],
+            ["Shadow|communications"]     = ["con:item"],
+            ["Shadow|immunity"]           = ["con:item"],
+            ["Shadow|invisibility"]       = ["con:item", "con:jamming"],
+            ["Shadow|super_senses_acute"] = ["con:item"],
+            ["Shadow|swing_line"]         = ["con:item"],
+            ["Shadow|wall_crawling"]      = ["con:item"],
+            ["Shadow|strike"]             = ["con:weapons"],
+
+            // Siren
+            ["Siren|armor"] = ["con:item"],
+            ["Siren|blast"] = ["con:item"],
+
+            // Stronghold
+            ["Stronghold|armor"]          = ["con:item"],
+            ["Stronghold|blast"]          = ["pro:area_burst:area", "con:item"],
+            ["Stronghold|variant"]        = ["con:build_up", "con:charges:6_per_scene",
+                                             "con:item", "pro:penetrating"],
+            ["Stronghold|communications"] = ["con:item"],
+            ["Stronghold|flight"]         = ["con:item"],
+            ["Stronghold|immunity"]       = ["con:item"],
+            ["Stronghold|omni_power"]     = ["con:item"],
+
+            // T-Kay
+            ["T-Kay|force_field"]        = ["pro:zone_nova:zone_ranged"],
+            ["T-Kay|lightning_reflexes"] = ["con:limited:significantly_limited"],
+            ["T-Kay|telekinesis"]        = ["pro:area_burst:area", "pro:overload",
+                                            "pro:zone_nova:zone_ranged"],
+
+            // Talon
+            ["Talon|armor"]              = ["con:item"],
+            ["Talon|ensnare"]            = ["con:item", "pro:line"],
+            ["Talon|flight"]             = ["con:item"],
+            ["Talon|strike"]             = ["con:item"],
+            ["Talon|super_senses_acute"] = ["con:item"],
+
+            // Vector
+            ["Vector|blink"]        = ["con:exclusive"],
+            ["Vector|deflection"]   = ["con:exclusive"],
+            ["Vector|phasing"]      = ["con:exclusive"],
+            ["Vector|regeneration"] = ["con:conditional:often_works"],
+            ["Vector|telekinesis"]  = ["con:exclusive"],
+
+            // Vigilant
+            ["Vigilant|super_senses_night_vision"] = ["con:item"],
+            ["Vigilant|swing_line"]                = ["con:item"]
+        };
+
+    /// <summary>
+    /// The starting package each Hero was built with, and how far the rebuild still lands
+    /// from their 125 Hero Point budget.
+    ///
+    /// <para>The sheets do not print which package was taken, so it is inferred: for the
+    /// twelve Heroes with a residual of 0 the inference is certain, because exactly one
+    /// package makes the total land on 125 to the point. For the other eight no package
+    /// gets there, so the one recorded is simply the closest, and the residual is the part
+    /// still unexplained — mostly Chapter 6 gear, which is not modelled.</para>
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, (string Package, int Residual)> BuildByHero =
+        new Dictionary<string, (string, int)>
+        {
+            // Exact: one package lands these on 125 to the Hero Point.
+            ["Alabama Slammer"]   = ("superhero_package", 0),
+            ["Black Dragon"]      = ("superhero_package", 0),
+            ["Citizen Soldier"]   = ("superhero_package", 0),
+            ["Darkwolf"]          = ("superhero_package", 0),
+            ["Psi Lance"]         = ("superhero_package", 0),
+            ["Psidearm"]          = ("superhero_package", 0),
+            ["Siren"]             = ("superhero_package", 0),
+            ["Combustion"]        = ("hero_package", 0),
+            ["Eidolon"]           = ("hero_package", 0),
+            ["Nano"]              = ("hero_package", 0),
+            ["Pandora"]           = ("hero_package", 0),
+            ["Blastwave"]         = ("civilian_package", 0),
+
+            // Not exact. Closest package, with what is left over.
+            ["Herald (Scathach)"] = ("hero_package", 1),        // Strike carries four Pros/Cons at once
+            ["Talon"]             = ("superhero_package", 1),
+            ["T-Kay"]             = ("superhero_package", -1),  // Limited grade is not stated
+            ["Vigilant"]          = ("superhero_package", -1),  // has gear
+            ["Herald (Airmid)"]   = ("superhero_package", 2),
+            ["Shadow"]            = ("superhero_package", 2),   // has gear
+            ["Stronghold"]        = ("superhero_package", 4),   // Item Con on its Abilities is not modelled
+            ["Vector"]            = ("superhero_package", -6)   // has gear
+        };
+
     public static readonly IReadOnlyList<Hero> All =
     [
         new("Alabama Slammer", 137,
