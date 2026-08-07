@@ -134,6 +134,12 @@ public sealed class CharacterSheetExporter
                     ["units"]           = sp.Units,
                     ["cost_variant"]    = sp.CostVariantKey,
                     ["cost"]            = powerCost,
+                    ["source"]          = sp.SourceId,
+                    ["source_heading"]  = SourceGrouping.HeadingFor(
+                                              sp.SourceId is null ? null : rules.GetSource(sp.SourceId)),
+                    // The rank this Power uses when another Power acts on it. For a
+                    // rankless Power that is the Source's default rank, not 0.
+                    ["rank_against_powers"] = derived.GetRankAgainstPowers(sp, sheet),
                     ["mechanics_verified"] = power?.MechanicsVerified ?? false,
                     ["source_ref"]      = power?.SourceRef,
                     ["pros"] = new JsonArray(sp.Pros.Select(p => (JsonNode)new JsonObject
@@ -261,14 +267,22 @@ public sealed class CharacterSheetExporter
     private static void WritePowers(StringBuilder sb, CharacterSheet sheet,
         RulesRepository rules, CostCalculator costs, DerivedStatsCalculator derived)
     {
-        sb.AppendLine("─── POWERS ─────────────────────────────────────────────────");
         if (sheet.SelectedPowers.Count == 0)
         {
+            sb.AppendLine("─── POWERS ─────────────────────────────────────────────────");
             sb.AppendLine("  (none)");
+            sb.AppendLine();
+            return;
         }
-        else
+
+        // A published sheet groups Powers under Source headings — TECH POWERS, MAGIC
+        // POWERS — rather than listing them flat. See SourceGrouping.
+        foreach (var group in new SourceGrouping(rules).GroupPowers(sheet))
         {
-            foreach (var sp in sheet.SelectedPowers)
+            var rule = new string('─', Math.Max(3, 59 - group.Heading.Length));
+            sb.AppendLine($"─── {group.Heading} {rule}");
+
+            foreach (var sp in group.Powers)
             {
                 var power     = rules.GetPower(sp.PowerId);
                 var name      = power?.Name ?? sp.PowerId;
@@ -294,8 +308,9 @@ public sealed class CharacterSheetExporter
                     sb.AppendLine("    Cons: " + string.Join(", ",
                         sp.Cons.Select(c => c.VariantKey is null ? c.Id : $"{c.Id}:{c.VariantKey}")));
             }
+
+            sb.AppendLine();
         }
-        sb.AppendLine();
     }
 
     private static void WritePerks(StringBuilder sb, CharacterSheet sheet, RulesRepository rules, CostCalculator costs)

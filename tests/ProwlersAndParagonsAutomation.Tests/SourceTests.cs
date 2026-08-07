@@ -1,3 +1,4 @@
+using ProwlersAndParagonsAutomation.Cli.Export;
 using ProwlersAndParagonsAutomation.Engine;
 
 namespace ProwlersAndParagonsAutomation.Tests;
@@ -181,6 +182,43 @@ public sealed class SourceTests
 
         Assert.Equal<IEnumerable<string>>(["TECH POWERS", "POWERS"], groups.Select(g => g.Heading));
         Assert.Equal(sheet.SelectedPowers.Count, groups.Sum(g => g.Powers.Count));
+    }
+
+    /// <summary>
+    /// The exported sheet prints the Source headings, not a flat Powers list. Grouping is
+    /// only worth having if the thing a player actually reads uses it.
+    /// </summary>
+    [Fact]
+    public void TheExportedSheetPrintsSourceHeadings()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.Name = "Source Rendering";
+        sheet.AbilityRanks["toughness"] = 5;
+        sheet.SelectedPowers.Add(new SelectedPower("telepathy", 9) { SourceId = "super" });
+        sheet.SelectedPowers.Add(new SelectedPower("communications", 0) { SourceId = "tech" });
+        sheet.SelectedPowers.Add(new SelectedPower("leaping", 3));
+
+        var outDir = Path.Combine(Path.GetTempPath(), "pp-source-render-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var (txtPath, _) = new CharacterSheetExporter().Export(
+                sheet, _f.Rules, _f.Costs, _f.Derived, _f.Validator.Validate(sheet), outDir);
+
+            var txt = File.ReadAllText(txtPath);
+
+            Assert.Contains("SUPER POWERS", txt, StringComparison.Ordinal);
+            Assert.Contains("TECH POWERS", txt, StringComparison.Ordinal);
+
+            // Groups follow sources.json order, and the unsourced Power trails the rest
+            // rather than vanishing from the sheet.
+            Assert.True(txt.IndexOf("SUPER POWERS", StringComparison.Ordinal) <
+                        txt.IndexOf("TECH POWERS", StringComparison.Ordinal));
+            Assert.Contains("Leaping", txt, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(outDir)) Directory.Delete(outDir, recursive: true);
+        }
     }
 
     [Fact]
