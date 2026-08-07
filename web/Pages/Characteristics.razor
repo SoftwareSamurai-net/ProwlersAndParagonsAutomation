@@ -26,11 +26,13 @@ else
 
     @switch (_tab)
     {
-        case "abilities": <AbilitiesTab />; break;
-        case "talents":   <TalentsTab />;   break;
-        case "powers":    <PowersTab />;    break;
-        case "perks":     <PerksTab />;     break;
-        default:          <FlawsTab />;     break;
+        @* No semicolon after the component: Razor renders it as a statement already, and
+           adding one emits an empty statement into the generated code. *@
+        case "abilities": <AbilitiesTab /> break;
+        case "talents":   <TalentsTab />   break;
+        case "powers":    <PowersTab />    break;
+        case "perks":     <PerksTab />     break;
+        default:          <FlawsTab />     break;
     }
 
     <StepButtons Back="" BackLabel="Tier" Next="gear" NextLabel="Gear" />

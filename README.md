@@ -327,7 +327,11 @@ Tests and static analysis both run on every push and pull request.
 
 > **Why the Community linter?** Since 2023.2 the *release* linters (`jetbrains/qodana-dotnet`) refuse to start without a Qodana Cloud `QODANA_TOKEN`, which would fail CI outright. `qodana-cdnet` needs no token or account. To upgrade: register at [qodana.cloud](https://qodana.cloud), add the project token as a `QODANA_TOKEN` repository secret (the workflow already passes it through), and change the `linter:` line in `qodana.yaml`.
 
-The last recorded Qodana scan found **144 problems — 32 warnings, 112 notes, no errors**, all style or dead-code notes; the warning bucket was dominated by "auto-property accessor is never used" on the JSON model records, where the setters exist for `System.Text.Json` to bind. That figure predates the test project, so expect it to have moved. Triaging into a committed baseline is on the roadmap.
+Qodana runs in **pull-request mode**, inspecting changed files only — so moving a file re-reports every finding in it as new, and the counts are not comparable between runs. Splitting `engine/` and `sheets/` into their own projects took the count from 144 to 249 without any of that code changing, of which six were genuinely actionable. The summary comment lists rules, never files; download the run's artifact and read `qodana.sarif.json` before drawing conclusions. Committing a baseline is [item 3 on the roadmap](PROGRESS.md) and is what would make the report readable.
+
+Two families of finding are structurally expected rather than bugs: "auto-property accessor is never used" on the JSON model records, where the setters exist for `System.Text.Json` to bind to, and unread positional properties on the test transcription records, which document a rulebook page rather than feed a calculation.
+
+Qodana does catch things the compiler cannot. A `.razor` file sets a component parameter by string key, so `[Obsolete]` on that parameter is invisible to `dotnet build` — `Router.NotFound`'s deprecation in .NET 10 produced zero build warnings with warnings-as-errors on, and Qodana found it.
 
 Reproduce the CI build locally:
 
