@@ -14,12 +14,13 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 |---|---|
 | Rulebook coverage | Chapters 1–2 (Basics, Characters) fully extracted and verified |
 | Powers | 141 entries, all mechanically verified against Ch.2 pp.21–48 |
+| Power-specific Pros/Cons | 102 entries across 61 Powers, verified |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws — all verified, nothing flagged |
-| Tests | 2053, run in CI at the same strictness as the build |
+| Tests | 2375, run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Known-wrong data | None outstanding |
 
-The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8. Hero Point *totals* do not yet reconcile exactly — see [Power-specific Pros and Cons](#1-power-specific-pros-and-cons) for why.
+The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8. Hero Point *totals* do not yet reconcile exactly — see [Reconcile the published Heroes' Hero Point totals](#1-reconcile-the-published-heroes-hero-point-totals).
 
 ---
 
@@ -27,17 +28,20 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 Roughly in the order that unblocks the most.
 
-### 1. Power-specific Pros and Cons
+### 1. Reconcile the published Heroes' Hero Point totals
 
-**The largest data gap, and the one that blocks the most.**
+The Pros and Cons each Power prints in its own entry are now extracted and priced, which was the blocker. What remains is to **transcribe the ones the 20 published Hero sheets actually carry** into `PrebuiltHeroes.cs` and see which Heroes then land on exactly 125.
 
-`available_pros` / `available_cons` in `powers.json` are project guesses. The rulebook lists each Power's own Pros and Cons *inside that Power's entry* in Chapter 2, and those have never been extracted. The generic list in `pros.json` / `cons.json` is complete and verified; it is the per-Power ones that are missing.
+The sheets write them in parentheses after the Power — `Regeneration (Fast)`, `Strike (Deflect, Item, Phase Shift, Throw)`, `Telepathy (Cloak Others, Mind Link)`. Most map straight onto either a Power-specific entry or a generic one. Two things to watch:
 
-Consequences while this is open:
+- A few are ambiguous about which graded variant is meant. Blastwave's `Side Effect: collateral damage` could be any of the three, and T-Kay's `Limited: only for Telekinesis` likewise.
+- Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a mimicked Power, which the data models per-Power and so will not resolve directly.
 
-- The wizard offers plausible-but-unverified Pro/Con options per Power.
-- **Hero Point totals cannot be reconciled.** Rebuilding the 20 published Heroes lands a few HP under their 125-point budgets, and the residual is these Pros: Regeneration's *Fast*, Strike's *Throw* and *Deflect*, Telepathy's *Mind Link* and *Cloak Others*, Ensnare's *Line*, Invisibility's *Jamming*, Alternate Form's *Independent Forms*. Pros increase cost, so omitting them under-counts, which matches the direction observed.
-- `PrebuiltHeroTests` therefore asserts only the fully-determined parts of a Hero's cost. Closing this gap should let it assert the full 125.
+Five Heroes will still not reconcile after this, because their sheets carry custom gear — see the next item. The other fifteen should.
+
+### 1b. `available_pros` / `available_cons` are still guesses
+
+Separate from the above. These lists say which *generic* Pros and Cons suit each Power, and they were invented by this project. The rulebook does not state applicability per Power — it states it inside each generic entry ("This Pro applies to Powers that inflict physical or energy damage"). So the honest fix is probably to drop the per-Power lists and filter generically from those constraints, rather than to keep curating 141 guesses. Worth deciding before the wizard leans on them further.
 
 ### 2. Gear costs (Chapter 6)
 
@@ -64,6 +68,16 @@ The project is intended for open-source release but is currently unlicensed, whi
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Power-specific Pros and Cons — [#7](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/7)
+
+Extracted the 102 Pros and Cons the rulebook prints inside individual Power entries, across 61 Powers. Completeness was checked by counting every PRO/CON marker in the chapter against the entries parsed: 102 markers, 102 entries, none unaccounted for.
+
+These are not simply more generic Pros. Every generic one is a flat Hero Point change, but 23 of these are not: ten change the Power's cost **per rank** (Constructs' *Devices* is +2 per rank, so on a 6-rank Constructs it is +12, not +2), five are graded, five scale with how many extra Sources the Power reaches, and Alternate Form's *Independent Forms* scales per power level. `PowerProConModel` and `CostCalculator` now separate flat modifiers from rate modifiers to handle that.
+
+**This found a real bug in the previous change.** The minimum-cost floor had been read as "1 Hero Point per rank", but the rulebook's parenthesis — "No Power can ever cost less than 1 Hero Point (or 1 Hero Point per 2 ranks) regardless of its Cons" — is the ranked form of the same rule, so the floor is 1 per *2* ranks. Read the old way, the floor sat exactly at the undiscounted cost of any 1 HP/rank Power, which silently made every Con on such a Power worth nothing. It went unnoticed until a test applied a Con to Armor and got no discount.
+
+The wizard now offers a Power's own Pros and Cons first, marked as belonging to that Power, and prompts for a variant or quantity where one is needed.
 
 ### Chapter 1–2 rules verification and test suite — [#5](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/5)
 
