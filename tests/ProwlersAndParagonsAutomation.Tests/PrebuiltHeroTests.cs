@@ -1,3 +1,4 @@
+using System.Globalization;
 using ProwlersAndParagonsAutomation.Engine;
 
 namespace ProwlersAndParagonsAutomation.Tests;
@@ -25,13 +26,52 @@ public sealed class PrebuiltHeroTests
     }
 
     /// <summary>
+    /// Parses the Pros and Cons a sheet prints for one Power, in the
+    /// <c>kind:id[:variant][#units]</c> form <see cref="PrebuiltHeroes.ProsConsByHero"/> uses.
+    /// </summary>
+    private static (List<SelectedProCon> Pros, List<SelectedProCon> Cons) ProsCons(
+        PrebuiltHeroes.Hero hero, string powerId)
+    {
+        var pros = new List<SelectedProCon>();
+        var cons = new List<SelectedProCon>();
+
+        if (!PrebuiltHeroes.ProsConsByHero.TryGetValue($"{hero.Name}|{powerId}", out var entries))
+            return (pros, cons);
+
+        foreach (var raw in entries)
+        {
+            var text  = raw;
+            int? units = null;
+
+            var hash = text.IndexOf('#', StringComparison.Ordinal);
+            if (hash >= 0)
+            {
+                units = int.Parse(text[(hash + 1)..], CultureInfo.InvariantCulture);
+                text  = text[..hash];
+            }
+
+            var parts = text.Split(':');
+            Assert.True(parts.Length is 2 or 3, $"Malformed pro/con '{raw}' on {hero.Name}/{powerId}.");
+
+            var choice = new SelectedProCon(parts[1], parts.Length == 3 ? parts[2] : null) { Units = units };
+            (parts[0] == "pro" ? pros : cons).Add(choice);
+        }
+
+        return (pros, cons);
+    }
+
+    /// <summary>
     /// Turns a printed sheet into a CharacterSheet. Printed Power ranks are final ranks,
     /// so a baseline-rank Power's purchased ranks are the difference between the printed
     /// rank and the baseline its Traits provide.
     /// </summary>
     private CharacterSheet Build(PrebuiltHeroes.Hero hero)
     {
-        var sheet = new CharacterSheet { SelectedTierId = "standard" };
+        var sheet = new CharacterSheet
+        {
+            SelectedTierId    = "standard",
+            SelectedPackageId = PrebuiltHeroes.BuildByHero[hero.Name].Package
+        };
 
         sheet.AbilityRanks["agility"]    = hero.Agility;
         sheet.AbilityRanks["intellect"]  = hero.Intellect;
@@ -56,6 +96,8 @@ public sealed class PrebuiltHeroTests
             var power = _f.Rules.GetPower(p.Id);
             Assert.NotNull(power);
 
+            var (pros, cons) = ProsCons(hero, p.Id);
+
             // Determination records how much Resolve was bought, not a rank.
             if (p.Id == "determination")
             {
@@ -65,7 +107,7 @@ public sealed class PrebuiltHeroTests
 
             if (power.MaxRank == 0)
             {
-                sheet.SelectedPowers.Add(new SelectedPower(p.Id, 0)
+                sheet.SelectedPowers.Add(new SelectedPower(p.Id, 0, pros, cons)
                 {
                     BaselineTraitId = p.BaselineTrait,
                     Units           = p.Units,
@@ -78,7 +120,7 @@ public sealed class PrebuiltHeroTests
             var baseline = _f.Derived.GetBaselineRank(power, sheet, probe);
             var purchased = Math.Max(0, p.EffectiveRank - baseline);
 
-            sheet.SelectedPowers.Add(new SelectedPower(p.Id, purchased)
+            sheet.SelectedPowers.Add(new SelectedPower(p.Id, purchased, pros, cons)
             {
                 BaselineTraitId = p.BaselineTrait,
                 Units           = p.Units,
@@ -175,9 +217,17 @@ public sealed class PrebuiltHeroTests
         var hero  = PrebuiltHeroes.All.Single(h => h.Name == name);
         var sheet = Build(hero);
 
-        var expectedAbilities = hero.Agility + hero.Intellect + hero.Might
-                              + hero.Perception + hero.Toughness + hero.Willpower;
-        var expectedTalents   = PrebuiltHeroes.TalentsByHero[hero.Name].Sum();
+        // A package already pays for every Trait up to its own rank, so only what was
+        // bought above that is charged again.
+        var package = _f.Rules.CreationRules.OptionalPackages
+            .Single(p => p.Id == PrebuiltHeroes.BuildByHero[hero.Name].Package);
+
+        int[] abilities = [hero.Agility, hero.Intellect, hero.Might,
+                           hero.Perception, hero.Toughness, hero.Willpower];
+
+        var expectedAbilities = abilities.Sum(r => Math.Max(0, r - package.AbilitiesRank));
+        var expectedTalents   = PrebuiltHeroes.TalentsByHero[hero.Name]
+                                    .Sum(r => Math.Max(0, r - package.TalentsRank));
 
         Assert.Equal(expectedAbilities, _f.Costs.AbilityCost(sheet));
         Assert.Equal(expectedTalents, _f.Costs.TalentCost(sheet));
@@ -216,6 +266,73 @@ public sealed class PrebuiltHeroTests
         var total = _f.Costs.TotalCost(sheet);
         Assert.InRange(total, 90, 160);
     }
+
+    /// <summary>
+    /// Twelve of the twenty rebuild to exactly their 125 Hero Point budget. That is the
+    /// whole engine end to end — ability and talent costs against a starting package,
+    /// baseline ranks, every cost type, and both generic and Power-specific Pros and Cons
+    /// — landing on a number the authors published.
+    /// </summary>
+    [Theory]
+    [InlineData("Alabama Slammer")]
+    [InlineData("Black Dragon")]
+    [InlineData("Blastwave")]
+    [InlineData("Citizen Soldier")]
+    [InlineData("Combustion")]
+    [InlineData("Darkwolf")]
+    [InlineData("Eidolon")]
+    [InlineData("Nano")]
+    [InlineData("Pandora")]
+    [InlineData("Psi Lance")]
+    [InlineData("Psidearm")]
+    [InlineData("Siren")]
+    public void HeroRebuildsToExactly125(string name)
+    {
+        var hero = PrebuiltHeroes.All.Single(h => h.Name == name);
+
+        Assert.Equal(0, PrebuiltHeroes.BuildByHero[name].Residual);
+        Assert.Equal(125, _f.Costs.TotalCost(Build(hero)));
+    }
+
+    /// <summary>
+    /// The other eight, held at the residual they currently show so a change that moves
+    /// one is noticed. Each residual has a reason recorded in
+    /// <see cref="PrebuiltHeroes.BuildByHero"/>; closing the Chapter 6 gear gap should
+    /// take several of them to zero.
+    /// </summary>
+    [Theory]
+    [InlineData("Herald (Airmid)")]
+    [InlineData("Herald (Scathach)")]
+    [InlineData("Shadow")]
+    [InlineData("Stronghold")]
+    [InlineData("T-Kay")]
+    [InlineData("Talon")]
+    [InlineData("Vector")]
+    [InlineData("Vigilant")]
+    public void HeroRebuildsToItsKnownResidual(string name)
+    {
+        var hero     = PrebuiltHeroes.All.Single(h => h.Name == name);
+        var residual = PrebuiltHeroes.BuildByHero[name].Residual;
+
+        Assert.NotEqual(0, residual);
+        Assert.Equal(125 + residual, _f.Costs.TotalCost(Build(hero)));
+    }
+
+    [Fact]
+    public void MostHeroesReconcileExactly()
+    {
+        var exact = PrebuiltHeroes.BuildByHero.Count(kv => kv.Value.Residual == 0);
+        Assert.Equal(12, exact);
+
+        // Nothing is more than 6 Hero Points out.
+        Assert.All(PrebuiltHeroes.BuildByHero,
+            kv => Assert.True(Math.Abs(kv.Value.Residual) <= 6, $"{kv.Key} is {kv.Value.Residual} out."));
+    }
+
+    [Fact]
+    public void EveryHeroRecordsAPackageThatExists() =>
+        Assert.All(PrebuiltHeroes.BuildByHero, kv =>
+            Assert.Contains(_f.Rules.CreationRules.OptionalPackages, p => p.Id == kv.Value.Package));
 
     [Fact]
     public void AllTwentyHeroesAreTranscribed() =>

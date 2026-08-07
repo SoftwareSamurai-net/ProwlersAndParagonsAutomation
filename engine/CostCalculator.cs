@@ -14,33 +14,45 @@ public sealed class CostCalculator
 
     // ── Abilities ────────────────────────────────────────────────────────
 
-    /// <summary>Total HP spent on abilities (1 HP per rank each).</summary>
+    /// <summary>
+    /// HP spent on abilities, 1 per rank. A package already covers every ability up to
+    /// its own rank, so only the ranks bought above that are charged again here.
+    /// </summary>
     public int AbilityCost(CharacterSheet sheet)
     {
-        return sheet.AbilityRanks.Values.Sum();
+        var covered = SelectedPackage(sheet)?.AbilitiesRank ?? 0;
+        return sheet.AbilityRanks.Values.Sum(rank => Math.Max(0, rank - covered));
     }
 
     // ── Talents ──────────────────────────────────────────────────────────
 
-    /// <summary>Total HP spent on talents (1 HP per rank each).</summary>
+    /// <summary>
+    /// HP spent on talents, 1 per rank, above whatever a package already covers.
+    /// </summary>
     public int TalentCost(CharacterSheet sheet)
     {
-        return sheet.TalentRanks.Values.Sum();
+        var covered = SelectedPackage(sheet)?.TalentsRank ?? 0;
+        return sheet.TalentRanks.Values.Sum(rank => Math.Max(0, rank - covered));
     }
 
     // ── Package ──────────────────────────────────────────────────────────
 
     /// <summary>
     /// Flat HP cost of the selected optional package (Civilian/Hero/Superhero), or 0 if none.
-    /// Package costs are independent of any ability/talent ranks bought on top.
+    ///
+    /// <para>A package buys the ranks it grants — that is the whole point of it, since the
+    /// rulebook sells them "at a small discount". The Superhero Package costs 50 for 3d in
+    /// six Abilities and twelve Talents, which is 54 HP bought separately. Charging the
+    /// package price on top of every rank would double-pay for the ranks it grants and
+    /// make taking one strictly worse than not.</para>
     /// </summary>
-    public int PackageCost(CharacterSheet sheet)
-    {
-        if (sheet.SelectedPackageId is null) return 0;
-        var pkg = _rules.CreationRules.OptionalPackages
-                        .FirstOrDefault(p => p.Id == sheet.SelectedPackageId);
-        return pkg?.Cost ?? 0;
-    }
+    public int PackageCost(CharacterSheet sheet) => SelectedPackage(sheet)?.Cost ?? 0;
+
+    private OptionalPackage? SelectedPackage(CharacterSheet sheet) =>
+        sheet.SelectedPackageId is null
+            ? null
+            : _rules.CreationRules.OptionalPackages
+                    .FirstOrDefault(p => p.Id == sheet.SelectedPackageId);
 
     // ── Powers ───────────────────────────────────────────────────────────
 

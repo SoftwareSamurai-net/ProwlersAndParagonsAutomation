@@ -189,6 +189,59 @@ public sealed class CostCalculatorTests
         Assert.Equal(4, _f.Costs.TalentCost(sheet));
     }
 
+    [Theory]
+    // Each package's own price, and the ranks it grants: 6 Abilities and 12 Talents.
+    [InlineData("civilian_package", 35, 2, 2)]
+    [InlineData("hero_package", 40, 3, 2)]
+    [InlineData("superhero_package", 50, 3, 3)]
+    public void APackagePaysForTheRanksItGrants(string packageId, int price, int abilityRank, int talentRank)
+    {
+        // Regression: TotalCost used to add the package price on top of every rank at full
+        // price, charging twice for the ranks the package grants. That made taking a
+        // package strictly worse than not, and put every published Hero over budget.
+        var sheet = new CharacterSheet { SelectedTierId = "standard", SelectedPackageId = packageId };
+
+        foreach (var a in _f.Rules.Abilities) sheet.AbilityRanks[a.Id] = abilityRank;
+        foreach (var t in _f.Rules.Talents) sheet.TalentRanks[t.Id] = talentRank;
+
+        // Exactly what the package grants and nothing more, so it costs just its price.
+        Assert.Equal(0, _f.Costs.AbilityCost(sheet));
+        Assert.Equal(0, _f.Costs.TalentCost(sheet));
+        Assert.Equal(price, _f.Costs.TotalCost(sheet));
+    }
+
+    [Fact]
+    public void APackageIsCheaperThanBuyingTheSameRanksSeparately()
+    {
+        // The rulebook sells packages "at a small discount", so this must hold.
+        var withPackage = new CharacterSheet { SelectedTierId = "standard", SelectedPackageId = "superhero_package" };
+        var without     = new CharacterSheet { SelectedTierId = "standard" };
+
+        foreach (var sheet in new[] { withPackage, without })
+        {
+            foreach (var a in _f.Rules.Abilities) sheet.AbilityRanks[a.Id] = 3;
+            foreach (var t in _f.Rules.Talents) sheet.TalentRanks[t.Id] = 3;
+        }
+
+        Assert.Equal(50, _f.Costs.TotalCost(withPackage));
+        Assert.Equal(54, _f.Costs.TotalCost(without));   // 6 × 3 + 12 × 3
+    }
+
+    [Fact]
+    public void RanksBoughtAboveAPackageAreStillCharged()
+    {
+        var sheet = new CharacterSheet { SelectedTierId = "standard", SelectedPackageId = "hero_package" };
+        foreach (var a in _f.Rules.Abilities) sheet.AbilityRanks[a.Id] = 3;   // covered
+        foreach (var t in _f.Rules.Talents) sheet.TalentRanks[t.Id] = 2;      // covered
+
+        sheet.AbilityRanks["might"]     = 9;    // 6 above the package
+        sheet.TalentRanks["technology"] = 5;    // 3 above
+
+        Assert.Equal(6, _f.Costs.AbilityCost(sheet));
+        Assert.Equal(3, _f.Costs.TalentCost(sheet));
+        Assert.Equal(49, _f.Costs.TotalCost(sheet));
+    }
+
     [Fact]
     public void TotalCostSumsEveryCategory()
     {
