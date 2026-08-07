@@ -1,6 +1,7 @@
 @page "/"
 @inject CharacterSession Session
 @inject NavigationManager Nav
+@inject IJSRuntime Js
 
 <PageTitle>Tier — Prowlers &amp; Paragons</PageTitle>
 
@@ -9,6 +10,33 @@
     The tier sets the Hero Point budget and the Trait Cap — the highest rank any single
     Trait may reach. Everything after this is measured against those two numbers.
 </p>
+
+@* A finished character is the quickest way to see what a sheet looks like, and the only
+   way to see one without building it first. Both are legal Standard-tier characters —
+   there is a test that says so — and loading one replaces whatever is on the sheet. *@
+<section class="panel no-print">
+    <div class="panel-head">
+        <h2>Or start from a finished character</h2>
+        <span class="muted small">Replaces anything already on the sheet</span>
+    </div>
+    <p class="small muted">
+        Two samples written for this tool, filling every section a printed sheet has. Handy
+        for judging the layout, the Source headings and the print view without spending
+        twenty minutes on a character first.
+    </p>
+    <div class="inline">
+        <button type="button" class="btn" @onclick="() => LoadSample(SheetMode.Hero)">
+            Load a Hero — Ninth Precinct
+        </button>
+        <button type="button" class="btn" @onclick="() => LoadSample(SheetMode.Villain)">
+            Load a Villain — The Quiet Hour
+        </button>
+        @if (_loaded is not null)
+        {
+            <span class="small muted">Loaded <b>@_loaded</b> — see the GM review step.</span>
+        }
+    </div>
+</section>
 
 <div class="grid two">
     @foreach (var tier in Session.Rules.Tiers)
@@ -89,6 +117,20 @@
              NextDisabled="@(Session.Sheet.SelectedTierId is null)" />
 
 @code {
+    private string? _loaded;
+
+    /// <summary>
+    /// The palette has to be pushed through interop as well as set on the session: it
+    /// lives as a data-mode attribute on the document element, which is outside the
+    /// component tree. Same reason MainLayout's own switch does it that way.
+    /// </summary>
+    private async Task LoadSample(SheetMode mode)
+    {
+        Session.LoadSample(mode);
+        _loaded = Session.Sheet.Name;
+        await Js.InvokeVoidAsync("ppSetMode", mode == SheetMode.Hero ? "hero" : "villain");
+    }
+
     private void SelectTier(string id)
     {
         Session.Sheet.SelectedTierId = id;
