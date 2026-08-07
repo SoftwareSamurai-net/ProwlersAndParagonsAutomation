@@ -6,9 +6,9 @@ namespace ProwlersAndParagonsAutomation.Cli.Powers;
 
 public sealed class ProConSelector
 {
-    private readonly RulesRepository _rules;
+    private readonly ProConApplicability _applicability;
 
-    public ProConSelector(RulesRepository rules) => _rules = rules;
+    public ProConSelector(RulesRepository rules) => _applicability = new ProConApplicability(rules);
 
     public List<SelectedProCon> SelectPros(PowerModel power)
     {
@@ -18,11 +18,10 @@ public sealed class ProConSelector
         // they are the ones a player reading the book expects to see offered.
         var specific = power.PowerPros.ToList();
 
-        var available = power.AvailablePros
-            .Select(id => _rules.GetPro(id))
-            .Where(p => p is not null)
-            .Cast<ProModel>()
-            .ToList();
+        // Derived from each Pro's own statement of what it applies to, not from a list
+        // curated on the Power. Only Range and Rank type rule anything out; a Pro whose
+        // remaining constraint cannot be checked is offered with that caveat shown.
+        var available = _applicability.ProsFor(power);
 
         if (specific.Count == 0 && available.Count == 0) return selected;
 
@@ -83,11 +82,7 @@ public sealed class ProConSelector
 
         var specific = power.PowerCons.ToList();
 
-        var available = power.AvailableCons
-            .Select(id => _rules.GetCon(id))
-            .Where(c => c is not null)
-            .Cast<ConModel>()
-            .ToList();
+        var available = _applicability.ConsFor(power);
 
         if (specific.Count == 0 && available.Count == 0) return selected;
 
@@ -212,7 +207,7 @@ public sealed class ProConSelector
             : p.CostModifierRange is not null
                 ? "variable: " + string.Join(" / ", p.CostModifierRange.Select(kv => $"{kv.Key} +{kv.Value}"))
                 : "special";
-        return $"{p.Name}  ({cost})";
+        return $"{p.Name}  ({cost}){Caveat(p)}";
     }
 
     private static string FormatCon(ConModel c)
@@ -222,6 +217,16 @@ public sealed class ProConSelector
             : c.CostModifierRange is not null
                 ? "variable: " + string.Join(" / ", c.CostModifierRange.Select(kv => $"{kv.Key} {kv.Value}"))
                 : "special";
-        return $"{c.Name}  ({cost})";
+        return $"{c.Name}  ({cost}){Caveat(c)}";
     }
+
+    /// <summary>
+    /// Some options state a condition the rules data cannot check — Armor Piercing wants a
+    /// Power that inflicts physical or energy damage, Constant one that can be switched off.
+    /// Deciding that per Power would mean inventing data the rulebook does not give, so the
+    /// condition is shown to the player and the GM approves it, which is how Ch.2 frames
+    /// the whole list anyway.
+    /// </summary>
+    private static string Caveat(IGenericProCon option) =>
+        option.ApplicabilityCaveat is null ? "" : $"  — {option.ApplicabilityCaveat}";
 }

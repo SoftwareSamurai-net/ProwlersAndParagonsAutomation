@@ -1,4 +1,5 @@
 using System.Globalization;
+using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Engine.Models;
 
 namespace ProwlersAndParagonsAutomation.Tests;
@@ -232,17 +233,22 @@ public sealed class PowerDataTests
     public void RangeIsOneOfTheFiveTheRulebookDefines(string id) =>
         Assert.Contains(_f.Rules.GetPower(id)!.Range, Ranges);
 
+    /// <summary>
+    /// Powers used to carry hand-written <c>available_pros</c> / <c>available_cons</c>
+    /// lists, and this test checked the ids in them resolved. The lists are gone —
+    /// applicability is derived from each generic option's own entry — so what is worth
+    /// asserting now is that no Power is left with nothing to choose from. Under the old
+    /// lists 68 of the 141 offered no generic Pro at all.
+    /// </summary>
     [Theory]
     [MemberData(nameof(AllPowerIds))]
-    public void EveryReferencedProAndConExists(string id)
+    public void EveryPowerIsOfferedGenericProsAndCons(string id)
     {
         var p = _f.Rules.GetPower(id)!;
+        var applicability = new ProConApplicability(_f.Rules);
 
-        Assert.All(p.AvailablePros, proId =>
-            Assert.NotNull(_f.Rules.GetPro(proId)));
-
-        Assert.All(p.AvailableCons, conId =>
-            Assert.NotNull(_f.Rules.GetCon(conId)));
+        Assert.NotEmpty(applicability.ProsFor(p));
+        Assert.NotEmpty(applicability.ConsFor(p));
     }
 
     [Theory]

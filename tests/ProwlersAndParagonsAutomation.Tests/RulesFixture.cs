@@ -22,6 +22,9 @@ public sealed class RulesFixture
         Validator = new CharacterValidator(Rules, Costs, Derived);
     }
 
+    /// <summary>The data/rules directory the fixture loaded, for tests that read the raw JSON.</summary>
+    public static string DataPath => Path.Combine(FindRepoRoot(), "data", "rules");
+
     /// <summary>A Standard-tier sheet (125 HP, 12d trait cap) with no traits bought.</summary>
     public static CharacterSheet StandardSheet() => new() { SelectedTierId = "standard" };
 

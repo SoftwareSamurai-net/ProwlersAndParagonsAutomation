@@ -1,6 +1,6 @@
 namespace ProwlersAndParagonsAutomation.Engine.Models;
 
-public record ProModel
+public record ProModel : IGenericProCon
 {
     public string Id { get; init; } = "";
     public string Name { get; init; } = "";
@@ -20,6 +20,16 @@ public record ProModel
     public string CostType { get; init; } = "flat";
 
     public IReadOnlyList<string> ApplicableTo { get; init; } = [];
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> AppliesToRanges { get; init; } = [];
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> AppliesToRankTypes { get; init; } = [];
+
+    /// <inheritdoc />
+    public string? ApplicabilityCaveat { get; init; }
+
     public string Description { get; init; } = "";
     public string? NarrativeConstraint { get; init; }
     public bool NeedsReview { get; init; }

@@ -11,16 +11,6 @@
     "dice_per_rank": 1,
     "description": "Your body adapts instantly to hostile or alien surroundings, letting you breathe, move, sense and survive there — growing gills and pressure resistance underwater, for instance. One flat purchase covers any environment; there are no ranks.",
     "prerequisite": null,
-    "available_pros": [
-      "imbue"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "shutdown"
-    ],
     "tags": [
       "survival",
       "environmental",
@@ -49,20 +39,6 @@
     "dice_per_rank": 1,
     "description": "You can turn into a different form, built as a separate character with its own Hero Point budget at the power level you pay for. Both forms must pay for this Power, and they share one Resolve pool — you use the lowest Resolve among them. Buy it again for each extra form.",
     "prerequisite": null,
-    "available_pros": [
-      "imbue"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "constant",
-      "costly",
-      "limited",
-      "readied",
-      "recharge",
-      "uncontrolled"
-    ],
     "power_cons": [
       {
         "id": "independent_forms",
@@ -100,21 +76,6 @@
     "dice_per_rank": 1,
     "description": "You can make animals do what you want for the Power's duration, whether by domination or friendly persuasion. Roll against the animal's Willpower.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "contagious",
-      "ranged",
-      "resisted",
-      "selective"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "limited",
-      "recharge",
-      "shutdown",
-      "sustained"
-    ],
     "power_pros": [
       {
         "id": "calling",
@@ -163,13 +124,6 @@
     "dice_per_rank": 1,
     "description": "You share an empathic understanding with animals. They will not attack you without good reason, and even then you may be able to talk them down.",
     "prerequisite": null,
-    "available_pros": [
-      "ranged"
-    ],
-    "available_cons": [
-      "limited",
-      "shutdown"
-    ],
     "power_pros": [
       {
         "id": "speech",
@@ -207,15 +161,6 @@
     "dice_per_rank": 1,
     "description": "You can take on an animal's Powers, and its Agility, Might, Perception and Toughness, at the lower of the animal's rank or yours — and only where the animal's is higher than your own. Switching animals is a free action, once per page.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "limited",
-      "readied",
-      "sustained"
-    ],
     "power_pros": [
       {
         "id": "enhanced",
@@ -259,18 +204,6 @@
     "dice_per_rank": 1,
     "description": "You can bring images and objects to life until the scene ends or you dismiss them. An animated thing has Agility, Might and Toughness plus whatever Powers suit it: one Trait at your full rank, the rest at half. They obey your mental commands. You cannot animate anything whose Structure beats your rank.",
     "prerequisite": null,
-    "available_pros": [
-      "independent",
-      "ranged",
-      "selective"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "tags": [
       "control",
       "objects",
@@ -302,18 +235,6 @@
       "ability": "toughness",
       "description": "Baseline rank is half your Toughness rank, rounded up."
     },
-    "available_pros": [
-      "phase_shift"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "constant",
-      "item",
-      "limited",
-      "recharge",
-      "shutdown"
-    ],
     "power_cons": [
       {
         "id": "activated",
@@ -357,17 +278,6 @@
     "dice_per_rank": 1,
     "description": "Your astral form can leave your body, gaining Invisibility, Phasing and Astral Sight, and flying as though you had Flight at your Willpower rank. Your body lies dormant meanwhile, though you know at once if it is moved or harmed.",
     "prerequisite": null,
-    "available_pros": [
-      "line_of_sight",
-      "phase_shift"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "tags": [
       "mental",
       "movement",
@@ -395,11 +305,6 @@
     "dice_per_rank": 1,
     "description": "You are attuned to an aspect of nature, a place, or the cosmos, and sense coming disturbances within it. Basic warnings arrive free; spend 1 Resolve to ask the GM for detail. What you learn may be incomplete, but it is never false.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "limited",
-      "shutdown"
-    ],
     "tags": [
       "sensory",
       "tracking",
@@ -427,25 +332,6 @@
     "dice_per_rank": 1,
     "description": "Your body deals a chosen type of energy damage on contact — anyone touching or striking you in unarmed combat takes an attack at your Aura rank, resisted only by passive defences. You can also attack with it in close combat, and mundane objects weaker than your rank burn or melt near you.",
     "prerequisite": null,
-    "available_pros": [
-      "armor_piercing",
-      "contagious",
-      "ongoing",
-      "penetrating",
-      "selective",
-      "subtle"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "constant",
-      "degrades",
-      "recharge",
-      "shutdown",
-      "side_effect",
-      "sustained",
-      "uncontrolled"
-    ],
     "power_cons": [
       {
         "id": "spines",
@@ -483,18 +369,6 @@
     "dice_per_rank": 1,
     "description": "You can banish a target to another time, place or dimension, resisted by Willpower (or Toughness, if you define it that way) and by active defences. You cannot send anyone somewhere harmful or inescapable.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "ranged",
-      "resisted"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "shutdown"
-    ],
     "tags": [
       "control",
       "dimensional",
@@ -522,49 +396,6 @@
     "dice_per_rank": 1,
     "description": "A damaging ranged attack. Name the type of damage it inflicts when you buy it.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "zone_nova",
-      "armor_piercing",
-      "carrier_attack",
-      "contagious",
-      "fuse",
-      "ongoing",
-      "overload",
-      "penetrating",
-      "ricochet",
-      "selective",
-      "subtle",
-      "trap",
-      "undetectable"
-    ],
-    "available_cons": [
-      "build_up",
-      "burnout",
-      "charges",
-      "close",
-      "concentration",
-      "conditional",
-      "costly",
-      "degrades",
-      "delay",
-      "exclusive",
-      "harmful",
-      "item",
-      "limited",
-      "overkill",
-      "readied",
-      "recharge",
-      "shutdown",
-      "side_effect",
-      "signature",
-      "sustained",
-      "touch",
-      "toxin",
-      "two_handed",
-      "unreliable",
-      "weak"
-    ],
     "power_pros": [
       {
         "id": "block",
@@ -625,17 +456,6 @@
     "dice_per_rank": 1,
     "description": "Your colouring shifts to match your surroundings, giving +3d on Covert rolls to avoid being seen. Stay still and you can roll Covert at half rank to go unnoticed even in the open.",
     "prerequisite": null,
-    "available_pros": [
-      "subtle"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "conditional",
-      "constant",
-      "limited",
-      "sustained"
-    ],
     "tags": [
       "stealth",
       "concealment"
@@ -662,21 +482,6 @@
     "dice_per_rank": 1,
     "description": "You can blind a living target for the Power's duration, resisted by Toughness or an active defence. A blinded target takes -3d on attack and active defence rolls unless something like Blind Fighting or Radar covers for the loss.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "contagious",
-      "ranged",
-      "resisted",
-      "selective"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "shutdown",
-      "touch"
-    ],
     "tags": [
       "attack",
       "debuff",
@@ -704,11 +509,6 @@
     "dice_per_rank": 1,
     "description": "You do not rely on sight in a fight, so darkness or an unseen opponent costs you nothing, whatever the cause.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "item",
-      "limited"
-    ],
     "tags": [
       "combat",
       "sensory",
@@ -736,16 +536,6 @@
     "dice_per_rank": 1,
     "description": "You flicker in and out of reality mid-fight — phasing, shifting size, stepping through portals, however you describe it. Use Blink in place of Might for close combat attacks and in place of Agility for active defence and movement rolls. It does not actually make you faster.",
     "prerequisite": null,
-    "available_pros": [
-      "selective"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "conditional",
-      "limited",
-      "recharge"
-    ],
     "tags": [
       "movement",
       "teleportation",
@@ -776,19 +566,6 @@
       "ability": null,
       "description": "Baseline rank equals the rank of the Ability, Talent or Power nominated by the player when this Power is purchased."
     },
-    "available_pros": [
-      "imbue",
-      "ranged"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "costly",
-      "degrades",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "power_cons": [
       {
         "id": "rage",
@@ -826,16 +603,6 @@
     "dice_per_rank": 1,
     "description": "Spend 1 Resolve to bolster yourself and every ally in the area with +1d on all challenge rolls for the rest of the scene. Allies must stay in the area to keep it. Activating costs an action; sustaining it is free. Buff never stacks, not even from different Sources.",
     "prerequisite": null,
-    "available_pros": [
-      "imbue"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "power_pros": [
       {
         "id": "greater",
@@ -872,16 +639,6 @@
     "dice_per_rank": 1,
     "description": "You can see distant places as though you stood there, at any distance. A shielded location calls for a Willpower roll against the shielding rank; another dimension needs a Superhuman (6) Willpower roll. You can focus on a familiar person or object instead, though that will not tell you where they are.",
     "prerequisite": null,
-    "available_pros": [
-      "line_of_sight"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "tags": [
       "sensory",
       "remote",
@@ -909,19 +666,6 @@
     "dice_per_rank": 1,
     "description": "You cloud the minds of everyone within Distant Range, becoming undetectable to them by any sense. A target only gets a Willpower roll to shake it off if you close to Close Range or do something that gives you away. Costs an action each page to maintain.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "selective",
-      "subtle"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "conditional",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "tags": [
       "mental",
       "stealth",
@@ -949,18 +693,6 @@
     "dice_per_rank": 1,
     "description": "You can detect, receive, store and transmit across whatever networks the setting has, worldwide or further, with no need for towers or satellites. It works by itself, though secure channels may call for a Technology roll.",
     "prerequisite": null,
-    "available_pros": [
-      "ranged",
-      "selective",
-      "subtle",
-      "undetectable"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "shutdown"
-    ],
     "tags": [
       "utility",
       "communication",
@@ -989,19 +721,6 @@
     "dice_per_rank": 1,
     "description": "You can build and move shapes of solid force — cages, ramps, walls, hammers, nets and the like. They have Structure equal to your rank and exert force with an effective Might equal to it.",
     "prerequisite": null,
-    "available_pros": [
-      "independent",
-      "selective",
-      "subtle"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "costly",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "power_pros": [
       {
         "id": "devices",
@@ -1043,12 +762,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown"
-    ],
     "tags": [
       "sensory",
       "defense",
@@ -1077,21 +790,6 @@
     "dice_per_rank": 1,
     "description": "You fill the zone with darkness, fog, smoke or another obscuring element that only you and those equipped for it can see through. Anyone else takes -3d on attack and active defence rolls unless a Power compensates.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "zone_nova",
-      "expansive",
-      "selective",
-      "subtle"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "conditional",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "tags": [
       "control",
       "light",
@@ -1120,22 +818,6 @@
     "dice_per_rank": 1,
     "description": "A blinding flash that overwhelms every living being in range, friend and foe alike, resisted by Willpower or an active defence. Targets are stunned for one page — unable to move or act — and then blinded for the rest of the duration.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "zone_nova",
-      "contagious",
-      "ranged",
-      "selective",
-      "subtle"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "shutdown",
-      "touch"
-    ],
     "power_cons": [
       {
         "id": "deafen",
@@ -1172,18 +854,6 @@
     "dice_per_rank": 1,
     "description": "You can turn aside incoming ranged attacks of one chosen kind, physical or energy, using this rank as an active defence. When an attack fails to hurt you, spend a free action to send it back at the lower of its rank or yours. Area attacks cannot be deflected.",
     "prerequisite": null,
-    "available_pros": [
-      "selective",
-      "ricochet"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "costly",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "power_pros": [
       {
         "id": "both_types",
@@ -1229,20 +899,6 @@
     "dice_per_rank": 1,
     "description": "You can make yourself denser, substituting this rank for your Might and Toughness and gaining Armor at it too; where you already match or beat that, use your own rank +1d. You also get much heavier — at 3d or more your weight rank equals your Density rank.",
     "prerequisite": null,
-    "available_pros": [
-      "phase_shift"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "constant",
-      "costly",
-      "limited",
-      "readied",
-      "sustained",
-      "uncontrolled"
-    ],
     "tags": [
       "transformation",
       "physical",
@@ -1271,14 +927,6 @@
     "dice_per_rank": 1,
     "description": "You can sense and pinpoint something specific — a kind of energy, matter, creature, emotion or state. It usually works automatically, with a roll only for the faint or hidden, and unusually for a ranged Power it reaches Extreme Range.",
     "prerequisite": null,
-    "available_pros": [
-      "ranged"
-    ],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown"
-    ],
     "power_pros": [
       {
         "id": "long_range",
@@ -1315,8 +963,6 @@
     "dice_per_rank": 1,
     "description": "Your determination is a byword even among Heroes. Every 5 Hero Points spent here gives you 1 extra Resolve at the start of each issue. It has no rank and cannot be absorbed, drained or mimicked. Heroes only.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [],
     "tags": [
       "utility",
       "resolve",
@@ -1345,16 +991,6 @@
     "dice_per_rank": 1,
     "description": "You can travel to other dimensions, at the cost of an action. An unfamiliar dimension drops you somewhere random; after that you return where you left, or spend 1 Resolve to arrive somewhere familiar. Free uses per issue equal your Willpower, then 1 Resolve each.",
     "prerequisite": null,
-    "available_pros": [
-      "selective"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "costly",
-      "limited",
-      "recharge"
-    ],
     "power_pros": [
       {
         "id": "portal",
@@ -1391,19 +1027,6 @@
     "dice_per_rank": 1,
     "description": "You can end any ongoing Power affecting a being or object, resisted by that Power's rank. It does not stop the Power working again — it only cuts the current duration short. Limited to one Source, chosen at purchase. Also usable as an active defence against special effects.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "ranged",
-      "resisted",
-      "selective"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "shutdown"
-    ],
     "power_pros": [
       {
         "id": "also_x",
@@ -1441,21 +1064,6 @@
     "dice_per_rank": 1,
     "description": "You can drain Abilities, Talents and Powers of one chosen Source, rolling against the target's highest-ranked Trait of that Source. Drained Abilities and Talents fall to 1d and drained Powers stop entirely for the duration. Traits of other Sources are untouched and cannot resist.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "contagious",
-      "ranged",
-      "resisted",
-      "selective"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "shutdown",
-      "touch"
-    ],
     "power_pros": [
       {
         "id": "also_x",
@@ -1505,13 +1113,6 @@
     "dice_per_rank": 1,
     "description": "Spend an action to create an exact duplicate of yourself, minus this Power. Duplicates share your limited-use Powers and have no Resolve of their own, though you may spend yours for them. A duplicate vanishes when either of you is defeated, and cannot return that scene.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "charges",
-      "costly",
-      "limited",
-      "recharge"
-    ],
     "tags": [
       "utility",
       "duplication",
@@ -1539,27 +1140,6 @@
     "dice_per_rank": 1,
     "description": "You create and control one element — fire, ice, gravity, sound, plants, whatever you choose — and through it imitate other Powers at this rank, so long as the effect makes comic-book sense for your element.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "zone_nova",
-      "armor_piercing",
-      "ongoing",
-      "overload",
-      "penetrating",
-      "selective"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "conditional",
-      "costly",
-      "degrades",
-      "exclusive",
-      "limited",
-      "recharge",
-      "shutdown",
-      "sustained"
-    ],
     "power_pros": [
       {
         "id": "matter_creation",
@@ -1606,24 +1186,6 @@
     "dice_per_rank": 1,
     "description": "You can flood anyone in range with an overwhelming feeling: rage, fear, love, confusion, despair. Resisted by Willpower. The GM decides how the target acts, and the reaction is often powerful and irrational.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "zone_nova",
-      "contagious",
-      "ranged",
-      "resisted",
-      "selective",
-      "subtle"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "shutdown",
-      "sustained",
-      "touch"
-    ],
     "power_cons": [
       {
         "id": "only_x",
@@ -1670,12 +1232,6 @@
     "dice_per_rank": 1,
     "description": "You can absorb one type of energy, siphoned from a source or taken from an attack, up to the lesser of its rank and yours. You are immune to energy attacks at or below your rank and can use this as a passive defence above it. Absorbed energy must be spent at once — boosting a physical Ability, granting +1d to all rolls, firing out as a Blast, or healing damage.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown"
-    ],
     "power_pros": [
       {
         "id": "also_x",
@@ -1713,23 +1269,6 @@
     "dice_per_rank": 1,
     "description": "You can bind a target in ice, webbing, vines or the like so they cannot take physical actions, resisted by Might, an active defence, or Aura used as a passive defence.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "contagious",
-      "ongoing",
-      "ranged",
-      "selective",
-      "trap"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "conditional",
-      "degrades",
-      "limited",
-      "recharge",
-      "touch"
-    ],
     "power_pros": [
       {
         "id": "line",
@@ -1779,12 +1318,6 @@
       "ability": "agility",
       "description": "Baseline rank equals your Agility rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown"
-    ],
     "tags": [
       "defense",
       "passive",
@@ -1817,11 +1350,6 @@
       "ability": null,
       "description": "Baseline rank equals the rank of the Ability, Talent or Power nominated by the player when this Power is purchased."
     },
-    "available_pros": [],
-    "available_cons": [
-      "item",
-      "limited"
-    ],
     "tags": [
       "utility",
       "knowledge",
@@ -1851,11 +1379,6 @@
     "dice_per_rank": 1,
     "description": "Extra arms, tentacles, a prehensile tail or similar, worth +2d on attack and defence rolls when grappling. The GM may extend that to anything else more limbs would plainly help, like climbing.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "constant",
-      "limited"
-    ],
     "tags": [
       "physical",
       "body",
@@ -1883,16 +1406,6 @@
     "dice_per_rank": 1,
     "description": "A Travel Power: you can fly. Flight needs room to manoeuvre, so halve your effective rank indoors unless the space is unusually large.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "conditional",
-      "costly",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "power_pros": [
       {
         "id": "spaceflight",
@@ -1959,20 +1472,6 @@
     "dice_per_rank": 1,
     "description": "A projected field that shields everyone inside it. Protected characters use your rank as a passive defence against physical and energy attacks, and are immune to any attack at or below half your rank.",
     "prerequisite": null,
-    "available_pros": [
-      "selective"
-    ],
-    "available_cons": [
-      "build_up",
-      "burnout",
-      "charges",
-      "concentration",
-      "degrades",
-      "limited",
-      "readied",
-      "recharge",
-      "sustained"
-    ],
     "power_pros": [
       {
         "id": "inviolate",
@@ -2033,18 +1532,6 @@
     "dice_per_rank": 1,
     "description": "You can become one type of energy, gaining Aura and Flight at this rank. You are weightless and immune to physical and energy attacks, but you can carry and touch nothing, objects and force fields can still contain you, and whatever affects your energy affects you.",
     "prerequisite": null,
-    "available_pros": [
-      "phase_shift"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "costly",
-      "limited",
-      "readied",
-      "sustained"
-    ],
     "power_pros": [
       {
         "id": "also_x",
@@ -2081,18 +1568,6 @@
     "dice_per_rank": 1,
     "description": "You can become a gas with 1d Flight — weightless, immune to physical and energy attacks, and able to slip through any opening a gas could. You can touch nothing physical, and you become vulnerable to what affects gases.",
     "prerequisite": null,
-    "available_pros": [
-      "phase_shift"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "costly",
-      "limited",
-      "readied",
-      "sustained"
-    ],
     "tags": [
       "transformation",
       "gaseous",
@@ -2120,18 +1595,6 @@
     "dice_per_rank": 1,
     "description": "You can become a liquid or a mass of fine particles, immune to physical but not energy attacks, and able to flow through any gap a liquid could. You can still solidify enough to handle things and attack. Your body remains physical, so it can be contained or shoved.",
     "prerequisite": null,
-    "available_pros": [
-      "phase_shift"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "costly",
-      "limited",
-      "readied",
-      "sustained"
-    ],
     "tags": [
       "transformation",
       "liquid",
@@ -2159,17 +1622,6 @@
     "dice_per_rank": 1,
     "description": "You can become solid matter — ice, metal, stone, wood. Substitute this rank for your Might and Toughness and gain Armor at it; where you already match or beat that, use your own rank +1d.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "constant",
-      "costly",
-      "limited",
-      "readied",
-      "sustained"
-    ],
     "tags": [
       "transformation",
       "solid",
@@ -2198,11 +1650,6 @@
     "dice_per_rank": 1,
     "description": "Requires the Alter Ego Flaw. Your powered form is two people merged, each alter ego a separate character with their own Abilities, Talents and possibly Powers. Further alter egos cost 3 Hero Points each.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "costly",
-      "limited"
-    ],
     "tags": [
       "special",
       "combination",
@@ -2230,17 +1677,6 @@
     "dice_per_rank": 1,
     "description": "You can grow enormous. From 4d your weight rank equals your Growth rank. Substitute this rank for your Might and Toughness, gain Armor at it, and gain Running at half it for the length of your stride; where you already match or beat those, use your own rank +1d.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "constant",
-      "limited",
-      "readied",
-      "sustained",
-      "uncontrolled"
-    ],
     "tags": [
       "transformation",
       "size",
@@ -2269,11 +1705,6 @@
     "dice_per_rank": 1,
     "description": "You are hard to kill — it would take something extreme, like beheading or a volcano. Characters with this Power know it about themselves and can be played accordingly.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited"
-    ],
     "tags": [
       "defense",
       "health",
@@ -2301,20 +1732,6 @@
     "dice_per_rank": 1,
     "description": "You can heal anyone you touch. Your rank is the maximum damage you can heal per day. The GM may let it cure disease on a successful roll, or for Resolve.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "imbue",
-      "ranged"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "costly",
-      "limited",
-      "recharge",
-      "touch"
-    ],
     "power_cons": [
       {
         "id": "repair",
@@ -2351,10 +1768,6 @@
     "dice_per_rank": 1,
     "description": "You can enter suspended animation for as long as you like, barely ageing and needing no air, food or drink. You stay aware of your surroundings and can wake yourself at will.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "limited"
-    ],
     "tags": [
       "utility",
       "survival",
@@ -2383,21 +1796,6 @@
     "dice_per_rank": 1,
     "description": "You can exhale gale-force wind to push or pull, rolling against the greater of each target's Might or weight rank. One or two net successes move them to you or out to Distant Range; three or more also knock them prone and cost them their next turn. Hits everyone in Close Range, or one target further out.",
     "prerequisite": null,
-    "available_pros": [
-      "armor_piercing",
-      "ongoing",
-      "penetrating",
-      "selective"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "degrades",
-      "limited",
-      "recharge",
-      "shutdown",
-      "side_effect"
-    ],
     "power_pros": [
       {
         "id": "freezing",
@@ -2435,18 +1833,6 @@
     "dice_per_rank": 1,
     "description": "You can create illusions of any size up to the whole area, with sight and sound. They exist in the world and register on cameras and microphones. Observers accept them until given reason to doubt, then may roll Perception against your rank to see through them.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "selective",
-      "subtle"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "power_pros": [
       {
         "id": "mental",
@@ -2483,12 +1869,6 @@
     "dice_per_rank": 1,
     "description": "You cannot die, or cannot stay dead, and you will not die of age. In a game where Heroes can die, GMs should charge more for this — somewhere between 6 and 12 Hero Points.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown"
-    ],
     "power_cons": [
       {
         "id": "vulnerable",
@@ -2527,12 +1907,6 @@
     "dice_per_rank": 1,
     "description": "You are immune to specific attacks, energies, conditions, hazards or Powers. Each immunity is named and paid for separately.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown"
-    ],
     "tags": [
       "defense",
       "immunity",
@@ -2561,11 +1935,6 @@
     "dice_per_rank": 1,
     "description": "You are not alive in the ordinary sense — a construct, a robot, undead, something stranger. You are immune to physical attacks and to Powers that only touch the living, helpful ones included, and you effectively have Immunity (Life Support, Toxins). Your mind or spirit is still open to mental Powers. No rank, and it cannot be absorbed, drained or mimicked.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "constant",
-      "limited"
-    ],
     "power_pros": [
       {
         "id": "mindless",
@@ -2604,21 +1973,6 @@
     "dice_per_rank": 1,
     "description": "You can turn invisible. Other senses, Powers like Radar and Super Senses, and traces you leave in the world can still find you. Enemies who cannot see you take -3d on attack and active defence rolls against you, or -2d if they can detect you some other way.",
     "prerequisite": null,
-    "available_pros": [
-      "selective",
-      "subtle"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "conditional",
-      "constant",
-      "limited",
-      "readied",
-      "sustained",
-      "uncontrolled"
-    ],
     "power_pros": [
       {
         "id": "cloaking",
@@ -2664,19 +2018,6 @@
     "dice_per_rank": 1,
     "description": "You fill the area around you with something wretched — stinging sand, howling wind, gas, a swarm of insects. Everyone but you takes -2d on all challenge rolls except passive defences unless their Toughness (or Willpower, if you define it so) beats your rank. Activating costs an action; sustaining it is free.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "contagious",
-      "ranged",
-      "selective"
-    ],
-    "available_cons": [
-      "charges",
-      "degrades",
-      "limited",
-      "recharge",
-      "toxin"
-    ],
     "tags": [
       "attack",
       "debuff",
@@ -2704,10 +2045,6 @@
     "dice_per_rank": 1,
     "description": "You speak a number of extra languages equal to your Intellect, chosen in advance or on the spot.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "limited"
-    ],
     "power_pros": [
       {
         "id": "hyper_translation",
@@ -2752,16 +2089,6 @@
     "dice_per_rank": 1,
     "description": "You lead your team in battle. While you can see and speak to them, spend a free action to let each ally reroll one challenge roll per combat scene.",
     "prerequisite": null,
-    "available_pros": [
-      "ranged",
-      "selective"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "shutdown"
-    ],
     "tags": [
       "support",
       "social",
@@ -2794,11 +2121,6 @@
       "ability": "might",
       "description": "Baseline rank is half your Might rank, rounded up."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited"
-    ],
     "tags": [
       "movement",
       "physical",
@@ -2826,19 +2148,6 @@
     "dice_per_rank": 1,
     "description": "You drain the life from a living being you touch, resisted by Toughness (or Willpower, if you define it so) and by active defences, inflicting 1 damage per net success. If you are wounded, you heal 1 point for every 2 you inflict.",
     "prerequisite": null,
-    "available_pros": [
-      "contagious",
-      "ranged",
-      "resisted"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "shutdown",
-      "touch"
-    ],
     "power_pros": [
       {
         "id": "vampirism",
@@ -2876,16 +2185,6 @@
     "dice_per_rank": 1,
     "description": "You generate light — visible, or ultraviolet if you prefer — effortlessly, always as a free action. It can fill your zone or focus into a beam or harmless laser out to Distant Range, at any brightness short of incapacitating. Blinding people outright is Dazzle.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "subtle"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "sustained"
-    ],
     "tags": [
       "utility",
       "light",
@@ -2913,12 +2212,6 @@
     "dice_per_rank": 1,
     "description": "Your reflexes are extraordinary: your Edge goes up by 6. You can also draw or stow any weapon instantly, which under the Gritty Combat Rules makes it impossible for anyone to get the drop on you.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown"
-    ],
     "power_cons": [
       {
         "id": "fighting_marksmanship",
@@ -2956,11 +2249,6 @@
     "dice_per_rank": 1,
     "description": "You are absurdly lucky, or so skilled it looks that way. Each issue you gain Luck dice equal to your rank, addable to either side of any challenge roll involving you — spend them to boost your own roll, or to roll against someone acting on you and subtract your successes from theirs.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "charges",
-      "limited"
-    ],
     "power_pros": [
       {
         "id": "control",
@@ -3004,19 +2292,6 @@
     "dice_per_rank": 1,
     "description": "You can control machines and electronics out to Distant Range — hacking a computer, killing a camera, driving a car from afar. Substitute this rank for whatever Trait operating the machine would normally need. Controlling several at once costs effectiveness.",
     "prerequisite": null,
-    "available_pros": [
-      "ranged",
-      "selective",
-      "subtle"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "conditional",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "power_cons": [
       {
         "id": "interface",
@@ -3057,28 +2332,6 @@
       "ability": "might",
       "description": "Baseline rank equals your Might rank."
     },
-    "available_pros": [
-      "armor_piercing",
-      "carrier_attack",
-      "ongoing",
-      "penetrating",
-      "selective",
-      "subtle"
-    ],
-    "available_cons": [
-      "build_up",
-      "burnout",
-      "charges",
-      "concentration",
-      "costly",
-      "degrades",
-      "limited",
-      "overkill",
-      "readied",
-      "recharge",
-      "shutdown",
-      "weak"
-    ],
     "power_pros": [
       {
         "id": "deflect",
@@ -3124,14 +2377,6 @@
     "dice_per_rank": 1,
     "description": "You can build convincing disguises inside a short scene given basic materials, and you mimic voice and manner expertly. Roll Charm, usually against the target's Perception.",
     "prerequisite": null,
-    "available_pros": [
-      "subtle"
-    ],
-    "available_cons": [
-      "item",
-      "limited",
-      "shutdown"
-    ],
     "tags": [
       "utility",
       "disguise",
@@ -3160,15 +2405,6 @@
     "dice_per_rank": 1,
     "description": "You take on the properties of objects you touch for the rest of the scene. It works like Solid Form at the lesser of your rank or the object's Structure, and you also pick up its energetic properties as Aura — the heat of lava, for instance — at the lesser of your rank or that energy's.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "limited",
-      "readied",
-      "sustained"
-    ],
     "tags": [
       "transformation",
       "physical",
@@ -3196,27 +2432,6 @@
     "dice_per_rank": 1,
     "description": "A mental attack on the mind or spirit that inflicts psychic damage on living beings, resisted by Willpower. It does nothing to inanimate objects and passes straight through them unless they have a psychic presence.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "contagious",
-      "ongoing",
-      "ranged",
-      "resisted",
-      "selective",
-      "subtle",
-      "undetectable"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "conditional",
-      "costly",
-      "degrades",
-      "limited",
-      "recharge",
-      "shutdown"
-    ],
     "tags": [
       "attack",
       "psychic",
@@ -3245,25 +2460,6 @@
     "dice_per_rank": 1,
     "description": "You can make any living being within Distant Range obey you for the duration, resisted by Willpower. Command them now, or spend 1 Resolve to plant a suggestion to trigger later, even months on. Targets get +2d to resist orders that are wholly against their nature.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "contagious",
-      "ranged",
-      "resisted",
-      "selective",
-      "subtle"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "conditional",
-      "costly",
-      "limited",
-      "recharge",
-      "shutdown",
-      "sustained",
-      "touch"
-    ],
     "power_cons": [
       {
         "id": "hypnosis",
@@ -3307,19 +2503,6 @@
     "dice_per_rank": 1,
     "description": "A dampening field that shuts down the Abilities, Talents and Powers of everyone in range, friend and foe alike. Nullified Abilities and Talents drop to 1d, nullified Powers stop entirely. It works automatically on any Trait at or below your rank, no roll needed, but only against one chosen Source, and you must concentrate to hold it.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "ranged",
-      "resisted",
-      "selective"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "shutdown"
-    ],
     "power_pros": [
       {
         "id": "also_x",
@@ -3360,12 +2543,6 @@
     "dice_per_rank": 1,
     "description": "A versatile ability that mimics other Powers at this rank. You can switch between them instantly and use as many per page as you like, but every use after the first on the same page drops your effective rank by 1d for the rest of that page. A narrow Omni-Power costs less per rank than a broad one.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "costly",
-      "limited",
-      "shutdown"
-    ],
     "tags": [
       "special",
       "versatile",
@@ -3394,20 +2571,6 @@
     "dice_per_rank": 1,
     "description": "You can shift out of phase with the physical world — immune to physical and energy attacks though not mental ones, and able to pass through solid matter but not force fields. You can touch nothing physical while phased. Switching on or off is a free action, but not both in the same turn.",
     "prerequisite": null,
-    "available_pros": [
-      "selective"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "conditional",
-      "constant",
-      "limited",
-      "readied",
-      "sustained",
-      "uncontrolled"
-    ],
     "power_pros": [
       {
         "id": "intangible",
@@ -3445,15 +2608,6 @@
     "dice_per_rank": 1,
     "description": "Your body is rubbery and elastic, so you can mould yourself into shapes and squeeze through the narrowest gaps. Shape yourself to imitate effects at this rank — a ball to Leap, a coil to hold something in place instead of using Might, a canopy to serve as a parachute.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "constant",
-      "limited",
-      "sustained"
-    ],
     "tags": [
       "physical",
       "transformation",
@@ -3482,20 +2636,6 @@
     "dice_per_rank": 1,
     "description": "You can turn a living being into something harmless or helpless — a frog, a statue — resisted by Toughness (or Willpower, if you define it so) and by active defences. The change lasts for the duration.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "ranged",
-      "resisted",
-      "selective"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "sustained",
-      "touch"
-    ],
     "tags": [
       "control",
       "transformation",
@@ -3523,10 +2663,6 @@
     "dice_per_rank": 1,
     "description": "You can reach a store of mundane weapons, armour, gear and even vehicles from anywhere — teleported in, pulled from a bag, conjured, however you describe it. What you draw lasts until the scene ends unless you have Resources or Wealth.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "limited"
-    ],
     "tags": [
       "utility",
       "storage",
@@ -3555,19 +2691,6 @@
     "dice_per_rank": 1,
     "description": "You can take over a living body within Distant Range, resisted by Willpower. You use the host's physical Traits and your own mental ones. Your body lies dormant, though you know at once if it is moved or harmed, and you snap back to it if the host is defeated.",
     "prerequisite": null,
-    "available_pros": [
-      "ranged",
-      "resisted"
-    ],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "conditional",
-      "limited",
-      "recharge",
-      "sustained",
-      "touch"
-    ],
     "power_pros": [
       {
         "id": "meld",
@@ -3605,14 +2728,6 @@
     "dice_per_rank": 1,
     "description": "You can steal a character's Abilities, Talents and Powers of one chosen Source by touch, rolling against their highest-ranked Trait of that Source or an active defence. Success knocks them out and you hold the stolen Traits at their rank for the duration. Traits you already have at equal or higher rank are unaffected.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "touch"
-    ],
     "power_pros": [
       {
         "id": "also_x",
@@ -3663,14 +2778,6 @@
     "dice_per_rank": 1,
     "description": "You can rewrite what has just happened — through foresight, prediction, or actually winding time back. Spend Resolve to cancel an event; in combat that erases a character's turn and moves you straight to your next turn ahead of them. Declare it the moment their turn ends.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "mental",
@@ -3699,16 +2806,6 @@
     "dice_per_rank": 1,
     "description": "You can copy a character's Abilities, Talents and Powers of one chosen Source by touch, rolling against their highest-ranked Trait of that Source or an active defence. You gain them at their rank for the duration and the target loses nothing. Traits you already have at equal or higher rank are unaffected.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "conditional",
-      "limited",
-      "recharge",
-      "sustained",
-      "touch"
-    ],
     "power_pros": [
       {
         "id": "also_x",
@@ -3759,10 +2856,6 @@
     "dice_per_rank": 1,
     "description": "Your meticulous research and planning make your narrations far more effective when your preparation explains them — declaring that you brought exactly the right tool, that you memorised the layout, that you planned for this.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "limited"
-    ],
     "tags": [
       "utility",
       "planning",
@@ -3794,14 +2887,6 @@
       "ability": "willpower",
       "description": "Baseline rank equals your Willpower rank."
     },
-    "available_pros": [
-      "selective"
-    ],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown"
-    ],
     "power_pros": [
       {
         "id": "cloak_mind",
@@ -3839,13 +2924,6 @@
     "dice_per_rank": 1,
     "description": "By touching an inanimate object you read impressions from it and may ask the GM its basic history. Spend 1 Resolve for depth about a person or event connected to it. What you learn may be incomplete or misleading, but it is always truthful and always on point.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "mental",
@@ -3874,10 +2952,6 @@
     "dice_per_rank": 1,
     "description": "You can change clothes and grooming in an instant. Describe how. Using it takes an action.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "limited"
-    ],
     "power_cons": [
       {
         "id": "costume",
@@ -3915,12 +2989,6 @@
     "dice_per_rank": 1,
     "description": "A radar sense giving you a three-dimensional picture of your surroundings. It cannot read flat images — print, photographs, screens.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown"
-    ],
     "power_cons": [
       {
         "id": "sonar",
@@ -3964,16 +3032,6 @@
     "dice_per_rank": 1,
     "description": "You heal 1 point of damage per hour. Knocked unconscious, you wake as soon as you heal a point, unless revived sooner.",
     "prerequisite": null,
-    "available_pros": [
-      "imbue"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "shutdown"
-    ],
     "power_pros": [
       {
         "id": "fast",
@@ -4021,11 +3079,6 @@
       "ability": "toughness",
       "description": "Baseline rank equals your Toughness rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited"
-    ],
     "tags": [
       "defense",
       "passive",
@@ -4058,14 +3111,6 @@
       "fixed_value": 3,
       "description": "Baseline rank is a flat 3d regardless of any Ability."
     },
-    "available_pros": [],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "conditional",
-      "limited",
-      "shutdown"
-    ],
     "power_pros": [
       {
         "id": "hover",
@@ -4102,13 +3147,6 @@
     "dice_per_rank": 1,
     "description": "You can detach parts of your body without bleeding or screaming. Detached parts act independently and can do whatever a healthy detached part reasonably could, taking your other Powers into account.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "charges",
-      "costly",
-      "limited",
-      "recharge"
-    ],
     "tags": [
       "physical",
       "body",
@@ -4136,22 +3174,6 @@
     "dice_per_rank": 1,
     "description": "A concussive wave striking everyone in range, friend and foe alike, rolled against the greater of each target's Might or weight rank. One or two net successes push them back with -1d on all rolls until after your next turn; three or more knock them further and harder.",
     "prerequisite": null,
-    "available_pros": [
-      "armor_piercing",
-      "ongoing",
-      "penetrating",
-      "selective"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "costly",
-      "degrades",
-      "limited",
-      "recharge",
-      "shutdown",
-      "side_effect"
-    ],
     "tags": [
       "attack",
       "area",
@@ -4180,17 +3202,6 @@
     "dice_per_rank": 1,
     "description": "You can shrink, dropping your weight rank by your current Shrinking rank until it reaches 0d. Substitute this rank for your Agility, and gain Leaping and Strike at half it; where you already match or beat those, use your own rank +1d. Being small also changes how easily you are hit.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "constant",
-      "limited",
-      "readied",
-      "sustained",
-      "uncontrolled"
-    ],
     "tags": [
       "transformation",
       "size",
@@ -4219,16 +3230,6 @@
     "dice_per_rank": 1,
     "description": "You can wound a living target you touch, resisted by Toughness (or Willpower, if you define it so) and by active defences, inflicting 2 damage per net success. Armor does not protect against it at all.",
     "prerequisite": null,
-    "available_pros": [
-      "ranged"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "touch"
-    ],
     "power_pros": [
       {
         "id": "lethal_disease",
@@ -4266,17 +3267,6 @@
     "dice_per_rank": 1,
     "description": "You can make any part of the ground in range slippery for the rest of the scene or until you dismiss it. Crossing it calls for an Agility roll against your rank or the character falls prone; standing again costs an action and another roll.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "ranged",
-      "trap"
-    ],
-    "available_cons": [
-      "charges",
-      "degrades",
-      "limited",
-      "recharge"
-    ],
     "tags": [
       "control",
       "area",
@@ -4305,13 +3295,6 @@
     "dice_per_rank": 1,
     "description": "You can briefly animate the dead to talk to them, asking a number of questions equal to your rank, which must be answered truthfully. The dead know only what they knew alive and speak only languages they knew. You need a body, or at least a head.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge"
-    ],
     "tags": [
       "sensory",
       "mental",
@@ -4340,11 +3323,6 @@
     "dice_per_rank": 1,
     "description": "Free, and only in Street Level and Low Level games. It gives each Hero one thing they alone excel at, so otherwise-similar characters stay distinct. One Specialty per Hero, and no two Heroes may share one.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "item",
-      "limited"
-    ],
     "tags": [
       "utility",
       "skill",
@@ -4374,14 +3352,6 @@
     "dice_per_rank": 1,
     "description": "You can spin on your axis at superhuman speed. Use Spinning in place of Might for close combat attacks and defence, grabs, holds, escapes and combat stunts, and in place of Agility where spinning would serve.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "charges",
-      "concentration",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "tags": [
       "physical",
       "attack",
@@ -4410,18 +3380,6 @@
     "dice_per_rank": 1,
     "description": "You can transport yourself instantly to distant worlds, at the cost of an action. An unfamiliar world drops you somewhere random; after that you return where you left, or spend 1 Resolve for a familiar destination. Free uses per issue equal your Willpower, then 1 Resolve each.",
     "prerequisite": null,
-    "available_pros": [
-      "selective"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "costly",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "power_pros": [
       {
         "id": "portal",
@@ -4463,15 +3421,6 @@
     "dice_per_rank": 1,
     "description": "You can stretch or extend your body, making close combat and grappling attacks against targets who are not adjacent. The reach you pay for sets the range: Close, Distant or Extreme.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "constant",
-      "limited",
-      "sustained"
-    ],
     "power_cons": [
       {
         "id": "long_reach",
@@ -4517,36 +3466,6 @@
       ],
       "description": "Baseline rank is the greater of your Might and your Martial Arts effective rank. Under the Brute Option, only half your Might counts."
     },
-    "available_pros": [
-      "armor_piercing",
-      "carrier_attack",
-      "ongoing",
-      "overload",
-      "penetrating",
-      "selective",
-      "subtle"
-    ],
-    "available_cons": [
-      "build_up",
-      "burnout",
-      "charges",
-      "concentration",
-      "costly",
-      "degrades",
-      "exclusive",
-      "harmful",
-      "item",
-      "limited",
-      "overkill",
-      "readied",
-      "recharge",
-      "shutdown",
-      "side_effect",
-      "signature",
-      "sustained",
-      "two_handed",
-      "weak"
-    ],
     "power_pros": [
       {
         "id": "deflect",
@@ -4622,19 +3541,6 @@
     "dice_per_rank": 1,
     "description": "You can take a living opponent out of the action — stunned, paralysed, asleep, disabled, however you describe it — resisted by Toughness (or Willpower, if you define it so) and by active defences.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "contagious",
-      "ranged",
-      "selective"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "touch"
-    ],
     "power_pros": [
       {
         "id": "non_lethal_disease",
@@ -4688,18 +3594,6 @@
     "dice_per_rank": 1,
     "description": "You can call Minions to serve you, your rank setting how many per scene. You fix their Threat rank at purchase, up to the Trait Cap −6d, or −3d if you summon no more than ten per scene. The cost per rank rises with the Threat you give them.",
     "prerequisite": null,
-    "available_pros": [
-      "independent"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "costly",
-      "limited",
-      "recharge",
-      "sustained"
-    ],
     "power_pros": [
       {
         "id": "animals",
@@ -4776,13 +3670,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -4814,13 +3701,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -4852,13 +3732,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -4890,13 +3763,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -4928,13 +3794,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -4966,13 +3825,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -5004,13 +3856,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -5042,13 +3887,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -5080,13 +3918,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -5118,13 +3949,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -5156,13 +3980,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -5194,13 +4011,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -5232,13 +4042,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -5270,13 +4073,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -5308,13 +4104,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -5346,13 +4135,6 @@
       "ability": "perception",
       "description": "Baseline rank equals your Perception rank."
     },
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited",
-      "shutdown",
-      "uncontrolled"
-    ],
     "tags": [
       "sensory",
       "perception"
@@ -5380,15 +4162,6 @@
     "dice_per_rank": 1,
     "description": "You move at superhuman speed. You run at Power rank speed, your Agility effectively equals this rank, and your Edge equals this rank times 3. Use it to attack and defend in close combat, and in place of Might when defending a grapple. At 9d or more you cross two range classes a page, run over water and up walls, and effectively gain Quick Change and Vanish.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "conditional",
-      "limited",
-      "recharge",
-      "shutdown"
-    ],
     "tags": [
       "movement",
       "speed",
@@ -5418,11 +4191,6 @@
     "dice_per_rank": 1,
     "description": "A Travel Power: you move through water at speed, breathe it, move and sense as freely below as above, and shrug off oceanic pressure and temperature.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "conditional",
-      "limited"
-    ],
     "power_cons": [
       {
         "id": "lungs",
@@ -5459,13 +4227,6 @@
     "dice_per_rank": 1,
     "description": "A Travel Power: you ascend, descend and swing from place to place. It needs outdoors or a large indoor space, and anchors — buildings or tall trees — within Distant Range. Your lines have Structure equal to half your rank.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "item",
-      "limited"
-    ],
     "power_cons": [
       {
         "id": "natural",
@@ -5502,27 +4263,6 @@
     "dice_per_rank": 1,
     "description": "You can move objects out to Distant Range with your mind, using this rank as your effective Might, to attack, immobilise, lift or throw. It also serves as an active defence against ranged attacks: physical ones directly, energy ones only by interposing an object.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "armor_piercing",
-      "carrier_attack",
-      "ongoing",
-      "penetrating",
-      "ranged",
-      "selective"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "conditional",
-      "costly",
-      "degrades",
-      "limited",
-      "recharge",
-      "shutdown",
-      "sustained"
-    ],
     "power_cons": [
       {
         "id": "impel",
@@ -5560,26 +4300,6 @@
     "dice_per_rank": 1,
     "description": "You can read minds and send thoughts within Distant Range. You sense the sentient minds around you, though other telepaths may cloak themselves. Reading surface thoughts is rolled against the higher of the target's Willpower or Telepathy, and telepaths feel it happen. You can also probe memories.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "ranged",
-      "resisted",
-      "selective",
-      "subtle",
-      "undetectable"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "conditional",
-      "costly",
-      "limited",
-      "recharge",
-      "shutdown",
-      "sustained",
-      "touch"
-    ],
     "power_pros": [
       {
         "id": "alter_memories",
@@ -5647,19 +4367,6 @@
     "dice_per_rank": 1,
     "description": "You can travel instantly, through solid objects but not force fields. Places you can see or know well give no trouble. Teleporting somewhere unfamiliar means rolling two dice: 6 or less and you nearly materialise inside something solid, so the Power fails, you snap back, and the shock knocks you out.",
     "prerequisite": null,
-    "available_pros": [
-      "line_of_sight",
-      "selective"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "conditional",
-      "costly",
-      "limited",
-      "recharge",
-      "touch"
-    ],
     "power_pros": [
       {
         "id": "portal",
@@ -5705,15 +4412,6 @@
     "dice_per_rank": 1,
     "description": "You can freeze time in the area for a number of pages equal to your rank, or until you release it. The first use in a scene costs 1 Resolve, the second 2, and so on. Everything in the area is stuck; you can move about and move objects and people around freely.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "costly",
-      "limited",
-      "recharge",
-      "shutdown"
-    ],
     "tags": [
       "special",
       "time",
@@ -5742,16 +4440,6 @@
     "dice_per_rank": 1,
     "description": "You can travel through time in either direction, at the cost of an action. Talk to your GM first — they decide how time travel works in the setting and may set conditions.",
     "prerequisite": null,
-    "available_pros": [
-      "selective"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "costly",
-      "limited",
-      "recharge"
-    ],
     "power_pros": [
       {
         "id": "portal",
@@ -5788,11 +4476,6 @@
     "dice_per_rank": 1,
     "description": "You remember anything you paid attention to, automatically, and can roll Intellect against a GM threshold to recall background detail you never consciously noted.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "limited",
-      "shutdown"
-    ],
     "power_pros": [
       {
         "id": "playback",
@@ -5830,15 +4513,6 @@
     "dice_per_rank": 1,
     "description": "You can tag objects you touch and follow them anywhere in the world for the rest of the story. Automatic, unless the object reaches somewhere that blocks the Power, which calls for an Intellect roll. Anyone suspecting a tracer needs a Daunting (3) Perception roll to find it.",
     "prerequisite": null,
-    "available_pros": [
-      "ranged"
-    ],
-    "available_cons": [
-      "conditional",
-      "item",
-      "limited",
-      "touch"
-    ],
     "power_pros": [
       {
         "id": "tracking",
@@ -5875,16 +4549,6 @@
     "dice_per_rank": 1,
     "description": "You can turn into animals, taking their look, form, size and weight, and gaining their Agility, Might, Perception, Toughness and Powers at the lesser of their rank or yours. Any natural animal you know, living or extinct; magical creatures are the GM's call.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "limited",
-      "readied",
-      "sustained",
-      "uncontrolled"
-    ],
     "power_pros": [
       {
         "id": "enhanced",
@@ -5933,17 +4597,6 @@
     "dice_per_rank": 1,
     "description": "You can become an exact duplicate of anyone you have seen, so long as they are roughly humanoid and near your size. You will fool biometrics and even DNA analysis, but you gain none of their Abilities, Talents or Powers.",
     "prerequisite": null,
-    "available_pros": [
-      "subtle"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "limited",
-      "readied",
-      "sustained"
-    ],
     "tags": [
       "transformation",
       "disguise",
@@ -5972,17 +4625,6 @@
     "dice_per_rank": 1,
     "description": "You can turn into objects, from simple shapes to tools, weapons, machines and vehicles. As a shape you exert force or resistance at your rank; as a tool or weapon you add half your rank to the rolls of whoever wields you; as a machine or vehicle you gain its capabilities.",
     "prerequisite": null,
-    "available_pros": [
-      "subtle"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "limited",
-      "readied",
-      "sustained"
-    ],
     "tags": [
       "transformation",
       "inanimate",
@@ -6011,17 +4653,6 @@
     "dice_per_rank": 1,
     "description": "You can reshape your body at will. You have Hero Points equal to your rank to spend temporarily on raising Agility, Might and Toughness and on buying Powers representing claws, wings, gills, hide and the like. Nothing may exceed the game's Trait Cap.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "costly",
-      "limited",
-      "readied",
-      "sustained",
-      "uncontrolled"
-    ],
     "tags": [
       "transformation",
       "shapeshifting",
@@ -6049,21 +4680,6 @@
     "dice_per_rank": 1,
     "description": "You can alter the chemical make-up of inanimate matter you touch, and gas within Close Range automatically. Liquids and solids are rolled against the greater of their Structure or weight rank. You can raise Structure up to your rank or lower it freely, turning solids to liquids or gases and back.",
     "prerequisite": null,
-    "available_pros": [
-      "area_burst",
-      "ranged",
-      "resisted"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "conditional",
-      "costly",
-      "limited",
-      "recharge",
-      "touch"
-    ],
     "power_cons": [
       {
         "id": "fighting_marksmanship",
@@ -6100,16 +4716,6 @@
     "dice_per_rank": 1,
     "description": "You vanish from sight in an instant and move as far as you can in one page without anyone seeing where you went, often behind a flash or a puff of smoke. It costs both an action and your movement.",
     "prerequisite": null,
-    "available_pros": [
-      "subtle"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "conditional",
-      "limited",
-      "recharge"
-    ],
     "tags": [
       "stealth",
       "movement",
@@ -6137,15 +4743,6 @@
     "dice_per_rank": 1,
     "description": "A Travel Power: you travel by digging through the ground. Collapse the tunnel behind you or leave it open for others. Nothing shows above ground, which makes it an excellent way to surprise people.",
     "prerequisite": null,
-    "available_pros": [
-      "selective"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "shutdown"
-    ],
     "tags": [
       "movement",
       "underground",
@@ -6173,16 +4770,6 @@
     "dice_per_rank": 1,
     "description": "You can become two-dimensional, like a shadow, weightless and silent, while still affecting and being affected by the three-dimensional world. You can slide along any surface ignoring gravity, and slip through any crack wide enough for your form.",
     "prerequisite": null,
-    "available_pros": [
-      "subtle"
-    ],
-    "available_cons": [
-      "build_up",
-      "charges",
-      "concentration",
-      "limited",
-      "sustained"
-    ],
     "tags": [
       "physical",
       "stealth",
@@ -6211,11 +4798,6 @@
     "dice_per_rank": 1,
     "description": "You fight with both hands. Spend 1 Resolve to defeat twice the usual Minions — 2 per net success — on a physical attack, and you may decide after rolling. It adds nothing to attacks that already work that way. Dual-wielding mundane weapons also raises their Weapon Bonus by +1d.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "item",
-      "limited"
-    ],
     "tags": [
       "combat",
       "melee",
@@ -6243,10 +4825,6 @@
     "dice_per_rank": 1,
     "description": "A different version of a Power you already have. It costs a flat 3 Hero Points but must be worth as many Hero Points as the original, so the difference has to be made up with Cons.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "exclusive"
-    ],
     "tags": [
       "special",
       "variant",
@@ -6275,14 +4853,6 @@
     "dice_per_rank": 1,
     "description": "You are a master of mimicry and ventriloquism, able to imitate almost any sound or voice and throw it so it seems to come from elsewhere. Roll Charm, usually against the target's Perception.",
     "prerequisite": null,
-    "available_pros": [
-      "ranged",
-      "subtle"
-    ],
-    "available_cons": [
-      "conditional",
-      "limited"
-    ],
     "tags": [
       "utility",
       "stealth",
@@ -6312,13 +4882,6 @@
     "dice_per_rank": 1,
     "description": "You can stick to walls and ceilings and move along them at your normal speed. If this rank is lower than your Might, it limits how much you can carry while crawling. Unusually slick surfaces may call for a roll.",
     "prerequisite": null,
-    "available_pros": [],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "shutdown"
-    ],
     "tags": [
       "movement",
       "climbing",
@@ -6346,15 +4909,6 @@
     "dice_per_rank": 1,
     "description": "You can find the weak point of any person or object you observe in person. Spend 1 Resolve and your physical and energy attacks gain the Penetrating Pro against that target for the rest of the scene. It also tells you, free, about an object's structural flaws and stress points.",
     "prerequisite": null,
-    "available_pros": [
-      "ranged"
-    ],
-    "available_cons": [
-      "charges",
-      "conditional",
-      "limited",
-      "recharge"
-    ],
     "tags": [
       "sensory",
       "combat",

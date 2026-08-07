@@ -7,7 +7,8 @@
     "applicable_to": ["powers"],
     "description": "Applies to Powers that affect only living beings. The Power can also affect one type of inanimate being (characters with the Inanimate Power from one Source, chosen when purchased). Can be applied multiple times for additional Inanimate Sources.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applicability_caveat": "Only for a Power that affects living beings alone."
   },
   {
     "id": "area_burst",
@@ -20,7 +21,9 @@
     "narrative_constraint": null,
     "needs_review": false,
     "notes": "Variable cost — wizard should present Area (+2) and Burst (+1) as separate selectable options.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applies_to_ranges": ["ranged"],
+    "applicability_caveat": "Only for a Power that targets individuals rather than an area."
   },
   {
     "id": "zone_nova",
@@ -33,7 +36,9 @@
     "narrative_constraint": null,
     "needs_review": false,
     "notes": "Variable cost depending on base Power range. Wizard should check if base Power is Ranged or Touch.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applies_to_ranges": ["ranged", "touch"],
+    "applicability_caveat": "Only for a Power that targets individuals rather than an area."
   },
   {
     "id": "armor_piercing",
@@ -43,7 +48,8 @@
     "applicable_to": ["powers"],
     "description": "Applies to damage-inflicting Powers. Characters wearing mundane armor have their passive defenses halved against the Power. Active defenses are unaffected. Incompatible with the Weak Con.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applicability_caveat": "Only for a Power that inflicts physical or energy damage."
   },
   {
     "id": "carrier_attack",
@@ -53,7 +59,8 @@
     "applicable_to": ["powers"],
     "description": "Applies to attack Powers. The attack carries another Power on its heels. Whenever the carrier Power inflicts at least 1 point of damage or 1 page of special effect, make a second attack roll against the same target using the carrier attack; targets can only use passive defenses against it. Must also buy the carrier attack Power separately; carrier attacks cannot be used independently.",
     "narrative_constraint": "Carrier attack Power must be purchased separately and cannot be used independently — it only triggers via this Pro.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applicability_caveat": "Only for an attack Power."
   },
   {
     "id": "close",
@@ -63,7 +70,8 @@
     "applicable_to": ["powers"],
     "description": "Applies to Touch Powers. The Power can target subjects within Close Range even if they are not adjacent. (When applied to Ranged Powers, Close is instead a -2 Con — see cons.json.)",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applies_to_ranges": ["touch"]
   },
   {
     "id": "contagious",
@@ -85,7 +93,9 @@
     "description": "Applies to Zone Powers. Spend 1 Resolve to dramatically expand the area of effect for the rest of the scene. Close Range (~50 feet) costs +6 HP, Distant Range (~500 feet) costs +12 HP, Extreme Range (~5,000 feet) costs +18 HP. Cannot apply to direct-targeting Powers like Dazzle or Shockwave.",
     "narrative_constraint": null,
     "needs_review": false,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applies_to_ranges": ["zone"],
+    "applicability_caveat": "Not for a Zone Power that targets a subject directly rather than an area."
   },
   {
     "id": "fuse",
@@ -105,7 +115,9 @@
     "applicable_to": ["powers"],
     "description": "Applies to self-only Powers. You can also use the Power on other characters and/or objects by touching them. Willpower equals the max number of subjects affected simultaneously. Cannot affect anything with a weight rank greater than your Willpower.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applies_to_ranges": ["self"],
+    "applicability_caveat": "Only for a Power that affects you alone."
   },
   {
     "id": "independent",
@@ -127,7 +139,8 @@
     "description": "The Power can affect targets at Extreme Range. Costs +2 HP for Distant Range Powers, +4 HP for Close Range Powers, +6 HP for Touch Powers. When applied to a Zone Power, the area no longer needs to be centered on the user.",
     "narrative_constraint": null,
     "needs_review": false,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applies_to_ranges": ["touch", "ranged", "zone"]
   },
   {
     "id": "ongoing",
@@ -137,7 +150,8 @@
     "applicable_to": ["powers"],
     "description": "Applies to damage-inflicting Powers. The Power keeps inflicting damage after the initial attack: 1 extra point at the start of each following page for a number of pages equal to initial damage inflicted. Not cumulative — only the longest ongoing duration applies. Target can spend 1 Resolve or forego next action to end all ongoing effects.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applicability_caveat": "Only for a Power that inflicts damage."
   },
   {
     "id": "overload",
@@ -157,7 +171,8 @@
     "applicable_to": ["powers"],
     "description": "Applies to physical or energy damage Powers. Halves passive defenses. Force Field Power is immune to this effect. Active defenses are unaffected. Incompatible with the Weak Con.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applicability_caveat": "Only for a Power that inflicts physical or energy damage."
   },
   {
     "id": "phase_shift",
@@ -179,7 +194,8 @@
     "description": "The Power can affect targets at Distant Range. +2 HP for Close Range Powers, +4 HP for Touch Powers. When applied to a Zone Power, the area no longer needs to be centered on the user.",
     "narrative_constraint": null,
     "needs_review": false,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applies_to_ranges": ["touch", "zone"]
   },
   {
     "id": "resisted",
@@ -189,7 +205,8 @@
     "applicable_to": ["powers"],
     "description": "Applies to special-effect Powers that can normally be resisted with active defenses. The Power never misses — active defenses cannot be used against it. Subject to GM approval.",
     "narrative_constraint": "GM must approve this Pro.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applicability_caveat": "Only for a Power that inflicts a special effect and can be resisted by an active defence."
   },
   {
     "id": "ricochet",
@@ -199,7 +216,9 @@
     "applicable_to": ["powers"],
     "description": "Applies to ranged attack Powers. You can bank the Power off multiple surfaces, targeting enemies around corners without attack roll penalties. Spend 1 Resolve to defeat twice as many Minions as usual by bouncing off multiple targets (no extra benefit if Power already does this).",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applicability_caveat": "Only for an attack Power.",
+    "applies_to_ranges": ["ranged"]
   },
   {
     "id": "selective",

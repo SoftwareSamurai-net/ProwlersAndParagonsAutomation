@@ -40,7 +40,8 @@
     "applicable_to": ["powers"],
     "description": "Applies to Ranged Powers. The Power can only reach targets within Close Range rather than Distant Range. (When applied to Touch Powers, Close is a +2 Pro — see pros.json.)",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applies_to_ranges": ["ranged"]
   },
   {
     "id": "concentration",
@@ -72,7 +73,8 @@
     "applicable_to": ["powers"],
     "description": "Applies to Powers that can normally be activated/deactivated at will. The Power is always active and cannot be switched off. Only meaningful when being always-on poses problems. Good candidates: Aura, Blast, Density, Growth, Invisibility, Shrinking.",
     "narrative_constraint": "Power cannot be turned off — wizard should warn player of narrative implications.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applicability_caveat": "Only for a Power that can normally be switched on and off at will."
   },
   {
     "id": "costly",
@@ -92,7 +94,8 @@
     "applicable_to": ["powers"],
     "description": "Applies to Power Rank and Baseline Rank Powers. The Power gets weaker with each use: every use reduces effective rank by 1d for the rest of the scene. For sustained Powers like Aura, every page counts as one use. All lost ranks recover between scenes.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applies_to_rank_types": ["power", "baseline"]
   },
   {
     "id": "delay",
@@ -158,7 +161,8 @@
     "description": "Applies to Powers that only affect living beings — means the Power affects inanimate beings instead. -1 if any Inanimate Source, -2 if 2 specified Sources, -4 if 1 specified Source.",
     "narrative_constraint": null,
     "needs_review": false,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applicability_caveat": "Only for a Power that affects living beings alone."
   },
   {
     "id": "overkill",
@@ -234,7 +238,8 @@
     "applicable_to": ["powers"],
     "description": "Applies to time-limited or maintainable Powers. You must spend 1 action per page to sustain the Power. If you do not, the Power instantly expires.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applicability_caveat": "Only for a Power that lasts, or can be maintained, for a length of time."
   },
   {
     "id": "touch",
@@ -246,7 +251,8 @@
     "description": "The Power requires physical contact. -2 Con when applied to Close Range Powers, -4 Con when applied to Distant Range Powers.",
     "narrative_constraint": null,
     "needs_review": false,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applies_to_ranges": ["ranged"]
   },
   {
     "id": "toxin",
@@ -276,7 +282,8 @@
     "applicable_to": ["powers"],
     "description": "Applies to Powers that can normally be activated/deactivated. The Power always activates in certain situations — you have no control over this. Only meaningful when the specific circumstances are problematic.",
     "narrative_constraint": "Player must define the triggering circumstances when purchasing.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "applicability_caveat": "Only for a Power that can normally be switched on and off at will."
   },
   {
     "id": "unreliable",
