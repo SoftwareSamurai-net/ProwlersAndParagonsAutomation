@@ -59,7 +59,9 @@ var session = host.Services.GetRequiredService<CharacterSession>();
 // character back can fail in a way that means "there is no character"; setting the palette
 // cannot. One catch around both threw away a character that had restored perfectly, because
 // a JS call about its colours did not answer.
-(CharacterSheet Sheet, SheetMode Mode)? saved = null;
+// No initialiser: both branches below assign it, and one that looked like a safe default
+// would only hide it if some later edit stopped doing so.
+(CharacterSheet Sheet, SheetMode Mode)? saved;
 
 #pragma warning disable CA1031 // see above: starting empty always beats not starting
 try

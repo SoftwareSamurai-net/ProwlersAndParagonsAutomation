@@ -97,6 +97,7 @@ resharper_class_never_instantiated_global_highlighting = none
 # {"Version":1,"Mode":0} threw before the first render, so the app did not start
 # at all. There are tests for each one; see CharacterStoreTests.
 resharper_condition_is_always_true_or_false_according_to_nullable_api_contract_highlighting = none
+resharper_null_coalescing_condition_is_always_not_null_according_to_api_contract_highlighting = none
 
 [sheets/CharacterSheetRenderer.cs]
 # JsonValue.Create(...) is declared to return JsonValue?, so the null-forgiving

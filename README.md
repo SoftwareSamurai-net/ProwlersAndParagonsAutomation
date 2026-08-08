@@ -147,7 +147,7 @@ ProwlersAndParagonsAutomation/
 │   ├── RenderContext.cs          # the app's own services, on the real data/rules
 │   ├── FakeLocalStorage.cs       # an IJSRuntime backed by a dictionary, and able to refuse
 │   ├── SheetRenderTests.cs       # what the sheet actually renders, "Armor8d" and all
-│   ├── StartAgainTests.cs        # the one control that destroys work asks first, then clears
+│   ├── StartAgainTests.cs        # all three controls that destroy work ask first, then clear
 │   └── CharacterStoreTests.cs    # a character survives the round trip; bad storage never throws
 │
 ├── scripts/
