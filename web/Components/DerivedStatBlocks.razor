@@ -1,10 +1,41 @@
 @inject CharacterSession Session
 
-@* Edge, Health and Resolve as three ruled boxes. The derived-stats step and the sheet
-   itself both show them, and they must never disagree, so they ask once from here. *@
+@* Edge, Health and Resolve as ruled boxes. The derived-stats step and the sheet itself
+   both show them, and they must never disagree, so they ask once from here. *@
 
-<div class="stat-blocks">
+<StatBlockRow Class="@Class">
     <StatBlock Label="Edge" Value="@Session.Derived.CalculateEdge(Session.Sheet).ToString()" />
     <StatBlock Label="Health" Value="@Session.Derived.CalculateHealth(Session.Sheet).ToString()" />
     <StatBlock Label="Resolve" Value="@Session.Derived.CalculateResolve(Session.Sheet).ToString()" />
-</div>
+    @if (WithPoints)
+    {
+        @* The published sheet sets Hero Points beside the other three, and on paper that is
+           right: it is the one figure a GM checks a character against. A Villain has no
+           budget to check against (Ch.9), so the box carries what they cost instead. *@
+        <StatBlock Label="@(Session.ShowBudget ? "Hero Points" : "Points Spent")"
+                   Value="@Points" Sub="@Budget" />
+    }
+</StatBlockRow>
+
+@code {
+    /// <summary>`quad` sets them two-by-two, which is how the sheet's column wants them.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>Adds the fourth box. The sheet shows it; the derived-stats step does not.</summary>
+    [Parameter] public bool WithPoints { get; set; }
+
+    private int? Spent => CharacterSession.TryCost(() => Session.Spent);
+
+    private TierModel? Tier =>
+        Session.Sheet.SelectedTierId is null ? null : Session.Rules.GetTier(Session.Sheet.SelectedTierId);
+
+    /// <summary>The figure itself: what the character cost.</summary>
+    private string Points => Spent?.ToString() ?? "—";
+
+    /// <summary>
+    /// What it is measured against, in small type under it. A Villain has no budget (Ch.9),
+    /// so there is nothing to measure against and the box carries the spend alone.
+    /// </summary>
+    private string? Budget =>
+        Session.ShowBudget && Tier is { } tier && Spent is not null ? $"of {tier.HeroPoints}" : null;
+}

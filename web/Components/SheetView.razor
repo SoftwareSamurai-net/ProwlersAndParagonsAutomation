@@ -1,211 +1,294 @@
 @inject CharacterSession Session
 
-@* The character sheet, laid out the way the published ones are: a banner strip, stat
-   blocks in ruled boxes, and Powers under Source headings in small caps.
+@* The character sheet, laid out the way the published Ultimate Edition Hero Sheet is:
+   three columns under a masthead, every section in its own ruled box under a centred
+   heading, and a row of the four figures a player reads off mid-scene.
+
+   What is reproduced is the *structure* — which boxes exist, what goes in them, and in
+   what order a reader looks for them. None of the trade dress is: no hex pattern, no
+   wordmark, no colour scheme. Those are LakeSide Games', and this project ships none of
+   their content.
+
+   Two things follow from the reference sheet being a *form*:
+
+     - Every Ability and all twelve Talents are listed whether or not a rank was bought,
+       with a rule where the number goes. A sheet that hides a Talent at 0d is a summary of
+       what the tool knows; the published one is something you can write on.
+     - Alias, Team, Origin, Notes and Details have no equivalent in this engine, and they
+       are printed as labelled blank rules rather than dropped. See PROGRESS.md — printing
+       room to write is the honest answer, and reaching across the layer to invent fields
+       would not be.
 
    One layout serves Hero and Villain. Ch.9 builds Villains exactly like Heroes and prints
    no separate stat-block format, so only the palette differs — and every colour here comes
-   from a token, so the difference is one attribute on <html>. If a layout change ever
-   looks necessary for one mode, that is a sign the layout is wrong for both. *@
+   from a token, so the difference is one attribute on <html>. *@
 
 <article class="sheet">
-    <header class="sheet-banner">
-        <div class="name">@(string.IsNullOrWhiteSpace(Session.Sheet.Name) ? "Unnamed" : Session.Sheet.Name)</div>
-        @* The Trait Cap is on the sheet because it is a number a player consults mid-session
-           and the budget bar that used to be its only home does not print.
-
-           A Villain gets the points spent without a budget to compare them to. Ch.9 gives
-           Villains no budget, but "how much character is this" is exactly what a GM wants
-           from an antagonist's sheet, and printing nothing there answered it with a blank. *@
-        <div class="sub">
-            @(Tier?.Name ?? "No tier")@(Package is null ? "" : $" · {Package.Name}")@(Tier is null ? "" : $" · Trait Cap {Tier.TraitCapRank}d")@(Spent is null
-                ? ""
-                : Session.ShowBudget && Tier is not null
-                    ? $" · {Spent} of {Tier.HeroPoints} HP"
-                    : $" · {Spent} HP")
-        </div>
-    </header>
-
     <div class="sheet-body">
-        @* The only section with no heading of its own: the three derived numbers are the
-           masthead of the sheet, not a list under a title, so in print they take no box. *@
-        <SheetSection Class="headline">
-            <DerivedStatBlocks />
-        </SheetSection>
 
-        <div class="grid two">
-            <SheetSection Title="Abilities">
-                <table class="stat-table">
-                    <tbody>
-                        @foreach (var ability in Session.Rules.Abilities)
-                        {
-                            <tr>
-                                <td>@ability.Name</td>
-                                <td>@(Session.Sheet.GetAbilityRank(ability.Id))d</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+        @* ── Masthead ──────────────────────────────────────────────────────── *@
+        <div class="sheet-masthead">
+            <SheetSection Class="identity">
+                <div class="ident-name">@DisplayName</div>
+                <dl class="ident-fields">
+                    <dt>Alias</dt><dd><span class="rule-line"></span></dd>
+                    <dt>Team</dt><dd><span class="rule-line"></span></dd>
+                    <dt>Motivation</dt>
+                    <dd>@(string.IsNullOrWhiteSpace(Session.Sheet.Motivation)
+                            ? (MarkupString)"<span class=\"rule-line\"></span>"
+                            : (MarkupString)System.Net.WebUtility.HtmlEncode(Session.Sheet.Motivation))</dd>
+                </dl>
             </SheetSection>
 
-            <SheetSection Title="Talents"
-                          Empty="@Session.Rules.Talents.All(t => Session.Sheet.GetTalentRank(t.Id) == 0)">
-                <table class="stat-table">
-                    <tbody>
-                        @foreach (var talent in Session.Rules.Talents.Where(t => Session.Sheet.GetTalentRank(t.Id) > 0))
-                        {
-                            <tr>
-                                <td>@talent.Name</td>
-                                <td>@(Session.Sheet.GetTalentRank(talent.Id))d</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </SheetSection>
-        </div>
-
-        @if (Session.Sheet.SelectedPowers.Count == 0)
-        {
-            <SheetSection Title="Powers" Empty="true" />
-        }
-        else
-        {
-            @* SourceGrouping is the engine's answer, shared with the text sheet and the
-               JSON export, so all three print the same headings in the same order. A
-               Power with no Source still appears, under a plain POWERS heading at the
-               end — leaving one off its own character sheet would be worse. *@
-            @foreach (var group in Session.Grouping.GroupPowers(Session.Sheet))
-            {
-                @* "powers" opts this box out of the no-break rule. It is the one section
-                   that can be taller than a page, and asking not to be broken pushed it
-                   whole to the next page, leaving two thirds of the previous one white. *@
-                <SheetSection Title="@group.Heading" Class="powers">
-                    @foreach (var sp in group.Powers)
-                    {
-                        var power = Session.Rules.GetPower(sp.PowerId);
-                        var rank  = power is null ? 0 : Session.Derived.GetEffectiveRank(sp, Session.Sheet);
-                        <div class="power-entry">
-                            <div class="head">
-                                @* One expression rather than a <text> block: Razor strips
-                                   the leading whitespace inside one, which printed
-                                   "Armor8d" on every ranked Power. *@
-                                <span class="pname">@(power?.Name ?? sp.PowerId)@(rank > 0 ? $" {rank}d" : "")</span>
-                                <span class="num">@(CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—") HP</span>
-                            </div>
-                            @if (power is not null)
-                            {
-                                <div class="statline">@PowerFormatter.StatLine(power)</div>
-                            }
-                            @* Pros and Cons are labelled rather than run together. Merged
-                               into one list they read as a single set of traits, and a
-                               reader cannot tell which of them cost Hero Points and which
-                               paid for the rest. *@
-                            @if (sp.Pros.Count > 0)
-                            {
-                                <div class="statline">Pros: @string.Join(", ", sp.Pros.Select(c => Label(c, power)))</div>
-                            }
-                            @if (sp.Cons.Count > 0)
-                            {
-                                <div class="statline">Cons: @string.Join(", ", sp.Cons.Select(c => Label(c, power)))</div>
-                            }
-                        </div>
-                    }
-                </SheetSection>
-            }
-        }
-
-        <div class="grid two">
-            <SheetSection Title="Perks" Empty="@(Session.Sheet.Perks.Count == 0)">
-                <table class="stat-table">
-                    <tbody>
-                        @foreach (var sp in Session.Sheet.Perks)
-                        {
-                            <tr>
-                                <td>
-                                    @(Session.Rules.GetPerk(sp.PerkId)?.Name ?? sp.PerkId)@(sp.Units > 1 ? $" ×{sp.Units}" : "")
-                                    @if (sp.NarrativeDetail is not null)
-                                    {
-                                        <span class="muted small"> — @sp.NarrativeDetail</span>
-                                    }
-                                </td>
-                                <td>@Session.Costs.PerkCost(sp) HP</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+            <SheetSection Class="title-block">
+                <div class="title-main">Prowlers &amp; Paragons</div>
+                <div class="title-sub">Ultimate Edition — Character Sheet</div>
+                <div class="title-meta">@Meta</div>
             </SheetSection>
 
-            <SheetSection Title="Flaws" Empty="@(Session.Sheet.Flaws.Count == 0)">
-                <table class="stat-table">
-                    <tbody>
-                        @foreach (var sf in Session.Sheet.Flaws)
-                        {
-                            var flaw = Session.Rules.GetFlaw(sf.FlawId);
-                            <tr>
-                                <td>
-                                    @(flaw?.Name ?? sf.FlawId)
-                                    @if (sf.NarrativeDetail is not null)
-                                    {
-                                        <span class="muted small"> — @sf.NarrativeDetail</span>
-                                    }
-                                </td>
-                                <td>@FlawType(flaw?.FlawType ?? "regular")</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </SheetSection>
-        </div>
-
-        <SheetSection Title="Gear" Empty="@(Session.Sheet.Gear.Count == 0)">
-            <table class="stat-table">
-                <tbody>
-                    @foreach (var item in Session.Sheet.Gear)
-                    {
-                        <tr><td colspan="2">@GearFormatter.Describe(item, Session.Rules, Session.Costs)</td></tr>
-                    }
-                </tbody>
-            </table>
-        </SheetSection>
-
-        @if (HasNarrative)
-        {
-            <SheetSection Title="The character">
-                @if (!string.IsNullOrWhiteSpace(Session.Sheet.Quote))
+            <SheetSection Title="Quote">
+                @if (string.IsNullOrWhiteSpace(Session.Sheet.Quote))
+                {
+                    <RuledLines Count="3" />
+                }
+                else
                 {
                     <p class="quote">“@Session.Sheet.Quote”</p>
                 }
-                @if (!string.IsNullOrWhiteSpace(Session.Sheet.Appearance))
+            </SheetSection>
+        </div>
+
+        @* ── Three columns ─────────────────────────────────────────────────── *@
+        <div class="sheet-columns">
+
+            <div class="sheet-col">
+                <SheetSection Title="Abilities">
+                    <table class="stat-table trait-table">
+                        <tbody>
+                            @foreach (var ability in Session.Rules.Abilities)
+                            {
+                                <tr>
+                                    <td>@ability.Name</td>
+                                    <td>@Rank(Session.Sheet.GetAbilityRank(ability.Id))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </SheetSection>
+
+                <SheetSection Title="Talents">
+                    <table class="stat-table trait-table">
+                        <tbody>
+                            @foreach (var talent in Session.Rules.Talents)
+                            {
+                                <tr>
+                                    <td>@talent.Name</td>
+                                    <td>@Rank(Session.Sheet.GetTalentRank(talent.Id))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </SheetSection>
+
+                <SheetSection Title="Notes" Class="fill">
+                    <RuledLines Count="11" />
+                </SheetSection>
+            </div>
+
+            <div class="sheet-col">
+                @if (Session.Sheet.SelectedPowers.Count == 0)
+                {
+                    <SheetSection Title="Powers">
+                        <RuledLines Count="12" />
+                    </SheetSection>
+                }
+                else
+                {
+                    @* SourceGrouping is the engine's answer, shared with the text sheet and
+                       the JSON export, so all three print the same headings in the same
+                       order. A Power with no Source still appears, under a plain POWERS
+                       heading at the end — leaving one off its own sheet would be worse.
+
+                       "powers" opts the box out of the no-break rule: it is the one section
+                       that can be taller than a page, and asking not to be broken pushed it
+                       whole to the next page, leaving two thirds of the previous one white. *@
+                    @foreach (var group in Session.Grouping.GroupPowers(Session.Sheet))
+                    {
+                        <SheetSection Title="@group.Heading" Class="powers">
+                            @foreach (var sp in group.Powers)
+                            {
+                                var power = Session.Rules.GetPower(sp.PowerId);
+                                var rank  = power is null ? 0 : Session.Derived.GetEffectiveRank(sp, Session.Sheet);
+                                <div class="power-entry">
+                                    <div class="head">
+                                        @* One expression: Razor strips the leading
+                                           whitespace inside a <text> block and inside an
+                                           element that follows an expression, which printed
+                                           "Armor8d" on every ranked Power. *@
+                                        <span class="pname">@(power?.Name ?? sp.PowerId)@(rank > 0 ? $" {rank}d" : "")</span>
+                                        <span class="num">@(CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—") HP</span>
+                                    </div>
+                                    @if (power is not null)
+                                    {
+                                        <div class="statline">@PowerFormatter.StatLine(power)</div>
+                                    }
+                                    @* Labelled, not run together: a reader has to be able to
+                                       tell which of these cost Hero Points and which paid
+                                       for the rest. *@
+                                    @if (sp.Pros.Count > 0)
+                                    {
+                                        <div class="statline">Pros: @string.Join(", ", sp.Pros.Select(c => Label(c, power)))</div>
+                                    }
+                                    @if (sp.Cons.Count > 0)
+                                    {
+                                        <div class="statline">Cons: @string.Join(", ", sp.Cons.Select(c => Label(c, power)))</div>
+                                    }
+                                </div>
+                            }
+                        </SheetSection>
+                    }
+                }
+
+                <SheetSection Title="Perks">
+                    @if (Session.Sheet.Perks.Count == 0)
+                    {
+                        <RuledLines Count="5" />
+                    }
+                    else
+                    {
+                        <table class="stat-table">
+                            <tbody>
+                                @foreach (var sp in Session.Sheet.Perks)
+                                {
+                                    <tr>
+                                        <td>
+                                            @(Session.Rules.GetPerk(sp.PerkId)?.Name ?? sp.PerkId)@(sp.Units > 1 ? $" ×{sp.Units}" : "")
+                                            @if (sp.NarrativeDetail is not null)
+                                            {
+                                                <span class="muted small"> — @sp.NarrativeDetail</span>
+                                            }
+                                        </td>
+                                        <td>@Session.Costs.PerkCost(sp) HP</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </SheetSection>
+
+                <SheetSection Title="Gear">
+                    @if (Session.Sheet.Gear.Count == 0)
+                    {
+                        <RuledLines Count="5" />
+                    }
+                    else
+                    {
+                        <table class="stat-table">
+                            <tbody>
+                                @foreach (var item in Session.Sheet.Gear)
+                                {
+                                    <tr><td colspan="2">@GearFormatter.Describe(item, Session.Rules, Session.Costs)</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </SheetSection>
+
+                <SheetSection Title="Flaws">
+                    @if (Session.Sheet.Flaws.Count == 0)
+                    {
+                        <RuledLines Count="5" />
+                    }
+                    else
+                    {
+                        <table class="stat-table">
+                            <tbody>
+                                @foreach (var sf in Session.Sheet.Flaws)
+                                {
+                                    var flaw = Session.Rules.GetFlaw(sf.FlawId);
+                                    <tr>
+                                        <td>
+                                            @(flaw?.Name ?? sf.FlawId)
+                                            @if (sf.NarrativeDetail is not null)
+                                            {
+                                                <span class="muted small"> — @sf.NarrativeDetail</span>
+                                            }
+                                        </td>
+                                        <td>@FlawType(flaw?.FlawType ?? "regular")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </SheetSection>
+            </div>
+
+            <div class="sheet-col">
+                @* The four figures a player reads off mid-scene, set as big as the
+                   published sheet sets them. Hero Points is the tier budget: a Villain has
+                   none (Ch.9), so that box carries what the character cost instead. *@
+                <DerivedStatBlocks Class="quad" WithPoints="true" />
+
+                <SheetSection Title="Origin" Class="fill">
+                    @if (Sources.Count > 0)
+                    {
+                        <p class="small">@string.Join(" · ", Sources)</p>
+                    }
+                    <RuledLines Count="@(Sources.Count > 0 ? 12 : 14)" />
+                </SheetSection>
+            </div>
+        </div>
+
+        @* ── Foot ──────────────────────────────────────────────────────────── *@
+        <div class="grid three sheet-foot">
+            <SheetSection Title="Description">
+                @if (string.IsNullOrWhiteSpace(Session.Sheet.Appearance))
+                {
+                    <RuledLines Count="8" />
+                }
+                else
                 {
                     <p class="small">@Session.Sheet.Appearance</p>
                 }
-                @if (!string.IsNullOrWhiteSpace(Session.Sheet.Motivation))
+            </SheetSection>
+
+            <SheetSection Title="Details">
+                <RuledLines Count="8" />
+            </SheetSection>
+
+            <SheetSection Title="Connections">
+                @if (Session.Sheet.Connections.Count == 0)
                 {
-                    <p class="small"><b>Motivation.</b> @Session.Sheet.Motivation</p>
+                    <RuledLines Count="8" />
                 }
-                @if (Session.Sheet.Connections.Count > 0)
+                else
                 {
-                    <p class="small"><b>Connections.</b> @string.Join(" · ", Session.Sheet.Connections)</p>
+                    <ul class="plain-list small">
+                        @foreach (var connection in Session.Sheet.Connections)
+                        {
+                            <li>@connection</li>
+                        }
+                    </ul>
                 }
             </SheetSection>
-        }
+        </div>
+
+        @* A colophon, printed once at the end and never shown on screen, so the last page
+           of a sheet that has come apart on a table still says whose it is.
+
+           It was a running footer on every page first, and that does not work: `position:
+           fixed` in Chrome's print output lands the element at the top of page two rather
+           than in each page's bottom margin. *@
+        <footer class="sheet-footer">
+            @DisplayName · Prowlers &amp; Paragons@(Tier is null ? "" : $" · {Tier.Name}")
+        </footer>
     </div>
-
-    @* A colophon, printed once at the end and never shown on screen, so the last page of a
-       sheet that has come apart on a table still says whose it is.
-
-       It was a running footer on every page first, and that does not work: `position:
-       fixed` in Chrome's print output lands the element at the top of page two rather than
-       in each page's bottom margin. What carries the name across every page instead is the
-       document title — the review page sets it to the character's name, and the browser's
-       own print header prints it. *@
-    <footer class="sheet-footer">
-        @(string.IsNullOrWhiteSpace(Session.Sheet.Name) ? "Unnamed" : Session.Sheet.Name)
-        · Prowlers &amp; Paragons@(Tier is null ? "" : $" · {Tier.Name}")
-    </footer>
 </article>
 
 @code {
+    private string DisplayName =>
+        string.IsNullOrWhiteSpace(Session.Sheet.Name) ? "Unnamed" : Session.Sheet.Name;
+
     private TierModel? Tier =>
         Session.Sheet.SelectedTierId is null ? null : Session.Rules.GetTier(Session.Sheet.SelectedTierId);
 
@@ -217,11 +300,38 @@
 
     private int? Spent => CharacterSession.TryCost(() => Session.Spent);
 
-    private bool HasNarrative =>
-        !string.IsNullOrWhiteSpace(Session.Sheet.Quote)
-        || !string.IsNullOrWhiteSpace(Session.Sheet.Appearance)
-        || !string.IsNullOrWhiteSpace(Session.Sheet.Motivation)
-        || Session.Sheet.Connections.Count > 0;
+    /// <summary>Tier, package and Trait Cap — the frame the rest of the sheet is measured in.</summary>
+    private string Meta
+    {
+        get
+        {
+            var parts = new List<string> { Tier?.Name ?? "No tier" };
+            if (Package is { } pkg) parts.Add(pkg.Name);
+            if (Tier is { } tier) parts.Add($"Trait Cap {tier.TraitCapRank}d");
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>
+    /// The Hero Points box. A Hero shows spend against budget; a Villain has no budget to
+    /// show it against (Ch.9) and gets the spend on its own, because "how much character is
+    /// this" is exactly what a GM wants from an antagonist's sheet.
+    /// </summary>
+    private string HeroPoints =>
+        Spent is not { } spent ? "—"
+        : Session.ShowBudget && Tier is { } tier ? $"{spent}/{tier.HeroPoints}"
+        : spent.ToString();
+
+    /// <summary>The Sources this character's Powers come from, in the rulebook's order.</summary>
+    private List<string> Sources =>
+        Session.Rules.Sources
+            .Where(s => Session.Sheet.SelectedPowers.Any(sp => sp.SourceId == s.Id))
+            .Select(s => s.Name)
+            .ToList();
+
+    /// <summary>A bought rank, or a rule to write one on. The sheet is a form first.</summary>
+    private static MarkupString Rank(int rank) =>
+        rank > 0 ? new MarkupString($"{rank}d") : new MarkupString("<span class=\"rule-line short\"></span>d");
 
     private static string FlawType(string flawType) => flawType switch
     {

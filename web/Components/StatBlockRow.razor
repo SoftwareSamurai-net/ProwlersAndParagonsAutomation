@@ -1,0 +1,18 @@
+@* The row of ruled boxes the big figures sit in. Holds <StatBlock> children.
+
+   It owns `stat-blocks` so that nothing else writes it: the derived-stats step wants three
+   across, and the sheet wants four in a square, and both have to keep looking like each
+   other when the box style changes. *@
+
+<div class="@ClassName">
+    @ChildContent
+</div>
+
+@code {
+    /// <summary>`quad` sets them two-by-two instead of in a line.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string ClassName => string.IsNullOrEmpty(Class) ? "stat-blocks" : $"stat-blocks {Class}";
+}

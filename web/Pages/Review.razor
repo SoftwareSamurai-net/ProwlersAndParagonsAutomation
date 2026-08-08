@@ -52,10 +52,21 @@
         <button type="button" class="btn" @onclick="DownloadText">Download as text</button>
         <button type="button" class="btn" @onclick="DownloadJson">Download as data</button>
     </div>
+    @* The web address, the date and the page number across the top of a printed page are
+       the browser's own furniture, not part of the sheet — and no page can turn them off,
+       because the setting belongs to the person printing. Saying where the switch is takes
+       one line and is the difference between a sheet you would hand someone and one you
+       would not. *@
     <p class="small muted spaced">
-        Printing gives you the sheet below on paper, or as a PDF if you pick "Save as PDF"
-        in the print dialogue. The text file is the same sheet for pasting into notes; the
-        data file is for other tools, and records every check above with its reference code.
+        Printing gives you the sheet below on one page, or as a PDF if you pick
+        <b>Save as PDF</b> as the destination. In the print dialogue, open
+        <b>More settings</b> and turn <b>Headers and footers</b> off — that is what puts the
+        web address and the date across the top of the page, and it is a browser setting
+        rather than part of the sheet.
+    </p>
+    <p class="small muted">
+        The text file is the same character for pasting into notes; the data file is for
+        other tools, and records every check above with its reference code.
     </p>
 </Panel>
 
