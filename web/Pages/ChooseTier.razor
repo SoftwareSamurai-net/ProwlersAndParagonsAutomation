@@ -1,5 +1,6 @@
 @page "/"
 @inject CharacterSession Session
+@inject CharacterStore Store
 @inject IJSRuntime Js
 
 <PageTitle>Tier — Prowlers &amp; Paragons</PageTitle>
@@ -21,18 +22,47 @@
         quickest way to see what you get at the end — and what a printed sheet looks like —
         without spending twenty minutes building one first.
     </p>
+    @* All three of these buttons throw the current character away, and the character is
+       kept in this browser between visits — so all three can destroy twenty minutes of work
+       that is written down nowhere else, and there is no undo behind any of them.
+
+       So all three ask first, in the page rather than in a browser dialogue, and only when
+       there is something to lose. On a fresh sheet they act on one click, which is the visit
+       where a player is most likely to want a sample and least likely to have anything at
+       stake. Guarding only the red one would have been the wrong half: loading a sample
+       overwrites the stored character just as completely, and reads as the safe option. *@
     <div class="inline">
-        <button type="button" class="btn" @onclick="() => LoadSample(SheetMode.Hero)">
-            Load a Hero — Ninth Precinct
-        </button>
-        <button type="button" class="btn" @onclick="() => LoadSample(SheetMode.Villain)">
-            Load a Villain — The Quiet Hour
-        </button>
+        @if (_pending is { } pending)
+        {
+            <button type="button" class="btn danger" @onclick="() => Do(pending)">
+                Yes, @pending.Verb
+            </button>
+            <button type="button" class="btn" @onclick="() => _pending = null">
+                Keep this character
+            </button>
+        }
+        else
+        {
+            <button type="button" class="btn" @onclick="() => Ask(Load(SheetMode.Hero))">
+                Load a Hero — Ninth Precinct
+            </button>
+            <button type="button" class="btn" @onclick="() => Ask(Load(SheetMode.Villain))">
+                Load a Villain — The Quiet Hour
+            </button>
+            <button type="button" class="btn danger" @onclick="() => Ask(Discard())">
+                Start a new character
+            </button>
+        }
         @if (_loaded is not null)
         {
             <span class="small muted">Loaded <b>@_loaded</b> — see the GM review step.</span>
         }
     </div>
+    <p class="small muted spaced">
+        Whatever you build is remembered in this browser, so you can close the tab and come
+        back to it. It is not sent anywhere, and it is only on this device — download the
+        sheet from the last step if you want a copy that travels.
+    </p>
 </Panel>
 
 <div class="grid two">
@@ -115,18 +145,65 @@
 
 @code {
     private string? _loaded;
+    private Replacement? _pending;
+
+    /// <summary>Something that replaces the character, and what to call it when asking.</summary>
+    private sealed record Replacement(string Verb, Func<Task> Run);
+
+    private Replacement Discard() => new("discard this character", async () =>
+    {
+        Session.StartAgain();
+        _loaded = null;
+
+        // Forget the stored copy too. Clearing only the session left the old character in
+        // local storage, so it came back on the next visit — which reads as the button not
+        // having worked, on the control where that matters most.
+        //
+        // After emptying the sheet, not before: emptying it fires the write-through save,
+        // and the clear has to land second. In WebAssembly the save's interop call against a
+        // synchronous JS function completes before StartAgain returns, so it does. If that
+        // ever stopped holding — a storage API that returns a promise — the worst case is a
+        // stored empty character, which restores to exactly what this button produces.
+        await Store.ClearAsync();
+    });
 
     /// <summary>
-    /// The palette has to be pushed through interop as well as set on the session: it
-    /// lives as a data-mode attribute on the document element, which is outside the
-    /// component tree. Same reason MainLayout's own switch does it that way.
+    /// The palette has to be pushed through interop as well as set on the session: it lives
+    /// as a data-mode attribute on the document element, outside the component tree. Same
+    /// reason MainLayout's own switch does it that way.
     /// </summary>
-    private async Task LoadSample(SheetMode mode)
+    private Replacement Load(SheetMode mode) => new(
+        mode == SheetMode.Hero ? "load the Hero" : "load the Villain",
+        async () =>
+        {
+            Session.LoadSample(mode);
+            _loaded = Session.Sheet.Name;
+            await Js.InvokeVoidAsync("ppSetMode", mode == SheetMode.Hero ? "hero" : "villain");
+        });
+
+    /// <summary>Asks first, unless the sheet is empty and there is nothing to ask about.</summary>
+    private async Task Ask(Replacement replacement)
     {
-        Session.LoadSample(mode);
-        _loaded = Session.Sheet.Name;
-        await Js.InvokeVoidAsync("ppSetMode", mode == SheetMode.Hero ? "hero" : "villain");
+        if (HasSomethingToLose) _pending = replacement;
+        else await replacement.Run();
     }
+
+    private async Task Do(Replacement replacement)
+    {
+        _pending = null;
+        await replacement.Run();
+    }
+
+    /// <summary>
+    /// Whether the sheet holds anything a player would mind losing. A tier on its own counts:
+    /// it is a decision, and it is the one every other choice is measured against.
+    /// </summary>
+    private bool HasSomethingToLose =>
+        Session.Sheet.SelectedTierId is not null
+        || Session.Sheet.SelectedPowers.Count > 0
+        || Session.Sheet.AbilityRanks.Count > 0
+        || Session.Sheet.TalentRanks.Count > 0
+        || !string.IsNullOrWhiteSpace(Session.Sheet.Name);
 
     private void SelectTier(string id)
     {

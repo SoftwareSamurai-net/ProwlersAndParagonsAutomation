@@ -30,26 +30,37 @@ else
                                 @* One expression for the name and the rank. A leading space
                                    inside the following element is stripped by Razor, which
                                    is what printed "Armor8d" here and on the sheet. *@
+                                @* "No rank" belongs to a Power the rulebook gives no rank,
+                                   not to one that happens to sit at 0d — a ranked Power with
+                                   nothing bought yet is 0d, which is a fact about the
+                                   character. Keyed on the rank alone, this said "no rank" for
+                                   both and disagreed with the sheet about the same Power. *@
                                 <div>
                                     <b>@(power?.Name ?? sp.PowerId)</b>
-                                    @if (rank > 0)
+                                    @if (power is null || power.RankType is "default" or "special")
                                     {
-                                        <span class="muted">@($" {rank}d")</span>
+                                        <span class="muted small">@(" no rank")</span>
                                     }
                                     else
                                     {
-                                        <span class="muted small">@(" no rank")</span>
+                                        <span class="muted">@($" {rank}d")</span>
                                     }
                                     @if (power?.NeedsReview == true)
                                     {
                                         <span class="tag warn">not checked against the book</span>
                                     }
                                 </div>
-                                @if (sp.Pros.Count > 0 || sp.Cons.Count > 0)
+                                @* Labelled separately, as on the sheet. Run together into one
+                                   list a player cannot tell which of these cost Hero Points
+                                   and which paid for the rest — which is the whole question
+                                   they are on this page to answer. *@
+                                @if (sp.Pros.Count > 0)
                                 {
-                                    <div class="small muted">
-                                        @string.Join(", ", sp.Pros.Concat(sp.Cons).Select(c => Label(c, power)))
-                                    </div>
+                                    <div class="small muted">Pros: @string.Join(", ", sp.Pros.Select(c => Label(c, power)))</div>
+                                }
+                                @if (sp.Cons.Count > 0)
+                                {
+                                    <div class="small muted">Cons: @string.Join(", ", sp.Cons.Select(c => Label(c, power)))</div>
                                 }
                             </Body>
                             <Actions>

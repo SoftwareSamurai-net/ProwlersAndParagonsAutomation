@@ -97,6 +97,7 @@
     --radius:       6px;
     --radius-small: 4px;
     --radius-pill:  999px;
+    --radius-hair:  1px;      /* the pips, and anything else barely rounded */
 
     --step:         120ms;    /* pips, bar fills — must feel instant       */
     --swap:         180ms;    /* hover and focus states                    */
@@ -118,36 +119,33 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Paper.
 
-   Both modes print the same, in black on white. Everything below is an override
-   of a token declared above, so no rule anywhere else in the app has to know
-   whether it is being printed — the sheet is the same layout either way.
+   **The paper is always white and the body text is always near-black.** That is
+   the rule that matters, and it is the one a Villain sheet used to break: on the
+   screen palette it printed its #111114 surface edge to edge, which is
+   unreadable, and empties a cartridge per character.
 
-   --primary is a fill and the sheet banner uses it, so on paper it becomes white
-   and the banner earns its weight from a rule instead of a wash of ink. Filling
-   a banner strip solid would empty a cartridge per character.
+   What is *not* required is that everything be grey. The published sheet is in
+   full colour, and a printed sheet with no colour in it reads as a photocopy of
+   a form rather than as this character's. So the two modes keep their own
+   headings, rules and heading bars — and only those. Nothing here fills a large
+   area: the heading bars are the biggest run of ink on the page and they are
+   6mm tall, tinted rather than solid.
+
+   Every token the two palettes declare is restated in both blocks. A token left
+   out keeps its mode's screen value through the cascade, which is exactly how
+   the near-black page happened; there is a test.
    ───────────────────────────────────────────────────────────────────────────── */
 
 @media print {
     :root,
     :root[data-mode="hero"],
     :root[data-mode="villain"] {
+        /* Shared: the parts of a printed sheet that are not a matter of taste. */
         --surface:      #FFFFFF;
         --panel:        #FFFFFF;
-        --ink:          #000000;   /* on paper, true black — contrast is free   */
-        --heading:      #000000;
-        --primary:      #FFFFFF;   /* the banner is ruled, not filled           */
-        --on-primary:   #000000;
-        --accent:       #000000;
-        --danger:       #000000;
-        --rule:         #000000;
-        --focus:        #000000;
-
-        /* The derived tokens are colour-mixes of the above, and a mix of black
-           into white is grey — which a cheap printer renders as a smear. State
-           them outright instead. */
-        --muted:        #3D3D3D;
+        --ink:          #12161C;   /* near-black body text                      */
+        --primary:      #FFFFFF;   /* a fill: on paper the banner is ruled       */
         --panel-sunk:   #FFFFFF;
-        --accent-soft:  #FFFFFF;
         --danger-soft:  #FFFFFF;
         --shadow:       none;
 
@@ -158,5 +156,31 @@
         --radius:       0;         /* rounded corners are a screen affordance   */
         --radius-small: 0;
         --radius-pill:  0;
+    }
+
+    /* Hero — the same navy and gold as the screen, at printable strength. */
+    :root,
+    :root[data-mode="hero"] {
+        --heading:      #1B4F9C;   /* 7.5:1 on white                            */
+        --on-primary:   #1B4F9C;
+        --rule:         #24406B;
+        --accent:       #8A6A10;   /* the gold, darkened to 5.6:1 as ink        */
+        --focus:        #1B4F9C;
+        --danger:       #A32B1E;
+        --muted:        #46505E;   /* 8.0:1 — carries the small print           */
+        --accent-soft:  #EAF0F8;   /* heading bars: a tint, never a fill        */
+    }
+
+    /* Villain — crimson and brass. --primary stays white, as above: the crimson
+       is 2.0:1 and was never legible as anything but a banner behind bone. */
+    :root[data-mode="villain"] {
+        --heading:      #8B0F1D;   /* 8.7:1 on white                            */
+        --on-primary:   #8B0F1D;
+        --rule:         #5C2A2E;
+        --accent:       #6E5114;   /* the brass, darkened to 7.4:1 as ink       */
+        --focus:        #8B0F1D;
+        --danger:       #A32B1E;
+        --muted:        #4A4340;
+        --accent-soft:  #F7EFEF;
     }
 }

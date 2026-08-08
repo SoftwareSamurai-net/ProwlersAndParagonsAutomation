@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace ProwlersAndParagonsAutomation.Tests;
@@ -116,35 +117,92 @@ public sealed class WebPresentationTests
             Assert.DoesNotContain("<style", File.ReadAllText(f), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// Paper has no dark mode. Without this block a Villain sheet prints its near-black
-    /// surface edge to edge — unreadable, and hostile to whoever owns the printer.
+    /// Paper is white and ink is dark enough to read. That is the whole rule, and it is the
+    /// one a Villain sheet used to break: on the screen palette it printed its near-black
+    /// surface edge to edge — unreadable, and it empties a cartridge per character.
+    ///
+    /// <para>It is <b>not</b> a rule that everything prints grey. The published sheet is in
+    /// full colour and the two modes keep their own headings, rules and heading bars; what
+    /// they may not do is darken the paper or lighten the ink.</para>
     ///
     /// <para>The <b>values</b> are checked, not the presence of the token. Asserting only
     /// that <c>--ink</c> is declared lets it be declared white, and white ink on white paper
     /// prints blank pages that look like a printer fault rather than a bug.</para>
     /// </summary>
-    [Fact]
-    public void PrintForcesTheLightPaletteForBothModes()
+    [Theory]
+    [InlineData("hero")]
+    [InlineData("villain")]
+    public void PrintKeepsThePaperWhiteAndTheInkReadable(string mode)
     {
         var print = OnlyPrintBlockOf(ThemeCss);
 
-        Assert.Contains(":root[data-mode=\"villain\"]", print, StringComparison.Ordinal);
-        Assert.Contains(":root[data-mode=\"hero\"]", print, StringComparison.Ordinal);
+        Assert.Contains($":root[data-mode=\"{mode}\"]", print, StringComparison.Ordinal);
 
-        // Paper.
-        foreach (var token in new[] { "--surface", "--panel", "--panel-sunk", "--primary" })
-            Assert.True(Luminance(Token(print, token)) > 0.9,
-                $"print {token} is not white. A character sheet is printed on paper.");
+        // Resolved the way the cascade resolves it: the shared block first, then the mode's.
+        var palette = PrintPalette(print, mode);
 
-        // Ink.
-        foreach (var token in new[] { "--ink", "--heading", "--rule", "--accent", "--on-primary", "--muted" })
-            Assert.True(Luminance(Token(print, token)) < 0.4,
-                $"print {token} is not dark enough to read. White ink prints a blank page.");
+        // Paper, and anything that sits behind body text.
+        foreach (var token in new[] { "--surface", "--panel", "--panel-sunk", "--primary", "--accent-soft" })
+            Assert.True(Luminance(palette[token]) > 0.85,
+                $"print {token} darkens the paper in {mode} mode ({palette[token]}).");
 
-        // The derived tokens are colour-mixes in both palettes; left unstated they would mix
-        // a mode's own values and print grey.
-        foreach (var token in new[] { "--accent-soft", "--danger-soft", "--danger", "--shadow" })
-            Assert.NotNull(TokenOrNull(print, token));
+        // Ink. 0.45 is about a 4.5:1 contrast floor against white, which is what the small
+        // print on this sheet needs.
+        foreach (var token in new[] { "--ink", "--heading", "--rule", "--accent", "--on-primary", "--muted", "--danger" })
+            Assert.True(Luminance(palette[token]) < 0.45,
+                $"print {token} is too pale to read on white in {mode} mode ({palette[token]}).");
+    }
+
+    /// <summary>
+    /// Every token the two screen palettes declare has to be resolved by the print block for
+    /// each mode, whether from the shared rule or the mode's own. A token left out keeps its
+    /// screen value through the cascade, which is exactly how the near-black page happened.
+    /// </summary>
+    [Theory]
+    [InlineData("hero")]
+    [InlineData("villain")]
+    public void PrintRestatesEveryTokenTheScreenPalettesDeclare(string mode)
+    {
+        // The two mode palettes only. The shape and motion tokens in the plain `:root` block
+        // are not colours and print has no reason to restate a transition duration.
+        var screen = ThemeCss[..ThemeCss.IndexOf("@media print", StringComparison.Ordinal)];
+
+        var declared = Rx(@"data-mode=""(hero|villain)""\s*\]?\s*\{([^}]*)\}", RegexOptions.Singleline)
+            .Matches(screen)
+            .SelectMany(m => Rx(@"(--[a-z-]+)\s*:").Matches(m.Groups[2].Value).Select(d => d.Groups[1].Value))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.NotEmpty(declared);
+
+        var palette = PrintPalette(OnlyPrintBlockOf(ThemeCss), mode);
+
+        foreach (var token in declared)
+            Assert.True(palette.ContainsKey(token),
+                $"print does not restate {token} for {mode}, so its screen value survives.");
+    }
+
+    /// <summary>
+    /// The print block's tokens as the cascade resolves them for one mode: the unqualified
+    /// rule, then the mode's own on top.
+    /// </summary>
+    private static Dictionary<string, string> PrintPalette(string print, string mode)
+    {
+        var palette = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (Match rule in Rx(@"([^{}]+)\{([^{}]*)\}").Matches(print))
+        {
+            var selectors = rule.Groups[1].Value;
+            var appliesToMode = selectors.Contains($"data-mode=\"{mode}\"", StringComparison.Ordinal)
+                                || !selectors.Contains("data-mode", StringComparison.Ordinal);
+
+            if (!appliesToMode) continue;
+
+            foreach (Match declaration in Rx(@"(--[a-z-]+)\s*:\s*([^;]+);").Matches(rule.Groups[2].Value))
+                palette[declaration.Groups[1].Value] = declaration.Groups[2].Value.Trim();
+        }
+
+        return palette;
     }
 
     /// <summary>
@@ -274,7 +332,13 @@ public sealed class WebPresentationTests
         ("stat-blocks", "StatBlockRow.razor"),
         ("chosen", "ChosenList.razor"),
         ("options", "OptionList.razor"),
-        ("option", "OptionRow.razor")
+        ("option", "OptionRow.razor"),
+
+        // The blank ruled lines. SheetView hand-wrote three of these — two in the masthead
+        // and one inside a MarkupString that also hand-rolled its own HtmlEncode, which is a
+        // raw-HTML sink in the file whose whole argument is that markup lives in components.
+        ("ruled", "RuledLines.razor"),
+        ("rule-line", "RuledLines.razor")
     ];
 
     public static TheoryData<string, string> Owned()
@@ -388,6 +452,68 @@ public sealed class WebPresentationTests
 
         Assert.True(rule is not null, $"The print block has no rule for {selector}.");
         Assert.Contains("break-inside:avoid", Normalise(rule!), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The two boxes that can be taller than a page opt back out, and they have to.
+    ///
+    /// <para><c>break-inside: avoid</c> is a request Chrome honours by moving the whole box to
+    /// the next page first. On a box that cannot fit on any page that means the previous page
+    /// is abandoned — a fifteen-Power character left two thirds of page one white. The Powers
+    /// group is one such box; the <c>fill</c> boxes are the other, because they stretch to the
+    /// height of the tallest column and the Powers column is unbounded.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(".sheet-section.powers")]
+    [InlineData(".sheet-section.fill")]
+    public void TheBoxesThatCanExceedAPageAreAllowedToBreak(string selector)
+    {
+        var rule = PrintRuleFor(selector);
+
+        Assert.True(rule is not null, $"The print block does not let {selector} break.");
+        Assert.Contains("break-inside:auto", Normalise(rule!), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Nothing on the printed sheet is set below 7pt. Under that, small caps at a letter-space
+    /// stop being something a person reads and become a texture — and everything the sheet
+    /// carries, it carries because somebody at a table needs it.
+    ///
+    /// <para>This is measured rather than eyeballed because the one place it went wrong was a
+    /// deliberate choice: Hero Point costs were set at 6.8pt to push them behind the ranks,
+    /// which the case and the ink already do.</para>
+    /// </summary>
+    [Fact]
+    public void NothingOnPaperIsSetBelowSevenPoint()
+    {
+        var sizes = Rx(@"font-size:\s*([\d.]+)pt")
+            .Matches(OnlyPrintBlockOf(AppCss))
+            .Select(m => (Text: m.Value, Points: double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)))
+            .ToList();
+
+        Assert.NotEmpty(sizes);
+        Assert.All(sizes, s => Assert.True(s.Points >= 7, $"{s.Text} is too small to read on paper."));
+    }
+
+    /// <summary>
+    /// A Hero Point cost is set apart from a rank, and the separation is entirely typographic
+    /// — so it is entirely in the stylesheet, where no test that reads rendered markup can
+    /// see it. Emptying this rule leaves costs in the same size, weight and ink as the numbers
+    /// a player rolls, and the sheet goes back to reading as a receipt.
+    /// </summary>
+    [Fact]
+    public void AHeroPointCostIsSetApartFromTheNumbersAPlayerRolls()
+    {
+        var rule = Rx(@"(?<![\w.-])\.hp\s*\{([^{}]*)\}").Match(WithoutCssComments(AppCss));
+
+        Assert.True(rule.Success, "app.css has no .hp rule, so costs are set like everything else.");
+
+        var declarations = Normalise(rule.Groups[1].Value);
+
+        Assert.Contains("font-size:", declarations, StringComparison.Ordinal);
+        Assert.Contains("letter-spacing:", declarations, StringComparison.Ordinal);
+        Assert.Contains("color:var(--muted)", declarations, StringComparison.Ordinal);
+        Assert.Contains("text-transform:uppercase", declarations, StringComparison.Ordinal);
     }
 
     /// <summary>A heading that strands at the foot of a page belongs to nothing.</summary>
@@ -533,26 +659,20 @@ public sealed class WebPresentationTests
     /// </summary>
     private static string? PrintRuleFor(string selector)
     {
-        foreach (Match rule in Rx(@"([^{}]+)\{([^{}]*)\}").Matches(OnlyPrintBlockOf(AppCss)))
-        {
-            var selectors = rule.Groups[1].Value
+        // Every rule that names the selector, not the first. A second rule setting something
+        // unrelated on the same element — `print-color-adjust`, as it happened — shadowed the
+        // one being asserted on, and the assertion then failed against a declaration block
+        // that was never its subject.
+        var matching = Rx(@"([^{}]+)\{([^{}]*)\}")
+            .Matches(OnlyPrintBlockOf(AppCss))
+            .Where(rule => rule.Groups[1].Value
                 .Split(',')
-                .Select(Normalise);
+                .Select(Normalise)
+                .Contains(Normalise(selector), StringComparer.Ordinal))
+            .Select(rule => rule.Groups[2].Value)
+            .ToList();
 
-            if (selectors.Contains(Normalise(selector), StringComparer.Ordinal))
-                return rule.Groups[2].Value;
-        }
-
-        return null;
-    }
-
-    private static string Token(string block, string name) =>
-        TokenOrNull(block, name) ?? throw new InvalidOperationException($"The print block does not state {name}.");
-
-    private static string? TokenOrNull(string block, string name)
-    {
-        var match = Rx($@"{Regex.Escape(name)}\s*:\s*([^;]+);").Match(block);
-        return match.Success ? match.Groups[1].Value.Trim() : null;
+        return matching.Count == 0 ? null : string.Join(';', matching);
     }
 
     /// <summary>

@@ -5,14 +5,36 @@
    this engine. Printing the labels with room to write is a better answer than printing
    nothing — it is what makes the output a character sheet rather than a summary. *@
 
-<div class="ruled" aria-hidden="true">
-    @for (var i = 0; i < Count; i++)
-    {
-        <span class="rule-line"></span>
-    }
-</div>
+@if (Inline)
+{
+    @Lines
+}
+else
+{
+    <div class="ruled" aria-hidden="true">@Lines</div>
+}
 
 @code {
     /// <summary>How many lines to draw. Roughly 4mm apiece in print.</summary>
     [Parameter] public int Count { get; set; } = 3;
+
+    /// <summary>
+    /// Draw the lines without the box around them, for a single rule sitting inside
+    /// something else — the Alias and Team fields in the masthead are one line each, in a
+    /// definition list. It exists so that `rule-line` is still written in exactly one place;
+    /// hand-writing the span at those three call sites is what the owning-component rule is
+    /// there to stop.
+    /// </summary>
+    [Parameter] public bool Inline { get; set; }
+
+    private RenderFragment Lines => builder =>
+    {
+        for (var i = 0; i < Count; i++)
+        {
+            builder.OpenElement(0, "span");
+            builder.AddAttribute(1, "class", "rule-line");
+            builder.AddAttribute(2, "aria-hidden", "true");
+            builder.CloseElement();
+        }
+    };
 }

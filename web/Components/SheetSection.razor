@@ -1,31 +1,26 @@
 @* One ruled block of the character sheet: a small-caps heading and its contents.
 
-   Every section on a sheet has an empty state a printed sheet still shows — a character
-   with no Perks prints a Perks heading and "None." rather than silently dropping the
-   heading, because a reader needs to know the question was asked and answered. *@
+   It used to carry an `Empty`/`EmptyText` pair that printed "None." when a section had
+   nothing in it. Nothing ever set them, and the behaviour they described is the one the
+   sheet was rebuilt to get rid of: the reference is a *form*, so a character with no Perks
+   prints a Perks box with room to write in it, not a box that says "None." — a sheet you
+   cannot add a Perk to at the table is a report. `<RuledLines>` is what fills those boxes
+   now. Do not bring the pair back; there is a test named for that regression. *@
 
 <section class="@ClassName">
     @if (Title is not null)
     {
         <h3>@Title</h3>
     }
-    @if (Empty)
-    {
-        <p class="small muted">@EmptyText</p>
-    }
-    else
-    {
-        @ChildContent
-    }
+    @ChildContent
 </section>
 
 @code {
+    /// <summary>
+    /// The heading, centred in a bar. Null for the two masthead boxes, which carry the
+    /// character's name and the sheet's own title and would be captioned by neither.
+    /// </summary>
     [Parameter] public string? Title { get; set; }
-
-    /// <summary>True when there is nothing to list, so <see cref="EmptyText"/> prints instead.</summary>
-    [Parameter] public bool Empty { get; set; }
-
-    [Parameter] public string EmptyText { get; set; } = "None.";
 
     [Parameter] public string? Class { get; set; }
 

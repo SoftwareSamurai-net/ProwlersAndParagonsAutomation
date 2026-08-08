@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Renders the browser front end and looks at what comes out.
+
+         The engine suite next door reads source files; this one runs components. That
+         distinction is the whole reason this project exists: a bug in *rendered output* —
+         a Power printing "Armor8d" because Razor swallowed a space — is invisible to a
+         test that greps a .razor file, and one duly survived a whole slice on two separate
+         surfaces before anyone noticed.
+
+         It is a separate project because it is the only one that may reference web/, and
+         referencing a Blazor WebAssembly project drags its whole component model in.
+         Keeping that out of the engine suite is what stops the engine tests slowing down
+         or gaining a UI dependency they have no use for. -->
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>ProwlersAndParagons.Web.Tests</RootNamespace>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+        <PackageReference Include="xunit.v3" Version="3.2.2" />
+        <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+        <PackageReference Include="bunit" Version="2.0.66" />
+
+        <!-- bunit pulls AngleSharp 1.3.0 transitively, and that version carries a published
+             advisory (GHSA-pgww-w46g-26qg). NuGet audit reports it as NU1902 and this
+             repository builds warnings as errors in CI, so the choice is to fix it or to
+             suppress it — and suppressing an advisory to make a build green is how a
+             vulnerable dependency ships.
+
+             1.3.1 and 1.4.0 are still flagged; 1.5.2 is the first clean release. Pinned
+             above bunit's floor rather than at it, so a bunit upgrade cannot silently drag
+             the vulnerable version back in. Drop this when bunit's own floor clears it. -->
+        <PackageReference Include="AngleSharp" Version="1.7.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\web\ProwlersAndParagons.Web.csproj" />
+    </ItemGroup>
+
+</Project>

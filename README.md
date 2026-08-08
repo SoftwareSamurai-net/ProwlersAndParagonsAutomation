@@ -25,7 +25,8 @@ Either front end walks players and GMs through the full creation process — tra
 - **Dual export** — formatted `.txt` and structured `.json`, written to `output/` by the CLI and downloaded by the browser, from one implementation
 - **Two front ends on one engine** — a Spectre.Console wizard and a Blazor WebAssembly app that runs `CostCalculator` and `CharacterValidator` as the same compiled code, with Hero and Villain palettes
 - **Two sample characters** — a finished Hero and Villain, loadable in one click, for seeing a sheet without building one first; both held to the rules by tests
-- **A printed sheet modelled on the published Hero Sheet** — one A4 page, three columns, ruled boxes with centred headings, every Ability and Talent listed, and blank ruled space for the fields a pen fills in. Both modes print black on white: paper has no dark mode
+- **A printed sheet modelled on the published Hero Sheet** — one A4 page, three columns, ruled boxes with centred headings, every Ability and Talent listed, and blank ruled space for the fields a pen fills in. White paper and readable ink in both modes: a Hero sheet prints navy, a Villain crimson, and colour appears as ink and as a tint behind a heading bar, never as a fill
+- **The character is kept in the browser between visits** — a refresh, a bookmark or a shared link no longer throws it away, and nothing is sent anywhere. A saved character that this build cannot read is discarded rather than restored, because a tool that will not open is worse than one that forgets
 
 ---
 
@@ -120,6 +121,7 @@ ProwlersAndParagonsAutomation/
 │   ├── Components/               # Panel, Field, SheetSection, OptionRow… and SheetView
 │   ├── Services/CharacterSession.cs  # The CharacterSheet plus the calculators
 │   ├── Services/Labels.cs        # Turns a rules key into something a player can read
+│   ├── Services/CharacterStore.cs    # Keeps the character in the browser between visits
 │   └── wwwroot/
 │       ├── css/theme.css         # Hero, Villain and print palettes, as CSS custom properties
 │       ├── css/app.css           # Layout, components and the print stylesheet. Names no colour
@@ -140,6 +142,13 @@ ProwlersAndParagonsAutomation/
 │   ├── SampleCharacterTests.cs   # the two preview characters must be legal and printable
 │   ├── WebPresentationTests.cs   # no colour outside theme.css, no jargon on screen, print rules
 │   └── ValidationMessageTests.cs # every message a player can be shown, held to the same rule
+│
+├── tests/ProwlersAndParagons.Web.Tests/   # bUnit — renders components and reads the output
+│   ├── RenderContext.cs          # the app's own services, on the real data/rules
+│   ├── FakeLocalStorage.cs       # an IJSRuntime backed by a dictionary, and able to refuse
+│   ├── SheetRenderTests.cs       # what the sheet actually renders, "Armor8d" and all
+│   ├── StartAgainTests.cs        # all three controls that destroy work ask first, then clear
+│   └── CharacterStoreTests.cs    # a character survives the round trip; bad storage never throws
 │
 ├── scripts/
 │   └── write-cloudflare-headers.sh   # Generates _headers, hashing the inline import map
@@ -350,9 +359,11 @@ Tests and static analysis both run on every push and pull request.
 
 > **Why the Community linter?** Since 2023.2 the *release* linters (`jetbrains/qodana-dotnet`) refuse to start without a Qodana Cloud `QODANA_TOKEN`, which would fail CI outright. `qodana-cdnet` needs no token or account. To upgrade: register at [qodana.cloud](https://qodana.cloud), add the project token as a `QODANA_TOKEN` repository secret (the workflow already passes it through), and change the `linter:` line in `qodana.yaml`.
 
-Qodana runs in **pull-request mode**, inspecting changed files only — so moving a file re-reports every finding in it as new, and the counts are not comparable between runs. Splitting `engine/` and `sheets/` into their own projects took the count from 144 to 249 without any of that code changing, of which six were genuinely actionable. The summary comment lists rules, never files; download the run's artifact and read `qodana.sarif.json` before drawing conclusions. Committing a baseline is [item 3 on the roadmap](PROGRESS.md) and is what would make the report readable.
+**A whole-tree scan reports zero**, and it is worth knowing how, because the obvious mechanism does not work. `qodana.yaml`'s `exclude:` list accepts an inspection *name*, looks like it silences it, and does nothing — the .NET linter is ReSharper, which takes severities from EditorConfig. Only the path exclusions in `qodana.yaml` have any effect. Every deliberate exception is therefore a `resharper_*_highlighting = none` in `.editorconfig`, scoped as tightly as the tool allows and carrying its reason. Nothing is baselined and there is no severity floor; both hide a finding rather than answer it. The side benefit is that Rider and the ReSharper command-line tools now agree with CI.
 
-Two families of finding are structurally expected rather than bugs: "auto-property accessor is never used" on the JSON model records, where the setters exist for `System.Text.Json` to bind to, and unread positional properties on the test transcription records, which document a rulebook page rather than feed a calculation.
+What is silenced, in one line each: `engine/Models/*.cs` exists to be deserialized by reflection and must keep its setters; the test transcription records document a rulebook page rather than being read; a `[Theory]` body asserting on its parameter is not a precondition guard; `JsonValue.Create(...)!` is load-bearing; and this codebase writes explicit constructors and named backing fields on purpose.
+
+Qodana runs in **pull-request mode**, inspecting changed files only — so moving a file re-reports every finding in it as new, and the counts are not comparable between runs. Splitting `engine/` and `sheets/` into their own projects took the count from 144 to 249 without any of that code changing, of which six were genuinely actionable. The summary comment lists rules, never files; download the run's artifact and read `qodana.sarif.json` before drawing conclusions.
 
 Qodana does catch things the compiler cannot. A `.razor` file sets a component parameter by string key, so `[Obsolete]` on that parameter is invisible to `dotnet build` — `Router.NotFound`'s deprecation in .NET 10 produced zero build warnings with warnings-as-errors on, and Qodana found it.
 
@@ -373,6 +384,12 @@ qodana scan --show-report
 ```
 
 To publish reports to Qodana Cloud, add a `QODANA_TOKEN` repository secret. Without it the scan still runs and the report is downloadable from the workflow run: `gh run download <run-id>`, then read `qodana.sarif.json`. That is currently the only way to see *which files* the findings are in.
+
+Since CI only ever sees changed files, scan the whole tree yourself before concluding anything about the total:
+
+```bash
+docker run --rm -v "$(pwd -W):/data/project/" -v "$PWD/results:/data/results/" jetbrains/qodana-cdnet:2026.2 --save-report
+```
 
 ---
 
