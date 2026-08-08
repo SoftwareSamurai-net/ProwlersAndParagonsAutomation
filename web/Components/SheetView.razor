@@ -125,12 +125,21 @@
                                            whitespace inside a <text> block and inside an
                                            element that follows an expression, which printed
                                            "Armor8d" on every ranked Power. *@
-                                        <span class="pname">@(power?.Name ?? sp.PowerId)@(rank > 0 ? $" {rank}d" : "")</span>
-                                        <span class="num">@(CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—") HP</span>
+                                        <span class="pname">@(power?.Name ?? sp.PowerId)@Ranked(power, rank)</span>
+                                        <span class="hp">@(CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—") HP</span>
                                     </div>
                                     @if (power is not null)
                                     {
                                         <div class="statline">@PowerFormatter.StatLine(power)</div>
+                                    }
+                                    @* A rankless Power has no rank of its own, but it is not
+                                       rankless when another Power acts on it: its Source
+                                       names an Ability that stands in. That is the number a
+                                       player needs the moment someone Drains it, and the
+                                       sheet is where they will look for it. *@
+                                    @if (StandInRank(sp, power) is { } stand)
+                                    {
+                                        <div class="statline">@stand</div>
                                     }
                                     @* Labelled, not run together: a reader has to be able to
                                        tell which of these cost Hero Points and which paid
@@ -168,7 +177,7 @@
                                                 <span class="muted small"> — @sp.NarrativeDetail</span>
                                             }
                                         </td>
-                                        <td>@Session.Costs.PerkCost(sp) HP</td>
+                                        <td><span class="hp">@Session.Costs.PerkCost(sp) HP</span></td>
                                     </tr>
                                 }
                             </tbody>
@@ -317,9 +326,40 @@
             .Select(s => s.Name)
             .ToList();
 
-    /// <summary>A bought rank, or a rule to write one on. The sheet is a form first.</summary>
-    private static MarkupString Rank(int rank) =>
-        rank > 0 ? new MarkupString($"{rank}d") : new MarkupString("<span class=\"rule-line short\"></span>d");
+    /// <summary>
+    /// A Trait's rank, always as a number. An unbought Trait is 0d — which is a fact about
+    /// the character, not a gap in the sheet — so it says 0d rather than leaving a rule to
+    /// write on. The blank rules are for the fields the tool genuinely has no answer for.
+    /// </summary>
+    private static string Rank(int rank) => $"{rank}d";
+
+    /// <summary>
+    /// A Power's rank, printed whenever the Power has one at all — including 0d, and
+    /// including a baseline Power whose nominated Trait happens to be 0d, because "Armor 0d"
+    /// tells a reader something and a missing number tells them nothing.
+    ///
+    /// <para>Only a genuinely rankless Power gets no figure. Its stat line already says
+    /// "Default Rank (no rank)", and printing 0d beside that would read as a rank of zero
+    /// rather than as the absence of one — which are different things: a rankless Power
+    /// stands in at its Source's Ability whenever another Power acts on it.</para>
+    /// </summary>
+    private static string Ranked(PowerModel? power, int rank) =>
+        power is null || power.RankType is "default" or "special" ? "" : $" {rank}d";
+
+    /// <summary>
+    /// For a rankless Power with a Source: which Ability stands in for its rank when another
+    /// Power acts on it, and what that comes to. Null for anything with a rank of its own,
+    /// and for a rankless Power with no Source recorded — the validator warns about that.
+    /// </summary>
+    private string? StandInRank(SelectedPower sp, PowerModel? power)
+    {
+        if (power is null || power.RankType is not ("default" or "special")) return null;
+        if (sp.SourceId is null || Session.Rules.GetSource(sp.SourceId) is not { } source) return null;
+
+        var ability = Session.Rules.GetAbility(source.DefaultRankAbility)?.Name ?? source.DefaultRankAbility;
+
+        return $"Against other Powers: {ability} {Session.Derived.GetRankAgainstPowers(sp, Session.Sheet)}d";
+    }
 
     private static string FlawType(string flawType) => flawType switch
     {

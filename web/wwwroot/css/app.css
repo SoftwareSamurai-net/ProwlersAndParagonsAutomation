@@ -649,10 +649,26 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
    this way. Without this it is also the last cell, and was being set flush right. */
 .stat-table td[colspan] { text-align: left; white-space: normal; }
 
+/* Hero Point costs are bookkeeping, not a game statistic. A rank is what you roll; a cost
+   is what you paid, and it is only ever consulted when rebuilding the character. Setting it
+   in the same face as everything else made the sheet read as a receipt — so it is smaller,
+   lighter, letter-spaced and set in the muted ink, which puts it a clear step behind the
+   numbers a player actually uses at the table. */
+.hp {
+    font-size: 0.72rem;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
 .power-entry { padding: 0.45rem 0; border-bottom: 1px solid var(--rule); }
 .power-entry:last-child { border-bottom: none; }
 .power-entry .head { display: flex; gap: 0.5rem; align-items: baseline; }
 .power-entry .head .pname { font-weight: 700; margin-right: auto; }
+.power-entry .head .hp { align-self: baseline; }
 .power-entry .statline { font-size: 0.78rem; color: var(--muted); }
 
 .sheet .quote { font-style: italic; }
@@ -753,14 +769,25 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
         break-inside: auto;
         page-break-inside: auto;
     }
+    /* The heading bar is the one place colour is allowed to sit behind type, and
+       --accent-soft is a tint of the mode's own colour rather than a fill. It is the
+       largest run of ink on the page at about 6mm; anything more and a Villain sheet is
+       back to costing a cartridge. */
     .sheet-section > h3 {
         font-size: 8pt;
         letter-spacing: 0.14em;
         padding: 0.8mm 1.5mm;
+        background: var(--accent-soft);
         border-bottom: 1px solid var(--rule);
         break-after: avoid;
         page-break-after: avoid;
+
+        /* Browsers drop background colours from print by default, which would leave the
+           bars white and the sheet looking half-styled. */
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
     }
+    .sheet-section, .stat-block { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .sheet-section > :not(h3) { margin-left: 1.5mm; margin-right: 1.5mm; }
     .sheet-section > :nth-child(2) { margin-top: 1.2mm; }
     .sheet-section > :last-child { margin-bottom: 1.2mm; }
@@ -781,6 +808,7 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     .trait-table td { font-size: 8pt; }
     .power-entry { padding: 1mm 0; }
     .power-entry .statline { font-size: 7.5pt; }
+    .hp { font-size: 6.8pt; }
     .sheet .small, .sheet p { font-size: 8pt; }
 
     /* The four figures a player reads off mid-scene, set as large as the published sheet

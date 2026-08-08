@@ -1,3 +1,4 @@
+using System.Globalization;
 using ProwlersAndParagonsAutomation.Engine.Models;
 
 namespace ProwlersAndParagonsAutomation.Sheets;
@@ -69,6 +70,17 @@ public static class PowerFormatter
     public static string StatLine(PowerModel p) =>
         $"{Range(p)} · {RankType(p)} · {Cost(p)}";
 
+    /// <summary>
+    /// A rules id set the way the rulebook prints the thing it names: "Toughness", not
+    /// "toughness"; "Martial Arts", not "martial_arts".
+    ///
+    /// <para>This used to swap underscores for spaces and stop, so a stat line read
+    /// "Baseline Rank (½ toughness)" at a player holding a book that capitalises every
+    /// Trait — while the doc comment on <see cref="StatLine"/> claimed otherwise.</para>
+    /// </summary>
     private static string Title(string? id) =>
-        string.IsNullOrEmpty(id) ? "—" : id.Replace('_', ' ');
+        string.IsNullOrEmpty(id)
+            ? "—"
+            : string.Join(' ', id.Split('_', StringSplitOptions.RemoveEmptyEntries)
+                .Select(w => char.ToUpper(w[0], CultureInfo.CurrentCulture) + w[1..]));
 }

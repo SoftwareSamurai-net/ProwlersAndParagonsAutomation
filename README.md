@@ -141,6 +141,10 @@ ProwlersAndParagonsAutomation/
 │   ├── WebPresentationTests.cs   # no colour outside theme.css, no jargon on screen, print rules
 │   └── ValidationMessageTests.cs # every message a player can be shown, held to the same rule
 │
+├── tests/ProwlersAndParagons.Web.Tests/   # bUnit — renders components and reads the output
+│   ├── RenderContext.cs          # the app's own services, on the real data/rules
+│   └── SheetRenderTests.cs       # what the sheet actually renders, "Armor8d" and all
+│
 ├── scripts/
 │   └── write-cloudflare-headers.sh   # Generates _headers, hashing the inline import map
 │

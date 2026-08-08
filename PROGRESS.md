@@ -17,11 +17,11 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.92 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 2690, run in CI at the same strictness as the build |
+| Tests | 2707, run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two — the terminal wizard and a Blazor WebAssembly app, both on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
-| Printed sheet | A4, ruled boxes, light palette in both modes, no mid-entry page breaks — see the completed item below |
+| Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
 | Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero |
 | Known-wrong data | None outstanding |
 
@@ -77,7 +77,7 @@ Both found by adversarial audits during the sheet-polish slice, both real, neith
 
 **Nothing survives a refresh.** The character lives in a scoped `CharacterSession` and nowhere else, so a reload, a bookmark, or a shared deep link silently drops it and lands on "Choose a tier first". `_redirects` deliberately serves deep links with a 200 so that links *can* be shared, which makes the gap worse rather than better. `localStorage` plus the existing JSON export format is the obvious shape; the JSON is already a complete description of a character, read in reverse (see item 6).
 
-Smaller, from the same audits: the GM review step lists findings with no route back to the step that caused them; a fresh sheet starts every Ability at 0d although the editor's floor is 1d, and nothing objects; and an empty character prints five boxes saying "None." rather than a blank form anyone could fill in by hand.
+Smaller, from the same audits: the GM review step lists findings with no route back to the step that caused them, and a fresh sheet starts every Ability at 0d although the editor's floor is 1d without anything objecting.
 
 ### 4. Remaining rulebook chapters
 
@@ -130,7 +130,22 @@ What is silenced, in one line each: `engine/Models/*.cs` exists to be deserializ
 
 Among the 46 that were fixed, two were worth having: `PowerFormatter` compared a `double?` cost rate with `==`, and `CharacterSession` and `FileSystemRulesSource` carried three genuinely dead public members. Note that Qodana in CI runs in **pull-request mode** and inspects only changed files, so its count there is not comparable to a full scan — the command to reproduce one is in `CLAUDE.md`.
 
-### The sheet is the published Hero Sheet — [#26](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/26)
+### The sheet in colour, and a test project that renders it — [#28](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/28)
+
+**`tests/ProwlersAndParagons.Web.Tests` renders components with bUnit**, and it exists because of "Armor8d": Razor swallowed the space in `@name` + `<text> @(rank)d</text>`, the sheet printed the name and rank run together, it was fixed on the sheet, and the identical bug in a second spelling survived on the Powers tab for another whole slice. Every test this repository had read source files, and no source file looks wrong. Anything about what a component *produces* goes here now; anything about how it is *written* stays in `WebPresentationTests`.
+
+It is a separate project because it is the only one that may reference `web/`, and referencing a Blazor WebAssembly project drags the whole component model in — the engine suite has no use for that. bUnit pulls AngleSharp at a version carrying a published advisory, so this project pins AngleSharp forward rather than suppressing NU1902; suppressing an advisory to make a build green is how a vulnerable dependency ships.
+
+**The printed sheet keeps its mode's colours.** The old rule was "both modes print light", which came out of a Villain sheet printing its near-black surface edge to edge. That is the wrong lesson: the fault was a dark *surface*, not colour. So the rule is now white paper and readable ink, and each mode restates its own `--heading`, `--rule`, `--accent` and `--muted` — Hero in navy and gold, Villain in crimson and brass, both on white. Colour appears as ink and as a tint behind a 6mm heading bar; nothing fills an area. `--primary` still prints white, because it is a fill token and the banner used it.
+
+Also, all four from a read of the first coloured proof:
+
+- **An unbought Trait prints `0d`**, not a rule to write on. 0d is a fact about the character; the blank rules are for Alias, Team, Origin, Notes and Details, which the engine has no answer for at all.
+- **Hero Point costs are set apart from ranks** — smaller, lighter, letter-spaced, muted. A rank is what you roll; a cost is bookkeeping, and in the same face the sheet read as a receipt.
+- **A baseline Power names its Trait the way the rulebook prints it.** `PowerFormatter` swapped underscores for spaces and stopped, so a stat line read "Baseline Rank (½ toughness)" — while the method's own doc comment claimed "(½ Toughness)".
+- **A rankless Power now prints the rank that stands in for it**: "Against other Powers: Toughness 8d". It has no rank of its own, but it is not rankless when something Drains it, and that number was nowhere on the sheet.
+
+### The sheet is the published Hero Sheet — [#27](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/27)
 
 The previous pass made the printed sheet *correct* — A4, margins, ruled boxes, no mid-entry breaks, black on white in both modes. It did not make it a **character sheet**. It was a stack of full-width boxes down a page and a half: legible, and obviously the output of a program rather than something you would put on a table.
 
@@ -171,7 +186,7 @@ That is worth recording because the lesson generalises: **a substring check agai
 
 Also fixed, from the same audits: `aria-pressed`/`aria-selected` were rendered as `aria-pressed=""` — Blazor's spelling for a true bool, which is invalid ARIA that reads as *not* pressed, so both controls announced the opposite of their state; a half-built `role="tablist"` with no tabpanel, no `aria-controls` and no roving focus, now plain buttons with `aria-current`; two sibling Pro/Con pickers emitting the same DOM ids, so a label focused its neighbour's control; the review page never redrawing on a mode switch, leaving an over-budget finding on a Villain sheet; `--muted` failing AA at 3.8–4.5:1 where it carries almost all the explanatory prose, now 6.0–7.5:1; a Hero focus ring at 1.8:1 that nobody could see, now its own token; every generic Pro and Con offered as a bare name and a price with its description unused; `"How many Hero Point (= 25 Vehicle Points)s?"`; ids humanised into `super senses thermal vision`; a rankless Power offered as a Boost baseline it could never raise; `color-mix()` with no flat fallback, which would have dropped the banner to unreadable rather than unstyled; gear rows set flush right; and the page heading opening with a focus ring drawn round it on every navigation.
 
-**What was not done: a rendering test.** Everything here is asserted against source. That is honest for rules that *are* statements about the source, and it is why the Armor8d bug survived on a second surface for a whole slice — no test in this repository can see what a component actually renders. Closing it needs bUnit and a test project that references `web/`. It is the single highest-value thing left on this surface.
+**The rendering-test gap is closed.** See the entry above — `tests/ProwlersAndParagons.Web.Tests` renders components with bUnit, and it exists because of exactly this.
 
 ### Two sample characters, for previewing a sheet — [#23](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/23)
 

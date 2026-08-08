@@ -116,35 +116,92 @@ public sealed class WebPresentationTests
             Assert.DoesNotContain("<style", File.ReadAllText(f), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// Paper has no dark mode. Without this block a Villain sheet prints its near-black
-    /// surface edge to edge — unreadable, and hostile to whoever owns the printer.
+    /// Paper is white and ink is dark enough to read. That is the whole rule, and it is the
+    /// one a Villain sheet used to break: on the screen palette it printed its near-black
+    /// surface edge to edge — unreadable, and it empties a cartridge per character.
+    ///
+    /// <para>It is <b>not</b> a rule that everything prints grey. The published sheet is in
+    /// full colour and the two modes keep their own headings, rules and heading bars; what
+    /// they may not do is darken the paper or lighten the ink.</para>
     ///
     /// <para>The <b>values</b> are checked, not the presence of the token. Asserting only
     /// that <c>--ink</c> is declared lets it be declared white, and white ink on white paper
     /// prints blank pages that look like a printer fault rather than a bug.</para>
     /// </summary>
-    [Fact]
-    public void PrintForcesTheLightPaletteForBothModes()
+    [Theory]
+    [InlineData("hero")]
+    [InlineData("villain")]
+    public void PrintKeepsThePaperWhiteAndTheInkReadable(string mode)
     {
         var print = OnlyPrintBlockOf(ThemeCss);
 
-        Assert.Contains(":root[data-mode=\"villain\"]", print, StringComparison.Ordinal);
-        Assert.Contains(":root[data-mode=\"hero\"]", print, StringComparison.Ordinal);
+        Assert.Contains($":root[data-mode=\"{mode}\"]", print, StringComparison.Ordinal);
 
-        // Paper.
-        foreach (var token in new[] { "--surface", "--panel", "--panel-sunk", "--primary" })
-            Assert.True(Luminance(Token(print, token)) > 0.9,
-                $"print {token} is not white. A character sheet is printed on paper.");
+        // Resolved the way the cascade resolves it: the shared block first, then the mode's.
+        var palette = PrintPalette(print, mode);
 
-        // Ink.
-        foreach (var token in new[] { "--ink", "--heading", "--rule", "--accent", "--on-primary", "--muted" })
-            Assert.True(Luminance(Token(print, token)) < 0.4,
-                $"print {token} is not dark enough to read. White ink prints a blank page.");
+        // Paper, and anything that sits behind body text.
+        foreach (var token in new[] { "--surface", "--panel", "--panel-sunk", "--primary", "--accent-soft" })
+            Assert.True(Luminance(palette[token]) > 0.85,
+                $"print {token} darkens the paper in {mode} mode ({palette[token]}).");
 
-        // The derived tokens are colour-mixes in both palettes; left unstated they would mix
-        // a mode's own values and print grey.
-        foreach (var token in new[] { "--accent-soft", "--danger-soft", "--danger", "--shadow" })
-            Assert.NotNull(TokenOrNull(print, token));
+        // Ink. 0.45 is about a 4.5:1 contrast floor against white, which is what the small
+        // print on this sheet needs.
+        foreach (var token in new[] { "--ink", "--heading", "--rule", "--accent", "--on-primary", "--muted", "--danger" })
+            Assert.True(Luminance(palette[token]) < 0.45,
+                $"print {token} is too pale to read on white in {mode} mode ({palette[token]}).");
+    }
+
+    /// <summary>
+    /// Every token the two screen palettes declare has to be resolved by the print block for
+    /// each mode, whether from the shared rule or the mode's own. A token left out keeps its
+    /// screen value through the cascade, which is exactly how the near-black page happened.
+    /// </summary>
+    [Theory]
+    [InlineData("hero")]
+    [InlineData("villain")]
+    public void PrintRestatesEveryTokenTheScreenPalettesDeclare(string mode)
+    {
+        // The two mode palettes only. The shape and motion tokens in the plain `:root` block
+        // are not colours and print has no reason to restate a transition duration.
+        var screen = ThemeCss[..ThemeCss.IndexOf("@media print", StringComparison.Ordinal)];
+
+        var declared = Rx(@"data-mode=""(hero|villain)""\s*\]?\s*\{([^}]*)\}", RegexOptions.Singleline)
+            .Matches(screen)
+            .SelectMany(m => Rx(@"(--[a-z-]+)\s*:").Matches(m.Groups[2].Value).Select(d => d.Groups[1].Value))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.NotEmpty(declared);
+
+        var palette = PrintPalette(OnlyPrintBlockOf(ThemeCss), mode);
+
+        foreach (var token in declared)
+            Assert.True(palette.ContainsKey(token),
+                $"print does not restate {token} for {mode}, so its screen value survives.");
+    }
+
+    /// <summary>
+    /// The print block's tokens as the cascade resolves them for one mode: the unqualified
+    /// rule, then the mode's own on top.
+    /// </summary>
+    private static Dictionary<string, string> PrintPalette(string print, string mode)
+    {
+        var palette = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        foreach (Match rule in Rx(@"([^{}]+)\{([^{}]*)\}").Matches(print))
+        {
+            var selectors = rule.Groups[1].Value;
+            var appliesToMode = selectors.Contains($"data-mode=\"{mode}\"", StringComparison.Ordinal)
+                                || !selectors.Contains("data-mode", StringComparison.Ordinal);
+
+            if (!appliesToMode) continue;
+
+            foreach (Match declaration in Rx(@"(--[a-z-]+)\s*:\s*([^;]+);").Matches(rule.Groups[2].Value))
+                palette[declaration.Groups[1].Value] = declaration.Groups[2].Value.Trim();
+        }
+
+        return palette;
     }
 
     /// <summary>
@@ -533,17 +590,20 @@ public sealed class WebPresentationTests
     /// </summary>
     private static string? PrintRuleFor(string selector)
     {
-        foreach (Match rule in Rx(@"([^{}]+)\{([^{}]*)\}").Matches(OnlyPrintBlockOf(AppCss)))
-        {
-            var selectors = rule.Groups[1].Value
+        // Every rule that names the selector, not the first. A second rule setting something
+        // unrelated on the same element — `print-color-adjust`, as it happened — shadowed the
+        // one being asserted on, and the assertion then failed against a declaration block
+        // that was never its subject.
+        var matching = Rx(@"([^{}]+)\{([^{}]*)\}")
+            .Matches(OnlyPrintBlockOf(AppCss))
+            .Where(rule => rule.Groups[1].Value
                 .Split(',')
-                .Select(Normalise);
+                .Select(Normalise)
+                .Contains(Normalise(selector), StringComparer.Ordinal))
+            .Select(rule => rule.Groups[2].Value)
+            .ToList();
 
-            if (selectors.Contains(Normalise(selector), StringComparer.Ordinal))
-                return rule.Groups[2].Value;
-        }
-
-        return null;
+        return matching.Count == 0 ? null : string.Join(';', matching);
     }
 
     private static string Token(string block, string name) =>
