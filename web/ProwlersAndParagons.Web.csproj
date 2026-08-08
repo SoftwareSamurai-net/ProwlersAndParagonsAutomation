@@ -32,6 +32,17 @@
         <ProjectReference Include="..\sheets\ProwlersAndParagons.Sheets.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- CharacterStore.Read is the failure-handling half of persistence: malformed
+             storage, an unknown schema version, a null where the declared type says there
+             cannot be one. It is internal because no host should call it, and visible to the
+             test project because that handling is the part most worth testing — a saved
+             character that stops the app booting is far worse than one that is forgotten.
+             The alternative was a public test-only round-trip helper shipped in the
+             WebAssembly payload, which is what this replaced. -->
+        <InternalsVisibleTo Include="ProwlersAndParagons.Web.Tests" />
+    </ItemGroup>
+
     <!-- The rules are served, not read: a browser has no filesystem, so Program.cs fetches
          these over HTTP and hands them to an InMemoryRulesSource.
 

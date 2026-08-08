@@ -20,10 +20,13 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// which are answers rather than inputs, and reading it back would mean re-deriving a
 /// character from its own conclusions. The sheet is the inputs, and it round-trips.</para>
 ///
-/// <para>Nothing here may throw. A saved character from an older build, hand-edited storage,
-/// or a browser that refuses local storage entirely are all the same case: start empty. A
-/// tool that will not open because of something it wrote itself is worse than one that
-/// forgets.</para>
+/// <para><b>Nothing here may throw, and "nothing" is stricter than it looks.</b> A saved
+/// character from an older build, hand-edited storage, and a browser that refuses local
+/// storage are all the same case: start empty. The traps are that the deserializer hands
+/// back <c>null</c> for a property whose declared type is non-nullable, and an out-of-range
+/// number for an enum — neither of which the compiler can warn about, and both of which turn
+/// "your character is gone" into "the app does not start", because restoring happens before
+/// the first render. <see cref="Usable"/> is where that is caught.</para>
 /// </summary>
 public sealed class CharacterStore
 {
@@ -51,7 +54,7 @@ public sealed class CharacterStore
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    private sealed record Saved(int Version, SheetMode Mode, CharacterSheet Sheet);
+    private sealed record Saved(int Version, SheetMode Mode, CharacterSheet? Sheet);
 
     /// <summary>Writes the character to local storage. Failure is not worth reporting.</summary>
     public async Task SaveAsync(CharacterSheet sheet, SheetMode mode)
@@ -61,9 +64,7 @@ public sealed class CharacterStore
             var json = JsonSerializer.Serialize(new Saved(CurrentVersion, mode, sheet), Options);
             await _js.InvokeVoidAsync("ppStore.save", StorageKey, json);
         }
-        catch (JsonException) { }
-        catch (JSException) { }
-        catch (InvalidOperationException) { }
+        catch (Exception e) when (IsStorageFailure(e)) { }
     }
 
     /// <summary>The stored character, or null if there is none this build can trust.</summary>
@@ -72,39 +73,75 @@ public sealed class CharacterStore
         try
         {
             var json = await _js.InvokeAsync<string?>("ppStore.load", StorageKey);
-            if (string.IsNullOrWhiteSpace(json)) return null;
-
-            var saved = JsonSerializer.Deserialize<Saved>(json, Options);
-
-            return saved is { Version: CurrentVersion }
-                ? (saved.Sheet, saved.Mode)
-                : null;
+            return string.IsNullOrWhiteSpace(json) ? null : Read(json);
         }
-        catch (JsonException) { return null; }
-        catch (JSException) { return null; }
-        catch (InvalidOperationException) { return null; }
+        catch (Exception e) when (IsStorageFailure(e)) { return null; }
     }
 
+    /// <summary>Forgets the stored character. What "Start a new character" actually does.</summary>
     public async Task ClearAsync()
     {
         try { await _js.InvokeVoidAsync("ppStore.clear", StorageKey); }
-        catch (JSException) { }
+        catch (Exception e) when (IsStorageFailure(e)) { }
     }
 
-    /// <summary>
-    /// Round-trips a sheet through the same serializer the browser uses, without a browser.
-    /// The tests use it to prove that everything a player can put on a sheet survives —
-    /// which is the only part of this that can go quietly wrong.
-    /// </summary>
-    public static CharacterSheet? RoundTrip(CharacterSheet sheet, SheetMode mode = SheetMode.Hero)
+    /// <summary>Reads a stored payload. Internal so the tests can feed it malformed storage.</summary>
+    internal static (CharacterSheet Sheet, SheetMode Mode)? Read(string json)
     {
-        var json = JsonSerializer.Serialize(new Saved(CurrentVersion, mode, sheet), Options);
-        return JsonSerializer.Deserialize<Saved>(json, Options)?.Sheet;
+        try { return Usable(JsonSerializer.Deserialize<Saved>(json, Options)); }
+        catch (Exception e) when (IsStorageFailure(e)) { return null; }
     }
 
     /// <summary>
-    /// A sheet as the stored text, for tests that want to compare two of them without
-    /// naming every field — a field list is the first thing to go stale.
+    /// Whether a payload can be handed to the app, and the repair it needs first.
+    ///
+    /// <para>Three things the type system promises and the deserializer does not:</para>
+    /// <list type="bullet">
+    ///   <item><c>Sheet</c> is declared non-nullable and comes back null for
+    ///     <c>{"Version":1}</c>. Restoring that threw <b>before the first render</b>, so the
+    ///     app did not start at all — the exact failure this class claims to prevent.</item>
+    ///   <item><c>Mode</c> is an enum and accepts any number. <c>{"Mode":7}</c> gave a
+    ///     character that was neither Hero nor Villain, with a palette that disagreed with
+    ///     every check made against it.</item>
+    ///   <item>A <c>SelectedPower</c>'s <c>Pros</c> and <c>Cons</c> are declared non-null and
+    ///     come back null when the keys are absent, which is a NullReferenceException on the
+    ///     next render rather than anything a JSON catch would ever see.</item>
+    /// </list>
     /// </summary>
-    public static string Describe(CharacterSheet sheet) => JsonSerializer.Serialize(sheet, Options);
+    private static (CharacterSheet Sheet, SheetMode Mode)? Usable(Saved? saved)
+    {
+        if (saved is not { Version: CurrentVersion, Sheet: { } sheet }) return null;
+
+        for (var i = 0; i < sheet.SelectedPowers.Count; i++)
+        {
+            var power = sheet.SelectedPowers[i];
+            if (power is null || (power.Pros is not null && power.Cons is not null)) continue;
+
+            sheet.SelectedPowers[i] = power with { Pros = power.Pros ?? [], Cons = power.Cons ?? [] };
+        }
+
+        sheet.SelectedPowers.RemoveAll(p => p is null);
+        sheet.Perks.RemoveAll(p => p is null);
+        sheet.Flaws.RemoveAll(f => f is null);
+        sheet.Gear.RemoveAll(g => g is null);
+        sheet.Connections.RemoveAll(c => c is null);
+
+        return (sheet, Enum.IsDefined(saved.Mode) ? saved.Mode : SheetMode.Hero);
+    }
+
+    /// <summary>
+    /// Everything that can go wrong between here and the browser's storage. Every one means
+    /// the same thing: there is no saved character, carry on without one.
+    ///
+    /// <para>Named rather than a bare <c>catch</c> so the list is reviewable, and wider than
+    /// the obvious three because the alternative — an unobserved exception out of a
+    /// fire-and-forget save — stops persistence silently and tells nobody.</para>
+    /// </summary>
+    private static bool IsStorageFailure(Exception e) =>
+        e is JsonException                  // malformed or hand-edited storage
+          or NotSupportedException          // a type the serializer cannot handle
+          or JSException                    // the browser refused, or ppStore is missing
+          or InvalidOperationException      // interop unavailable
+          or ObjectDisposedException        // the host is going away
+          or TaskCanceledException;         // ditto, mid-call
 }

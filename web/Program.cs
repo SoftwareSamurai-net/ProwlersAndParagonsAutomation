@@ -49,12 +49,25 @@ var host = builder.Build();
 var store = host.Services.GetRequiredService<CharacterStore>();
 var session = host.Services.GetRequiredService<CharacterSession>();
 
-if (await store.LoadAsync() is { } saved)
+// The catch is deliberately total, and it is a backstop rather than the strategy:
+// CharacterStore already rejects anything it cannot use. But this runs before the first
+// render, so anything escaping here is not a lost character — it is a blank page, and a
+// blank page caused by something the app wrote itself is the worst outcome available.
+try
 {
-    session.Restore(saved.Sheet, saved.Mode);
-    await host.Services.GetRequiredService<IJSRuntime>()
-        .InvokeVoidAsync("ppSetMode", saved.Mode == SheetMode.Hero ? "hero" : "villain");
+    if (await store.LoadAsync() is { } saved)
+    {
+        session.Restore(saved.Sheet, saved.Mode);
+        await host.Services.GetRequiredService<IJSRuntime>()
+            .InvokeVoidAsync("ppSetMode", saved.Mode == SheetMode.Hero ? "hero" : "villain");
+    }
 }
+#pragma warning disable CA1031 // see above: starting empty always beats not starting
+catch (Exception)
+{
+    session.StartAgain();
+}
+#pragma warning restore CA1031
 
 // Every change writes through. The sheet is small and localStorage is synchronous and
 // fast, so there is nothing to gain by batching — and a debounce is one more way to lose

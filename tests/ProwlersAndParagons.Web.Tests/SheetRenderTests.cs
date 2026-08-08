@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Bunit;
+using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
 
 namespace ProwlersAndParagons.Web.Tests;
@@ -23,6 +24,12 @@ public sealed class SheetRenderTests
     /// <summary>
     /// A Power's name and its rank, in every place either is printed. The rendered text has
     /// to read "Armor 8d" — a name, a space, a rank.
+    ///
+    /// <para><b>This reads <c>TextContent</c>, not the markup.</b> Stripping tags out of the
+    /// markup puts a separator where the tag was, so <c>&lt;b&gt;Armor&lt;/b&gt;&lt;span&gt;8d&lt;/span&gt;</c>
+    /// reads as "Armor 8d" to any test that does it — which is exactly how the Powers tab kept
+    /// this bug through a test written to catch it. The browser concatenates the text nodes;
+    /// so does this.</para>
     /// </summary>
     [Theory]
     [InlineData(SheetMode.Hero)]
@@ -31,18 +38,19 @@ public sealed class SheetRenderTests
     {
         using var ctx = new RenderContext().With(mode);
 
-        foreach (var text in new[]
-                 {
-                     ctx.Render<SheetView>().Markup,
-                     ctx.Render<PowersTab>().Markup
-                 })
-        {
-            var joined = Rendered(text);
-            var run = new Regex(@"[A-Za-z)\]](\d+)d\b", RegexOptions.None, TimeSpan.FromSeconds(5)).Match(joined);
+        // Every place a Power's name and rank are set next to each other.
+        var entries = ctx.Render<SheetView>().FindAll(".power-entry .head .pname")
+            .Concat(ctx.Render<PowersTab>().FindAll(".chosen > li .body > div:first-child"))
+            .Select(e => Collapse(e.TextContent))
+            .ToList();
 
-            Assert.False(run.Success,
-                $"A rank is printed with no space before it: \"{Excerpt(joined, run.Index)}\"");
-        }
+        // If the selectors ever stop matching, this test would pass by finding nothing.
+        Assert.True(entries.Count >= 8, $"Only {entries.Count} name/rank pairs were found to check.");
+
+        var run = new Regex(@"[A-Za-z)\]]\d+d\b", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        foreach (var entry in entries)
+            Assert.False(run.IsMatch(entry), $"A rank is printed with no space before it: \"{entry}\"");
     }
 
     /// <summary>
@@ -72,28 +80,37 @@ public sealed class SheetRenderTests
     /// character — the rulebook's own floor for a Talent — and printing a rule to write on
     /// instead invites someone to fill in a number the tool has already decided.</para>
     /// </summary>
-    [Fact]
-    public void EveryAbilityAndTalentIsOnTheSheetWithANumber()
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void EveryTraitIsOnTheSheetAgainstItsOwnRank(SheetMode mode)
     {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
+        using var ctx = new RenderContext().With(mode);
         var view = ctx.Render<SheetView>();
-        var sheet = Rendered(view.Markup);
+
+        // Name → what is printed beside it. Checking the pair, not just that both appear
+        // somewhere, is what stops a constant satisfying this: printing "0d" on every row
+        // passed the version of this test that only looked for the shapes.
+        var printed = view.FindAll(".trait-table tr")
+            .ToDictionary(
+                tr => Collapse(tr.QuerySelector("td")!.TextContent),
+                tr => Collapse(tr.QuerySelector("td:last-child")!.TextContent),
+                StringComparer.Ordinal);
 
         foreach (var ability in ctx.Session.Rules.Abilities)
-            Assert.Contains(ability.Name, sheet, StringComparison.Ordinal);
+            Assert.Equal($"{ctx.Session.Sheet.GetAbilityRank(ability.Id)}d", printed[ability.Name]);
 
         foreach (var talent in ctx.Session.Rules.Talents)
-            Assert.Contains(talent.Name, sheet, StringComparison.Ordinal);
+            Assert.Equal($"{ctx.Session.Sheet.GetTalentRank(talent.Id)}d", printed[talent.Name]);
 
+        // Six Abilities and twelve Talents, all of them, bought or not — the sheet is a form.
+        Assert.Equal(6 + 12, printed.Count);
         Assert.Equal(12, ctx.Session.Rules.Talents.Count);
 
-        // Ninth Precinct buys four Talents; the other eight print 0d rather than a rule.
-        Assert.Contains("0d", sheet, StringComparison.Ordinal);
+        // An unbought Trait reads 0d, never a rule to write on: 0d is a fact about the
+        // character, and a blank invites someone to fill in a number the tool has decided.
+        Assert.Contains("0d", printed.Values);
         Assert.Empty(view.FindAll(".trait-table .rule-line"));
-
-        // Every Trait row carries a rank, and every rank is a number followed by d.
-        var ranks = view.FindAll(".trait-table tr > td:last-child").Select(td => td.TextContent.Trim());
-        Assert.All(ranks, r => Assert.Matches(@"^\d+d$", r));
     }
 
     /// <summary>
@@ -226,16 +243,51 @@ public sealed class SheetRenderTests
     }
 
     /// <summary>
-    /// Pros and Cons are labelled on the sheet. Run together into one comma list, a reader
-    /// cannot tell which of them cost Hero Points and which paid for the rest.
+    /// Pros and Cons are labelled on the sheet, and <b>both</b> reach it. Run together into
+    /// one comma list, a reader cannot tell which of them cost Hero Points and which paid for
+    /// the rest; dropping one silently is worse, because the sheet still looks complete.
+    /// </summary>
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void ProsAndConsBothReachTheSheetLabelled(SheetMode mode)
+    {
+        using var ctx = new RenderContext().With(mode);
+
+        // Neither sample buys a Pro on a Power — they are built to fill sections, not to
+        // exercise this — so one is added here rather than left to chance. A Con is already
+        // there in both, which is the half that used to be the only half tested.
+        var powers = ctx.Session.Sheet.SelectedPowers;
+        powers[0] = powers[0] with { Pros = [new SelectedProCon("armor_piercing")], Cons = [new SelectedProCon("unreliable")] };
+
+        var lines = ctx.Render<SheetView>()
+            .FindAll(".power-entry .statline")
+            .Select(e => Collapse(e.TextContent))
+            .ToList();
+
+        Assert.Contains(lines, l => l.StartsWith("Pros: Armor Piercing", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.StartsWith("Cons: Unreliable", StringComparison.Ordinal));
+
+        // Named, never a raw id — Label() resolves against the Power's own entry first.
+        Assert.DoesNotContain(lines, l => l.Contains('_', StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Gear reaches the sheet with its features, and reads left to right. Its rows span both
+    /// columns of the stat table, which made them the last cell and flushed every piece of
+    /// equipment against the right margin.
     /// </summary>
     [Fact]
-    public void ProsAndConsAreLabelledSeparately()
+    public void GearReachesTheSheet()
     {
-        using var ctx = new RenderContext().With(SheetMode.Villain);
-        var sheet = Rendered(ctx.Render<SheetView>().Markup);
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        var view = ctx.Render<SheetView>();
+        var sheet = Rendered(view.Markup);
 
-        Assert.Contains("Cons: Unreliable", sheet, StringComparison.Ordinal);
+        Assert.NotEmpty(ctx.Session.Sheet.Gear);
+
+        foreach (var gear in ctx.Session.Sheet.Gear)
+            Assert.Contains(gear.Name, sheet, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -273,6 +325,10 @@ public sealed class SheetRenderTests
         return new Regex(@"[ \t]+", RegexOptions.None, TimeSpan.FromSeconds(5)).Replace(text, " ");
     }
 
-    private static string Excerpt(string text, int at) =>
-        text.Substring(Math.Max(0, at - 30), Math.Min(60, text.Length - Math.Max(0, at - 30))).Replace('\n', ' ');
+    /// <summary>
+    /// One element's text as a reader sees it. Runs of whitespace collapse to a single space
+    /// — which is what a browser does — but a missing one stays missing.
+    /// </summary>
+    private static string Collapse(string text) =>
+        new Regex(@"\s+", RegexOptions.None, TimeSpan.FromSeconds(5)).Replace(text, " ").Trim();
 }
