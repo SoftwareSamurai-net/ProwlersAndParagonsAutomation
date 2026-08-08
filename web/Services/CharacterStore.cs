@@ -32,7 +32,7 @@ public sealed class CharacterStore
     /// character restore wrongly rather than merely incompletely. A mismatch is discarded in
     /// silence — the alternative is a character that looks right and is not.
     /// </summary>
-    private const int Version = 1;
+    private const int CurrentVersion = 1;
 
     private const string StorageKey = "pp.character.v1";
 
@@ -58,7 +58,7 @@ public sealed class CharacterStore
     {
         try
         {
-            var json = JsonSerializer.Serialize(new Saved(Version, mode, sheet), Options);
+            var json = JsonSerializer.Serialize(new Saved(CurrentVersion, mode, sheet), Options);
             await _js.InvokeVoidAsync("ppStore.save", StorageKey, json);
         }
         catch (JsonException) { }
@@ -76,7 +76,7 @@ public sealed class CharacterStore
 
             var saved = JsonSerializer.Deserialize<Saved>(json, Options);
 
-            return saved is { Version: Version, Sheet: not null }
+            return saved is { Version: CurrentVersion }
                 ? (saved.Sheet, saved.Mode)
                 : null;
         }
@@ -98,7 +98,7 @@ public sealed class CharacterStore
     /// </summary>
     public static CharacterSheet? RoundTrip(CharacterSheet sheet, SheetMode mode = SheetMode.Hero)
     {
-        var json = JsonSerializer.Serialize(new Saved(Version, mode, sheet), Options);
+        var json = JsonSerializer.Serialize(new Saved(CurrentVersion, mode, sheet), Options);
         return JsonSerializer.Deserialize<Saved>(json, Options)?.Sheet;
     }
 

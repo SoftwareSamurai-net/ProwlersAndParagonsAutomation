@@ -98,8 +98,11 @@ public sealed class CharacterStoreTests
     [Fact]
     public void ThePartsOfAPowerThatAreEasiestToLoseSurvive()
     {
-        var sheet = new CharacterSheet { SelectedTierId = "standard" };
-        sheet.AbilityRanks["might"] = 6;
+        var sheet = new CharacterSheet
+        {
+            SelectedTierId = "standard",
+            AbilityRanks   = { ["might"] = 6 }
+        };
 
         sheet.SelectedPowers.Add(new SelectedPower(
             "blast", 4,

@@ -606,9 +606,6 @@ public sealed class WebPresentationTests
         return matching.Count == 0 ? null : string.Join(';', matching);
     }
 
-    private static string Token(string block, string name) =>
-        TokenOrNull(block, name) ?? throw new InvalidOperationException($"The print block does not state {name}.");
-
     private static string? TokenOrNull(string block, string name)
     {
         var match = Rx($@"{Regex.Escape(name)}\s*:\s*([^;]+);").Match(block);
