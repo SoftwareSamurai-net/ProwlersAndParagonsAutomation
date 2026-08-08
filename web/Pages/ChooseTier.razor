@@ -1,5 +1,6 @@
 @page "/"
 @inject CharacterSession Session
+@inject CharacterStore Store
 @inject IJSRuntime Js
 
 <PageTitle>Tier — Prowlers &amp; Paragons</PageTitle>
@@ -29,10 +30,27 @@
             Load a Villain — The Quiet Hour
         </button>
         @* The character is kept in this browser between visits, so there has to be a way
-           out of one. Without it a player who finishes a character is stuck with it. *@
-        <button type="button" class="btn danger" @onclick="StartAgain">
-            Start a new character
-        </button>
+           out of one. Without it a player who finishes a character is stuck with it.
+
+           It asks first, in the page rather than in a browser dialogue. This is the only
+           control in the app that destroys twenty minutes of work, it sits between two
+           buttons a player is meant to press, and there is no undo — the sheet is not
+           written down anywhere else. Two clicks is the whole safeguard. *@
+        @if (_confirming)
+        {
+            <button type="button" class="btn danger" @onclick="StartAgain">
+                Yes, discard this character
+            </button>
+            <button type="button" class="btn" @onclick="() => _confirming = false">
+                Keep it
+            </button>
+        }
+        else
+        {
+            <button type="button" class="btn danger" @onclick="() => _confirming = true">
+                Start a new character
+            </button>
+        }
         @if (_loaded is not null)
         {
             <span class="small muted">Loaded <b>@_loaded</b> — see the GM review step.</span>
@@ -125,11 +143,24 @@
 
 @code {
     private string? _loaded;
+    private bool _confirming;
 
-    private void StartAgain()
+    /// <summary>
+    /// Empties the sheet <b>and</b> forgets the stored one. Clearing only the session left
+    /// the old character in local storage, so it came back on the next visit — which reads
+    /// as the button not having worked, on the one control where that matters most.
+    ///
+    /// <para>In that order: emptying the sheet fires the write-through save, and the clear
+    /// has to land after it. Both go through the same interop channel and this runs on the
+    /// browser's one thread, so it does. Worst case if that ever stopped holding is a stored
+    /// empty character, which restores to exactly what this button produces.</para>
+    /// </summary>
+    private async Task StartAgain()
     {
         Session.StartAgain();
+        await Store.ClearAsync();
         _loaded = null;
+        _confirming = false;
     }
 
     /// <summary>

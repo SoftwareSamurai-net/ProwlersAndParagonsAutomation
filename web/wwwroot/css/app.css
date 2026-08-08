@@ -668,7 +668,10 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .power-entry:last-child { border-bottom: none; }
 .power-entry .head { display: flex; gap: 0.5rem; align-items: baseline; }
 .power-entry .head .pname { font-weight: 700; margin-right: auto; }
-.power-entry .head .hp { align-self: baseline; }
+/* Letter-spacing is added after the last character as well as between them, so a cost set
+   against the right edge sits a fraction short of it while the ranks above and below it do
+   not. Pulling that last gap back is what lines the column up. */
+.power-entry .head .hp { align-self: baseline; margin-right: -0.08em; }
 .power-entry .statline { font-size: 0.78rem; color: var(--muted); }
 
 .sheet .quote { font-style: italic; }
@@ -787,7 +790,10 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
         print-color-adjust: exact;
         -webkit-print-color-adjust: exact;
     }
-    .sheet-section, .stat-block { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    /* Only the heading bars ask for this. The boxes themselves resolve to white on paper,
+       so forcing a browser to print them is asking it to lay down ink to make white — and
+       "print backgrounds" is a setting the person printing owns. The one background worth
+       overriding them on is the tint that makes the sheet read as a form. */
     .sheet-section > :not(h3) { margin-left: 1.5mm; margin-right: 1.5mm; }
     .sheet-section > :nth-child(2) { margin-top: 1.2mm; }
     .sheet-section > :last-child { margin-bottom: 1.2mm; }
@@ -808,7 +814,11 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     .trait-table td { font-size: 8pt; }
     .power-entry { padding: 1mm 0; }
     .power-entry .statline { font-size: 7.5pt; }
-    .hp { font-size: 6.8pt; }
+    /* Set with the stat lines rather than below them. A cost belongs a step behind a rank,
+       which the case, the weight and the muted ink already do; taking it under 7pt as well
+       made it a thing you squint at, and it is set in small caps, which reads smaller than
+       its size. Anything a printed sheet bothers to carry has to be legible on paper. */
+    .hp { font-size: 7.5pt; }
     .sheet .small, .sheet p { font-size: 8pt; }
 
     /* The four figures a player reads off mid-scene, set as large as the published sheet

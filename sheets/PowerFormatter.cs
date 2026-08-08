@@ -77,10 +77,16 @@ public static class PowerFormatter
     /// <para>This used to swap underscores for spaces and stop, so a stat line read
     /// "Baseline Rank (½ toughness)" at a player holding a book that capitalises every
     /// Trait — while the doc comment on <see cref="StatLine"/> claimed otherwise.</para>
+    ///
+    /// <para>Invariant, not current, culture. This is the one place in this file that is not
+    /// formatting a number for a reader: the input is an ASCII rules id and the output is a
+    /// rulebook term, which does not change with the machine's locale. Under a Turkish locale
+    /// the current culture upper-cases <c>i</c> to <c>İ</c>, so <c>item</c> would print as
+    /// <c>İtem</c> — a word that is in no edition of the book.</para>
     /// </summary>
     private static string Title(string? id) =>
         string.IsNullOrEmpty(id)
             ? "—"
             : string.Join(' ', id.Split('_', StringSplitOptions.RemoveEmptyEntries)
-                .Select(w => char.ToUpper(w[0], CultureInfo.CurrentCulture) + w[1..]));
+                .Select(w => char.ToUpper(w[0], CultureInfo.InvariantCulture) + w[1..]));
 }

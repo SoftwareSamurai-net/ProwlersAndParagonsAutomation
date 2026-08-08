@@ -18,6 +18,11 @@ public static class Labels
     /// <c>very_powerful</c> becomes <c>Very Powerful</c>. Title case rather than a bare
     /// underscore swap, because "very powerful" beside "Powerful" in the same list looks
     /// like a typo rather than a second grade of the same feature.
+    ///
+    /// <para>Invariant culture: the input is an ASCII rules id and the output is a rulebook
+    /// term, neither of which changes with the browser's locale. Under a Turkish one the
+    /// current culture upper-cases <c>i</c> to <c>İ</c>, so <c>item</c> would read
+    /// <c>İtem</c>.</para>
     /// </summary>
     public static string Humanise(string key)
     {
@@ -26,6 +31,6 @@ public static class Labels
         var words = key.Replace('_', ' ').Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
         return string.Join(' ', words.Select(w =>
-            char.ToUpper(w[0], CultureInfo.CurrentCulture) + w[1..]));
+            char.ToUpper(w[0], CultureInfo.InvariantCulture) + w[1..]));
     }
 }
