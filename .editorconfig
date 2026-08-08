@@ -42,3 +42,71 @@ dotnet_diagnostic.CA1822.severity = suggestion
 
 # CA1848: LoggerMessage delegates — this is a console wizard, not a service.
 dotnet_diagnostic.CA1848.severity = none
+
+# ── ReSharper / Qodana inspections ────────────────────────────────────────
+#
+# The target is a Qodana report with nothing in it, so that anything it does say
+# is worth reading. Before this, a whole-tree scan reported 242 problems of which
+# about 200 were three structural facts restated, and a report where 80% is noise
+# is one nobody reads.
+#
+# These live here rather than in qodana.yaml's `exclude:` list, which looks like
+# it would do the same job and does not — the .NET linter is ReSharper, and
+# ReSharper takes its inspection severities from EditorConfig. A named exclusion
+# in qodana.yaml is silently ignored, and the finding still reports. The upside
+# is that Rider and the ReSharper command-line tools now agree with CI, which a
+# qodana.yaml entry would never have given.
+#
+# Nothing here is a blanket severity floor and nothing is baselined. Each entry
+# is scoped as tightly as the tool allows and says why.
+
+# Explicit constructors, not primary constructors. Most declarations in this
+# codebase carry an XML doc comment, and a primary constructor has nowhere to put
+# one per parameter; it also hides the assignment that makes a dependency
+# readonly. Applied consistently across all five projects.
+resharper_convert_to_primary_constructor_highlighting = none
+
+# The `field` keyword. All eleven hits are RulesRepository's lazy accessors, and
+# that class is deliberately explicit about what it caches and when — a backing
+# field with a name is the documentation.
+resharper_replace_with_field_keyword_highlighting = none
+
+[engine/Models/*.cs]
+# These records are the shape of data/rules/*.json and nothing else. Every one is
+# constructed by System.Text.Json through reflection, and every property is
+# settable so that it can be; nothing in this codebase calls a constructor or
+# assigns a setter, and it must stay that way.
+#
+# Acting on any of these four would silently drop a field from the deserialized
+# rules. The failure mode is not a build error — it is a rule that quietly stops
+# applying, which is the one failure this project cannot afford.
+resharper_unused_auto_property_accessor_global_highlighting = none
+resharper_auto_property_can_be_made_get_only_global_highlighting = none
+resharper_unused_member_global_highlighting = none
+resharper_class_never_instantiated_global_highlighting = none
+
+[sheets/CharacterSheetRenderer.cs]
+# JsonValue.Create(...) is declared to return JsonValue?, so the null-forgiving
+# operator is load-bearing: removing it fails the warnings-as-errors build. The
+# inspection has been wrong here since the JSON export was written.
+resharper_redundant_suppress_nullable_warning_expression_highlighting = none
+
+[tests/**.cs]
+# xunit constructs RulesFixture through ICollectionFixture<T>, which the
+# inspection cannot see.
+resharper_class_never_instantiated_global_highlighting = none
+
+# CanonicalPowers.Entry.Printed and PrebuiltHeroes.Hero.Page/Note record where in
+# the rulebook a value came from. Nothing reads them, deliberately: they are
+# there so the next person can check the entry against the printed page rather
+# than trust the transcription.
+resharper_not_accessed_positional_property_global_highlighting = none
+
+# A test's whole job is to assert on its parameter. ReSharper reads
+# Assert.False(...) as a precondition guard — right in production code, wrong in
+# the body of a [Theory].
+resharper_parameter_only_used_for_precondition_check_local_highlighting = none
+
+# Same JsonValue.Create story as CharacterSheetRenderer, in the test that mirrors
+# its output.
+resharper_redundant_suppress_nullable_warning_expression_highlighting = none

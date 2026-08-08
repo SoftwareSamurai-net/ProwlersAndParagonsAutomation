@@ -1,6 +1,5 @@
 @page "/"
 @inject CharacterSession Session
-@inject NavigationManager Nav
 @inject IJSRuntime Js
 
 <PageTitle>Tier — Prowlers &amp; Paragons</PageTitle>
@@ -14,15 +13,13 @@
 @* A finished character is the quickest way to see what a sheet looks like, and the only
    way to see one without building it first. Both are legal Standard-tier characters —
    there is a test that says so — and loading one replaces whatever is on the sheet. *@
-<section class="panel no-print">
-    <div class="panel-head">
-        <h2>Or start from a finished character</h2>
-        <span class="muted small">Replaces anything already on the sheet</span>
-    </div>
+<Panel Title="Or start from a finished character"
+       Aside="Replaces anything already on the sheet"
+       NoPrint="true">
     <p class="small muted">
-        Two samples written for this tool, filling every section a printed sheet has. Handy
-        for judging the layout, the Source headings and the print view without spending
-        twenty minutes on a character first.
+        Two characters written for this tool, filling in every section a sheet has. The
+        quickest way to see what you get at the end — and what a printed sheet looks like —
+        without spending twenty minutes building one first.
     </p>
     <div class="inline">
         <button type="button" class="btn" @onclick="() => LoadSample(SheetMode.Hero)">
@@ -36,65 +33,64 @@
             <span class="small muted">Loaded <b>@_loaded</b> — see the GM review step.</span>
         }
     </div>
-</section>
+</Panel>
 
 <div class="grid two">
     @foreach (var tier in Session.Rules.Tiers)
     {
         var selected = Session.Sheet.SelectedTierId == tier.Id;
-        <div class="panel">
-            <div class="panel-head">
-                <h2>@tier.Name</h2>
+        <Panel Title="@tier.Name" Class="@(selected ? "selected" : null)">
+            <Head>
                 @if (selected)
                 {
                     <span class="tag own">Selected</span>
                 }
-            </div>
-            <p class="small">@tier.Description</p>
-            <p class="small num">
-                <b>@tier.HeroPoints</b> Hero Points · Trait Cap <b>@tier.TraitCapRank</b>d
-            </p>
-            @if (tier.Notes is not null)
-            {
-                <p class="small muted">@tier.Notes</p>
-            }
-            <button type="button" class="btn @(selected ? "" : "primary")"
-                    disabled="@selected"
-                    @onclick="() => SelectTier(tier.Id)">
-                @(selected ? "Current tier" : "Choose " + tier.Name)
-            </button>
-        </div>
+            </Head>
+            <ChildContent>
+                <p class="small">@tier.Description</p>
+                <p class="small num">
+                    <b>@tier.HeroPoints</b> Hero Points · Trait Cap <b>@tier.TraitCapRank</b>d
+                </p>
+                @if (tier.Notes is not null)
+                {
+                    <p class="small muted">@tier.Notes</p>
+                }
+                <button type="button" class="btn @(selected ? "" : "primary")"
+                        disabled="@selected"
+                        @onclick="() => SelectTier(tier.Id)">
+                    @(selected ? "Current tier" : "Choose " + tier.Name)
+                </button>
+            </ChildContent>
+        </Panel>
     }
 </div>
 
-<section class="panel">
-    <div class="panel-head">
-        <h2>Starting package</h2>
-        <span class="muted small">Optional</span>
-    </div>
+<Panel Title="Starting package" Aside="Optional">
     <p class="small muted">
         A package buys the ranks it grants, at a small discount — the Superhero Package is
         50 HP for what would cost 54 bought rank by rank. You can still buy higher ranks on
         top; only the ranks above the package's own are charged again.
     </p>
 
-    <ul class="chosen">
-        <li>
-            <div class="body">
+    <ChosenList>
+        <ChosenRow>
+            <Body>
                 <div><b>No package</b></div>
                 <div class="small muted">Buy every rank yourself.</div>
-            </div>
-            <button type="button" class="btn small"
-                    disabled="@(Session.Sheet.SelectedPackageId is null)"
-                    @onclick="() => SelectPackage(null)">
-                @(Session.Sheet.SelectedPackageId is null ? "Current" : "Choose")
-            </button>
-        </li>
+            </Body>
+            <Actions>
+                <button type="button" class="btn small"
+                        disabled="@(Session.Sheet.SelectedPackageId is null)"
+                        @onclick="() => SelectPackage(null)">
+                    @(Session.Sheet.SelectedPackageId is null ? "Current" : "Choose")
+                </button>
+            </Actions>
+        </ChosenRow>
         @foreach (var pkg in Session.Rules.CreationRules.OptionalPackages)
         {
             var chosen = Session.Sheet.SelectedPackageId == pkg.Id;
-            <li>
-                <div class="body">
+            <ChosenRow Cost="@($"{pkg.Cost} HP")">
+                <Body>
                     <div>
                         <b>@pkg.Name</b>
                         <span class="muted small">
@@ -102,16 +98,17 @@
                         </span>
                     </div>
                     <div class="small muted">@pkg.Description</div>
-                </div>
-                <span class="cost">@pkg.Cost HP</span>
-                <button type="button" class="btn small" disabled="@chosen"
-                        @onclick="() => SelectPackage(pkg.Id)">
-                    @(chosen ? "Current" : "Choose")
-                </button>
-            </li>
+                </Body>
+                <Actions>
+                    <button type="button" class="btn small" disabled="@chosen"
+                            @onclick="() => SelectPackage(pkg.Id)">
+                        @(chosen ? "Current" : "Choose")
+                    </button>
+                </Actions>
+            </ChosenRow>
         }
-    </ul>
-</section>
+    </ChosenList>
+</Panel>
 
 <StepButtons Next="characteristics" NextLabel="Buy characteristics"
              NextDisabled="@(Session.Sheet.SelectedTierId is null)" />

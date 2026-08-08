@@ -52,10 +52,10 @@ public sealed class ChooseTierStep : IWizardStep
         AnsiConsole.WriteLine();
 
         // Optional package
-        OfferPackage(sheet, rules, chosen);
+        OfferPackage(sheet, rules);
     }
 
-    private static void OfferPackage(CharacterSheet sheet, RulesRepository rules, TierModel tier)
+    private static void OfferPackage(CharacterSheet sheet, RulesRepository rules)
     {
         AnsiConsole.MarkupLine("[bold]Optional Starting Package[/]");
         AnsiConsole.MarkupLine("[grey]Packages give a flat HP cost in exchange for a floor rank " +

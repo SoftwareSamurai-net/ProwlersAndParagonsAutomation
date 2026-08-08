@@ -1,0 +1,67 @@
+@* The bordered card almost every screen is built from, with the optional ruled header
+   strip above it.
+
+   This exists because there were twenty-two hand-written copies of the same three
+   elements. That is fine until something has to change in all of them at once — which is
+   exactly what the print stylesheet needed — and then it is twenty-two chances to miss
+   one. Nothing here names a colour; the look is entirely `.panel` and `.panel-head` in
+   app.css, reading tokens from theme.css. *@
+
+<section class="@ClassName">
+    @if (HasHead)
+    {
+        <div class="panel-head">
+            @if (Title is not null)
+            {
+                @if (Level == 3)
+                {
+                    <h3>@Title</h3>
+                }
+                else
+                {
+                    <h2>@Title</h2>
+                }
+            }
+            @Head
+            @if (Aside is not null)
+            {
+                <span class="muted small">@Aside</span>
+            }
+            @if (Cost is not null)
+            {
+                <span class="cost">@Cost</span>
+            }
+        </div>
+    }
+    @ChildContent
+</section>
+
+@code {
+    /// <summary>Heading text. Omit it, and the header strip is not drawn at all.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>2 for a section heading, 3 for a subordinate one. Matches h2/h3.</summary>
+    [Parameter] public int Level { get; set; } = 2;
+
+    /// <summary>Quiet text beside the heading — a rate, a count, a caveat.</summary>
+    [Parameter] public string? Aside { get; set; }
+
+    /// <summary>A Hero Point figure, set to the right of the header strip.</summary>
+    [Parameter] public string? Cost { get; set; }
+
+    /// <summary>Anything else the header needs, such as a tag. Rendered after the heading.</summary>
+    [Parameter] public RenderFragment? Head { get; set; }
+
+    /// <summary>Leave this panel out of the printed sheet — working UI, not sheet content.</summary>
+    [Parameter] public bool NoPrint { get; set; }
+
+    /// <summary>Extra classes for the rare panel that needs one.</summary>
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool HasHead => Title is not null || Aside is not null || Cost is not null || Head is not null;
+
+    private string ClassName =>
+        string.Join(' ', new[] { "panel", NoPrint ? "no-print" : null, Class }.Where(c => !string.IsNullOrEmpty(c)));
+}

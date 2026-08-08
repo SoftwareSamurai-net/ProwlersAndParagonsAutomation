@@ -9,12 +9,16 @@
         <small>Character creation — @(Session.Mode == SheetMode.Hero ? "Hero" : "Villain")</small>
     </div>
 
-    <div class="mode-switch" role="group" aria-label="Sheet mode">
+    @* aria-pressed is written out as a string on purpose. Blazor drops a bool attribute
+       when it is false and renders it as `aria-pressed=""` when it is true, and an empty
+       value is invalid ARIA that assistive technology reads as *not* pressed — so the
+       natural spelling announces the exact opposite of the state on both buttons. *@
+    <div class="mode-switch" role="group" aria-label="Hero or Villain">
         <button type="button"
-                aria-pressed="@(Session.Mode == SheetMode.Hero)"
+                aria-pressed="@Pressed(SheetMode.Hero)"
                 @onclick="() => SetMode(SheetMode.Hero)">Hero</button>
         <button type="button"
-                aria-pressed="@(Session.Mode == SheetMode.Villain)"
+                aria-pressed="@Pressed(SheetMode.Villain)"
                 @onclick="() => SetMode(SheetMode.Villain)">Villain</button>
     </div>
 </header>
@@ -26,6 +30,8 @@
 </main>
 
 @code {
+    private string Pressed(SheetMode mode) => Session.Mode == mode ? "true" : "false";
+
     protected override void OnInitialized() => Session.Changed += StateHasChanged;
 
     /// <summary>

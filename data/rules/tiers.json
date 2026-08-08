@@ -4,7 +4,7 @@
     "name": "Street Level",
     "hero_points": 75,
     "trait_cap_rank": 8,
-    "description": "Street-level vigilantes with limited superpowers. Specialty Power is available at this tier. Iconic minimum is not applicable."
+    "description": "Street-level vigilantes with limited superpowers. The Specialty Power is available at this tier."
   },
   {
     "id": "low_level",
@@ -40,7 +40,7 @@
     "hero_points": 200,
     "trait_cap_rank": 24,
     "description": "Cosmic or godlike heroes. The 200 HP listed is a bare minimum for this tier.",
-    "notes": "The rulebook states that the 200 Hero Points listed for Iconic Heroes is a bare minimum, so any budget above it is GM discretion. Verified against Ch.2 Power Level, p.17.",
+    "notes": "The rulebook states that the 200 Hero Points listed for Iconic Heroes is a bare minimum, so any budget above it is the GM's call. Ch.2, Power Level, p.17.",
     "needs_review": false
   }
 ]

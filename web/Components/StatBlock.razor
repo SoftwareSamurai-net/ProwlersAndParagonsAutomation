@@ -1,0 +1,12 @@
+@* One ruled box with a label over a big number, the way the published sheets set Edge,
+   Health and Resolve. *@
+
+<div class="stat-block">
+    <div class="label">@Label</div>
+    <div class="value">@Value</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter, EditorRequired] public string Value { get; set; } = "";
+}

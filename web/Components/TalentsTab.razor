@@ -1,11 +1,8 @@
 @inject CharacterSession Session
 
-<section class="panel">
-    <div class="panel-head">
-        <h2>Talents</h2>
-        <span class="muted small">1 HP per rank · an ordinary human averages 2d</span>
-        <span class="cost">@Session.Costs.TalentCost(Session.Sheet) HP</span>
-    </div>
+<Panel Title="Talents"
+       Aside="1 HP per rank · an ordinary human averages 2d"
+       Cost="@($"{Session.Costs.TalentCost(Session.Sheet)} HP")">
 
     @foreach (var talent in Session.Rules.Talents)
     {
@@ -18,7 +15,7 @@
                  Max="@Session.TraitCap"
                  RankChanged="rank => SetTalent(id, rank)" />
     }
-</section>
+</Panel>
 
 @code {
     private int PackageTalentRank =>

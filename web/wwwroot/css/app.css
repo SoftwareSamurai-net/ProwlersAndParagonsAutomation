@@ -1,6 +1,10 @@
-/* Layout and components. Not one colour is named here — every value comes from
-   a token in theme.css, which is what makes the Hero/Villain switch a single
-   attribute on <html>. See the header comment there. */
+/* Layout and components. Not one colour is named here — every value comes from a token in
+   theme.css, which is what makes the Hero/Villain switch a single attribute on <html> and
+   the print palette a single media query. Radii and durations are tokens for the same
+   reason. See the header comment there.
+
+   The print rules are at the bottom, and they are the point of the whole file: the printed
+   sheet is what this tool exists to produce, and the screen is where you build it. */
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -11,8 +15,9 @@ body {
     background: var(--surface);
     color: var(--ink);
     font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
-    font-size: 15px;
-    line-height: 1.5;
+    font-size: 15.5px;
+    line-height: 1.55;
+    text-underline-offset: 0.15em;
 }
 
 h1, h2, h3, h4 {
@@ -20,9 +25,28 @@ h1, h2, h3, h4 {
     letter-spacing: var(--heading-track);
     margin: 0 0 0.5rem;
     line-height: 1.2;
+    text-wrap: balance;
 }
 
-h1 { font-size: 1.6rem; }
+/* The page title carries a short accent rule under it rather than a full-width one: a
+   masthead mark, not a divider. It is decorative, so it is a pseudo-element and screen
+   readers never meet it. */
+h1 {
+    font-size: 1.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.045em;
+    margin-bottom: 0.75rem;
+}
+h1::after {
+    content: "";
+    display: block;
+    width: 2.75rem;
+    height: 3px;
+    margin-top: 0.4rem;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+}
+
 h2 { font-size: 1.2rem; }
 h3 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.07em; }
 
@@ -55,8 +79,8 @@ hr {
 
 /* ── Blazor's unhandled-error bar ────────────────────────────────────────── */
 
-/* Hidden until Blazor sets display:block on it. Without this rule it shows from
-   the first paint and reports a failure that never happened. */
+/* Hidden until Blazor sets display:block on it. Without this rule it shows from the first
+   paint and reports a failure that never happened. */
 #blazor-error-ui {
     display: none;
     position: fixed;
@@ -65,15 +89,32 @@ hr {
     padding: 0.7rem 1.2rem;
     background: var(--danger);
     color: var(--on-primary);
-    box-shadow: 0 -1px 2px rgb(0 0 0 / 20%);
+    border-top: var(--rule-weight) solid var(--rule);
 }
 #blazor-error-ui a { color: var(--on-primary); }
 #blazor-error-ui .dismiss { cursor: pointer; float: right; }
 
+/* ── Motion ──────────────────────────────────────────────────────────────── */
+
+/* Panels and the sheet arrive rather than appear. Blazor keeps DOM nodes across renders,
+   so this plays when something is genuinely inserted and not on every state change.
+   --enter collapses to nothing under prefers-reduced-motion; see theme.css. */
+@keyframes rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+}
+
 /* ── Shell ───────────────────────────────────────────────────────────────── */
 
 .banner {
+    /* The flat fill first: if color-mix is unsupported the whole gradient declaration is
+       invalid and dropped, and without a fallback that leaves --on-primary text sitting on
+       --surface, which is unreadable rather than merely unstyled. */
     background: var(--primary);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--primary) 88%, var(--on-primary)),
+        var(--primary));
     color: var(--on-primary);
     padding: 0.85rem 1.25rem;
     display: flex;
@@ -81,6 +122,7 @@ hr {
     gap: 1rem;
     flex-wrap: wrap;
     border-bottom: var(--rule-weight) solid var(--rule);
+    box-shadow: var(--shadow);
 }
 .banner-title {
     font-weight: 700;
@@ -100,12 +142,22 @@ hr {
 .shell {
     max-width: 1100px;
     margin: 0 auto;
-    padding: 1.25rem;
+    padding: 1.5rem 1.25rem 3rem;
 }
+
+/* The sentence or two that introduces a step. Panels are as wide as the page needs to be;
+   running prose is not, and reads badly at 110 characters to the line. */
+.shell > p { max-width: 68ch; }
 
 /* ── Mode switch ─────────────────────────────────────────────────────────── */
 
-.mode-switch { display: flex; gap: 0; border: 1px solid var(--on-primary); border-radius: 999px; overflow: hidden; }
+.mode-switch {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--on-primary);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+}
 .mode-switch button {
     background: transparent;
     color: var(--on-primary);
@@ -116,6 +168,10 @@ hr {
     cursor: pointer;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+    transition: background-color var(--swap) var(--ease), color var(--swap) var(--ease);
+}
+.mode-switch button:hover:not([aria-pressed="true"]) {
+    background: color-mix(in srgb, var(--on-primary) 22%, transparent);
 }
 .mode-switch button[aria-pressed="true"] {
     background: var(--on-primary);
@@ -130,20 +186,22 @@ hr {
     flex-wrap: wrap;
     gap: 0.35rem;
     list-style: none;
-    margin: 0 0 1.25rem;
-    padding: 0;
+    margin: 0 0 1.5rem;
+    padding: 0 0 0.75rem;
     border-bottom: var(--rule-weight) solid var(--rule);
-    padding-bottom: 0.75rem;
 }
 .steps a {
     display: block;
     padding: 0.3rem 0.7rem;
     border: 1px solid var(--rule);
-    border-radius: 3px;
+    border-radius: var(--radius-small);
     text-decoration: none;
     color: var(--muted);
     font-size: 0.85rem;
     background: var(--panel);
+    transition: color var(--swap) var(--ease),
+                border-color var(--swap) var(--ease),
+                box-shadow var(--swap) var(--ease);
 }
 .steps a:hover { color: var(--ink); border-color: var(--heading); }
 .steps a.active {
@@ -159,9 +217,9 @@ hr {
 .budget {
     background: var(--panel);
     border: 1px solid var(--rule);
-    border-radius: 4px;
-    padding: 0.7rem 0.9rem;
-    margin-bottom: 1.25rem;
+    border-radius: var(--radius);
+    padding: 0.75rem 0.95rem;
+    margin-bottom: 1.5rem;
     box-shadow: var(--shadow);
 }
 .budget-line { display: flex; gap: 1rem; align-items: baseline; flex-wrap: wrap; }
@@ -171,11 +229,16 @@ hr {
     height: 10px;
     background: var(--panel-sunk);
     border: 1px solid var(--rule);
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     overflow: hidden;
     margin-top: 0.5rem;
 }
-.budget-fill { height: 100%; background: var(--accent); transition: width 120ms linear; }
+.budget-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: inherit;
+    transition: width var(--enter) var(--ease), background-color var(--swap) var(--ease);
+}
 .budget-fill.over { background: var(--danger); }
 .over-text { color: var(--danger); font-weight: 700; }
 
@@ -194,12 +257,20 @@ hr {
 .panel {
     background: var(--panel);
     border: 1px solid var(--rule);
-    border-radius: 4px;
-    padding: 1rem;
-    margin-bottom: 1rem;
+    border-radius: var(--radius);
+    padding: 1.1rem;
+    margin-bottom: 1.1rem;
     box-shadow: var(--shadow);
+    animation: rise var(--enter) var(--ease) both;
 }
 .panel > h2:first-child, .panel > h3:first-child { margin-top: 0; }
+
+/* The chosen tier, and anything else that is currently the answer. An accent ring rather
+   than a fill, because --accent is never legible as a background for text. */
+.panel.selected {
+    border-color: var(--accent);
+    box-shadow: var(--shadow), inset 0 0 0 1px var(--accent);
+}
 
 .panel-head {
     display: flex;
@@ -208,11 +279,15 @@ hr {
     flex-wrap: wrap;
     border-bottom: var(--rule-weight) solid var(--rule);
     padding-bottom: 0.5rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.85rem;
 }
 .panel-head h2, .panel-head h3 { margin: 0; margin-right: auto; }
+.panel-head .cost { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
 
-.grid { display: grid; gap: 0.75rem; }
+/* `start`, not the default `stretch`. Two boxes side by side are rarely the same length —
+   one Perk against three Flaws — and stretching the short one draws a ruled box around a
+   column of nothing. On paper that void can run the whole height of a page. */
+.grid { display: grid; gap: 0.9rem; align-items: start; }
 .grid.two { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .grid.three { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
 
@@ -220,6 +295,8 @@ hr {
 .small { font-size: 0.82rem; }
 .nowrap { white-space: nowrap; }
 .num { font-variant-numeric: tabular-nums; }
+.wide { width: 100%; }
+.spaced { margin-top: 0.75rem; }
 
 /* ── Controls ────────────────────────────────────────────────────────────── */
 
@@ -228,13 +305,18 @@ hr {
     font: inherit;
     padding: 0.4rem 0.9rem;
     border: 1px solid var(--heading);
-    border-radius: 3px;
+    border-radius: var(--radius-small);
     background: var(--panel);
     color: var(--heading);
     cursor: pointer;
     text-decoration: none;
+    transition: background-color var(--swap) var(--ease),
+                border-color var(--swap) var(--ease),
+                transform var(--step) var(--ease),
+                filter var(--swap) var(--ease);
 }
 .btn:hover:not(:disabled) { background: var(--accent-soft); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 600; }
 .btn.primary:hover:not(:disabled) { filter: brightness(1.12); background: var(--primary); }
@@ -242,39 +324,63 @@ hr {
 .btn.danger:hover:not(:disabled) { background: var(--danger-soft); }
 .btn.small { padding: 0.15rem 0.5rem; font-size: 0.8rem; }
 
+/* An <a> standing in for a disabled button. Without href it is not focusable, but it still
+   needs to look and behave as unavailable. */
+.btn.disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+
+/* --focus, not --accent. A focus ring is a non-text control indicator and WCAG 1.4.11 asks
+   for 3:1 against what surrounds it; Hero --accent is 1.8:1 on --surface, which is a ring
+   you cannot see. */
 :where(button, a, input, select, textarea):focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
 }
+
+/* App.razor's <FocusOnNavigate Selector="h1"> puts the caret on the page heading after
+   every navigation so a screen reader announces where it has landed. That is worth
+   keeping — but it also made every page open with a focus ring drawn round its title, on
+   the very first paint, which reads as a mis-click rather than as a cue.
+
+   A heading is not a control: it is focusable only so the caret can rest on it, it does
+   nothing when activated, and nobody tabs to it. So it takes no ring, and every element
+   that is a control keeps one. Blazor is what sets the tabindex, which is why matching on
+   it is precise rather than a blunt `h1 { outline: none }`. */
+h1[tabindex="-1"]:focus,
+h1[tabindex="-1"]:focus-visible { outline: none; }
 
 input[type="text"], input[type="number"], input[type="search"], select, textarea {
     font: inherit;
     color: var(--ink);
     background: var(--panel);
     border: 1px solid var(--rule);
-    border-radius: 3px;
-    padding: 0.3rem 0.5rem;
+    border-radius: var(--radius-small);
+    padding: 0.35rem 0.55rem;
     max-width: 100%;
+    transition: border-color var(--swap) var(--ease);
 }
+input[type="text"]:hover, input[type="number"]:hover, input[type="search"]:hover,
+select:hover, textarea:hover { border-color: var(--heading); }
 textarea { width: 100%; resize: vertical; }
 input[type="number"] { width: 5.5rem; }
 label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.2rem; }
 
-.field { margin-bottom: 0.85rem; }
+.field { margin-bottom: 0.9rem; }
 .inline { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 
 .nav-buttons {
     display: flex;
     gap: 0.75rem;
+    align-items: center;
     margin-top: 1.5rem;
     padding-top: 1rem;
     border-top: var(--rule-weight) solid var(--rule);
 }
 .nav-buttons .spacer { margin-left: auto; }
+.nav-buttons .cost { font-variant-numeric: tabular-nums; font-weight: 700; }
 
 /* ── Tabs (the characteristics step's five sections) ─────────────────────── */
 
-.tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1rem; }
+.tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1.1rem; }
 .tabs button {
     font: inherit;
     font-size: 0.88rem;
@@ -282,10 +388,14 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     background: var(--panel);
     color: var(--muted);
     border: 1px solid var(--rule);
-    border-radius: 3px;
+    border-radius: var(--radius-small);
     cursor: pointer;
+    transition: color var(--swap) var(--ease),
+                border-color var(--swap) var(--ease),
+                box-shadow var(--swap) var(--ease);
 }
-.tabs button[aria-selected="true"] {
+.tabs button:hover { color: var(--ink); border-color: var(--heading); }
+.tabs button[aria-current="true"] {
     color: var(--heading);
     border-color: var(--heading);
     font-weight: 700;
@@ -307,6 +417,9 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .rank-name { font-weight: 600; }
 .rank-name small { display: block; font-weight: 400; color: var(--muted); font-size: 0.75rem; }
 
+/* The Pros and Cons carried by the Ability on the row above. */
+.rank-note { margin: 0 0 0.5rem 0.2rem; }
+
 .stepper { display: flex; align-items: center; gap: 0.3rem; }
 .stepper button {
     width: 1.7rem; height: 1.7rem;
@@ -314,15 +427,25 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     border: 1px solid var(--rule);
     background: var(--panel);
     color: var(--ink);
-    border-radius: 3px;
+    border-radius: var(--radius-small);
     cursor: pointer;
+    transition: border-color var(--swap) var(--ease),
+                color var(--swap) var(--ease),
+                transform var(--step) var(--ease);
 }
 .stepper button:hover:not(:disabled) { border-color: var(--heading); color: var(--heading); }
+.stepper button:active:not(:disabled) { transform: translateY(1px); }
 .stepper button:disabled { opacity: 0.35; cursor: not-allowed; }
 .stepper .value { min-width: 2.4rem; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; }
 
 .pips { display: flex; gap: 2px; }
-.pip { width: 7px; height: 14px; border-radius: 1px; background: var(--panel-sunk); border: 1px solid var(--rule); }
+.pip {
+    width: 7px; height: 14px;
+    border-radius: 1px;
+    background: var(--panel-sunk);
+    border: 1px solid var(--rule);
+    transition: background-color var(--step) var(--ease), border-color var(--step) var(--ease);
+}
 .pip.on { background: var(--accent); border-color: var(--accent); }
 .pip.package { background: var(--accent-soft); }
 
@@ -333,7 +456,7 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     display: flex;
     gap: 0.6rem;
     align-items: flex-start;
-    padding: 0.5rem 0;
+    padding: 0.55rem 0;
     border-bottom: 1px solid var(--rule);
 }
 .chosen > li:last-child { border-bottom: none; }
@@ -347,7 +470,7 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     letter-spacing: 0.05em;
     padding: 0.05rem 0.4rem;
     border: 1px solid var(--rule);
-    border-radius: 2px;
+    border-radius: var(--radius-small);
     color: var(--muted);
     margin-left: 0.35rem;
     vertical-align: 1px;
@@ -357,7 +480,12 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 
 /* ── Option rows (pros, cons, powers, perks, flaws to pick from) ─────────── */
 
-.options { max-height: 22rem; overflow-y: auto; border: 1px solid var(--rule); border-radius: 3px; }
+.options {
+    max-height: 22rem;
+    overflow-y: auto;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-small);
+}
 .option {
     display: flex;
     gap: 0.6rem;
@@ -365,15 +493,17 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     width: 100%;
     text-align: left;
     font: inherit;
-    padding: 0.5rem 0.65rem;
+    padding: 0.55rem 0.65rem;
     background: var(--panel);
     color: var(--ink);
     border: none;
+    border-left: 3px solid transparent;
     border-bottom: 1px solid var(--rule);
     cursor: pointer;
+    transition: background-color var(--swap) var(--ease), border-left-color var(--swap) var(--ease);
 }
 .option:last-child { border-bottom: none; }
-.option:hover { background: var(--accent-soft); }
+.option:hover { background: var(--accent-soft); border-left-color: var(--accent); }
 .option .body { flex: 1 1 auto; min-width: 0; }
 .option .name { font-weight: 600; }
 .option .cost { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -382,32 +512,54 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 /* ── Validation ──────────────────────────────────────────────────────────── */
 
 .issues { list-style: none; margin: 0; padding: 0; }
-.issues li { padding: 0.4rem 0.6rem; border-left: 3px solid var(--rule); margin-bottom: 0.35rem; background: var(--panel-sunk); }
+.issues li {
+    padding: 0.45rem 0.65rem;
+    border-left: 3px solid var(--rule);
+    border-radius: 0 var(--radius-small) var(--radius-small) 0;
+    margin-bottom: 0.35rem;
+    background: var(--panel-sunk);
+}
 .issues li.error { border-left-color: var(--danger); background: var(--danger-soft); }
 .issues li.warning { border-left-color: var(--accent); background: var(--accent-soft); }
-.issues code { font-size: 0.78rem; color: var(--muted); }
 
 .verdict { font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
 .verdict.invalid { color: var(--danger); }
 
 /* ── The character sheet itself ──────────────────────────────────────────── */
 
-.sheet { background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; box-shadow: var(--shadow); }
+.sheet {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    animation: rise var(--enter) var(--ease) both;
+}
 .sheet-banner {
+    /* The flat fill first: if color-mix is unsupported the whole gradient declaration is
+       invalid and dropped, and without a fallback that leaves --on-primary text sitting on
+       --surface, which is unreadable rather than merely unstyled. */
     background: var(--primary);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--primary) 88%, var(--on-primary)),
+        var(--primary));
     color: var(--on-primary);
-    padding: 0.9rem 1.1rem;
+    padding: 1rem 1.15rem;
+    border-bottom: var(--rule-weight) solid var(--rule);
 }
 .sheet-banner .name {
-    font-size: 1.5rem;
+    font-size: 1.55rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: var(--banner-track);
+    line-height: 1.15;
 }
 .sheet-banner .sub { font-size: 0.8rem; opacity: 0.85; }
-.sheet-body { padding: 1.1rem; }
+.sheet-body { padding: 1.15rem; }
 
-.sheet-section { margin-bottom: 1.25rem; }
+.sheet-section { margin-bottom: 1.35rem; }
+.sheet-section:last-child { margin-bottom: 0; }
 .sheet-section > h3 {
     border-bottom: var(--rule-weight) solid var(--rule);
     padding-bottom: 0.25rem;
@@ -417,33 +569,169 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .stat-blocks { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .stat-block {
     border: var(--rule-weight) solid var(--rule);
-    border-radius: 3px;
+    border-radius: var(--radius-small);
     padding: 0.5rem 0.9rem;
     text-align: center;
-    min-width: 5.5rem;
+    min-width: 5.75rem;
     background: var(--panel-sunk);
 }
 .stat-block .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-.stat-block .value { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat-block .value { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
 
 .stat-table { width: 100%; border-collapse: collapse; }
-.stat-table td { padding: 0.2rem 0.4rem; border-bottom: 1px solid var(--rule); }
+.stat-table td { padding: 0.22rem 0.4rem; border-bottom: 1px solid var(--rule); }
 .stat-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stat-table tr:last-child td { border-bottom: none; }
 
-.power-entry { padding: 0.4rem 0; border-bottom: 1px solid var(--rule); }
+/* A row that spans both columns is a single description, not a value — gear is written
+   this way. Without this it is also the last cell, and was being set flush right. */
+.stat-table td[colspan] { text-align: left; white-space: normal; }
+
+.power-entry { padding: 0.45rem 0; border-bottom: 1px solid var(--rule); }
 .power-entry:last-child { border-bottom: none; }
 .power-entry .head { display: flex; gap: 0.5rem; align-items: baseline; }
 .power-entry .head .pname { font-weight: 700; margin-right: auto; }
 .power-entry .statline { font-size: 0.78rem; color: var(--muted); }
 
+.sheet .quote { font-style: italic; }
+
+/* Paper only. On screen the sheet is already framed by the page around it. */
+.sheet-footer { display: none; }
+
 @media (max-width: 620px) {
-    .shell { padding: 0.75rem; }
+    .shell { padding: 1rem 0.75rem 2rem; }
     .rank-row { grid-template-columns: 1fr auto; }
     .rank-row .pips { display: none; }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Print.
+
+   Judge this by the PDF, never by the screen. The palette is forced light in
+   theme.css; what is left here is the page, the boxes, and where a break may
+   fall.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@page {
+    size: A4 portrait;
+    margin: 14mm 13mm;
+}
+
 @media print {
-    .banner, .steps, .nav-buttons, .budget, .no-print { display: none !important; }
-    .sheet { border: none; box-shadow: none; }
+    /* Everything that exists to build the character rather than to be the character. */
+    .banner,
+    .steps,
+    .nav-buttons,
+    .budget,
+    .tabs,
+    .mode-switch,
+    .no-print,
+    #blazor-error-ui {
+        display: none !important;
+    }
+
+    body {
+        font-size: 10.5pt;
+        line-height: 1.4;
+        background: var(--surface);
+    }
+
+    .shell { max-width: none; margin: 0; padding: 0; }
+
+    /* Nothing arrives on paper; it is already there. An animation with `both` fill can
+       leave an element at its starting opacity if print runs before it completes. */
+    .panel, .sheet { animation: none; }
+
+    h1 { display: none; }          /* the page heading — the sheet has its own banner */
+
+    /* ── The sheet ─────────────────────────────────────────────────────────── */
+
+    .sheet {
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        overflow: visible;
+    }
+
+    /* A rule instead of a wash of ink, doubled so it reads as a masthead. */
+    .sheet-banner {
+        background: none;
+        padding: 0 0 0.35rem;
+        border-bottom: 3px double var(--rule);
+        margin-bottom: 0.6rem;
+    }
+    .sheet-banner .name { font-size: 20pt; }
+    .sheet-banner .sub { opacity: 1; color: var(--muted); font-size: 9pt; }
+
+    .sheet-body { padding: 0; }
+
+    /* Ruled boxes, the way the published sheets set them.
+
+       Every box asks not to be broken, which stops the common nuisance — a four-line Gear
+       box straddling a page for no reason. A Powers group is the exception and opts back
+       out below: `break-inside: avoid` is only a request, but Chrome honours it by pushing
+       the box to the next page first, and a fifteen-Power group is tall enough that doing
+       so left two thirds of page one white. Small boxes benefit; the one box that can
+       exceed a page does not. */
+    .sheet-section {
+        border: 1px solid var(--rule);
+        border-radius: 0;
+        padding: 0.45rem 0.6rem 0.5rem;
+        margin-bottom: 0.6rem;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+    .sheet-section.powers {
+        break-inside: auto;
+        page-break-inside: auto;
+    }
+    .sheet-section > h3 {
+        font-size: 9.5pt;
+        letter-spacing: 0.12em;
+        margin: -0.45rem -0.6rem 0.45rem;
+        padding: 0.2rem 0.6rem;
+        border-bottom: 1px solid var(--rule);
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+
+    /* The units a reader follows down the page. None of these may be cut in half. */
+    .power-entry,
+    .stat-block,
+    .stat-table tr,
+    .chosen > li {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    p, li { orphans: 3; widows: 3; }
+
+    .stat-blocks { gap: 0.5rem; }
+    .stat-block { min-width: 22mm; padding: 0.35rem 0.7rem; }
+    .stat-block .value { font-size: 16pt; }
+
+    .grid { gap: 0.6rem; }
+
+    /* auto-fit collapses to one column when it cannot measure a print viewport the way it
+       measures a screen one. A4 inside the margins is 184mm, so two columns are stated
+       outright rather than negotiated. */
+    .grid.two { grid-template-columns: 1fr 1fr; }
+
+    /* The three derived numbers head the sheet. A box round a row of boxes is one border
+       too many, so this section keeps only its contents. */
+    .sheet-section.headline { border: none; padding: 0; margin-bottom: 0.6rem; }
+
+    /* Printed once, at the end. See the comment in SheetView for why this is not a running
+       footer on every page. */
+    .sheet-footer {
+        display: block;
+        margin-top: 0.5rem;
+        padding-top: 1.5mm;
+        border-top: 1px solid var(--rule);
+        font-size: 8pt;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        break-inside: avoid;
+    }
 }

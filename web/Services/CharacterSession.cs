@@ -41,7 +41,7 @@ public sealed class CharacterSession
     public RulesRepository Rules { get; }
     public CostCalculator Costs { get; }
     public DerivedStatsCalculator Derived { get; }
-    public CharacterValidator Validator { get; }
+    private CharacterValidator Validator { get; }
     public ProConApplicability Applicability { get; }
     public SourceGrouping Grouping { get; }
 
@@ -64,13 +64,6 @@ public sealed class CharacterSession
 
     /// <summary>Call after mutating <see cref="Sheet"/>.</summary>
     public void NotifyChanged() => Changed?.Invoke();
-
-    /// <summary>Throws the character away and starts again.</summary>
-    public void Reset()
-    {
-        Sheet = new CharacterSheet();
-        NotifyChanged();
-    }
 
     /// <summary>
     /// Replaces the character with one of the samples, and sets the palette to match.
@@ -111,8 +104,6 @@ public sealed class CharacterSession
     public int Budget => Sheet.SelectedTierId is null
         ? 0
         : Rules.GetTier(Sheet.SelectedTierId)?.HeroPoints ?? 0;
-
-    public int Remaining => Budget - Spent;
 
     public int TraitCap => Sheet.SelectedTierId is null
         ? 0

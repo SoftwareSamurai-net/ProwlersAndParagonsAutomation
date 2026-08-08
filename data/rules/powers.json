@@ -589,7 +589,7 @@
       "pros_cons"
     ],
     "source_ref": "Ultimate Edition, Ch.2 Powers, p.24",
-    "notes": "Cost is Special: this Power costs as many Hero Points per rank as the Trait it raises, and uses that Trait as its baseline rank. The player must nominate the affected Trait; CostCalculator resolves the rate from it."
+    "notes": "Cost is Special: this Power costs as many Hero Points per rank as the Trait it raises, and uses that Trait as its baseline rank. The player nominates the affected Trait, and the rate follows from it."
   },
   {
     "id": "buff",

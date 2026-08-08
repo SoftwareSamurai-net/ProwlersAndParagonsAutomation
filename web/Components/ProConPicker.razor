@@ -10,24 +10,22 @@
    A Power's own Pros and Cons come first, marked, because they are printed in its
    rulebook entry and are what a player reading the book expects to be offered. *@
 
-<div class="field">
-    <label>@(IsPro ? "Pros" : "Cons")</label>
-
+<Field Label="@(IsPro ? "Pros" : "Cons")">
     @if (Selected.Count == 0)
     {
         <p class="small muted">None.</p>
     }
     else
     {
-        <ul class="chosen">
+        <ChosenList>
             @foreach (var choice in Selected.ToList())
             {
-                <li>
-                    <div class="body">
+                <ChosenRow>
+                    <Body>
                         <b>@DisplayName(choice.Id)</b>
                         @if (choice.VariantKey is not null)
                         {
-                            <span class="muted small"> — @Humanise(choice.VariantKey)</span>
+                            <span class="muted small"> — @Labels.Humanise(choice.VariantKey)</span>
                         }
                         @if (choice.Units is { } u)
                         {
@@ -37,11 +35,13 @@
                         {
                             <span class="tag own">this Power</span>
                         }
-                    </div>
-                    <button type="button" class="btn small danger" @onclick="() => Remove(choice)">Remove</button>
-                </li>
+                    </Body>
+                    <Actions>
+                        <button type="button" class="btn small danger" @onclick="() => Remove(choice)">Remove</button>
+                    </Actions>
+                </ChosenRow>
             }
-        </ul>
+        </ChosenList>
     }
 
     @if (_pending is null)
@@ -53,67 +53,66 @@
 
     @if (_adding && _pending is null)
     {
-        <div class="options" style="margin-top:0.5rem">
+        <OptionList Class="spaced">
             @foreach (var own in OwnEntries)
             {
-                <button type="button" class="option" @onclick="() => Begin(own.Id)">
-                    <span class="body">
-                        <span class="name">@own.Name <span class="tag own">this Power</span></span>
-                        <span class="caveat">@own.Description</span>
-                    </span>
-                    <span class="cost">@PowerProConCost(own)</span>
-                </button>
+                <OptionRow Name="@own.Name" Caveat="@own.Description" Cost="@PowerProConCost(own)"
+                           OnSelect="() => Begin(own.Id)">
+                    <NameExtra>
+                        <span class="tag own">this Power</span>
+                    </NameExtra>
+                </OptionRow>
             }
+            @* A Power's own Pros and Cons showed their description and the generic ones did
+               not, so half this list was bare names and prices — unusable without the book
+               open. Both halves describe themselves now, and the applicability caveat is
+               appended where the option states one the data cannot check. *@
             @foreach (var option in GenericOptions)
             {
-                <button type="button" class="option" @onclick="() => Begin(option.Id)">
-                    <span class="body">
-                        <span class="name">@option.Name</span>
-                        @if (option.ApplicabilityCaveat is not null)
-                        {
-                            <span class="caveat">@option.ApplicabilityCaveat The GM decides.</span>
-                        }
-                    </span>
-                    <span class="cost">@GenericCost(option)</span>
-                </button>
+                <OptionRow Name="@option.Name"
+                           Caveat="@GenericCaveat(option)"
+                           Cost="@GenericCost(option)"
+                           OnSelect="() => Begin(option.Id)" />
             }
-        </div>
+        </OptionList>
     }
 
     @if (_pending is { } pending)
     {
-        <div class="panel" style="margin-top:0.5rem">
+        <Panel Class="spaced">
             <b>@DisplayName(pending.Id)</b>
 
+            @* The ids carry an instance suffix because two of these are on screen at once —
+               the Pros picker and the Cons picker — and a page with two id="pcv" points
+               both <label for> at the first one, so clicking the Cons label focuses the
+               Pros control and a screen reader reads out the wrong question. *@
             @if (VariantsFor(pending.Id) is { Count: > 0 } variants)
             {
-                <div class="field">
-                    <label for="pcv">This one is graded — which version?</label>
-                    <select id="pcv" @bind="_variantKey">
+                <Field For="@($"pcv-{Slot}")" Label="This one is graded — which version?">
+                    <select id="@($"pcv-{Slot}")" @bind="_variantKey">
                         <option value="">Choose…</option>
                         @foreach (var v in variants)
                         {
-                            <option value="@v.Key">@Humanise(v.Key) — @v.Value</option>
+                            <option value="@v.Key">@Labels.Humanise(v.Key) — @v.Value</option>
                         }
                     </select>
-                </div>
+                </Field>
             }
 
             @if (NeedsUnits(pending.Id))
             {
-                <div class="field">
-                    <label for="pcu">How many @(Own(pending.Id)?.CostUnitLabel ?? "unit")s?</label>
-                    <input id="pcu" type="number" min="1" @bind="_units" />
-                </div>
+                <Field For="@($"pcu-{Slot}")" Label="@($"How many {Own(pending.Id)?.CostUnitLabel ?? "unit"}s?")">
+                    <input id="@($"pcu-{Slot}")" type="number" min="1" @bind="_units" />
+                </Field>
             }
 
             <div class="inline">
                 <button type="button" class="btn primary small" disabled="@(!CanConfirm())" @onclick="Confirm">Add</button>
                 <button type="button" class="btn small" @onclick="() => _pending = null">Cancel</button>
             </div>
-        </div>
+        </Panel>
     }
-</div>
+</Field>
 
 @code {
     /// <summary>What the Pros and Cons are being applied to.</summary>
@@ -148,7 +147,15 @@
     [Parameter] public bool IsPro { get; set; }
     [Parameter] public EventCallback OnChanged { get; set; }
 
-    [Inject] private CharacterSession Session { get; set; } = default!;
+    [Inject] private CharacterSession Session { get; set; } = null!;
+
+    /// <summary>
+    /// Distinguishes this picker's control ids from its sibling's. Only ever two of these
+    /// are on screen together — a Pros picker and a Cons picker on the same target — so the
+    /// pair of values is enough, and being derived rather than random keeps the ids stable
+    /// across renders.
+    /// </summary>
+    private string Slot => IsPro ? "pro" : "con";
 
     private bool _adding;
     private SelectedProCon? _pending;
@@ -282,7 +289,26 @@
         _                                => "graded"
     };
 
+    /// <summary>
+    /// What a generic option says about itself: its description, then the constraint its own
+    /// rulebook entry states where that constraint is one the data cannot check for us. The
+    /// caveat is shown, never enforced — see ProConApplicability.
+    /// </summary>
+    private static string? GenericCaveat(IGenericProCon option)
+    {
+        var description = option switch
+        {
+            ProModel p => p.Description,
+            ConModel c => c.Description,
+            _          => null
+        };
+
+        var caveat = option.ApplicabilityCaveat is null ? null : $"{option.ApplicabilityCaveat} The GM decides.";
+
+        return string.Join(" ", new[] { description, caveat }.Where(s => !string.IsNullOrWhiteSpace(s)))
+            is { Length: > 0 } text ? text : null;
+    }
+
     private static string Signed(double value) => value > 0 ? $"+{value:0.##}" : $"{value:0.##}";
 
-    private static string Humanise(string key) => key.Replace('_', ' ');
 }

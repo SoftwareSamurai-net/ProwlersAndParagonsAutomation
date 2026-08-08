@@ -33,6 +33,12 @@ dotnet:
   solution: ProwlersAndParagonsAutomation.sln
   configuration: Release
 
+# Which *inspections* are off, and why, is in .editorconfig — not here.
+#
+# `exclude:` accepts an inspection name and appears to work, and does not: the .NET linter
+# is ReSharper, which takes its severities from EditorConfig, so a named exclusion in this
+# file is silently ignored and the finding still reports. Verified by running the scan
+# both ways. Only the path exclusions below actually take effect.
 exclude:
   # Generated character sheets and build output carry nothing worth inspecting.
   # web/wwwroot/data is the rules JSON the browser build stages there; data/rules is
@@ -44,3 +50,4 @@ exclude:
       - obj
       - .qodana
       - web/wwwroot/data
+

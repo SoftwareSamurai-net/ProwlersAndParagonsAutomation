@@ -1,14 +1,8 @@
 @inject CharacterSession Session
 
-<section class="panel">
-    <div class="panel-head">
-        <h2>Flaws</h2>
-        <span class="muted small">
-            @Rules.MinAtCreation–@Rules.MaxAtCreation at creation, @Rules.MaxEver ever ·
-            each one beyond @Rules.MaxAtCreation costs @Rules.ExtraFlawCostHp HP
-        </span>
-        <span class="cost">@Session.Sheet.Flaws.Count chosen</span>
-    </div>
+<Panel Title="Flaws"
+       Aside="@($"{Rules.MinAtCreation}–{Rules.MaxAtCreation} at creation, {Rules.MaxEver} ever · each one beyond {Rules.MaxAtCreation} costs {Rules.ExtraFlawCostHp} HP")"
+       Cost="@($"{Session.Sheet.Flaws.Count} chosen")">
 
     <p class="small muted">
         Flaws are narrative disadvantages that earn Resolve when they cause trouble. A
@@ -23,12 +17,12 @@
     }
     else
     {
-        <ul class="chosen">
+        <ChosenList>
             @foreach (var sf in Session.Sheet.Flaws.ToList())
             {
                 var chosen = Session.Rules.GetFlaw(sf.FlawId);
-                <li>
-                    <div class="body">
+                <ChosenRow>
+                    <Body>
                         <div>
                             <b>@(chosen?.Name ?? sf.FlawId)</b>
                             <span class="tag">@TypeLabel(chosen?.FlawType ?? "regular")</span>
@@ -37,54 +31,52 @@
                         {
                             <div class="small muted">@sf.NarrativeDetail</div>
                         }
-                    </div>
-                    <button type="button" class="btn small danger" @onclick="() => Remove(sf)">Remove</button>
-                </li>
+                    </Body>
+                    <Actions>
+                        <button type="button" class="btn small danger" @onclick="() => Remove(sf)">Remove</button>
+                    </Actions>
+                </ChosenRow>
             }
-        </ul>
+        </ChosenList>
     }
-</section>
+</Panel>
 
 @if (_pending is { } flaw)
 {
-    <section class="panel">
-        <div class="panel-head">
-            <h3>@flaw.Name</h3>
+    <Panel Title="@flaw.Name" Level="3">
+        <Head>
             <span class="tag">@TypeLabel(flaw.FlawType)</span>
-        </div>
-        <p class="small">@flaw.Description</p>
+        </Head>
+        <ChildContent>
+            <p class="small">@flaw.Description</p>
 
-        @if (flaw.NarrativeConstraint is not null)
-        {
-            <div class="field">
-                <label for="fl-detail">@flaw.NarrativeConstraint</label>
-                <input id="fl-detail" type="text" @bind="_detail" @bind:event="oninput" style="width:100%" />
+            @if (flaw.NarrativeConstraint is not null)
+            {
+                <Field For="fl-detail" Label="@flaw.NarrativeConstraint">
+                    <input id="fl-detail" type="text" class="wide" @bind="_detail" @bind:event="oninput" />
+                </Field>
+            }
+
+            <div class="inline">
+                <button type="button" class="btn primary" disabled="@(!CanAdd(flaw))" @onclick="() => Add(flaw)">Add flaw</button>
+                <button type="button" class="btn" @onclick="() => _pending = null">Cancel</button>
             </div>
-        }
-
-        <div class="inline">
-            <button type="button" class="btn primary" disabled="@(!CanAdd(flaw))" @onclick="() => Add(flaw)">Add flaw</button>
-            <button type="button" class="btn" @onclick="() => _pending = null">Cancel</button>
-        </div>
-    </section>
+        </ChildContent>
+    </Panel>
 }
 else
 {
-    <section class="panel">
-        <div class="panel-head"><h3>Add a flaw</h3></div>
-        <div class="options">
+    <Panel Title="Add a flaw" Level="3">
+        <OptionList>
             @foreach (var option in Available)
             {
-                <button type="button" class="option" @onclick="() => Begin(option)">
-                    <span class="body">
-                        <span class="name">@option.Name</span>
-                        <span class="caveat">@option.Description</span>
-                    </span>
-                    <span class="cost">@TypeLabel(option.FlawType)</span>
-                </button>
+                <OptionRow Name="@option.Name"
+                           Caveat="@option.Description"
+                           Cost="@TypeLabel(option.FlawType)"
+                           OnSelect="() => Begin(option)" />
             }
-        </div>
-    </section>
+        </OptionList>
+    </Panel>
 }
 
 @code {

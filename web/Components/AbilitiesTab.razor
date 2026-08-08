@@ -1,11 +1,8 @@
 @inject CharacterSession Session
 
-<section class="panel">
-    <div class="panel-head">
-        <h2>Abilities</h2>
-        <span class="muted small">1 HP per rank · an ordinary human averages 2d</span>
-        <span class="cost">@Session.Costs.AbilityCost(Session.Sheet) HP</span>
-    </div>
+<Panel Title="Abilities"
+       Aside="1 HP per rank · an ordinary human averages 2d"
+       Cost="@($"{Session.Costs.AbilityCost(Session.Sheet)} HP")">
 
     @foreach (var ability in Session.Rules.Abilities)
     {
@@ -20,18 +17,15 @@
 
         @if (Modifiers(id) is { Count: > 0 } mods)
         {
-            <p class="small muted" style="margin:0 0 0.5rem 0.2rem">
+            <p class="small muted rank-note">
                 @string.Join(", ", mods.Select(m => Session.Rules.GetCon(m.Id)?.Name
                                                     ?? Session.Rules.GetPro(m.Id)?.Name ?? m.Id))
             </p>
         }
     }
-</section>
+</Panel>
 
-<section class="panel">
-    <div class="panel-head">
-        <h3>Pros and Cons on an Ability</h3>
-    </div>
+<Panel Title="Pros and Cons on an Ability" Level="3">
     <p class="small muted">
         The rulebook allows these on Abilities as well as Powers. Overkill on Might is the
         Brute Option, which buys it at 1 HP per 2 ranks; Stronghold's four armoured
@@ -39,15 +33,14 @@
         be discounted, and an Ability never costs less than nothing.
     </p>
 
-    <div class="field">
-        <label for="ab-target">Ability</label>
+    <Field Label="Ability" For="ab-target">
         <select id="ab-target" @bind="_target" @bind:after="StateHasChanged">
             @foreach (var ability in Session.Rules.Abilities)
             {
                 <option value="@ability.Id">@ability.Name</option>
             }
         </select>
-    </div>
+    </Field>
 
     @* Cons only, and that is the rulebook's answer rather than a simplification: of the
        23 Pros and 28 Cons, exactly two name Abilities and both are Cons. The picker
@@ -55,7 +48,7 @@
        changes with it. *@
     <ProConPicker Scope="ProConPicker.Target.Ability" IsPro="false"
                   Selected="ModifiersFor(_target)" OnChanged="Changed" />
-</section>
+</Panel>
 
 @code {
     private string _target = "";

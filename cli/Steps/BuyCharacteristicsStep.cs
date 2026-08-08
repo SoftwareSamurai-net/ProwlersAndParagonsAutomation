@@ -62,7 +62,7 @@ public sealed class BuyCharacteristicsStep : IWizardStep
                 setId:     rank => sheet.AbilityRanks[ability.Id] = rank,
                 min:       1,
                 max:       tier.TraitCapRank,
-                packageMin: PackageFloorForAbility(sheet, rules, ability.Id));
+                packageMin: PackageFloorForAbility(sheet, rules));
         }
     }
 
@@ -100,7 +100,7 @@ public sealed class BuyCharacteristicsStep : IWizardStep
                 setId:     rank => sheet.TalentRanks[talent.Id] = rank,
                 min:       0,
                 max:       tier.TraitCapRank,
-                packageMin: PackageFloorForTalent(sheet, rules, talent.Id));
+                packageMin: PackageFloorForTalent(sheet, rules));
         }
     }
 
@@ -187,7 +187,7 @@ public sealed class BuyCharacteristicsStep : IWizardStep
         }
 
         var choices = available
-            .Select(p => PerkLabel(p))
+            .Select(PerkLabel)
             .Prepend("-- Back --")
             .ToList();
 
@@ -551,7 +551,7 @@ public sealed class BuyCharacteristicsStep : IWizardStep
 
     // ── Package floor helpers ──────────────────────────────────────────────
 
-    private static int PackageFloorForAbility(CharacterSheet sheet, RulesRepository rules, string abilityId)
+    private static int PackageFloorForAbility(CharacterSheet sheet, RulesRepository rules)
     {
         if (sheet.SelectedPackageId is null) return 0;
         var pkg = rules.CreationRules.OptionalPackages
@@ -559,7 +559,7 @@ public sealed class BuyCharacteristicsStep : IWizardStep
         return pkg?.AbilitiesRank ?? 0;
     }
 
-    private static int PackageFloorForTalent(CharacterSheet sheet, RulesRepository rules, string talentId)
+    private static int PackageFloorForTalent(CharacterSheet sheet, RulesRepository rules)
     {
         if (sheet.SelectedPackageId is null) return 0;
         var pkg = rules.CreationRules.OptionalPackages

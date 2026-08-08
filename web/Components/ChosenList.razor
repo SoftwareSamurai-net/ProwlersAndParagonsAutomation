@@ -1,0 +1,9 @@
+@* The list of things already on the sheet, holding <ChosenRow> children. *@
+
+<ul class="chosen">
+    @ChildContent
+</ul>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -1,0 +1,32 @@
+@* A labelled control. Use <Label> instead of the Label parameter when the label itself
+   needs markup — several of them carry a sentence of rules explanation, and one wraps its
+   own checkbox. *@
+
+<div class="@ClassName">
+    @if (LabelContent is not null)
+    {
+        <label for="@For">@LabelContent</label>
+    }
+    else if (Label is not null)
+    {
+        <label for="@For">@Label</label>
+    }
+    @ChildContent
+</div>
+
+@code {
+    /// <summary>Plain label text. Ignored when <see cref="LabelContent"/> is supplied.</summary>
+    [Parameter] public string? Label { get; set; }
+
+    /// <summary>A label with markup in it, supplied as a &lt;LabelContent&gt; element.</summary>
+    [Parameter] public RenderFragment? LabelContent { get; set; }
+
+    /// <summary>The id of the control this labels. Omit for a label that wraps its own.</summary>
+    [Parameter] public string? For { get; set; }
+
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string ClassName => string.IsNullOrEmpty(Class) ? "field" : $"field {Class}";
+}

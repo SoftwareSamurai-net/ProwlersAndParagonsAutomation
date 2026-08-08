@@ -100,7 +100,7 @@ public sealed class PowerDataTests
     {
         // Regression: the entire file was once per_rank / 1.
         var perRankOne = _f.Rules.Powers
-            .Count(p => p.CostType == "per_rank" && p.CostPerRank == 1);
+            .Count(p => p is { CostType: "per_rank", CostPerRank: 1 });
 
         Assert.Equal(34, perRankOne);
         Assert.NotEqual(_f.Rules.Powers.Count, perRankOne);
@@ -317,9 +317,9 @@ public sealed class PowerDataTests
         {
             var selection = p.Id switch
             {
-                "boost"     => new Engine.SelectedPower(p.Id, 2) { BaselineTraitId = "might" },
-                "summoning" => new Engine.SelectedPower(p.Id, 2) { Units = 4 },
-                _           => new Engine.SelectedPower(p.Id, 2)
+                "boost"     => new SelectedPower(p.Id, 2) { BaselineTraitId = "might" },
+                "summoning" => new SelectedPower(p.Id, 2) { Units = 4 },
+                _           => new SelectedPower(p.Id, 2)
             };
 
             Assert.True(_f.Costs.PowerCost(selection) > 0,

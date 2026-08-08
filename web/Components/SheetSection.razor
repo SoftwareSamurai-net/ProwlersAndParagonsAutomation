@@ -1,0 +1,36 @@
+@* One ruled block of the character sheet: a small-caps heading and its contents.
+
+   Every section on a sheet has an empty state a printed sheet still shows — a character
+   with no Perks prints a Perks heading and "None." rather than silently dropping the
+   heading, because a reader needs to know the question was asked and answered. *@
+
+<section class="@ClassName">
+    @if (Title is not null)
+    {
+        <h3>@Title</h3>
+    }
+    @if (Empty)
+    {
+        <p class="small muted">@EmptyText</p>
+    }
+    else
+    {
+        @ChildContent
+    }
+</section>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>True when there is nothing to list, so <see cref="EmptyText"/> prints instead.</summary>
+    [Parameter] public bool Empty { get; set; }
+
+    [Parameter] public string EmptyText { get; set; } = "None.";
+
+    [Parameter] public string? Class { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string ClassName =>
+        string.IsNullOrEmpty(Class) ? "sheet-section" : $"sheet-section {Class}";
+}

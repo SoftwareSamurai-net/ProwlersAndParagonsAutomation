@@ -12,12 +12,22 @@
      --primary     a FILL. Banner and bar backgrounds. Never text.
      --on-primary  text that sits on --primary.
      --heading     heading and active-nav TEXT.
-     --accent      pips, bar fills, focus rings. Never text.
+     --accent      pips and bar fills. Never text.
+     --focus       the focus ring. Separate from --accent because a ring is a
+                   non-text control indicator and WCAG 1.4.11 wants 3:1 for it,
+                   which Hero --accent (1.8:1 on --surface) does not reach.
+     --muted       secondary TEXT. Carries most of the explanatory prose at
+                   0.72–0.82rem, so it is held to 4.5:1, not 3:1.
 
    Villain --primary (#8B0F1D) measures 2.0:1 on --surface, so using it as text
    would be unreadable; it reads fine as a banner behind bone. Hero --accent is
    1.8:1 for the same reason. Both are enforced by convention here, not by the
    browser — if you restyle, re-measure rather than eyeball it.
+
+   There is a third palette at the bottom of this file, and it is not a mode: the
+   print one. Paper has no dark mode, and a Villain sheet on the Villain palette
+   is a full-bleed near-black page — unreadable, and hostile to whoever owns the
+   printer. Print forces light values for both modes.
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* Hero — "four-colour daylight". Bright, optimistic, newsprint primaries. */
@@ -33,9 +43,13 @@
     --danger:       #C0392B;   /* over budget, validation errors    (5.2:1)    */
     --rule:         #C9D6E8;   /* hairlines between sections                   */
 
+    --focus:        #1B4F9C;   /* focus ring — 7.5:1 on --surface              */
+
     /* Derived from the palette rather than added to it, so a new theme only has
-       to state the nine tokens above. */
-    --muted:        color-mix(in srgb, var(--ink) 58%, var(--surface));
+       to state the tokens above. --muted was 58% and measured 4.2:1 on --surface
+       and 3.8:1 on --panel-sunk: a fail at the size it is actually used. 72%
+       takes it to 6.2:1 / 5.6:1. Re-measure if you change it; do not eyeball. */
+    --muted:        color-mix(in srgb, var(--ink) 72%, var(--surface));
     --panel-sunk:   color-mix(in srgb, var(--panel) 92%, var(--ink));
     --accent-soft:  color-mix(in srgb, var(--accent) 22%, var(--panel));
     --danger-soft:  color-mix(in srgb, var(--danger) 12%, var(--panel));
@@ -59,8 +73,10 @@
     --accent:       #B8873B;   /* pips, bar fill, focus rings                  */
     --danger:       #E4572E;   /* over budget, validation errors    (5.1:1)    */
     --rule:         #3A3A44;   /* hairlines                                    */
+    --focus:        #B8873B;   /* focus ring — 5.9:1 on --surface              */
 
-    --muted:        color-mix(in srgb, var(--ink) 52%, var(--surface));
+    /* 52% measured 4.4:1 on --panel. 68% takes it to 6.0:1. */
+    --muted:        color-mix(in srgb, var(--ink) 68%, var(--surface));
     --panel-sunk:   color-mix(in srgb, var(--panel) 80%, #000);
     --accent-soft:  color-mix(in srgb, var(--accent) 18%, var(--panel));
     --danger-soft:  color-mix(in srgb, var(--danger) 14%, var(--panel));
@@ -69,4 +85,78 @@
     --rule-weight:  2px;
     --heading-track: -0.005em;
     --banner-track: 0.08em;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Shape and motion. Not colours, but the same argument applies: a component that
+   hard-codes a radius or a duration is a component the two palettes can drift
+   apart on, and one more place to edit when the house style changes.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+    --radius:       6px;
+    --radius-small: 4px;
+    --radius-pill:  999px;
+
+    --step:         120ms;    /* pips, bar fills — must feel instant       */
+    --swap:         180ms;    /* hover and focus states                    */
+    --enter:        260ms;    /* a panel arriving                          */
+    --ease:         cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+/* Anyone who has asked their system for less movement gets none of it. This has
+   to come after the block above and use a duration of 0.01ms rather than 0 —
+   some engines skip transitionend entirely at 0 and leave state machines stuck. */
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --step:  0.01ms;
+        --swap:  0.01ms;
+        --enter: 0.01ms;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Paper.
+
+   Both modes print the same, in black on white. Everything below is an override
+   of a token declared above, so no rule anywhere else in the app has to know
+   whether it is being printed — the sheet is the same layout either way.
+
+   --primary is a fill and the sheet banner uses it, so on paper it becomes white
+   and the banner earns its weight from a rule instead of a wash of ink. Filling
+   a banner strip solid would empty a cartridge per character.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@media print {
+    :root,
+    :root[data-mode="hero"],
+    :root[data-mode="villain"] {
+        --surface:      #FFFFFF;
+        --panel:        #FFFFFF;
+        --ink:          #000000;   /* on paper, true black — contrast is free   */
+        --heading:      #000000;
+        --primary:      #FFFFFF;   /* the banner is ruled, not filled           */
+        --on-primary:   #000000;
+        --accent:       #000000;
+        --danger:       #000000;
+        --rule:         #000000;
+        --focus:        #000000;
+
+        /* The derived tokens are colour-mixes of the above, and a mix of black
+           into white is grey — which a cheap printer renders as a smear. State
+           them outright instead. */
+        --muted:        #3D3D3D;
+        --panel-sunk:   #FFFFFF;
+        --accent-soft:  #FFFFFF;
+        --danger-soft:  #FFFFFF;
+        --shadow:       none;
+
+        --rule-weight:  1px;
+        --heading-track: 0.02em;
+        --banner-track: 0.1em;
+
+        --radius:       0;         /* rounded corners are a screen affordance   */
+        --radius-small: 0;
+        --radius-pill:  0;
+    }
 }
