@@ -298,8 +298,6 @@
             : Session.Rules.CreationRules.OptionalPackages
                 .FirstOrDefault(p => p.Id == Session.Sheet.SelectedPackageId);
 
-    private int? Spent => CharacterSession.TryCost(() => Session.Spent);
-
     /// <summary>Tier, package and Trait Cap — the frame the rest of the sheet is measured in.</summary>
     private string Meta
     {
@@ -311,16 +309,6 @@
             return string.Join(" · ", parts);
         }
     }
-
-    /// <summary>
-    /// The Hero Points box. A Hero shows spend against budget; a Villain has no budget to
-    /// show it against (Ch.9) and gets the spend on its own, because "how much character is
-    /// this" is exactly what a GM wants from an antagonist's sheet.
-    /// </summary>
-    private string HeroPoints =>
-        Spent is not { } spent ? "—"
-        : Session.ShowBudget && Tier is { } tier ? $"{spent}/{tier.HeroPoints}"
-        : spent.ToString();
 
     /// <summary>The Sources this character's Powers come from, in the rulebook's order.</summary>
     private List<string> Sources =>
