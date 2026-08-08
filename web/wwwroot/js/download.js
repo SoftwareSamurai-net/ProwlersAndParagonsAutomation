@@ -18,3 +18,12 @@ window.ppDownload = (fileName, mimeType, contents) => {
 window.ppSetMode = (mode) => {
     document.documentElement.setAttribute("data-mode", mode);
 };
+
+// Local storage, wrapped so a browser that refuses it — private mode, a storage quota, a
+// user who has turned it off — is a "no character saved" rather than an exception that
+// stops the app booting. The C# side treats every failure the same way.
+window.ppStore = {
+    save: (key, value) => { try { localStorage.setItem(key, value); } catch { /* full or blocked */ } },
+    load: (key) => { try { return localStorage.getItem(key); } catch { return null; } },
+    clear: (key) => { try { localStorage.removeItem(key); } catch { /* nothing to do */ } }
+};

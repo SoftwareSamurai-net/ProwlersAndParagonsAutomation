@@ -120,6 +120,7 @@ ProwlersAndParagonsAutomation/
 │   ├── Components/               # Panel, Field, SheetSection, OptionRow… and SheetView
 │   ├── Services/CharacterSession.cs  # The CharacterSheet plus the calculators
 │   ├── Services/Labels.cs        # Turns a rules key into something a player can read
+│   ├── Services/CharacterStore.cs    # Keeps the character in the browser between visits
 │   └── wwwroot/
 │       ├── css/theme.css         # Hero, Villain and print palettes, as CSS custom properties
 │       ├── css/app.css           # Layout, components and the print stylesheet. Names no colour
@@ -143,7 +144,8 @@ ProwlersAndParagonsAutomation/
 │
 ├── tests/ProwlersAndParagons.Web.Tests/   # bUnit — renders components and reads the output
 │   ├── RenderContext.cs          # the app's own services, on the real data/rules
-│   └── SheetRenderTests.cs       # what the sheet actually renders, "Armor8d" and all
+│   ├── SheetRenderTests.cs       # what the sheet actually renders, "Armor8d" and all
+│   └── CharacterStoreTests.cs    # a whole character survives the save/restore round trip
 │
 ├── scripts/
 │   └── write-cloudflare-headers.sh   # Generates _headers, hashing the inline import map

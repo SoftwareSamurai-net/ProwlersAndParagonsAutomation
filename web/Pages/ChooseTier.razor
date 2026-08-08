@@ -28,11 +28,21 @@
         <button type="button" class="btn" @onclick="() => LoadSample(SheetMode.Villain)">
             Load a Villain — The Quiet Hour
         </button>
+        @* The character is kept in this browser between visits, so there has to be a way
+           out of one. Without it a player who finishes a character is stuck with it. *@
+        <button type="button" class="btn danger" @onclick="StartAgain">
+            Start a new character
+        </button>
         @if (_loaded is not null)
         {
             <span class="small muted">Loaded <b>@_loaded</b> — see the GM review step.</span>
         }
     </div>
+    <p class="small muted spaced">
+        Whatever you build is remembered in this browser, so you can close the tab and come
+        back to it. It is not sent anywhere, and it is only on this device — download the
+        sheet from the last step if you want a copy that travels.
+    </p>
 </Panel>
 
 <div class="grid two">
@@ -115,6 +125,12 @@
 
 @code {
     private string? _loaded;
+
+    private void StartAgain()
+    {
+        Session.StartAgain();
+        _loaded = null;
+    }
 
     /// <summary>
     /// The palette has to be pushed through interop as well as set on the session: it

@@ -66,6 +66,26 @@ public sealed class CharacterSession
     public void NotifyChanged() => Changed?.Invoke();
 
     /// <summary>
+    /// Puts back a character read out of local storage. Deliberately silent — the shell
+    /// wires this up before the first render, so there is nothing to redraw yet, and the
+    /// player should see their character where they left it rather than watch it arrive.
+    /// </summary>
+    public void Restore(CharacterSheet sheet, SheetMode mode)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        Sheet = sheet;
+        _mode = mode;
+    }
+
+    /// <summary>Throws the character away. The tier page offers this; nothing else does.</summary>
+    public void StartAgain()
+    {
+        Sheet = new CharacterSheet();
+        NotifyChanged();
+    }
+
+    /// <summary>
     /// Replaces the character with one of the samples, and sets the palette to match.
     ///
     /// <para>The mode follows the sample because that is the whole point of loading one —

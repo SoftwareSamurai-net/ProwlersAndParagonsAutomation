@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace ProwlersAndParagonsAutomation.Engine;
 
 /// <summary>
@@ -33,6 +35,14 @@ public record SelectedProCon(string Id, string? VariantKey = null)
 /// how many ranks were purchased (above the free baseline), and
 /// which pros/cons have been applied.
 /// </summary>
+/// <remarks>
+/// The primary constructor is marked for the serializer because this record has two, and a
+/// deserializer given a choice makes none — it throws. That is the only annotation on the
+/// type and it changes nothing else: it lets a host round-trip a whole sheet (the browser
+/// keeps one in local storage between visits) without the engine growing a parallel set of
+/// data-transfer types that would then have to be kept in step with it.
+/// </remarks>
+[method: JsonConstructor]
 public record SelectedPower(
     string PowerId,
     int PurchasedRanks,
