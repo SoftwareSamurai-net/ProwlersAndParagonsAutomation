@@ -42,7 +42,16 @@ public sealed class RenderContext : BunitContext
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         Session = Services.GetRequiredService<CharacterSession>();
+        Store = Services.GetRequiredService<CharacterStore>();
+
+        // Program.cs subscribes this, and it has to be here too or the tests cannot see the
+        // half of persistence that matters: a save fires on every change, so anything that
+        // clears storage is racing a write nobody awaits. Without the subscription a test
+        // asserting on that ordering asserts on nothing.
+        Session.Changed += () => _ = Store.SaveAsync(Session.Sheet, Session.Mode);
     }
+
+    public CharacterStore Store { get; }
 
     /// <summary>Loads a sample so a rendered sheet has something in every section.</summary>
     public RenderContext With(SheetMode mode)

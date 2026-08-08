@@ -22,32 +22,34 @@
         quickest way to see what you get at the end — and what a printed sheet looks like —
         without spending twenty minutes building one first.
     </p>
-    <div class="inline">
-        <button type="button" class="btn" @onclick="() => LoadSample(SheetMode.Hero)">
-            Load a Hero — Ninth Precinct
-        </button>
-        <button type="button" class="btn" @onclick="() => LoadSample(SheetMode.Villain)">
-            Load a Villain — The Quiet Hour
-        </button>
-        @* The character is kept in this browser between visits, so there has to be a way
-           out of one. Without it a player who finishes a character is stuck with it.
+    @* All three of these buttons throw the current character away, and the character is
+       kept in this browser between visits — so all three can destroy twenty minutes of work
+       that is written down nowhere else, and there is no undo behind any of them.
 
-           It asks first, in the page rather than in a browser dialogue. This is the only
-           control in the app that destroys twenty minutes of work, it sits between two
-           buttons a player is meant to press, and there is no undo — the sheet is not
-           written down anywhere else. Two clicks is the whole safeguard. *@
-        @if (_confirming)
+       So all three ask first, in the page rather than in a browser dialogue, and only when
+       there is something to lose. On a fresh sheet they act on one click, which is the visit
+       where a player is most likely to want a sample and least likely to have anything at
+       stake. Guarding only the red one would have been the wrong half: loading a sample
+       overwrites the stored character just as completely, and reads as the safe option. *@
+    <div class="inline">
+        @if (_pending is { } pending)
         {
-            <button type="button" class="btn danger" @onclick="StartAgain">
-                Yes, discard this character
+            <button type="button" class="btn danger" @onclick="() => Do(pending)">
+                Yes, @pending.Verb
             </button>
-            <button type="button" class="btn" @onclick="() => _confirming = false">
-                Keep it
+            <button type="button" class="btn" @onclick="() => _pending = null">
+                Keep this character
             </button>
         }
         else
         {
-            <button type="button" class="btn danger" @onclick="() => _confirming = true">
+            <button type="button" class="btn" @onclick="() => Ask(Load(SheetMode.Hero))">
+                Load a Hero — Ninth Precinct
+            </button>
+            <button type="button" class="btn" @onclick="() => Ask(Load(SheetMode.Villain))">
+                Load a Villain — The Quiet Hour
+            </button>
+            <button type="button" class="btn danger" @onclick="() => Ask(Discard())">
                 Start a new character
             </button>
         }
@@ -143,37 +145,65 @@
 
 @code {
     private string? _loaded;
-    private bool _confirming;
+    private Replacement? _pending;
 
-    /// <summary>
-    /// Empties the sheet <b>and</b> forgets the stored one. Clearing only the session left
-    /// the old character in local storage, so it came back on the next visit — which reads
-    /// as the button not having worked, on the one control where that matters most.
-    ///
-    /// <para>In that order: emptying the sheet fires the write-through save, and the clear
-    /// has to land after it. Both go through the same interop channel and this runs on the
-    /// browser's one thread, so it does. Worst case if that ever stopped holding is a stored
-    /// empty character, which restores to exactly what this button produces.</para>
-    /// </summary>
-    private async Task StartAgain()
+    /// <summary>Something that replaces the character, and what to call it when asking.</summary>
+    private sealed record Replacement(string Verb, Func<Task> Run);
+
+    private Replacement Discard() => new("discard this character", async () =>
     {
         Session.StartAgain();
-        await Store.ClearAsync();
         _loaded = null;
-        _confirming = false;
+
+        // Forget the stored copy too. Clearing only the session left the old character in
+        // local storage, so it came back on the next visit — which reads as the button not
+        // having worked, on the control where that matters most.
+        //
+        // After emptying the sheet, not before: emptying it fires the write-through save,
+        // and the clear has to land second. In WebAssembly the save's interop call against a
+        // synchronous JS function completes before StartAgain returns, so it does. If that
+        // ever stopped holding — a storage API that returns a promise — the worst case is a
+        // stored empty character, which restores to exactly what this button produces.
+        await Store.ClearAsync();
+    });
+
+    /// <summary>
+    /// The palette has to be pushed through interop as well as set on the session: it lives
+    /// as a data-mode attribute on the document element, outside the component tree. Same
+    /// reason MainLayout's own switch does it that way.
+    /// </summary>
+    private Replacement Load(SheetMode mode) => new(
+        mode == SheetMode.Hero ? "load the Hero" : "load the Villain",
+        async () =>
+        {
+            Session.LoadSample(mode);
+            _loaded = Session.Sheet.Name;
+            await Js.InvokeVoidAsync("ppSetMode", mode == SheetMode.Hero ? "hero" : "villain");
+        });
+
+    /// <summary>Asks first, unless the sheet is empty and there is nothing to ask about.</summary>
+    private async Task Ask(Replacement replacement)
+    {
+        if (HasSomethingToLose) _pending = replacement;
+        else await replacement.Run();
+    }
+
+    private async Task Do(Replacement replacement)
+    {
+        _pending = null;
+        await replacement.Run();
     }
 
     /// <summary>
-    /// The palette has to be pushed through interop as well as set on the session: it
-    /// lives as a data-mode attribute on the document element, which is outside the
-    /// component tree. Same reason MainLayout's own switch does it that way.
+    /// Whether the sheet holds anything a player would mind losing. A tier on its own counts:
+    /// it is a decision, and it is the one every other choice is measured against.
     /// </summary>
-    private async Task LoadSample(SheetMode mode)
-    {
-        Session.LoadSample(mode);
-        _loaded = Session.Sheet.Name;
-        await Js.InvokeVoidAsync("ppSetMode", mode == SheetMode.Hero ? "hero" : "villain");
-    }
+    private bool HasSomethingToLose =>
+        Session.Sheet.SelectedTierId is not null
+        || Session.Sheet.SelectedPowers.Count > 0
+        || Session.Sheet.AbilityRanks.Count > 0
+        || Session.Sheet.TalentRanks.Count > 0
+        || !string.IsNullOrWhiteSpace(Session.Sheet.Name);
 
     private void SelectTier(string id)
     {

@@ -1,4 +1,5 @@
 using ProwlersAndParagonsAutomation.Engine;
+using ProwlersAndParagonsAutomation.Sheets;
 
 namespace ProwlersAndParagons.Web.Tests;
 
@@ -37,8 +38,12 @@ public sealed class CharacterStoreTests
     private static (CharacterStore Store, FakeLocalStorage Storage) Fresh()
     {
         var storage = new FakeLocalStorage();
-        return (new CharacterStore(storage), storage);
+        return (new CharacterStore(storage, Costs, Validator), storage);
     }
+
+    /// <summary>Wraps a Sheet body in a payload this build's version gate accepts.</summary>
+    private static string Payload(string sheetBody) =>
+        $"{{\"Version\":1,\"Mode\":0,\"Sheet\":{{\"SelectedTierId\":\"standard\",{sheetBody}}}}}";
 
     public static TheoryData<string> Samples() => ["hero", "villain"];
 
@@ -74,6 +79,19 @@ public sealed class CharacterStoreTests
         Assert.Equal(
             Validator.Validate(original).Issues.Select(i => i.Message),
             Validator.Validate(sheet).Issues.Select(i => i.Message));
+
+        // The engine's answers cannot see the free text, and losing all of it would pass
+        // every assertion above — so it is checked directly. These are the fields a player
+        // typed rather than chose, and the ones they would notice first.
+        Assert.Equal(original.Name, sheet.Name);
+        Assert.Equal(original.Appearance, sheet.Appearance);
+        Assert.Equal(original.Motivation, sheet.Motivation);
+        Assert.Equal(original.Quote, sheet.Quote);
+        Assert.Equal(original.Connections, sheet.Connections);
+        Assert.Equal(original.Gear.Select(g => g.Name), sheet.Gear.Select(g => g.Name));
+        Assert.Equal(
+            original.Perks.Select(p => p.NarrativeDetail),
+            sheet.Perks.Select(p => p.NarrativeDetail));
     }
 
     /// <summary>The palette is part of the character to a player, so it is stored too.</summary>
@@ -106,8 +124,8 @@ public sealed class CharacterStoreTests
 
         sheet.SelectedPowers.Add(new SelectedPower(
             "blast", 4,
-            [new SelectedProCon("area_burst", "large") { Units = 3 }],
-            [new SelectedProCon("charges", "three_charges")])
+            [new SelectedProCon("area_burst", "area") { Units = 3 }],
+            [new SelectedProCon("charges", "3_per_scene")])
         {
             CostVariantKey = "standard",
             Units = 2,
@@ -118,7 +136,7 @@ public sealed class CharacterStoreTests
         sheet.Gear.Add(new SelectedGear("Jo Sticks")
         {
             Features = [new SelectedGearFeature("accurate", "very_accurate")],
-            Pros = [new SelectedProCon("powerful")],
+            Pros = [new SelectedProCon("armor_piercing")],
             Cons = [new SelectedProCon("item")],
             PairedUnderTwoFisted = true
         });
@@ -131,9 +149,9 @@ public sealed class CharacterStoreTests
         Assert.Equal(2, power.Units);
         Assert.Equal("might", power.BaselineTraitId);
         Assert.Equal("tech", power.SourceId);
-        Assert.Equal("large", power.Pros.Single().VariantKey);
+        Assert.Equal("area", power.Pros.Single().VariantKey);
         Assert.Equal(3, power.Pros.Single().Units);
-        Assert.Equal("three_charges", power.Cons.Single().VariantKey);
+        Assert.Equal("3_per_scene", power.Cons.Single().VariantKey);
 
         var gear = restored.Gear.Single();
         Assert.True(gear.PairedUnderTwoFisted);
@@ -253,6 +271,111 @@ public sealed class CharacterStoreTests
         Assert.Empty(sheet.Flaws);
         Assert.Empty(sheet.Gear);
         Assert.Empty(sheet.Connections);
+    }
+
+    /// <summary>
+    /// A null <b>below</b> the top level, which is where this went wrong.
+    ///
+    /// <para>The first version of the guard stripped nulls exactly one level deep: the four
+    /// top-level lists, and a Power's missing Pros and Cons. Everything deeper passed —
+    /// <c>"Pros":[null]</c>, a null <c>PowerId</c>, a null inside <c>AbilityModifiers</c>, a
+    /// piece of gear with null Features. Those payloads restored cleanly, got past the
+    /// backstop in <c>Program.cs</c>, and then took the app down on the first frame, because
+    /// the budget bar renders on every route and costs the sheet to do it. A blank page, from
+    /// the class written to prevent one.</para>
+    ///
+    /// <para>The guard is no longer a list of shapes: the engine is asked to cost and
+    /// validate the sheet once, and a payload it cannot answer for is not handed to the app.
+    /// A list of shapes goes stale the first time somebody adds a field, and they will not be
+    /// thinking about this file when they do.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("\"SelectedPowers\":[{\"PowerId\":\"armor\",\"PurchasedRanks\":2,\"Pros\":[null],\"Cons\":[]}]")]
+    [InlineData("\"SelectedPowers\":[{\"PowerId\":\"armor\",\"PurchasedRanks\":2,\"Pros\":[],\"Cons\":[null]}]")]
+    [InlineData("\"SelectedPowers\":[{\"PowerId\":null,\"PurchasedRanks\":2,\"Pros\":[],\"Cons\":[]}]")]
+    [InlineData("\"Perks\":[{\"PerkId\":null,\"Units\":1}]")]
+    [InlineData("\"Flaws\":[{\"FlawId\":null}]")]
+    [InlineData("\"AbilityRanks\":{\"might\":5},\"AbilityModifiers\":{\"might\":[null]}")]
+    [InlineData("\"Gear\":[{\"Name\":\"Rope\",\"Features\":null,\"Pros\":null,\"Cons\":null}]")]
+    [InlineData("\"Gear\":[{\"Name\":\"Rope\",\"Features\":[null],\"Pros\":[null],\"Cons\":[null]}]")]
+    public async Task APayloadTheEngineCannotAnswerForIsNotHandedToTheApp(string sheetBody)
+    {
+        var (store, storage) = Fresh();
+        storage.Poke(Key, Payload(sheetBody));
+
+        Assert.Null(await store.LoadAsync());
+    }
+
+    /// <summary>
+    /// The free text is repaired rather than rejected. A null Name costs nothing and
+    /// validates fine, so the engine check above cannot see it — and it is a
+    /// NullReferenceException in the text export, which is the last place a player wants one.
+    /// Losing a name is also not worth losing a character over.
+    /// </summary>
+    [Theory]
+    [InlineData("\"Name\":null")]
+    [InlineData("\"Appearance\":null")]
+    [InlineData("\"Motivation\":null")]
+    [InlineData("\"Quote\":null")]
+    public async Task NullFreeTextComesBackEmptyRatherThanNull(string sheetBody)
+    {
+        var (store, storage) = Fresh();
+        storage.Poke(Key, Payload(sheetBody));
+
+        var restored = await store.LoadAsync();
+
+        Assert.NotNull(restored);
+        var sheet = restored.Value.Sheet;
+
+        Assert.NotNull(sheet.Name);
+        Assert.NotNull(sheet.Appearance);
+        Assert.NotNull(sheet.Motivation);
+        Assert.NotNull(sheet.Quote);
+
+        // And the export the null would have crashed now builds.
+        Assert.NotEmpty(CharacterSheetRenderer.RenderText(
+            sheet, Rules, Costs, Derived, Validator.Validate(sheet), new DateTime(2026, 1, 1)));
+    }
+
+    /// <summary>
+    /// A half-finished character is <b>not</b> corruption, and must survive. The engine
+    /// throws for a variable-cost Power with no variant chosen — the same exception type a
+    /// bad payload could produce — so a guard that rejected everything unpriceable would
+    /// throw away exactly the work this class exists to keep.
+    /// </summary>
+    [Fact]
+    public async Task ACharacterThatCannotBePricedYetIsStillRestored()
+    {
+        var (store, _) = Fresh();
+
+        var sheet = new CharacterSheet { SelectedTierId = "standard" };
+        // Energy Absorption is priced per rank at a rate that depends on a variant. Without
+        // one there is no rate, and the engine says so rather than guessing.
+        sheet.SelectedPowers.Add(new SelectedPower("energy_absorption", 3));
+
+        // The premise: this genuinely cannot be costed.
+        Assert.Throws<InvalidOperationException>(() => Costs.TotalCost(sheet));
+
+        await store.SaveAsync(sheet, SheetMode.Hero);
+        var restored = await store.LoadAsync();
+
+        Assert.NotNull(restored);
+        Assert.Single(restored.Value.Sheet.SelectedPowers);
+    }
+
+    /// <summary>
+    /// Storage this build cannot use is removed, not left. Left in place it is re-read and
+    /// re-rejected on every visit — and if one ever gets past a guard, the failure repeats
+    /// forever with no way out from inside the app.
+    /// </summary>
+    [Fact]
+    public async Task StorageThatCannotBeUsedIsRemoved()
+    {
+        var (store, storage) = Fresh();
+        storage.Poke(Key, "{\"Version\":99,\"Mode\":0,\"Sheet\":{}}");
+
+        Assert.Null(await store.LoadAsync());
+        Assert.Null(storage.Peek(Key));
     }
 
     /// <summary>

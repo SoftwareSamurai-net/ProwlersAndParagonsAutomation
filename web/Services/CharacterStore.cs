@@ -40,8 +40,15 @@ public sealed class CharacterStore
     private const string StorageKey = "pp.character.v1";
 
     private readonly IJSRuntime _js;
+    private readonly CostCalculator _costs;
+    private readonly CharacterValidator _validator;
 
-    public CharacterStore(IJSRuntime js) => _js = js;
+    public CharacterStore(IJSRuntime js, CostCalculator costs, CharacterValidator validator)
+    {
+        _js = js;
+        _costs = costs;
+        _validator = validator;
+    }
 
     /// <summary>
     /// Populate rather than replace, because <see cref="CharacterSheet"/> exposes its
@@ -73,7 +80,15 @@ public sealed class CharacterStore
         try
         {
             var json = await _js.InvokeAsync<string?>("ppStore.load", StorageKey);
-            return string.IsNullOrWhiteSpace(json) ? null : Read(json);
+            if (string.IsNullOrWhiteSpace(json)) return null;
+
+            if (Read(json) is { } restored) return restored;
+
+            // Storage this build cannot use is removed rather than left. Left in place it is
+            // re-read and re-rejected on every visit, and if it ever gets past a guard the
+            // failure repeats forever with no way out from inside the app.
+            await ClearAsync();
+            return null;
         }
         catch (Exception e) when (IsStorageFailure(e)) { return null; }
     }
@@ -86,10 +101,50 @@ public sealed class CharacterStore
     }
 
     /// <summary>Reads a stored payload. Internal so the tests can feed it malformed storage.</summary>
-    internal static (CharacterSheet Sheet, SheetMode Mode)? Read(string json)
+    internal (CharacterSheet Sheet, SheetMode Mode)? Read(string json)
     {
-        try { return Usable(JsonSerializer.Deserialize<Saved>(json, Options)); }
+        try
+        {
+            if (Usable(JsonSerializer.Deserialize<Saved>(json, Options)) is not { } restored) return null;
+
+            return CanBeUsed(restored.Sheet) ? restored : null;
+        }
         catch (Exception e) when (IsStorageFailure(e)) { return null; }
+    }
+
+    /// <summary>
+    /// Whether the engine can actually answer questions about this sheet — asked by asking
+    /// it, once, before the app is allowed to render against it.
+    ///
+    /// <para><b>This is the guard, and the null-stripping below is only tidying.</b> The
+    /// shape of a stored character is nested several levels deep — a Power holds Pros, a Pro
+    /// holds a variant key, a piece of gear holds features — and the deserializer will put a
+    /// null at any of those depths without the type system objecting. Stripping them level by
+    /// level means a list that goes stale the moment somebody adds a field, and they will not
+    /// think about this file when they do.</para>
+    ///
+    /// <para>The consequence of missing one is not a bad sheet, it is a dead app: the budget
+    /// bar renders on every route, so a payload that costs badly takes the whole page down on
+    /// the first frame — after <c>Program.cs</c>'s backstop has already been passed.</para>
+    ///
+    /// <para><see cref="InvalidOperationException"/> is deliberately <b>not</b> caught here.
+    /// That is what the engine throws for a selection it cannot price yet — a variable-cost
+    /// Power with no variant — which is a legitimate half-finished character, not corruption,
+    /// and discarding one would lose exactly the work this class exists to keep.</para>
+    /// </summary>
+    private bool CanBeUsed(CharacterSheet sheet)
+    {
+        try
+        {
+            CharacterSession.TryCost(() => _costs.TotalCost(sheet));
+            _validator.Validate(sheet);
+            return true;
+        }
+        catch (Exception e) when (e is NullReferenceException or ArgumentException or KeyNotFoundException
+                                    or FormatException or OverflowException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -120,6 +175,16 @@ public sealed class CharacterStore
             sheet.SelectedPowers[i] = power with { Pros = power.Pros ?? [], Cons = power.Cons ?? [] };
         }
 
+        // The four free-text fields are declared non-nullable strings and come back null when
+        // the key is absent. Nothing in the engine minds, and both call sites in web/ use
+        // IsNullOrWhiteSpace — but the text export does sheet.Name.Select(...), which is a
+        // NullReferenceException in the last place a player wants one. Repaired rather than
+        // rejected: losing a name is not worth losing a character over.
+        sheet.Name       ??= "";
+        sheet.Appearance ??= "";
+        sheet.Motivation ??= "";
+        sheet.Quote      ??= "";
+
         sheet.SelectedPowers.RemoveAll(p => p is null);
         sheet.Perks.RemoveAll(p => p is null);
         sheet.Flaws.RemoveAll(f => f is null);
@@ -143,5 +208,7 @@ public sealed class CharacterStore
           or JSException                    // the browser refused, or ppStore is missing
           or InvalidOperationException      // interop unavailable
           or ObjectDisposedException        // the host is going away
-          or TaskCanceledException;         // ditto, mid-call
+          or TaskCanceledException          // ditto, mid-call
+          or ArgumentException              // an id or key the payload invented
+          or OverflowException;             // a number no build can hold
 }

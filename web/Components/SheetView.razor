@@ -31,12 +31,22 @@
             <SheetSection Class="identity">
                 <div class="ident-name">@DisplayName</div>
                 <dl class="ident-fields">
-                    <dt>Alias</dt><dd><span class="rule-line"></span></dd>
-                    <dt>Team</dt><dd><span class="rule-line"></span></dd>
+                    <dt>Alias</dt><dd><RuledLines Count="1" Inline="true" /></dd>
+                    <dt>Team</dt><dd><RuledLines Count="1" Inline="true" /></dd>
                     <dt>Motivation</dt>
-                    <dd>@(string.IsNullOrWhiteSpace(Session.Sheet.Motivation)
-                            ? (MarkupString)"<span class=\"rule-line\"></span>"
-                            : (MarkupString)System.Net.WebUtility.HtmlEncode(Session.Sheet.Motivation))</dd>
+                    @* Was a MarkupString with a hand-rolled HtmlEncode — the one raw-HTML
+                       sink in a file whose whole argument is that markup lives in
+                       components. Razor escapes an expression on its own. *@
+                    <dd>
+                        @if (string.IsNullOrWhiteSpace(Session.Sheet.Motivation))
+                        {
+                            <RuledLines Count="1" Inline="true" />
+                        }
+                        else
+                        {
+                            @Session.Sheet.Motivation
+                        }
+                    </dd>
                 </dl>
             </SheetSection>
 

@@ -41,8 +41,11 @@ public sealed class FakeLocalStorage : IJSRuntime
 
             case "ppStore.load":
                 // The store asks for a string?; hand it back through the generic signature.
-                var stored = _items.GetValueOrDefault(key);
-                return ValueTask.FromResult(stored is TValue typed ? typed : default!);
+                // A miss falls to `default`, which is a completed ValueTask carrying null —
+                // what localStorage.getItem answers for a key that is not there. Writing it
+                // as `FromResult(... : default!)` instead makes the whole conditional
+                // maybe-null and the ValueTask's type argument stops matching.
+                return _items.GetValueOrDefault(key) is TValue stored ? ValueTask.FromResult(stored) : default;
 
             default:
                 return default;

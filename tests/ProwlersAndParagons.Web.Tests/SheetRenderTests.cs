@@ -38,38 +38,62 @@ public sealed class SheetRenderTests
     {
         using var ctx = new RenderContext().With(mode);
 
-        // Every place a Power's name and rank are set next to each other.
-        var entries = ctx.Render<SheetView>().FindAll(".power-entry .head .pname")
-            .Concat(ctx.Render<PowersTab>().FindAll(".chosen > li .body > div:first-child"))
-            .Select(e => Collapse(e.TextContent))
-            .ToList();
+        // Both surfaces, counted separately. Summed, a selector that stopped matching on one
+        // of them could hide behind the other's count — and it nearly did: the Villain sample
+        // has four Powers and the sheet seven, so one combined threshold of eight had exactly
+        // zero margin.
+        var onSheet = ctx.Render<SheetView>().FindAll(".power-entry .head .pname");
+        var onTab = ctx.Render<PowersTab>().FindAll(".chosen > li .body > div:first-child");
 
-        // If the selectors ever stop matching, this test would pass by finding nothing.
-        Assert.True(entries.Count >= 8, $"Only {entries.Count} name/rank pairs were found to check.");
+        Assert.NotEmpty(onSheet);
+        Assert.NotEmpty(onTab);
 
         var run = new Regex(@"[A-Za-z)\]]\d+d\b", RegexOptions.None, TimeSpan.FromSeconds(5));
+        var backwards = new Regex(@"\b\d+d[A-Za-z(\[]", RegexOptions.None, TimeSpan.FromSeconds(5));
 
-        foreach (var entry in entries)
+        foreach (var entry in onSheet.Concat(onTab).Select(e => Collapse(e.TextContent)))
+        {
             Assert.False(run.IsMatch(entry), $"A rank is printed with no space before it: \"{entry}\"");
+            Assert.False(backwards.IsMatch(entry), $"A rank runs into what follows it: \"{entry}\"");
+        }
     }
 
     /// <summary>
-    /// The same rule at the other end: a rank must actually be there. A test that only
-    /// banned the run-together spelling would be satisfied by printing no rank at all.
+    /// The same rule at the other end: a rank must actually be there, and it must be the
+    /// engine's. A test that only banned the run-together spelling would be satisfied by
+    /// printing no rank at all.
+    ///
+    /// <para>Every entry is checked against what the engine says, on both surfaces and in
+    /// both modes — not three names on one page. Naming Powers means the Villain sheet had no
+    /// positive rank assertion anywhere, and a rank that was right on the sheet and wrong on
+    /// the Powers tab was invisible.</para>
     /// </summary>
-    [Fact]
-    public void EveryRankedPowerPrintsItsRank()
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void EveryPowerPrintsTheRankTheEngineGivesIt(SheetMode mode)
     {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
-        var sheet = Rendered(ctx.Render<SheetView>().Markup);
+        using var ctx = new RenderContext().With(mode);
 
-        Assert.Contains("Armor 8d", sheet, StringComparison.Ordinal);
-        Assert.Contains("Danger Sense 11d", sheet, StringComparison.Ordinal);
-        Assert.Contains("Stun 6d", sheet, StringComparison.Ordinal);
+        var expected = ctx.Session.Sheet.SelectedPowers.ToDictionary(
+            sp => ctx.Session.Rules.GetPower(sp.PowerId)!.Name,
+            sp => ctx.Session.Rules.GetPower(sp.PowerId)! is { RankType: "default" or "special" }
+                ? null
+                : (int?)ctx.Session.Derived.GetEffectiveRank(sp, ctx.Session.Sheet),
+            StringComparer.Ordinal);
 
-        // A rankless Power prints its name and no rank at all, not "Communications 0d".
-        Assert.Contains("Communications", sheet, StringComparison.Ordinal);
-        Assert.DoesNotContain("Communications 0d", sheet, StringComparison.Ordinal);
+        Assert.NotEmpty(expected);
+
+        // A rankless Power is in there, or the null branch below is never exercised.
+        Assert.Contains(expected.Values, rank => rank is null);
+
+        foreach (var entry in ctx.Render<SheetView>().FindAll(".power-entry .head .pname"))
+        {
+            var text = Collapse(entry.TextContent);
+            var name = expected.Keys.Single(n => text.StartsWith(n, StringComparison.Ordinal));
+
+            Assert.Equal(expected[name] is { } rank ? $"{name} {rank}d" : name, text);
+        }
     }
 
     /// <summary>
@@ -142,7 +166,12 @@ public sealed class SheetRenderTests
 
         Assert.Contains("Baseline Rank (½ Toughness)", sheet, StringComparison.Ordinal);
         Assert.Contains("Baseline Rank (Perception)", sheet, StringComparison.Ordinal);
-        Assert.DoesNotContain("toughness)", sheet, StringComparison.Ordinal);
+
+        // Asserted per element, not against the stripped markup. Stripping a tag leaves a
+        // separator behind, so a forbidden string split across two elements survives a
+        // DoesNotContain over the whole page — which is the same hole in the other direction.
+        foreach (var line in ctx.Render<SheetView>().FindAll(".power-entry .statline"))
+            Assert.DoesNotContain("toughness)", Collapse(line.TextContent), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -176,13 +205,26 @@ public sealed class SheetRenderTests
         using var ctx = new RenderContext();
         var sheet = ctx.Render<SheetView>();
 
-        Assert.Contains("Unnamed", sheet.Markup, StringComparison.Ordinal);
+        var headings = sheet.FindAll(".sheet-section > h3").Select(h => Collapse(h.TextContent)).ToList();
 
         foreach (var heading in new[] { "Abilities", "Talents", "Powers", "Perks", "Gear", "Flaws", "Origin", "Notes" })
-            Assert.Contains(heading, Rendered(sheet.Markup), StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(headings, h => h.Contains(heading, StringComparison.OrdinalIgnoreCase));
 
-        // Room to write, in the boxes the engine has no data for.
-        Assert.True(sheet.FindAll(".rule-line").Count > 30);
+        Assert.Equal("Unnamed", Collapse(sheet.Find(".identity .ident-name").TextContent));
+
+        // Room to write, in every box the engine has nothing to put in — not merely 30 lines
+        // somewhere on the page. This is the regression the sheet was rebuilt to remove: an
+        // empty section used to print the word "None.", which is a report of what the tool
+        // knows rather than a form you can fill in at the table.
+        foreach (var box in new[] { "Powers", "Perks", "Gear", "Flaws", "Origin", "Notes" })
+        {
+            var section = sheet.FindAll(".sheet-section")
+                .Single(s => s.QuerySelector("h3") is { } h
+                             && Collapse(h.TextContent).Contains(box, StringComparison.OrdinalIgnoreCase));
+
+            Assert.NotEmpty(section.QuerySelectorAll(".rule-line"));
+            Assert.DoesNotContain("None.", Collapse(section.TextContent), StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
@@ -202,6 +244,48 @@ public sealed class SheetRenderTests
 
         // Four figures, not three: Hero Points joins Edge, Health and Resolve.
         Assert.Equal(4, sheet.FindAll(".stat-blocks.quad .stat-block").Count);
+
+        // Every box in the three columns and the foot carries a heading. Two masthead boxes
+        // deliberately do not — they hold the character's name and the sheet's own title, and
+        // neither would be captioned. Without this, dropping a Title printed a box with no
+        // heading at all and every count above still matched.
+        var captioned = sheet.FindAll(".sheet-columns .sheet-section")
+            .Concat(sheet.FindAll(".sheet-foot > .sheet-section"))
+            .ToList();
+
+        Assert.True(captioned.Count >= 9, $"Only {captioned.Count} sections were found to check.");
+
+        foreach (var section in captioned)
+        {
+            var heading = section.QuerySelector("h3");
+            Assert.NotNull(heading);
+            Assert.NotEmpty(Collapse(heading.TextContent));
+        }
+    }
+
+    /// <summary>
+    /// Gear reads left to right. Its rows span both columns of the stat table, which also
+    /// makes each one the last cell of its row — and <c>td:last-child</c> sets those right,
+    /// because that is where a rank belongs. Every piece of equipment on the sheet was flush
+    /// against the right margin.
+    /// </summary>
+    [Fact]
+    public void GearIsSetAcrossTheRowRatherThanAgainstTheMargin()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        var sheet = ctx.Render<SheetView>();
+
+        var gear = sheet.FindAll(".sheet-section")
+            .Single(s => s.QuerySelector("h3") is { } h
+                         && Collapse(h.TextContent).Contains("Gear", StringComparison.OrdinalIgnoreCase));
+
+        var spanning = gear.QuerySelectorAll("td[colspan]");
+
+        Assert.NotEmpty(spanning);
+        Assert.All(spanning, td => Assert.Equal("2", td.GetAttribute("colspan")));
+
+        foreach (var item in ctx.Session.Sheet.Gear)
+            Assert.Contains(spanning, td => Collapse(td.TextContent).Contains(item.Name, StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -270,24 +354,6 @@ public sealed class SheetRenderTests
 
         // Named, never a raw id — Label() resolves against the Power's own entry first.
         Assert.DoesNotContain(lines, l => l.Contains('_', StringComparison.Ordinal));
-    }
-
-    /// <summary>
-    /// Gear reaches the sheet with its features, and reads left to right. Its rows span both
-    /// columns of the stat table, which made them the last cell and flushed every piece of
-    /// equipment against the right margin.
-    /// </summary>
-    [Fact]
-    public void GearReachesTheSheet()
-    {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
-        var view = ctx.Render<SheetView>();
-        var sheet = Rendered(view.Markup);
-
-        Assert.NotEmpty(ctx.Session.Sheet.Gear);
-
-        foreach (var gear in ctx.Session.Sheet.Gear)
-            Assert.Contains(gear.Name, sheet, StringComparison.Ordinal);
     }
 
     /// <summary>

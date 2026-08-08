@@ -25,3 +25,6 @@ web/wwwroot/data/
 .idea/
 .vs/
 *.user
+
+# Qodana writes its report here when the scan is run locally (see README).
+results/

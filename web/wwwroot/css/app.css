@@ -441,7 +441,7 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .pips { display: flex; gap: 2px; }
 .pip {
     width: 7px; height: 14px;
-    border-radius: 1px;
+    border-radius: var(--radius-hair);
     background: var(--panel-sunk);
     border: 1px solid var(--rule);
     transition: background-color var(--step) var(--ease), border-color var(--step) var(--ease);
@@ -645,9 +645,14 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .stat-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stat-table tr:last-child td { border-bottom: none; }
 
-/* A row that spans both columns is a single description, not a value — gear is written
-   this way. Without this it is also the last cell, and was being set flush right. */
-.stat-table td[colspan] { text-align: left; white-space: normal; }
+/* A row that spans both columns is a single description, not a value — gear is written this
+   way. Without this it is also the *last* cell of its row, so the rule above set every piece
+   of equipment flush against the right margin.
+
+   `:last-child` and `[colspan]` weigh the same, so this used to win on source order alone
+   and moving it up the file would have quietly brought the bug back. `tr > td[colspan]`
+   settles it on specificity instead. */
+.stat-table tr > td[colspan] { text-align: left; white-space: normal; }
 
 /* Hero Point costs are bookkeeping, not a game statistic. A rank is what you roll; a cost
    is what you paid, and it is only ever consulted when rebuilding the character. Setting it
@@ -810,8 +815,11 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 
     p, li { orphans: 3; widows: 3; }
 
-    .stat-table td { padding: 0.5mm 1mm; }
-    .trait-table td { font-size: 8pt; }
+    /* Every table on the sheet, not only the Trait ones. Perks, Gear and Flaws carry no
+       `trait-table`, so they were inheriting the 10.5pt body size and printing visibly
+       larger than the Abilities beside them — and that extra height is what tips a
+       borderline character onto a second page. */
+    .stat-table td { padding: 0.5mm 1mm; font-size: 8pt; }
     .power-entry { padding: 1mm 0; }
     .power-entry .statline { font-size: 7.5pt; }
     /* Set with the stat lines rather than below them. A cost belongs a step behind a rank,
@@ -830,14 +838,25 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     .stat-block .sub { font-size: 7pt; }
 
     /* Wide enough to write a rank or a sentence on, in pen. Below about 4mm the lines stop
-       being usable and the box is decoration. */
+       being usable and the box is decoration.
+
+       The `fill` selector has to be restated at the same specificity as the screen rule it
+       is correcting. `.sheet-section.fill > .ruled` is (0,3,0) and plain `.ruled` is (0,1,0),
+       so the screen's `gap: 0` won on specificity regardless of source order — which left
+       Notes and Origin, the two boxes whose whole purpose is to be written on, with their
+       lines spaced by nothing but the slack `space-between` had to distribute. On a sparse
+       character that is about 2mm, and 2mm is not a line you can write on. */
     .ruled { gap: 4mm; }
+    .sheet-section.fill > .ruled { gap: 4mm; min-height: 0; }
     .rule-line { min-height: 0; }
 
-    /* The last box in a column carries the slack, so a short character still prints a full
-       page rather than a third of one with white under it. `fill` marks the boxes that are
-       there to be written on — Notes and Origin — and they are the right ones to grow. */
-    .sheet-section.fill { break-inside: avoid; }
+    /* `fill` boxes are the other thing on the page that can grow past a page, because they
+       stretch to the height of the tallest column and the Powers column is unbounded. So
+       they opt out of the no-break rule for exactly the reason `.powers` does: Chrome honours
+       `break-inside: avoid` by pushing the whole box to the next page first, which on a
+       Powers-heavy character left the rest of column one blank underneath. The box that can
+       exceed a page is the box that must be allowed to break. */
+    .sheet-section.fill { break-inside: auto; page-break-inside: auto; }
 
     /* Printed once, at the end. See the comment in SheetView for why this is not a running
        footer on every page. */

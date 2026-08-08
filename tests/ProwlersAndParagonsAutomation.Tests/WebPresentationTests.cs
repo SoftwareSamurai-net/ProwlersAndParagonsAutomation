@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace ProwlersAndParagonsAutomation.Tests;
@@ -331,7 +332,13 @@ public sealed class WebPresentationTests
         ("stat-blocks", "StatBlockRow.razor"),
         ("chosen", "ChosenList.razor"),
         ("options", "OptionList.razor"),
-        ("option", "OptionRow.razor")
+        ("option", "OptionRow.razor"),
+
+        // The blank ruled lines. SheetView hand-wrote three of these — two in the masthead
+        // and one inside a MarkupString that also hand-rolled its own HtmlEncode, which is a
+        // raw-HTML sink in the file whose whole argument is that markup lives in components.
+        ("ruled", "RuledLines.razor"),
+        ("rule-line", "RuledLines.razor")
     ];
 
     public static TheoryData<string, string> Owned()
@@ -445,6 +452,68 @@ public sealed class WebPresentationTests
 
         Assert.True(rule is not null, $"The print block has no rule for {selector}.");
         Assert.Contains("break-inside:avoid", Normalise(rule!), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The two boxes that can be taller than a page opt back out, and they have to.
+    ///
+    /// <para><c>break-inside: avoid</c> is a request Chrome honours by moving the whole box to
+    /// the next page first. On a box that cannot fit on any page that means the previous page
+    /// is abandoned — a fifteen-Power character left two thirds of page one white. The Powers
+    /// group is one such box; the <c>fill</c> boxes are the other, because they stretch to the
+    /// height of the tallest column and the Powers column is unbounded.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(".sheet-section.powers")]
+    [InlineData(".sheet-section.fill")]
+    public void TheBoxesThatCanExceedAPageAreAllowedToBreak(string selector)
+    {
+        var rule = PrintRuleFor(selector);
+
+        Assert.True(rule is not null, $"The print block does not let {selector} break.");
+        Assert.Contains("break-inside:auto", Normalise(rule!), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Nothing on the printed sheet is set below 7pt. Under that, small caps at a letter-space
+    /// stop being something a person reads and become a texture — and everything the sheet
+    /// carries, it carries because somebody at a table needs it.
+    ///
+    /// <para>This is measured rather than eyeballed because the one place it went wrong was a
+    /// deliberate choice: Hero Point costs were set at 6.8pt to push them behind the ranks,
+    /// which the case and the ink already do.</para>
+    /// </summary>
+    [Fact]
+    public void NothingOnPaperIsSetBelowSevenPoint()
+    {
+        var sizes = Rx(@"font-size:\s*([\d.]+)pt")
+            .Matches(OnlyPrintBlockOf(AppCss))
+            .Select(m => (Text: m.Value, Points: double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)))
+            .ToList();
+
+        Assert.NotEmpty(sizes);
+        Assert.All(sizes, s => Assert.True(s.Points >= 7, $"{s.Text} is too small to read on paper."));
+    }
+
+    /// <summary>
+    /// A Hero Point cost is set apart from a rank, and the separation is entirely typographic
+    /// — so it is entirely in the stylesheet, where no test that reads rendered markup can
+    /// see it. Emptying this rule leaves costs in the same size, weight and ink as the numbers
+    /// a player rolls, and the sheet goes back to reading as a receipt.
+    /// </summary>
+    [Fact]
+    public void AHeroPointCostIsSetApartFromTheNumbersAPlayerRolls()
+    {
+        var rule = Rx(@"(?<![\w.-])\.hp\s*\{([^{}]*)\}").Match(WithoutCssComments(AppCss));
+
+        Assert.True(rule.Success, "app.css has no .hp rule, so costs are set like everything else.");
+
+        var declarations = Normalise(rule.Groups[1].Value);
+
+        Assert.Contains("font-size:", declarations, StringComparison.Ordinal);
+        Assert.Contains("letter-spacing:", declarations, StringComparison.Ordinal);
+        Assert.Contains("color:var(--muted)", declarations, StringComparison.Ordinal);
+        Assert.Contains("text-transform:uppercase", declarations, StringComparison.Ordinal);
     }
 
     /// <summary>A heading that strands at the foot of a page belongs to nothing.</summary>

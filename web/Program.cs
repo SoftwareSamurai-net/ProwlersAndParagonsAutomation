@@ -49,23 +49,44 @@ var host = builder.Build();
 var store = host.Services.GetRequiredService<CharacterStore>();
 var session = host.Services.GetRequiredService<CharacterSession>();
 
-// The catch is deliberately total, and it is a backstop rather than the strategy:
-// CharacterStore already rejects anything it cannot use. But this runs before the first
-// render, so anything escaping here is not a lost character — it is a blank page, and a
-// blank page caused by something the app wrote itself is the worst outcome available.
+// Both catches are deliberately total, and they are a backstop rather than the strategy:
+// CharacterStore already rejects anything the engine cannot answer questions about. But this
+// runs before the first render, so anything escaping here is not a lost character — it is a
+// blank page, and a blank page caused by something the app wrote itself is the worst outcome
+// available.
+//
+// They are two catches rather than one because the two halves fail differently. Reading the
+// character back can fail in a way that means "there is no character"; setting the palette
+// cannot. One catch around both threw away a character that had restored perfectly, because
+// a JS call about its colours did not answer.
+(CharacterSheet Sheet, SheetMode Mode)? saved = null;
+
+#pragma warning disable CA1031 // see above: starting empty always beats not starting
 try
 {
-    if (await store.LoadAsync() is { } saved)
-    {
-        session.Restore(saved.Sheet, saved.Mode);
-        await host.Services.GetRequiredService<IJSRuntime>()
-            .InvokeVoidAsync("ppSetMode", saved.Mode == SheetMode.Hero ? "hero" : "villain");
-    }
+    saved = await store.LoadAsync();
+    if (saved is { } restored) session.Restore(restored.Sheet, restored.Mode);
 }
-#pragma warning disable CA1031 // see above: starting empty always beats not starting
 catch (Exception)
 {
     session.StartAgain();
+
+    // And forget it, rather than leaving it to be re-read and re-fail on every future visit.
+    // A character that stops the app has to be removable from inside the app.
+    try { await store.ClearAsync(); } catch (Exception) { /* nothing left to try */ }
+    saved = null;
+}
+
+if (saved is { } withMode)
+{
+    // The palette is presentation. Failing to set it is a Hero-coloured Villain, which is
+    // a great deal better than no character.
+    try
+    {
+        await host.Services.GetRequiredService<IJSRuntime>()
+            .InvokeVoidAsync("ppSetMode", withMode.Mode == SheetMode.Hero ? "hero" : "villain");
+    }
+    catch (Exception) { /* the character is already restored; the colours can wait */ }
 }
 #pragma warning restore CA1031
 

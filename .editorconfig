@@ -85,6 +85,19 @@ resharper_auto_property_can_be_made_get_only_global_highlighting = none
 resharper_unused_member_global_highlighting = none
 resharper_class_never_instantiated_global_highlighting = none
 
+[web/Services/CharacterStore.cs]
+# This file reads JSON that a browser stored, and its whole job is that the
+# declared types are not to be trusted. System.Text.Json hands back null for a
+# property whose type says it cannot be null — an absent key, an older build's
+# payload, storage somebody edited by hand — so every null check here is a check
+# against something that has actually happened, not against the annotation.
+#
+# ReSharper reads the annotations and calls the checks impossible. Acting on it
+# would delete the guards and restore the bug they were written for: a stored
+# {"Version":1,"Mode":0} threw before the first render, so the app did not start
+# at all. There are tests for each one; see CharacterStoreTests.
+resharper_condition_is_always_true_or_false_according_to_nullable_api_contract_highlighting = none
+
 [sheets/CharacterSheetRenderer.cs]
 # JsonValue.Create(...) is declared to return JsonValue?, so the null-forgiving
 # operator is load-bearing: removing it fails the warnings-as-errors build. The

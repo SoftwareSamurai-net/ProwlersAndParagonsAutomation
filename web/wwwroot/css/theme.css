@@ -97,6 +97,7 @@
     --radius:       6px;
     --radius-small: 4px;
     --radius-pill:  999px;
+    --radius-hair:  1px;      /* the pips, and anything else barely rounded */
 
     --step:         120ms;    /* pips, bar fills — must feel instant       */
     --swap:         180ms;    /* hover and focus states                    */
