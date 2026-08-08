@@ -606,12 +606,6 @@ public sealed class WebPresentationTests
         return matching.Count == 0 ? null : string.Join(';', matching);
     }
 
-    private static string? TokenOrNull(string block, string name)
-    {
-        var match = Rx($@"{Regex.Escape(name)}\s*:\s*([^;]+);").Match(block);
-        return match.Success ? match.Groups[1].Value.Trim() : null;
-    }
-
     /// <summary>
     /// Rough relative luminance of a #RGB or #RRGGBB value, 0 (black) to 1 (white). Rough is
     /// enough: the question is "is this ink or is this paper", not a contrast ratio. A value
