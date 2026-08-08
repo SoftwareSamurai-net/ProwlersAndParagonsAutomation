@@ -1,12 +1,23 @@
-@* One ruled box with a label over a big number, the way the published sheets set Edge,
-   Health and Resolve. *@
+@* One ruled box with a label over a big number, the way the published sheet sets Edge,
+   Health, Resolve and Hero Points. *@
 
 <div class="stat-block">
     <div class="label">@Label</div>
     <div class="value">@Value</div>
+    @if (Sub is not null)
+    {
+        <div class="sub">@Sub</div>
+    }
 </div>
 
 @code {
     [Parameter, EditorRequired] public string Label { get; set; } = "";
     [Parameter, EditorRequired] public string Value { get; set; } = "";
+
+    /// <summary>
+    /// A smaller second line under the figure. The budget needs one: "105/125" set at the
+    /// size these boxes use runs straight out of the box, and the number that matters is
+    /// the spend — the budget is context for it.
+    /// </summary>
+    [Parameter] public string? Sub { get; set; }
 }

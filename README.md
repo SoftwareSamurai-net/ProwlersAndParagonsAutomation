@@ -25,7 +25,7 @@ Either front end walks players and GMs through the full creation process — tra
 - **Dual export** — formatted `.txt` and structured `.json`, written to `output/` by the CLI and downloaded by the browser, from one implementation
 - **Two front ends on one engine** — a Spectre.Console wizard and a Blazor WebAssembly app that runs `CostCalculator` and `CharacterValidator` as the same compiled code, with Hero and Villain palettes
 - **Two sample characters** — a finished Hero and Villain, loadable in one click, for seeing a sheet without building one first; both held to the rules by tests
-- **A printed sheet you would hand to someone** — A4 with proper margins, ruled boxes, Powers under small-caps Source headings, and no entry cut in half by a page boundary. Both modes print black on white: paper has no dark mode
+- **A printed sheet modelled on the published Hero Sheet** — one A4 page, three columns, ruled boxes with centred headings, every Ability and Talent listed, and blank ruled space for the fields a pen fills in. Both modes print black on white: paper has no dark mode
 
 ---
 

@@ -271,7 +271,7 @@ public sealed class WebPresentationTests
         ("field", "Field.razor"),
         ("sheet-section", "SheetSection.razor"),
         ("stat-block", "StatBlock.razor"),
-        ("stat-blocks", "DerivedStatBlocks.razor"),
+        ("stat-blocks", "StatBlockRow.razor"),
         ("chosen", "ChosenList.razor"),
         ("options", "OptionList.razor"),
         ("option", "OptionRow.razor")

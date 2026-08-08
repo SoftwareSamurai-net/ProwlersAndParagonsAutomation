@@ -113,7 +113,19 @@ Cloudflare Pages at `pp.softwaresamurai.net`, by `.github/workflows/deploy.yml` 
 
 ### The printed sheet is the deliverable
 
+**It is modelled on the published Ultimate Edition Hero Sheet**, which is at `docs/Prowlers_&_Paragons_Ultimate_Edition_Hero_Sheet.pdf` — untracked, because `*.pdf` is gitignored repository-wide, so get your own copy from the publisher. Look at it before changing the layout.
+
+What is reproduced is the **structure**: a masthead of three boxes, three columns (Traits / the Powers stack / the four figures), a foot of free-text boxes, every section ruled with a centred heading in a bar. What is *not* reproduced is any of the trade dress — no hex pattern, no wordmark, no colour scheme. Those are LakeSide Games'.
+
+Two consequences of the reference being a **form** rather than a summary, both deliberate:
+
+- **Every Ability and all twelve Talents print, bought or not**, with a rule where the number goes. A sheet that hides a Talent at 0d is a report of what the tool knows; the published one is something you can write on.
+- **Alias, Team, Origin, Notes and Details have no equivalent in the engine and print as labelled blank rules.** Do not delete them for being unbacked, and do not add fields to `CharacterSheet` to fill them — a pen is the right tool for those.
+
 `web/wwwroot/css/app.css` ends with the print stylesheet and it is load-bearing. **Judge it by the PDF, never by the screen** — computed styles cannot tell you whether a page break lands mid-entry.
+
+- **The sheet is one page and should stay one page.** The three columns are equal height and the box marked `fill` in each — Notes and Origin — absorbs the difference, so a short character still prints a full page instead of a third of one. That is a flex `flex: 1` on `.sheet-section.fill` plus `justify-content: space-between` on its rules, not a tuned line count; do not go back to counting lines.
+- **The browser prints its own header, and no page can stop it.** The URL, the date and the page number across the top are the print dialogue's "Headers and footers" setting, which belongs to the person printing. The review step tells them where the switch is; that is the only lever there is. Do not add a `@page` margin box or a page counter to try — Chrome supports neither.
 
 How to actually look at one, since the browser pane cannot screenshot and headless Chrome cannot wait for Blazor to boot: capture `document.querySelector('.sheet').outerHTML` from the running app, render it in a static page against the real `theme.css` and `app.css`, and print that with `chrome --headless --print-to-pdf`. Rasterising the result needs a PDF library (there is no `pdftoppm` or Python on this machine); Docnet.Core plus ImageSharp 3.1.x in a scratch console project works. Pin ImageSharp below 4.0, which refuses to build without a licence key. Repeat the sheet three times in the harness to force breaks through every kind of block.
 

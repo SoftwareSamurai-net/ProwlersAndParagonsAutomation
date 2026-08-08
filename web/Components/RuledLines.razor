@@ -1,0 +1,18 @@
+@* Blank ruled lines, for the parts of a sheet the tool has no data for.
+
+   The published Hero Sheet is a form: Alias, Team, Origin, Notes and Details are all
+   fields a player fills in with a pen, and several of them have no equivalent anywhere in
+   this engine. Printing the labels with room to write is a better answer than printing
+   nothing — it is what makes the output a character sheet rather than a summary. *@
+
+<div class="ruled" aria-hidden="true">
+    @for (var i = 0; i < Count; i++)
+    {
+        <span class="rule-line"></span>
+    }
+</div>
+
+@code {
+    /// <summary>How many lines to draw. Roughly 4mm apiece in print.</summary>
+    [Parameter] public int Count { get; set; } = 3;
+}
