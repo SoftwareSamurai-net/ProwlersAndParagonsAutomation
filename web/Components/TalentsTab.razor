@@ -17,6 +17,11 @@
     }
 </Panel>
 
+<TraitSourcePicker Title="Sources for these Talents" Scope="talent"
+                   Traits="@Session.Rules.Talents.Select(t => (t.Id, t.Name)).ToList()"
+                   Sources="Session.Sheet.TalentSources"
+                   DefaultSourceId="@SourceGrouping.DefaultTalentSourceId" />
+
 @code {
     private int PackageTalentRank =>
         Session.Sheet.SelectedPackageId is null

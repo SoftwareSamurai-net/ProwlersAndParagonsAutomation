@@ -1,5 +1,6 @@
 using ProwlersAndParagonsAutomation.Cli.Export;
 using ProwlersAndParagonsAutomation.Engine;
+using ProwlersAndParagonsAutomation.Sheets;
 
 namespace ProwlersAndParagonsAutomation.Tests;
 
@@ -160,7 +161,7 @@ public sealed class SourceTests
         sheet.SelectedPowers.Add(new SelectedPower("blast", 4) { SourceId = "trained" });
         sheet.SelectedPowers.Add(new SelectedPower("armor", 4) { SourceId = "innate" });
 
-        var headings = new SourceGrouping(_f.Rules).GroupPowers(sheet).Select(g => g.Heading);
+        var headings = new SourceGrouping(_f.Rules).GroupBySource(sheet).Select(g => g.Heading);
 
         // innate precedes trained in sources.json, so a sheet does not reshuffle itself
         // as Powers are added.
@@ -178,7 +179,7 @@ public sealed class SourceTests
         sheet.SelectedPowers.Add(new SelectedPower("blast", 4) { SourceId = "tech" });
         sheet.SelectedPowers.Add(new SelectedPower("armor", 4));
 
-        var groups = new SourceGrouping(_f.Rules).GroupPowers(sheet);
+        var groups = new SourceGrouping(_f.Rules).GroupBySource(sheet);
 
         Assert.Equal<IEnumerable<string>>(["TECH POWERS", "POWERS"], groups.Select(g => g.Heading));
         Assert.Equal(sheet.SelectedPowers.Count, groups.Sum(g => g.Powers.Count));
@@ -221,6 +222,168 @@ public sealed class SourceTests
         }
     }
 
+    // ── Sources on Abilities and Talents ─────────────────────────────────────
+
+    /// <summary>
+    /// A Trait left alone prints nothing. Ch.2 p.15 gives Abilities and Talents a default —
+    /// Innate and Trained — so silence is an answer, not a gap, and a sheet that listed
+    /// every Trait under INNATE POWERS would be reporting the rule back at the reader.
+    /// </summary>
+    [Fact]
+    public void ATraitOnItsDefaultSourcePrintsNothing()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilityRanks["might"]      = 8;
+        sheet.TalentRanks["academics"]   = 6;
+
+        Assert.Empty(new SourceGrouping(_f.Rules).GroupBySource(sheet));
+
+        // Setting a Trait explicitly to its own default is the same statement as silence,
+        // and must print the same nothing rather than an empty INNATE POWERS box.
+        sheet.AbilitySources["might"]     = SourceGrouping.DefaultAbilitySourceId;
+        sheet.TalentSources["academics"]  = SourceGrouping.DefaultTalentSourceId;
+
+        var lines = new SourceGrouping(_f.Rules).GroupBySource(sheet).SelectMany(g => g.TraitLines);
+        Assert.Equal<IEnumerable<string>>(["Abilities (Might)"], lines.Take(1));
+    }
+
+    /// <summary>
+    /// Named Traits print in the rulebook's order, not the order they were set. Both
+    /// published sheets that name more than one — Darkwolf and Stronghold — print Agility,
+    /// Might, Perception, Toughness, which is abilities.json order and not alphabetical
+    /// either (Perception precedes Toughness but Might precedes Perception).
+    /// </summary>
+    [Fact]
+    public void NamedTraitsPrintInTheRulebooksOrder()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilitySources["toughness"]  = "tech";
+        sheet.AbilitySources["agility"]    = "tech";
+        sheet.AbilitySources["perception"] = "tech";
+        sheet.AbilitySources["might"]      = "tech";
+
+        var group = new SourceGrouping(_f.Rules).GroupBySource(sheet).Single();
+
+        Assert.Equal("TECH POWERS", group.Heading);
+        Assert.Equal<IEnumerable<string>>(
+            ["Abilities (Agility, Might, Perception, Toughness)"], group.TraitLines);
+    }
+
+    /// <summary>
+    /// Every Ability and every Talent on one Source collapses to the single line the two
+    /// Heralds and Nano are printed with. A partial set must not: naming all six Abilities
+    /// and eleven of the twelve Talents is not "All".
+    /// </summary>
+    [Fact]
+    public void AWhollySingleSourcedCharacterCollapsesToOneLine()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        foreach (var ability in _f.Rules.Abilities) sheet.AbilitySources[ability.Id] = "magic";
+        foreach (var talent in _f.Rules.Talents)    sheet.TalentSources[talent.Id]   = "magic";
+
+        Assert.Equal<IEnumerable<string>>(
+            ["Abilities and Talents (All)"],
+            new SourceGrouping(_f.Rules).GroupBySource(sheet).Single().TraitLines);
+
+        // One Talent short of the whole character, and the collapse must not happen.
+        sheet.TalentSources.Remove(_f.Rules.Talents[^1].Id);
+
+        var lines = new SourceGrouping(_f.Rules).GroupBySource(sheet).Single().TraitLines;
+        Assert.Equal(2, lines.Count);
+        Assert.Equal("Abilities (All)", lines[0]);
+        Assert.DoesNotContain(_f.Rules.Talents[^1].Name, lines[1], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Pros and Cons on a printed trait line belong to the whole line — Stronghold's
+    /// four Abilities share one <c>(Item: armor)</c>. So Abilities on the same Source with
+    /// different Cons print as separate lines rather than as one line carrying a Con that
+    /// only applies to part of it.
+    /// </summary>
+    [Fact]
+    public void AbilitiesAreSplitByTheModifiersTheyCarry()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilitySources["might"]     = "tech";
+        sheet.AbilitySources["toughness"] = "tech";
+        sheet.AbilitySources["agility"]   = "tech";
+        sheet.AbilityModifiers["might"]     = [new SelectedProCon("item")];
+        sheet.AbilityModifiers["toughness"] = [new SelectedProCon("item")];
+
+        var lines = new SourceGrouping(_f.Rules).GroupBySource(sheet).Single().TraitLines;
+
+        Assert.Equal<IEnumerable<string>>(
+            ["Abilities (Agility)", "Abilities (Might, Toughness) (Item)"], lines);
+    }
+
+    /// <summary>
+    /// A Source group can exist with no Powers in it at all: a Trait bought through powered
+    /// armour on a character who has no Tech Power. The heading is still the sheet's, and
+    /// dropping the group would lose the only record of where that Trait came from.
+    /// </summary>
+    [Fact]
+    public void ASourceWithOnlyATraitStillPrintsItsHeading()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilitySources["might"] = "tech";
+        sheet.SelectedPowers.Add(new SelectedPower("flight", 4) { SourceId = "magic" });
+
+        var groups = new SourceGrouping(_f.Rules).GroupBySource(sheet);
+
+        Assert.Equal<IEnumerable<string>>(["MAGIC POWERS", "TECH POWERS"], groups.Select(g => g.Heading));
+        Assert.Empty(groups.Single(g => g.Heading == "TECH POWERS").Powers);
+    }
+
+    /// <summary>
+    /// The default is what the Trait <em>is</em>, which is a different question from what the
+    /// sheet prints. A front end asks this so it does not have to know the two defaults.
+    /// </summary>
+    [Fact]
+    public void EffectiveSourceFallsBackToTheRulebookDefault()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        var grouping = new SourceGrouping(_f.Rules);
+
+        Assert.Equal("innate",  grouping.EffectiveAbilitySource(sheet, "might"));
+        Assert.Equal("trained", grouping.EffectiveTalentSource(sheet, "academics"));
+
+        sheet.AbilitySources["might"] = "tech";
+        Assert.Equal("tech", grouping.EffectiveAbilitySource(sheet, "might"));
+
+        // Both defaults are Sources the rulebook actually lists, which a bare string is not.
+        Assert.NotNull(_f.Rules.GetSource(SourceGrouping.DefaultAbilitySourceId));
+        Assert.NotNull(_f.Rules.GetSource(SourceGrouping.DefaultTalentSourceId));
+    }
+
+    /// <summary>
+    /// The text sheet prints the trait line inside its Source group, above the Powers, which
+    /// is where a published sheet puts it — not on the Abilities block.
+    /// </summary>
+    [Fact]
+    public void TheExportedSheetPrintsTheTraitLineInsideTheGroup()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.Name = "Trait Sources";
+        sheet.AbilityRanks["might"]   = 8;
+        sheet.AbilitySources["might"] = "tech";
+        sheet.SelectedPowers.Add(new SelectedPower("blast", 4) { SourceId = "tech" });
+
+        var txt = CharacterSheetRenderer.RenderText(
+            sheet, _f.Rules, _f.Costs, _f.Derived, _f.Validator.Validate(sheet), DateTime.UnixEpoch);
+
+        var heading = txt.IndexOf("TECH POWERS", StringComparison.Ordinal);
+        var line    = txt.IndexOf("Abilities (Might)", StringComparison.Ordinal);
+        var power   = txt.IndexOf("Blast", StringComparison.Ordinal);
+
+        Assert.True(heading >= 0 && line > heading && power > line);
+
+        // And not on the Abilities block, which stays a plain list of ranks.
+        var abilities = txt.IndexOf("─── ABILITIES", StringComparison.Ordinal);
+        Assert.True(abilities < heading);
+        Assert.DoesNotContain("Abilities (Might)",
+            txt[abilities..heading], StringComparison.Ordinal);
+    }
+
     [Fact]
     public void GroupingNeverLosesOrDuplicatesAPower()
     {
@@ -230,7 +393,7 @@ public sealed class SourceTests
         sheet.SelectedPowers.Add(new SelectedPower("flight", 4) { SourceId = "magic" });
         sheet.SelectedPowers.Add(new SelectedPower("leaping", 4));
 
-        var listed = new SourceGrouping(_f.Rules).GroupPowers(sheet)
+        var listed = new SourceGrouping(_f.Rules).GroupBySource(sheet)
             .SelectMany(g => g.Powers).Select(p => p.PowerId).ToList();
 
         Assert.Equal(sheet.SelectedPowers.Select(p => p.PowerId).Order(), listed.Order());

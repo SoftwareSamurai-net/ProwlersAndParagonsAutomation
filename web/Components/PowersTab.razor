@@ -17,7 +17,10 @@ else
             @* Grouped under Source headings the way a published sheet prints them —
                TECH POWERS, MAGIC POWERS. SourceGrouping is the engine's answer, shared
                with the text sheet and the JSON export. *@
-            @foreach (var group in Session.Grouping.GroupPowers(Session.Sheet))
+            @* Groups holding only an Abilities (…) line are skipped here: this panel edits
+               Powers, and a heading with nothing under it says less than no heading. The
+               sheet prints those lines, which is where the published layout puts them. *@
+            @foreach (var group in Session.Grouping.GroupBySource(Session.Sheet).Where(g => g.Powers.Count > 0))
             {
                 <h3>@group.Heading</h3>
                 <ChosenList>

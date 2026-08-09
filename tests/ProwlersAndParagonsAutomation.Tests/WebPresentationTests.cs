@@ -516,6 +516,35 @@ public sealed class WebPresentationTests
         Assert.Contains("text-transform:uppercase", declarations, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The <c>Abilities (…)</c> line that opens a Source group is set apart from the Powers
+    /// under it. It is not a Power — no rank, no cost — and in the same face it reads as the
+    /// first entry in the list, which is a misreading the markup cannot prevent: the class is
+    /// on the element either way, so every rendering test passes with this rule emptied.
+    ///
+    /// <para>The print size is asserted too. On screen it is set in <c>rem</c>, which the
+    /// print block overrides for everything else on the sheet — leaving this one behind would
+    /// print it visibly larger than the Power names beside it.</para>
+    /// </summary>
+    [Fact]
+    public void ATraitSourceLineIsSetApartFromThePowersBelowIt()
+    {
+        var css  = WithoutCssComments(AppCss);
+        var rule = Rx(@"(?<![\w.-])\.power-entry\.trait-sources\s*\{([^{}]*)\}").Match(css);
+
+        Assert.True(rule.Success,
+            "app.css does not set the trait Source line apart, so it reads as the first Power.");
+
+        var declarations = Normalise(rule.Groups[1].Value);
+        Assert.Contains("font-style:italic", declarations, StringComparison.Ordinal);
+        Assert.Contains("font-size:", declarations, StringComparison.Ordinal);
+
+        var printed = PrintRuleFor(".power-entry.trait-sources");
+        Assert.True(printed is not null,
+            "The print block leaves the trait Source line at its screen size.");
+        Assert.Contains("pt", Normalise(printed!), StringComparison.Ordinal);
+    }
+
     /// <summary>A heading that strands at the foot of a page belongs to nothing.</summary>
     [Fact]
     public void ASectionHeadingNeverStrandsAtTheFootOfAPage()

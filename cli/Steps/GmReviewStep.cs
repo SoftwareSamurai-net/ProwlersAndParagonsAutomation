@@ -104,10 +104,10 @@ public sealed class GmReviewStep : IWizardStep
     private static void RenderPowers(CharacterSheet sheet, RulesRepository rules,
         CostCalculator costs, DerivedStatsCalculator derived)
     {
-        if (sheet.SelectedPowers.Count == 0) return;
-
-        // Grouped under Source headings, the way a published sheet prints them.
-        foreach (var group in new SourceGrouping(rules).GroupPowers(sheet))
+        // Grouped under Source headings, the way a published sheet prints them. A group can
+        // hold only an Abilities (…) line — a Trait bought through powered armour on a
+        // character with no Tech Power — so this is not gated on there being any Powers.
+        foreach (var group in new SourceGrouping(rules).GroupBySource(sheet))
             RenderPowerGroup(group, sheet, rules, costs, derived);
     }
 
@@ -121,6 +121,11 @@ public sealed class GmReviewStep : IWizardStep
             .AddColumn(new TableColumn("Effective").Centered())
             .AddColumn("Pros / Cons")
             .AddColumn(new TableColumn("HP Cost").Centered());
+
+        // The Abilities (…) and Talents (…) lines print inside the group, above the Powers,
+        // which is where a published sheet puts them. They cost nothing and have no rank.
+        foreach (var line in group.TraitLines)
+            table.AddRow($"[italic]{Markup.Escape(line)}[/]", "[grey]—[/]", "[grey]—[/]", "[grey]0[/]");
 
         foreach (var sp in group.Powers)
         {

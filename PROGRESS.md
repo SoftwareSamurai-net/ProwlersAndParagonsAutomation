@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.92 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 2765 across two projects — 2701 on the engine, 64 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 2816 across two projects — 2748 on the engine, 68 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two — the terminal wizard and a Blazor WebAssembly app, both on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -57,19 +57,9 @@ One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (M
 
 The invented per-Power lists are gone — see the completed item below. What is left is the half of the constraints that cannot be checked against anything the rulebook prints per Power: "Powers that inflict physical or energy damage", "Powers that can be activated and deactivated at will", "attack Powers", "Powers that last or can be maintained". These are shown to the player as a caveat on the option and left to the GM, which is how Ch.2 frames the list.
 
-Enforcing them would need roughly seven booleans on each of the 141 Powers — about a thousand fresh judgements against the book. That is worth doing only if something downstream actually needs it, and the obvious candidate is item 6 (assisted creation), where a model proposing a character benefits from the engine ruling out illegal combinations. Until then the caveat is honest and the guess is not.
+Enforcing them would need roughly seven booleans on each of the 141 Powers — about a thousand fresh judgements against the book. That is worth doing only if something downstream actually needs it, and the obvious candidate is item 5 (assisted creation), where a model proposing a character benefits from the engine ruling out illegal combinations. Until then the caveat is honest and the guess is not.
 
-### 2. Sources on Abilities and Talents
-
-Powers now carry a Source and every sheet groups by it — see the completed item below. What is left is the other half of the rule.
-
-Ch.2 p.15: *"These are the Sources for your Powers **and Abilities** with a rank of 7d or greater."* Abilities of 6d or less default to Innate and Talents to Trained, and the book is explicit those defaults are not mandatory. The engine gives a Source only to Powers, so a 10d Ability bought through powered armour has nowhere to say so.
-
-**The published sheets do print this**, which is the argument for modelling it: an Ability's Source appears as an `Abilities (…)` entry *inside* a Power group, not as a marking on the Abilities block. Stronghold's `TECH POWERS` group opens with `Abilities (Agility, Might, Perception, Toughness) (Item: armor)`, and Alabama Slammer's `SUPER POWERS` with `Abilities (Perception, Toughness)`. So faithful rendering eventually needs it.
-
-Nothing consumes it yet, though — the default-rank rule is about Powers — so adding the field now would be unused data. **There are two surfaces waiting for it now rather than one:** the `.txt` sheet and the browser's `SheetView`, which both group Powers by Source and both stop short of the `Abilities (…)` line. `PrebuiltHeroes.PowerSourcesByHero` is where the transcription would go.
-
-### 3. What the sheet still cannot say
+### 2. What the sheet still cannot say
 
 Found by an adversarial audit during the sheet-polish slice; real, and out of scope for it.
 
@@ -77,11 +67,11 @@ Found by an adversarial audit during the sheet-polish slice; real, and out of sc
 
 Smaller, from the same audits: the GM review step lists findings with no route back to the step that caused them, and a fresh sheet starts every Ability at 0d although the editor's floor is 1d without anything objecting.
 
-### 4. Remaining rulebook chapters
+### 3. Remaining rulebook chapters
 
 Chapters 3–9 are not extracted, apart from the two pieces pulled out because the engine needed them: Ch.6's custom gear features and Ch.7's three toxin Pros/Cons. Rough order of usefulness to the wizard: 6 (the rest of Equipment), 5 (Resolve, already partly used), 4 (Combat), 8 (Friends and Foes), then the rest.
 
-### 5. Shrink the browser payload
+### 4. Shrink the browser payload
 
 Deployment is done — see the completed item below. What it left open is size: the first load is **27 MiB uncompressed**, about a third of that over the wire once Cloudflare applies Brotli, and cached hard afterwards because every framework asset is fingerprinted.
 
@@ -96,7 +86,7 @@ Two ways to close it, neither free:
 
 Not urgent. The site works, and a returning visitor pays nothing.
 
-### 6. Assisted character creation from a description
+### 5. Assisted character creation from a description
 
 Give the tool a prompt like "a washed-up boxer who punches through time" and have it produce
 a legal, costed character. This is worth doing *because* the rules engine is now trustworthy:
@@ -108,7 +98,7 @@ Wants a machine-usable surface first: something that takes a structured characte
 validates it, and returns errors the caller can act on. That is close to what
 `CharacterSheetExporter`'s JSON already emits, read in reverse.
 
-### 7. Choose and apply a licence
+### 6. Choose and apply a licence
 
 The project is intended for open-source release but is currently unlicensed, which legally means nobody may use it. Apache 2.0 is the working preference: its NOTICE requirement makes the "no rulebook content here, you must own the rulebook" statement travel with any fork. Whatever is chosen must be explicit that it covers this project's code and original text only — not the game system, which is © LakeSide Games. Worth contacting LakeSide before any public release.
 
@@ -117,6 +107,26 @@ The project is intended for open-source release but is currently unlicensed, whi
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Sources on Abilities and Talents, and the rank threshold that never existed
+
+This closes what was item 2. `CharacterSheet` gains `AbilitySources` and `TalentSources`, `SourceGrouping` builds the `Abilities (…)` line a published sheet prints, and all four surfaces print it: the `.txt` sheet, the JSON export, the wizard's GM review, and the browser's `SheetView`. Both front ends can set it — a `TraitSourcePicker` on the Abilities and Talents tabs, and a Sources entry in the CLI's two rank menus — because a field no host can reach is the unused data this item was held open to avoid.
+
+**The premise this item was written on was wrong, and finding that out was most of the work.** It quoted Ch.2 p.15 as *"the Sources for your Powers and Abilities with a rank of 7d or greater"*. That sentence is real but it is **Ch.3 p.64**, inside the *random generation* tables, telling you which Traits to roll Sources for. Ch.2 p.15 says something broader and much simpler: *every* Ability, Talent and Power has a Source, Abilities are usually Innate and Talents usually Trained, "but these defaults aren't mandatory."
+
+**Read as a rank threshold it is contradicted by the sheets, in both directions.** Alabama Slammer marks 6d Perception and 6d Toughness; Citizen Soldier leaves 9d Willpower unmarked while marking his two 12s; Stronghold leaves 10d Intellect unmarked and marks 6d Agility. So the printed line is an **exception list** — the Traits whose Source is not the default — and there is no rule that derives it. It has to be stored, which is the whole argument for the field. `PrebuiltHeroTests.ThePrintedTraitSourcesAreNotARankThreshold` names both counterexamples so the derivation cannot be reinvented.
+
+**Nine of the twenty sheets carry such a line and eleven carry none**, and both halves are transcribed — a renderer inventing a line for every character would satisfy a test that only checked the nine. Three of the nine are printed `Abilities and Talents (All)`: both Heralds and Nano, where every Trait deviates, so the engine collapses a full set to that one line and a single Talent short of it does not collapse.
+
+Three smaller decisions, each from the printed layout rather than from convenience:
+
+- **A Trait on its default prints nothing, and setting one explicitly to its own default prints nothing either.** They are the same Source but not the same statement, so the picker removes the entry rather than storing it. Otherwise an ordinary character prints eighteen lines restating the rulebook at the reader.
+- **Abilities on one Source are split by the Pros and Cons they carry.** The marking on a printed line covers the whole line — Stronghold's four Abilities share one `(Item: armor)` — so two Abilities with different Cons are two lines, never one line carrying a Con that applies to half of it. The engine prints `(Item)`: `SelectedProCon` has an id and a variant key and nowhere to keep "armor". That shortfall is recorded beside the transcription rather than tuned away.
+- **A Source group can hold no Powers at all** — a Trait bought through powered armour on a character with no Tech Power — so the grouping is no longer gated on there being Powers, and three call sites that were gated on `SelectedPowers.Count` are not any more. The Powers *tab* still skips those groups, because it edits Powers and a heading with nothing under it says less than no heading.
+
+**The persistence test had a blind spot this would have fallen into.** The round trip is deliberately checked against the engine's answers rather than a field list — but a Source costs nothing and changes no rank, so cost, Edge, Health, Resolve and every validation message are blind to it, and dropping `AbilitySources` from storage would have passed all five. The fix keeps the principle: it compares another *answer* — the Source headings and the trait lines under them — rather than adding two field names to a list that will go stale the same way.
+
+A Trait with no Source is **not** reported by the validator, and that is the rule rather than a missing check: the rulebook supplies a default, so silence means "on its default". A Power has no default, which is why `POWER_WITHOUT_SOURCE` exists and no Trait equivalent does. An unknown Source id, or one recorded against a Trait that does not exist, is an error on both.
 
 ### Qodana reports zero, and the fix was not a baseline — [#25](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/25)
 
@@ -275,7 +285,7 @@ Two security choices behind the arrangement, both about blast radius rather than
 - **The workflow never triggers on `pull_request`.** That trigger runs a contributor's workflow changes with the base repository's secrets in scope, which would put the Cloudflare token one PR away from anyone.
 - **A subdomain and a token scoped to Pages on one account.** A leaked token can redeploy this one site and nothing else, and a mistake in the Pages config cannot reach the apex domain.
 
-What it left open is payload size — see item 5.
+What it left open is payload size — see item 4.
 
 ### A browser front end, on the same engine — [#17](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/17)
 
@@ -290,7 +300,7 @@ A character can now be created end to end in a browser and exported, with the te
 Some things the build found:
 
 - **`Content Include="..\data\rules\*.json" LinkBase="wwwroot\data\rules"` looks right and silently is not.** The asset gets registered with a content root of `wwwroot/` while the file stays outside it, so every request answers `200` with an empty body and the engine reports the rulebook as malformed JSON. The csproj copies the files into `wwwroot/data/rules/` before static-asset discovery instead, and errors if it finds none — the failure it guards against is a site that loads and then cannot start.
-- **Trimming is off on publish.** `RulesRepository` deserializes with reflection-based `System.Text.Json`, so the trimmer may remove model properties it can only see through reflection, and the failure is not a build error but a silently empty rules set at runtime. Rooting the engine assembly would keep the smaller payload, but the local toolchain cannot run the trimmer at all — the ILLink task host crashes without the `wasm-tools` workload, on the stock template too — so that is a change nobody could verify here. Recorded in item 5.
+- **Trimming is off on publish.** `RulesRepository` deserializes with reflection-based `System.Text.Json`, so the trimmer may remove model properties it can only see through reflection, and the failure is not a build error but a silently empty rules set at runtime. Rooting the engine assembly would keep the smaller payload, but the local toolchain cannot run the trimmer at all — the ILLink task host crashes without the `wasm-tools` workload, on the stock template too — so that is a change nobody could verify here. Recorded in item 4.
 - **Pros and Cons on Abilities offer Cons only, and that is the rulebook's answer rather than a shortcut.** Each option's entry states what it may be applied to; of 23 Pros and 28 Cons, exactly two name Abilities and both are Cons. The picker filters on that field, so the list follows the data.
 - **Blazor's `#blazor-error-ui` needs a `display: none` rule of its own.** Without one it shows from the first paint and reports a failure that never happened — which it duly did, twice, before being noticed.
 
@@ -316,7 +326,7 @@ The tests hold the seam open rather than merely covering it: one builds a reposi
 
 All twenty published sheets have their grouping transcribed and a test asserts the engine reproduces each one's printed headings — Psidearm carries three groups, Alabama Slammer two, Talon one. A Power with no Source still prints, under a plain heading at the end, rather than being dropped from its own sheet.
 
-**A correction to what this file said before.** It recorded that Abilities are printed with no Source marking. That is true of the Abilities block, but incomplete: the sheets record an Ability's Source as an `Abilities (…)` entry inside a Power group — Stronghold's four armoured Abilities sit under `TECH POWERS`. See item 2, which is now scoped to exactly that.
+**A correction to what this file said before.** It recorded that Abilities are printed with no Source marking. That is true of the Abilities block, but incomplete: the sheets record an Ability's Source as an `Abilities (…)` entry inside a Power group — Stronghold's four armoured Abilities sit under `TECH POWERS`. That became its own item, and is now closed — see the entry above.
 
 ### Pro/Con applicability is derived, not guessed — [#14](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/14)
 

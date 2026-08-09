@@ -92,7 +92,7 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 - `CharacterSession` (scoped) owns the `CharacterSheet` and forwards to the calculators. **Anything resembling arithmetic in that file is a bug.**
 - `CharacterSession.TryCost` exists because the engine throws rather than guessing on an incomplete selection — a variable-cost Power with no variant. The editors never commit one, so this is only for the always-on budget bar.
 - **`CharacterStore` decides what a stored character is by asking the engine, not by checking its shape.** A saved sheet is nested several levels deep, and `System.Text.Json` will put a null at any of them without the type system objecting — so the guard costs and validates the sheet once and rejects a payload the engine cannot answer for. The first version stripped nulls level by level and missed `"Pros":[null]`, which restored cleanly and then took the app down on the first frame, because the budget bar renders on every route. **Do not replace this with a list of shapes**: the list goes stale the first time somebody adds a field. `InvalidOperationException` is deliberately not caught there — that is a half-finished character, not a corrupt one.
-- **Trimming is disabled on publish.** `RulesRepository` deserializes by reflection, so the trimmer can quietly remove model properties and leave the site running on empty rules. See `PROGRESS.md` item 5 before turning it back on.
+- **Trimming is disabled on publish.** `RulesRepository` deserializes by reflection, so the trimmer can quietly remove model properties and leave the site running on empty rules. See `PROGRESS.md` item 4 before turning it back on.
 
 ### Hosting
 
@@ -293,15 +293,26 @@ Six of them (Ch.2 p.15), in `sources.json`: Innate, Magic, Psychic, Super, Tech,
 
 `DerivedStatsCalculator.GetRankAgainstPowers` answers that. It is **deliberately separate from `GetEffectiveRank`**, which still returns 0 for a rankless Power. The default rank substitutes only against other Powers — it is not the Power's rank, and folding it in would change Edge and Resolve away from the figures the published sheets print. There is a test; do not "simplify" the two into one.
 
-A Source costs nothing and changes no rank, so a missing one is a warning, not an error.
+A Source costs nothing and changes no rank, so a missing one **on a Power** is a warning, not an error. **On an Ability or Talent it is not reported at all**, and that difference is the rule rather than a gap: Ch.2 p.15 gives those two a default — Innate and Trained — so silence means "on its default". A Power has no default, which is why `POWER_WITHOUT_SOURCE` exists and no Trait equivalent does.
 
 ### Sheets group Powers by Source
 
-`SourceGrouping` lives in `engine/`, not in a renderer, because the text sheet, the JSON export, the GM review and any future front end all need the same answer. Published sheets print `TECH POWERS`, `MAGIC POWERS` and so on rather than one flat list, and all three surfaces now do too.
+`SourceGrouping` lives in `engine/`, not in a renderer, because the text sheet, the JSON export, the GM review and the browser's sheet all need the same answer. Published sheets print `TECH POWERS`, `MAGIC POWERS` and so on rather than one flat list, and all four surfaces do too.
 
 - Groups follow `sources.json` order, so a sheet does not reshuffle as Powers are added.
-- A Power with **no** Source still prints, under a plain `POWERS` heading at the end. Do not "tidy" this by filtering it out — leaving a Power off its own character sheet is worse than showing it unsourced, and the validator already warns.
-- **Abilities are not grouped, and that is correct.** The rulebook gives a Source to any Ability of 7d or greater, but the sheets record it as an `Abilities (…)` entry *inside* a Power group — Stronghold's four armoured Abilities sit under `TECH POWERS` — never as a marking on the Abilities block. Abilities carry no Source in the engine yet; see `PROGRESS.md` item 2.
+- A Power with **no** Source still prints, under a plain `POWERS` heading at the end. Do not "tidy" this by filtering it out — leaving a Power off its own character sheet is worse than showing it unsourced, and the validator already warns. A **Trait** with no Source is different: it is not unsourced, it is on its default, so it prints nothing.
+- **A group can hold no Powers at all** — a Trait bought through powered armour on a character with no Tech Power — so nothing that renders groups may gate on `SelectedPowers.Count`. Three places did. The Powers *tab* is the one deliberate exception: it edits Powers, and a heading with nothing under it says less than no heading.
+
+### Sources on Abilities and Talents
+
+Ch.2 p.15: **every** Ability, Talent and Power has a Source; Abilities are usually Innate and Talents usually Trained, "but these defaults aren't mandatory". `CharacterSheet.AbilitySources` / `TalentSources` record only the Traits that deviate, which is exactly what a sheet prints.
+
+- **Abilities are not marked on the Abilities block, and that is correct.** A sheet records the Source as an `Abilities (Might, Toughness)` line *inside* the relevant Power group. Stronghold's `TECH POWERS` opens with his four armoured Abilities. The Abilities and Talents tables stay plain lists of ranks.
+- **Do not derive the line from rank.** Ch.3 p.64 — the *random generation* chapter — says "Sources for your Powers and Abilities with a rank of 7d or greater", and reading that as a threshold is contradicted by the sheets in both directions: Alabama Slammer marks 6d Perception and Toughness; Citizen Soldier leaves 9d Willpower unmarked. It is an author's exception list, so it is stored. `ThePrintedTraitSourcesAreNotARankThreshold` names both counterexamples.
+- **Three printed shapes, all from Ch.8.** Every Ability *and* every Talent on one Source collapses to `Abilities and Talents (All)` — both Heralds and Nano. A whole block alone reads `(All)`. Otherwise the Traits are named, in `abilities.json`/`talents.json` order, which is the order the sheets print them in.
+- **A Trait explicitly set to its own default prints nothing**, same as one never touched. Same Source, same statement — so the editors remove the entry rather than storing it, or an ordinary character prints eighteen lines restating the rulebook.
+- **Abilities on one Source are split by the Pros and Cons they carry**, because the marking covers the whole printed line. The engine prints `(Item)` where the book prints `(Item: armor)`: `SelectedProCon` has no free-text label. Recorded, not tuned away.
+- A Source costs nothing and changes no rank, which is why the **persistence round trip cannot see one** through cost or the derived stats. It compares the Source headings and trait lines instead — still an engine answer, not a field list.
 
 ### Perk cost formula
 
@@ -351,7 +362,7 @@ Settled rules questions:
 - The Item Con is **not** credited against a piece of gear
 - Generic Pro/Con applicability is **derived from the option**, never listed on the Power; unenforceable constraints are caveats, not filters
 - A rankless Power's **default rank** comes from its Source and applies **only** against other Powers — it is not its effective rank
-- Sheets group Powers under Source headings; **Abilities are not grouped**, matching the printed layout rather than the rules text
+- Sheets group Powers under Source headings; an Ability's or Talent's Source prints as a line **inside** a Power group, never as a marking on the Abilities block, and it is **not** derivable from rank
 - The Iconic tier's "200+" is explicitly a bare minimum, so it is GM discretion rather than missing data
 - Hero and Villain are **one app with two palettes**, and the mode is not a field on `CharacterSheet`
 - `engine/`, `sheets/`, `cli/` and `web/` are **separate projects**, so the dependency arrows hold at compile time rather than by convention

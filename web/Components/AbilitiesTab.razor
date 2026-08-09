@@ -25,6 +25,11 @@
     }
 </Panel>
 
+<TraitSourcePicker Title="Sources for these Abilities" Scope="ability"
+                   Traits="@Session.Rules.Abilities.Select(a => (a.Id, a.Name)).ToList()"
+                   Sources="Session.Sheet.AbilitySources"
+                   DefaultSourceId="@SourceGrouping.DefaultAbilitySourceId" />
+
 <Panel Title="Pros and Cons on an Ability" Level="3">
     <p class="small muted">
         The rulebook allows these on Abilities as well as Powers. Overkill on Might is the

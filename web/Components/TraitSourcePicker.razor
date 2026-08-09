@@ -1,0 +1,75 @@
+@inject CharacterSession Session
+
+@* Where a Trait's Source is chosen. One component for Abilities and for Talents, because
+   the only difference between the two is which default a blank means.
+
+   The rulebook (Ch.2, p.15) gives every Ability, Talent and Power a Source, with Abilities
+   usually Innate and Talents usually Trained — "but these defaults aren't mandatory". So
+   the control offers the default as its first option and a sheet records only what deviates
+   from it, which is exactly what a published sheet prints: an Abilities (…) line naming the
+   exceptions, inside the Power group they belong to. *@
+
+<Panel Title="@Title" Level="3">
+    <p class="small muted">
+        A Source says what a Trait is meant to be — trained, technological, magical. It costs
+        nothing and changes no rank. @DefaultSentence Anything you change here is printed on
+        the sheet beside the Powers from the same Source, which is where the published sheets
+        record it.
+    </p>
+
+    @foreach (var trait in Traits)
+    {
+        var id = trait.Id;
+        <Field Label="@trait.Name" For="@($"{Scope}-src-{id}")">
+            <select id="@($"{Scope}-src-{id}")"
+                    value="@Sources.GetValueOrDefault(id, "")"
+                    @onchange="e => Set(id, e.Value as string)">
+                <option value="">@DefaultName (default)</option>
+                @foreach (var source in Session.Rules.Sources)
+                {
+                    <option value="@source.Id">@source.Name</option>
+                }
+            </select>
+        </Field>
+    }
+</Panel>
+
+@code {
+    /// <summary>Heading for the panel — "Sources for these Abilities".</summary>
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    /// <summary>Prefix for the generated control ids, so two pickers on one page do not collide.</summary>
+    [Parameter, EditorRequired] public string Scope { get; set; } = "";
+
+    /// <summary>The Traits to offer, in the rulebook's order.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<(string Id, string Name)> Traits { get; set; } = [];
+
+    /// <summary>
+    /// The live dictionary on the sheet. Written through directly, so an entry appears only
+    /// when a Trait is taken off its default and is removed again when it goes back.
+    /// </summary>
+    [Parameter, EditorRequired] public Dictionary<string, string> Sources { get; set; } = new();
+
+    /// <summary>Which Source a blank means: "innate" for Abilities, "trained" for Talents.</summary>
+    [Parameter, EditorRequired] public string DefaultSourceId { get; set; } = "";
+
+    private string DefaultName =>
+        Session.Rules.GetSource(DefaultSourceId)?.Name ?? DefaultSourceId;
+
+    private string DefaultSentence =>
+        $"Left alone, each of these is {DefaultName}, which is what the rulebook assumes and "
+        + "what a sheet leaves unprinted.";
+
+    /// <summary>
+    /// An empty selection removes the entry rather than storing the default id. The two are
+    /// the same character but not the same statement: a sheet prints the exceptions, so a
+    /// Trait explicitly set to its own default would otherwise print a line saying nothing.
+    /// </summary>
+    private void Set(string traitId, string? sourceId)
+    {
+        if (string.IsNullOrEmpty(sourceId)) Sources.Remove(traitId);
+        else                                Sources[traitId] = sourceId;
+
+        Session.NotifyChanged();
+    }
+}

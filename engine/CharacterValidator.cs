@@ -222,9 +222,20 @@ public sealed class CharacterValidator
     /// Sources (Ch.2, p.15). A Source costs nothing and changes no rank, so a missing one
     /// is never an error — but a Power the rulebook gives no rank needs its Source to know
     /// which Ability stands in when another Power acts on it, so that gap is worth saying.
+    ///
+    /// <para><b>An Ability or Talent with no Source is not a gap at all</b>, and is
+    /// deliberately not reported. The rulebook supplies a default for both — Abilities are
+    /// usually Innate, Talents usually Trained — so silence there means "on its default",
+    /// not "unanswered". Powers have no such default, which is why they warn and Traits do
+    /// not.</para>
     /// </summary>
     private void CheckSources(CharacterSheet sheet, List<ValidationIssue> issues)
     {
+        CheckTraitSources(sheet.AbilitySources, "Ability",
+            id => _rules.GetAbility(id)?.Name, issues);
+        CheckTraitSources(sheet.TalentSources, "Talent",
+            id => _rules.GetTalent(id)?.Name, issues);
+
         foreach (var sp in sheet.SelectedPowers)
         {
             if (sp.SourceId is not null && _rules.GetSource(sp.SourceId) is null)
@@ -247,6 +258,37 @@ public sealed class CharacterValidator
                 issues.Add(new(ValidationSeverity.Warning, "POWER_WITHOUT_SOURCE",
                     $"Power '{power.Name}' has no Source recorded. A published sheet groups " +
                     "Powers under Source headings, so the sheet will list it as unsourced."));
+        }
+    }
+
+    /// <summary>
+    /// Sources recorded against Abilities or Talents. Two things can be wrong and both are
+    /// errors rather than warnings: a Source that is not one of the six, and a Source
+    /// recorded against a Trait that does not exist. Neither can be rendered, and neither
+    /// is something a player chose — they mean a hand-edited or stale saved character.
+    /// </summary>
+    private void CheckTraitSources(
+        IReadOnlyDictionary<string, string> sources,
+        string traitKind,
+        Func<string, string?> nameOf,
+        List<ValidationIssue> issues)
+    {
+        foreach (var (traitId, sourceId) in sources)
+        {
+            var name = nameOf(traitId);
+
+            if (name is null)
+            {
+                issues.Add(new(ValidationSeverity.Error, "UNKNOWN_TRAIT_SOURCE",
+                    $"A Source is recorded against '{traitId}', which is not one of the "
+                    + $"{traitKind.ToLowerInvariant()}s in the rulebook."));
+                continue;
+            }
+
+            if (_rules.GetSource(sourceId) is null)
+                issues.Add(new(ValidationSeverity.Error, "UNKNOWN_SOURCE",
+                    $"The {traitKind} '{name}' names a Source, '{sourceId}', that is not one "
+                    + "of the six the rulebook gives."));
         }
     }
 

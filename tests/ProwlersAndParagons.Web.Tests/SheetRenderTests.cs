@@ -381,6 +381,82 @@ public sealed class SheetRenderTests
     }
 
     /// <summary>
+    /// The sheet prints the <c>Abilities (…)</c> line the engine builds, inside the Source
+    /// group it belongs to and above the Powers — which is where the published sheets put
+    /// it, and the whole reason the line is not a marking on the Abilities table.
+    ///
+    /// <para>Asserted against the engine's own answer rather than against a string this test
+    /// spells out, so the two cannot drift apart in agreement with each other. Both samples
+    /// carry one: the Hero has Tech Abilities behind an Item Con, the Villain a Magic
+    /// Talent.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void TheSheetPrintsTheTraitSourceLineInsideItsGroup(SheetMode mode)
+    {
+        using var ctx = new RenderContext().With(mode);
+
+        var groups = ctx.Session.Grouping.GroupBySource(ctx.Session.Sheet);
+        var expected = groups.SelectMany(g => g.TraitLines).ToList();
+        Assert.NotEmpty(expected);
+
+        var sheet = ctx.Render<SheetView>();
+
+        Assert.Equal(expected,
+            sheet.FindAll(".power-entry.trait-sources").Select(e => Collapse(e.TextContent)));
+
+        // Above the Powers in the same box, not appended after them. Read off the rendered
+        // order of the whole column, so a line printed in the wrong group fails too.
+        foreach (var group in groups.Where(g => g.TraitLines.Count > 0 && g.Powers.Count > 0))
+        {
+            var box = sheet.FindAll(".sheet-section.powers")
+                .Single(s => Collapse(s.TextContent).StartsWith(group.Heading, StringComparison.Ordinal));
+
+            var entries = box.QuerySelectorAll(".power-entry").Select(e => Collapse(e.TextContent)).ToList();
+
+            Assert.Equal(group.TraitLines, entries.Take(group.TraitLines.Count));
+        }
+    }
+
+    /// <summary>
+    /// A Trait on its default Source prints nothing at all. Without this, a renderer that
+    /// listed every Ability under INNATE POWERS would satisfy the test above — it would
+    /// still match the engine — and the sheet would carry eighteen lines saying that an
+    /// ordinary character is ordinary.
+    /// </summary>
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void TraitsOnTheirDefaultSourceArePrintedNowhere(SheetMode mode)
+    {
+        using var ctx = new RenderContext().With(mode);
+
+        var named = ctx.Session.Sheet.AbilitySources.Keys
+            .Concat(ctx.Session.Sheet.TalentSources.Keys)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var onDefault = ctx.Session.Rules.Abilities.Select(a => a.Name)
+            .Concat(ctx.Session.Rules.Talents.Select(t => t.Name))
+            .Where(n => !named.Contains(Id(ctx, n)))
+            .ToList();
+
+        Assert.NotEmpty(onDefault);
+
+        var lines = ctx.Render<SheetView>()
+            .FindAll(".power-entry.trait-sources")
+            .Select(e => Collapse(e.TextContent))
+            .ToList();
+
+        foreach (var name in onDefault)
+            Assert.DoesNotContain(lines, l => l.Contains(name, StringComparison.Ordinal));
+    }
+
+    private static string Id(RenderContext ctx, string traitName) =>
+        ctx.Session.Rules.Abilities.FirstOrDefault(a => a.Name == traitName)?.Id
+        ?? ctx.Session.Rules.Talents.First(t => t.Name == traitName).Id;
+
+    /// <summary>
     /// Text as a reader sees it: tags removed, entities resolved, runs of whitespace
     /// collapsed — but <b>not</b> collapsed away, because a missing space is the whole point.
     /// </summary>

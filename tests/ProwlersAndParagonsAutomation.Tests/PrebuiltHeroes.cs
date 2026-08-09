@@ -410,6 +410,85 @@ public static class PrebuiltHeroes
         PowerSourcesByHero[heroName].Single(g => g.PowerIds.Contains(powerId)).SourceId;
 
     /// <summary>
+    /// The Abilities and Talents each published sheet marks with a Source, keyed
+    /// "Hero|sourceId". Nine of the twenty sheets carry such a marking; the other eleven
+    /// carry none, and their absence from this table is the transcription.
+    ///
+    /// <para>A sheet prints this as a line <em>inside</em> a Power group — Stronghold's
+    /// <c>TECH POWERS</c> opens with <c>Abilities (Agility, Might, Perception, Toughness)
+    /// (Item: armor)</c> — never as a marking on the Abilities block. The entries here are
+    /// the Trait ids named on that line, or <see cref="AllAbilities"/> and
+    /// <see cref="AllTalents"/> for the three sheets printed as
+    /// <c>Abilities and Talents (All)</c>.</para>
+    ///
+    /// <para><b>This is not derivable from rank, and reading it as a threshold is the trap
+    /// this table exists to close.</b> Ch.3 p.64 — the <em>random generation</em> chapter —
+    /// says "the Sources for your Powers and Abilities with a rank of 7d or greater", and
+    /// the sheets contradict it in both directions: Alabama Slammer marks 6d Perception and
+    /// Toughness, and Citizen Soldier leaves 9d Willpower unmarked while marking his 12s.
+    /// Ch.2 p.15 is the actual rule — every Trait has a Source, Abilities default to Innate
+    /// and Talents to Trained, "but these defaults aren't mandatory" — so what a sheet
+    /// prints is the exception list, and only the author knows it.
+    /// See <see cref="PrebuiltHeroTests.ThePrintedTraitSourcesAreNotARankThreshold"/>.</para>
+    /// </summary>
+    /// <summary>
+    /// Declared above <see cref="TraitSourcesByHero"/> on purpose: static field
+    /// initialisers run in declaration order, so spreading this into that dictionary from
+    /// below would spread a null.
+    /// </summary>
+    public static readonly string[] AllAbilities =
+        ["agility", "intellect", "might", "perception", "toughness", "willpower"];
+
+    /// <summary>Talent ids, same twelve as <see cref="TalentIds"/> — named for readability below.</summary>
+    public static string[] AllTalents => TalentIds;
+
+    public static readonly IReadOnlyDictionary<string, string[]> TraitSourcesByHero =
+        new Dictionary<string, string[]>
+        {
+            ["Alabama Slammer|super"] = ["perception", "toughness"],
+            ["Blastwave|super"]       = ["toughness", "willpower"],
+            ["Citizen Soldier|super"] = ["might", "toughness"],
+            ["Darkwolf|super"]        = ["agility", "might", "perception", "toughness"],
+            ["Psi Lance|psychic"]     = ["willpower"],
+            ["Stronghold|tech"]       = ["agility", "might", "perception", "toughness"],
+            ["T-Kay|super"]           = ["willpower"],
+
+            // "Abilities and Talents (All)": the whole character on one Source. Both Heralds
+            // are goddesses and Nano is a swarm of machines, so nothing about any of them is
+            // Innate or Trained.
+            ["Herald (Airmid)|magic"]   = [.. AllAbilities, .. AllTalents],
+            ["Herald (Scathach)|magic"] = [.. AllAbilities, .. AllTalents],
+            ["Nano|tech"]               = [.. AllAbilities, .. AllTalents]
+        };
+
+    /// <summary>
+    /// The trait line each of those nine sheets prints, verbatim, keyed the same way. This
+    /// is the transcription the renderers are held to: <see cref="TraitSourcesByHero"/> is
+    /// the input, this is the printed output, and a test builds one from the other.
+    ///
+    /// <para>Stronghold is the one that does not match character for character. His sheet
+    /// reads <c>(Item: armor)</c>; the engine records the Item Con against each Ability but
+    /// has nowhere to keep the "armor" half — <c>SelectedProCon</c> carries an id and a
+    /// variant key, not a narrative label — so it prints the Con's name alone. That is a
+    /// known and deliberate shortfall rather than a mismatch to be tuned away; giving
+    /// Pros and Cons a free-text label is its own change.</para>
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, string> PrintedTraitLinesByHero =
+        new Dictionary<string, string>
+        {
+            ["Alabama Slammer|super"]   = "Abilities (Perception, Toughness)",
+            ["Blastwave|super"]         = "Abilities (Toughness, Willpower)",
+            ["Citizen Soldier|super"]   = "Abilities (Might, Toughness)",
+            ["Darkwolf|super"]          = "Abilities (Agility, Might, Perception, Toughness)",
+            ["Psi Lance|psychic"]       = "Abilities (Willpower)",
+            ["Stronghold|tech"]         = "Abilities (Agility, Might, Perception, Toughness) (Item)",
+            ["T-Kay|super"]             = "Abilities (Willpower)",
+            ["Herald (Airmid)|magic"]   = "Abilities and Talents (All)",
+            ["Herald (Scathach)|magic"] = "Abilities and Talents (All)",
+            ["Nano|tech"]               = "Abilities and Talents (All)"
+        };
+
+    /// <summary>
     /// Pros and Cons a sheet applies to an Ability rather than a Power, keyed
     /// "Hero|abilityId". Stronghold is the only published Hero who does this: his sheet
     /// reads <c>Abilities (Agility, Might, Perception, Toughness) (Item: armor)</c>, so

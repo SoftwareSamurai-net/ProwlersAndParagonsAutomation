@@ -76,6 +76,9 @@ public sealed class ValidationMessageTests
                 sheet.Flaws.Add(new SelectedFlaw("being_far_too_tall"));
                 sheet.SelectedPowers.Add(new SelectedPower("chronomancy", 3));
                 sheet.SelectedPowers.Add(new SelectedPower("blast", 3) { SourceId = "cosmic" });
+                sheet.AbilitySources["might"]      = "cosmic";
+                sheet.TalentSources["academics"]   = "cosmic";
+                sheet.AbilitySources["telepathy"]  = "tech";
                 return sheet;
             }
 

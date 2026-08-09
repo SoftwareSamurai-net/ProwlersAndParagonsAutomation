@@ -106,7 +106,7 @@
             </div>
 
             <div class="sheet-col">
-                @if (Session.Sheet.SelectedPowers.Count == 0)
+                @if (Groups.Count == 0)
                 {
                     <SheetSection Title="Powers">
                         <RuledLines Count="12" />
@@ -122,9 +122,17 @@
                        "powers" opts the box out of the no-break rule: it is the one section
                        that can be taller than a page, and asking not to be broken pushed it
                        whole to the next page, leaving two thirds of the previous one white. *@
-                    @foreach (var group in Session.Grouping.GroupPowers(Session.Sheet))
+                    @foreach (var group in Groups)
                     {
                         <SheetSection Title="@group.Heading" Class="powers">
+                            @* An Ability's or Talent's Source is printed here, inside the
+                               Power group, and not as a marking on the Abilities table —
+                               that is where the published sheets put it. Stronghold's
+                               TECH POWERS opens with his four armoured Abilities. *@
+                            @foreach (var line in group.TraitLines)
+                            {
+                                <div class="power-entry trait-sources">@line</div>
+                            }
                             @foreach (var sp in group.Powers)
                             {
                                 var power = Session.Rules.GetPower(sp.PowerId);
@@ -329,12 +337,20 @@
         }
     }
 
-    /// <summary>The Sources this character's Powers come from, in the rulebook's order.</summary>
+    /// <summary>
+    /// The Source groups this sheet prints. Held once because three places read it: whether
+    /// the Powers column is a blank form, the groups themselves, and the Origin box.
+    /// </summary>
+    private IReadOnlyList<SourceGrouping.Group> Groups =>
+        Session.Grouping.GroupBySource(Session.Sheet);
+
+    /// <summary>
+    /// The Sources this character draws on, in the rulebook's order. Read off the groups
+    /// rather than off the Powers, so a Trait bought through powered armour puts Tech here
+    /// even on a character with no Tech Power.
+    /// </summary>
     private List<string> Sources =>
-        Session.Rules.Sources
-            .Where(s => Session.Sheet.SelectedPowers.Any(sp => sp.SourceId == s.Id))
-            .Select(s => s.Name)
-            .ToList();
+        Groups.Where(g => g.Source is not null).Select(g => g.Source!.Name).ToList();
 
     /// <summary>
     /// A Trait's rank, always as a number. An unbought Trait is 0d — which is a fact about

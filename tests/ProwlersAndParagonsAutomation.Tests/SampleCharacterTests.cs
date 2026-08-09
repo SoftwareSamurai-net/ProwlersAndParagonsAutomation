@@ -112,7 +112,7 @@ public sealed class SampleCharacterTests : IClassFixture<RulesFixture>
     [MemberData(nameof(SampleNames))]
     public void SampleGroupsPowersUnderASourceHeading(string which)
     {
-        var groups = new SourceGrouping(_rules).GroupPowers(Sample(which));
+        var groups = new SourceGrouping(_rules).GroupBySource(Sample(which));
 
         Assert.Contains(groups, g => g.Source is not null);
     }

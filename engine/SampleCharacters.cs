@@ -58,6 +58,13 @@ public static class SampleCharacters
         sheet.AbilityModifiers["toughness"] = [new SelectedProCon("item")];
         sheet.AbilityModifiers["might"]     = [new SelectedProCon("item")];
 
+        // The same two are Tech rather than Innate, which is what makes them superhuman
+        // rather than merely strong. Together with the Item Con above this reproduces the
+        // shape of Stronghold's printed line — Abilities (Might, Toughness) (Item) — inside
+        // the TECH POWERS group. Everything else stays on its default and prints nothing.
+        sheet.AbilitySources["might"]     = "tech";
+        sheet.AbilitySources["toughness"] = "tech";
+
         sheet.SelectedPowers.AddRange(
         [
             // Baseline from half Toughness, so the sheet shows a free rank stacking with
@@ -125,6 +132,13 @@ public static class SampleCharacters
                                 ("perception", 9), ("toughness", 7), ("willpower", 11));
 
         Set(sheet.TalentRanks, ("covert", 8), ("charm", 7), ("academics", 6));
+
+        // A Talent that was not trained. No published Ch.8 sheet prints a Talents (…) line
+        // on its own — the three that mark Talents at all mark every Trait and collapse to
+        // "Abilities and Talents (All)" — so this is the sample that exercises that shape,
+        // and a preview is where an untested layout should be found out.
+        sheet.TalentSources["academics"] = "magic";
+        sheet.AbilitySources["willpower"] = "magic";
 
         sheet.SelectedPowers.AddRange(
         [

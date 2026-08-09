@@ -43,6 +43,7 @@ public sealed class BuyCharacteristicsStep : IWizardStep
 
             var abilityChoices = rules.Abilities
                 .Select(a => $"{a.Name,-14} — {sheet.GetAbilityRank(a.Id)}d  ({sheet.GetAbilityRank(a.Id)} HP)")
+                .Prepend(SourceMenuEntry)
                 .Prepend("Done — move to Talents")
                 .ToList();
 
@@ -52,6 +53,14 @@ public sealed class BuyCharacteristicsStep : IWizardStep
                     .AddChoices(abilityChoices));
 
             if (pick.StartsWith("Done", StringComparison.Ordinal)) break;
+
+            if (pick == SourceMenuEntry)
+            {
+                ChooseTraitSource(rules,
+                    rules.Abilities.Select(a => (a.Id, a.Name)).ToList(),
+                    sheet.AbilitySources, SourceGrouping.DefaultAbilitySourceId, "ability");
+                continue;
+            }
 
             var ability = rules.Abilities.First(a =>
                 pick.StartsWith(a.Name, StringComparison.Ordinal));
@@ -81,6 +90,7 @@ public sealed class BuyCharacteristicsStep : IWizardStep
 
             var talentChoices = rules.Talents
                 .Select(t => $"{t.Name,-16} — {sheet.GetTalentRank(t.Id)}d  ({sheet.GetTalentRank(t.Id)} HP)")
+                .Prepend(SourceMenuEntry)
                 .Prepend("Done — move to Powers")
                 .ToList();
 
@@ -90,6 +100,14 @@ public sealed class BuyCharacteristicsStep : IWizardStep
                     .AddChoices(talentChoices));
 
             if (pick.StartsWith("Done", StringComparison.Ordinal)) break;
+
+            if (pick == SourceMenuEntry)
+            {
+                ChooseTraitSource(rules,
+                    rules.Talents.Select(t => (t.Id, t.Name)).ToList(),
+                    sheet.TalentSources, SourceGrouping.DefaultTalentSourceId, "talent");
+                continue;
+            }
 
             var talent = rules.Talents.First(t =>
                 pick.StartsWith(t.Name, StringComparison.Ordinal));
@@ -103,6 +121,67 @@ public sealed class BuyCharacteristicsStep : IWizardStep
                 packageMin: PackageFloorForTalent(sheet, rules));
         }
     }
+
+    // ── Sources on Abilities and Talents ──────────────────────────────────
+
+    private const string SourceMenuEntry = "Sources — say what these Traits are";
+
+    /// <summary>
+    /// Records the Source of one Ability or Talent (Ch.2, p.15). A Source costs nothing and
+    /// changes no rank; it says what the Trait is meant to be, and a published sheet prints
+    /// the ones that deviate from the default beside the Powers from the same Source.
+    ///
+    /// <para>Choosing the default removes the entry rather than storing it. The two are the
+    /// same Source but not the same statement — a sheet prints exceptions, so a Trait held
+    /// explicitly at its own default would print a line that says nothing.</para>
+    /// </summary>
+    private static void ChooseTraitSource(
+        RulesRepository rules,
+        IReadOnlyList<(string Id, string Name)> traits,
+        Dictionary<string, string> sources,
+        string defaultSourceId,
+        string traitKind)
+    {
+        var defaultName = rules.GetSource(defaultSourceId)?.Name ?? defaultSourceId;
+
+        AnsiConsole.MarkupLine(
+            $"[grey]Left alone, every {traitKind} is {Markup.Escape(defaultName)}, which the " +
+            "rulebook assumes and a sheet leaves unprinted. Set one only where it differs.[/]");
+
+        var labels = traits
+            .Select(t => $"{t.Name} — {SourceLabel(rules, sources, t.Id, defaultName)}")
+            .Prepend("Done")
+            .ToList();
+
+        var pick = AnsiConsole.Prompt(
+            new SelectionPrompt<string>().Title($"Which {traitKind}?").AddChoices(labels));
+
+        if (pick == "Done") return;
+
+        var trait = traits.First(t => pick.StartsWith(t.Name, StringComparison.Ordinal));
+
+        var sourceChoices = rules.Sources
+            .Select(s => s.Name)
+            .Prepend($"{defaultName} (default)")
+            .ToList();
+
+        var chosen = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title($"Source for {Markup.Escape(trait.Name)}:")
+                .AddChoices(sourceChoices));
+
+        if (chosen.EndsWith("(default)", StringComparison.Ordinal)) sources.Remove(trait.Id);
+        else sources[trait.Id] = rules.Sources.First(s => s.Name == chosen).Id;
+
+        AnsiConsole.MarkupLine($"  [green]{Markup.Escape(trait.Name)}[/] → " +
+                               $"{Markup.Escape(SourceLabel(rules, sources, trait.Id, defaultName))}");
+    }
+
+    private static string SourceLabel(RulesRepository rules,
+        Dictionary<string, string> sources, string traitId, string defaultName) =>
+        sources.TryGetValue(traitId, out var id)
+            ? rules.GetSource(id)?.Name ?? id
+            : $"{defaultName} (default)";
 
     private static void AdjustRank(string label, Func<int> getId, Action<int> setId,
         int min, int max, int packageMin)

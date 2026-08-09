@@ -91,6 +91,20 @@ public sealed class PrebuiltHeroTests
                 mods.Select(m => new SelectedProCon(m.Split(':')[1])).ToList();
         }
 
+        // Abilities and Talents the sheet marks with a Source. Absent means the rulebook
+        // default — Innate for an Ability, Trained for a Talent — which no sheet prints.
+        foreach (var (key, traitIds) in PrebuiltHeroes.TraitSourcesByHero)
+        {
+            var parts = key.Split('|');
+            if (parts[0] != hero.Name) continue;
+
+            foreach (var traitId in traitIds)
+            {
+                if (_f.Rules.GetAbility(traitId) is not null) sheet.AbilitySources[traitId] = parts[1];
+                else                                          sheet.TalentSources[traitId]  = parts[1];
+            }
+        }
+
         var talents = PrebuiltHeroes.TalentsByHero[hero.Name];
         Assert.Equal(PrebuiltHeroes.TalentIds.Length, talents.Length);
         for (var i = 0; i < talents.Length; i++)
@@ -429,12 +443,92 @@ public sealed class PrebuiltHeroTests
             .Select(g => SourceGrouping.HeadingFor(_f.Rules.GetSource(g.SourceId)))
             .ToList();
 
-        var actual = new SourceGrouping(_f.Rules).GroupPowers(sheet).Select(g => g.Heading).ToList();
+        var actual = new SourceGrouping(_f.Rules).GroupBySource(sheet).Select(g => g.Heading).ToList();
 
         Assert.Equal(expected.Order(), actual.Order());
 
         // Nothing falls through to the unsourced bucket.
         Assert.DoesNotContain("POWERS", actual);
+    }
+
+    /// <summary>
+    /// The engine builds the <c>Abilities (…)</c> line each sheet prints, in the group it
+    /// prints it in, character for character — and prints none where the sheet prints none.
+    /// Both halves matter: eleven of the twenty carry no such line, and a renderer that
+    /// invented one for every character would satisfy a test that only checked the nine.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(HeroNames))]
+    public void SourceGroupingReproducesThePrintedTraitLines(string name)
+    {
+        var sheet  = Build(PrebuiltHeroes.All.Single(h => h.Name == name));
+        var groups = new SourceGrouping(_f.Rules).GroupBySource(sheet);
+
+        var expected = PrebuiltHeroes.PrintedTraitLinesByHero
+            .Where(kv => kv.Key.StartsWith($"{name}|", StringComparison.Ordinal))
+            .ToDictionary(kv => kv.Key.Split('|')[1], kv => kv.Value);
+
+        foreach (var group in groups)
+        {
+            var wanted = group.Source is null ? null : expected.GetValueOrDefault(group.Source.Id);
+
+            Assert.Equal(wanted is null ? [] : new[] { wanted }, group.TraitLines);
+        }
+
+        // Every line transcribed found a group to print in — a Source named on the trait
+        // line but nowhere else would otherwise vanish rather than fail.
+        Assert.Equal(
+            expected.Keys.Order(),
+            groups.Where(g => g.TraitLines.Count > 0).Select(g => g.Source!.Id).Order());
+    }
+
+    /// <summary>
+    /// The printed markings are not a rank threshold, and this is the test that says so.
+    ///
+    /// <para>Ch.3 p.64 reads "the Sources for your Powers and Abilities with a rank of 7d or
+    /// greater", which invites deriving the trait line from rank and deleting the
+    /// transcription. Two published sheets rule that out in opposite directions, so a
+    /// derivation cannot be right whichever way round the comparison is written. Ch.2 p.15
+    /// is the rule the engine follows: every Trait has a Source and the defaults are not
+    /// mandatory, so which Traits deviate is the author's choice and has to be recorded.</para>
+    /// </summary>
+    [Fact]
+    public void ThePrintedTraitSourcesAreNotARankThreshold()
+    {
+        var slammer = PrebuiltHeroes.All.Single(h => h.Name == "Alabama Slammer");
+        var soldier = PrebuiltHeroes.All.Single(h => h.Name == "Citizen Soldier");
+
+        // Marked, and below 7d: a threshold would leave these two off his sheet.
+        Assert.Equal(6, slammer.Perception);
+        Assert.Equal(6, slammer.Toughness);
+        Assert.Equal(["perception", "toughness"],
+            PrebuiltHeroes.TraitSourcesByHero["Alabama Slammer|super"]);
+
+        // Unmarked, and well above 7d: a threshold would put Willpower on his sheet.
+        Assert.Equal(9, soldier.Willpower);
+        Assert.DoesNotContain("willpower", PrebuiltHeroes.TraitSourcesByHero["Citizen Soldier|super"]);
+    }
+
+    /// <summary>
+    /// A Source costs nothing and changes no rank (Ch.2, p.15), so marking every Trait on a
+    /// Hero moves neither his Hero Point total nor any derived figure. Run against the
+    /// fifteen who rebuild exactly, where a single Hero Point either way would show.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ExactHeroNames))]
+    public void TraitSourcesChangeNoNumber(string name)
+    {
+        var hero  = PrebuiltHeroes.All.Single(h => h.Name == name);
+        var sheet = Build(hero);
+
+        var before = (_f.Costs.TotalCost(sheet), _f.Derived.CalculateEdge(sheet),
+                      _f.Derived.CalculateHealth(sheet), _f.Derived.CalculateResolve(sheet));
+
+        foreach (var ability in _f.Rules.Abilities) sheet.AbilitySources[ability.Id] = "magic";
+        foreach (var talent in _f.Rules.Talents)    sheet.TalentSources[talent.Id]   = "magic";
+
+        Assert.Equal(before, (_f.Costs.TotalCost(sheet), _f.Derived.CalculateEdge(sheet),
+                              _f.Derived.CalculateHealth(sheet), _f.Derived.CalculateResolve(sheet)));
     }
 
     [Fact]

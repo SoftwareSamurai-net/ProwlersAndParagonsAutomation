@@ -35,6 +35,14 @@ public sealed class CharacterStoreTests
     private static readonly DerivedStatsCalculator Derived = new(Rules);
     private static readonly CharacterValidator Validator = new(Rules, Costs, Derived);
 
+    /// <summary>
+    /// The Source headings and the Abilities (…) / Talents (…) lines beneath them, flattened
+    /// to strings so a difference reads as text rather than as a failed reference compare.
+    /// </summary>
+    private static IEnumerable<string> GroupingSummary(CharacterSheet sheet) =>
+        new SourceGrouping(Rules).GroupBySource(sheet)
+            .SelectMany(g => g.TraitLines.Prepend(g.Heading).Select(l => $"{g.Heading}|{l}"));
+
     private static (CharacterStore Store, FakeLocalStorage Storage) Fresh()
     {
         var storage = new FakeLocalStorage();
@@ -79,6 +87,12 @@ public sealed class CharacterStoreTests
         Assert.Equal(
             Validator.Validate(original).Issues.Select(i => i.Message),
             Validator.Validate(sheet).Issues.Select(i => i.Message));
+
+        // A Trait's Source costs nothing and changes no rank, so all four figures above are
+        // blind to it — losing AbilitySources entirely would pass every one of them. This is
+        // the engine answer that can see it, and it is still an answer rather than a field
+        // list: the headings and the Abilities (…) lines a sheet prints.
+        Assert.Equal(GroupingSummary(original), GroupingSummary(sheet));
 
         // The engine's answers cannot see the free text, and losing all of it would pass
         // every assertion above — so it is checked directly. These are the fields a player
