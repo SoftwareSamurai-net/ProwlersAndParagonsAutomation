@@ -134,6 +134,11 @@ public sealed class BuyCharacteristicsStep : IWizardStep
     /// <para>Choosing the default removes the entry rather than storing it. The two are the
     /// same Source but not the same statement — a sheet prints exceptions, so a Trait held
     /// explicitly at its own default would print a line that says nothing.</para>
+    ///
+    /// <para><b>It loops until Done</b>, like every other menu in this step. Stronghold's
+    /// four armoured Abilities are the case this exists for, and returning to the rank table
+    /// after each one reprinted the whole table three times for no reason — the browser's
+    /// picker shows all twelve at once.</para>
     /// </summary>
     private static void ChooseTraitSource(
         RulesRepository rules,
@@ -148,18 +153,6 @@ public sealed class BuyCharacteristicsStep : IWizardStep
             $"[grey]Left alone, every {traitKind} is {Markup.Escape(defaultName)}, which the " +
             "rulebook assumes and a sheet leaves unprinted. Set one only where it differs.[/]");
 
-        var labels = traits
-            .Select(t => $"{t.Name} — {SourceLabel(rules, sources, t.Id, defaultName)}")
-            .Prepend("Done")
-            .ToList();
-
-        var pick = AnsiConsole.Prompt(
-            new SelectionPrompt<string>().Title($"Which {traitKind}?").AddChoices(labels));
-
-        if (pick == "Done") return;
-
-        var trait = traits.First(t => pick.StartsWith(t.Name, StringComparison.Ordinal));
-
         // The default is offered once, as the first entry. Listing it again below would give
         // seven choices for six Sources, and the two would not behave the same — the marked
         // one removes the entry, the bare one would store it.
@@ -169,17 +162,41 @@ public sealed class BuyCharacteristicsStep : IWizardStep
             .Prepend($"{defaultName} (default)")
             .ToList();
 
-        var chosen = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title($"Source for {Markup.Escape(trait.Name)}:")
-                .AddChoices(sourceChoices));
+        while (true)
+        {
+            var labels = traits
+                .Select(t => $"{t.Name} — {SourceLabel(rules, sources, t.Id, defaultName)}")
+                .Prepend(DoneEntry)
+                .ToList();
 
-        if (chosen.EndsWith("(default)", StringComparison.Ordinal)) sources.Remove(trait.Id);
-        else sources[trait.Id] = rules.Sources.First(s => s.Name == chosen).Id;
+            var pick = AnsiConsole.Prompt(
+                new SelectionPrompt<string>().Title($"Which {traitKind}?").AddChoices(labels));
 
-        AnsiConsole.MarkupLine($"  [green]{Markup.Escape(trait.Name)}[/] → " +
-                               $"{Markup.Escape(SourceLabel(rules, sources, trait.Id, defaultName))}");
+            if (pick == DoneEntry) return;
+
+            // FirstOrDefault, not First: this matches a menu label by prefix, so a label that
+            // is neither Done nor a Trait would otherwise throw and take the whole wizard —
+            // and the character — down rather than simply not matching.
+            if (traits.FirstOrDefault(t => pick.StartsWith(t.Name, StringComparison.Ordinal))
+                is not { Name.Length: > 0 } trait)
+                continue;
+
+            var chosen = AnsiConsole.Prompt(
+                new SelectionPrompt<string>()
+                    .Title($"Source for {Markup.Escape(trait.Name)}:")
+                    .AddChoices(sourceChoices));
+
+            if (rules.Sources.FirstOrDefault(s => s.Name == chosen) is { } source)
+                sources[trait.Id] = source.Id;
+            else
+                sources.Remove(trait.Id);   // the "(default)" entry is the only other choice
+
+            AnsiConsole.MarkupLine($"  [green]{Markup.Escape(trait.Name)}[/] → " +
+                                   $"{Markup.Escape(SourceLabel(rules, sources, trait.Id, defaultName))}");
+        }
     }
+
+    private const string DoneEntry = "Done";
 
     private static string SourceLabel(RulesRepository rules,
         Dictionary<string, string> sources, string traitId, string defaultName) =>

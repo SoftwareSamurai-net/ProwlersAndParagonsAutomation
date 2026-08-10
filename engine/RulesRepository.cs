@@ -97,7 +97,7 @@ public sealed class RulesRepository
         _perks ??= Load<List<PerkModel>>("perks.json");
 
     /// <summary>
-    /// Custom features that can be bought for a piece of mundane gear (Ch.6, p.92). The
+    /// Custom features that can be bought for a piece of mundane gear (Ch.6, p.93). The
     /// gear itself is free; these are the only part of it that costs Hero Points.
     /// </summary>
     public IReadOnlyList<GearFeatureModel> GearFeatures =>

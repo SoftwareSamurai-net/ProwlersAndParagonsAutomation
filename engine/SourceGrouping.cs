@@ -76,8 +76,14 @@ public sealed class SourceGrouping
             .Where(p => p.SourceId is null || _rules.GetSource(p.SourceId) is null)
             .ToList();
 
-        if (unsourced.Count > 0)
-            groups.Add(new Group(HeadingFor(null), null, [], unsourced));
+        // Traits naming a Source the rulebook does not have, for the same reason: the
+        // validator errors, but a Trait the player marked and no surface ever mentions again
+        // is worse than one printed under a heading that admits it has no Source. Only
+        // reachable from stored or hand-edited data, since neither editor offers a bad id.
+        var unsourcedTraits = UnknownSourceTraitLines(sheet);
+
+        if (unsourced.Count > 0 || unsourcedTraits.Count > 0)
+            groups.Add(new Group(HeadingFor(null), null, unsourcedTraits, unsourced));
 
         return groups;
     }
@@ -144,17 +150,49 @@ public sealed class SourceGrouping
     }
 
     /// <summary>
+    /// Trait lines for Traits naming a Source that is not one of the six, printed under the
+    /// plain <c>POWERS</c> heading beside any Power in the same state. Empty for every
+    /// character either editor can produce.
+    /// </summary>
+    private List<string> UnknownSourceTraitLines(CharacterSheet sheet)
+    {
+        var unknown = _rules.Abilities
+            .Where(a => IsUnknown(sheet.AbilitySources, a.Id))
+            .Select(a => a.Name)
+            .ToList();
+
+        var unknownTalents = _rules.Talents
+            .Where(t => IsUnknown(sheet.TalentSources, t.Id))
+            .Select(t => t.Name)
+            .ToList();
+
+        var lines = new List<string>();
+        if (unknown.Count > 0)        lines.Add($"Abilities ({string.Join(", ", unknown)})");
+        if (unknownTalents.Count > 0) lines.Add($"Talents ({string.Join(", ", unknownTalents)})");
+        return lines;
+
+        // Whitespace counts as blank, not as an unknown Source — the same reading Recorded
+        // and the validator take. Splitting on IsNullOrEmpty here and IsNullOrWhiteSpace
+        // there put "  " in the unsourced group while every other surface called it a default.
+        bool IsUnknown(Dictionary<string, string> sources, string traitId) =>
+            !string.IsNullOrWhiteSpace(sources.GetValueOrDefault(traitId))
+            && _rules.GetSource(sources[traitId]) is null;
+    }
+
+    /// <summary>
     /// The Source a sheet records for a Trait, or null when it records nothing the sheet
-    /// would print — no entry, an entry equal to the default, or a blank one. A blank is
-    /// not something the editors write; it comes from hand-edited or stale stored data,
-    /// and the validator reports it separately.
+    /// would print under a Source heading — no entry, an entry equal to the default, or a
+    /// blank one. A blank is not something the editors write; it comes from hand-edited or
+    /// stale stored data, and the validator reports it separately.
     /// </summary>
     private static string? Recorded(
         Dictionary<string, string> sources, string traitId, string defaultSourceId)
     {
         var recorded = sources.GetValueOrDefault(traitId);
 
-        return string.IsNullOrEmpty(recorded) || recorded == defaultSourceId ? null : recorded;
+        // Whitespace as well as empty, matching the validator: a value that names nothing is
+        // "on the default" on every surface, not a default here and an unknown Source there.
+        return string.IsNullOrWhiteSpace(recorded) || recorded == defaultSourceId ? null : recorded;
     }
 
     /// <summary>
@@ -172,20 +210,28 @@ public sealed class SourceGrouping
 
     /// <summary>
     /// The Source a Trait actually has, default included — what the character <em>is</em>,
-    /// rather than what the sheet prints. Nothing mechanical reads this yet: the default
-    /// rank rule is about Powers only. It exists so a front end can show a Trait's Source
-    /// without each one reimplementing the two defaults.
+    /// rather than what the sheet prints. Nothing mechanical reads this: the default rank
+    /// rule is about Powers only. The JSON export writes it beside the recorded value,
+    /// because "nothing was recorded" and "this is what it is" are different answers and a
+    /// rebuild needs the first one.
+    ///
+    /// <para>It goes through <see cref="Recorded"/> so it cannot disagree with what the
+    /// sheet prints. Reading the dictionary directly, a stored blank exported
+    /// <c>effective_source: ""</c> while the same document's group structure showed the
+    /// Trait on its default — one JSON file contradicting itself.</para>
     /// </summary>
     public string EffectiveAbilitySource(CharacterSheet sheet, string abilityId)
     {
         ArgumentNullException.ThrowIfNull(sheet);
-        return sheet.AbilitySources.GetValueOrDefault(abilityId) ?? DefaultAbilitySourceId;
+        return Recorded(sheet.AbilitySources, abilityId, DefaultAbilitySourceId)
+               ?? DefaultAbilitySourceId;
     }
 
     /// <inheritdoc cref="EffectiveAbilitySource"/>
     public string EffectiveTalentSource(CharacterSheet sheet, string talentId)
     {
         ArgumentNullException.ThrowIfNull(sheet);
-        return sheet.TalentSources.GetValueOrDefault(talentId) ?? DefaultTalentSourceId;
+        return Recorded(sheet.TalentSources, talentId, DefaultTalentSourceId)
+               ?? DefaultTalentSourceId;
     }
 }

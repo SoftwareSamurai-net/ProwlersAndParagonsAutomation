@@ -7,7 +7,7 @@
     "applicable_to": ["powers"],
     "description": "The Power must build up over 2 pages before use. Cannot be used on pages 1 or 2 of an action; usable from page 3 onward.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "burnout",
@@ -17,7 +17,7 @@
     "applicable_to": ["powers"],
     "description": "Always at risk of burning out. Roll 2 dice every time you try to use it; a result of 6 or less means the Power burns out and cannot be used for the rest of the scene.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "charges",
@@ -30,7 +30,7 @@
     "narrative_constraint": "Player must define the fictional premise for the limited uses (e.g. ammo, energy cells).",
     "needs_review": false,
     "notes": "Variable cost — wizard should present as three distinct options.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "close",
@@ -40,7 +40,7 @@
     "applicable_to": ["powers"],
     "description": "Applies to Ranged Powers. The Power can only reach targets within Close Range rather than Distant Range. (When applied to Touch Powers, Close is a +2 Pro — see pros.json.)",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54",
     "applies_to_ranges": ["ranged"]
   },
   {
@@ -51,7 +51,7 @@
     "applicable_to": ["powers"],
     "description": "The Power requires complete attention. Once activated, you cannot perform other actions, move, or defend yourself until your next turn to act. For sustained Powers, you must keep concentrating or the Power instantly expires.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "conditional",
@@ -63,7 +63,7 @@
     "description": "The Power only works under certain conditions. -1 if the condition is often satisfied, -2 if occasionally satisfied, -4 if rarely satisfied.",
     "narrative_constraint": "Player must define the specific condition when purchasing.",
     "needs_review": false,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "constant",
@@ -73,7 +73,7 @@
     "applicable_to": ["powers"],
     "description": "Applies to Powers that can normally be activated/deactivated at will. The Power is always active and cannot be switched off. Only meaningful when being always-on poses problems. Good candidates: Aura, Blast, Density, Growth, Invisibility, Shrinking.",
     "narrative_constraint": "Power cannot be turned off — wizard should warn player of narrative implications.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54",
     "applicability_caveat": "Only for a Power that can normally be switched on and off at will."
   },
   {
@@ -84,7 +84,7 @@
     "applicable_to": ["powers"],
     "description": "You must spend 1 Resolve every time you use the Power. Represents a Power that takes a great deal out of you, one you have not mastered, or one you are reluctant to use.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "degrades",
@@ -94,7 +94,7 @@
     "applicable_to": ["powers"],
     "description": "Applies to Power Rank and Baseline Rank Powers. The Power gets weaker with each use: every use reduces effective rank by 1d for the rest of the scene. For sustained Powers like Aura, every page counts as one use. All lost ranks recover between scenes.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54",
     "applies_to_rank_types": ["power", "baseline"]
   },
   {
@@ -105,7 +105,7 @@
     "applicable_to": ["powers"],
     "description": "The Power does not take effect immediately. The delay is specified when the Power is purchased and must be too long for the Power to be used in combat.",
     "narrative_constraint": "Player must define the delay when purchasing.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "exclusive",
@@ -115,7 +115,7 @@
     "applicable_to": ["powers"],
     "description": "Cannot use or maintain this Power while using or maintaining another Power with this Con (they share the same device, energy, or source). Must apply to at least 2 Powers; each gets the cost reduction.",
     "narrative_constraint": "Player must define which Powers share the Exclusive Con.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "harmful",
@@ -127,7 +127,7 @@
     "description": "You suffer damage every time you use the Power. -1 Con = 1 damage per use, -2 Con = roll 1 die halved (1-3 damage), -4 Con = roll 1 die (1-6 damage). Spend 1 Resolve to avoid suffering this damage. The damage is subdual, ignores Regeneration, and cannot be healed by ordinary medical treatment.",
     "narrative_constraint": null,
     "needs_review": false,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "item",
@@ -137,7 +137,7 @@
     "applicable_to": ["powers", "abilities", "talents"],
     "description": "The Power (or Ability/Talent) comes from an item carried or worn (not implanted). Choose whether the item is mundane (breakable/replaceable) or unbreakable (must be recovered if lost). Choose whether others can use the item. For Abilities/Talents with this Con, rank drops to 2d if the item is taken away.",
     "narrative_constraint": "Player must define the item and whether it is mundane or unbreakable, and who (if anyone) else can use it.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "limited",
@@ -149,7 +149,7 @@
     "description": "Catch-all Con for when a Power is less effective, potent, or useful than usual. -1 if somewhat limited, -2 if significantly limited, -4 if severely limited.",
     "narrative_constraint": "Player must define the specific limitation.",
     "needs_review": false,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "only_inanimate",
@@ -161,7 +161,7 @@
     "description": "Applies to Powers that only affect living beings — means the Power affects inanimate beings instead. -1 if any Inanimate Source, -2 if 2 specified Sources, -4 if 1 specified Source.",
     "narrative_constraint": null,
     "needs_review": false,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54",
     "applicability_caveat": "Only for a Power that affects living beings alone."
   },
   {
@@ -174,7 +174,7 @@
     "narrative_constraint": null,
     "needs_review": false,
     "notes": "Cost is Special: reduces the Power's rate by 1 Hero Point per rank, floored at 1 Hero Point per 2 ranks. Handled by CostCalculator, not as a flat modifier.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "readied",
@@ -184,7 +184,7 @@
     "applicable_to": ["powers"],
     "description": "The Power must be readied between each use. Takes 1 page to ready (or 1 action if you spend 1 Resolve). You can move and take free actions while readying.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "recharge",
@@ -194,7 +194,7 @@
     "applicable_to": ["powers"],
     "description": "The Power must recharge between uses. Can only be used once every 3 pages (unused for the next 2 pages after each use).",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "shutdown",
@@ -206,7 +206,7 @@
     "description": "Either the Power cannot affect something it should be able to, or something can prevent or shut it down. -1 if often unimpaired, -2 if occasionally impaired, -4 if rarely works.",
     "narrative_constraint": "Player must define what can shut down or block the Power.",
     "needs_review": false,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "side_effect",
@@ -218,7 +218,7 @@
     "description": "The Power has a detrimental side effect beyond the obvious effect. -1 if annoying/inconvenient, -2 if detrimental/harmful, -4 if catastrophic/debilitating. Note: all area attacks cause collateral damage, so that does not qualify as a side effect for area attack Powers.",
     "narrative_constraint": "Player must define the specific side effect.",
     "needs_review": false,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "signature",
@@ -228,7 +228,7 @@
     "applicable_to": ["powers"],
     "description": "The Power leaves a detectable residue, energy signature, or other trace that can be detected and traced back to the user by anyone who knows what to look for.",
     "narrative_constraint": "Player must define the specific signature when purchasing.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "sustained",
@@ -238,7 +238,7 @@
     "applicable_to": ["powers"],
     "description": "Applies to time-limited or maintainable Powers. You must spend 1 action per page to sustain the Power. If you do not, the Power instantly expires.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54",
     "applicability_caveat": "Only for a Power that lasts, or can be maintained, for a length of time."
   },
   {
@@ -251,7 +251,7 @@
     "description": "The Power requires physical contact. -2 Con when applied to Close Range Powers, -4 Con when applied to Distant Range Powers.",
     "narrative_constraint": null,
     "needs_review": false,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54",
     "applies_to_ranges": ["ranged"]
   },
   {
@@ -262,7 +262,7 @@
     "applicable_to": ["powers"],
     "description": "The Power represents a disease, drug, or poison. Cannot affect characters who are immune to toxins. Targets can use the Resistance Power as a passive defense.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "two_handed",
@@ -272,7 +272,7 @@
     "applicable_to": ["powers"],
     "description": "Both hands must be free to use the Power (e.g. must gesture with both hands, or the Power comes from a two-handed weapon or object).",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "uncontrolled",
@@ -282,7 +282,7 @@
     "applicable_to": ["powers"],
     "description": "Applies to Powers that can normally be activated/deactivated. The Power always activates in certain situations — you have no control over this. Only meaningful when the specific circumstances are problematic.",
     "narrative_constraint": "Player must define the triggering circumstances when purchasing.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53",
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54",
     "applicability_caveat": "Only for a Power that can normally be switched on and off at will."
   },
   {
@@ -293,7 +293,7 @@
     "applicable_to": ["powers"],
     "description": "The Power sometimes fails. Roll 2 dice every time you try to use it; a result of 6 or less means the Power does not work and your action is wasted. You may try again next page.",
     "narrative_constraint": null,
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   },
   {
     "id": "weak",
@@ -305,6 +305,6 @@
     "narrative_constraint": null,
     "needs_review": false,
     "notes": "Cost is Special: reduces the Power's rate by 1 Hero Point per rank, floored at 1 Hero Point per 2 ranks. Handled by CostCalculator, not as a flat modifier.",
-    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53"
+    "source_ref": "Ultimate Edition, Ch.2 Pros and Cons, pp.48-54"
   }
 ]

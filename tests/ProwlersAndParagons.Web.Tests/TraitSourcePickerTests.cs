@@ -55,6 +55,53 @@ public sealed class TraitSourcePickerTests
             o.GetAttribute("value") == SourceGrouping.DefaultAbilitySourceId);
     }
 
+    /// <summary>
+    /// Every option's value is a Source <b>id</b>, and its text is the Source's name.
+    ///
+    /// <para>Nothing asserted this, and swapping the value to <c>@source.Name</c> left the
+    /// suite green — because bUnit's <c>Change("tech")</c> supplies the event value directly
+    /// and never consults the option list. A real user picking "Tech" would have stored
+    /// "Tech", which is not a Source id: the validator would report an unknown Source and no
+    /// trait line would print anywhere.</para>
+    /// </summary>
+    [Fact]
+    public void EveryOptionCarriesAnIdAsItsValueAndANameAsItsText()
+    {
+        using var ctx = new RenderContext();
+        var options = Picker(ctx).Find("#ability-src-might").QuerySelectorAll("option").Skip(1);
+
+        var expected = ctx.Session.Rules.Sources
+            .Where(s => s.Id != SourceGrouping.DefaultAbilitySourceId)
+            .ToList();
+
+        Assert.Equal(
+            expected.Select(s => (s.Id, s.Name)),
+            options.Select(o => (o.GetAttribute("value")!, o.TextContent.Trim())));
+    }
+
+    /// <summary>
+    /// Choosing through the option list itself, rather than by handing the change a value
+    /// this test made up, so the stored id is the one the markup actually offers. This is the
+    /// end-to-end version of the assertion above: it fails if the option values are names,
+    /// and it fails if <c>Set</c> stops storing what it is given.
+    /// </summary>
+    [Fact]
+    public void ChoosingAnOfferedOptionStoresSomethingTheRulebookKnows()
+    {
+        using var ctx = new RenderContext();
+        var picker = Picker(ctx);
+        var select = picker.Find("#ability-src-might");
+
+        // The first option that is not the default entry — whatever the data says that is.
+        var offered = select.QuerySelectorAll("option").Skip(1).First().GetAttribute("value")!;
+
+        select.Change(offered);
+
+        var stored = ctx.Session.Sheet.AbilitySources["might"];
+        Assert.NotNull(ctx.Session.Rules.GetSource(stored));
+        Assert.Equal(offered, stored);
+    }
+
     /// <summary>Talents take the other default, and the panel says so rather than saying "Innate".</summary>
     [Fact]
     public void TheTalentPickerOffersTheTrainedDefault()
@@ -140,9 +187,7 @@ public sealed class TraitSourcePickerTests
     }
 
     /// <summary>
-    /// The two pickers prefix their control ids differently, so an Ability and a Talent that
-    /// share a name could not collide — and, more to the point, a label always points at its
-    /// own control.
+    /// The two pickers prefix their control ids differently, and every control is labelled.
     /// </summary>
     [Fact]
     public void EachPickerScopesItsControlIds()
@@ -164,5 +209,44 @@ public sealed class TraitSourcePickerTests
                 Assert.False(string.IsNullOrWhiteSpace(label.TextContent));
             }
         }
+    }
+
+    /// <summary>
+    /// Both editor tabs actually render a picker, and each is wired to the right dictionary
+    /// and the right default.
+    ///
+    /// <para>Every other test in this file renders <c>TraitSourcePicker</c> directly, which
+    /// says nothing about whether the app reaches it — deleting the element from both tabs
+    /// left the whole suite green, so the entire feature could vanish from the UI unnoticed.
+    /// Driving the control through the tab is what closes that: it proves the tab renders a
+    /// picker <em>and</em> that the picker it renders writes to the sheet.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void BothEditorTabsRenderAPickerWiredToTheSheet(bool abilities)
+    {
+        using var ctx = new RenderContext();
+        ctx.Session.Sheet.SelectedTierId = "standard";
+
+        var tab = abilities
+            ? ctx.Render<AbilitiesTab>().Find("#ability-src-might")
+            : ctx.Render<TalentsTab>().Find("#talent-src-academics");
+
+        // A Source neither default can be, so the assertion cannot pass by accident.
+        tab.Change("psychic");
+
+        var stored = abilities
+            ? ctx.Session.Sheet.AbilitySources["might"]
+            : ctx.Session.Sheet.TalentSources["academics"];
+
+        Assert.Equal("psychic", stored);
+
+        // And the default offered is the right one for this kind of Trait.
+        var blank = abilities
+            ? ctx.Render<AbilitiesTab>().Find("#ability-src-might option")
+            : ctx.Render<TalentsTab>().Find("#talent-src-academics option");
+
+        Assert.Contains(abilities ? "Innate" : "Trained", blank.TextContent, StringComparison.Ordinal);
     }
 }

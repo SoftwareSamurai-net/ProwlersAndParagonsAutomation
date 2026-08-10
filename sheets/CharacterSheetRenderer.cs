@@ -330,8 +330,13 @@ public static class CharacterSheetRenderer
                 ["source"]           = sheet.AbilitySources.GetValueOrDefault(ab.Id),
                 ["effective_source"] = grouping.EffectiveAbilitySource(sheet, ab.Id)
             }).ToArray()),
+            // Bought ranks, plus any Talent carrying a Source. A Source can be set on a 0d
+            // Talent — both editors offer all twelve — and the rank filter alone dropped it,
+            // so every sheet printed "Talents (Academics)" while this export carried no
+            // Academics entry for it to come from. Abilities are unfiltered, so the two
+            // behaved differently for the same state.
             ["talents"] = new JsonArray(rules.Talents
-                .Where(ta => sheet.GetTalentRank(ta.Id) > 0)
+                .Where(ta => sheet.GetTalentRank(ta.Id) > 0 || sheet.TalentSources.ContainsKey(ta.Id))
                 .Select(ta => (JsonNode)new JsonObject
                 {
                     ["id"]               = ta.Id,

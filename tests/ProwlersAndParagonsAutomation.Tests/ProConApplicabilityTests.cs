@@ -153,7 +153,7 @@ public sealed class ProConApplicabilityTests
     }
 
     /// <summary>
-    /// A Range of Special "works in some unique way discussed in the description" (p.19),
+    /// A Range of Special means the Power works in a way its own description defines (p.19),
     /// so nothing can be ruled out for it and every option stays available.
     /// </summary>
     [Fact]

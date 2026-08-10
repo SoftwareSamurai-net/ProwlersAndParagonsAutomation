@@ -29,7 +29,7 @@ public sealed class ProConApplicability
     public ProConApplicability(RulesRepository rules) => _rules = rules;
 
     /// <summary>
-    /// A Range of Special "works in some unique way discussed in the description", so
+    /// A Range of Special means the Power works in a way its own description defines (p.19), so
     /// nothing can be ruled out for it and every option stays on offer.
     /// </summary>
     private const string SpecialRange = "special";

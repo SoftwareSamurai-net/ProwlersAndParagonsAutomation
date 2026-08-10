@@ -96,7 +96,7 @@ public record SelectedGearFeature(string FeatureId, string? GradeKey = null);
 /// </summary>
 public record SelectedGear(string Name)
 {
-    /// <summary>Custom features bought for this item (Ch.6, p.92). Usually empty.</summary>
+    /// <summary>Custom features bought for this item (Ch.6, p.93). Usually empty.</summary>
     public IReadOnlyList<SelectedGearFeature> Features { get; init; } = [];
 
     /// <summary>Pros applied to this item. They cost the same on gear as on a Power.</summary>

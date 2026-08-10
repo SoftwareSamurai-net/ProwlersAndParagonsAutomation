@@ -82,7 +82,7 @@ public sealed class DerivedStatsCalculatorTests
     [Fact]
     public void HealthRoundsHalvesUp()
     {
-        // The rulebook rounds half of an odd number up, globally (Ch.1, "Half").
+        // The rulebook rounds half of an odd number up, globally (the Introduction's Glossary, p.7, "Half").
         var sheet = RulesFixture.StandardSheet();
         sheet.AbilityRanks["toughness"] = 3;
         sheet.AbilityRanks["might"]     = 2;   // (3+2)/2 = 2.5 → 3

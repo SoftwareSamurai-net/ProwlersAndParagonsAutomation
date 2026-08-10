@@ -123,9 +123,10 @@ public sealed class GmReviewStep : IWizardStep
             .AddColumn(new TableColumn("HP Cost").Centered());
 
         // The Abilities (…) and Talents (…) lines print inside the group, above the Powers,
-        // which is where a published sheet puts them. They cost nothing and have no rank.
+        // which is where a published sheet puts them. They have no rank and no cost, so both
+        // of those columns read the same "—" rather than one of them claiming a cost of 0.
         foreach (var line in group.TraitLines)
-            table.AddRow($"[italic]{Markup.Escape(line)}[/]", "[grey]—[/]", "[grey]—[/]", "[grey]0[/]");
+            table.AddRow($"[italic]{Markup.Escape(line)}[/]", "[grey]—[/]", "[grey]—[/]", "[grey]—[/]");
 
         foreach (var sp in group.Powers)
         {

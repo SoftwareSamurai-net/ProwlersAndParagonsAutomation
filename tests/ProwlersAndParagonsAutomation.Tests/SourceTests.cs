@@ -52,14 +52,17 @@ public sealed class SourceTests
         {
             Assert.False(string.IsNullOrWhiteSpace(s.Name));
             Assert.False(string.IsNullOrWhiteSpace(s.Description));
-            Assert.Contains("Ch.2", s.SourceRef, StringComparison.Ordinal);
+            // The page, not just the chapter. Reverting all six back to the p.15 they used to
+            // carry left the suite green, and p.15 is Power Levels — the Sources table is on
+            // p.16 (PDF 19; the footers print each number twice, interleaved).
+            Assert.Contains("Ch.2 Sources, p.16", s.SourceRef, StringComparison.Ordinal);
             Assert.Contains(s.DefaultRankAbility, DefaultRankAbilities, StringComparer.Ordinal);
         });
 
     // ── Default rank ─────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Ch.2: a Power with no rank "uses a default rank in place of their rank when dealing
+    /// Ch.2: Powers with no rank "use a default rank in place of their rank when dealing
     /// with Powers that affect other Powers". Attuned is rankless, so its stand-in comes
     /// from the Source: Toughness under Tech, Willpower under Magic.
     /// </summary>
@@ -187,6 +190,71 @@ public sealed class SourceTests
     }
 
     /// <summary>
+    /// A Power naming a Source the rulebook does not have still prints, under the plain
+    /// heading, exactly like one with no Source at all. Only the null case was covered, so
+    /// narrowing the fallback to <c>SourceId is null</c> dropped such a Power from every
+    /// sheet with the suite green — against this class's own stated principle that leaving a
+    /// Power off its own character sheet is worse than showing it unsourced.
+    /// </summary>
+    [Fact]
+    public void APowerWithAnUnknownSourceIsListedRatherThanDropped()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.SelectedPowers.Add(new SelectedPower("blast", 4) { SourceId = "tech" });
+        sheet.SelectedPowers.Add(new SelectedPower("armor", 4) { SourceId = "cosmic" });
+
+        var groups = new SourceGrouping(_f.Rules).GroupBySource(sheet);
+
+        Assert.Equal<IEnumerable<string>>(["TECH POWERS", "POWERS"], groups.Select(g => g.Heading));
+        Assert.Equal<IEnumerable<string>>(
+            ["armor"], groups[^1].Powers.Select(p => p.PowerId));
+
+        // Nothing is lost and nothing is duplicated, whichever bucket a Power lands in.
+        Assert.Equal(sheet.SelectedPowers.Count, groups.Sum(g => g.Powers.Count));
+    }
+
+    /// <summary>
+    /// The same for a Trait: a Source that is not one of the six prints under the plain
+    /// heading rather than vanishing. The validator errors either way, but a Trait the player
+    /// marked and no surface ever mentions again is the worse of the two failures, and the
+    /// principle was being applied to Powers only.
+    /// </summary>
+    [Fact]
+    public void ATraitWithAnUnknownSourceIsListedRatherThanDropped()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilitySources["might"]     = "cosmic";
+        sheet.TalentSources["academics"]  = "cosmic";
+
+        var group = Assert.Single(new SourceGrouping(_f.Rules).GroupBySource(sheet));
+
+        Assert.Equal("POWERS", group.Heading);
+        Assert.Null(group.Source);
+        Assert.Equal<IEnumerable<string>>(
+            ["Abilities (Might)", "Talents (Academics)"], group.TraitLines);
+    }
+
+    /// <summary>
+    /// A blank Source reads as "on the default" everywhere, including in the effective
+    /// Source the JSON export writes. Reading the dictionary directly there made one export
+    /// contradict itself: <c>effective_source: ""</c> beside a group structure that showed
+    /// the Trait on its default.
+    /// </summary>
+    [Fact]
+    public void ABlankSourceReadsAsTheDefaultEverywhere()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilitySources["might"]    = "";
+        sheet.TalentSources["academics"] = "  ";
+
+        var grouping = new SourceGrouping(_f.Rules);
+
+        Assert.Empty(grouping.GroupBySource(sheet));
+        Assert.Equal(SourceGrouping.DefaultAbilitySourceId, grouping.EffectiveAbilitySource(sheet, "might"));
+        Assert.Equal(SourceGrouping.DefaultTalentSourceId, grouping.EffectiveTalentSource(sheet, "academics"));
+    }
+
+    /// <summary>
     /// The exported sheet prints the Source headings, not a flat Powers list. Grouping is
     /// only worth having if the thing a player actually reads uses it.
     /// </summary>
@@ -309,8 +377,13 @@ public sealed class SourceTests
     /// <summary>
     /// Named Traits print in the rulebook's order, not the order they were set. Both
     /// published sheets that name more than one — Darkwolf and Stronghold — print Agility,
-    /// Might, Perception, Toughness, which is abilities.json order and not alphabetical
-    /// either (Perception precedes Toughness but Might precedes Perception).
+    /// Might, Perception, Toughness, which is <c>abilities.json</c> order.
+    ///
+    /// <para><b>No test here can tell that order from alphabetical</b>, because the rulebook
+    /// happens to list both Abilities and Talents alphabetically. So this catches insertion
+    /// order, which is the mistake actually available to make, and nothing more. A previous
+    /// version of this comment claimed the two orders differed and gave an example that does
+    /// not; it does not, and there is no counterexample to write.</para>
     /// </summary>
     [Fact]
     public void NamedTraitsPrintInTheRulebooksOrder()
@@ -612,7 +685,23 @@ public sealed class SourceTests
         var academics = json.RootElement.GetProperty("talents")
             .EnumerateArray().Single(t => t.GetProperty("id").GetString() == "academics");
 
+        Assert.Equal(JsonValueKind.Null, academics.GetProperty("source").ValueKind);
         Assert.Equal("trained", academics.GetProperty("effective_source").GetString());
+
+        // A Talent carrying a Source but no rank is still exported, or the `source` field a
+        // rebuild needs is missing for exactly the Talents this feature exists to record.
+        // The rank filter alone dropped it while every sheet printed its line.
+        sheet.TalentSources["survival"] = "magic";
+        Assert.Equal(0, sheet.GetTalentRank("survival"));
+
+        var reexported = JsonDocument.Parse(CharacterSheetRenderer.RenderJson(
+            sheet, _f.Rules, _f.Costs, _f.Derived, _f.Validator.Validate(sheet), DateTime.UnixEpoch));
+
+        var survival = reexported.RootElement.GetProperty("talents")
+            .EnumerateArray().Single(t => t.GetProperty("id").GetString() == "survival");
+
+        Assert.Equal("magic", survival.GetProperty("source").GetString());
+        Assert.Equal("magic", survival.GetProperty("effective_source").GetString());
 
         // And the group structure, with the printed line inside it.
         var group = json.RootElement.GetProperty("source_groups")

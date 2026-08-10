@@ -7,7 +7,7 @@
     "cost_range": { "accurate": 1, "very_accurate": 2 },
     "applies_to": "personal weapon",
     "description": "The weapon is easier to land against a target that is actively defending, granting +1d on those attack rolls. Paying the higher price makes it Very Accurate for +2d instead.",
-    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.92"
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.93"
   },
   {
     "id": "bonded",
@@ -16,7 +16,7 @@
     "cost": 1,
     "applies_to": "any item",
     "description": "The item works only for you, or for you and a chosen few. Genetic coding, a mystical test of worthiness or anything else that fits the character explains why.",
-    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.92"
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.93"
   },
   {
     "id": "collapsible",
@@ -25,7 +25,7 @@
     "cost": 1,
     "applies_to": "any item",
     "description": "The item folds down into a small form that is easy to carry.",
-    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.92"
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.93"
   },
   {
     "id": "concealed",
@@ -34,7 +34,7 @@
     "cost": 1,
     "applies_to": "any item",
     "description": "The item is hidden inside another item, or disguised as something else entirely.",
-    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.92"
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.93"
   },
   {
     "id": "deflecting",
@@ -43,7 +43,7 @@
     "cost": 2,
     "applies_to": "armor",
     "description": "Hard angled plates turn attacks aside, letting the wearer add half the Armor Bonus to active defence rolls, subject to the Gear Limit. It does nothing against Armor Piercing or Penetrating attacks, and cannot be combined with a melee weapon's Weapon Bonus on the same roll — pick one.",
-    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.92"
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.93"
   },
   {
     "id": "fitted",
@@ -52,7 +52,7 @@
     "cost": 2,
     "applies_to": "Bulky or Rigid armor",
     "description": "The armour is tailored well enough to remove its penalty to acrobatics, stealth and speed rolls. Swimming in it is still penalised.",
-    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.92"
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.93"
   },
   {
     "id": "hardened",
@@ -61,7 +61,7 @@
     "cost": 2,
     "applies_to": "armor",
     "description": "The armour is resilient enough to cancel the Armor Piercing Pro. Penetrating still works against it normally.",
-    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.92"
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.93"
   },
   {
     "id": "masterpiece",
@@ -70,7 +70,7 @@
     "cost": 2,
     "applies_to": "any item",
     "description": "Exceptional craftsmanship and materials let you reroll one challenge roll per scene while using the item.",
-    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.92"
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.93"
   },
   {
     "id": "powerful",
@@ -80,7 +80,7 @@
     "cost_range": { "powerful": 1, "very_powerful": 2 },
     "applies_to": "personal weapon",
     "description": "The weapon hits harder against a target relying on a passive defence, granting +1d on those attack rolls. Paying the higher price makes it Very Powerful for +2d instead.",
-    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.92"
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.93"
   },
   {
     "id": "reinforced",
@@ -89,7 +89,7 @@
     "cost": 2,
     "applies_to": "armor",
     "description": "Damage-resistant materials raise the item's Armor Bonus by 1d.",
-    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.92"
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.93"
   },
   {
     "id": "silenced",
@@ -98,7 +98,7 @@
     "cost": 1,
     "applies_to": "ranged weapon",
     "description": "The Subtle Pro in gear form, for ranged weapons only: the weapon is far quieter and shows no muzzle flare. It beats any silencer bought as ordinary gear.",
-    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.92"
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.93"
   },
   {
     "id": "upgraded",
@@ -107,6 +107,6 @@
     "cost": 2,
     "applies_to": "any item",
     "description": "Raises by 1d whichever bonus the item already grants — Armor, Shield, Weapon, or whatever else is core to it. It stacks with the bonus from other features.",
-    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.92"
+    "source_ref": "Ultimate Edition, Ch.6 Equipment, p.93"
   }
 ]

@@ -16,10 +16,11 @@ public sealed class DerivedStatsCalculator
 
     /// <summary>
     /// Edge = Perception + max(Agility, Intellect), then the three Powers the rulebook
-    /// says can affect it (Ch.5):
+    /// says can affect it (Ch.2 p.60):
     /// <list type="bullet">
-    ///   <item>Danger Sense <b>replaces</b> Perception in the sum — "use this Power
-    ///   instead of Perception when determining your Edge" — it is not added on top.</item>
+    ///   <item>Danger Sense <b>replaces</b> Perception in the sum — "Use this Power instead of
+    ///   Perception when making rolls to detect danger and when determining your
+    ///   Edge" — it is not added on top.</item>
     ///   <item>Lightning Reflexes adds a flat +6. It has no rank, so nothing scales.</item>
     ///   <item>Super Speed sets Edge to its rank × 3, taken if that beats the total.</item>
     /// </list>

@@ -59,7 +59,7 @@ public sealed class PowerProConTests
     public void TheRulebookPrints106PowerSpecificProsAndCons()
     {
         // 102 carry a PRO/CON marker inside a Power entry in Ch.2, and three more carry
-        // one in Ch.7's Toxins section (p.108). Deflection's "Physical and Energy" is the
+        // one in Ch.7's Toxins section (pp.108-109). Deflection's "Physical and Energy" is the
         // one entry with no marker: the Power's own text states it as prose (p.26).
         var actual = _f.Rules.Powers.Sum(p => p.PowerPros.Count + p.PowerCons.Count);
 

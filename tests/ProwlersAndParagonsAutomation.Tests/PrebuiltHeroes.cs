@@ -410,6 +410,22 @@ public static class PrebuiltHeroes
         PowerSourcesByHero[heroName].Single(g => g.PowerIds.Contains(powerId)).SourceId;
 
     /// <summary>
+    /// Every Ability id, for the sheets marked <c>Abilities and Talents (All)</c>. Declared
+    /// above <see cref="TraitSourcesByHero"/> on purpose: static field initialisers run in
+    /// declaration order, so spreading this in from below would spread a null.
+    /// </summary>
+    public static readonly string[] AllAbilities =
+        ["agility", "intellect", "might", "perception", "toughness", "willpower"];
+
+    /// <summary>
+    /// Every Talent id, the same twelve as <see cref="TalentIds"/> — a second name so the
+    /// entries below read as "all Abilities and all Talents". A property rather than a field
+    /// because it forwards to <see cref="TalentIds"/>, which sidesteps the ordering trap
+    /// above rather than working around it.
+    /// </summary>
+    public static string[] AllTalents => TalentIds;
+
+    /// <summary>
     /// The Abilities and Talents each published sheet marks with a Source, keyed
     /// "Hero|sourceId". Ten of the twenty sheets carry such a marking; the other ten
     /// carry none, and their absence from this table is the transcription.
@@ -422,27 +438,16 @@ public static class PrebuiltHeroes
     /// <c>Abilities and Talents (All)</c>.</para>
     ///
     /// <para><b>This is not derivable from rank, and reading it as a threshold is the trap
-    /// this table exists to close.</b> Ch.2 p.64 — the <em>random generation</em> chapter —
-    /// says "the Sources for your Powers and Abilities with a rank of 7d or greater", and
-    /// the sheets contradict it in both directions: Alabama Slammer marks 6d Perception and
-    /// Toughness, and Citizen Soldier leaves 9d Willpower unmarked while marking his 12s.
+    /// this table exists to close.</b> Ch.2 p.64 — the Random Hero Generator — says "the
+    /// Sources for your Powers and Abilities with a rank of 7d or greater", and the sheets
+    /// contradict it in both directions: Alabama Slammer marks 6d Perception and Toughness,
+    /// and Citizen Soldier leaves 9d Willpower unmarked while marking his 12s.
     /// Ch.2 p.16 is the actual rule — every Trait has a Source, Abilities default to Innate
     /// and Talents to Trained, and those defaults hold "at least when dealing with ordinary
     /// people", after which "anything goes" — so what a sheet prints is the exception list,
     /// and only the author knows it.
     /// See <see cref="PrebuiltHeroTests.ThePrintedTraitSourcesAreNotARankThreshold"/>.</para>
     /// </summary>
-    /// <summary>
-    /// Declared above <see cref="TraitSourcesByHero"/> on purpose: static field
-    /// initialisers run in declaration order, so spreading this into that dictionary from
-    /// below would spread a null.
-    /// </summary>
-    public static readonly string[] AllAbilities =
-        ["agility", "intellect", "might", "perception", "toughness", "willpower"];
-
-    /// <summary>Talent ids, same twelve as <see cref="TalentIds"/> — named for readability below.</summary>
-    public static string[] AllTalents => TalentIds;
-
     public static readonly IReadOnlyDictionary<string, string[]> TraitSourcesByHero =
         new Dictionary<string, string[]>
         {

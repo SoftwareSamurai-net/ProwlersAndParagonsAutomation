@@ -129,11 +129,11 @@ public sealed class CharacterValidator
         // The message used to say the tier "is marked needs_review", which was both jargon
         // and untrue — nothing in data/rules/ carries such a flag, and this fires on the
         // Iconic tier's id regardless. What it is actually reporting is the rulebook's own
-        // open end: Ch.2 p.17 calls Iconic's 200 Hero Points a bare minimum.
+        // open end: Ch.2 p.15 calls Iconic's 200 Hero Points a bare minimum.
         if (tier.NeedsReview || tier.Id == "iconic")
             issues.Add(new(ValidationSeverity.Warning, "ICONIC_TIER_OPEN_BUDGET",
                 $"The {tier.Name} tier's Hero Point budget is a minimum rather than a limit " +
-                "(Ch.2, Power Level, p.17), so how far above it you go is the GM's call."));
+                "(Ch.2, Power Level, p.15), so how far above it you go is the GM's call."));
     }
 
     private void CheckFlawCount(CharacterSheet sheet, List<ValidationIssue> issues)
@@ -163,7 +163,7 @@ public sealed class CharacterValidator
     }
 
     /// <summary>
-    /// Custom gear (Ch.6, p.92). Mundane gear is free and untracked, so an uncustomised
+    /// Custom gear (Ch.6, p.93). Mundane gear is free and untracked, so an uncustomised
     /// item is never an issue; these only bite once Hero Points are involved.
     ///
     /// <para>Returns false if any item cannot be priced at all, which stops the caller
@@ -293,11 +293,18 @@ public sealed class CharacterValidator
             // GetSource would throw ArgumentNullException on it rather than report it. That
             // is the ordering trap this validator has already been caught by twice: an
             // unknown Power id, and gear that could not be priced.
-            if (string.IsNullOrWhiteSpace(sourceId) || _rules.GetSource(sourceId) is null)
+            //
+            // A blank gets its own sentence. Printed through the message below it read "names
+            // a Source, '', that is not one of the six", which says the Trait names a Source
+            // and then names none.
+            if (string.IsNullOrWhiteSpace(sourceId))
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_SOURCE",
-                    $"The {traitKind} '{name}' names a Source, "
-                    + $"'{(string.IsNullOrWhiteSpace(sourceId) ? "" : sourceId)}', that is not "
-                    + "one of the six the rulebook gives."));
+                    $"The {traitKind} '{name}' has a Source recorded against it with no value. "
+                    + "Choose one of the six the rulebook gives, or leave it on its default."));
+            else if (_rules.GetSource(sourceId) is null)
+                issues.Add(new(ValidationSeverity.Error, "UNKNOWN_SOURCE",
+                    $"The {traitKind} '{name}' names a Source, '{sourceId}', that is not one "
+                    + "of the six the rulebook gives."));
         }
     }
 

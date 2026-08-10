@@ -12,7 +12,7 @@ public sealed class RulesDataTests
 
     public RulesDataTests(RulesFixture fixture) => _f = fixture;
 
-    // ── Tiers (Power Levels table, p.17) ─────────────────────────────────────
+    // ── Tiers (Power Levels table, p.15) ─────────────────────────────────────
 
     [Theory]
     [InlineData("street_level", 75, 8)]
@@ -138,7 +138,7 @@ public sealed class RulesDataTests
                     Assert.True(kv.Value > 0, $"Pro '{p.Id}' variant '{kv.Key}' is not positive."));
         });
 
-    // ── Cons (pp.48-53) ──────────────────────────────────────────────────────
+    // ── Cons (pp.48-54) ──────────────────────────────────────────────────────
 
     [Theory]
     [InlineData("build_up", -2)]
@@ -278,7 +278,7 @@ public sealed class RulesDataTests
     [Fact]
     public void ThereAre13Perks() => Assert.Equal(13, _f.Rules.Perks.Count);
 
-    // ── Flaws (pp.55-59) ─────────────────────────────────────────────────────
+    // ── Flaws (pp.55-60) ─────────────────────────────────────────────────────
 
     [Fact]
     public void ThereAre53Flaws() =>

@@ -537,7 +537,13 @@ public sealed class WebPresentationTests
 
         var declarations = Normalise(rule.Groups[1].Value);
         Assert.Contains("font-style:italic", declarations, StringComparison.Ordinal);
-        Assert.Contains("font-size:", declarations, StringComparison.Ordinal);
+
+        // The value, not just the property. `Contains("font-size:")` passed at 3rem — three
+        // times the body size — which is the same weakness this test's print half already
+        // had. Set apart means a step down from the entries it sits above, not a shout.
+        var screen = Rx(@"font-size:\s*([0-9.]+)rem").Match(declarations);
+        Assert.True(screen.Success, "The screen rule sets no font size in rem.");
+        Assert.InRange(double.Parse(screen.Groups[1].Value, CultureInfo.InvariantCulture), 0.7, 1.0);
 
         var printed = PrintRuleFor(".power-entry.trait-sources");
         Assert.True(printed is not null,
@@ -549,8 +555,10 @@ public sealed class WebPresentationTests
         var size = Rx(@"font-size:\s*([0-9.]+)pt").Match(Normalise(printed!));
         Assert.True(size.Success, "The print rule sets no font size in points.");
 
+        // Strictly under the 10.5pt body size the Power names take, which an inclusive upper
+        // bound of 10.5 did not enforce: the line has to read as a step below them.
         var points = double.Parse(size.Groups[1].Value, CultureInfo.InvariantCulture);
-        Assert.InRange(points, 7.5, 10.5);
+        Assert.InRange(points, 7.5, 9.5);
     }
 
     /// <summary>A heading that strands at the foot of a page belongs to nothing.</summary>
