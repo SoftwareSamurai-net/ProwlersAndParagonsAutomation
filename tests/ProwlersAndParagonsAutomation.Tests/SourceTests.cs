@@ -239,12 +239,70 @@ public sealed class SourceTests
         Assert.Empty(new SourceGrouping(_f.Rules).GroupBySource(sheet));
 
         // Setting a Trait explicitly to its own default is the same statement as silence,
-        // and must print the same nothing rather than an empty INNATE POWERS box.
-        sheet.AbilitySources["might"]     = SourceGrouping.DefaultAbilitySourceId;
-        sheet.TalentSources["academics"]  = SourceGrouping.DefaultTalentSourceId;
+        // and prints the same nothing rather than an empty INNATE POWERS box. Enforced in
+        // the engine rather than left to the editors, because a stored or hand-edited
+        // character reaches the renderers without passing through either of them.
+        sheet.AbilitySources["might"]    = SourceGrouping.DefaultAbilitySourceId;
+        sheet.TalentSources["academics"] = SourceGrouping.DefaultTalentSourceId;
 
-        var lines = new SourceGrouping(_f.Rules).GroupBySource(sheet).SelectMany(g => g.TraitLines);
-        Assert.Equal<IEnumerable<string>>(["Abilities (Might)"], lines.Take(1));
+        Assert.Empty(new SourceGrouping(_f.Rules).GroupBySource(sheet));
+
+        // A blank one is not something an editor writes, but stored data can carry it. It
+        // prints nothing too — and, unlike the two above, the validator reports it.
+        sheet.AbilitySources["might"] = "";
+
+        Assert.Empty(new SourceGrouping(_f.Rules).GroupBySource(sheet));
+    }
+
+    /// <summary>
+    /// "(All)" is a claim about the line it appears on, not about the Source. When a Con
+    /// splits the Abilities onto two lines, the unmodified line names its Traits — it is no
+    /// longer all of them. Counting the Source instead printed <c>Abilities (All)</c> above
+    /// a line listing four of the six, with the other two on the line below it.
+    /// </summary>
+    [Fact]
+    public void AllIsCountedOnTheLineNotOnTheSource()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        foreach (var ability in _f.Rules.Abilities) sheet.AbilitySources[ability.Id] = "tech";
+        sheet.AbilityModifiers["might"]     = [new SelectedProCon("item")];
+        sheet.AbilityModifiers["toughness"] = [new SelectedProCon("item")];
+
+        var lines = new SourceGrouping(_f.Rules).GroupBySource(sheet).Single().TraitLines;
+
+        Assert.Equal<IEnumerable<string>>(
+            [
+                "Abilities (Agility, Intellect, Perception, Willpower)",
+                "Abilities (Might, Toughness) (Item)"
+            ],
+            lines);
+
+        // The same trap one level up: the whole-character collapse must not fire either,
+        // and every Ability must still be named exactly once across the lines.
+        Assert.DoesNotContain("All", string.Join(" ", lines), StringComparison.Ordinal);
+        Assert.All(_f.Rules.Abilities, a =>
+            Assert.Equal(1, lines.Count(l => l.Contains(a.Name, StringComparison.Ordinal))));
+    }
+
+    /// <summary>
+    /// A blank Source is reported rather than thrown. The type says a value here cannot be
+    /// null and the deserializer does not care, so a stored character can carry one — and
+    /// the lookup threw <c>ArgumentNullException</c> on it before the unknown-Source check
+    /// could run. The same ordering trap has caught this validator twice already, on an
+    /// unknown Power id and on gear that could not be priced.
+    /// </summary>
+    [Fact]
+    public void ABlankTraitSourceIsReportedRatherThanThrown()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilitySources["might"]    = null!;
+        sheet.TalentSources["academics"] = "   ";
+
+        var result = _f.Validator.Validate(sheet);
+
+        Assert.Equal(2, result.Errors.Count(e => e.Code == "UNKNOWN_SOURCE"));
+        Assert.Contains(result.Errors, e => e.Message.Contains("Ability 'Might'", StringComparison.Ordinal));
+        Assert.Contains(result.Errors, e => e.Message.Contains("Talent 'Academics'", StringComparison.Ordinal));
     }
 
     /// <summary>

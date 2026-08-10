@@ -285,10 +285,16 @@ public sealed class CharacterValidator
                 continue;
             }
 
-            if (_rules.GetSource(sourceId) is null)
+            // Null-checked before the lookup, not after. A stored character can carry a null
+            // here — the type says it cannot, and the deserializer does not care — and
+            // GetSource would throw ArgumentNullException on it rather than report it. That
+            // is the ordering trap this validator has already been caught by twice: an
+            // unknown Power id, and gear that could not be priced.
+            if (string.IsNullOrWhiteSpace(sourceId) || _rules.GetSource(sourceId) is null)
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_SOURCE",
-                    $"The {traitKind} '{name}' names a Source, '{sourceId}', that is not one "
-                    + "of the six the rulebook gives."));
+                    $"The {traitKind} '{name}' names a Source, "
+                    + $"'{(string.IsNullOrWhiteSpace(sourceId) ? "" : sourceId)}', that is not "
+                    + "one of the six the rulebook gives."));
         }
     }
 

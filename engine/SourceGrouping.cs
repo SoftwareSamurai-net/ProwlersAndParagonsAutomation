@@ -100,29 +100,37 @@ public sealed class SourceGrouping
     /// </summary>
     private List<string> TraitLines(CharacterSheet sheet, string sourceId)
     {
+        // A Trait recorded on its own default is filtered here, not only by the editors.
+        // The sheets print the exceptions, and "explicitly Innate" and "Innate by default"
+        // are the same statement — there is no way to tell them apart on paper. Doing it in
+        // the engine means a hand-edited or restored character cannot print a line that says
+        // nothing, which is not something the editors can promise on their own.
         var abilities = _rules.Abilities
-            .Where(a => sheet.AbilitySources.GetValueOrDefault(a.Id) == sourceId)
+            .Where(a => Recorded(sheet.AbilitySources, a.Id, DefaultAbilitySourceId) == sourceId)
             .ToList();
 
         var talents = _rules.Talents
-            .Where(t => sheet.TalentSources.GetValueOrDefault(t.Id) == sourceId)
+            .Where(t => Recorded(sheet.TalentSources, t.Id, DefaultTalentSourceId) == sourceId)
             .ToList();
 
         if (abilities.Count == 0 && talents.Count == 0) return [];
 
-        var allAbilities = abilities.Count == _rules.Abilities.Count;
-        var allTalents   = talents.Count   == _rules.Talents.Count;
+        var allTalents = talents.Count == _rules.Talents.Count;
 
         // "Abilities and Talents (All)" — the whole character on one Source, which is how
         // a sheet prints a wholly magical or wholly robotic Hero.
-        if (allAbilities && allTalents && abilities.All(a => ModifierLabel(sheet, a.Id) is null))
+        if (abilities.Count == _rules.Abilities.Count && allTalents
+            && abilities.All(a => ModifierLabel(sheet, a.Id) is null))
             return ["Abilities and Talents (All)"];
 
         var lines = new List<string>();
 
         foreach (var block in abilities.GroupBy(a => ModifierLabel(sheet, a.Id)))
         {
-            var named = allAbilities && block.Key is null
+            // "(All)" is a claim about this line, so it is counted on the block and not on
+            // the Source. Counting the Source printed "Abilities (All)" on a line naming
+            // four of the six, whenever a Con split the rest onto a line of their own.
+            var named = block.Count() == _rules.Abilities.Count
                 ? "All"
                 : string.Join(", ", block.Select(a => a.Name));
 
@@ -133,6 +141,20 @@ public sealed class SourceGrouping
             lines.Add($"Talents ({(allTalents ? "All" : string.Join(", ", talents.Select(t => t.Name)))})");
 
         return lines;
+    }
+
+    /// <summary>
+    /// The Source a sheet records for a Trait, or null when it records nothing the sheet
+    /// would print — no entry, an entry equal to the default, or a blank one. A blank is
+    /// not something the editors write; it comes from hand-edited or stale stored data,
+    /// and the validator reports it separately.
+    /// </summary>
+    private static string? Recorded(
+        Dictionary<string, string> sources, string traitId, string defaultSourceId)
+    {
+        var recorded = sources.GetValueOrDefault(traitId);
+
+        return string.IsNullOrEmpty(recorded) || recorded == defaultSourceId ? null : recorded;
     }
 
     /// <summary>

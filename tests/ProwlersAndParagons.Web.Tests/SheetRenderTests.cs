@@ -452,6 +452,42 @@ public sealed class SheetRenderTests
             Assert.DoesNotContain(lines, l => l.Contains(name, StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// A Source group holding <b>only</b> a trait line still prints on the sheet — a Trait
+    /// bought through powered armour on a character with no Tech Power.
+    ///
+    /// <para>This exists because an adversarial pass filtered the sheet's groups to those
+    /// with Powers in them and <b>every test stayed green</b>. Both samples happen to put
+    /// their marked Traits in a Source that also has Powers, so nothing noticed that a
+    /// Trait-only group had stopped rendering. The rule is stated in CLAUDE.md — nothing
+    /// that renders groups may gate on there being Powers — and three places once did.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void ASourceWithNoPowersStillPrintsOnTheSheet(SheetMode mode)
+    {
+        using var ctx = new RenderContext().With(mode);
+
+        // A Source no Power on either sample uses, so the group can only exist because of
+        // the Trait. Chosen from the rules rather than named, so it cannot go stale — and
+        // never the Ability default, which is filtered out precisely because it says
+        // nothing. Picking the default made this test's own setup a no-op.
+        var unused = ctx.Session.Rules.Sources.First(s =>
+            s.Id != SourceGrouping.DefaultAbilitySourceId &&
+            ctx.Session.Sheet.SelectedPowers.All(p => p.SourceId != s.Id));
+
+        ctx.Session.Sheet.AbilitySources["intellect"] = unused.Id;
+
+        var heading = SourceGrouping.HeadingFor(unused);
+        var boxes = ctx.Render<SheetView>().FindAll(".sheet-section.powers")
+            .Select(e => Collapse(e.TextContent))
+            .ToList();
+
+        var box = Assert.Single(boxes, b => b.StartsWith(heading, StringComparison.Ordinal));
+        Assert.Contains("Abilities (Intellect)", box, StringComparison.Ordinal);
+    }
+
     private static string Id(RenderContext ctx, string traitName) =>
         ctx.Session.Rules.Abilities.FirstOrDefault(a => a.Name == traitName)?.Id
         ?? ctx.Session.Rules.Talents.First(t => t.Name == traitName).Id;
