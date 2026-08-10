@@ -73,7 +73,7 @@ public record SelectedPower(
     public string? BaselineTraitId { get; init; }
 
     /// <summary>
-    /// Which of the six Sources this Power comes from (Ch.2 p.15). Costs nothing and never
+    /// Which of the six Sources this Power comes from (Ch.2 p.16). Costs nothing and never
     /// changes a Power's rank, but a published sheet groups Powers under Source headings,
     /// and a rankless Power takes its default rank from the Source's Ability. Null means
     /// the player has not said yet.
@@ -147,13 +147,14 @@ public class CharacterSheet
     public Dictionary<string, int> TalentRanks { get; } = new();
 
     /// <summary>
-    /// Sources for Abilities, keyed by ability id. Ch.2 p.15: every Ability, Talent and
-    /// Power has a Source, Abilities are usually Innate, "but these defaults aren't
-    /// mandatory". An entry here is therefore a Trait whose Source is <em>not</em> the
+    /// Sources for Abilities, keyed by ability id. Ch.2 p.16: every Ability, Talent and
+    /// Power has a Source, and Abilities are usually Innate "at least when dealing with
+    /// ordinary people. When dealing with supers and characters who aren't human, however,
+    /// anything goes." An entry here is therefore a Trait whose Source is <em>not</em> the
     /// default — which is exactly what a published sheet prints, as an
     /// <c>Abilities (…)</c> line inside a Power group.
     ///
-    /// <para><b>This cannot be derived from rank.</b> Ch.3 p.64 says "Sources for your
+    /// <para><b>This cannot be derived from rank.</b> Ch.2 p.64 says "Sources for your
     /// Powers and Abilities with a rank of 7d or greater", which reads like a threshold and
     /// is not one — it is an instruction about which Traits to roll Sources for during
     /// random generation. The printed sheets disagree with it in both directions: Alabama

@@ -219,7 +219,7 @@ public sealed class CharacterValidator
     }
 
     /// <summary>
-    /// Sources (Ch.2, p.15). A Source costs nothing and changes no rank, so a missing one
+    /// Sources (Ch.2, p.16). A Source costs nothing and changes no rank, so a missing one
     /// is never an error — but a Power the rulebook gives no rank needs its Source to know
     /// which Ability stands in when another Power acts on it, so that gap is worth saying.
     ///
@@ -231,9 +231,9 @@ public sealed class CharacterValidator
     /// </summary>
     private void CheckSources(CharacterSheet sheet, List<ValidationIssue> issues)
     {
-        CheckTraitSources(sheet.AbilitySources, "Ability",
+        CheckTraitSources(sheet.AbilitySources, "Ability", "Abilities",
             id => _rules.GetAbility(id)?.Name, issues);
-        CheckTraitSources(sheet.TalentSources, "Talent",
+        CheckTraitSources(sheet.TalentSources, "Talent", "Talents",
             id => _rules.GetTalent(id)?.Name, issues);
 
         foreach (var sp in sheet.SelectedPowers)
@@ -270,6 +270,7 @@ public sealed class CharacterValidator
     private void CheckTraitSources(
         IReadOnlyDictionary<string, string> sources,
         string traitKind,
+        string traitKindPlural,
         Func<string, string?> nameOf,
         List<ValidationIssue> issues)
     {
@@ -279,9 +280,11 @@ public sealed class CharacterValidator
 
             if (name is null)
             {
+                // "the Abilities in the rulebook", not "the abilitys": the plural is written
+                // out rather than built by appending an s to a lowercased word.
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_TRAIT_SOURCE",
                     $"A Source is recorded against '{traitId}', which is not one of the "
-                    + $"{traitKind.ToLowerInvariant()}s in the rulebook."));
+                    + $"{traitKindPlural} in the rulebook."));
                 continue;
             }
 

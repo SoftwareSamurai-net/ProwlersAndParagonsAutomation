@@ -319,7 +319,7 @@ They have earned their keep twice over, catching two cost bugs that unit tests h
 | `talents.json` | 12 | Ch.2, p.17 |
 | `tiers.json` | 6 | Ch.2 Power Levels, p.17 |
 | `gear_features.json` | 12 | Ch.6 Equipment, p.92 — custom gear features |
-| `sources.json` | 6 | Ch.2 Sources, p.15 — default rank per Source |
+| `sources.json` | 6 | Ch.2 Sources, p.16 — default rank per Source |
 
 A single `needs_review` boolean could not tell a verified cost from a verified description, and it drifted badly: 27 power entries were unflagged while their costs were wrong. `powers.json` therefore carries `verified_fields` plus a `source_ref` page reference on every entry:
 

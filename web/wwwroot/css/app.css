@@ -827,9 +827,10 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     .stat-table td { padding: 0.5mm 1mm; font-size: 8pt; }
     .power-entry { padding: 1mm 0; }
     .power-entry .statline { font-size: 7.5pt; }
-    /* Sized with the Power names it sits above, not with the stat lines: it names Traits,
-       and a reader looking for "which of my Abilities are Tech" is scanning the same column
-       as the Power names. Restated here because the screen rule is in rem. */
+    /* Restated because the screen rule is in rem, which the print block overrides for
+       everything else on the sheet. A half-point above the stat lines (7.5pt) and well under
+       the Power names, which take the 10.5pt body size: the line names Traits rather than
+       announcing one, so it reads as supporting text that happens to come first. */
     .power-entry.trait-sources { font-size: 8pt; }
     /* Set with the stat lines rather than below them. A cost belongs a step behind a rank,
        which the case, the weight and the muted ink already do; taking it under 7pt as well

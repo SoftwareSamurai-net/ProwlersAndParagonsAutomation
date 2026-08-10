@@ -454,8 +454,8 @@ public sealed class PrebuiltHeroTests
     /// <summary>
     /// The engine builds the <c>Abilities (…)</c> line each sheet prints, in the group it
     /// prints it in, character for character — and prints none where the sheet prints none.
-    /// Both halves matter: eleven of the twenty carry no such line, and a renderer that
-    /// invented one for every character would satisfy a test that only checked the nine.
+    /// Both halves matter: ten of the twenty carry no such line, and a renderer that
+    /// invented one for every character would satisfy a test that only checked the ten that do.
     /// </summary>
     [Theory]
     [MemberData(nameof(HeroNames))]
@@ -483,12 +483,20 @@ public sealed class PrebuiltHeroTests
     }
 
     /// <summary>
-    /// The printed markings are not a rank threshold, and this is the test that says so.
+    /// The printed markings are not a rank threshold, and this is the test that records why.
     ///
-    /// <para>Ch.3 p.64 reads "the Sources for your Powers and Abilities with a rank of 7d or
+    /// <para><b>It guards the transcription, not the code.</b> It reads only
+    /// <see cref="PrebuiltHeroes"/>, so no change to <c>SourceGrouping</c> can fail it — an
+    /// adversarial pass put a 7d threshold into the engine and this stayed green while
+    /// eleven other tests went red. What it stops is the transcription being deleted as
+    /// redundant by someone who has just read the p.64 sentence and believes it;
+    /// <see cref="SourceGroupingReproducesThePrintedTraitLines"/> is what catches the
+    /// derivation itself.</para>
+    ///
+    /// <para>Ch.2 p.64 reads "the Sources for your Powers and Abilities with a rank of 7d or
     /// greater", which invites deriving the trait line from rank and deleting the
     /// transcription. Two published sheets rule that out in opposite directions, so a
-    /// derivation cannot be right whichever way round the comparison is written. Ch.2 p.15
+    /// derivation cannot be right whichever way round the comparison is written. Ch.2 p.16
     /// is the rule the engine follows: every Trait has a Source and the defaults are not
     /// mandatory, so which Traits deviate is the author's choice and has to be recorded.</para>
     /// </summary>
@@ -510,7 +518,7 @@ public sealed class PrebuiltHeroTests
     }
 
     /// <summary>
-    /// A Source costs nothing and changes no rank (Ch.2, p.15), so marking every Trait on a
+    /// A Source costs nothing and changes no rank (Ch.2, p.16), so marking every Trait on a
     /// Hero moves neither his Hero Point total nor any derived figure. Run against the
     /// fifteen who rebuild exactly, where a single Hero Point either way would show.
     /// </summary>

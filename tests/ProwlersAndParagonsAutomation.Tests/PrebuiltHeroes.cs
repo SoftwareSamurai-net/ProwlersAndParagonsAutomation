@@ -411,7 +411,7 @@ public static class PrebuiltHeroes
 
     /// <summary>
     /// The Abilities and Talents each published sheet marks with a Source, keyed
-    /// "Hero|sourceId". Nine of the twenty sheets carry such a marking; the other eleven
+    /// "Hero|sourceId". Ten of the twenty sheets carry such a marking; the other ten
     /// carry none, and their absence from this table is the transcription.
     ///
     /// <para>A sheet prints this as a line <em>inside</em> a Power group — Stronghold's
@@ -422,13 +422,14 @@ public static class PrebuiltHeroes
     /// <c>Abilities and Talents (All)</c>.</para>
     ///
     /// <para><b>This is not derivable from rank, and reading it as a threshold is the trap
-    /// this table exists to close.</b> Ch.3 p.64 — the <em>random generation</em> chapter —
+    /// this table exists to close.</b> Ch.2 p.64 — the <em>random generation</em> chapter —
     /// says "the Sources for your Powers and Abilities with a rank of 7d or greater", and
     /// the sheets contradict it in both directions: Alabama Slammer marks 6d Perception and
     /// Toughness, and Citizen Soldier leaves 9d Willpower unmarked while marking his 12s.
-    /// Ch.2 p.15 is the actual rule — every Trait has a Source, Abilities default to Innate
-    /// and Talents to Trained, "but these defaults aren't mandatory" — so what a sheet
-    /// prints is the exception list, and only the author knows it.
+    /// Ch.2 p.16 is the actual rule — every Trait has a Source, Abilities default to Innate
+    /// and Talents to Trained, and those defaults hold "at least when dealing with ordinary
+    /// people", after which "anything goes" — so what a sheet prints is the exception list,
+    /// and only the author knows it.
     /// See <see cref="PrebuiltHeroTests.ThePrintedTraitSourcesAreNotARankThreshold"/>.</para>
     /// </summary>
     /// <summary>
@@ -462,7 +463,7 @@ public static class PrebuiltHeroes
         };
 
     /// <summary>
-    /// The trait line each of those nine sheets prints, verbatim, keyed the same way. This
+    /// The trait line each of those ten sheets prints, keyed the same way. This
     /// is the transcription the renderers are held to: <see cref="TraitSourcesByHero"/> is
     /// the input, this is the printed output, and a test builds one from the other.
     ///

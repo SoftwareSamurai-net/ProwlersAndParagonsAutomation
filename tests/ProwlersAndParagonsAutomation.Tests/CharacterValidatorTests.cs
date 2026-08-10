@@ -159,7 +159,7 @@ public sealed class CharacterValidatorTests
 
     /// <summary>
     /// A Trait with no Source recorded raises nothing at all, and that is the rule rather
-    /// than a gap in the checks. Ch.2 p.15 gives Abilities and Talents a default — Innate
+    /// than a gap in the checks. Ch.2 p.16 gives Abilities and Talents a default — Innate
     /// and Trained — so silence means "on its default". A Power has no default, which is
     /// why <c>POWER_WITHOUT_SOURCE</c> exists and no Trait equivalent does.
     /// </summary>

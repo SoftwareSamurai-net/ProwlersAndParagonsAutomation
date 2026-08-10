@@ -3,11 +3,18 @@
 @* Where a Trait's Source is chosen. One component for Abilities and for Talents, because
    the only difference between the two is which default a blank means.
 
-   The rulebook (Ch.2, p.15) gives every Ability, Talent and Power a Source, with Abilities
-   usually Innate and Talents usually Trained — "but these defaults aren't mandatory". So
-   the control offers the default as its first option and a sheet records only what deviates
-   from it, which is exactly what a published sheet prints: an Abilities (…) line naming the
-   exceptions, inside the Power group they belong to. *@
+   The rulebook (Ch.2, p.16) gives every Ability, Talent and Power a Source, with Abilities
+   usually Innate and Talents usually Trained, and says that when dealing with supers
+   "anything goes". So the control offers the default as its first option and a sheet records
+   only what deviates from it, which is exactly what a published sheet prints: an
+   Abilities (…) line naming the exceptions, inside the Power group they belong to.
+
+   The default is offered ONCE, as the blank option, and is skipped in the list below it.
+   Offering it twice gave seven options for six Sources, and the two spellings did not do the
+   same thing: the blank removed the entry, the named one stored it. A stored default printed
+   nothing either way — SourceGrouping filters it — but it persisted to local storage, and the
+   control then read back "Innate" rather than "Innate (default)", showing a distinction the
+   sheet does not have. *@
 
 <Panel Title="@Title" Level="3">
     <p class="small muted">
@@ -25,7 +32,7 @@
                     value="@Sources.GetValueOrDefault(id, "")"
                     @onchange="e => Set(id, e.Value as string)">
                 <option value="">@DefaultName (default)</option>
-                @foreach (var source in Session.Rules.Sources)
+                @foreach (var source in Session.Rules.Sources.Where(s => s.Id != DefaultSourceId))
                 {
                     <option value="@source.Id">@source.Name</option>
                 }
@@ -61,14 +68,18 @@
         + "what a sheet leaves unprinted.";
 
     /// <summary>
-    /// An empty selection removes the entry rather than storing the default id. The two are
-    /// the same character but not the same statement: a sheet prints the exceptions, so a
-    /// Trait explicitly set to its own default would otherwise print a line saying nothing.
+    /// Choosing the default removes the entry rather than storing it. The two are the same
+    /// Source but not the same statement: a sheet prints the exceptions, so a Trait
+    /// explicitly set to its own default would otherwise be an entry that prints nothing.
+    ///
+    /// <para>The default id is checked as well as the empty string, even though the list no
+    /// longer offers it: a sheet restored from storage can carry one, and this is the method
+    /// that decides what an edit leaves behind.</para>
     /// </summary>
     private void Set(string traitId, string? sourceId)
     {
-        if (string.IsNullOrEmpty(sourceId)) Sources.Remove(traitId);
-        else                                Sources[traitId] = sourceId;
+        if (string.IsNullOrEmpty(sourceId) || sourceId == DefaultSourceId) Sources.Remove(traitId);
+        else                                                               Sources[traitId] = sourceId;
 
         Session.NotifyChanged();
     }

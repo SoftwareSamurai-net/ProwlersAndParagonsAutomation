@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.92 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 2816 across two projects — 2748 on the engine, 68 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 2838 across two projects — 2757 on the engine, 81 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two — the terminal wizard and a Blazor WebAssembly app, both on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -112,11 +112,16 @@ Newest first. Link the PR so the reasoning stays findable.
 
 This closes what was item 2. `CharacterSheet` gains `AbilitySources` and `TalentSources`, `SourceGrouping` builds the `Abilities (…)` line a published sheet prints, and all four surfaces print it: the `.txt` sheet, the JSON export, the wizard's GM review, and the browser's `SheetView`. Both front ends can set it — a `TraitSourcePicker` on the Abilities and Talents tabs, and a Sources entry in the CLI's two rank menus — because a field no host can reach is the unused data this item was held open to avoid.
 
-**The premise this item was written on was wrong, and finding that out was most of the work.** It quoted Ch.2 p.15 as *"the Sources for your Powers and Abilities with a rank of 7d or greater"*. That sentence is real but it is **Ch.3 p.64**, inside the *random generation* tables, telling you which Traits to roll Sources for. Ch.2 p.15 says something broader and much simpler: *every* Ability, Talent and Power has a Source, Abilities are usually Innate and Talents usually Trained, "but these defaults aren't mandatory."
+**The premise this item was written on was wrong, and finding that out was most of the work.** It cited "Ch.2 p.15" for *"the Sources for your Powers and Abilities with a rank of 7d or greater"*. Two things were wrong with that, and an adversarial review caught the second after the first had been fixed:
+
+- **The sentence is on p.64**, in the Random Hero Generator, where it tells you which Traits to roll Sources for. Still Chapter 2 — an earlier pass "corrected" it to Ch.3, which was also wrong.
+- **The Sources rule is on p.16, not p.15.** p.15 is Power Levels and Packages and has no Sources text at all. That error was inherited rather than introduced, and it was in `sources.json` and six other files; all are corrected now. The footers print each page number twice interleaved, which is what made it easy to get wrong — decode one, or use the table of contents.
+
+What p.16 actually says is broader: *every* Ability, Talent and Power has a Source, and the Innate/Trained defaults hold *"at least when dealing with ordinary people. When dealing with supers and characters who aren't human, however, anything goes."* The clause "but these defaults aren't mandatory" appears **once in the book, in the p.64 sentence** — so quoting it as the Ch.2 rule, as this entry did until the review, was the same misattribution the entry was written to complain about.
 
 **Read as a rank threshold it is contradicted by the sheets, in both directions.** Alabama Slammer marks 6d Perception and 6d Toughness; Citizen Soldier leaves 9d Willpower unmarked while marking his two 12s; Stronghold leaves 10d Intellect unmarked and marks 6d Agility. So the printed line is an **exception list** — the Traits whose Source is not the default — and there is no rule that derives it. It has to be stored, which is the whole argument for the field. `PrebuiltHeroTests.ThePrintedTraitSourcesAreNotARankThreshold` names both counterexamples so the derivation cannot be reinvented.
 
-**Nine of the twenty sheets carry such a line and eleven carry none**, and both halves are transcribed — a renderer inventing a line for every character would satisfy a test that only checked the nine. Three of the nine are printed `Abilities and Talents (All)`: both Heralds and Nano, where every Trait deviates, so the engine collapses a full set to that one line and a single Talent short of it does not collapse.
+**Ten of the twenty sheets carry such a line and ten carry none**, and both halves are transcribed — a renderer inventing a line for every character would satisfy a test that only checked the ten that do. Three of the ten are printed `Abilities and Talents (All)`: both Heralds and Nano, where every Trait deviates, so the engine collapses a full set to that one line and a single Talent short of it does not collapse.
 
 Three smaller decisions, each from the printed layout rather than from convenience:
 
@@ -127,6 +132,16 @@ Three smaller decisions, each from the printed layout rather than from convenien
 **The persistence test had a blind spot this would have fallen into.** The round trip is deliberately checked against the engine's answers rather than a field list — but a Source costs nothing and changes no rank, so cost, Edge, Health, Resolve and every validation message are blind to it, and dropping `AbilitySources` from storage would have passed all five. The fix keeps the principle: it compares another *answer* — the Source headings and the trait lines under them — rather than adding two field names to a list that will go stale the same way.
 
 A Trait with no Source is **not** reported by the validator, and that is the rule rather than a missing check: the rulebook supplies a default, so silence means "on its default". A Power has no default, which is why `POWER_WITHOUT_SOURCE` exists and no Trait equivalent does. An unknown Source id, or one recorded against a Trait that does not exist, is an error on both.
+
+**Three rounds of adversarial review, and the third found more than the second.** What the reviews caught, beyond the citations above:
+
+- **`(All)` was counted on the Source rather than on the line it appears on.** With a Con splitting the Abilities across two lines, the unmodified line read `Abilities (All)` while naming four of six.
+- **A Trait recorded explicitly on its own default printed a line.** The editors strip such an entry, so it could only arrive from stored or hand-edited data — which is exactly the path that reaches the renderers without passing an editor. The filter moved into `SourceGrouping`, so the rule is now true of the engine rather than of two call sites.
+- **A blank Source threw `ArgumentNullException` out of the validator** instead of being reported. The storage guard caught it so the app never died, but that is the ordering trap already fixed twice here.
+- **Both editors offered the default twice** — seven options for six Sources — and the two spellings did different things: the blank removed the entry, the named one stored it.
+- **The `.txt` sheet and the browser sheet both decided "is there a Powers section?" by counting Powers**, so a character built entirely out of powered armour printed `(none)` and lost the only record of where the armour came from. Reverting either left every test green.
+
+**Four tests were theatre and are now not.** One asserted the opposite of its own doc comment and passed by taking only the first line of the answer; one accepted any print font size because it checked for the unit and not the value; one claimed to guard against deriving the line from rank while reading no production code at all (a 7d threshold in the engine left it green); and the `Talents (…)` line's text was unasserted everywhere, so the word and the ids could both have been wrong. `TraitSourcePicker` had no test at all — storing the default, dropping the change notification, and `@if (false)` round the whole control were all green.
 
 ### Qodana reports zero, and the fix was not a baseline — [#25](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/25)
 
@@ -318,7 +333,7 @@ The tests hold the seam open rather than merely covering it: one builds a reposi
 
 ### Sources, and Powers grouped by them on every sheet — [#15](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/15)
 
-**Six Sources** (Ch.2 p.15): Innate, Magic, Psychic, Super, Tech, Trained. Each names the Ability that stands in as a rankless Power's rank whenever Powers act on other Powers — Drain, Nullify, Dispel, Power Absorption, Power Mimicry. The split is even but not intuitive: Innate, Super and Tech use Toughness; **Trained uses Willpower**, not Toughness.
+**Six Sources** (Ch.2 p.16): Innate, Magic, Psychic, Super, Tech, Trained. Each names the Ability that stands in as a rankless Power's rank whenever Powers act on other Powers — Drain, Nullify, Dispel, Power Absorption, Power Mimicry. The split is even but not intuitive: Innate, Super and Tech use Toughness; **Trained uses Willpower**, not Toughness.
 
 `GetRankAgainstPowers` is deliberately separate from `GetEffectiveRank`, which still answers 0 for a rankless Power. The default rank stands in *only* against other Powers; it is not the Power's rank. Folding it into the effective rank would feed Edge and Resolve figures the published sheets contradict, and a test pins that distinction.
 

@@ -104,7 +104,7 @@ public sealed class RulesRepository
         _gearFeatures ??= Load<List<GearFeatureModel>>("gear_features.json");
 
     /// <summary>
-    /// The six Sources (Ch.2, p.15). A Source says what a Trait is meant to be, and sets
+    /// The six Sources (Ch.2, p.16). A Source says what a Trait is meant to be, and sets
     /// the default rank a rankless Power uses when Powers act on other Powers.
     /// </summary>
     public IReadOnlyList<SourceModel> Sources =>

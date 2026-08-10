@@ -226,7 +226,7 @@ public sealed class DerivedStatsCalculator
     /// Absorption, Power Mimicry.
     ///
     /// <para>For a ranked Power that is simply its effective rank. For one the rulebook
-    /// gives no rank, Ch.2 p.15 substitutes a <em>default rank</em> taken from an Ability
+    /// gives no rank, Ch.2 p.16 substitutes a <em>default rank</em> taken from an Ability
     /// chosen by the Power's Source: Toughness for Innate, Super and Tech; Willpower for
     /// Magic, Psychic and Trained.</para>
     ///

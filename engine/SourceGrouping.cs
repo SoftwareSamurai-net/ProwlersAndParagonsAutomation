@@ -25,7 +25,7 @@ public sealed class SourceGrouping
     public SourceGrouping(RulesRepository rules) => _rules = rules;
 
     /// <summary>
-    /// The Source an Ability takes when the sheet records none (Ch.2, p.15: "Abilities are
+    /// The Source an Ability takes when the sheet records none (Ch.2, p.16: "Abilities are
     /// usually Innate"). A default is never printed — the sheets list only the exceptions.
     /// </summary>
     public const string DefaultAbilitySourceId = "innate";

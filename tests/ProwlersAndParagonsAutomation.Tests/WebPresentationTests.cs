@@ -542,7 +542,15 @@ public sealed class WebPresentationTests
         var printed = PrintRuleFor(".power-entry.trait-sources");
         Assert.True(printed is not null,
             "The print block leaves the trait Source line at its screen size.");
-        Assert.Contains("pt", Normalise(printed!), StringComparison.Ordinal);
+
+        // The value, not merely the unit. `Contains("pt")` passed at 30pt, while this test's
+        // own comment claimed it stopped the line printing larger than the entries around it.
+        // The band it belongs to runs from the stat lines (7.5pt) to the body size (10.5pt).
+        var size = Rx(@"font-size:\s*([0-9.]+)pt").Match(Normalise(printed!));
+        Assert.True(size.Success, "The print rule sets no font size in points.");
+
+        var points = double.Parse(size.Groups[1].Value, CultureInfo.InvariantCulture);
+        Assert.InRange(points, 7.5, 10.5);
     }
 
     /// <summary>A heading that strands at the foot of a page belongs to nothing.</summary>

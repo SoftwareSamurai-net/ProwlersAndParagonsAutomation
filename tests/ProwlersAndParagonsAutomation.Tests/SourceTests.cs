@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ProwlersAndParagonsAutomation.Cli.Export;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Sheets;
@@ -5,10 +6,10 @@ using ProwlersAndParagonsAutomation.Sheets;
 namespace ProwlersAndParagonsAutomation.Tests;
 
 /// <summary>
-/// Sources (Ch.2, p.15). Six of them, each naming the Ability that stands in as a rankless
+/// Sources (Ch.2, p.16). Six of them, each naming the Ability that stands in as a rankless
 /// Power's rank when another Power acts on it.
 ///
-/// <para>Values are transcribed from the Sources table. If one of these fails, check p.15 —
+/// <para>Values are transcribed from the Sources table. If one of these fails, check p.16 —
 /// do not edit the expectation to match the code.</para>
 /// </summary>
 [Collection(SharedRules.Name)]
@@ -225,7 +226,7 @@ public sealed class SourceTests
     // ── Sources on Abilities and Talents ─────────────────────────────────────
 
     /// <summary>
-    /// A Trait left alone prints nothing. Ch.2 p.15 gives Abilities and Talents a default —
+    /// A Trait left alone prints nothing. Ch.2 p.16 gives Abilities and Talents a default —
     /// Innate and Trained — so silence is an answer, not a gap, and a sheet that listed
     /// every Trait under INNATE POWERS would be reporting the rule back at the reader.
     /// </summary>
@@ -440,6 +441,190 @@ public sealed class SourceTests
         Assert.True(abilities < heading);
         Assert.DoesNotContain("Abilities (Might)",
             txt[abilities..heading], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A character with a Trait Source and <b>no Powers at all</b> still gets its group on
+    /// the text sheet. Both renderers used to decide "is there a Powers section?" by asking
+    /// whether any Power was selected, and reverting either one leaves every other test
+    /// green — a character built entirely out of powered armour prints "(none)" and loses
+    /// the only record of where the armour came from.
+    /// </summary>
+    [Fact]
+    public void ATraitSourceWithNoPowersAtAllStillPrintsOnTheTextSheet()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.Name = "No Powers At All";
+        sheet.AbilityRanks["might"]   = 8;
+        sheet.AbilitySources["might"] = "tech";
+
+        Assert.Empty(sheet.SelectedPowers);
+
+        var txt = CharacterSheetRenderer.RenderText(
+            sheet, _f.Rules, _f.Costs, _f.Derived, _f.Validator.Validate(sheet), DateTime.UnixEpoch);
+
+        Assert.Contains("TECH POWERS", txt, StringComparison.Ordinal);
+        Assert.Contains("Abilities (Might)", txt, StringComparison.Ordinal);
+
+        // And the "no Powers" placeholder must not also appear — the sheet either has a
+        // Powers section or it does not.
+        Assert.DoesNotContain("─── POWERS ", txt, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The other half: a character with neither Powers nor Trait Sources still prints the
+    /// empty Powers section. Without this, deleting the placeholder branch entirely would
+    /// satisfy the test above.
+    /// </summary>
+    [Fact]
+    public void ACharacterWithNothingAtAllStillPrintsAnEmptyPowersSection()
+    {
+        var sheet = RulesFixture.StandardSheet();
+
+        var txt = CharacterSheetRenderer.RenderText(
+            sheet, _f.Rules, _f.Costs, _f.Derived, _f.Validator.Validate(sheet), DateTime.UnixEpoch);
+
+        Assert.Contains("─── POWERS ", txt, StringComparison.Ordinal);
+        Assert.Contains("(none)", txt, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The <c>Talents (…)</c> line, spelled out. Nothing else asserts its text: the
+    /// whole-character collapse hides it, and the bUnit test compares the rendered markup
+    /// with the engine's own answer, so both could be wrong together.
+    /// </summary>
+    [Fact]
+    public void ATalentsLineNamesItsTalentsInTheRulebooksOrder()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.TalentSources["streetwise"] = "psychic";
+        sheet.TalentSources["academics"]  = "psychic";
+
+        var group = new SourceGrouping(_f.Rules).GroupBySource(sheet).Single();
+
+        Assert.Equal("PSYCHIC POWERS", group.Heading);
+        Assert.Equal<IEnumerable<string>>(["Talents (Academics, Streetwise)"], group.TraitLines);
+    }
+
+    /// <summary>
+    /// All twelve Talents on one Source, but not all the Abilities, collapses the Talents
+    /// half alone. No published sheet shows this shape — the three that mark Talents mark
+    /// every Trait — so it is the branch most likely to be wrong and least likely to be seen.
+    /// </summary>
+    [Fact]
+    public void AllTwelveTalentsAloneCollapseToAll()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        foreach (var talent in _f.Rules.Talents) sheet.TalentSources[talent.Id] = "magic";
+        sheet.AbilitySources["willpower"] = "magic";
+
+        var group = new SourceGrouping(_f.Rules).GroupBySource(sheet).Single();
+
+        Assert.Equal<IEnumerable<string>>(
+            ["Abilities (Willpower)", "Talents (All)"], group.TraitLines);
+    }
+
+    /// <summary>
+    /// The whole-character collapse only fires when no Ability carries a Pro or Con, because
+    /// "Abilities and Talents (All)" has nowhere to print one. Deleting that guard stayed
+    /// green: the modifier test never set a Talent Source, so it could not reach this branch.
+    /// </summary>
+    [Fact]
+    public void AModifierStopsTheWholeCharacterCollapse()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        foreach (var ability in _f.Rules.Abilities) sheet.AbilitySources[ability.Id] = "tech";
+        foreach (var talent in _f.Rules.Talents)    sheet.TalentSources[talent.Id]   = "tech";
+
+        // Without a modifier this is the collapsed single line.
+        Assert.Equal<IEnumerable<string>>(
+            ["Abilities and Talents (All)"],
+            new SourceGrouping(_f.Rules).GroupBySource(sheet).Single().TraitLines);
+
+        sheet.AbilityModifiers["might"] = [new SelectedProCon("item")];
+
+        var lines = new SourceGrouping(_f.Rules).GroupBySource(sheet).Single().TraitLines;
+
+        Assert.Equal<IEnumerable<string>>(
+            [
+                "Abilities (Agility, Intellect, Perception, Toughness, Willpower)",
+                "Abilities (Might) (Item)",
+                "Talents (All)"
+            ],
+            lines);
+    }
+
+    /// <summary>
+    /// A Pro on an Ability is labelled by name like a Con. Only Cons are exercised anywhere
+    /// else — both the published Stronghold and the Hero sample use Item — so dropping the
+    /// Pro half of the lookup would print a raw id on the sheet and nothing would notice.
+    /// </summary>
+    [Fact]
+    public void AProOnAnAbilityIsNamedNotPrintedAsAnId()
+    {
+        var pro = _f.Rules.Pros[0];
+
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilitySources["might"]   = "tech";
+        sheet.AbilityModifiers["might"] = [new SelectedProCon(pro.Id)];
+
+        var lines = new SourceGrouping(_f.Rules).GroupBySource(sheet).Single().TraitLines;
+
+        Assert.Equal<IEnumerable<string>>([$"Abilities (Might) ({pro.Name})"], lines);
+        Assert.DoesNotContain(pro.Id, lines[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The JSON export carries the Trait Sources: the recorded value and the effective one
+    /// per Trait, and the printed group structure. None of it was asserted anywhere — the
+    /// whole <c>source_groups</c> array could be emptied and the suite stayed green.
+    ///
+    /// <para>Both per-Trait fields matter and they answer different questions.
+    /// <c>source</c> is the input a rebuild needs and is null when nothing was recorded;
+    /// <c>effective_source</c> is what the Trait actually is, default included.</para>
+    /// </summary>
+    [Fact]
+    public void TheJsonExportCarriesTheTraitSources()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilityRanks["might"]       = 8;
+        sheet.TalentRanks["academics"]    = 4;
+        sheet.AbilitySources["might"]     = "tech";
+        sheet.SelectedPowers.Add(new SelectedPower("blast", 4) { SourceId = "tech" });
+
+        var json = JsonDocument.Parse(CharacterSheetRenderer.RenderJson(
+            sheet, _f.Rules, _f.Costs, _f.Derived, _f.Validator.Validate(sheet), DateTime.UnixEpoch));
+
+        var might = json.RootElement.GetProperty("abilities")
+            .EnumerateArray().Single(a => a.GetProperty("id").GetString() == "might");
+
+        Assert.Equal("tech", might.GetProperty("source").GetString());
+        Assert.Equal("tech", might.GetProperty("effective_source").GetString());
+
+        // Untouched: nothing recorded, but it still *is* something.
+        var agility = json.RootElement.GetProperty("abilities")
+            .EnumerateArray().Single(a => a.GetProperty("id").GetString() == "agility");
+
+        Assert.Equal(JsonValueKind.Null, agility.GetProperty("source").ValueKind);
+        Assert.Equal("innate", agility.GetProperty("effective_source").GetString());
+
+        // A Talent takes the other default.
+        var academics = json.RootElement.GetProperty("talents")
+            .EnumerateArray().Single(t => t.GetProperty("id").GetString() == "academics");
+
+        Assert.Equal("trained", academics.GetProperty("effective_source").GetString());
+
+        // And the group structure, with the printed line inside it.
+        var group = json.RootElement.GetProperty("source_groups")
+            .EnumerateArray().Single(g => g.GetProperty("source").GetString() == "tech");
+
+        Assert.Equal("TECH POWERS", group.GetProperty("heading").GetString());
+        Assert.Equal<IEnumerable<string>>(
+            ["Abilities (Might)"],
+            group.GetProperty("trait_lines").EnumerateArray().Select(l => l.GetString()!));
+        Assert.Equal<IEnumerable<string>>(
+            ["blast"],
+            group.GetProperty("power_ids").EnumerateArray().Select(p => p.GetString()!));
     }
 
     [Fact]

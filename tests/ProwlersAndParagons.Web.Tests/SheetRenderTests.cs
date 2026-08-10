@@ -488,6 +488,95 @@ public sealed class SheetRenderTests
         Assert.Contains("Abilities (Intellect)", box, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A character with a Trait Source and <b>no Powers at all</b> gets a real Powers column
+    /// rather than the blank form. The test above cannot reach this: its sample still has
+    /// Powers, so the "is this column empty?" branch is never taken, and reverting that
+    /// branch to ask about <c>SelectedPowers</c> left the whole suite green.
+    /// </summary>
+    [Fact]
+    public void ASheetWithATraitSourceAndNoPowersIsNotABlankForm()
+    {
+        using var ctx = new RenderContext();
+        ctx.Session.Sheet.SelectedTierId = "standard";
+        ctx.Session.Sheet.AbilitySources["might"] = "tech";
+
+        Assert.Empty(ctx.Session.Sheet.SelectedPowers);
+
+        var sheet = ctx.Render<SheetView>();
+        var boxes = sheet.FindAll(".sheet-section.powers").Select(e => Collapse(e.TextContent)).ToList();
+
+        var box = Assert.Single(boxes);
+        Assert.StartsWith("TECH POWERS", box, StringComparison.Ordinal);
+        Assert.Contains("Abilities (Might)", box, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// And the other way: a character with nothing at all still gets the blank Powers form,
+    /// so deleting that branch would not satisfy the test above.
+    /// </summary>
+    [Fact]
+    public void AnEmptySheetStillPrintsABlankPowersForm()
+    {
+        using var ctx = new RenderContext();
+        ctx.Session.Sheet.SelectedTierId = "standard";
+
+        var sheet = ctx.Render<SheetView>();
+
+        Assert.Empty(sheet.FindAll(".sheet-section.powers"));
+        Assert.Contains(sheet.FindAll(".sheet-section"), s =>
+            Collapse(s.TextContent).StartsWith("Powers", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The Origin box lists the Sources the character draws on, and it is read off the
+    /// groups rather than off the Powers — so a Trait bought through powered armour puts
+    /// Tech there even with no Tech Power. Reverting it to scan Powers stayed green.
+    /// </summary>
+    [Fact]
+    public void TheOriginBoxNamesASourceHeldOnlyByATrait()
+    {
+        using var ctx = new RenderContext();
+        ctx.Session.Sheet.SelectedTierId = "standard";
+        ctx.Session.Sheet.AbilitySources["might"] = "tech";
+
+        var origin = ctx.Render<SheetView>().FindAll(".sheet-section")
+            .Select(e => Collapse(e.TextContent))
+            .Single(t => t.StartsWith("Origin", StringComparison.Ordinal));
+
+        Assert.Contains("Tech", origin, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Powers tab is the one surface that deliberately skips a group holding only a
+    /// trait line: it edits Powers, and a heading with nothing under it says less than no
+    /// heading. Asserted in both directions so the exception cannot quietly become general.
+    /// </summary>
+    [Fact]
+    public void ThePowersTabSkipsAGroupThatHoldsNoPowers()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        var unusedSource = ctx.Session.Rules.Sources.First(s =>
+            s.Id != SourceGrouping.DefaultAbilitySourceId &&
+            ctx.Session.Sheet.SelectedPowers.All(p => p.SourceId != s.Id));
+
+        ctx.Session.Sheet.AbilitySources["intellect"] = unusedSource.Id;
+
+        var headings = ctx.Render<PowersTab>().FindAll("h3")
+            .Select(h => Collapse(h.TextContent))
+            .ToList();
+
+        Assert.DoesNotContain(SourceGrouping.HeadingFor(unusedSource), headings);
+
+        // The groups that do hold Powers are all still there, so this is a skip and not a
+        // failure to render.
+        var expected = ctx.Session.Grouping.GroupBySource(ctx.Session.Sheet)
+            .Where(g => g.Powers.Count > 0)
+            .Select(g => g.Heading);
+
+        Assert.Equal(expected, headings);
+    }
+
     private static string Id(RenderContext ctx, string traitName) =>
         ctx.Session.Rules.Abilities.FirstOrDefault(a => a.Name == traitName)?.Id
         ?? ctx.Session.Rules.Talents.First(t => t.Name == traitName).Id;

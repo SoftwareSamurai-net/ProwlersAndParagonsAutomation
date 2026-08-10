@@ -338,8 +338,14 @@
     }
 
     /// <summary>
-    /// The Source groups this sheet prints. Held once because three places read it: whether
-    /// the Powers column is a blank form, the groups themselves, and the Origin box.
+    /// The Source groups this sheet prints. Named rather than repeated inline because three
+    /// places ask for it: whether the Powers column is a blank form, the groups themselves,
+    /// and the Origin box.
+    ///
+    /// <para>It is <b>recomputed on each of those reads</b> — this is an expression-bodied
+    /// property, not a cache. That is deliberate: <c>GroupBySource</c> is pure and cheap
+    /// against six Sources, six Abilities and twelve Talents, and caching it in a field
+    /// would add a way for the sheet to render a character it no longer holds.</para>
     /// </summary>
     private IReadOnlyList<SourceGrouping.Group> Groups =>
         Session.Grouping.GroupBySource(Session.Sheet);

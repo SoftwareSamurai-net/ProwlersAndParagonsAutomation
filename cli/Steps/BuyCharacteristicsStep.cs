@@ -127,7 +127,7 @@ public sealed class BuyCharacteristicsStep : IWizardStep
     private const string SourceMenuEntry = "Sources — say what these Traits are";
 
     /// <summary>
-    /// Records the Source of one Ability or Talent (Ch.2, p.15). A Source costs nothing and
+    /// Records the Source of one Ability or Talent (Ch.2, p.16). A Source costs nothing and
     /// changes no rank; it says what the Trait is meant to be, and a published sheet prints
     /// the ones that deviate from the default beside the Powers from the same Source.
     ///
@@ -160,7 +160,11 @@ public sealed class BuyCharacteristicsStep : IWizardStep
 
         var trait = traits.First(t => pick.StartsWith(t.Name, StringComparison.Ordinal));
 
+        // The default is offered once, as the first entry. Listing it again below would give
+        // seven choices for six Sources, and the two would not behave the same — the marked
+        // one removes the entry, the bare one would store it.
         var sourceChoices = rules.Sources
+            .Where(s => s.Id != defaultSourceId)
             .Select(s => s.Name)
             .Prepend($"{defaultName} (default)")
             .ToList();
