@@ -16,6 +16,9 @@ This used to live in two places (the README roadmap and a gaps list further down
 # Run the terminal wizard
 dotnet run
 
+# Cost and validate a character without a terminal (see "The headless build command")
+dotnet run -- build --from character.json --no-export
+
 # Run the browser front end
 dotnet run --project web/ProwlersAndParagons.Web.csproj
 
@@ -94,6 +97,19 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 - **`CharacterStore` decides what a stored character is by asking the engine, not by checking its shape.** A saved sheet is nested several levels deep, and `System.Text.Json` will put a null at any of them without the type system objecting — so the guard costs and validates the sheet once and rejects a payload the engine cannot answer for. The first version stripped nulls level by level and missed `"Pros":[null]`, which restored cleanly and then took the app down on the first frame, because the budget bar renders on every route. **Do not replace this with a list of shapes**: the list goes stale the first time somebody adds a field. `InvalidOperationException` is deliberately not caught there — that is a half-finished character, not a corrupt one.
 - **Trimming is disabled on publish.** `RulesRepository` deserializes by reflection, so the trimmer can quietly remove model properties and leave the site running on empty rules. See `PROGRESS.md` item 4 before turning it back on.
 
+### The headless build command
+
+`dotnet run -- build --from character.json` costs and validates a character, writes both exports and exits **0** (legal), **1** (breaks a rule) or **2** (unreadable input or bad arguments). It exists so a model can propose a character during play and have the engine decide whether it is legal. The skill that teaches that loop is `.claude/skills/prowlers-and-paragons-character/SKILL.md`.
+
+- **Nothing in `cli/Headless/` computes a Hero Point.** The model proposes and the engine decides; inverted, this is a random number generator with good prose. It also **reports and never repairs** — auto-clamping a rank would be the tool making a design decision about somebody's character, and would hide from a player that their concept did not fit.
+- **The input is the `CharacterSheet` shape, not the JSON export.** The export is a report and reading it back would rebuild a character from its own conclusions. Reading and writing that shape is `engine/CharacterSheetJson`, shared with the browser's local storage so the two cannot drift.
+- **`Read(json, strict: true)` refuses a field name that is not part of a character; `CharacterStore` deliberately does not.** A misspelled `AbilityRanks` in a submitted file drops every ability and produces a cheaper, legal character nobody notices is wrong. Restored storage wants the opposite: a field removed in a later build should cost a field, not the character.
+- **Standard output is exactly one JSON report for each of the three exits.** Anything about the run itself goes to stderr, so a caller parses stdout whole. There is a test; do not print a warning above the report.
+- **Every engine call in `Judge` is guarded and the figure comes back null rather than 0.** A submitted character can be one the engine cannot price at all — a variable-cost Power with no variant — which the validator already reports. Reporting 0 there is a lie a caller would act on.
+- `ValidationIssue` carries `SubjectKind`, `SubjectId`, `OwnerId`, `Value`, `Limit` and `Options` beside the sentence, because a repair loop would otherwise have to parse the message back into the facts it was built from. All six are optional; the messages are unchanged and still held to `ValidationMessageTests`.
+- **`UNKNOWN_TIER`, `UNKNOWN_PACKAGE`, `UNKNOWN_ABILITY` and `UNKNOWN_TALENT` exist because the wizard picks from a list and a submitted file does not.** An unknown tier used to skip *both* the budget and the Trait Cap checks, so a 99d Ability reported clean. Do not remove them on the grounds that no front end can produce one.
+- `SkillDocumentationTests` feeds the skill's own example through the strict reader and validates it. It is documentation of a schema, which rots silently; it caught two errors in its first run.
+
 ### Hosting
 
 Cloudflare Pages at `pp.softwaresamurai.net`, by `.github/workflows/deploy.yml` on push to `master`. Direct upload, not Cloudflare's Git integration — two deploy paths can disagree.
@@ -154,7 +170,7 @@ Rasterising the result needs a PDF library (there is no `pdftoppm` or Python on 
 
 ### Two test projects, and the difference between them
 
-- **`tests/ProwlersAndParagonsAutomation.Tests`** — the rules engine, plus `WebPresentationTests`, which *reads the source* of `web/` because the disciplines below are statements about how it is written.
+- **`tests/ProwlersAndParagonsAutomation.Tests`** — the rules engine, plus `WebPresentationTests`, which *reads the source* of `web/` because the disciplines below are statements about how it is written, and `HeadlessBuildTests`, which drives the `build` command end to end. **The wizard itself still has no harness** — that is the CLI gap, and it is narrower than it was rather than closed.
 - **`tests/ProwlersAndParagons.Web.Tests`** — bUnit. It *renders components* and asserts on the output, and it is the only project that may reference `web/`.
 
 **The split is the point.** A source-reading test cannot see a bug in rendered output, and one duly shipped: Razor swallowed the space in `@name` + `<text> @(rank)d</text>` and the sheet printed **"Armor8d"**. It was fixed on the sheet and the same bug in a second spelling survived on the Powers tab for another whole slice, because no source file looks wrong. Anything about what a component *produces* belongs in the bUnit project; anything about how the source is *written* belongs in the other.
@@ -376,5 +392,7 @@ Settled rules questions:
 - The Iconic tier's "200+" is explicitly a bare minimum, so it is GM discretion rather than missing data
 - Hero and Villain are **one app with two palettes**, and the mode is not a field on `CharacterSheet`
 - `engine/`, `sheets/`, `cli/` and `web/` are **separate projects**, so the dependency arrows hold at compile time rather than by convention
+- Assisted creation is a **non-interactive command plus a skill**, not an MCP server or an in-app API — and the model proposes while the engine decides, never the other way round
+- An illegal character is **reported, never repaired**: the engine is a judge and does not make design decisions about somebody's character
 
 Each of these was wrong at some point and is now covered by a regression test naming the rule. If one appears to be violated, read `PROGRESS.md` and the test before changing the code.

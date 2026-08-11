@@ -225,6 +225,34 @@ public sealed class ValidationIssueStructureTests
         }
     }
 
+    /// <summary>
+    /// Ranks bought against a Trait that does not exist. The character was charged for them
+    /// and did not have them: the total counted the ranks, the Trait Cap check saw them, and
+    /// the sheet printed nothing. It cost Hero Points for a Trait that is not in the game.
+    ///
+    /// <para>Found through the skill's own example, which named a Talent the rulebook does not
+    /// have and produced a clean report.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("athletics", "UNKNOWN_TALENT", false)]
+    [InlineData("strength", "UNKNOWN_ABILITY", true)]
+    public void RanksAgainstATraitThatDoesNotExistAreReported(string id, string code, bool ability)
+    {
+        var sheet = Legal();
+        if (ability) sheet.AbilityRanks[id] = 4; else sheet.TalentRanks[id] = 4;
+
+        var issue = Issue(sheet, code);
+
+        Assert.Equal(id, issue.SubjectId);
+        Assert.NotEmpty(issue.Options);
+        Assert.False(_f.Validator.Validate(sheet).IsValid);
+
+        // Every option is a Trait of the right kind, so a caller repairing by choosing one
+        // cannot land in the other dictionary.
+        Assert.All(issue.Options, o => Assert.NotNull(
+            ability ? _f.Rules.GetAbility(o)?.Id : _f.Rules.GetTalent(o)?.Id));
+    }
+
     /// <summary>No package at all is the ordinary case and is not a finding.</summary>
     [Fact]
     public void NoStartingPackageIsNotAnIssue()

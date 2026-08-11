@@ -17,9 +17,9 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 2845 across two projects — 2760 on the engine, 85 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 2948 across two projects — 2863 on the engine, 85 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
-| Front ends | Two — the terminal wizard and a Blazor WebAssembly app, both on the same engine assembly |
+| Front ends | Two, plus a headless command — the terminal wizard, a Blazor WebAssembly app, and `build --from`, all on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
 | Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero |
@@ -57,7 +57,9 @@ One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (M
 
 The invented per-Power lists are gone — see the completed item below. What is left is the half of the constraints that cannot be checked against anything the rulebook prints per Power: "Powers that inflict physical or energy damage", "Powers that can be activated and deactivated at will", "attack Powers", "Powers that last or can be maintained". These are shown to the player as a caveat on the option and left to the GM, which is how Ch.2 frames the list.
 
-Enforcing them would need roughly seven booleans on each of the 141 Powers — about a thousand fresh judgements against the book. That is worth doing only if something downstream actually needs it, and the obvious candidate is item 5 (assisted creation), where a model proposing a character benefits from the engine ruling out illegal combinations. Until then the caveat is honest and the guess is not.
+Enforcing them would need roughly seven booleans on each of the 141 Powers — about a thousand fresh judgements against the book. That is worth doing only if something downstream actually needs it, and the obvious candidate was assisted creation, where a model proposing a character benefits from the engine ruling out illegal combinations.
+
+**Assisted creation has now shipped without them, and did not need them** — see the completed item below. A caveat is shown to whoever is proposing and left to the GM, which is what Ch.2 says it is. So this stays open with no consumer asking for it, and the caveat remains honest where the guess would not be.
 
 ### 2. What the sheet still cannot say
 
@@ -86,19 +88,7 @@ Two ways to close it, neither free:
 
 Not urgent. The site works, and a returning visitor pays nothing.
 
-### 5. Assisted character creation from a description
-
-Give the tool a prompt like "a washed-up boxer who punches through time" and have it produce
-a legal, costed character. This is worth doing *because* the rules engine is now trustworthy:
-the model proposes, and `CostCalculator` and `CharacterValidator` decide what is legal, so it
-cannot invent a character that does not add up. That ordering is the whole value — a model
-inventing costs directly would be a random number generator with good prose.
-
-Wants a machine-usable surface first: something that takes a structured character definition,
-validates it, and returns errors the caller can act on. That is close to what
-`CharacterSheetExporter`'s JSON already emits, read in reverse.
-
-### 6. Choose and apply a licence
+### 5. Choose and apply a licence
 
 The project is intended for open-source release but is currently unlicensed, which legally means nobody may use it. Apache 2.0 is the working preference: its NOTICE requirement makes the "no rulebook content here, you must own the rulebook" statement travel with any fork. Whatever is chosen must be explicit that it covers this project's code and original text only — not the game system, which is © LakeSide Games. Worth contacting LakeSide before any public release.
 
@@ -107,6 +97,82 @@ The project is intended for open-source release but is currently unlicensed, whi
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Assisted character creation, and the three ways a character could be wrong and not be told
+
+This closes what was item 5. `dotnet run -- build --from character.json` costs and validates a
+character, writes both exports and exits 0, 1 or 2 — legal, illegal, unreadable — with one
+JSON report on standard output for all three. A skill at
+`.claude/skills/prowlers-and-paragons-character/` teaches the schema and the
+propose/validate/repair loop.
+
+**The ordering is the whole value and nothing in the new code computes a Hero Point.** A model
+proposes; `CostCalculator` and `CharacterValidator` decide. Inverted, this would be a random
+number generator with good prose — and it is only safe in this direction because the engine is
+now trustworthy enough to be the judge.
+
+**It reports and never repairs.** An over-budget character comes back with every issue and the
+caller gives something up. Auto-clamping was rejected outright: a player whose concept did not
+fit should find that out.
+
+**A command was the right surface rather than an API or an MCP server**, and the reason showed
+up immediately: it is testable, and the wizard never has been. `HeadlessBuildTests` is the
+first coverage the CLI has ever had. It drives the command through its writers rather than
+shelling out, so a failure names a line.
+
+**Three real bugs came out of pointing it at characters a wizard could never produce.** All
+three are the same shape — an id nobody checked, and a character reported as legal when it was
+not — and all three were invisible to a front end that picks from a list:
+
+- **A misspelled tier turned off both limits.** The Hero Point budget and the Trait Cap both
+  hang off the tier, and both were skipped when the id could not be found. A 99d Ability on
+  tier `"stanadrd"` came back with no findings at all: the worst answer a validator has, which
+  is a confident wrong one. Now `UNKNOWN_TIER`.
+- **An unknown starting package was silently no package**, so the character paid full rate for
+  ranks the package would have covered. That is the exact shape of the bug that put seven
+  published Heroes 4 HP over once already.
+- **Ranks bought against a Trait that does not exist were charged and then ignored** — counted
+  in the total, checked against the cap, printed nowhere. Found by the skill's own example,
+  which named a Talent the rulebook does not have and produced a clean report.
+
+**A `ValidationIssue` now carries the facts as well as the sentence** — subject kind, subject
+id, the owning item for a gear feature, value, limit, and the options a choice must come from.
+A sentence is enough for a person and not for a repair loop, which would otherwise have to
+parse "Intellect is 40d, above the Trait Cap of 12d" back into the three facts it was built
+from. Every message is byte-identical; all six properties are optional.
+
+**The tests mostly use the structure rather than asserting it is populated**, because a
+non-null check passes with the wrong id in the field, the value and the limit the wrong way
+round, or an option the data will not accept. So they read an issue, apply the repair it
+implies, re-validate and assert the finding is gone — and there is an invariant for each of
+those three failure modes across every finding the validator can produce. Six falsifiability
+probes were run against the finished suite and all six went red.
+
+Three smaller things, each a trap rather than a decision:
+
+- **The input is the `CharacterSheet` shape, not the JSON export.** The export is a report —
+  costs, derived stats, findings, all of them answers — and reading it back would mean
+  rebuilding a character out of its own conclusions.
+- **A field name that is not part of a character is now refused rather than ignored.** A
+  misspelled `AbilityRanks` silently drops every ability, and what arrives is a cheaper, legal
+  character nobody notices is wrong. Strict only on the submit path: the browser restoring its
+  own storage wants the opposite, since a field removed in a later build should cost it a
+  field rather than the character.
+- **The deserialization moved into `engine/CharacterSheetJson`** so the browser's local storage
+  and the command cannot drift. Its subtleties — `Populate` for the get-only collections, and
+  the nulls the deserializer puts where the type system says it cannot — were found by an app
+  that would not start, and are worth exactly one copy. Losing `Populate` alone fails nine
+  tests, which is what that guard is for.
+
+**Also closed: the wizard's crash on a terminal it cannot read.** Recorded by the last health
+check, in scope now because there is somewhere to send that caller. Spectre's `SelectionPrompt`
+threw `NotSupportedException` out of the first step after correctly rendering the tier table;
+it now says the terminal cannot be read and names the command that does not need one.
+
+**What this deliberately did not do** is enforce the semantic Pro/Con constraints. Item 1b
+named assisted creation as the one consumer that would justify about a thousand fresh
+judgements against the book; the consumer exists now and does not need them, because a caveat
+shown to whoever is proposing is what Ch.2 says the list is.
 
 ### Sources on Abilities and Talents, and the rank threshold that never existed
 
@@ -151,7 +217,7 @@ Two of those were mine and are worth naming, because both are traps rather than 
 
 **The remaining known gap is the CLI**: `ChooseTraitSource` and the review step's trait row have no tests, because there is no CLI test harness at all. Building one is a slice of its own, and the flow was read closely by a reviewer instead — which is how the missing loop and an unguarded `First` were found.
 
-A health check over the whole solution afterwards came back clean — zero warnings at CI strictness, 2845 tests, no vulnerable packages, the published site carrying all twelve rules files at full size, and engine, `.txt` and `.json` agreeing on every figure for three characters. It found one thing, which predates this work and is recorded here rather than fixed in a slice it does not belong to: **the wizard crashes with a raw stack trace when its terminal is not interactive** (piped or redirected input, or CI). Spectre's `SelectionPrompt` throws `NotSupportedException` and nothing catches it, so `ChooseTierStep` dumps a stack trace after correctly rendering the tier table. A capability check and a plain message would fix it — but that is CLI behaviour, and there is nothing to verify the fix with until the harness above exists.
+A health check over the whole solution afterwards came back clean — zero warnings at CI strictness, 2845 tests, no vulnerable packages, the published site carrying all twelve rules files at full size, and engine, `.txt` and `.json` agreeing on every figure for three characters. It found one thing, which predates this work and is recorded here rather than fixed in a slice it does not belong to: **the wizard crashes with a raw stack trace when its terminal is not interactive** (piped or redirected input, or CI). Spectre's `SelectionPrompt` throws `NotSupportedException` and nothing catches it, so `ChooseTierStep` dumps a stack trace after correctly rendering the tier table. A capability check and a plain message would fix it — but that is CLI behaviour, and there is nothing to verify the fix with until the harness above exists. **Fixed in the assisted-creation slice above**, which is where the caller hitting it finally had somewhere to be sent.
 
 ### Qodana reports zero, and the fix was not a baseline — [#25](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/25)
 

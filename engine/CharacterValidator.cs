@@ -128,6 +128,7 @@ public sealed class CharacterValidator
             CheckIconicTier(tier, issues);
         }
 
+        CheckTraitIds(sheet, issues);
         CheckFlawCount(sheet, issues);
         CheckFlawIds(sheet, issues);
         if (selectionsResolvable) CheckPowerCosts(sheet, issues);
@@ -303,6 +304,42 @@ public sealed class CharacterValidator
                 SubjectKind = ValidationSubject.Character,
                 Value       = count,
                 Limit       = flawRules.MaxAtCreation
+            });
+    }
+
+    /// <summary>
+    /// Ranks bought against a Trait that does not exist.
+    ///
+    /// <para>There are six Abilities and twelve Talents and both dictionaries are keyed by
+    /// id, so an id that is not one of the eighteen is a rank the character paid for and does
+    /// not have. It was charged and then ignored: it counted towards the Hero Point total,
+    /// was checked against the Trait Cap, and printed nowhere on the sheet — so the character
+    /// was simply poorer than it looked, for nothing.</para>
+    ///
+    /// <para>The wizard cannot produce this, because it offers a list. A character written by
+    /// hand or by another program can, and does — the skill's own example named a Talent the
+    /// rulebook does not have, and nothing said so.</para>
+    /// </summary>
+    private void CheckTraitIds(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        foreach (var id in sheet.AbilityRanks.Keys.Where(id => _rules.GetAbility(id) is null))
+            issues.Add(new(ValidationSeverity.Error, "UNKNOWN_ABILITY",
+                $"Ranks are recorded against '{id}', which is not one of the six Abilities "
+                + "in the rulebook.")
+            {
+                SubjectKind = ValidationSubject.Ability,
+                SubjectId   = id,
+                Options     = _rules.Abilities.Select(a => a.Id).ToList()
+            });
+
+        foreach (var id in sheet.TalentRanks.Keys.Where(id => _rules.GetTalent(id) is null))
+            issues.Add(new(ValidationSeverity.Error, "UNKNOWN_TALENT",
+                $"Ranks are recorded against '{id}', which is not one of the twelve Talents "
+                + "in the rulebook.")
+            {
+                SubjectKind = ValidationSubject.Talent,
+                SubjectId   = id,
+                Options     = _rules.Talents.Select(t => t.Id).ToList()
             });
     }
 
