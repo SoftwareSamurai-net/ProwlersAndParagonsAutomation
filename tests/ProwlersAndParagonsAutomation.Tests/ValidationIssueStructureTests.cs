@@ -265,6 +265,156 @@ public sealed class ValidationIssueStructureTests
             ability ? _f.Rules.GetAbility(o)?.Id : _f.Rules.GetTalent(o)?.Id));
     }
 
+    /// <summary>
+    /// <b>The cheapest character in the game.</b> Nothing rejected the same Con listed twice,
+    /// and every cost floors at zero, so three Burnouts cancelled a 12d Ability exactly: six
+    /// Abilities at the Trait Cap for 0 Hero Points, reported legal with an empty issue list.
+    /// Scaled up with Powers it bought 216 HP of character inside a 125 HP budget.
+    /// </summary>
+    [Fact]
+    public void TheSameConTwiceIsRefusedRatherThanDiscountedTwice()
+    {
+        var sheet = Legal();
+        foreach (var ability in _f.Rules.Abilities)
+        {
+            sheet.AbilityRanks[ability.Id] = 12;
+            sheet.AbilityModifiers[ability.Id] = [new("burnout"), new("burnout"), new("burnout")];
+        }
+
+        Assert.True(Reports(sheet, "DUPLICATE_CON"));
+        Assert.False(_f.Validator.Validate(sheet).IsValid);
+
+        // And with the duplicates gone the character is priced, not free.
+        var honest = Legal();
+        foreach (var ability in _f.Rules.Abilities) honest.AbilityRanks[ability.Id] = 12;
+
+        Assert.True(_f.Costs.TotalCost(honest) > 0);
+        Assert.False(Reports(honest, "DUPLICATE_CON"));
+    }
+
+    /// <summary>The same trap on a Power, where the floor is per Power rather than per Trait.</summary>
+    [Fact]
+    public void TheSameConTwiceOnAPowerIsRefused()
+    {
+        var sheet = Legal();
+        sheet.SelectedPowers.Add(new SelectedPower("blast", 12,
+            [], [new SelectedProCon("burnout"), new SelectedProCon("burnout")])
+        { SourceId = "tech" });
+
+        var issue = Issue(sheet, "DUPLICATE_CON");
+        Assert.Equal("burnout", issue.SubjectId);
+        Assert.Equal(_f.Rules.GetPower("blast")!.Name, issue.OwnerId);
+    }
+
+    /// <summary>
+    /// A flaw taken twice counted twice: twice against the maximum of three, and twice into
+    /// Resolve for a Condition or Plot Hook, so three copies of one flaw were worth 21 Resolve
+    /// where one is worth 19.
+    /// </summary>
+    [Fact]
+    public void TheSameFlawTwiceIsRefused()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.AbilityRanks["might"] = 3;
+        sheet.Flaws.Add(new SelectedFlaw("enemy"));
+        sheet.Flaws.Add(new SelectedFlaw("enemy"));
+
+        var issue = Issue(sheet, "DUPLICATE_FLAW");
+
+        Assert.Equal(ValidationSubject.Flaw, issue.SubjectKind);
+        Assert.Equal("enemy", issue.SubjectId);
+        Assert.False(_f.Validator.Validate(sheet).IsValid);
+
+        // One copy is the ordinary case, and its Resolve is the figure the duplicate inflated.
+        var single = RulesFixture.StandardSheet();
+        single.AbilityRanks["might"] = 3;
+        single.Flaws.Add(new SelectedFlaw("enemy"));
+
+        Assert.False(Reports(single, "DUPLICATE_FLAW"));
+        Assert.True(_f.Derived.CalculateResolve(sheet) > _f.Derived.CalculateResolve(single));
+    }
+
+    /// <summary>
+    /// A Power listed twice is a warning, not an error: the rulebook does not forbid it, and
+    /// two Blasts with different Pros is a shape a player might want. What is certainly wrong
+    /// is that the budget charges for both while the sheet shows the first.
+    /// </summary>
+    [Fact]
+    public void TheSamePowerTwiceIsAWarningRatherThanARefusal()
+    {
+        var sheet = Legal();
+        sheet.SelectedPowers.Add(new SelectedPower("blast", 2) { SourceId = "tech" });
+        sheet.SelectedPowers.Add(new SelectedPower("blast", 4) { SourceId = "tech" });
+
+        var issue = Issue(sheet, "DUPLICATE_POWER");
+
+        Assert.Equal(ValidationSeverity.Warning, issue.Severity);
+        Assert.True(_f.Validator.Validate(sheet).IsValid);
+        Assert.Equal("blast", issue.SubjectId);
+    }
+
+    /// <summary>
+    /// <b>The Brute Option is Overkill on Might.</b> The Ability was not checked, so Overkill
+    /// or Weak on any of the six halved it — 12d Intellect for 6 HP, legal, with one Con on it.
+    /// Ch.2 p.17 names Might and nothing else.
+    /// </summary>
+    [Fact]
+    public void OnlyMightIsHalvedByTheBruteOption()
+    {
+        var might = Legal();
+        might.AbilityRanks["might"] = 12;
+        might.AbilityModifiers["might"] = [new("overkill")];
+
+        var intellect = Legal();
+        intellect.AbilityRanks["intellect"] = 12;
+        intellect.AbilityModifiers["intellect"] = [new("overkill")];
+
+        Assert.Equal(6, _f.Costs.AbilityCost(might));
+        Assert.Equal(12, _f.Costs.AbilityCost(intellect));
+    }
+
+    /// <summary>
+    /// A total that wraps is not a total. Each component sums checked, but the additions
+    /// between them did not, so a large enough character came to a negative number of Hero
+    /// Points and the budget check passed in silence.
+    /// </summary>
+    [Fact]
+    public void ATotalThatWouldOverflowIsReportedRatherThanWrapped()
+    {
+        var sheet = Legal();
+        sheet.SelectedPowers.Add(new SelectedPower("determination", 0)
+        { Units = 400_000_000, SourceId = "innate" });
+        sheet.Perks.Add(new SelectedPerk("contacts", 200_000_000));
+
+        var result = _f.Validator.Validate(sheet);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Issues,
+            i => i.Code is "CHARACTER_NOT_PRICEABLE" or "HP_BUDGET_EXCEEDED");
+        Assert.Throws<OverflowException>(() => _f.Costs.TotalCost(sheet));
+    }
+
+    /// <summary>
+    /// Ranks against a Trait the rulebook does not have are reported and <b>not charged for</b>.
+    /// The total used to include them, so the report printed a price covering a Trait the
+    /// character could not possibly have, beside the error saying it does not exist.
+    /// </summary>
+    [Fact]
+    public void AnUnknownTraitIsNotChargedFor()
+    {
+        var sheet = Legal();
+        sheet.AbilityRanks["might"]    = 4;
+        sheet.TalentRanks["athletics"] = 3;
+        sheet.AbilityRanks["strength"] = 5;
+
+        var honest = Legal();
+        honest.AbilityRanks["might"] = 4;
+
+        Assert.Equal(_f.Costs.TotalCost(honest), _f.Costs.TotalCost(sheet));
+        Assert.True(Reports(sheet, "UNKNOWN_TALENT"));
+        Assert.True(Reports(sheet, "UNKNOWN_ABILITY"));
+    }
+
     /// <summary>No package at all is the ordinary case and is not a finding.</summary>
     [Fact]
     public void NoStartingPackageIsNotAnIssue()
@@ -287,7 +437,7 @@ public sealed class ValidationIssueStructureTests
         "unknown ids", "gear", "ranks on a rankless power", "unresolved selections",
         "iconic", "unknown tier", "unknown package", "unknown traits", "unknown modifiers",
         "ungraded modifiers", "negative quantities", "gear at its floor", "power at its floor",
-        "unpriceable", "sample villain"
+        "unpriceable", "duplicates", "sample villain"
     ];
 
     private CharacterSheet Build(string which)
@@ -455,6 +605,19 @@ public sealed class ValidationIssueStructureTests
                 sheet.SelectedPowers.Add(new SelectedPower("armor", 4,
                     [], [new SelectedProCon("burnout")])
                 { SourceId = "tech" });
+                return sheet;
+            }
+
+            case "duplicates":
+            {
+                var sheet = Legal();
+                sheet.Flaws.Add(new SelectedFlaw("code"));
+                sheet.AbilityRanks["might"] = 12;
+                sheet.AbilityModifiers["might"] = [new("burnout"), new("burnout")];
+                sheet.SelectedPowers.Add(new SelectedPower("blast", 2,
+                    [new SelectedProCon("subtle"), new SelectedProCon("subtle")], [])
+                { SourceId = "tech" });
+                sheet.SelectedPowers.Add(new SelectedPower("blast", 3) { SourceId = "tech" });
                 return sheet;
             }
 

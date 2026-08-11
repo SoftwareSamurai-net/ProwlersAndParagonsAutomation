@@ -810,6 +810,11 @@ public sealed class HeadlessBuildTests : IDisposable
         Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
         Assert.False(run.WizardRan);
         Assert.Contains(BuildCommand.Verb, run.StdErr, StringComparison.Ordinal);
-        Assert.Empty(run.StdOut);
+
+        // A report as well as the message. This branch returned the build command's exit code
+        // with nothing on standard output, so a caller that read stdout on a non-zero exit —
+        // which is the whole convention here — found nothing to read.
+        Assert.NotNull(run.Issue("BAD_ARGUMENTS"));
+        Assert.Equal(BuildCommand.InputUnusable, (int)run.Report["exit_code"]!);
     }
 }

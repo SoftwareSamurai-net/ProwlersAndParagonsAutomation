@@ -139,6 +139,8 @@ public sealed class CharacterValidator
         CheckTraitIds(sheet, issues);
         CheckFlawCount(sheet, issues);
         CheckFlawIds(sheet, issues);
+        CheckDuplicateFlaws(sheet, issues);
+        CheckDuplicatePowers(sheet, issues);
         // Both flags: this prices each Power, and a Pro or Con the rulebook does not have
         // throws from there just as surely as a missing cost variant does.
         if (selectionsResolvable && modifiersResolvable) CheckPowerCosts(sheet, issues);
@@ -534,9 +536,44 @@ public sealed class CharacterValidator
     {
         var resolvable = true;
         var kind       = isPro ? "Pro" : "Con";
+        var seen       = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var choice in modifiers)
         {
+            // <b>The same Con listed twice was the cheapest character in the game.</b> Nothing
+            // rejected a repeat, and every cost here floors at zero, so three Burnouts on a
+            // 12d Ability cancelled it exactly: six Abilities at the Trait Cap for 0 HP,
+            // reported legal with an empty issue list. A Trait or a Power carries a given Pro
+            // or Con once — a second copy is not a second discount, and a sheet prints it once
+            // either way.
+            // A null id is a Pro or Con with no name, which only a hand-written file produces.
+            // Reported as unknown, which is what it is, and refused before anything looks it up.
+            if (choice.Id is null)
+            {
+                issues.Add(new(ValidationSeverity.Error, isPro ? "UNKNOWN_PRO" : "UNKNOWN_CON",
+                    $"{ownerName} has a {kind} with no name at all.")
+                {
+                    SubjectKind = ValidationSubject.Character,
+                    OwnerId     = ownerName
+                });
+                resolvable = false;
+                continue;
+            }
+
+            if (!seen.Add(choice.Id))
+            {
+                issues.Add(new(ValidationSeverity.Error,
+                    isPro ? "DUPLICATE_PRO" : "DUPLICATE_CON",
+                    $"{ownerName} carries the {kind} '{choice.Id}' more than once. It applies "
+                    + "once, and a second copy would discount the same thing twice.")
+                {
+                    SubjectKind = ValidationSubject.Character,
+                    SubjectId   = choice.Id,
+                    OwnerId     = ownerName
+                });
+                continue;
+            }
+
             // The Power's own entry wins, as in CostCalculator.ResolveModifiers.
             var specific = (isPro ? power?.PowerPros : power?.PowerCons)
                 ?.FirstOrDefault(x => x.Id == choice.Id);
@@ -585,6 +622,49 @@ public sealed class CharacterValidator
         }
 
         return resolvable;
+    }
+
+    /// <summary>
+    /// The same flaw twice. It counted as two: two against the maximum of three, and — for a
+    /// Condition or Plot Hook — two points of Resolve for one drawback, so three copies of
+    /// <c>enemy</c> gave 21 Resolve where one gives 19. A character has a flaw or does not.
+    /// </summary>
+    private void CheckDuplicateFlaws(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var sf in sheet.Flaws.Where(f => f.FlawId is not null && !seen.Add(f.FlawId)))
+            issues.Add(new(ValidationSeverity.Error, "DUPLICATE_FLAW",
+                $"The flaw '{_rules.GetFlaw(sf.FlawId)?.Name ?? sf.FlawId}' is taken more than "
+                + "once. Taking it twice counts twice against the limit and pays Resolve twice "
+                + "for one drawback.")
+            {
+                SubjectKind = ValidationSubject.Flaw,
+                SubjectId   = sf.FlawId
+            });
+    }
+
+    /// <summary>
+    /// The same Power listed twice, which is a <b>warning</b> rather than an error on purpose.
+    ///
+    /// <para>The rulebook does not say a Power may not be taken twice, and two Blasts with
+    /// different Pros is a shape a player might well want — so refusing it would be this tool
+    /// deciding a rules question it cannot cite. What is certainly wrong is that the two
+    /// disagree: the budget charges for both while <c>CharacterSheet.GetPower</c> answers with
+    /// the first, so the sheet shows one Power and the total pays for two.</para>
+    /// </summary>
+    private void CheckDuplicatePowers(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var sp in sheet.SelectedPowers.Where(p => p.PowerId is not null && !seen.Add(p.PowerId)))
+            issues.Add(new(ValidationSeverity.Warning, "DUPLICATE_POWER",
+                $"{PowerName(sp.PowerId)} is listed more than once. Both are charged for, but "
+                + "a sheet shows the first, so check this is what was meant.")
+            {
+                SubjectKind = ValidationSubject.Power,
+                SubjectId   = sp.PowerId
+            });
     }
 
     private void CheckFlawIds(CharacterSheet sheet, List<ValidationIssue> issues)

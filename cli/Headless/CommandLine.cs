@@ -56,8 +56,15 @@ public sealed class CommandLine
         // No arguments: the wizard, which is a conversation and needs a terminal it can read.
         if (!_terminalIsInteractive())
         {
+            // The report as well as the message. This branch returned the build command's own
+            // exit code with none of its output, which is the same omission that was fixed for
+            // the unknown verb three lines above — and a caller reading stdout on a non-zero
+            // exit found nothing to read.
             stderr.WriteLine(InteractiveTerminal.UnavailableMessage);
-            return BuildCommand.InputUnusable;
+
+            return BuildCommand.ReportArgumentError(stdout,
+                "The character wizard needs a terminal it can read, and this one cannot be "
+                + $"read. Use the '{BuildCommand.Verb}' command instead.");
         }
 
         _runWizard();

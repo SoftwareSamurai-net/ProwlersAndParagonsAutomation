@@ -26,7 +26,12 @@ public sealed class CostCalculator
     {
         var covered = SelectedPackage(sheet)?.AbilitiesRank ?? 0;
 
-        return sheet.AbilityRanks.Sum(entry =>
+        // Ranks against an Ability the rulebook does not have are not charged for. They used to
+        // be: the total included them, so a character with a misspelled Ability was quoted a
+        // price that covered a Trait it could not possibly have — a figure printed as fact
+        // beside the error saying the Trait does not exist. UNKNOWN_ABILITY reports it; the
+        // cost should not also invent it.
+        return sheet.AbilityRanks.Where(e => _rules.GetAbility(e.Key) is not null).Sum(entry =>
         {
             var chargeable = Math.Max(0, entry.Value - covered);
             if (chargeable == 0) return 0;
@@ -57,7 +62,11 @@ public sealed class CostCalculator
     public int TalentCost(CharacterSheet sheet)
     {
         var covered = SelectedPackage(sheet)?.TalentsRank ?? 0;
-        return sheet.TalentRanks.Values.Sum(rank => Math.Max(0, rank - covered));
+
+        // Unknown ids are not charged for — see AbilityCost for why.
+        return sheet.TalentRanks
+            .Where(entry => _rules.GetTalent(entry.Key) is not null)
+            .Sum(entry => Math.Max(0, entry.Value - covered));
     }
 
     // ── Package ──────────────────────────────────────────────────────────
