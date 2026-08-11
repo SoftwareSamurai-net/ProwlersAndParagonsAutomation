@@ -17,10 +17,10 @@ namespace ProwlersAndParagonsAutomation.Tests;
 [Collection(SharedRules.Name)]
 public sealed class SkillDocumentationTests
 {
-    private static string Path_ => System.IO.Path.Combine(
+    private static string SkillPath => Path.Combine(
         RulesFixture.RepoRoot, ".claude", "skills", "prowlers-and-paragons-character", "SKILL.md");
 
-    private static string Text => File.ReadAllText(Path_);
+    private static string Text => File.ReadAllText(SkillPath);
 
     private readonly RulesFixture _f;
 

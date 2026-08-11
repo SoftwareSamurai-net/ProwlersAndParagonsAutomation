@@ -47,7 +47,7 @@ public static class CharacterSheetJson
     /// wants the opposite, since a field removed in a later build would otherwise throw away
     /// a character it could still mostly read.</para>
     /// </summary>
-    public static JsonSerializerOptions StrictOptions { get; } = new(Options)
+    private static JsonSerializerOptions StrictOptions { get; } = new(Options)
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
     };
@@ -101,16 +101,12 @@ public static class CharacterSheetJson
     /// wrong type for the field it is in. Left to the caller: a browser restoring storage
     /// wants to shrug and start empty, and a command reading a file the user named wants to
     /// say which file and why.</exception>
-    public static CharacterSheet? Read(string json) => Read(json, strict: false);
-
-    /// <summary>
-    /// <inheritdoc cref="Read(string)"/>
-    /// </summary>
     /// <param name="json">The character.</param>
     /// <param name="strict">
-    /// True to refuse a property that is not part of a character — see
-    /// <see cref="StrictOptions"/> for why that is right for a submitted file and wrong for
-    /// restored storage.
+    /// True to refuse a property that is not part of a character. <b>There is no default</b>,
+    /// because the two callers want opposite answers and neither is the obvious one: a
+    /// submitted file wants to hear about a misspelled field, and a browser restoring its own
+    /// storage would rather keep a character that has lost one.
     /// </param>
     public static CharacterSheet? Read(string json, bool strict) =>
         JsonSerializer.Deserialize<CharacterSheet>(json, strict ? StrictOptions : Options)

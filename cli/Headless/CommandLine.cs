@@ -1,5 +1,3 @@
-using ProwlersAndParagonsAutomation.Engine;
-
 namespace ProwlersAndParagonsAutomation.Cli.Headless;
 
 /// <summary>

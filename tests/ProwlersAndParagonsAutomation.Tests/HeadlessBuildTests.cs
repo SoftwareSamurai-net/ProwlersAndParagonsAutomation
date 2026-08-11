@@ -8,11 +8,13 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// <summary>
 /// The headless <c>build</c> command, end to end.
 ///
-/// <para><b>This is the first test coverage the CLI has ever had</b>, and that is not a
-/// coincidence: the wizard is a conversation with a terminal and there is no harness for
+/// <para><b>This is the first of the CLI that has been driven end to end</b>, and that is not
+/// a coincidence: the wizard is a conversation with a terminal and there is no harness for
 /// one, so every previous slice left the gap where it found it. A command that reads a file
 /// and writes a report has no such excuse — it is testable by construction, which was one of
-/// the reasons for choosing it over an API.</para>
+/// the reasons for choosing it over an API. It narrows that gap rather than closing it: the
+/// wizard's steps still have none, and the exporter was already exercised by
+/// <see cref="SourceTests"/>.</para>
 ///
 /// <para>Everything here drives <see cref="BuildCommand.Run"/> through its writers rather
 /// than shelling out to <c>dotnet run</c>, so a failure names a line rather than a process.
@@ -78,14 +80,14 @@ public sealed class HeadlessBuildTests : IDisposable
     }
 
     /// <summary>Writes a character to the scratch directory and returns its path.</summary>
-    private string File_(string json)
+    private string CharacterFile(string json)
     {
         var path = Path.Combine(_scratch, Guid.NewGuid().ToString("N") + ".json");
         File.WriteAllText(path, json);
         return path;
     }
 
-    private string SampleHeroFile() => File_(CharacterSheetJson.Write(SampleCharacters.Hero()));
+    private string SampleHeroFile() => CharacterFile(CharacterSheetJson.Write(SampleCharacters.Hero()));
 
     // ── The three exits ───────────────────────────────────────────────────
 
@@ -98,7 +100,7 @@ public sealed class HeadlessBuildTests : IDisposable
     public void ALegalCharacterExitsZeroAndReportsTheEnginesFigures()
     {
         var hero = SampleCharacters.Hero();
-        var run  = Invoke("--from", File_(CharacterSheetJson.Write(hero)), "--no-export");
+        var run  = Invoke("--from", CharacterFile(CharacterSheetJson.Write(hero)), "--no-export");
 
         Assert.Equal(BuildCommand.Ok, run.ExitCode);
         Assert.True((bool)run.Report["ok"]!);
@@ -125,7 +127,7 @@ public sealed class HeadlessBuildTests : IDisposable
         foreach (var ability in _f.Rules.Abilities) sheet.AbilityRanks[ability.Id] = 12;
         foreach (var talent in _f.Rules.Talents) sheet.TalentRanks[talent.Id] = 12;
 
-        var run = Invoke("--from", File_(CharacterSheetJson.Write(sheet)), "--no-export");
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(sheet)), "--no-export");
 
         Assert.Equal(BuildCommand.CharacterIllegal, run.ExitCode);
         Assert.False((bool)run.Report["ok"]!);
@@ -149,7 +151,7 @@ public sealed class HeadlessBuildTests : IDisposable
         sheet.Flaws.Add(new SelectedFlaw(_f.Rules.Flaws[0].Id));
         sheet.SelectedPowers.Add(new SelectedPower("chronomancy", 3));
 
-        var run = Invoke("--from", File_(CharacterSheetJson.Write(sheet)), "--no-export");
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(sheet)), "--no-export");
 
         Assert.Equal(BuildCommand.CharacterIllegal, run.ExitCode);
 
@@ -175,7 +177,7 @@ public sealed class HeadlessBuildTests : IDisposable
         sheet.Flaws.Add(new SelectedFlaw(_f.Rules.Flaws[0].Id));
         sheet.SelectedPowers.Add(new SelectedPower("omni_power", 2));
 
-        var run = Invoke("--from", File_(CharacterSheetJson.Write(sheet)), "--no-export");
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(sheet)), "--no-export");
 
         Assert.Equal(BuildCommand.CharacterIllegal, run.ExitCode);
 
@@ -200,7 +202,7 @@ public sealed class HeadlessBuildTests : IDisposable
     public void TheReportCarriesEveryFigureACallerBranchesOn()
     {
         var hero = SampleCharacters.Hero();
-        var run  = Invoke("--from", File_(CharacterSheetJson.Write(hero)), "--no-export");
+        var run  = Invoke("--from", CharacterFile(CharacterSheetJson.Write(hero)), "--no-export");
         var tier = _f.Rules.GetTier(hero.SelectedTierId!)!;
 
         Assert.Equal(tier.HeroPoints, (int)run.Report["hero_points"]!["budget"]!);
@@ -223,7 +225,7 @@ public sealed class HeadlessBuildTests : IDisposable
         foreach (var a in _f.Rules.Abilities) sheet.AbilityRanks[a.Id] = 12;
         foreach (var t in _f.Rules.Talents) sheet.TalentRanks[t.Id] = 12;
 
-        var run = Invoke("--from", File_(CharacterSheetJson.Write(sheet)), "--no-export");
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(sheet)), "--no-export");
         var over = _f.Costs.TotalCost(sheet) - _f.Rules.GetTier("standard")!.HeroPoints;
 
         Assert.True(over > 0);
@@ -239,7 +241,7 @@ public sealed class HeadlessBuildTests : IDisposable
     public void WarningsReachTheReportOnALegalCharacter()
     {
         var villain = SampleCharacters.Villain();   // legal, with one deliberate warning
-        var run     = Invoke("--from", File_(CharacterSheetJson.Write(villain)), "--no-export");
+        var run     = Invoke("--from", CharacterFile(CharacterSheetJson.Write(villain)), "--no-export");
 
         Assert.Equal(BuildCommand.Ok, run.ExitCode);
         Assert.True((bool)run.Report["ok"]!);
@@ -262,7 +264,7 @@ public sealed class HeadlessBuildTests : IDisposable
         sheet.Flaws.Add(new SelectedFlaw(_f.Rules.Flaws[0].Id));
         sheet.Gear.Add(new SelectedGear("Pistol") { Features = [new("accurate")] });
 
-        var run   = Invoke("--from", File_(CharacterSheetJson.Write(sheet)), "--no-export");
+        var run   = Invoke("--from", CharacterFile(CharacterSheetJson.Write(sheet)), "--no-export");
         var issue = run.Issue("GEAR_FEATURE_NEEDS_GRADE");
 
         Assert.NotNull(issue);
@@ -281,7 +283,7 @@ public sealed class HeadlessBuildTests : IDisposable
     [Fact]
     public void MalformedJsonExitsTwoAndStillWritesOneReport()
     {
-        var run = Invoke("--from", File_("{\"SelectedTierId\":"), "--no-export");
+        var run = Invoke("--from", CharacterFile("{\"SelectedTierId\":"), "--no-export");
 
         Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
         Assert.NotNull(run.Issue("INPUT_UNREADABLE"));
@@ -309,7 +311,7 @@ public sealed class HeadlessBuildTests : IDisposable
     [InlineData("   ")]
     public void AFileWithNoCharacterInItIsNotAnEmptyCharacter(string contents)
     {
-        var run = Invoke("--from", File_(contents), "--no-export");
+        var run = Invoke("--from", CharacterFile(contents), "--no-export");
 
         Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
         Assert.NotNull(run.Issue("INPUT_UNREADABLE"));
@@ -359,8 +361,8 @@ public sealed class HeadlessBuildTests : IDisposable
         var runs = new[]
         {
             Invoke("--from", SampleHeroFile(), "--no-export"),                    // 0
-            Invoke("--from", File_("{}"), "--no-export"),                         // 1
-            Invoke("--from", File_("{ nope"), "--no-export"),                     // 2
+            Invoke("--from", CharacterFile("{}"), "--no-export"),                         // 1
+            Invoke("--from", CharacterFile("{ nope"), "--no-export"),                     // 2
             Invoke("--nonsense")                                                  // 2
         };
 
@@ -413,9 +415,9 @@ public sealed class HeadlessBuildTests : IDisposable
     public void TheExportsAreWrittenWhereTheCallerAskedAndHoldTheCharacter()
     {
         var hero = SampleCharacters.Hero();
-        var out_ = Path.Combine(_scratch, "exports");
+        var requested = Path.Combine(_scratch, "exports");
 
-        var run = Invoke("--from", File_(CharacterSheetJson.Write(hero)), "--out", out_);
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(hero)), "--out", requested);
 
         Assert.Equal(BuildCommand.Ok, run.ExitCode);
 
@@ -428,8 +430,8 @@ public sealed class HeadlessBuildTests : IDisposable
         // Under the directory that was ASKED for. Asserting only that the reported path exists
         // tests nothing about --out: the report says wherever it wrote, so ignoring the flag
         // entirely and writing to the default output/ passed this test's own name.
-        Assert.Equal(Path.GetFullPath(out_), Path.GetDirectoryName(text));
-        Assert.Equal(Path.GetFullPath(out_), Path.GetDirectoryName(json));
+        Assert.Equal(Path.GetFullPath(requested), Path.GetDirectoryName(text));
+        Assert.Equal(Path.GetFullPath(requested), Path.GetDirectoryName(json));
 
         // And absolute, whatever form --out took, so a caller can resolve them from anywhere.
         Assert.True(Path.IsPathFullyQualified(text));
@@ -448,7 +450,7 @@ public sealed class HeadlessBuildTests : IDisposable
     public void AnIllegalCharacterStillGetsItsExports()
     {
         var sheet = RulesFixture.StandardSheet();     // no flaws: illegal at creation
-        var run   = Invoke("--from", File_(CharacterSheetJson.Write(sheet)),
+        var run   = Invoke("--from", CharacterFile(CharacterSheetJson.Write(sheet)),
                            "--out", Path.Combine(_scratch, "illegal"));
 
         Assert.Equal(BuildCommand.CharacterIllegal, run.ExitCode);
@@ -458,13 +460,13 @@ public sealed class HeadlessBuildTests : IDisposable
     [Fact]
     public void NoExportWritesNothingAtAll()
     {
-        var out_ = Path.Combine(_scratch, "unwanted");
+        var requested = Path.Combine(_scratch, "unwanted");
 
-        var run = Invoke("--from", SampleHeroFile(), "--out", out_, "--no-export");
+        var run = Invoke("--from", SampleHeroFile(), "--out", requested, "--no-export");
 
         Assert.Equal(BuildCommand.Ok, run.ExitCode);
         Assert.Null(run.Report["exports"]);
-        Assert.False(Directory.Exists(out_));
+        Assert.False(Directory.Exists(requested));
     }
 
     [Fact]
@@ -495,7 +497,7 @@ public sealed class HeadlessBuildTests : IDisposable
     public void EverySectionOfASubmittedCharacterSurvivesTheJourney()
     {
         var hero = SampleCharacters.Hero();
-        var run  = Invoke("--from", File_(CharacterSheetJson.Write(hero)),
+        var run  = Invoke("--from", CharacterFile(CharacterSheetJson.Write(hero)),
                           "--out", Path.Combine(_scratch, "whole"));
 
         var spent = (int)run.Report["hero_points"]!["spent"]!;
@@ -531,7 +533,7 @@ public sealed class HeadlessBuildTests : IDisposable
     [Fact]
     public void AFieldNameThatIsNotPartOfACharacterIsRefusedRatherThanIgnored()
     {
-        var run = Invoke("--from", File_("""
+        var run = Invoke("--from", CharacterFile("""
             {
               "SelectedTierId": "standard",
               "AbilityRank": { "might": 8 },
@@ -556,7 +558,7 @@ public sealed class HeadlessBuildTests : IDisposable
     {
         var sheet = villain ? SampleCharacters.Villain() : SampleCharacters.Hero();
 
-        var run = Invoke("--from", File_(CharacterSheetJson.Write(sheet)), "--no-export");
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(sheet)), "--no-export");
 
         Assert.Equal(BuildCommand.Ok, run.ExitCode);
     }
@@ -569,7 +571,7 @@ public sealed class HeadlessBuildTests : IDisposable
     [Fact]
     public void AFieldNameInAnotherCaseIsUnderstood()
     {
-        var run = Invoke("--from", File_("""
+        var run = Invoke("--from", CharacterFile("""
             {
               "selectedTierId": "standard",
               "abilityRanks": { "might": 8 },
@@ -590,13 +592,13 @@ public sealed class HeadlessBuildTests : IDisposable
     [Fact]
     public void TwoExportsInTheSameSecondDoNotOverwriteEachOther()
     {
-        var out_  = Path.Combine(_scratch, "twice");
+        var requested  = Path.Combine(_scratch, "twice");
         var first = SampleCharacters.Hero();
         var second = SampleCharacters.Hero();
         second.Motivation = "A different character with the same name";
 
-        var a = Invoke("--from", File_(CharacterSheetJson.Write(first)), "--out", out_);
-        var b = Invoke("--from", File_(CharacterSheetJson.Write(second)), "--out", out_);
+        var a = Invoke("--from", CharacterFile(CharacterSheetJson.Write(first)), "--out", requested);
+        var b = Invoke("--from", CharacterFile(CharacterSheetJson.Write(second)), "--out", requested);
 
         var textA = (string)a.Report["exports"]!["text"]!;
         var textB = (string)b.Report["exports"]!["text"]!;
@@ -647,7 +649,7 @@ public sealed class HeadlessBuildTests : IDisposable
     [InlineData("""{"SelectedTierId":"standard","Gear":[{"Name":null}]}""")]
     public void ACharacterWithNullsWhereIdsBelongIsReportedNotThrown(string json)
     {
-        var run = Invoke("--from", File_(json), "--no-export");
+        var run = Invoke("--from", CharacterFile(json), "--no-export");
 
         // Whatever it is, it is one of the three exits with one JSON document on stdout.
         Assert.Contains(run.ExitCode,
@@ -681,7 +683,7 @@ public sealed class HeadlessBuildTests : IDisposable
     [Fact]
     public void TheUnreadableInputMessageNamesNoInternalType()
     {
-        var run = Invoke("--from", File_("""
+        var run = Invoke("--from", CharacterFile("""
             {"SelectedTierId":"standard","SelectedPowers":[7]}
             """), "--no-export");
 
@@ -702,7 +704,7 @@ public sealed class HeadlessBuildTests : IDisposable
     [InlineData("   ")]
     public void AnEmptyFileIsSaidToBeEmptyRatherThanUnparseable(string contents)
     {
-        var message = Invoke("--from", File_(contents), "--no-export")
+        var message = Invoke("--from", CharacterFile(contents), "--no-export")
             .Issue("INPUT_UNREADABLE")!["message"]!.ToString();
 
         Assert.Contains("empty", message, StringComparison.OrdinalIgnoreCase);
