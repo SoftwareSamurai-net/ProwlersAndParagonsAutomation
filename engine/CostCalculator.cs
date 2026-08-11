@@ -33,8 +33,11 @@ public sealed class CostCalculator
 
             var modifiers = sheet.AbilityModifiers.GetValueOrDefault(entry.Key) ?? [];
 
-            // The Brute Option: Overkill on Might buys it at 1 HP per 2 ranks.
-            var cost = modifiers.Any(m => m.Id is "overkill" or "weak")
+            // The Brute Option: Overkill on **Might** buys it at 1 HP per 2 ranks. The
+            // Ability is part of the rule, not decoration — the id was not checked, so
+            // Overkill or Weak on any of the six halved it, and 12d Intellect for 6 HP was a
+            // legal character with one Con on it. Ch.2 p.17 names Might and nothing else.
+            var cost = entry.Key == "might" && modifiers.Any(m => m.Id is "overkill" or "weak")
                 ? (int)Math.Ceiling(chargeable / 2.0)
                 : chargeable;
 
@@ -469,14 +472,29 @@ public sealed class CostCalculator
     /// Grand total HP spend: package + abilities + talents + powers + perks + gear.
     /// This is compared against the tier's HeroPoints budget by CharacterValidator.
     /// </summary>
+    /// <remarks>
+    /// <b>Checked, because unchecked it wrapped to a negative total and the budget check then
+    /// passed.</b> Each component sums with <c>Enumerable.Sum</c>, which is checked and throws
+    /// — but the six additions between them were not, so Determination at 400,000,000 units
+    /// plus a Perk at 200,000,000 came to −2,094,967,284 HP, reported legal with no findings
+    /// at all. A quantity that large is nonsense either way; the point is that the answer has
+    /// to be either right or refused, and silently negative is neither.
+    ///
+    /// <para><see cref="OverflowException"/> is one of the exceptions the validator turns into
+    /// <c>CHARACTER_NOT_PRICEABLE</c>, so a character this big is now reported rather than
+    /// certified.</para>
+    /// </remarks>
     public int TotalCost(CharacterSheet sheet)
     {
-        return PackageCost(sheet)
-             + AbilityCost(sheet)
-             + TalentCost(sheet)
-             + TotalPowersCost(sheet)
-             + TotalPerksCost(sheet)
-             + TotalGearCost(sheet);
+        checked
+        {
+            return PackageCost(sheet)
+                 + AbilityCost(sheet)
+                 + TalentCost(sheet)
+                 + TotalPowersCost(sheet)
+                 + TotalPerksCost(sheet)
+                 + TotalGearCost(sheet);
+        }
     }
 
     // ── Private ──────────────────────────────────────────────────────────

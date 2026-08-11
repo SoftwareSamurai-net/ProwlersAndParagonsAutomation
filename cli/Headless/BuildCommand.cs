@@ -320,14 +320,21 @@ public sealed class BuildCommand
             sheet = read;
             return true;
         }
-        catch (JsonException e)
+        // InvalidOperationException as well as JsonException, because the deserializer throws
+        // the former — not the latter — when asked to put a null into a get-only collection.
+        // `"AbilityRanks": null` is well-formed JSON that any hand-written character might
+        // carry, and all ten of the top-level collections did it: no report, empty standard
+        // output, and the CLR's own unhandled-exception exit code.
+        catch (Exception e) when (e is JsonException or InvalidOperationException)
         {
             // The exception's own message names the C# type it failed to build — "could not be
             // converted to ProwlersAndParagonsAutomation.Engine.SelectedPower" — which is this
             // program talking about itself to somebody holding a rulebook. The path and the
             // position are the useful half and are kept; the type name is not.
-            var where = e.Path is null ? "" : $" at {e.Path}";
-            var line  = e.LineNumber is null ? "" : $", line {e.LineNumber + 1}";
+            // Only a JsonException knows where it was; the other kind does not, and says so by
+            // saying nothing rather than by guessing a position.
+            var where = (e as JsonException)?.Path is { } path ? $" at {path}" : "";
+            var line  = (e as JsonException)?.LineNumber is { } n ? $", line {n + 1}" : "";
 
             error = $"The character file is not valid JSON in the character-sheet shape{where}{line}.";
             return false;
