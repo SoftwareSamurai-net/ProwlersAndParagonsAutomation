@@ -105,6 +105,7 @@ public sealed class CharacterValidator
         var issues = new List<ValidationIssue>();
 
         CheckTierSelected(sheet, issues);
+        CheckPackage(sheet, issues);
 
         var tier = sheet.SelectedTierId is not null
             ? _rules.GetTier(sheet.SelectedTierId)
@@ -138,16 +139,58 @@ public sealed class CharacterValidator
 
     // ── Checks ────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// <para><b>An unknown tier is an error, not a shrug.</b> Every check that depends on the
+    /// tier — the Hero Point budget and the Trait Cap, which is to say both of the limits a
+    /// character can break — is skipped when the tier cannot be found, so a misspelling used
+    /// to produce a character with a 99d Ability and no findings at all. That is the worst
+    /// answer this validator can give: legal, confidently, about something that is not.</para>
+    /// </summary>
     private void CheckTierSelected(CharacterSheet sheet, List<ValidationIssue> issues)
     {
         if (sheet.SelectedTierId is null)
+        {
             issues.Add(new(ValidationSeverity.Error, "NO_TIER_SELECTED",
                 "No tier has been chosen. The tier sets the Hero Point budget and the Trait "
                 + "Cap, so nothing else can be checked until it is.")
             {
                 SubjectKind = ValidationSubject.Character,
-                Options     = _rules.Tiers.Select(t => t.Id).ToList()
+                Options     = TierIds
             });
+        }
+        else if (_rules.GetTier(sheet.SelectedTierId) is null)
+        {
+            issues.Add(new(ValidationSeverity.Error, "UNKNOWN_TIER",
+                $"There is no tier called '{sheet.SelectedTierId}' in the rulebook data. "
+                + "Without a tier there is no Hero Point budget and no Trait Cap, so neither "
+                + "can be checked.")
+            {
+                SubjectKind = ValidationSubject.Character,
+                Options     = TierIds
+            });
+        }
+    }
+
+    /// <summary>
+    /// The starting package, which is optional and so is only ever wrong by being unknown.
+    /// An unrecognised one costs nothing and grants nothing, so it was silently no package at
+    /// all — and the character was priced at full rate for ranks the package would have paid
+    /// for, which is a quiet 4 to 15 Hero Points of difference.
+    /// </summary>
+    private void CheckPackage(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        if (sheet.SelectedPackageId is null) return;
+
+        var packages = _rules.CreationRules.OptionalPackages;
+        if (packages.Any(p => p.Id == sheet.SelectedPackageId)) return;
+
+        issues.Add(new(ValidationSeverity.Error, "UNKNOWN_PACKAGE",
+            $"There is no starting package called '{sheet.SelectedPackageId}' in the rulebook "
+            + "data. Leave it unset for a character who took none.")
+        {
+            SubjectKind = ValidationSubject.Character,
+            Options     = packages.Select(p => p.Id).ToList()
+        });
     }
 
     private void CheckHpBudget(CharacterSheet sheet, TierModel tier, List<ValidationIssue> issues)
@@ -643,6 +686,9 @@ public sealed class CharacterValidator
 
     /// <summary>The six Sources, for an issue whose fix is choosing one of them.</summary>
     private IReadOnlyList<string> SourceIds => _rules.Sources.Select(s => s.Id).ToList();
+
+    /// <summary>The six tiers, likewise.</summary>
+    private IReadOnlyList<string> TierIds => _rules.Tiers.Select(t => t.Id).ToList();
 
     /// <summary>
     /// The same keys <see cref="Names"/> sets as prose, left as keys. The message humanises

@@ -32,7 +32,8 @@ public sealed class ValidationMessageTests
     public static TheoryData<string> Cases() =>
     [
         "no tier", "over budget", "above cap", "too few flaws", "too many flaws",
-        "unknown ids", "gear", "rankless power with ranks", "unresolved selections", "sample hero", "sample villain"
+        "unknown ids", "unknown tier", "unknown package", "gear", "rankless power with ranks",
+        "unresolved selections", "sample hero", "sample villain"
     ];
 
     private CharacterSheet Build(string which)
@@ -79,6 +80,20 @@ public sealed class ValidationMessageTests
                 sheet.AbilitySources["might"]      = "cosmic";
                 sheet.TalentSources["academics"]   = "cosmic";
                 sheet.AbilitySources["telepathy"]  = "tech";
+                return sheet;
+            }
+
+            case "unknown tier":
+            {
+                var sheet = RulesFixture.StandardSheet();
+                sheet.SelectedTierId = "stanadrd";
+                return sheet;
+            }
+
+            case "unknown package":
+            {
+                var sheet = RulesFixture.StandardSheet();
+                sheet.SelectedPackageId = "hero";
                 return sheet;
             }
 

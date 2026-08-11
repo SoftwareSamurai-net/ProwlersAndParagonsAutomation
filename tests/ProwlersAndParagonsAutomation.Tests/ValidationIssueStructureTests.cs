@@ -176,6 +176,62 @@ public sealed class ValidationIssueStructureTests
             Assert.False(Reports(new CharacterSheet { SelectedTierId = tier }, "NO_TIER_SELECTED"));
     }
 
+    /// <summary>
+    /// <b>A misspelled tier used to be reported as a legal character.</b> Both limits a
+    /// character can break — the Hero Point budget and the Trait Cap — hang off the tier, and
+    /// both were skipped when it could not be found. So a 99d Ability on tier
+    /// <c>"stanadrd"</c> came back with no findings at all, which is the worst answer a
+    /// validator has available: confident, and wrong.
+    /// </summary>
+    [Fact]
+    public void AnUnknownTierIsReportedRatherThanTurningEveryLimitOff()
+    {
+        var sheet = Legal();
+        sheet.SelectedTierId = "stanadrd";
+        sheet.AbilityRanks["might"] = 99;
+
+        var issue = Issue(sheet, "UNKNOWN_TIER");
+
+        Assert.Equal(ValidationSubject.Character, issue.SubjectKind);
+        Assert.Equal(_f.Rules.Tiers.Select(t => t.Id).Order(), issue.Options.Order());
+        Assert.False(_f.Validator.Validate(sheet).IsValid);
+
+        // And choosing a real one from the options gets the limits back.
+        sheet.SelectedTierId = issue.Options[0];
+        Assert.True(Reports(sheet, "TRAIT_ABOVE_CAP"));
+    }
+
+    /// <summary>
+    /// A package that is not one of the three grants nothing and costs nothing, so it was
+    /// silently no package — and the character paid full rate for the ranks it would have
+    /// covered, which is where the published Heroes were found to be 4 HP out once before.
+    /// </summary>
+    [Fact]
+    public void AnUnknownStartingPackageIsReported()
+    {
+        var sheet = Legal();
+        sheet.SelectedPackageId = "hero";       // the id is hero_package
+
+        var issue = Issue(sheet, "UNKNOWN_PACKAGE");
+
+        Assert.Equal(_f.Rules.CreationRules.OptionalPackages.Select(p => p.Id).Order(),
+                     issue.Options.Order());
+
+        foreach (var package in issue.Options)
+        {
+            var repaired = Legal();
+            repaired.SelectedPackageId = package;
+            Assert.False(Reports(repaired, "UNKNOWN_PACKAGE"));
+        }
+    }
+
+    /// <summary>No package at all is the ordinary case and is not a finding.</summary>
+    [Fact]
+    public void NoStartingPackageIsNotAnIssue()
+    {
+        Assert.False(Reports(Legal(), "UNKNOWN_PACKAGE"));
+    }
+
     // ── Invariants across every finding ───────────────────────────────────
 
     /// <summary>
@@ -187,7 +243,7 @@ public sealed class ValidationIssueStructureTests
     [
         "no tier", "over budget", "above cap", "no flaws", "too many flaws",
         "unknown ids", "gear", "ranks on a rankless power", "unresolved selections",
-        "iconic", "sample villain"
+        "iconic", "unknown tier", "unknown package", "sample villain"
     ];
 
     private CharacterSheet Build(string which)
@@ -269,6 +325,20 @@ public sealed class ValidationIssueStructureTests
             {
                 var sheet = Legal();
                 sheet.SelectedTierId = "iconic";
+                return sheet;
+            }
+
+            case "unknown tier":
+            {
+                var sheet = Legal();
+                sheet.SelectedTierId = "stanadrd";
+                return sheet;
+            }
+
+            case "unknown package":
+            {
+                var sheet = Legal();
+                sheet.SelectedPackageId = "hero";
                 return sheet;
             }
 
@@ -357,6 +427,7 @@ public sealed class ValidationIssueStructureTests
                     _f.Rules.GetFlaw(option) is not null ||
                     _f.Rules.GetPower(option) is not null ||
                     _f.Rules.GetGearFeature(option) is not null ||
+                    _f.Rules.CreationRules.OptionalPackages.Any(p => p.Id == option) ||
                     IsAVariantKey(issue, option);
 
                 Assert.True(known, $"{issue.Code} offers '{option}', which is not anything the rules have.");
