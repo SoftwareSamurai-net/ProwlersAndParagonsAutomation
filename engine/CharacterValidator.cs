@@ -589,13 +589,15 @@ public sealed class CharacterValidator
         return resolvable;
     }
 
-    /// <param name="ownerId">
-    /// <b>The id of the thing carrying the modifier, which is what goes on the issue.</b> It was
-    /// the Power's printed name, so a caller told a Pro was wrong on "Super Senses — Thermal
-    /// Vision" had a display string and no way to find the entry it belonged to. Gear has only a
-    /// name, so for gear the two are the same thing.
-    /// </param>
-    /// <param name="ownerName">The name for the sentence, which is the printed one.</param>
+    /// <summary>
+    /// One list of Pros or Cons, on whatever carries it.
+    ///
+    /// <para><b><c>ownerId</c> is an id and <c>ownerName</c> is the printed name</b>, and the two
+    /// are separate on purpose: the id goes on the issue and the name goes in the sentence. The
+    /// issue carried the printed name at first, so a caller told a Pro was wrong on "Super Senses
+    /// — Thermal Vision" had a display string and nothing it could look up. Gear has only a name,
+    /// so for gear the two are the same string.</para>
+    /// </summary>
     private bool CheckModifierList(
         IReadOnlyList<SelectedProCon> modifiers,
         bool isPro,
@@ -660,10 +662,12 @@ public sealed class CharacterValidator
                 // answers NeedsVariant rather than the caller guessing.
                 if (specific.NeedsVariant)
                 {
-                    var keys = specific.CostModifierRange?.Keys
-                               ?? specific.CostPerRankRange?.Keys.AsEnumerable();
+                    // Materialised once: it is asked three questions below, and a lazy
+                    // Keys projection would answer each by walking the dictionary again.
+                    var keys = Keys(specific.CostModifierRange?.Keys
+                                    ?? specific.CostPerRankRange?.Keys.AsEnumerable());
 
-                    if (choice.VariantKey is null || keys?.Contains(choice.VariantKey) != true)
+                    if (choice.VariantKey is null || !keys.Contains(choice.VariantKey))
                     {
                         issues.Add(new(ValidationSeverity.Error,
                             isPro ? "PRO_VARIANT_NOT_CHOSEN" : "CON_VARIANT_NOT_CHOSEN",
@@ -673,7 +677,7 @@ public sealed class CharacterValidator
                             SubjectKind = ValidationSubject.Character,
                             SubjectId   = choice.Id,
                             OwnerId     = ownerId,
-                            Options     = Keys(keys)
+                            Options     = keys
                         });
                         resolvable = false;
                     }

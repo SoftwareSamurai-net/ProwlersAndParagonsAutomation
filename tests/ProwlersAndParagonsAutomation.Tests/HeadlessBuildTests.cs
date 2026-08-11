@@ -717,14 +717,14 @@ public sealed class HeadlessBuildTests : IDisposable
     [Fact]
     public void AnExportThatCannotBeFinishedLeavesNoHalfOfItBehind()
     {
-        var out_ = Path.Combine(_scratch, "half");
+        var requested = Path.Combine(_scratch, "half");
         var hero = SampleCharacters.Hero();
         hero.Name = new string('B', 235);
 
-        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(hero)), "--out", out_);
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(hero)), "--out", requested);
 
         // Either both were written or neither was; never one.
-        var written = Directory.Exists(out_) ? Directory.GetFiles(out_) : [];
+        var written = Directory.Exists(requested) ? Directory.GetFiles(requested) : [];
 
         Assert.True(written.Length is 0 or 2, $"An export left {written.Length} file(s) behind.");
         Assert.Equal(written.Length == 0, run.Report["exports"] is null);
