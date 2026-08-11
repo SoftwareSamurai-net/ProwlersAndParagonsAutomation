@@ -4,7 +4,70 @@ namespace ProwlersAndParagonsAutomation.Engine;
 
 public enum ValidationSeverity { Error, Warning }
 
-public record ValidationIssue(ValidationSeverity Severity, string Code, string Message);
+/// <summary>
+/// What kind of thing an issue is about, so a caller can find it without parsing the
+/// sentence. <see cref="ValidationSubject.Character"/> is the whole sheet — a budget or a
+/// flaw count belongs to no single Trait.
+/// </summary>
+public enum ValidationSubject
+{
+    None,
+    Character,
+    Tier,
+    Ability,
+    Talent,
+    Power,
+    Gear,
+    GearFeature,
+    Flaw
+}
+
+/// <summary>
+/// One finding. <see cref="Message"/> is the whole of it for a person — every message is a
+/// sentence a player can act on, and there is a test that says so.
+///
+/// <para><b>The rest is for a caller that has to act on it without reading English.</b> A
+/// sentence is enough for a human and not for a repair loop: "Intellect is 40d, above the
+/// Trait Cap of 12d" would have to be parsed back into the three facts it was built from.
+/// So the facts travel beside it — which Trait, what it is, what it may be, and where a fix
+/// has to be chosen from a fixed set.</para>
+///
+/// <para>All of it is optional and every property has a null or empty default, so the 26
+/// construction sites that only ever wanted a sentence are unchanged. An issue that fills
+/// none of them is not defective; some findings genuinely have nothing to locate.</para>
+/// </summary>
+public record ValidationIssue(ValidationSeverity Severity, string Code, string Message)
+{
+    /// <summary>What kind of thing <see cref="SubjectId"/> names.</summary>
+    public ValidationSubject SubjectKind { get; init; } = ValidationSubject.None;
+
+    /// <summary>
+    /// The id of the thing at fault — an ability, talent, power, flaw or gear feature id, or
+    /// a piece of gear's name, which is all gear has. Null when the subject is the whole
+    /// character.
+    /// </summary>
+    public string? SubjectId { get; init; }
+
+    /// <summary>
+    /// The thing the subject sits on, where the subject is not top-level: the name of the
+    /// piece of gear a feature belongs to. Without it a caller can find the feature id and
+    /// not the item to change it on.
+    /// </summary>
+    public string? OwnerId { get; init; }
+
+    /// <summary>What the character has: a rank, a total cost, a count of flaws.</summary>
+    public int? Value { get; init; }
+
+    /// <summary>What the rules allow, in the same unit as <see cref="Value"/>.</summary>
+    public int? Limit { get; init; }
+
+    /// <summary>
+    /// The values a fix has to be chosen from, where the rules fix the set: the cost
+    /// variants of a Power, the grades of a gear feature, the six Sources. Empty when the
+    /// fix is a number rather than a choice.
+    /// </summary>
+    public IReadOnlyList<string> Options { get; init; } = [];
+}
 
 public record ValidationResult(IReadOnlyList<ValidationIssue> Issues)
 {
@@ -75,12 +138,16 @@ public sealed class CharacterValidator
 
     // ── Checks ────────────────────────────────────────────────────────────
 
-    private static void CheckTierSelected(CharacterSheet sheet, List<ValidationIssue> issues)
+    private void CheckTierSelected(CharacterSheet sheet, List<ValidationIssue> issues)
     {
         if (sheet.SelectedTierId is null)
             issues.Add(new(ValidationSeverity.Error, "NO_TIER_SELECTED",
                 "No tier has been chosen. The tier sets the Hero Point budget and the Trait "
-                + "Cap, so nothing else can be checked until it is."));
+                + "Cap, so nothing else can be checked until it is.")
+            {
+                SubjectKind = ValidationSubject.Character,
+                Options     = _rules.Tiers.Select(t => t.Id).ToList()
+            });
     }
 
     private void CheckHpBudget(CharacterSheet sheet, TierModel tier, List<ValidationIssue> issues)
@@ -89,7 +156,12 @@ public sealed class CharacterValidator
         if (total > tier.HeroPoints)
             issues.Add(new(ValidationSeverity.Error, "HP_BUDGET_EXCEEDED",
                 $"Character costs {total} HP but the {tier.Name} tier budget is {tier.HeroPoints} HP " +
-                $"({total - tier.HeroPoints} HP over)."));
+                $"({total - tier.HeroPoints} HP over).")
+            {
+                SubjectKind = ValidationSubject.Character,
+                Value       = total,
+                Limit       = tier.HeroPoints
+            });
     }
 
     private void CheckTraitCap(CharacterSheet sheet, TierModel tier, List<ValidationIssue> issues)
@@ -102,12 +174,24 @@ public sealed class CharacterValidator
         foreach (var (id, rank) in sheet.AbilityRanks)
             if (rank > cap)
                 issues.Add(new(ValidationSeverity.Error, "TRAIT_ABOVE_CAP",
-                    $"{_rules.GetAbility(id)?.Name ?? id} is {rank}d, above the Trait Cap of {cap}d."));
+                    $"{_rules.GetAbility(id)?.Name ?? id} is {rank}d, above the Trait Cap of {cap}d.")
+                {
+                    SubjectKind = ValidationSubject.Ability,
+                    SubjectId   = id,
+                    Value       = rank,
+                    Limit       = cap
+                });
 
         foreach (var (id, rank) in sheet.TalentRanks)
             if (rank > cap)
                 issues.Add(new(ValidationSeverity.Error, "TRAIT_ABOVE_CAP",
-                    $"{_rules.GetTalent(id)?.Name ?? id} is {rank}d, above the Trait Cap of {cap}d."));
+                    $"{_rules.GetTalent(id)?.Name ?? id} is {rank}d, above the Trait Cap of {cap}d.")
+                {
+                    SubjectKind = ValidationSubject.Talent,
+                    SubjectId   = id,
+                    Value       = rank,
+                    Limit       = cap
+                });
 
         foreach (var sp in sheet.SelectedPowers)
         {
@@ -119,8 +203,19 @@ public sealed class CharacterValidator
 
             var effective = _derived.GetEffectiveRank(sp, sheet);
             if (effective > cap)
+                // Value is the rank the Power *reaches*, not the ranks bought for it: 27
+                // Powers take a free baseline from another Trait and purchased ranks stack on
+                // top, so a caller shedding the difference has to take it off the purchased
+                // ranks — and a Power already over the cap on its baseline alone cannot be
+                // fixed here at all, only by lowering the Trait it derives from.
                 issues.Add(new(ValidationSeverity.Error, "TRAIT_ABOVE_CAP",
-                    $"{PowerName(sp.PowerId)} reaches {effective}d, above the Trait Cap of {cap}d."));
+                    $"{PowerName(sp.PowerId)} reaches {effective}d, above the Trait Cap of {cap}d.")
+                {
+                    SubjectKind = ValidationSubject.Power,
+                    SubjectId   = sp.PowerId,
+                    Value       = effective,
+                    Limit       = cap
+                });
         }
     }
 
@@ -133,7 +228,12 @@ public sealed class CharacterValidator
         if (tier.NeedsReview || tier.Id == "iconic")
             issues.Add(new(ValidationSeverity.Warning, "ICONIC_TIER_OPEN_BUDGET",
                 $"The {tier.Name} tier's Hero Point budget is a minimum rather than a limit " +
-                "(Ch.2, Power Level, p.15), so how far above it you go is the GM's call."));
+                "(Ch.2, Power Level, p.15), so how far above it you go is the GM's call.")
+            {
+                SubjectKind = ValidationSubject.Tier,
+                SubjectId   = tier.Id,
+                Limit       = tier.HeroPoints
+            });
     }
 
     private void CheckFlawCount(CharacterSheet sheet, List<ValidationIssue> issues)
@@ -144,12 +244,23 @@ public sealed class CharacterValidator
         if (count < flawRules.MinAtCreation)
             issues.Add(new(ValidationSeverity.Error, "FLAW_MIN_NOT_MET",
                 $"A character needs at least {Flaws(flawRules.MinAtCreation)} at creation, "
-                + $"and this one has {count}."));
+                + $"and this one has {count}.")
+            {
+                SubjectKind = ValidationSubject.Character,
+                Value       = count,
+                Limit       = flawRules.MinAtCreation,
+                Options     = _rules.Flaws.Select(f => f.Id).ToList()
+            });
 
         if (count > flawRules.MaxAtCreation)
             issues.Add(new(ValidationSeverity.Error, "FLAW_MAX_EXCEEDED",
                 $"A character may take at most {Flaws(flawRules.MaxAtCreation)} at creation, "
-                + $"and this one has {count}. Each one beyond that costs {flawRules.ExtraFlawCostHp} HP."));
+                + $"and this one has {count}. Each one beyond that costs {flawRules.ExtraFlawCostHp} HP.")
+            {
+                SubjectKind = ValidationSubject.Character,
+                Value       = count,
+                Limit       = flawRules.MaxAtCreation
+            });
     }
 
     private void CheckFlawIds(CharacterSheet sheet, List<ValidationIssue> issues)
@@ -158,7 +269,12 @@ public sealed class CharacterValidator
         {
             if (_rules.GetFlaw(sf.FlawId) is null)
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_FLAW",
-                    $"There is no flaw called '{sf.FlawId}' in the rulebook data."));
+                    $"There is no flaw called '{sf.FlawId}' in the rulebook data.")
+                {
+                    SubjectKind = ValidationSubject.Flaw,
+                    SubjectId   = sf.FlawId,
+                    Options     = _rules.Flaws.Select(f => f.Id).ToList()
+                });
         }
     }
 
@@ -184,7 +300,13 @@ public sealed class CharacterValidator
                 {
                     issues.Add(new(ValidationSeverity.Error, "UNKNOWN_GEAR_FEATURE",
                         $"{gear.Name} has a custom feature, '{f.FeatureId}', that is not one "
-                        + "the rulebook lists."));
+                        + "the rulebook lists.")
+                    {
+                        SubjectKind = ValidationSubject.GearFeature,
+                        SubjectId   = f.FeatureId,
+                        OwnerId     = gear.Name,
+                        Options     = _rules.GearFeatures.Select(g => g.Id).ToList()
+                    });
                     itemResolvable = false;
                     continue;
                 }
@@ -193,7 +315,13 @@ public sealed class CharacterValidator
                 {
                     issues.Add(new(ValidationSeverity.Error, "GEAR_FEATURE_NEEDS_GRADE",
                         $"{gear.Name}'s {feature.Name} feature is priced by grade, and no grade "
-                        + $"has been chosen. Pick one of: {Names(feature.CostRange?.Keys)}."));
+                        + $"has been chosen. Pick one of: {Names(feature.CostRange?.Keys)}.")
+                    {
+                        SubjectKind = ValidationSubject.GearFeature,
+                        SubjectId   = f.FeatureId,
+                        OwnerId     = gear.Name,
+                        Options     = Keys(feature.CostRange?.Keys)
+                    });
                     itemResolvable = false;
                 }
             }
@@ -206,13 +334,24 @@ public sealed class CharacterValidator
             if (itemResolvable && gear.Cons.Count > 0 && _costs.GearCost(gear) == 0)
                 issues.Add(new(ValidationSeverity.Warning, "GEAR_COST_AT_MINIMUM",
                     $"Gear '{gear.Name}' is already free after its cons. " +
-                    "No piece of gear can cost less than 0 HP, so further cons will not help."));
+                    "No piece of gear can cost less than 0 HP, so further cons will not help.")
+                {
+                    SubjectKind = ValidationSubject.Gear,
+                    SubjectId   = gear.Name,
+                    Value       = 0,
+                    Limit       = 0
+                });
 
             // Two-Fisted is what allows a matched pair to be customised for one price.
             if (gear.PairedUnderTwoFisted && !sheet.HasPower("two_fisted"))
                 issues.Add(new(ValidationSeverity.Error, "TWO_FISTED_PAIR_WITHOUT_POWER",
                     $"Gear '{gear.Name}' is recorded as a Two-Fisted pair, but the character " +
-                    "does not have the Two-Fisted Power that allows paying once for both."));
+                    "does not have the Two-Fisted Power that allows paying once for both.")
+                {
+                    SubjectKind = ValidationSubject.Gear,
+                    SubjectId   = gear.Name,
+                    Options     = ["two_fisted"]
+                });
         }
 
         return resolvable;
@@ -231,9 +370,9 @@ public sealed class CharacterValidator
     /// </summary>
     private void CheckSources(CharacterSheet sheet, List<ValidationIssue> issues)
     {
-        CheckTraitSources(sheet.AbilitySources, "Ability", "Abilities",
+        CheckTraitSources(sheet.AbilitySources, ValidationSubject.Ability, "Ability", "Abilities",
             id => _rules.GetAbility(id)?.Name, issues);
-        CheckTraitSources(sheet.TalentSources, "Talent", "Talents",
+        CheckTraitSources(sheet.TalentSources, ValidationSubject.Talent, "Talent", "Talents",
             id => _rules.GetTalent(id)?.Name, issues);
 
         foreach (var sp in sheet.SelectedPowers)
@@ -242,7 +381,12 @@ public sealed class CharacterValidator
             {
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_SOURCE",
                     $"{PowerName(sp.PowerId)} names a Source, '{sp.SourceId}', that is not one "
-                    + "of the six the rulebook gives."));
+                    + "of the six the rulebook gives.")
+                {
+                    SubjectKind = ValidationSubject.Power,
+                    SubjectId   = sp.PowerId,
+                    Options     = SourceIds
+                });
                 continue;
             }
 
@@ -253,11 +397,21 @@ public sealed class CharacterValidator
                 issues.Add(new(ValidationSeverity.Warning, "RANKLESS_POWER_WITHOUT_SOURCE",
                     $"Power '{power.Name}' has no rank of its own, so it needs a Source to " +
                     "supply the default rank used when another Power acts on it " +
-                    "(Drain, Nullify, Dispel, Power Absorption, Power Mimicry)."));
+                    "(Drain, Nullify, Dispel, Power Absorption, Power Mimicry).")
+                {
+                    SubjectKind = ValidationSubject.Power,
+                    SubjectId   = sp.PowerId,
+                    Options     = SourceIds
+                });
             else
                 issues.Add(new(ValidationSeverity.Warning, "POWER_WITHOUT_SOURCE",
                     $"Power '{power.Name}' has no Source recorded. A published sheet groups " +
-                    "Powers under Source headings, so the sheet will list it as unsourced."));
+                    "Powers under Source headings, so the sheet will list it as unsourced.")
+                {
+                    SubjectKind = ValidationSubject.Power,
+                    SubjectId   = sp.PowerId,
+                    Options     = SourceIds
+                });
         }
     }
 
@@ -269,6 +423,7 @@ public sealed class CharacterValidator
     /// </summary>
     private void CheckTraitSources(
         IReadOnlyDictionary<string, string> sources,
+        ValidationSubject kind,
         string traitKind,
         string traitKindPlural,
         Func<string, string?> nameOf,
@@ -284,7 +439,11 @@ public sealed class CharacterValidator
                 // out rather than built by appending an s to a lowercased word.
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_TRAIT_SOURCE",
                     $"A Source is recorded against '{traitId}', which is not one of the "
-                    + $"{traitKindPlural} in the rulebook."));
+                    + $"{traitKindPlural} in the rulebook.")
+                {
+                    SubjectKind = kind,
+                    SubjectId   = traitId
+                });
                 continue;
             }
 
@@ -300,11 +459,21 @@ public sealed class CharacterValidator
             if (string.IsNullOrWhiteSpace(sourceId))
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_SOURCE",
                     $"The {traitKind} '{name}' has a Source recorded against it with no value. "
-                    + "Choose one of the six the rulebook gives, or leave it on its default."));
+                    + "Choose one of the six the rulebook gives, or leave it on its default.")
+                {
+                    SubjectKind = kind,
+                    SubjectId   = traitId,
+                    Options     = SourceIds
+                });
             else if (_rules.GetSource(sourceId) is null)
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_SOURCE",
                     $"The {traitKind} '{name}' names a Source, '{sourceId}', that is not one "
-                    + "of the six the rulebook gives."));
+                    + "of the six the rulebook gives.")
+                {
+                    SubjectKind = kind,
+                    SubjectId   = traitId,
+                    Options     = SourceIds
+                });
         }
     }
 
@@ -327,7 +496,13 @@ public sealed class CharacterValidator
             if (atFloor)
                 issues.Add(new(ValidationSeverity.Warning, "POWER_COST_AT_MINIMUM",
                     $"Power '{power.Name}' has reached the minimum cost the rulebook allows " +
-                    $"({cost} HP) after its cons. Further cons will not reduce it."));
+                    $"({cost} HP) after its cons. Further cons will not reduce it.")
+                {
+                    SubjectKind = ValidationSubject.Power,
+                    SubjectId   = sp.PowerId,
+                    Value       = cost,
+                    Limit       = cost
+                });
         }
     }
 
@@ -344,7 +519,13 @@ public sealed class CharacterValidator
             if (power.MaxRank == 0 && sp.PurchasedRanks > 0)
                 issues.Add(new(ValidationSeverity.Error, "POWER_HAS_NO_RANK",
                     $"{power.Name} has no rank to buy — it is priced as a whole — but "
-                    + $"{sp.PurchasedRanks} {(sp.PurchasedRanks == 1 ? "rank was" : "ranks were")} bought."));
+                    + $"{sp.PurchasedRanks} {(sp.PurchasedRanks == 1 ? "rank was" : "ranks were")} bought.")
+                {
+                    SubjectKind = ValidationSubject.Power,
+                    SubjectId   = sp.PowerId,
+                    Value       = sp.PurchasedRanks,
+                    Limit       = 0
+                });
         }
     }
 
@@ -366,7 +547,14 @@ public sealed class CharacterValidator
             if (power is null)
             {
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_POWER",
-                    $"There is no Power called '{sp.PowerId}' in the rulebook data."));
+                    $"There is no Power called '{sp.PowerId}' in the rulebook data.")
+                {
+                    // No Options here, deliberately. There are 141 Powers and the caller
+                    // already has the list; repeating it on every typo would make the report
+                    // the largest thing in the exchange.
+                    SubjectKind = ValidationSubject.Power,
+                    SubjectId   = sp.PowerId
+                });
                 resolvable = false;
                 continue;
             }
@@ -375,7 +563,12 @@ public sealed class CharacterValidator
             {
                 issues.Add(new(ValidationSeverity.Error, "POWER_VARIANT_NOT_CHOSEN",
                     $"{power.Name} costs a different amount depending on which version you "
-                    + $"take, and none has been chosen. Pick one of: {Names(power.CostVariants?.Keys)}."));
+                    + $"take, and none has been chosen. Pick one of: {Names(power.CostVariants?.Keys)}.")
+                {
+                    SubjectKind = ValidationSubject.Power,
+                    SubjectId   = sp.PowerId,
+                    Options     = Keys(power.CostVariants?.Keys)
+                });
                 resolvable = false;
             }
 
@@ -383,7 +576,14 @@ public sealed class CharacterValidator
             {
                 issues.Add(new(ValidationSeverity.Error, "POWER_BASELINE_TRAIT_NOT_CHOSEN",
                     $"Power '{power.Name}' derives its baseline rank from a Trait the player " +
-                    "nominates, but none has been recorded."));
+                    "nominates, but none has been recorded.")
+                {
+                    // The nomination may be any ability, talent or power, so there is no short
+                    // list to offer — which is itself the answer, and the code says which
+                    // field is missing.
+                    SubjectKind = ValidationSubject.Power,
+                    SubjectId   = sp.PowerId
+                });
 
                 // Boost also takes its cost per rank from that Trait.
                 if (power.CostType == "special") resolvable = false;
@@ -407,7 +607,11 @@ public sealed class CharacterValidator
             if (power.NeedsReview)
                 issues.Add(new(ValidationSeverity.Warning, "POWER_MECHANICS_UNVERIFIED",
                     $"{power.Name} has not been fully checked against the rulebook here. "
-                    + "Read its entry and agree the numbers with your GM before play."));
+                    + "Read its entry and agree the numbers with your GM before play.")
+                {
+                    SubjectKind = ValidationSubject.Power,
+                    SubjectId   = sp.PowerId
+                });
         }
 
         var unverifiedText = sheet.SelectedPowers
@@ -436,6 +640,16 @@ public sealed class CharacterValidator
     private string PowerName(string powerId) => _rules.GetPower(powerId)?.Name ?? powerId;
 
     private static string Flaws(int count) => count == 1 ? "1 flaw" : $"{count} flaws";
+
+    /// <summary>The six Sources, for an issue whose fix is choosing one of them.</summary>
+    private IReadOnlyList<string> SourceIds => _rules.Sources.Select(s => s.Id).ToList();
+
+    /// <summary>
+    /// The same keys <see cref="Names"/> sets as prose, left as keys. The message humanises
+    /// them for a reader; a caller has to write one back into the character, and
+    /// <c>Very Accurate</c> is not a value the data accepts.
+    /// </summary>
+    private static List<string> Keys(IEnumerable<string>? keys) => (keys ?? []).ToList();
 
     /// <summary>
     /// A list of grade or variant keys, set as prose. These are the one kind of value in the
