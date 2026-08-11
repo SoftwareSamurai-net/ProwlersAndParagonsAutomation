@@ -148,10 +148,17 @@ public sealed class BuildCommand
         catch (Exception e) when (IsUnanswerable(e))
         {
             stderr.WriteLine(e.Message);
+
+            // <b>It does not guess the cause any more.</b> It used to say "a null where an id
+            // belongs, most likely" — and a reviewer duplicated an id in one of the rules files,
+            // which throws the same kind of exception from a lookup, and got a character blamed
+            // for a fault in this program's own data. A caller told that would edit its own file
+            // for ever. The exception's own words go to standard error, where somebody
+            // debugging will look and a repair loop will not.
             return Report(stdout, InputUnusable, "CHARACTER_UNUSABLE",
-                "This character could not be checked against the rules at all. Some part of "
-                + "it is not something a character can hold — a null where an id belongs, "
-                + "most likely.");
+                "This character could not be checked against the rules at all. The reason is on "
+                + "standard error; it may be the character, and it may be a fault in this "
+                + "program or in its copy of the rules.");
         }
 
         var tier  = sheet.SelectedTierId is null ? null : _rules.GetTier(sheet.SelectedTierId);
@@ -187,6 +194,28 @@ public sealed class BuildCommand
             ["issues"]  = Issues(validation),
             ["exports"] = exports
         };
+
+        // <b>A figure the engine could not supply, with nothing to fix, is a fault here.</b>
+        // The skill tells a caller that a null figure means "fix the errors and it appears" — so
+        // a null with no errors beside it is an instruction to repair a character that is
+        // already legal, which is a loop with no way out. This says whose fault it is and exits
+        // non-zero, rather than letting a caller spin.
+        if (spent is null && validation.IsValid)
+        {
+            report["ok"]        = false;
+            report["exit_code"] = CharacterIllegal;
+            report["issues"]!.AsArray().Add(new JsonObject
+            {
+                ["severity"] = "error",
+                ["code"]     = "ENGINE_COULD_NOT_ANSWER",
+                ["message"]  = "This character broke no rule, and the Hero Point total still "
+                             + "could not be worked out. That is a fault in this program rather "
+                             + "than in the character; the reason is on standard error."
+            });
+
+            stdout.WriteLine(report.ToJsonString(Formatting));
+            return CharacterIllegal;
+        }
 
         // A caller that asked for files and got none has to be able to see that in the report.
         // It was a line on stderr and an `exports: null` a caller had no reason to check —
@@ -282,6 +311,17 @@ public sealed class BuildCommand
         sheet = new CharacterSheet();
         error = "";
 
+        // <b>A Windows device name is not a file, and reading one never returns.</b>
+        // File.ReadAllText("CON") opens the console and blocks on a read with no end — no
+        // output, no exit code, forever, which is worse than any crash. COM1 and CONIN$ do the
+        // same. Refused by name before anything opens it.
+        if (from != "-" && IsADeviceName(from))
+        {
+            error = $"'{from}' is the name of a device rather than a file, and reading it would "
+                  + "never finish.";
+            return false;
+        }
+
         string text;
         try
         {
@@ -340,6 +380,34 @@ public sealed class BuildCommand
             return false;
         }
     }
+
+    /// <summary>
+    /// The DOS device names Windows still reserves, which are legal-looking paths in every
+    /// directory at once. <c>NUL</c> and <c>PRN</c> happen to fail politely; <c>CON</c>,
+    /// <c>COM1</c> and <c>CONIN$</c> hang, so the whole set is refused rather than the three
+    /// that were caught misbehaving.
+    ///
+    /// <para>Matched on the file name without its extension, because <c>CON.json</c> is the
+    /// console too. Ordinal-ignore-case, not the current culture: this is a rule about bytes
+    /// Windows reserves, not about words.</para>
+    /// </summary>
+    private static bool IsADeviceName(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+
+        string name;
+        try { name = Path.GetFileNameWithoutExtension(path); }
+        catch (ArgumentException) { return false; }   // reported by the read instead
+
+        return DeviceNames.Contains(name);
+    }
+
+    private static readonly HashSet<string> DeviceNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+    };
 
     // ── Arguments ─────────────────────────────────────────────────────────
 

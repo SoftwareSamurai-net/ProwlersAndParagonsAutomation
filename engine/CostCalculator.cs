@@ -141,7 +141,12 @@ public sealed class CostCalculator
                     Fixed((int)calc.ResolveVariant(power, selection)),
 
                 "per_unit" =>
-                    Fixed((power.CostPerUnit ?? throw MissingCost(power, "cost_per_unit")) * selection.Units),
+                    // checked: unchecked, a large quantity wrapped to a negative cost, which
+                    // Fixed() then floored to 1 — Determination at 500,000,000 units cost 5 HP
+                    // and gave 500,000,016 Resolve, exit 0, no findings. Making TotalCost
+                    // checked was not enough; the multiplications underneath it are where the
+                    // wrap happens.
+                    Fixed(checked((power.CostPerUnit ?? throw MissingCost(power, "cost_per_unit")) * selection.Units)),
 
                 _ => throw new InvalidOperationException(
                          $"Unknown cost_type '{power.CostType}' on power '{power.Id}'.")
@@ -197,7 +202,7 @@ public sealed class CostCalculator
                 return (0, entry.CostPerRank ?? throw MissingProConCost(power, entry, "cost_per_rank"));
 
             case "per_unit":
-                return ((entry.CostPerUnit ?? throw MissingProConCost(power, entry, "cost_per_unit")) * units, 0);
+                return (checked((entry.CostPerUnit ?? throw MissingProConCost(power, entry, "cost_per_unit")) * units), 0);
 
             case "per_rank_per_unit":
                 return (0, (entry.CostPerRank ?? throw MissingProConCost(power, entry, "cost_per_rank")) * units);
@@ -401,7 +406,7 @@ public sealed class CostCalculator
         return perk.CostType switch
         {
             "flat"     => perk.Cost ?? 0,
-            "per_unit" => (perk.CostPerUnit ?? 1) * selection.Units,
+            "per_unit" => checked((perk.CostPerUnit ?? 1) * selection.Units),
             _          => throw new InvalidOperationException(
                               $"Unknown cost_type '{perk.CostType}' on perk '{perk.Id}'.")
         };

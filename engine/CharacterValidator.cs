@@ -50,9 +50,13 @@ public record ValidationIssue(ValidationSeverity Severity, string Code, string M
     public string? SubjectId { get; init; }
 
     /// <summary>
-    /// The thing the subject sits on, where the subject is not top-level: the name of the
-    /// piece of gear a feature belongs to. Without it a caller can find the feature id and
-    /// not the item to change it on.
+    /// The thing the subject sits on, where the subject is not top-level: the Power carrying a
+    /// Pro, or the piece of gear carrying a feature. Without it a caller can find the feature
+    /// id and not the item to change it on.
+    ///
+    /// <para><b>An id, not a printed name</b> — except for gear, which has only a name. It held
+    /// the Power's printed name at first, so a caller told a Pro was wrong on "Super Senses —
+    /// Thermal Vision" had a display string and nothing it could look up.</para>
     /// </summary>
     public string? OwnerId { get; init; }
 
@@ -435,6 +439,64 @@ public sealed class CharacterValidator
                 $"The perk '{_rules.GetPerk(perk.PerkId)?.Name ?? perk.PerkId}' is bought "
                 + $"{perk.Units} times, which would pay the character Hero Points rather than "
                 + "cost them.", perk.Units));
+
+        // A Pro or Con carries a quantity too, and it was the one field of the five that
+        // nothing looked at. A Power-specific Pro priced per rank per unit at a quantity of
+        // −1000 drove the Power's rate to −498, which the rulebook floor caught at half a point
+        // per rank — so a 24 HP Power cost 6 and nothing said a word.
+        foreach (var (owner, choice) in EveryModifier(sheet).Where(m => m.Choice.Units < 0))
+            issues.Add(Negative("NEGATIVE_UNITS", ValidationSubject.Character, choice.Id,
+                $"{owner}'s '{choice.Id}' is applied {choice.Units} times, which would "
+                + "discount it rather than charge for it.", choice.Units!.Value));
+
+        // Zero is not a purchase. A per-unit Perk or Power at no units costs nothing and does
+        // nothing, so it is a line on the sheet the character did not buy.
+        foreach (var perk in sheet.Perks.Where(p => p.Units == 0 && _rules.GetPerk(p.PerkId)?.CostType == "per_unit"))
+            issues.Add(new(ValidationSeverity.Error, "PER_UNIT_WITHOUT_UNITS",
+                $"The perk '{_rules.GetPerk(perk.PerkId)!.Name}' is priced by the unit and none "
+                + "has been bought, so it would cost nothing and do nothing.")
+            {
+                SubjectKind = ValidationSubject.Character,
+                SubjectId   = perk.PerkId,
+                Value       = 0,
+                Limit       = 1
+            });
+
+        foreach (var sp in sheet.SelectedPowers.Where(p => p.Units == 0 && _rules.GetPower(p.PowerId)?.CostType == "per_unit"))
+            issues.Add(new(ValidationSeverity.Error, "PER_UNIT_WITHOUT_UNITS",
+                $"{PowerName(sp.PowerId)} is priced by the unit and none has been bought, so it "
+                + "would cost nothing and do nothing.")
+            {
+                SubjectKind = ValidationSubject.Power,
+                SubjectId   = sp.PowerId,
+                Value       = 0,
+                Limit       = 1
+            });
+    }
+
+    /// <summary>
+    /// Every Pro and Con on the character with the name of whatever carries it, so a check that
+    /// applies to all of them does not have to walk three collections itself.
+    /// </summary>
+    private IEnumerable<(string Owner, SelectedProCon Choice)> EveryModifier(CharacterSheet sheet)
+    {
+        foreach (var sp in sheet.SelectedPowers)
+        {
+            foreach (var p in sp.Pros.Concat(sp.Cons))
+                if (p is not null) yield return (PowerName(sp.PowerId), p);
+        }
+
+        foreach (var gear in sheet.Gear)
+        {
+            foreach (var p in gear.Pros.Concat(gear.Cons))
+                if (p is not null) yield return (gear.Name, p);
+        }
+
+        foreach (var (abilityId, modifiers) in sheet.AbilityModifiers)
+        {
+            foreach (var p in modifiers ?? [])
+                if (p is not null) yield return (_rules.GetAbility(abilityId)?.Name ?? abilityId, p);
+        }
     }
 
     private static ValidationIssue Negative(
@@ -488,14 +550,14 @@ public sealed class CharacterValidator
         foreach (var sp in sheet.SelectedPowers)
         {
             var power = _rules.GetPower(sp.PowerId);
-            resolvable &= CheckModifierList(sp.Pros, isPro: true, power, PowerName(sp.PowerId), issues);
-            resolvable &= CheckModifierList(sp.Cons, isPro: false, power, PowerName(sp.PowerId), issues);
+            resolvable &= CheckModifierList(sp.Pros, isPro: true, power, sp.PowerId, PowerName(sp.PowerId), issues);
+            resolvable &= CheckModifierList(sp.Cons, isPro: false, power, sp.PowerId, PowerName(sp.PowerId), issues);
         }
 
         foreach (var gear in sheet.Gear)
         {
-            resolvable &= CheckModifierList(gear.Pros, isPro: true, null, gear.Name, issues);
-            resolvable &= CheckModifierList(gear.Cons, isPro: false, null, gear.Name, issues);
+            resolvable &= CheckModifierList(gear.Pros, isPro: true, null, gear.Name, gear.Name, issues);
+            resolvable &= CheckModifierList(gear.Cons, isPro: false, null, gear.Name, gear.Name, issues);
         }
 
         foreach (var (abilityId, modifiers) in sheet.AbilityModifiers)
@@ -520,16 +582,25 @@ public sealed class CharacterValidator
 
             // Cons only, on the Cons list, is how the pickers offer them — but a submitted
             // file can put anything here, and both are priced, so both are checked.
-            resolvable &= CheckModifierList(modifiers, isPro: false, null, name, issues, alsoTryPros: true);
+            resolvable &= CheckModifierList(modifiers, isPro: false, null, abilityId, name, issues,
+                alsoTryPros: true);
         }
 
         return resolvable;
     }
 
+    /// <param name="ownerId">
+    /// <b>The id of the thing carrying the modifier, which is what goes on the issue.</b> It was
+    /// the Power's printed name, so a caller told a Pro was wrong on "Super Senses — Thermal
+    /// Vision" had a display string and no way to find the entry it belonged to. Gear has only a
+    /// name, so for gear the two are the same thing.
+    /// </param>
+    /// <param name="ownerName">The name for the sentence, which is the printed one.</param>
     private bool CheckModifierList(
         IReadOnlyList<SelectedProCon> modifiers,
         bool isPro,
         PowerModel? power,
+        string ownerId,
         string ownerName,
         List<ValidationIssue> issues,
         bool alsoTryPros = false)
@@ -554,7 +625,7 @@ public sealed class CharacterValidator
                     $"{ownerName} has a {kind} with no name at all.")
                 {
                     SubjectKind = ValidationSubject.Character,
-                    OwnerId     = ownerName
+                    OwnerId     = ownerId
                 });
                 resolvable = false;
                 continue;
@@ -569,7 +640,7 @@ public sealed class CharacterValidator
                 {
                     SubjectKind = ValidationSubject.Character,
                     SubjectId   = choice.Id,
-                    OwnerId     = ownerName
+                    OwnerId     = ownerId
                 });
                 continue;
             }
@@ -578,7 +649,38 @@ public sealed class CharacterValidator
             var specific = (isPro ? power?.PowerPros : power?.PowerCons)
                 ?.FirstOrDefault(x => x.Id == choice.Id);
 
-            if (specific is not null) continue;
+            if (specific is not null)
+            {
+                // <b>A Power's own Pro or Con needs its grade checked too.</b> This branch used
+                // to `continue` straight past, so the eleventh shape of character that made the
+                // validator throw was Drain carrying its own Only X Con with no grade — the one
+                // finding this method exists to produce, never produced, on the one branch that
+                // skipped it. The variant lives in a different field for a Power-specific entry
+                // (CostModifierRange or CostPerRankRange by cost type), which is why the model
+                // answers NeedsVariant rather than the caller guessing.
+                if (specific.NeedsVariant)
+                {
+                    var keys = specific.CostModifierRange?.Keys
+                               ?? specific.CostPerRankRange?.Keys.AsEnumerable();
+
+                    if (choice.VariantKey is null || keys?.Contains(choice.VariantKey) != true)
+                    {
+                        issues.Add(new(ValidationSeverity.Error,
+                            isPro ? "PRO_VARIANT_NOT_CHOSEN" : "CON_VARIANT_NOT_CHOSEN",
+                            $"{ownerName}'s {kind} '{specific.Name}' is priced by grade, and no "
+                            + $"grade the rulebook lists has been chosen. Pick one of: {Names(keys)}.")
+                        {
+                            SubjectKind = ValidationSubject.Character,
+                            SubjectId   = choice.Id,
+                            OwnerId     = ownerId,
+                            Options     = Keys(keys)
+                        });
+                        resolvable = false;
+                    }
+                }
+
+                continue;
+            }
 
             var range = isPro ? _rules.GetPro(choice.Id)?.CostModifierRange
                               : _rules.GetCon(choice.Id)?.CostModifierRange;
@@ -595,7 +697,7 @@ public sealed class CharacterValidator
                 {
                     SubjectKind = ValidationSubject.Character,
                     SubjectId   = choice.Id,
-                    OwnerId     = ownerName
+                    OwnerId     = ownerId
                 });
                 resolvable = false;
                 continue;
@@ -614,7 +716,7 @@ public sealed class CharacterValidator
                 {
                     SubjectKind = ValidationSubject.Character,
                     SubjectId   = choice.Id,
-                    OwnerId     = ownerName,
+                    OwnerId     = ownerId,
                     Options     = Keys(range.Keys)
                 });
                 resolvable = false;

@@ -303,7 +303,9 @@ public sealed class ValidationIssueStructureTests
 
         var issue = Issue(sheet, "DUPLICATE_CON");
         Assert.Equal("burnout", issue.SubjectId);
-        Assert.Equal(_f.Rules.GetPower("blast")!.Name, issue.OwnerId);
+
+        // The Power's id, not its printed name: the owner is there to be looked up.
+        Assert.Equal("blast", issue.OwnerId);
     }
 
     /// <summary>
@@ -415,6 +417,94 @@ public sealed class ValidationIssueStructureTests
         Assert.True(Reports(sheet, "UNKNOWN_ABILITY"));
     }
 
+    /// <summary>
+    /// <b>A Power's own Pro or Con needs its grade checked too.</b> The branch that resolves a
+    /// Pro or Con printed inside a Power's entry skipped the grade check and went straight on,
+    /// so Drain carrying its own ungraded Only X threw out of the validator — the eleventh
+    /// shape of character to do that, on the one branch the tenth fix did not cover.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("nope")]
+    public void APowerSpecificConPricedByGradeIsCheckedLikeAnyOther(string? key)
+    {
+        var sheet = Legal();
+        sheet.SelectedPowers.Add(new SelectedPower("drain", 6,
+            [], [new SelectedProCon("only_x", key)]) { SourceId = "magic" });
+
+        var issue = Issue(sheet, "CON_VARIANT_NOT_CHOSEN");
+        Assert.NotEmpty(issue.Options);
+
+        foreach (var grade in issue.Options)
+        {
+            var repaired = Legal();
+            repaired.SelectedPowers.Add(new SelectedPower("drain", 6,
+                [], [new SelectedProCon("only_x", grade)]) { SourceId = "magic" });
+
+            Assert.False(Reports(repaired, "CON_VARIANT_NOT_CHOSEN"));
+            Assert.True(_f.Costs.TotalCost(repaired) > 0);
+        }
+    }
+
+    /// <summary>
+    /// A quantity on a Pro or Con was the one of the five that nothing bounded, and it buys a
+    /// discount: a per-rank-per-unit Pro at −1000 drove a Power's rate to −498, which the
+    /// rulebook floor caught at half a point per rank, so a 24 HP Power cost 6 in silence.
+    /// </summary>
+    [Fact]
+    public void ANegativeQuantityOnAProIsRefused()
+    {
+        var sheet = Legal();
+        sheet.SelectedPowers.Add(new SelectedPower("nullify", 12,
+            [new SelectedProCon("also_x") { Units = -1000 }], []) { SourceId = "magic" });
+
+        var issue = Issue(sheet, "NEGATIVE_UNITS");
+
+        Assert.Equal("also_x", issue.SubjectId);
+        Assert.Equal(-1000, issue.Value);
+        Assert.False(_f.Validator.Validate(sheet).IsValid);
+    }
+
+    /// <summary>
+    /// A quantity large enough to wrap the multiplication. Making the grand total checked was
+    /// not enough — the wrap happened in the per-unit multiplication underneath it, so
+    /// Determination at 500,000,000 units cost 5 HP and gave 500,000,016 Resolve at exit 0.
+    /// </summary>
+    [Theory]
+    [InlineData("determination")]
+    [InlineData("alternate_form")]
+    public void AQuantityLargeEnoughToWrapACostIsReported(string powerId)
+    {
+        var sheet = Legal();
+        sheet.SelectedPowers.Add(new SelectedPower(powerId, 0)
+        { Units = 600_000_000, SourceId = "innate" });
+
+        Assert.False(_f.Validator.Validate(sheet).IsValid);
+        Assert.Throws<OverflowException>(() => _f.Costs.TotalCost(sheet));
+    }
+
+    /// <summary>
+    /// Zero of a thing priced by the unit is not a purchase: it costs nothing and does nothing,
+    /// so it is a line on the sheet the character did not buy.
+    /// </summary>
+    [Fact]
+    public void APerUnitPurchaseOfNothingIsReported()
+    {
+        var sheet = Legal();
+        sheet.Perks.Add(new SelectedPerk("contacts", 0));
+
+        var issue = Issue(sheet, "PER_UNIT_WITHOUT_UNITS");
+
+        Assert.Equal("contacts", issue.SubjectId);
+        Assert.Equal(0, issue.Value);
+        Assert.Equal(1, issue.Limit);
+
+        // A flat perk is not affected: Units means nothing to one.
+        var flat = Legal();
+        flat.Perks.Add(new SelectedPerk("fame"));
+        Assert.False(Reports(flat, "PER_UNIT_WITHOUT_UNITS"));
+    }
+
     /// <summary>No package at all is the ordinary case and is not a finding.</summary>
     [Fact]
     public void NoStartingPackageIsNotAnIssue()
@@ -437,7 +527,8 @@ public sealed class ValidationIssueStructureTests
         "unknown ids", "gear", "ranks on a rankless power", "unresolved selections",
         "iconic", "unknown tier", "unknown package", "unknown traits", "unknown modifiers",
         "ungraded modifiers", "negative quantities", "gear at its floor", "power at its floor",
-        "unpriceable", "duplicates", "sample villain"
+        "unpriceable", "duplicates", "per-unit with no units",
+        "power-specific ungraded", "sample villain"
     ];
 
     private CharacterSheet Build(string which)
@@ -585,6 +676,28 @@ public sealed class ValidationIssueStructureTests
                 sheet.SelectedPowers.Add(new SelectedPower("immunity", 0)
                 { Units = -20, SourceId = "tech" });
                 sheet.Perks.Add(new SelectedPerk("contacts", -1000));
+                sheet.SelectedPowers.Add(new SelectedPower("nullify", 6,
+                    [new SelectedProCon("also_x") { Units = -1000 }], []) { SourceId = "magic" });
+                return sheet;
+            }
+
+            case "power-specific ungraded":
+            {
+                // Drain's own Only X Con is priced by grade, and the branch that handles a
+                // Power's own Pros and Cons skipped the grade check entirely — so this threw
+                // out of the validator rather than being reported.
+                var sheet = Legal();
+                sheet.SelectedPowers.Add(new SelectedPower("drain", 6,
+                    [], [new SelectedProCon("only_x")]) { SourceId = "magic" });
+                return sheet;
+            }
+
+            case "per-unit with no units":
+            {
+                var sheet = Legal();
+                sheet.Perks.Add(new SelectedPerk("contacts", 0));
+                sheet.SelectedPowers.Add(new SelectedPower("determination", 0)
+                { Units = 0, SourceId = "innate" });
                 return sheet;
             }
 
@@ -742,7 +855,8 @@ public sealed class ValidationIssueStructureTests
             if (issue.Value is not { } value || issue.Limit is not { } limit) continue;
 
             if (issue.Code.Contains("MIN_NOT_MET", StringComparison.Ordinal)
-                || issue.Code.StartsWith("NEGATIVE_", StringComparison.Ordinal))
+                || issue.Code.StartsWith("NEGATIVE_", StringComparison.Ordinal)
+                || issue.Code.EndsWith("WITHOUT_UNITS", StringComparison.Ordinal))
                 Assert.True(value < limit, $"{issue.Code}: {value} is not below its minimum of {limit}.");
             else if (issue.Code.EndsWith("AT_MINIMUM", StringComparison.Ordinal))
                 Assert.Equal(limit, value);      // already at the floor; that is the finding
@@ -797,9 +911,18 @@ public sealed class ValidationIssueStructureTests
         var proRange = _f.Rules.GetPro(issue.SubjectId)?.CostModifierRange?.Keys;
         var conRange = _f.Rules.GetCon(issue.SubjectId)?.CostModifierRange?.Keys;
 
+        // A Pro or Con printed inside a Power's own entry keeps its grades there, so the owner
+        // is where to look. This is why OwnerId has to be an id: with the printed name in it
+        // there was nothing to look the Power up by.
+        var owner = issue.OwnerId is null ? null : _f.Rules.GetPower(issue.OwnerId);
+        var specific = owner?.PowerPros.Concat(owner.PowerCons)
+            .FirstOrDefault(x => x.Id == issue.SubjectId);
+
         return (variants?.Contains(option) ?? false)
             || (grades?.Contains(option) ?? false)
             || (proRange?.Contains(option) ?? false)
-            || (conRange?.Contains(option) ?? false);
+            || (conRange?.Contains(option) ?? false)
+            || (specific?.CostModifierRange?.ContainsKey(option) ?? false)
+            || (specific?.CostPerRankRange?.ContainsKey(option) ?? false);
     }
 }

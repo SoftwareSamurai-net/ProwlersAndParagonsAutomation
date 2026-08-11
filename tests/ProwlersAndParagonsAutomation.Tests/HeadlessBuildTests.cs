@@ -675,6 +675,62 @@ public sealed class HeadlessBuildTests : IDisposable
     }
 
     /// <summary>
+    /// <b>A Windows device name is not a file, and reading one never returns.</b>
+    /// <c>File.ReadAllText("CON")</c> opens the console and blocks on a read with no end — no
+    /// output, no exit code, forever, which is worse than any crash and worse than the empty
+    /// <c>--from</c> that was fixed alongside it. <c>NUL</c> and <c>PRN</c> happened to fail
+    /// politely; the whole reserved set is refused rather than the three caught misbehaving.
+    ///
+    /// <para>The timeout is the assertion. A test that hangs reports nothing, so this one is
+    /// written to fail rather than to stall.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("CON")]
+    [InlineData("COM1")]
+    [InlineData("CONIN$")]
+    [InlineData("NUL")]
+    [InlineData("PRN")]
+    [InlineData("con.json")]
+    public async Task ADeviceNameIsRefusedRatherThanOpened(string device)
+    {
+        var finished = Task.Run(() => Invoke("--from", device, "--no-export"),
+            TestContext.Current.CancellationToken);
+
+        var completed = await Task.WhenAny(finished, Task.Delay(TimeSpan.FromSeconds(10),
+            TestContext.Current.CancellationToken));
+
+        Assert.True(completed == finished,
+            $"Reading '{device}' did not finish — it is a device, not a file.");
+
+        var run = await finished;
+
+        Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
+        Assert.NotNull(run.Issue("INPUT_UNREADABLE"));
+    }
+
+    /// <summary>
+    /// Both exports or neither. The <c>.json</c> path is one character longer than the
+    /// <c>.txt</c>, so at one particular character-name length the first write succeeded and the
+    /// second did not — leaving half an export on disk under a base name that then looked taken
+    /// to the next run, while the report said nothing had been written.
+    /// </summary>
+    [Fact]
+    public void AnExportThatCannotBeFinishedLeavesNoHalfOfItBehind()
+    {
+        var out_ = Path.Combine(_scratch, "half");
+        var hero = SampleCharacters.Hero();
+        hero.Name = new string('B', 235);
+
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(hero)), "--out", out_);
+
+        // Either both were written or neither was; never one.
+        var written = Directory.Exists(out_) ? Directory.GetFiles(out_) : [];
+
+        Assert.True(written.Length is 0 or 2, $"An export left {written.Length} file(s) behind.");
+        Assert.Equal(written.Length == 0, run.Report["exports"] is null);
+    }
+
+    /// <summary>
     /// The message for a file that is not JSON must not name a C# type. It interpolated the
     /// deserializer's own message, which says things like "could not be converted to
     /// ProwlersAndParagonsAutomation.Engine.SelectedPower" — this program talking about itself

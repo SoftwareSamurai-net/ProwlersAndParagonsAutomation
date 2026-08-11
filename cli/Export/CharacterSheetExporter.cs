@@ -45,13 +45,25 @@ public sealed class CharacterSheetExporter
         var txtPath  = Path.Combine(dir, baseName + ".txt");
         var jsonPath = Path.Combine(dir, baseName + ".json");
 
+        // Both or neither. The .json path is one character longer than the .txt, so there is a
+        // character-name length at which the first write succeeds and the second does not —
+        // leaving half an export on disk, under a base name that then looks taken to the next
+        // run. A caller told "the exports were not written" should find that they were not.
         File.WriteAllText(txtPath,
             CharacterSheetRenderer.RenderText(sheet, rules, costs, derived, validation, generatedAt),
             Encoding.UTF8);
 
-        File.WriteAllText(jsonPath,
-            CharacterSheetRenderer.RenderJson(sheet, rules, costs, derived, validation, generatedAt),
-            Encoding.UTF8);
+        try
+        {
+            File.WriteAllText(jsonPath,
+                CharacterSheetRenderer.RenderJson(sheet, rules, costs, derived, validation, generatedAt),
+                Encoding.UTF8);
+        }
+        catch
+        {
+            Delete(txtPath);
+            throw;
+        }
 
         return (txtPath, jsonPath);
     }
@@ -74,6 +86,17 @@ public sealed class CharacterSheetExporter
         // falling back to the plain name overwrites, which is where this started, but only
         // after a thousand attempts to avoid it.
         return baseName;
+    }
+
+    /// <summary>
+    /// Removes the half-written export. Its own failure is not worth reporting over the failure
+    /// that got us here, which is on its way to the caller.
+    /// </summary>
+    private static void Delete(string path)
+    {
+        try { File.Delete(path); }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     private static bool IsFree(string dir, string baseName) =>
