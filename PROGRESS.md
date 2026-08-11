@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3001 across two projects — 2916 on the engine, 85 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3033 across two projects — 2948 on the engine, 85 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two, plus a headless command — the terminal wizard, a Blazor WebAssembly app, and `build --from`, all on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -212,6 +212,51 @@ misleading claims in the prose. What is worth carrying forward:
   covered). Also a doc comment's "4 to 15 Hero Points" (it is 1 to 4), and a claim that 26
   construction sites were unchanged when every one had been edited. The reviewer checked each
   number rather than reading past it, which is the only way this file stays worth anything.
+
+**A second round found more than the first, and the most valuable reviewer was the one asked
+to audit the fixes rather than the code.** Four of the six it checked did not hold:
+
+- **The quantity checks looked at five fields and there were six.** A Pro carries a quantity
+  too, and a per-rank-per-unit Pro at −1000 drove a Power's rate to −498, which the rulebook
+  floor caught at half a point per rank — so a 24 HP Power cost 6 in silence.
+- **Making `TotalCost` checked was not enough**, because the wrap happened in the per-unit
+  multiplications underneath it. Determination at 500,000,000 units cost **5 HP** and gave
+  500,000,016 Resolve, at exit 0.
+- **The validator still threw, for an eleventh shape.** The branch handling a Pro or Con printed
+  inside a Power's own entry skipped the grade check and went straight past, so Drain carrying
+  its own ungraded Only X produced the crash instead of the finding written for it.
+- **An export could still leave half of itself behind.** The `.json` path is one character
+  longer than the `.txt`, so at one name length the first write succeeded and the second did
+  not — an orphan, under a base name that then looked taken, while the report said nothing had
+  been written.
+
+**And the worst thing found anywhere in the slice: `--from CON` hung for ever.**
+`File.ReadAllText` on a Windows device name opens the console and blocks on a read with no end
+— no output, no exit code, no end. `COM1` and `CONIN$` too; `NUL` and `PRN` happened to fail
+politely, which is why the whole reserved set is refused by name rather than the three that
+were caught. Worse than any crash, and the exact input the item that fixed `--from ""` had
+asked about.
+
+**The duplicate exploit is the one to remember.** Nothing rejected the same Con listed twice
+and every cost floors at zero, so three Burnouts cancelled a 12d Ability exactly: six Abilities
+at the Trait Cap for **0 Hero Points**, exit 0, and an issue list with nothing in it. Scaled up
+it bought 216 HP of character inside a 125 HP budget; on Super Senses, where one floor covers
+sixteen options, it bought the lot for 1 HP. The same shape appeared twice more — a flaw taken
+twice paid Resolve twice for one drawback, and the Brute Option halved *any* Ability because
+the id was never checked against Might.
+
+**Two of the fixes were themselves dishonest, and the review said so.** A duplicate id in one
+of the rules files throws the same kind of exception as a bad character, and the report blamed
+the character — "a null where an id belongs, most likely" — for a fault in this program's own
+data, which a repair loop would chase for ever. And a figure the engine could not supply with
+no error beside it left a caller told to "fix the errors and try again" with nothing to fix.
+Both now say whose fault it is.
+
+**The process lesson, which cost real work.** A reviewer doing mutation testing restores each
+file with `git checkout -- <file>`, and it reverted an uncommitted fix of mine in a file we
+were both touching — the hazard this file already records for `git checkout -- .`, in its
+single-file form. Commit before letting a mutation pass run, or give it its own worktree; the
+re-run was given one.
 
 **Also closed: the wizard's crash on a terminal it cannot read.** Recorded by the last health
 check, in scope now because there is somewhere to send that caller. Spectre's `SelectionPrompt`
