@@ -263,7 +263,10 @@ public sealed class BuildCommand
         {
             // A JSON null — the literal text "null" — parses to a null sheet rather than
             // throwing, and would otherwise arrive as a legal empty character.
-            if (CharacterSheetJson.Read(text) is not { } read)
+            // Strict, because this file was written by whoever is calling. A field name they
+            // misspelled would otherwise be ignored, and the character would arrive missing
+            // whatever it held — cheaper, legal, and wrong in a way nothing would report.
+            if (CharacterSheetJson.Read(text, strict: true) is not { } read)
             {
                 error = "The character file holds no character.";
                 return false;

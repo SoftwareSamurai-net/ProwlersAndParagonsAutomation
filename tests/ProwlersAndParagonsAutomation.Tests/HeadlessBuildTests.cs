@@ -422,6 +422,67 @@ public sealed class HeadlessBuildTests : IDisposable
             built["talents"]!.AsArray().Sum(t => (int)t!["rank"]!));
     }
 
+    /// <summary>
+    /// <b>A misspelled field is the same failure wearing a disguise.</b> Left ignored, a
+    /// character with <c>AbilityRank</c> for <c>AbilityRanks</c> arrives with no abilities at
+    /// all — cheaper, legal, and wrong in a way nothing reports. A caller who wrote the file
+    /// is told; the browser restoring its own storage deliberately is not, because a field
+    /// dropped in a later build should cost it a field rather than the character.
+    /// </summary>
+    [Fact]
+    public void AFieldNameThatIsNotPartOfACharacterIsRefusedRatherThanIgnored()
+    {
+        var run = Invoke("--from", File_("""
+            {
+              "SelectedTierId": "standard",
+              "AbilityRank": { "might": 8 },
+              "Flaws": [ { "FlawId": "code" } ]
+            }
+            """), "--no-export");
+
+        Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
+        Assert.Contains("AbilityRank", run.Issue("INPUT_UNREADABLE")!["message"]!.ToString(),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The strictness has to accept what this project itself writes, or the browser's saved
+    /// characters and the wizard's own output stop being submittable — which is the obvious
+    /// way to use the command and the first thing anyone would try.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void WhatThisProjectWritesIsWhatTheCommandAccepts(bool villain)
+    {
+        var sheet = villain ? SampleCharacters.Villain() : SampleCharacters.Hero();
+
+        var run = Invoke("--from", File_(CharacterSheetJson.Write(sheet)), "--no-export");
+
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+    }
+
+    /// <summary>
+    /// A field spelled the way the caller's language spells it. Case is forgiven; an
+    /// underscore is not, and that is not a silent difference — an unknown field is now
+    /// refused, so <c>selected_tier_id</c> is reported rather than dropped.
+    /// </summary>
+    [Fact]
+    public void AFieldNameInAnotherCaseIsUnderstood()
+    {
+        var run = Invoke("--from", File_("""
+            {
+              "selectedTierId": "standard",
+              "abilityRanks": { "might": 8 },
+              "flaws": [ { "flawId": "code" } ]
+            }
+            """), "--no-export");
+
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+        Assert.Equal("standard", (string?)run.Report["character"]!["tier"]);
+        Assert.True((int)run.Report["hero_points"]!["spent"]! > 0);
+    }
+
     // ── The other front end has to keep working ───────────────────────────
 
     /// <summary>

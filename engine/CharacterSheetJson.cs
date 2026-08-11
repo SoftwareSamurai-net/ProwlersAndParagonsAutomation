@@ -28,7 +28,28 @@ public static class CharacterSheetJson
     public static JsonSerializerOptions Options { get; } = new()
     {
         PreferredObjectCreationHandling = JsonObjectCreationHandling.Populate,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+
+        // So a caller writing a character by hand can spell a field the way their language
+        // does. It does not forgive an underscore — selected_tier_id is still not a field —
+        // and nothing here silently renames anything.
+        PropertyNameCaseInsensitive = true
+    };
+
+    /// <summary>
+    /// The same, but a property that is not part of a character is refused rather than
+    /// ignored.
+    ///
+    /// <para><b>This is for a character somebody wrote, rather than one this program saved.</b>
+    /// A misspelled <c>AbilityRanks</c> is not a small error: the abilities are silently
+    /// dropped and what arrives is a cheaper, legal character that nobody notices is wrong.
+    /// A caller submitting a file wants to be told; a browser restoring its own storage
+    /// wants the opposite, since a field removed in a later build would otherwise throw away
+    /// a character it could still mostly read.</para>
+    /// </summary>
+    public static JsonSerializerOptions StrictOptions { get; } = new(Options)
+    {
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
     };
 
     /// <summary>
@@ -80,8 +101,20 @@ public static class CharacterSheetJson
     /// wrong type for the field it is in. Left to the caller: a browser restoring storage
     /// wants to shrug and start empty, and a command reading a file the user named wants to
     /// say which file and why.</exception>
-    public static CharacterSheet? Read(string json) =>
-        JsonSerializer.Deserialize<CharacterSheet>(json, Options) is { } sheet ? Repair(sheet) : null;
+    public static CharacterSheet? Read(string json) => Read(json, strict: false);
+
+    /// <summary>
+    /// <inheritdoc cref="Read(string)"/>
+    /// </summary>
+    /// <param name="json">The character.</param>
+    /// <param name="strict">
+    /// True to refuse a property that is not part of a character — see
+    /// <see cref="StrictOptions"/> for why that is right for a submitted file and wrong for
+    /// restored storage.
+    /// </param>
+    public static CharacterSheet? Read(string json, bool strict) =>
+        JsonSerializer.Deserialize<CharacterSheet>(json, strict ? StrictOptions : Options)
+            is { } sheet ? Repair(sheet) : null;
 
     /// <summary>The character's inputs as JSON, in the shape <see cref="Read"/> accepts.</summary>
     public static string Write(CharacterSheet sheet) =>
