@@ -96,7 +96,11 @@ resharper_class_never_instantiated_global_highlighting = none
 # ReSharper reads the annotations and calls the checks impossible. Acting on it
 # would delete the guards and restore that crash. See
 # HeadlessBuildTests.ACharacterWithNullsWhereIdsBelongIsReportedNotThrown.
+#
+# The conditional-access one is the same objection about `choice?.Id`, where the
+# entry itself can be null — `{"Pros":[null]}` — as well as its id.
 resharper_condition_is_always_true_or_false_according_to_nullable_api_contract_highlighting = none
+resharper_conditional_access_qualifier_is_non_nullable_according_to_api_contract_highlighting = none
 
 [engine/CharacterSheetJson.cs]
 # This file reads JSON somebody else wrote — a browser's stored character, or one
@@ -116,6 +120,8 @@ resharper_condition_is_always_true_or_false_according_to_nullable_api_contract_h
 # where this code was until both front ends needed it.
 resharper_condition_is_always_true_or_false_according_to_nullable_api_contract_highlighting = none
 resharper_null_coalescing_condition_is_always_not_null_according_to_api_contract_highlighting = none
+# `f?.FeatureId`, where the list entry itself can be null as well as its id.
+resharper_conditional_access_qualifier_is_non_nullable_according_to_api_contract_highlighting = none
 
 [sheets/CharacterSheetRenderer.cs]
 # JsonValue.Create(...) is declared to return JsonValue?, so the null-forgiving
