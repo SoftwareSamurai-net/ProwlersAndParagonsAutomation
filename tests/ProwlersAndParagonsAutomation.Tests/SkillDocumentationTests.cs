@@ -139,14 +139,15 @@ public sealed class SkillDocumentationTests
     [Fact]
     public void EverySubjectKindTheEngineCanReportIsInTheSkill()
     {
+        // Asked of the command, never re-derived here. This test used to convert the enum
+        // itself, which meant it validated the document against a second copy of the
+        // conversion — so dropping the underscore shipped `gearfeature` on the wire with the
+        // document still saying `gear_feature`, and both stayed green.
         foreach (var kind in Enum.GetValues<ValidationSubject>())
         {
             if (kind == ValidationSubject.None) continue;
 
-            var wire = string.Concat(kind.ToString().Select((c, i) =>
-                char.IsUpper(c) && i > 0 ? "_" + char.ToLowerInvariant(c) : char.ToLowerInvariant(c).ToString()));
-
-            Assert.Contains($"`{wire}`", Text, StringComparison.Ordinal);
+            Assert.Contains($"`{BuildCommand.SubjectKindName(kind)}`", Text, StringComparison.Ordinal);
         }
     }
 }

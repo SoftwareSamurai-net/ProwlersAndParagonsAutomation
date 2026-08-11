@@ -135,9 +135,31 @@ public sealed class BuildCommand
         TextWriter stdout,
         TextWriter stderr)
     {
-        var validation = _validator.Validate(sheet);
-        var tier       = sheet.SelectedTierId is null ? null : _rules.GetTier(sheet.SelectedTierId);
-        var spent      = Answer(() => _costs.TotalCost(sheet));
+        // The validator is the one call whose failure leaves nothing to report — without it
+        // there are no findings, so there is no report to put them in. It was the only engine
+        // call here that was not guarded, and a comment two lines up used to claim otherwise;
+        // six shapes of hand-written character took the whole run down through it, with an
+        // exit code outside the three and nothing on standard output at all.
+        ValidationResult validation;
+        try
+        {
+            validation = _validator.Validate(sheet);
+        }
+        catch (Exception e) when (IsUnanswerable(e))
+        {
+            stderr.WriteLine(e.Message);
+            return Report(stdout, InputUnusable, "CHARACTER_UNUSABLE",
+                "This character could not be checked against the rules at all. Some part of "
+                + "it is not something a character can hold — a null where an id belongs, "
+                + "most likely.");
+        }
+
+        var tier  = sheet.SelectedTierId is null ? null : _rules.GetTier(sheet.SelectedTierId);
+        var spent = Answer(() => _costs.TotalCost(sheet));
+
+        var exports = options.WriteExports
+            ? WriteExports(sheet, validation, options.OutputDirectory, projectRoot, stderr)
+            : null;
 
         var report = new JsonObject
         {
@@ -163,10 +185,22 @@ public sealed class BuildCommand
                 ["resolve"] = Answer(() => _derived.CalculateResolve(sheet))
             },
             ["issues"]  = Issues(validation),
-            ["exports"] = options.WriteExports
-                ? WriteExports(sheet, validation, options.OutputDirectory, projectRoot, stderr)
-                : null
+            ["exports"] = exports
         };
+
+        // A caller that asked for files and got none has to be able to see that in the report.
+        // It was a line on stderr and an `exports: null` a caller had no reason to check —
+        // exit 0 and no sheet, which reads as success.
+        if (options.WriteExports && exports is null)
+        {
+            report["issues"]!.AsArray().Add(new JsonObject
+            {
+                ["severity"] = "warning",
+                ["code"]     = "EXPORTS_NOT_WRITTEN",
+                ["message"]  = "The character was checked, but its sheets could not be "
+                             + "written. The reason is on standard error."
+            });
+        }
 
         stdout.WriteLine(report.ToJsonString(Formatting));
         return validation.IsValid ? Ok : CharacterIllegal;
@@ -191,9 +225,17 @@ public sealed class BuildCommand
             var (txt, json) = new CharacterSheetExporter()
                 .Export(sheet, _rules, _costs, _derived, validation, projectRoot, outputDirectory);
 
-            return new JsonObject { ["text"] = txt, ["json"] = json };
+            // Absolute, always. With no --out the paths came back absolute and with a relative
+            // --out they came back relative, so a caller that resolved them from anywhere but
+            // the process's own working directory found nothing half the time.
+            return new JsonObject
+            {
+                ["text"] = Path.GetFullPath(txt),
+                ["json"] = Path.GetFullPath(json)
+            };
         }
-        catch (Exception e) when (IsUnanswerable(e) || e is IOException or UnauthorizedAccessException)
+        catch (Exception e) when (IsUnanswerable(e)
+                                  || e is IOException or UnauthorizedAccessException)
         {
             stderr.WriteLine($"The exports were not written: {e.Message}");
             return null;
@@ -216,7 +258,7 @@ public sealed class BuildCommand
             // Absent rather than null: an issue that has nothing to locate is not an issue
             // with an empty subject, and a reader should not have to tell those apart.
             if (issue.SubjectKind != ValidationSubject.None)
-                node["subject_kind"] = SnakeCase(issue.SubjectKind.ToString());
+                node["subject_kind"] = SubjectKindName(issue.SubjectKind);
             if (issue.SubjectId is not null) node["subject_id"] = issue.SubjectId;
             if (issue.OwnerId is not null) node["owner_id"] = issue.OwnerId;
             if (issue.Value is not null) node["value"] = issue.Value;
@@ -245,7 +287,10 @@ public sealed class BuildCommand
         {
             text = from == "-" ? stdin.ReadToEnd() : File.ReadAllText(from!);
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
+        // ArgumentException covers `--from ""`, which File.ReadAllText refuses before it ever
+        // touches a disk. It threw where every other unreadable input reported.
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException
+                                    or NotSupportedException or ArgumentException)
         {
             error = $"The character file could not be read: {e.Message}";
             return false;
@@ -277,7 +322,14 @@ public sealed class BuildCommand
         }
         catch (JsonException e)
         {
-            error = $"The character file is not valid JSON in the character-sheet shape: {e.Message}";
+            // The exception's own message names the C# type it failed to build — "could not be
+            // converted to ProwlersAndParagonsAutomation.Engine.SelectedPower" — which is this
+            // program talking about itself to somebody holding a rulebook. The path and the
+            // position are the useful half and are kept; the type name is not.
+            var where = e.Path is null ? "" : $" at {e.Path}";
+            var line  = e.LineNumber is null ? "" : $", line {e.LineNumber + 1}";
+
+            error = $"The character file is not valid JSON in the character-sheet shape{where}{line}.";
             return false;
         }
     }
@@ -363,12 +415,26 @@ public sealed class BuildCommand
           or NullReferenceException or FormatException or OverflowException;
 
     /// <summary>
-    /// <c>GearFeature</c> to <c>gear_feature</c>, so the report reads like the rest of this
-    /// project's JSON rather than like its C#.
+    /// A subject kind as it goes over the wire: <c>GearFeature</c> to <c>gear_feature</c>, so
+    /// the report reads like the rest of this project's JSON rather than like its C#.
+    ///
+    /// <para>Public because the skill documents these names, and the test that checks the
+    /// document has to ask this method rather than convert the enum itself. It did convert it
+    /// itself, and so agreed with a broken copy: dropping the underscore shipped
+    /// <c>gearfeature</c> on the wire with the document still saying <c>gear_feature</c>, and
+    /// both tests stayed green.</para>
     /// </summary>
-    private static string SnakeCase(string pascal) =>
-        string.Concat(pascal.Select((c, i) =>
+    public static string SubjectKindName(ValidationSubject kind) =>
+        string.Concat(kind.ToString().Select((c, i) =>
             char.IsUpper(c) && i > 0 ? "_" + char.ToLowerInvariant(c) : char.ToLowerInvariant(c).ToString()));
+
+    /// <summary>
+    /// A report for an argument the program refused, for <see cref="CommandLine"/> to use on
+    /// the arguments it handles itself. Standard output holds one JSON document whether the
+    /// refusal happened here or a layer up.
+    /// </summary>
+    public static int ReportArgumentError(TextWriter stdout, string message) =>
+        Report(stdout, InputUnusable, "BAD_ARGUMENTS", message);
 
     /// <summary>A report for a run that never reached the character.</summary>
     private static int Report(TextWriter stdout, int exitCode, string code, string message)

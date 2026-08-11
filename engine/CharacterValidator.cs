@@ -115,15 +115,22 @@ public sealed class CharacterValidator
         // missing its cost variant or nominated Trait cannot be costed at all, and
         // asking for its cost would throw instead of reporting the gap.
         CheckPowerRanks(sheet, issues);
+        CheckQuantities(sheet, issues);
         var selectionsResolvable = CheckPowerSelections(sheet, issues);
+
+        // Pros and Cons are priced the same way wherever they sit, so they are checked in
+        // one place for all three: Powers, gear, and Abilities.
+        var modifiersResolvable = CheckModifiers(sheet, issues);
+        var perksResolvable     = CheckPerks(sheet, issues);
 
         // Same reason, for gear: an unknown feature or a graded one with no grade cannot
         // be priced, so the gap has to be reported before anything asks for a total.
-        var gearResolvable = CheckGear(sheet, issues);
+        var gearResolvable = CheckGear(sheet, issues, modifiersResolvable);
 
         if (tier is not null)
         {
-            if (selectionsResolvable && gearResolvable) CheckHpBudget(sheet, tier, issues);
+            if (selectionsResolvable && modifiersResolvable && perksResolvable && gearResolvable)
+                CheckHpBudget(sheet, tier, issues);
             CheckTraitCap(sheet, tier, issues);
             CheckIconicTier(tier, issues);
         }
@@ -131,7 +138,9 @@ public sealed class CharacterValidator
         CheckTraitIds(sheet, issues);
         CheckFlawCount(sheet, issues);
         CheckFlawIds(sheet, issues);
-        if (selectionsResolvable) CheckPowerCosts(sheet, issues);
+        // Both flags: this prices each Power, and a Pro or Con the rulebook does not have
+        // throws from there just as surely as a missing cost variant does.
+        if (selectionsResolvable && modifiersResolvable) CheckPowerCosts(sheet, issues);
         CheckUnverifiedPowers(sheet, issues);
         CheckSources(sheet, issues);
 
@@ -166,7 +175,10 @@ public sealed class CharacterValidator
                 + "Without a tier there is no Hero Point budget and no Trait Cap, so neither "
                 + "can be checked.")
             {
-                SubjectKind = ValidationSubject.Character,
+                // The offending id, not just "the character": a caller should not have to
+                // read it back out of a different part of the report to know what to replace.
+                SubjectKind = ValidationSubject.Tier,
+                SubjectId   = sheet.SelectedTierId,
                 Options     = TierIds
             });
         }
@@ -190,13 +202,44 @@ public sealed class CharacterValidator
             + "data. Leave it unset for a character who took none.")
         {
             SubjectKind = ValidationSubject.Character,
+            SubjectId   = sheet.SelectedPackageId,
             Options     = packages.Select(p => p.Id).ToList()
         });
     }
 
+    /// <summary>
+    /// <para><b>The <c>try</c> is the backstop, and it is deliberately not a substitute for
+    /// the checks above.</b> Each of those reports a gap a caller can act on; this one only
+    /// promises that <see cref="Validate"/> returns findings rather than throwing. The list of
+    /// things the engine refuses to price is not knowable from here — it grows every time
+    /// somebody adds a field — and a validator that throws is worse than one that says it
+    /// cannot answer, because the caller loses every other finding with it.</para>
+    ///
+    /// <para>This caught ten submitted shapes at once when it was added: unknown Pro, Con,
+    /// Perk and nominated-Trait ids, and wrong-but-present variant and grade keys. All ten are
+    /// now reported by name as well, which is what a repair loop needs; if an eleventh appears
+    /// it is reported here instead, imprecisely but without taking the run down.</para>
+    /// </summary>
     private void CheckHpBudget(CharacterSheet sheet, TierModel tier, List<ValidationIssue> issues)
     {
-        var total = _costs.TotalCost(sheet);
+        int total;
+        try
+        {
+            total = _costs.TotalCost(sheet);
+        }
+        catch (Exception e) when (e is InvalidOperationException or KeyNotFoundException
+                                    or ArgumentException or NullReferenceException
+                                    or FormatException or OverflowException)
+        {
+            issues.Add(new(ValidationSeverity.Error, "CHARACTER_NOT_PRICEABLE",
+                "Something on this character has no cost the rulebook can supply, so the "
+                + "Hero Point total cannot be worked out. The other findings say what.")
+            {
+                SubjectKind = ValidationSubject.Character
+            });
+            return;
+        }
+
         if (total > tier.HeroPoints)
             issues.Add(new(ValidationSeverity.Error, "HP_BUDGET_EXCEEDED",
                 $"Character costs {total} HP but the {tier.Name} tier budget is {tier.HeroPoints} HP " +
@@ -218,7 +261,7 @@ public sealed class CharacterValidator
         foreach (var (id, rank) in sheet.AbilityRanks)
             if (rank > cap)
                 issues.Add(new(ValidationSeverity.Error, "TRAIT_ABOVE_CAP",
-                    $"{_rules.GetAbility(id)?.Name ?? id} is {rank}d, above the Trait Cap of {cap}d.")
+                    $"{TraitName(_rules.GetAbility(id)?.Name, id)} is {rank}d, above the Trait Cap of {cap}d.")
                 {
                     SubjectKind = ValidationSubject.Ability,
                     SubjectId   = id,
@@ -229,7 +272,7 @@ public sealed class CharacterValidator
         foreach (var (id, rank) in sheet.TalentRanks)
             if (rank > cap)
                 issues.Add(new(ValidationSeverity.Error, "TRAIT_ABOVE_CAP",
-                    $"{_rules.GetTalent(id)?.Name ?? id} is {rank}d, above the Trait Cap of {cap}d.")
+                    $"{TraitName(_rules.GetTalent(id)?.Name, id)} is {rank}d, above the Trait Cap of {cap}d.")
                 {
                     SubjectKind = ValidationSubject.Talent,
                     SubjectId   = id,
@@ -274,9 +317,12 @@ public sealed class CharacterValidator
                 $"The {tier.Name} tier's Hero Point budget is a minimum rather than a limit " +
                 "(Ch.2, Power Level, p.15), so how far above it you go is the GM's call.")
             {
+                // No Limit. Iconic's 200 is a floor, and Limit is documented and used
+                // everywhere else as a ceiling something has breached from above — a repair
+                // loop reading it uniformly would treat this tier's minimum as its maximum
+                // and shrink a character to meet it.
                 SubjectKind = ValidationSubject.Tier,
-                SubjectId   = tier.Id,
-                Limit       = tier.HeroPoints
+                SubjectId   = tier.Id
             });
     }
 
@@ -343,6 +389,200 @@ public sealed class CharacterValidator
             });
     }
 
+    /// <summary>
+    /// Ranks and quantities below zero.
+    ///
+    /// <para><b>A negative quantity on a per-unit Perk was worth unlimited Hero Points.</b>
+    /// <c>PerkCost</c> multiplies a price by <c>Units</c> and the perk total has no floor, so
+    /// <c>{"PerkId":"contacts","Units":-1000}</c> paid the character 1000 HP and the whole
+    /// sheet reported legal at any size. That is the exact failure the headless command exists
+    /// to prevent, reached through the one field nothing bounded.</para>
+    ///
+    /// <para>The ranks cannot be exploited the same way — costs floor at zero — but a Trait at
+    /// −50d is not a character, and reporting it legal is the same wrong answer in a quieter
+    /// voice. The wizard cannot produce any of this: it counts upwards from a menu.</para>
+    /// </summary>
+    private void CheckQuantities(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        foreach (var (id, rank) in sheet.AbilityRanks.Where(a => a.Value < 0))
+            issues.Add(Negative("NEGATIVE_RANK", ValidationSubject.Ability, id,
+                $"{_rules.GetAbility(id)?.Name ?? $"'{id}'"} is {rank}d. A Trait cannot have "
+                + "fewer than no ranks.", rank));
+
+        foreach (var (id, rank) in sheet.TalentRanks.Where(t => t.Value < 0))
+            issues.Add(Negative("NEGATIVE_RANK", ValidationSubject.Talent, id,
+                $"{_rules.GetTalent(id)?.Name ?? $"'{id}'"} is {rank}d. A Trait cannot have "
+                + "fewer than no ranks.", rank));
+
+        foreach (var sp in sheet.SelectedPowers.Where(p => p.PurchasedRanks < 0))
+            issues.Add(Negative("NEGATIVE_RANK", ValidationSubject.Power, sp.PowerId,
+                $"{PowerName(sp.PowerId)} has {sp.PurchasedRanks} purchased ranks. A Power "
+                + "cannot have fewer than no ranks.", sp.PurchasedRanks));
+
+        foreach (var sp in sheet.SelectedPowers.Where(p => p.Units < 0))
+            issues.Add(Negative("NEGATIVE_UNITS", ValidationSubject.Power, sp.PowerId,
+                $"{PowerName(sp.PowerId)} is bought {sp.Units} times. A Power cannot be "
+                + "bought fewer than no times.", sp.Units));
+
+        foreach (var perk in sheet.Perks.Where(p => p.Units < 0))
+            issues.Add(Negative("NEGATIVE_UNITS", ValidationSubject.Character, perk.PerkId,
+                $"The perk '{_rules.GetPerk(perk.PerkId)?.Name ?? perk.PerkId}' is bought "
+                + $"{perk.Units} times, which would pay the character Hero Points rather than "
+                + "cost them.", perk.Units));
+    }
+
+    private static ValidationIssue Negative(
+        string code, ValidationSubject kind, string id, string message, int value) =>
+        new(ValidationSeverity.Error, code, message)
+        {
+            SubjectKind = kind,
+            SubjectId   = id,
+            Value       = value,
+            Limit       = 0
+        };
+
+    /// <summary>
+    /// Perks. The one top-level collection of ids that nothing checked: an unknown one threw
+    /// out of <c>PerkCost</c> in the middle of totalling the character.
+    /// </summary>
+    /// <returns>False when a perk cannot be priced.</returns>
+    private bool CheckPerks(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        var resolvable = true;
+
+        foreach (var perk in sheet.Perks.Where(p => _rules.GetPerk(p.PerkId) is null))
+        {
+            issues.Add(new(ValidationSeverity.Error, "UNKNOWN_PERK",
+                $"There is no perk called '{perk.PerkId}' in the rulebook data.")
+            {
+                SubjectKind = ValidationSubject.Character,
+                SubjectId   = perk.PerkId,
+                Options     = _rules.Perks.Select(p => p.Id).ToList()
+            });
+            resolvable = false;
+        }
+
+        return resolvable;
+    }
+
+    /// <summary>
+    /// Every Pro and Con on the character, wherever it sits — on a Power, on a piece of gear,
+    /// or on an Ability. They are priced the same way in all three places, so they go wrong
+    /// the same way in all three, and an unknown id threw out of the middle of the total.
+    ///
+    /// <para>A Pro or Con printed inside a Power's own entry takes precedence over a generic
+    /// one of the same name, exactly as <c>CostCalculator</c> resolves it. Checking only the
+    /// generic list would report the eleven per-rank Power-specific ones as unknown.</para>
+    /// </summary>
+    /// <returns>False when a Pro or Con cannot be priced.</returns>
+    private bool CheckModifiers(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        var resolvable = true;
+
+        foreach (var sp in sheet.SelectedPowers)
+        {
+            var power = _rules.GetPower(sp.PowerId);
+            resolvable &= CheckModifierList(sp.Pros, isPro: true, power, PowerName(sp.PowerId), issues);
+            resolvable &= CheckModifierList(sp.Cons, isPro: false, power, PowerName(sp.PowerId), issues);
+        }
+
+        foreach (var gear in sheet.Gear)
+        {
+            resolvable &= CheckModifierList(gear.Pros, isPro: true, null, gear.Name, issues);
+            resolvable &= CheckModifierList(gear.Cons, isPro: false, null, gear.Name, issues);
+        }
+
+        foreach (var (abilityId, modifiers) in sheet.AbilityModifiers)
+        {
+            var name = _rules.GetAbility(abilityId)?.Name;
+
+            // An Ability that does not exist, or one with no ranks bought: AbilityCost walks
+            // AbilityRanks, so modifiers keyed anywhere else are never resolved and the Con
+            // the player recorded is silently worth nothing.
+            if (name is null || !sheet.AbilityRanks.ContainsKey(abilityId))
+            {
+                issues.Add(new(ValidationSeverity.Error, "MODIFIER_ON_UNBOUGHT_ABILITY",
+                    $"Pros or Cons are recorded against '{abilityId}', which is not an Ability "
+                    + "this character has bought ranks in, so they would change nothing.")
+                {
+                    SubjectKind = ValidationSubject.Ability,
+                    SubjectId   = abilityId,
+                    Options     = sheet.AbilityRanks.Keys.ToList()
+                });
+                continue;
+            }
+
+            // Cons only, on the Cons list, is how the pickers offer them — but a submitted
+            // file can put anything here, and both are priced, so both are checked.
+            resolvable &= CheckModifierList(modifiers, isPro: false, null, name, issues, alsoTryPros: true);
+        }
+
+        return resolvable;
+    }
+
+    private bool CheckModifierList(
+        IReadOnlyList<SelectedProCon> modifiers,
+        bool isPro,
+        PowerModel? power,
+        string ownerName,
+        List<ValidationIssue> issues,
+        bool alsoTryPros = false)
+    {
+        var resolvable = true;
+        var kind       = isPro ? "Pro" : "Con";
+
+        foreach (var choice in modifiers)
+        {
+            // The Power's own entry wins, as in CostCalculator.ResolveModifiers.
+            var specific = (isPro ? power?.PowerPros : power?.PowerCons)
+                ?.FirstOrDefault(x => x.Id == choice.Id);
+
+            if (specific is not null) continue;
+
+            var range = isPro ? _rules.GetPro(choice.Id)?.CostModifierRange
+                              : _rules.GetCon(choice.Id)?.CostModifierRange;
+
+            var known = (isPro ? _rules.GetPro(choice.Id) is not null
+                               : _rules.GetCon(choice.Id) is not null)
+                        || (alsoTryPros && _rules.GetPro(choice.Id) is not null);
+
+            if (!known)
+            {
+                issues.Add(new(ValidationSeverity.Error, isPro ? "UNKNOWN_PRO" : "UNKNOWN_CON",
+                    $"{ownerName} has a {kind}, '{choice.Id}', that is not one the rulebook "
+                    + "gives.")
+                {
+                    SubjectKind = ValidationSubject.Character,
+                    SubjectId   = choice.Id,
+                    OwnerId     = ownerName
+                });
+                resolvable = false;
+                continue;
+            }
+
+            if (range is null) continue;
+
+            // Priced by grade. Absent and wrong are the same repair — choose one of these —
+            // so they are one finding with the keys attached.
+            if (choice.VariantKey is null || !range.ContainsKey(choice.VariantKey))
+            {
+                issues.Add(new(ValidationSeverity.Error,
+                    isPro ? "PRO_VARIANT_NOT_CHOSEN" : "CON_VARIANT_NOT_CHOSEN",
+                    $"{ownerName}'s {kind} '{choice.Id}' is priced by grade, and no grade the "
+                    + $"rulebook lists has been chosen. Pick one of: {Names(range.Keys)}.")
+                {
+                    SubjectKind = ValidationSubject.Character,
+                    SubjectId   = choice.Id,
+                    OwnerId     = ownerName,
+                    Options     = Keys(range.Keys)
+                });
+                resolvable = false;
+            }
+        }
+
+        return resolvable;
+    }
+
     private void CheckFlawIds(CharacterSheet sheet, List<ValidationIssue> issues)
     {
         foreach (var sf in sheet.Flaws)
@@ -365,7 +605,8 @@ public sealed class CharacterValidator
     /// <para>Returns false if any item cannot be priced at all, which stops the caller
     /// asking for a total that would throw.</para>
     /// </summary>
-    private bool CheckGear(CharacterSheet sheet, List<ValidationIssue> issues)
+    private bool CheckGear(
+        CharacterSheet sheet, List<ValidationIssue> issues, bool modifiersResolvable)
     {
         var resolvable = true;
 
@@ -391,11 +632,13 @@ public sealed class CharacterValidator
                     continue;
                 }
 
-                if (feature.CostType != "flat" && f.GradeKey is null)
+                if (feature.CostType != "flat"
+                    && (f.GradeKey is null || feature.CostRange?.ContainsKey(f.GradeKey) != true))
                 {
                     issues.Add(new(ValidationSeverity.Error, "GEAR_FEATURE_NEEDS_GRADE",
                         $"{gear.Name}'s {feature.Name} feature is priced by grade, and no grade "
-                        + $"has been chosen. Pick one of: {Names(feature.CostRange?.Keys)}.")
+                        + $"the rulebook lists has been chosen. "
+                        + $"Pick one of: {Names(feature.CostRange?.Keys)}.")
                     {
                         SubjectKind = ValidationSubject.GearFeature,
                         SubjectId   = f.FeatureId,
@@ -411,7 +654,12 @@ public sealed class CharacterValidator
             // "Regardless of Cons, no piece of gear can cost less than 0 Hero Points."
             // Cons past that point buy the character nothing, so say so rather than
             // letting a player think they are still saving.
-            if (itemResolvable && gear.Cons.Count > 0 && _costs.GearCost(gear) == 0)
+            // modifiersResolvable as well as itemResolvable: this is the one place gear is
+            // priced during validation, and a Con with an id or a grade the rulebook does not
+            // have throws out of GearCost. The features were checked above; the Pros and Cons
+            // are CheckModifiers' business, and its answer has to be respected here or this
+            // warning takes the whole validation down with it.
+            if (itemResolvable && modifiersResolvable && gear.Cons.Count > 0 && _costs.GearCost(gear) == 0)
                 issues.Add(new(ValidationSeverity.Warning, "GEAR_COST_AT_MINIMUM",
                     $"Gear '{gear.Name}' is already free after its cons. " +
                     "No piece of gear can cost less than 0 HP, so further cons will not help.")
@@ -428,9 +676,11 @@ public sealed class CharacterValidator
                     $"Gear '{gear.Name}' is recorded as a Two-Fisted pair, but the character " +
                     "does not have the Two-Fisted Power that allows paying once for both.")
                 {
+                    // The subject is the gear, and no Options: the repair is adding a Power
+                    // to the character, not writing a value into this item. An option list
+                    // whose values do not go into the subject reads as though it would.
                     SubjectKind = ValidationSubject.Gear,
-                    SubjectId   = gear.Name,
-                    Options     = ["two_fisted"]
+                    SubjectId   = gear.Name
                 });
         }
 
@@ -522,7 +772,10 @@ public sealed class CharacterValidator
                     + $"{traitKindPlural} in the rulebook.")
                 {
                     SubjectKind = kind,
-                    SubjectId   = traitId
+                    SubjectId   = traitId,
+                    Options     = kind == ValidationSubject.Ability
+                        ? _rules.Abilities.Select(a => a.Id).ToList()
+                        : _rules.Talents.Select(t => t.Id).ToList()
                 });
                 continue;
             }
@@ -639,11 +892,15 @@ public sealed class CharacterValidator
                 continue;
             }
 
-            if (power.CostType is "per_rank_variable" or "flat_variable" && sp.CostVariantKey is null)
+            // Absent and present-but-unknown are one finding: the repair is the same, and the
+            // second reached CostCalculator and threw where the first was reported.
+            if (power.CostType is "per_rank_variable" or "flat_variable"
+                && (sp.CostVariantKey is null || power.CostVariants?.ContainsKey(sp.CostVariantKey) != true))
             {
                 issues.Add(new(ValidationSeverity.Error, "POWER_VARIANT_NOT_CHOSEN",
                     $"{power.Name} costs a different amount depending on which version you "
-                    + $"take, and none has been chosen. Pick one of: {Names(power.CostVariants?.Keys)}.")
+                    + $"take, and none the rulebook lists has been chosen. "
+                    + $"Pick one of: {Names(power.CostVariants?.Keys)}.")
                 {
                     SubjectKind = ValidationSubject.Power,
                     SubjectId   = sp.PowerId,
@@ -652,11 +909,15 @@ public sealed class CharacterValidator
                 resolvable = false;
             }
 
-            if (power.Prerequisite?.Relationship == "baseline_selected_trait" && sp.BaselineTraitId is null)
+            // Again absent and unknown together. An unknown nomination threw for Boost, whose
+            // cost comes from the nominated Trait, and silently gave Expertise a baseline of
+            // nothing — two different wrong answers to the same mistake.
+            if (power.Prerequisite?.Relationship == "baseline_selected_trait"
+                && (sp.BaselineTraitId is null || !IsATrait(sp.BaselineTraitId)))
             {
                 issues.Add(new(ValidationSeverity.Error, "POWER_BASELINE_TRAIT_NOT_CHOSEN",
                     $"Power '{power.Name}' derives its baseline rank from a Trait the player " +
-                    "nominates, but none has been recorded.")
+                    "nominates, and no Trait the rulebook has is recorded.")
                 {
                     // The nomination may be any ability, talent or power, so there is no short
                     // list to offer — which is itself the answer, and the code says which
@@ -717,7 +978,18 @@ public sealed class CharacterValidator
     /// exports. None of them may print an id, a file name or an internal flag; there is a
     /// test that says so.</para>
     /// </summary>
-    private string PowerName(string powerId) => _rules.GetPower(powerId)?.Name ?? powerId;
+    private string PowerName(string powerId) => TraitName(_rules.GetPower(powerId)?.Name, powerId);
+
+    /// <summary>
+    /// A Trait's printed name, or its id **in quotes** when the rules do not have it.
+    ///
+    /// <para>The quotes are the whole point. A message may print an id the player themselves
+    /// supplied — an unknown one has no name to print instead — but only inside quotes, which
+    /// is how <c>ValidationMessageTests</c> tells "the rulebook calls this Intellect" from
+    /// "you wrote this". The bare fallback here printed <c>hand_to_hand is 40d</c>, which
+    /// broke both that rule and the one requiring a sentence to start with a capital.</para>
+    /// </summary>
+    private static string TraitName(string? name, string id) => name ?? $"'{id}'";
 
     private static string Flaws(int count) => count == 1 ? "1 flaw" : $"{count} flaws";
 
@@ -726,6 +998,16 @@ public sealed class CharacterValidator
 
     /// <summary>The six tiers, likewise.</summary>
     private IReadOnlyList<string> TierIds => _rules.Tiers.Select(t => t.Id).ToList();
+
+    /// <summary>
+    /// Whether an id names a Trait a Power can derive its baseline from. Ch.2 lets the
+    /// nomination be an Ability, a Talent or another Power, which is why this is three
+    /// lookups and not a list.
+    /// </summary>
+    private bool IsATrait(string id) =>
+        _rules.GetAbility(id) is not null ||
+        _rules.GetTalent(id) is not null ||
+        _rules.GetPower(id) is not null;
 
     /// <summary>
     /// The same keys <see cref="Names"/> sets as prose, left as keys. The message humanises

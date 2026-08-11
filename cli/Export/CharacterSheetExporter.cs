@@ -37,6 +37,11 @@ public sealed class CharacterSheetExporter
         var generatedAt = DateTime.Now;
         var baseName    = CharacterSheetRenderer.BaseFileName(sheet, generatedAt);
 
+        // The base name is the character's name and the time to the second, and two runs
+        // inside one second silently overwrote each other — both reporting paths that then
+        // held somebody else's character. A repair loop runs far faster than that.
+        baseName = Unused(dir, baseName);
+
         var txtPath  = Path.Combine(dir, baseName + ".txt");
         var jsonPath = Path.Combine(dir, baseName + ".json");
 
@@ -50,4 +55,28 @@ public sealed class CharacterSheetExporter
 
         return (txtPath, jsonPath);
     }
+
+    /// <summary>
+    /// The base name, or the first numbered variant of it whose <c>.txt</c> and <c>.json</c>
+    /// are both free.
+    ///
+    /// <para>Both, together: a name is only usable if it can hold the whole pair, or the two
+    /// halves of one character's export end up under different names.</para>
+    /// </summary>
+    private static string Unused(string dir, string baseName)
+    {
+        if (IsFree(dir, baseName)) return baseName;
+
+        for (var n = 2; n < 1000; n++)
+            if (IsFree(dir, $"{baseName}_{n}")) return $"{baseName}_{n}";
+
+        // A thousand exports of one character in one second is not a case worth a policy;
+        // falling back to the plain name overwrites, which is where this started, but only
+        // after a thousand attempts to avoid it.
+        return baseName;
+    }
+
+    private static bool IsFree(string dir, string baseName) =>
+        !File.Exists(Path.Combine(dir, baseName + ".txt")) &&
+        !File.Exists(Path.Combine(dir, baseName + ".json"));
 }

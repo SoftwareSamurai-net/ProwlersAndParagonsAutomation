@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using ProwlersAndParagonsAutomation.Engine;
 
 namespace ProwlersAndParagonsAutomation.Tests;
@@ -192,13 +193,24 @@ public sealed class ValidationIssueStructureTests
 
         var issue = Issue(sheet, "UNKNOWN_TIER");
 
-        Assert.Equal(ValidationSubject.Character, issue.SubjectKind);
+        Assert.Equal(ValidationSubject.Tier, issue.SubjectKind);
+        Assert.Equal("stanadrd", issue.SubjectId);
         Assert.Equal(_f.Rules.Tiers.Select(t => t.Id).Order(), issue.Options.Order());
         Assert.False(_f.Validator.Validate(sheet).IsValid);
 
-        // And choosing a real one from the options gets the limits back.
+        // And choosing a real one from the options gets **both** limits back, not just the
+        // one. Checking only the Trait Cap here left deleting the budget check undetected.
         sheet.SelectedTierId = issue.Options[0];
         Assert.True(Reports(sheet, "TRAIT_ABOVE_CAP"));
+
+        var expensive = Legal();
+        expensive.SelectedTierId = "stanadrd";
+        foreach (var a in _f.Rules.Abilities) expensive.AbilityRanks[a.Id] = 12;
+        foreach (var t in _f.Rules.Talents) expensive.TalentRanks[t.Id] = 12;
+
+        Assert.False(Reports(expensive, "HP_BUDGET_EXCEEDED"));
+        expensive.SelectedTierId = "standard";
+        Assert.True(Reports(expensive, "HP_BUDGET_EXCEEDED"));
     }
 
     /// <summary>
@@ -267,11 +279,15 @@ public sealed class ValidationIssueStructureTests
     /// the invariants below are asserted over the whole surface rather than over the handful
     /// of findings somebody remembered.
     /// </summary>
-    public static TheoryData<string> Cases() =>
+    public static TheoryData<string> Cases() => [.. CaseNames];
+
+    private static readonly string[] CaseNames =
     [
         "no tier", "over budget", "above cap", "no flaws", "too many flaws",
         "unknown ids", "gear", "ranks on a rankless power", "unresolved selections",
-        "iconic", "unknown tier", "unknown package", "sample villain"
+        "iconic", "unknown tier", "unknown package", "unknown traits", "unknown modifiers",
+        "ungraded modifiers", "negative quantities", "gear at its floor", "power at its floor",
+        "unpriceable", "sample villain"
     ];
 
     private CharacterSheet Build(string which)
@@ -370,6 +386,89 @@ public sealed class ValidationIssueStructureTests
                 return sheet;
             }
 
+            case "unknown traits":
+            {
+                var sheet = Legal();
+                sheet.AbilityRanks["strength"] = 4;
+                sheet.TalentRanks["athletics"] = 4;
+                sheet.Perks.Add(new SelectedPerk("time_machine"));
+                return sheet;
+            }
+
+            case "unknown modifiers":
+            {
+                var sheet = Legal();
+                sheet.AbilityRanks["might"] = 6;
+                sheet.SelectedPowers.Add(new SelectedPower("armor", 2,
+                    [new SelectedProCon("teleporty")], [new SelectedProCon("wibble")])
+                { SourceId = "tech" });
+                sheet.Gear.Add(new SelectedGear("Sword") { Cons = [new("nonsuch")] });
+                sheet.AbilityModifiers["intellect"] = [new SelectedProCon("overkill")];
+                return sheet;
+            }
+
+            case "ungraded modifiers":
+            {
+                // A Pro and a Con priced by grade, one with no key and one with a key the
+                // rulebook does not have. Both threw out of the middle of the total before
+                // they were checked.
+                var sheet = Legal();
+                sheet.SelectedPowers.Add(new SelectedPower("blast", 3,
+                    [new SelectedProCon("area_burst")],
+                    [new SelectedProCon("charges", "eleventy_per_scene")])
+                { SourceId = "tech" });
+                sheet.SelectedPowers.Add(new SelectedPower("boost", 2) { BaselineTraitId = "wibble" });
+                sheet.SelectedPowers.Add(new SelectedPower("omni_power", 1) { CostVariantKey = "narrow-ish" });
+                sheet.Gear.Add(new SelectedGear("Pistol")
+                {
+                    Features = [new("accurate", "extremely_accurate")]
+                });
+                return sheet;
+            }
+
+            case "negative quantities":
+            {
+                var sheet = Legal();
+                sheet.AbilityRanks["might"]    = -50;
+                sheet.TalentRanks["academics"] = -3;
+                sheet.SelectedPowers.Add(new SelectedPower("blast", -4) { SourceId = "tech" });
+                sheet.SelectedPowers.Add(new SelectedPower("immunity", 0)
+                { Units = -20, SourceId = "tech" });
+                sheet.Perks.Add(new SelectedPerk("contacts", -1000));
+                return sheet;
+            }
+
+            case "gear at its floor":
+            {
+                var sheet = Legal();
+                sheet.Gear.Add(new SelectedGear("Battered helmet")
+                {
+                    Features = [new("bonded")],
+                    Cons     = [new("item"), new("unreliable")]
+                });
+                return sheet;
+            }
+
+            case "power at its floor":
+            {
+                var sheet = Legal();
+                sheet.SelectedPowers.Add(new SelectedPower("armor", 4,
+                    [], [new SelectedProCon("burnout")])
+                { SourceId = "tech" });
+                return sheet;
+            }
+
+            case "unpriceable":
+            {
+                // The backstop. Nothing here should reach it — every gap above is reported by
+                // name — so this case exists to prove the report stays a report if one ever
+                // does, rather than to provoke a particular code.
+                var sheet = Legal();
+                sheet.SelectedPowers.Add(new SelectedPower("boost", 2));
+                sheet.Perks.Add(new SelectedPerk("time_machine"));
+                return sheet;
+            }
+
             default:
                 return SampleCharacters.Villain();
         }
@@ -377,6 +476,60 @@ public sealed class ValidationIssueStructureTests
 
     private List<ValidationIssue> IssuesFor(string which) =>
         [.. _f.Validator.Validate(Build(which)).Issues];
+
+    /// <summary>
+    /// <b>The invariants below are only worth what <see cref="Cases"/> reaches, and nothing
+    /// used to hold that list to anything.</b> Two codes added in the same change as those
+    /// invariants were not in it, and one of the invariants would have failed had they been —
+    /// so all three ran green over a surface that did not include the work they were written
+    /// for.
+    ///
+    /// <para>So the list is checked against the validator's own source: every code it can
+    /// construct has to be provoked by some case here. A check added later cannot be quietly
+    /// exempt from the structural rules, because adding it fails this test until a sheet that
+    /// produces it exists.</para>
+    /// </summary>
+    private static readonly string[] UnprovokableCodes =
+        ["POWER_MECHANICS_UNVERIFIED", "POWER_DESCRIPTION_UNVERIFIED", "CHARACTER_NOT_PRICEABLE"];
+
+    [Fact]
+    public void EveryCodeTheValidatorCanReportIsProvokedBySomeCase()
+    {
+        var source = File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "engine", "CharacterValidator.cs"));
+
+        var declared = new Regex(@"ValidationSeverity\.\w+,\s*""([A-Z_]+)""",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Matches(source)
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.NotEmpty(declared);
+
+        // Three codes cannot be provoked from the shipped rules, and each is exempt for a
+        // reason rather than for convenience:
+        //
+        //   The two POWER_*_UNVERIFIED warnings fire on a per-entry flag that no entry in
+        //   data/rules/ sets — every Power is verified. Provoking them would mean shipping a
+        //   rules file with a flag set to make a test go green.
+        //
+        //   CHARACTER_NOT_PRICEABLE is the backstop inside CheckHpBudget, and being
+        //   unreachable is the whole of its job: every gap that used to reach it is now
+        //   reported by name. Demanding a payload for it would mean leaving one of those
+        //   holes open on purpose. If one is ever found, it belongs in Cases() as a bug.
+        declared.ExceptWith(UnprovokableCodes);
+
+        var provoked = CaseNames
+            .SelectMany(IssuesFor)
+            .Select(i => i.Code)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var missing = declared.Except(provoked).Order().ToList();
+
+        Assert.True(missing.Count == 0,
+            "No sheet in Cases() produces: " + string.Join(", ", missing) +
+            ". Add one, or the structural invariants below never see these codes.");
+    }
 
     /// <summary>
     /// <b>Every error says what it is about.</b> This is the rule a check added later would
@@ -425,7 +578,8 @@ public sealed class ValidationIssueStructureTests
         {
             if (issue.Value is not { } value || issue.Limit is not { } limit) continue;
 
-            if (issue.Code.Contains("MIN_NOT_MET", StringComparison.Ordinal))
+            if (issue.Code.Contains("MIN_NOT_MET", StringComparison.Ordinal)
+                || issue.Code.StartsWith("NEGATIVE_", StringComparison.Ordinal))
                 Assert.True(value < limit, $"{issue.Code}: {value} is not below its minimum of {limit}.");
             else if (issue.Code.EndsWith("AT_MINIMUM", StringComparison.Ordinal))
                 Assert.Equal(limit, value);      // already at the floor; that is the finding
@@ -455,6 +609,9 @@ public sealed class ValidationIssueStructureTests
                     _f.Rules.GetFlaw(option) is not null ||
                     _f.Rules.GetPower(option) is not null ||
                     _f.Rules.GetGearFeature(option) is not null ||
+                    _f.Rules.GetAbility(option) is not null ||
+                    _f.Rules.GetTalent(option) is not null ||
+                    _f.Rules.GetPerk(option) is not null ||
                     _f.Rules.CreationRules.OptionalPackages.Any(p => p.Id == option) ||
                     IsAVariantKey(issue, option);
 
@@ -474,7 +631,12 @@ public sealed class ValidationIssueStructureTests
 
         var variants = _f.Rules.GetPower(issue.SubjectId)?.CostVariants?.Keys;
         var grades   = _f.Rules.GetGearFeature(issue.SubjectId)?.CostRange?.Keys;
+        var proRange = _f.Rules.GetPro(issue.SubjectId)?.CostModifierRange?.Keys;
+        var conRange = _f.Rules.GetCon(issue.SubjectId)?.CostModifierRange?.Keys;
 
-        return (variants?.Contains(option) ?? false) || (grades?.Contains(option) ?? false);
+        return (variants?.Contains(option) ?? false)
+            || (grades?.Contains(option) ?? false)
+            || (proRange?.Contains(option) ?? false)
+            || (conRange?.Contains(option) ?? false);
     }
 }

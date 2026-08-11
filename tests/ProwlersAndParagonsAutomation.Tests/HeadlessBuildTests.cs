@@ -42,6 +42,9 @@ public sealed class HeadlessBuildTests : IDisposable
 
     private sealed record Run(int ExitCode, string StdOut, string StdErr)
     {
+        /// <summary>Whether the wizard was started. Only <c>Dispatch</c> sets it.</summary>
+        public bool WizardRan { get; init; }
+
         /// <summary>
         /// The report, parsed. Asserting on the parsed document rather than on the text is
         /// the same rule the rendering tests learned the hard way: a substring check against
@@ -185,6 +188,92 @@ public sealed class HeadlessBuildTests : IDisposable
         Assert.NotEmpty(options);
         Assert.Equal(_f.Rules.GetPower("omni_power")!.CostVariants!.Keys.Order(), options.Order());
         Assert.Null(run.Report["hero_points"]!["spent"]);
+    }
+
+    /// <summary>
+    /// <b>Every figure the skill tells a caller to branch on.</b> None of these was asserted,
+    /// and each could be replaced by a constant or a null with the whole suite green — the
+    /// budget, what is left of it, the cap a rank is measured against, and the package. A
+    /// caller reading `remaining` to decide what to give up would have read 0 for ever.
+    /// </summary>
+    [Fact]
+    public void TheReportCarriesEveryFigureACallerBranchesOn()
+    {
+        var hero = SampleCharacters.Hero();
+        var run  = Invoke("--from", File_(CharacterSheetJson.Write(hero)), "--no-export");
+        var tier = _f.Rules.GetTier(hero.SelectedTierId!)!;
+
+        Assert.Equal(tier.HeroPoints, (int)run.Report["hero_points"]!["budget"]!);
+        Assert.Equal(tier.HeroPoints - _f.Costs.TotalCost(hero),
+                     (int)run.Report["hero_points"]!["remaining"]!);
+        Assert.Equal(tier.TraitCapRank, (int)run.Report["trait_cap"]!);
+        Assert.Equal(hero.SelectedPackageId, (string?)run.Report["character"]!["package"]);
+    }
+
+    /// <summary>
+    /// Over budget means <c>remaining</c> is negative by the overspend. It is how a caller
+    /// decides how much to give up, and a constant 0 there would read as "you are exactly on
+    /// budget" on every failing pass.
+    /// </summary>
+    [Fact]
+    public void RemainingGoesNegativeByTheOverspend()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.Flaws.Add(new SelectedFlaw(_f.Rules.Flaws[0].Id));
+        foreach (var a in _f.Rules.Abilities) sheet.AbilityRanks[a.Id] = 12;
+        foreach (var t in _f.Rules.Talents) sheet.TalentRanks[t.Id] = 12;
+
+        var run = Invoke("--from", File_(CharacterSheetJson.Write(sheet)), "--no-export");
+        var over = _f.Costs.TotalCost(sheet) - _f.Rules.GetTier("standard")!.HeroPoints;
+
+        Assert.True(over > 0);
+        Assert.Equal(-over, (int)run.Report["hero_points"]!["remaining"]!);
+    }
+
+    /// <summary>
+    /// <b>Warnings have to survive into the report.</b> Filtering them out left every test
+    /// green: nothing read a warning from the wire, so a legal character's missing Source, an
+    /// Iconic budget note and an unverified Power could all have vanished silently.
+    /// </summary>
+    [Fact]
+    public void WarningsReachTheReportOnALegalCharacter()
+    {
+        var villain = SampleCharacters.Villain();   // legal, with one deliberate warning
+        var run     = Invoke("--from", File_(CharacterSheetJson.Write(villain)), "--no-export");
+
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+        Assert.True((bool)run.Report["ok"]!);
+
+        var warnings = run.Issues.Where(i => (string?)i!["severity"] == "warning").ToList();
+        Assert.NotEmpty(warnings);
+        Assert.Equal(_f.Validator.Validate(villain).Warnings.Count(), warnings.Count);
+    }
+
+    /// <summary>
+    /// A multi-word subject kind, on the wire, as the skill publishes it. Every other
+    /// assertion on this field used a single-word value, so dropping the underscore shipped
+    /// <c>gearfeature</c> and nothing noticed — including the test that checks the document,
+    /// which converted the enum itself instead of asking the command.
+    /// </summary>
+    [Fact]
+    public void AMultiWordSubjectKindKeepsItsUnderscoreOnTheWire()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.Flaws.Add(new SelectedFlaw(_f.Rules.Flaws[0].Id));
+        sheet.Gear.Add(new SelectedGear("Pistol") { Features = [new("accurate")] });
+
+        var run   = Invoke("--from", File_(CharacterSheetJson.Write(sheet)), "--no-export");
+        var issue = run.Issue("GEAR_FEATURE_NEEDS_GRADE");
+
+        Assert.NotNull(issue);
+        Assert.Equal("gear_feature", (string?)issue["subject_kind"]);
+        Assert.Equal(BuildCommand.SubjectKindName(ValidationSubject.GearFeature),
+                     (string?)issue["subject_kind"]);
+
+        // owner_id was asserted on the engine's object and never on the wire, so it could have
+        // been dropped from the report alone.
+        Assert.Equal("Pistol", (string?)issue["owner_id"]);
+        Assert.Equal("accurate", (string?)issue["subject_id"]);
     }
 
     // ── Input that is not a character ─────────────────────────────────────
@@ -335,6 +424,16 @@ public sealed class HeadlessBuildTests : IDisposable
 
         Assert.True(File.Exists(text));
         Assert.True(File.Exists(json));
+
+        // Under the directory that was ASKED for. Asserting only that the reported path exists
+        // tests nothing about --out: the report says wherever it wrote, so ignoring the flag
+        // entirely and writing to the default output/ passed this test's own name.
+        Assert.Equal(Path.GetFullPath(out_), Path.GetDirectoryName(text));
+        Assert.Equal(Path.GetFullPath(out_), Path.GetDirectoryName(json));
+
+        // And absolute, whatever form --out took, so a caller can resolve them from anywhere.
+        Assert.True(Path.IsPathFullyQualified(text));
+        Assert.True(Path.IsPathFullyQualified(json));
         Assert.Contains(hero.Name, File.ReadAllText(text), StringComparison.Ordinal);
         Assert.Equal(_f.Costs.TotalCost(hero),
             JsonNode.Parse(File.ReadAllText(json))!["hp_budget"]!["spent"]!.GetValue<int>());
@@ -483,6 +582,141 @@ public sealed class HeadlessBuildTests : IDisposable
         Assert.True((int)run.Report["hero_points"]!["spent"]! > 0);
     }
 
+    /// <summary>
+    /// Two characters exported in the same second used to overwrite each other, and both runs
+    /// reported paths that then held the second character. The name is the character's plus a
+    /// timestamp to the second, and a repair loop runs many times faster than that.
+    /// </summary>
+    [Fact]
+    public void TwoExportsInTheSameSecondDoNotOverwriteEachOther()
+    {
+        var out_  = Path.Combine(_scratch, "twice");
+        var first = SampleCharacters.Hero();
+        var second = SampleCharacters.Hero();
+        second.Motivation = "A different character with the same name";
+
+        var a = Invoke("--from", File_(CharacterSheetJson.Write(first)), "--out", out_);
+        var b = Invoke("--from", File_(CharacterSheetJson.Write(second)), "--out", out_);
+
+        var textA = (string)a.Report["exports"]!["text"]!;
+        var textB = (string)b.Report["exports"]!["text"]!;
+
+        Assert.NotEqual(textA, textB);
+        Assert.True(File.Exists(textA), "The first export was overwritten by the second.");
+        Assert.DoesNotContain(second.Motivation, File.ReadAllText(textA), StringComparison.Ordinal);
+        Assert.Contains(second.Motivation, File.ReadAllText(textB), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A caller that asked for sheets and got none has to see it in the report. It was a line
+    /// on standard error and an <c>exports: null</c> nothing told them to check — exit 0 with
+    /// no sheet, which reads as success.
+    /// </summary>
+    [Fact]
+    public void ExportsThatCouldNotBeWrittenAreReportedNotJustLogged()
+    {
+        // --out at a path that is already a file, so the directory cannot be created.
+        var blocker = Path.Combine(_scratch, "in-the-way");
+        File.WriteAllText(blocker, "not a directory");
+
+        var run = Invoke("--from", SampleHeroFile(), "--out", blocker);
+
+        Assert.Null(run.Report["exports"]);
+        Assert.NotNull(run.Issue("EXPORTS_NOT_WRITTEN"));
+        Assert.NotEmpty(run.StdErr);
+
+        // Still exit 0: the exit code answers "is this character legal", and it is.
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+    }
+
+    /// <summary>
+    /// <b>Nulls where the type system says there cannot be one.</b> Six shapes of ordinary
+    /// hand-written JSON took the whole run down through the validator — no report, an exit
+    /// code outside the three, a stack trace. The deserializer puts a null at any depth
+    /// without the compiler objecting, and a caller writing a character by hand will omit a
+    /// key sooner or later.
+    /// </summary>
+    [Theory]
+    [InlineData("""{"SelectedTierId":"standard","Gear":[{"Name":"Sword","Features":null}]}""")]
+    [InlineData("""{"SelectedTierId":"standard","Gear":[{"Name":"Sword","Features":[null]}]}""")]
+    [InlineData("""{"SelectedTierId":"standard","Gear":[{"Name":"Sword","Cons":null}]}""")]
+    [InlineData("""{"SelectedTierId":"standard","Gear":[{"Name":"Sword","Pros":null}]}""")]
+    [InlineData("""{"SelectedTierId":"standard","SelectedPowers":[{"PowerId":null}]}""")]
+    [InlineData("""{"SelectedTierId":"standard","Perks":[{"PerkId":null}]}""")]
+    [InlineData("""{"SelectedTierId":"standard","Flaws":[{"FlawId":null}]}""")]
+    [InlineData("""{"SelectedTierId":"standard","Gear":[{"Name":null}]}""")]
+    public void ACharacterWithNullsWhereIdsBelongIsReportedNotThrown(string json)
+    {
+        var run = Invoke("--from", File_(json), "--no-export");
+
+        // Whatever it is, it is one of the three exits with one JSON document on stdout.
+        Assert.Contains(run.ExitCode,
+            new[] { BuildCommand.Ok, BuildCommand.CharacterIllegal, BuildCommand.InputUnusable });
+
+        var document = JsonDocument.Parse(run.StdOut);
+        Assert.Equal(run.ExitCode, document.RootElement.GetProperty("exit_code").GetInt32());
+        Assert.DoesNotContain("Unhandled exception", run.StdErr, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <c>--from ""</c>. <c>File.ReadAllText</c> refuses an empty path before it touches a
+    /// disk, with an exception that was not in the filter — so the one argument value most
+    /// likely to arrive from an unset variable was the one that crashed.
+    /// </summary>
+    [Fact]
+    public void AnEmptyFileNameIsReportedRatherThanThrown()
+    {
+        var run = Invoke("--from", "", "--no-export");
+
+        Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
+        Assert.NotNull(run.Issue("INPUT_UNREADABLE"));
+    }
+
+    /// <summary>
+    /// The message for a file that is not JSON must not name a C# type. It interpolated the
+    /// deserializer's own message, which says things like "could not be converted to
+    /// ProwlersAndParagonsAutomation.Engine.SelectedPower" — this program talking about itself
+    /// to somebody holding a rulebook, and the rule the rest of the surface is held to.
+    /// </summary>
+    [Fact]
+    public void TheUnreadableInputMessageNamesNoInternalType()
+    {
+        var run = Invoke("--from", File_("""
+            {"SelectedTierId":"standard","SelectedPowers":[7]}
+            """), "--no-export");
+
+        var message = run.Issue("INPUT_UNREADABLE")!["message"]!.ToString();
+
+        Assert.DoesNotContain("ProwlersAndParagons", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("System.", message, StringComparison.Ordinal);
+        Assert.Contains("SelectedPowers", message, StringComparison.Ordinal);   // the path helps
+    }
+
+    /// <summary>
+    /// The empty-input guard has its own message, and two of the three inputs it exists for
+    /// reached the same code by a different route — the JSON parser — so deleting the guard
+    /// left the test green. This asserts the guard itself answered.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AnEmptyFileIsSaidToBeEmptyRatherThanUnparseable(string contents)
+    {
+        var message = Invoke("--from", File_(contents), "--no-export")
+            .Issue("INPUT_UNREADABLE")!["message"]!.ToString();
+
+        Assert.Contains("empty", message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void NothingOnStandardInputSaysSoRatherThanFailingToParse()
+    {
+        var message = InvokeWithInput("", "--from", "-", "--no-export")
+            .Issue("INPUT_UNREADABLE")!["message"]!.ToString();
+
+        Assert.Contains("standard input", message, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ── The other front end has to keep working ───────────────────────────
 
     /// <summary>
@@ -496,5 +730,84 @@ public sealed class HeadlessBuildTests : IDisposable
         Assert.Contains(BuildCommand.Verb, InteractiveTerminal.UnavailableMessage, StringComparison.Ordinal);
         Assert.Contains("--from", InteractiveTerminal.UnavailableMessage, StringComparison.Ordinal);
         Assert.DoesNotContain("Exception", InteractiveTerminal.UnavailableMessage, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The predicate, not just the message.</b> Only the string was tested, so
+    /// <see cref="InteractiveTerminal.IsAvailable"/> could return true always and the wizard
+    /// would go back to throwing out of its first prompt with every test green.
+    ///
+    /// <para>A test runner is exactly the case it exists for: standard input is redirected,
+    /// so there is no terminal to prompt on. Asserting that is asserting the predicate.</para>
+    /// </summary>
+    [Fact]
+    public void ThereIsNoInteractiveTerminalUnderATestRunner()
+    {
+        Assert.True(Console.IsInputRedirected, "This test assumes the runner redirects input.");
+        Assert.False(InteractiveTerminal.IsAvailable);
+    }
+
+    // ── What the arguments mean ───────────────────────────────────────────
+
+    /// <summary>
+    /// <see cref="CommandLine"/> exists to be tested: as six lines at the top of Program.cs
+    /// none of this was reachable, and one of those lines answered a misspelled verb with
+    /// exit 2 and an empty standard output — contradicting the contract in the same breath as
+    /// naming it.
+    /// </summary>
+    private Run Dispatch(bool interactive, params string[] args)
+    {
+        using var stdout = new StringWriter();
+        using var stderr = new StringWriter();
+        var wizardRan = false;
+
+        var exit = new CommandLine(
+                new BuildCommand(_f.Rules, _f.Costs, _f.Derived, _f.Validator),
+                () => wizardRan = true,
+                () => interactive)
+            .Run(args, RulesFixture.RepoRoot, stdout, stderr, new StringReader(""));
+
+        return new Run(exit, stdout.ToString(), stderr.ToString()) { WizardRan = wizardRan };
+    }
+
+    [Fact]
+    public void AMisspelledVerbStillWritesAReport()
+    {
+        var run = Dispatch(interactive: true, "bulid", "--from", "x.json");
+
+        Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
+        Assert.NotNull(run.Issue("BAD_ARGUMENTS"));
+        Assert.Contains("bulid", run.Issue("BAD_ARGUMENTS")!["message"]!.ToString(), StringComparison.Ordinal);
+        Assert.False(run.WizardRan);
+    }
+
+    [Fact]
+    public void TheBuildVerbIsRoutedToTheCommandWithoutItsOwnName()
+    {
+        var run = Dispatch(interactive: true, BuildCommand.Verb, "--from", SampleHeroFile(), "--no-export");
+
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+        Assert.True((bool)run.Report["ok"]!);
+        Assert.False(run.WizardRan);
+    }
+
+    [Fact]
+    public void NoArgumentsRunsTheWizardWhenThereIsATerminal()
+    {
+        var run = Dispatch(interactive: true);
+
+        Assert.Equal(BuildCommand.Ok, run.ExitCode);
+        Assert.True(run.WizardRan);
+    }
+
+    [Fact]
+    public void NoArgumentsWithoutATerminalExplainsItselfAndDoesNotStartTheWizard()
+    {
+        var run = Dispatch(interactive: false);
+
+        Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
+        Assert.False(run.WizardRan);
+        Assert.Contains(BuildCommand.Verb, run.StdErr, StringComparison.Ordinal);
+        Assert.Empty(run.StdOut);
     }
 }
