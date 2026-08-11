@@ -1,0 +1,381 @@
+using ProwlersAndParagonsAutomation.Engine;
+
+namespace ProwlersAndParagonsAutomation.Tests;
+
+/// <summary>
+/// The machine-readable half of a validation issue, which exists so that something other
+/// than a person can act on a finding.
+///
+/// <para><b>Asserting that the fields are populated would be theatre.</b> A field can hold
+/// the wrong id, the value and the limit can be the wrong way round, and an option list can
+/// offer something the data will not accept — and every one of those passes a test that only
+/// checks for a non-null. So most of what follows <em>uses</em> the structure: it reads an
+/// issue, applies the repair the structure implies, re-validates, and asserts the finding is
+/// gone. A field that does not survive that is not carrying what it claims.</para>
+/// </summary>
+[Collection(SharedRules.Name)]
+public sealed class ValidationIssueStructureTests
+{
+    private readonly RulesFixture _f;
+
+    public ValidationIssueStructureTests(RulesFixture f) => _f = f;
+
+    private static CharacterSheet Legal()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.Flaws.Add(new SelectedFlaw("code"));
+        return sheet;
+    }
+
+    private ValidationIssue Issue(CharacterSheet sheet, string code) =>
+        Assert.Single(_f.Validator.Validate(sheet).Issues, i => i.Code == code);
+
+    private bool Reports(CharacterSheet sheet, string code) =>
+        _f.Validator.Validate(sheet).Issues.Any(i => i.Code == code);
+
+    // ── Repairing from the structure alone ────────────────────────────────
+
+    /// <summary>
+    /// The canonical repair: a Trait over the cap. Everything needed to fix it — which
+    /// Trait, which kind of Trait, what it is and what it may be — comes off the issue, and
+    /// nothing is read out of the sentence.
+    /// </summary>
+    [Fact]
+    public void ATraitOverTheCapCanBeBroughtBackFromTheIssueAlone()
+    {
+        var sheet = Legal();
+        sheet.AbilityRanks["intellect"] = 40;
+
+        var issue = Issue(sheet, "TRAIT_ABOVE_CAP");
+
+        Assert.Equal(ValidationSubject.Ability, issue.SubjectKind);
+        Assert.Equal("intellect", issue.SubjectId);
+        Assert.Equal(40, issue.Value);
+        Assert.Equal(_f.Rules.GetTier("standard")!.TraitCapRank, issue.Limit);
+
+        // The repair, made entirely out of the issue.
+        sheet.AbilityRanks[issue.SubjectId!] = issue.Limit!.Value;
+
+        Assert.False(Reports(sheet, "TRAIT_ABOVE_CAP"));
+    }
+
+    /// <summary>
+    /// The same, for a Talent — because the kind is what tells a caller which dictionary to
+    /// write into, and getting it wrong would put an ability id among the talents, where it
+    /// would be reported as an unknown Trait rather than fixed.
+    /// </summary>
+    [Fact]
+    public void ATalentOverTheCapNamesTheTalentsRatherThanTheAbilities()
+    {
+        var sheet = Legal();
+        sheet.TalentRanks["academics"] = 40;
+
+        var issue = Issue(sheet, "TRAIT_ABOVE_CAP");
+
+        Assert.Equal(ValidationSubject.Talent, issue.SubjectKind);
+        Assert.Equal("academics", issue.SubjectId);
+
+        sheet.TalentRanks[issue.SubjectId!] = issue.Limit!.Value;
+        Assert.False(Reports(sheet, "TRAIT_ABOVE_CAP"));
+    }
+
+    /// <summary>
+    /// A choice the rules fix the set of. The options have to be the keys the data accepts,
+    /// not the prose the message sets them as: the message humanises
+    /// <c>very_accurate</c> to "Very Accurate", and writing that back would be a second
+    /// unknown key rather than a repair.
+    /// </summary>
+    [Fact]
+    public void AVariantCanBeChosenFromTheOptionsTheIssueOffers()
+    {
+        var sheet = Legal();
+        sheet.SelectedPowers.Add(new SelectedPower("omni_power", 2));
+
+        var issue = Issue(sheet, "POWER_VARIANT_NOT_CHOSEN");
+        Assert.NotEmpty(issue.Options);
+
+        foreach (var option in issue.Options)
+        {
+            var repaired = Legal();
+            repaired.SelectedPowers.Add(new SelectedPower("omni_power", 2) { CostVariantKey = option });
+
+            Assert.False(Reports(repaired, "POWER_VARIANT_NOT_CHOSEN"));
+
+            // And the choice is one the engine can actually price, which is the whole reason
+            // the finding is an error rather than a warning.
+            Assert.True(_f.Costs.TotalCost(repaired) > 0);
+        }
+    }
+
+    /// <summary>
+    /// A gear feature is the one subject that is not top-level: it sits on an item, and the
+    /// item is named by nothing else. Without the owner a caller can find the feature and not
+    /// the thing to change it on.
+    /// </summary>
+    [Fact]
+    public void AGearFeatureIssueNamesBothTheFeatureAndTheItemItIsOn()
+    {
+        var sheet = Legal();
+        sheet.Gear.Add(new SelectedGear("Pistol") { Features = [new("accurate")] });
+
+        var issue = Issue(sheet, "GEAR_FEATURE_NEEDS_GRADE");
+
+        Assert.Equal(ValidationSubject.GearFeature, issue.SubjectKind);
+        Assert.Equal("accurate", issue.SubjectId);
+        Assert.Equal("Pistol", issue.OwnerId);
+
+        foreach (var grade in issue.Options)
+        {
+            var repaired = Legal();
+            repaired.Gear.Add(new SelectedGear(issue.OwnerId!)
+            {
+                Features = [new(issue.SubjectId!, grade)]
+            });
+
+            Assert.False(Reports(repaired, "GEAR_FEATURE_NEEDS_GRADE"));
+        }
+    }
+
+    /// <summary>
+    /// The six Sources, offered wherever one is missing or wrong. Every option has to be a
+    /// Source the rules have, or the repair swaps one unknown id for another.
+    /// </summary>
+    [Fact]
+    public void ASourceIssueOffersTheSixSourcesAndEachOneClosesIt()
+    {
+        var sheet = Legal();
+        sheet.SelectedPowers.Add(new SelectedPower("communications", 0));
+
+        var issue = Issue(sheet, "RANKLESS_POWER_WITHOUT_SOURCE");
+
+        Assert.Equal(_f.Rules.Sources.Select(s => s.Id).Order(), issue.Options.Order());
+        Assert.All(issue.Options, o => Assert.NotNull(_f.Rules.GetSource(o)));
+
+        foreach (var source in issue.Options)
+        {
+            var repaired = Legal();
+            repaired.SelectedPowers.Add(new SelectedPower("communications", 0) { SourceId = source });
+
+            Assert.False(Reports(repaired, "RANKLESS_POWER_WITHOUT_SOURCE"));
+        }
+    }
+
+    /// <summary>
+    /// A tier has to be chosen before anything else can be checked, so the one finding a
+    /// fresh character always produces carries the list of tiers to choose from.
+    /// </summary>
+    [Fact]
+    public void TheMissingTierCarriesTheTiersToChooseFrom()
+    {
+        var issue = Issue(new CharacterSheet(), "NO_TIER_SELECTED");
+
+        Assert.Equal(ValidationSubject.Character, issue.SubjectKind);
+        Assert.Equal(_f.Rules.Tiers.Select(t => t.Id).Order(), issue.Options.Order());
+
+        foreach (var tier in issue.Options)
+            Assert.False(Reports(new CharacterSheet { SelectedTierId = tier }, "NO_TIER_SELECTED"));
+    }
+
+    // ── Invariants across every finding ───────────────────────────────────
+
+    /// <summary>
+    /// Sheets chosen to make the validator say as many different things as it can, so that
+    /// the invariants below are asserted over the whole surface rather than over the handful
+    /// of findings somebody remembered.
+    /// </summary>
+    public static TheoryData<string> Cases() =>
+    [
+        "no tier", "over budget", "above cap", "no flaws", "too many flaws",
+        "unknown ids", "gear", "ranks on a rankless power", "unresolved selections",
+        "iconic", "sample villain"
+    ];
+
+    private CharacterSheet Build(string which)
+    {
+        switch (which)
+        {
+            case "no tier":
+                return new CharacterSheet();
+
+            case "over budget":
+            {
+                var sheet = Legal();
+                foreach (var a in _f.Rules.Abilities) sheet.AbilityRanks[a.Id] = 12;
+                foreach (var t in _f.Rules.Talents) sheet.TalentRanks[t.Id] = 12;
+                return sheet;
+            }
+
+            case "above cap":
+            {
+                var sheet = Legal();
+                sheet.AbilityRanks["intellect"] = 40;
+                sheet.TalentRanks["academics"]  = 40;
+                sheet.SelectedPowers.Add(new SelectedPower("blast", 40));
+                return sheet;
+            }
+
+            case "no flaws":
+                return RulesFixture.StandardSheet();
+
+            case "too many flaws":
+            {
+                var sheet = RulesFixture.StandardSheet();
+                foreach (var flaw in _f.Rules.Flaws.Take(10)) sheet.Flaws.Add(new SelectedFlaw(flaw.Id));
+                return sheet;
+            }
+
+            case "unknown ids":
+            {
+                var sheet = Legal();
+                sheet.Flaws.Add(new SelectedFlaw("being_far_too_tall"));
+                sheet.SelectedPowers.Add(new SelectedPower("chronomancy", 3));
+                sheet.SelectedPowers.Add(new SelectedPower("blast", 3) { SourceId = "cosmic" });
+                sheet.AbilitySources["might"]     = "cosmic";
+                sheet.TalentSources["academics"]  = "cosmic";
+                sheet.AbilitySources["telepathy"] = "tech";
+                return sheet;
+            }
+
+            case "gear":
+            {
+                var sheet = Legal();
+                sheet.Gear.Add(new SelectedGear("Mystery box") { Features = [new("teleporting")] });
+                sheet.Gear.Add(new SelectedGear("Pistol") { Features = [new("accurate")] });
+                sheet.Gear.Add(new SelectedGear("Jo Sticks")
+                {
+                    Features = [new("upgraded")],
+                    PairedUnderTwoFisted = true
+                });
+                return sheet;
+            }
+
+            case "ranks on a rankless power":
+            {
+                var sheet = Legal();
+                sheet.SelectedPowers.Add(new SelectedPower("invisibility", 4));
+                sheet.SelectedPowers.Add(new SelectedPower("communications", 0));
+                return sheet;
+            }
+
+            case "unresolved selections":
+            {
+                var sheet = Legal();
+                sheet.SelectedPowers.Add(new SelectedPower("boost", 2));
+                sheet.SelectedPowers.Add(new SelectedPower("omni_power", 4));
+                return sheet;
+            }
+
+            case "iconic":
+            {
+                var sheet = Legal();
+                sheet.SelectedTierId = "iconic";
+                return sheet;
+            }
+
+            default:
+                return SampleCharacters.Villain();
+        }
+    }
+
+    private List<ValidationIssue> IssuesFor(string which) =>
+        [.. _f.Validator.Validate(Build(which)).Issues];
+
+    /// <summary>
+    /// <b>Every error says what it is about.</b> This is the rule a check added later would
+    /// otherwise quietly break — a new error with no subject reads exactly like the others
+    /// until something tries to act on it.
+    ///
+    /// <para>Warnings are deliberately exempt: one of them names every Power whose wording is
+    /// unverified in a single finding, and there is no one subject for it to have.</para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Cases))]
+    public void EveryErrorSaysWhatItIsAbout(string which)
+    {
+        foreach (var issue in IssuesFor(which).Where(i => i.Severity == ValidationSeverity.Error))
+            Assert.True(issue.SubjectKind != ValidationSubject.None,
+                $"The error {issue.Code} carries no subject, so nothing can act on it: {issue.Message}");
+    }
+
+    /// <summary>
+    /// An issue about a named thing has to name it. A subject kind with no id says "something
+    /// among the abilities is wrong", which is not a repair anybody can make.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Cases))]
+    public void ASubjectThatIsNotTheWholeCharacterIsNamed(string which)
+    {
+        foreach (var issue in IssuesFor(which))
+        {
+            if (issue.SubjectKind is ValidationSubject.None or ValidationSubject.Character) continue;
+
+            Assert.False(string.IsNullOrWhiteSpace(issue.SubjectId),
+                $"{issue.Code} says it is about a {issue.SubjectKind} and does not say which.");
+        }
+    }
+
+    /// <summary>
+    /// <b>Value and limit the right way round.</b> Swapping them is the likeliest way this
+    /// structure goes wrong and the hardest to see: the report still reads plausibly, and a
+    /// repair loop moves the character further from legal on every pass.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Cases))]
+    public void AValueBreachesItsLimitInTheDirectionTheCodeNames(string which)
+    {
+        foreach (var issue in IssuesFor(which))
+        {
+            if (issue.Value is not { } value || issue.Limit is not { } limit) continue;
+
+            if (issue.Code.Contains("MIN_NOT_MET", StringComparison.Ordinal))
+                Assert.True(value < limit, $"{issue.Code}: {value} is not below its minimum of {limit}.");
+            else if (issue.Code.EndsWith("AT_MINIMUM", StringComparison.Ordinal))
+                Assert.Equal(limit, value);      // already at the floor; that is the finding
+            else
+                Assert.True(value > limit, $"{issue.Code}: {value} does not exceed its limit of {limit}.");
+        }
+    }
+
+    /// <summary>
+    /// An option is a value the caller writes back into the character, so every one of them
+    /// has to be a value the data will accept. Offering a humanised name, or an id from the
+    /// wrong collection, is worse than offering nothing: it looks actionable.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Cases))]
+    public void EveryOptionOfferedIsOneTheRulesAccept(string which)
+    {
+        foreach (var issue in IssuesFor(which))
+        {
+            foreach (var option in issue.Options)
+            {
+                Assert.False(string.IsNullOrWhiteSpace(option), $"{issue.Code} offers a blank option.");
+
+                var known =
+                    _f.Rules.GetTier(option) is not null ||
+                    _f.Rules.GetSource(option) is not null ||
+                    _f.Rules.GetFlaw(option) is not null ||
+                    _f.Rules.GetPower(option) is not null ||
+                    _f.Rules.GetGearFeature(option) is not null ||
+                    IsAVariantKey(issue, option);
+
+                Assert.True(known, $"{issue.Code} offers '{option}', which is not anything the rules have.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// The one kind of option with no printed name of its own: a key inside a Power's cost
+    /// variants or a gear feature's grades. It has to be a key of <em>this</em> subject's
+    /// range rather than any key anywhere.
+    /// </summary>
+    private bool IsAVariantKey(ValidationIssue issue, string option)
+    {
+        if (issue.SubjectId is null) return false;
+
+        var variants = _f.Rules.GetPower(issue.SubjectId)?.CostVariants?.Keys;
+        var grades   = _f.Rules.GetGearFeature(issue.SubjectId)?.CostRange?.Keys;
+
+        return (variants?.Contains(option) ?? false) || (grades?.Contains(option) ?? false);
+    }
+}
