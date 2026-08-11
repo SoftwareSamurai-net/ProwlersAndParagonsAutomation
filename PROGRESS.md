@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 2948 across two projects — 2863 on the engine, 85 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3001 across two projects — 2916 on the engine, 85 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two, plus a headless command — the terminal wizard, a Blazor WebAssembly app, and `build --from`, all on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -116,9 +116,10 @@ caller gives something up. Auto-clamping was rejected outright: a player whose c
 fit should find that out.
 
 **A command was the right surface rather than an API or an MCP server**, and the reason showed
-up immediately: it is testable, and the wizard never has been. `HeadlessBuildTests` is the
-first coverage the CLI has ever had. It drives the command through its writers rather than
-shelling out, so a failure names a line.
+up immediately: it is testable, and the wizard is not. `HeadlessBuildTests` drives the command
+through its writers rather than shelling out, so a failure names a line. That narrows the CLI
+gap rather than closing it — the wizard's own steps still have no harness, and the exporter was
+already exercised by `SourceTests`, so this is not the first CLI coverage in the repository.
 
 **Three real bugs came out of pointing it at characters a wizard could never produce.** All
 three are the same shape — an id nobody checked, and a character reported as legal when it was
@@ -145,8 +146,16 @@ from. Every message is byte-identical; all six properties are optional.
 non-null check passes with the wrong id in the field, the value and the limit the wrong way
 round, or an option the data will not accept. So they read an issue, apply the repair it
 implies, re-validate and assert the finding is gone — and there is an invariant for each of
-those three failure modes across every finding the validator can produce. Six falsifiability
-probes were run against the finished suite and all six went red.
+those three failure modes.
+
+**Those invariants were worth only what their case list reached, and the case list was the
+thing nobody was holding to anything.** They run over a hand-written set of sheets, and two of
+the codes added in the same change were not in it — while one of the invariants would have
+failed if they had been, because its list of acceptable options had no abilities or talents in
+it. Three tests therefore ran green over a surface that excluded the work they were written
+for. The list is now checked against the validator's own source: every code it can construct
+has to be provoked by some sheet, with three exempt by name and reason. That check is the
+reason the count of cases went from 13 to 20.
 
 Three smaller things, each a trap rather than a decision:
 
@@ -161,8 +170,48 @@ Three smaller things, each a trap rather than a decision:
 - **The deserialization moved into `engine/CharacterSheetJson`** so the browser's local storage
   and the command cannot drift. Its subtleties — `Populate` for the get-only collections, and
   the nulls the deserializer puts where the type system says it cannot — were found by an app
-  that would not start, and are worth exactly one copy. Losing `Populate` alone fails nine
-  tests, which is what that guard is for.
+  that would not start, and are worth exactly one copy. Deleting the `Populate` line alone
+  fails 26 tests across both projects, which is what that guard is for.
+
+**Four adversarial reviews, by agents told nothing about the work, and they found more than
+the slice itself did.** Ten reproduced ways to crash the command, ten shapes of character that
+made the validator throw rather than report, fifteen surviving mutations, and thirteen false or
+misleading claims in the prose. What is worth carrying forward:
+
+- **A negative `Units` on a per-unit Perk was worth unlimited Hero Points.** `PerkCost`
+  multiplies a price by a quantity and the perk total had no floor, so
+  `{"PerkId":"contacts","Units":-1000}` paid the character 1000 HP and a sheet with every Trait
+  at the cap came back `"ok": true`, exit 0, no issues. **This is the failure the whole slice
+  exists to prevent**, reached through the one field nothing bounded — and it was found by
+  someone attacking the command, not by anyone reasoning about the rules.
+- **`Validate` was the one unguarded engine call, under a comment claiming every call was
+  guarded.** Ten shapes of ordinary hand-written JSON came out as a stack trace with nothing on
+  standard output and an exit code outside the three: unknown Pro, Con, Perk and nominated-Trait
+  ids, variant and grade keys that were present but wrong, and nulls where an id belongs. Each
+  is now reported by name with its choices attached, and `CheckHpBudget` carries a `catch` as
+  well — the specific checks are what a repair loop acts on, the `catch` only promises the
+  validator answers at all. **The new `UNKNOWN_TIER` check had made several of these newly
+  reachable**, by fixing the tier so that the budget check ran.
+- **Two places priced a character on the strength of the wrong flag**, so a warning about being
+  at the cost floor could take the whole validation down with it.
+- **The exports overwrote each other.** The file name is the character's plus a timestamp to
+  the second, and two runs in one second left one pair of files with both runs reporting them —
+  the first caller told its sheet was at a path holding somebody else's character. A repair
+  loop runs many times faster than that.
+- **A test whose name was the thing it did not check.** `TheExportsAreWrittenWhereTheCallerAsked`
+  asserted that the *reported* path existed, which is true of wherever it wrote — so ignoring
+  `--out` entirely passed it. Two more had vacuous repair loops: `foreach` over an option list
+  with no assertion that the list had anything in it, so emptying it made the test pass by
+  doing nothing.
+- **`SkillDocumentationTests` validated the document against a second copy of the code.** It
+  converted the subject-kind enum to its wire name itself instead of asking the command, so the
+  two could disagree and both stay green — `gearfeature` on the wire, `gear_feature` in the
+  document. It asks the command now.
+- **Thirteen prose claims were wrong**, including two in this entry: "nine tests" for the
+  `Populate` guard (26) and "the first coverage the CLI has ever had" (the exporter was already
+  covered). Also a doc comment's "4 to 15 Hero Points" (it is 1 to 4), and a claim that 26
+  construction sites were unchanged when every one had been edited. The reviewer checked each
+  number rather than reading past it, which is the only way this file stays worth anything.
 
 **Also closed: the wizard's crash on a terminal it cannot read.** Recorded by the last health
 check, in scope now because there is somewhere to send that caller. Spectre's `SelectionPrompt`

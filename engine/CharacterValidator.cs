@@ -32,9 +32,10 @@ public enum ValidationSubject
 /// So the facts travel beside it — which Trait, what it is, what it may be, and where a fix
 /// has to be chosen from a fixed set.</para>
 ///
-/// <para>All of it is optional and every property has a null or empty default, so the 26
-/// construction sites that only ever wanted a sentence are unchanged. An issue that fills
-/// none of them is not defective; some findings genuinely have nothing to locate.</para>
+/// <para>All of it is optional and every property has a null or empty default, so the
+/// constructor call is unchanged wherever a sentence was all that was wanted, and no message
+/// moved. An issue that fills none of them is not defective; some findings genuinely have
+/// nothing to locate.</para>
 /// </summary>
 public record ValidationIssue(ValidationSeverity Severity, string Code, string Message)
 {
@@ -186,9 +187,12 @@ public sealed class CharacterValidator
 
     /// <summary>
     /// The starting package, which is optional and so is only ever wrong by being unknown.
-    /// An unrecognised one costs nothing and grants nothing, so it was silently no package at
-    /// all — and the character was priced at full rate for ranks the package would have paid
-    /// for, which is a quiet 4 to 15 Hero Points of difference.
+    ///
+    /// <para>An unrecognised one costs nothing and grants nothing, so it was silently no
+    /// package at all. Two things follow, and the second is the larger: the character loses the
+    /// package's discount — 4 Hero Points on the Superhero Package, 2 on the Hero, 1 on the
+    /// Civilian — and, because a package's ranks are implicit, it loses <em>the ranks
+    /// themselves</em> unless they were also written out by hand.</para>
     /// </summary>
     private void CheckPackage(CharacterSheet sheet, List<ValidationIssue> issues)
     {

@@ -27,18 +27,27 @@ public sealed class SkillDocumentationTests
     public SkillDocumentationTests(RulesFixture f) => _f = f;
 
     /// <summary>
-    /// The one fenced <c>jsonc</c> block, with its comments taken out. Comments are what make
-    /// the block worth reading, and are not JSON; nothing else in the file is a character.
+    /// The fenced <c>jsonc</c> block that holds a character, with its comments taken out.
+    /// Comments are what make the block worth reading, and are not JSON.
+    ///
+    /// <para>Chosen by content rather than by position. The skill grew a second annotated JSON
+    /// block — the report the command writes — and taking the first fence then fed a report to
+    /// a reader that only accepts a character. Two documents that look alike is exactly the
+    /// confusion this whole surface is built to keep apart, so the test says which it wants.
+    /// </para>
     /// </summary>
     private static string ExampleCharacter()
     {
-        var fence = new Regex("```jsonc\r?\n(.*?)```", RegexOptions.Singleline, TimeSpan.FromSeconds(5));
-        var block = fence.Match(Text);
+        var fences = new Regex("```jsonc\r?\n(.*?)```", RegexOptions.Singleline, TimeSpan.FromSeconds(5))
+            .Matches(Text)
+            .Select(m => m.Groups[1].Value)
+            .Where(b => b.Contains("SelectedTierId", StringComparison.Ordinal))
+            .ToList();
 
-        Assert.True(block.Success, "The skill no longer shows an example character.");
+        var block = Assert.Single(fences);
 
         var comments = new Regex(@"\s//.*$", RegexOptions.Multiline, TimeSpan.FromSeconds(5));
-        return comments.Replace(block.Groups[1].Value, "");
+        return comments.Replace(block, "");
     }
 
     /// <summary>

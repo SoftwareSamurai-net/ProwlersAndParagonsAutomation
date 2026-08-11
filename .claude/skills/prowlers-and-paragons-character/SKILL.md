@@ -25,7 +25,7 @@ dotnet run -- build --from character.json
 | | |
 |---|---|
 | `--from <file>` | The character. `-` reads it from standard input. |
-| `--out <dir>` | Where the `.txt` and `.json` sheets go. Defaults to `output/`. |
+| `--out <dir>` | Where the `.txt` and `.json` sheets go. A relative path is relative to where you are; with no `--out` they go to `output/` beside the program instead. The report gives absolute paths either way. |
 | `--no-export` | Cost and validate only. Use this while iterating. |
 | `--help` | The same table, from the program. |
 
@@ -33,8 +33,28 @@ dotnet run -- build --from character.json
 **Exit 1** it breaks a rule; every issue is in the report.
 **Exit 2** the file could not be read, or the arguments made no sense.
 
-Standard output is one JSON report for all three. Anything about the run itself goes to
-standard error, so you can parse standard output whole.
+Standard output is one JSON report for each of those three. Anything about the run itself goes
+to standard error, so you can parse standard output whole. `--help` is the one exception: it
+prints the usage text, on standard output, and exits 0.
+
+The report:
+
+```jsonc
+{
+  "ok": false,                  // no errors — the same thing exit 0 means
+  "exit_code": 1,
+  "character": { "name": "…", "tier": "standard", "package": "hero_package" },
+  "hero_points": { "spent": 131, "budget": 125, "remaining": -6 },
+  "trait_cap": 12,
+  "derived": { "edge": 14, "health": 8, "resolve": 6 },
+  "issues": [ … ],
+  "exports": { "text": "…absolute path", "json": "…absolute path" }
+}
+```
+
+`exports` is null when you passed `--no-export` — and also when the sheets could not be
+written, which comes with an `EXPORTS_NOT_WRITTEN` warning. Check it before telling anyone
+their sheet is ready.
 
 ## The loop
 
@@ -49,8 +69,8 @@ always wants more than 125 points.
 
 ### Repairing from an issue
 
-Every issue has `severity`, `code` and `message`. Errors also carry as much of this as
-applies, and this is what you act on — **do not parse the message**:
+Every issue has `severity`, `code` and `message`. Errors and warnings alike carry as much of
+this as applies, and this is what you act on — **do not parse the message**:
 
 | field | what it is |
 |---|---|
@@ -135,9 +155,13 @@ Everything is optional. A minimal legal character is a tier and one flaw.
 }
 ```
 
-A Pro or Con is `{ "Id": "...", "VariantKey": null, "Units": null }`. `VariantKey` picks
-between the grades of a variable one (Charges, Area/Burst); `Units` is for a Power-specific
-one that scales.
+A Pro or Con is `{ "Id": "...", "VariantKey": null, "Units": null }`.
+
+**`VariantKey` is required for a Pro or Con priced by grade, and omitting it is an error, not
+a default.** Those are the ones with a `cost_modifier_range` in `pros.json` / `cons.json` —
+Charges, Area/Burst, Limited and the rest. The keys of that object are the values it accepts,
+and the report hands them to you in `options`. `Units` is for a Power-specific Pro or Con that
+scales.
 
 ## Finding ids
 
@@ -157,18 +181,32 @@ than guessing a snake_case id from a printed name — several do not match.
 
 Most of these are things the engine will tell you. They are here so the first pass is closer.
 
-- **A tier is not optional in practice.** Without one there is no budget and no Trait Cap, and
-  everything else is unanswerable.
-- **1 to 3 flaws at creation.** None is an error. A fourth costs 3 HP.
+- **A tier is required.** Without one there is no budget and no Trait Cap, nothing else can be
+  checked, and the character can never exit 0. A tier id the rules do not have is the same
+  refusal, not a shrug.
+- **1 to 3 flaws at creation.** None is an error, and so is a fourth — the rulebook prices a
+  fourth at 3 HP during play, but this tool refuses it at creation rather than charging for it.
+- **A package grants its ranks, implicitly.** A character whose only entry is
+  `"SelectedPackageId": "superhero_package"` already has 3d in every Ability and Talent and
+  costs 50 HP. Write a rank out only to go *above* what the package gives; the cost of ranks it
+  already covers is not charged twice.
 - **The Trait Cap applies to Powers too**, at their *effective* rank — baseline plus
   purchased. Standard tier is 12d.
 - **A rankless Power takes no ranks.** `max_rank: 0` in `powers.json` means it is priced as a
   whole; buying ranks for it is an error. Invisibility and Lightning Reflexes are both like
   this, and both look rankable.
-- **27 Powers start from another Trait.** `prerequisite.relationship` says how:
-  `baseline_equal` takes that Trait's whole rank, `baseline_half` takes half of it rounded up.
+- **27 Powers start from another Trait**, and `prerequisite.relationship` says how. All five:
+  `baseline_equal` takes that Trait's whole rank; `baseline_half` half of it, rounded up;
+  `baseline_fixed` a rank printed in the entry (Running, 3d); `baseline_greater_of` the higher
+  of an Ability and some Powers (Strike, from Might or Martial Arts); `baseline_selected_trait`
+  the rank of a Trait *you* nominate in `BaselineTraitId` (Boost, Expertise — and for Boost
+  that nomination also sets the cost per rank).
   `PurchasedRanks` stacks on top, so 4 purchased ranks of a `baseline_equal` Power on a 9d
   Ability is 13d — over the cap before you have noticed.
+- **`GradeKey` is required for the two gear features priced by grade** (`cost_type` is
+  `flat_variable`) and must be left out for the ten flat ones.
+- **`Units` is only for a `per_unit` Power** — Immunity, Determination, Alternate Form. Check
+  `cost_type` in `powers.json`; leave it at 1 otherwise.
 - **A package pays for the ranks it grants**, so it is a discount rather than a surcharge. The
   Superhero Package is 50 HP for what costs 54 bought separately.
 - **Mundane gear is free and untracked.** Give a character whatever kit suits them. Only
@@ -186,3 +224,13 @@ Most of these are things the engine will tell you. They are here so the first pa
   rulebook does not print per Power — "applies to attack Powers", say. Those travel as a
   caveat and are the GM's call, deliberately. Mention one if it is clearly being stretched;
   do not refuse the character over it.
+
+  **This cuts the other way too, and it is the one thing here you have to watch yourself.**
+  Even the constraints the rulebook *does* print for every Power — a Pro's `applies_to_ranges`
+  and `applies_to_rank_types` — are enforced by the two editors' pickers and **not** by the
+  validator, so a submitted character carrying the Ranged Pro on a Self-range Power exits 0.
+  Read those two fields on the option before you use it; the engine will not catch you.
+
+- **Do not read the Iconic tier's warning as permission.** `ICONIC_TIER_OPEN_BUDGET` says its
+  200 points are a minimum, and `HP_BUDGET_EXCEEDED` still errors above them. Going over is the
+  GM's call to make, not the tool's to certify.
