@@ -68,7 +68,18 @@ public static class CharacterSheetJson
     /// shapes can chase, so a caller still has to be able to survive a payload the engine
     /// cannot answer for — by asking the engine, once, rather than by checking fields.</para>
     /// </summary>
-    public static CharacterSheet Repair(CharacterSheet sheet)
+    /// <param name="sheet">The character to repair in place.</param>
+    /// <param name="dropIdlessEntries">
+    /// <b>What to do with an entry that has no id</b> — <c>{"Flaws":[{}]}</c>, which is
+    /// well-formed JSON naming nothing. The two callers want opposite things and both are right.
+    ///
+    /// <para>Storage drops it: it is junk, it can only have come from a hand-edited or
+    /// half-written payload, and losing one entry is not worth losing the character. A submitted
+    /// file keeps it, because the validator reports it by name and dropping it silently would
+    /// hand back a cheaper character than the one that was sent — the same failure as a
+    /// misspelled field name, which is refused for exactly this reason.</para>
+    /// </param>
+    public static CharacterSheet Repair(CharacterSheet sheet, bool dropIdlessEntries = false)
     {
         ArgumentNullException.ThrowIfNull(sheet);
 
@@ -91,6 +102,59 @@ public static class CharacterSheetJson
         sheet.Gear.RemoveAll(g => g is null);
         sheet.Connections.RemoveAll(c => c is null);
 
+        // A piece of gear's three lists are declared non-null and come back null when the keys
+        // are absent, which is a NullReferenceException the next time anything prices it. Absent
+        // and empty mean the same thing here — no features, no Pros, no Cons — so this is
+        // repaired in both modes rather than reported: there is nothing a caller would want told.
+        for (var i = 0; i < sheet.Gear.Count; i++)
+        {
+            var gear = sheet.Gear[i];
+            if (gear.Features is not null && gear.Pros is not null && gear.Cons is not null) continue;
+
+            sheet.Gear[i] = gear with
+            {
+                Features = gear.Features ?? [],
+                Pros     = gear.Pros ?? [],
+                Cons     = gear.Cons ?? []
+            };
+        }
+
+        if (dropIdlessEntries)
+        {
+            sheet.SelectedPowers.RemoveAll(p => p.PowerId is null);
+            sheet.Perks.RemoveAll(p => p.PerkId is null);
+            sheet.Flaws.RemoveAll(f => f.FlawId is null);
+            sheet.Gear.RemoveAll(g => g.Name is null);
+
+            // And the entries one level in, which are the same thing in a nested list: a Pro
+            // that is null, a gear feature that is null. The validator reports these on the
+            // submit path; here they are junk between a character and being restored at all.
+            for (var i = 0; i < sheet.SelectedPowers.Count; i++)
+            {
+                var power = sheet.SelectedPowers[i];
+                sheet.SelectedPowers[i] = power with
+                {
+                    Pros = [.. power.Pros.Where(p => p?.Id is not null)],
+                    Cons = [.. power.Cons.Where(c => c?.Id is not null)]
+                };
+            }
+
+            for (var i = 0; i < sheet.Gear.Count; i++)
+            {
+                var gear = sheet.Gear[i];
+                sheet.Gear[i] = gear with
+                {
+                    Features = [.. gear.Features.Where(f => f?.FeatureId is not null)],
+                    Pros     = [.. gear.Pros.Where(p => p?.Id is not null)],
+                    Cons     = [.. gear.Cons.Where(c => c?.Id is not null)]
+                };
+            }
+
+            foreach (var abilityId in sheet.AbilityModifiers.Keys.ToList())
+                sheet.AbilityModifiers[abilityId] =
+                    [.. (sheet.AbilityModifiers[abilityId] ?? []).Where(m => m?.Id is not null)];
+        }
+
         return sheet;
     }
 
@@ -110,7 +174,7 @@ public static class CharacterSheetJson
     /// </param>
     public static CharacterSheet? Read(string json, bool strict) =>
         JsonSerializer.Deserialize<CharacterSheet>(json, strict ? StrictOptions : Options)
-            is { } sheet ? Repair(sheet) : null;
+            is { } sheet ? Repair(sheet, dropIdlessEntries: !strict) : null;
 
     /// <summary>The character's inputs as JSON, in the shape <see cref="Read"/> accepts.</summary>
     public static string Write(CharacterSheet sheet) =>

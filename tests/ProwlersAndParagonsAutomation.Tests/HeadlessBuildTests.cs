@@ -651,13 +651,44 @@ public sealed class HeadlessBuildTests : IDisposable
     {
         var run = Invoke("--from", CharacterFile(json), "--no-export");
 
-        // Whatever it is, it is one of the three exits with one JSON document on stdout.
-        Assert.Contains(run.ExitCode,
-            new[] { BuildCommand.Ok, BuildCommand.CharacterIllegal, BuildCommand.InputUnusable });
+        // <b>A named finding, not merely "did not crash".</b> Accepting any of the three exits
+        // made this a crash test wearing a behaviour test's name: gutting the null-entry repair
+        // degraded every one of these from a full report to "this character is unusable", and
+        // the test stayed green because unusable is also one of the three.
+        Assert.Equal(BuildCommand.CharacterIllegal, run.ExitCode);
+        Assert.Null(run.Issue("CHARACTER_UNUSABLE"));
+        Assert.NotEmpty(run.Issues);
 
         var document = JsonDocument.Parse(run.StdOut);
         Assert.Equal(run.ExitCode, document.RootElement.GetProperty("exit_code").GetInt32());
-        Assert.DoesNotContain("Unhandled exception", run.StdErr, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The ten top-level collections, each written as JSON <c>null</c>.</b> The deserializer
+    /// throws <see cref="InvalidOperationException"/> rather than a JSON exception when asked to
+    /// put a null into a get-only collection, and only the latter was caught — so all ten crashed
+    /// the command outright. The theory above covers nested nulls and never covered these, so the
+    /// catch that fixes them could be removed with the suite green.
+    /// </summary>
+    [Theory]
+    [InlineData("AbilityRanks")]
+    [InlineData("AbilityModifiers")]
+    [InlineData("TalentRanks")]
+    [InlineData("AbilitySources")]
+    [InlineData("TalentSources")]
+    [InlineData("SelectedPowers")]
+    [InlineData("Perks")]
+    [InlineData("Flaws")]
+    [InlineData("Connections")]
+    [InlineData("Gear")]
+    public void ACollectionWrittenAsNullIsReportedRatherThanThrown(string field)
+    {
+        var run = Invoke("--from",
+            CharacterFile($"{{\"SelectedTierId\":\"standard\",\"{field}\":null}}"), "--no-export");
+
+        Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
+        Assert.NotNull(run.Issue("INPUT_UNREADABLE"));
+        Assert.Equal(JsonValueKind.Object, JsonDocument.Parse(run.StdOut).RootElement.ValueKind);
     }
 
     /// <summary>
@@ -731,6 +762,32 @@ public sealed class HeadlessBuildTests : IDisposable
     }
 
     /// <summary>
+    /// A name is only usable if it can hold <b>both</b> halves. Checking only the <c>.txt</c>
+    /// would let a run whose <c>.json</c> already exists write over it, so the pair on disk would
+    /// be two different characters under one name.
+    /// </summary>
+    [Fact]
+    public void ANameIsOnlyFreeIfBothHalvesAre()
+    {
+        var requested = Path.Combine(_scratch, "halves");
+        Directory.CreateDirectory(requested);
+
+        var hero = SampleCharacters.Hero();
+        var first = Invoke("--from", CharacterFile(CharacterSheetJson.Write(hero)),
+                           "--out", requested);
+
+        // Take away only the .txt, leaving the .json occupying that base name.
+        File.Delete((string)first.Report["exports"]!["text"]!);
+        var occupied = (string)first.Report["exports"]!["json"]!;
+
+        var second = Invoke("--from", CharacterFile(CharacterSheetJson.Write(hero)),
+                            "--out", requested);
+
+        Assert.NotEqual(occupied, (string)second.Report["exports"]!["json"]!);
+        Assert.True(File.Exists(occupied), "The surviving half of an earlier export was overwritten.");
+    }
+
+    /// <summary>
     /// The message for a file that is not JSON must not name a C# type. It interpolated the
     /// deserializer's own message, which says things like "could not be converted to
     /// ProwlersAndParagonsAutomation.Engine.SelectedPower" — this program talking about itself
@@ -791,13 +848,69 @@ public sealed class HeadlessBuildTests : IDisposable
     }
 
     /// <summary>
-    /// <b>The predicate, not just the message.</b> Only the string was tested, so
-    /// <see cref="InteractiveTerminal.IsAvailable"/> could return true always and the wizard
-    /// would go back to throwing out of its first prompt with every test green.
-    ///
-    /// <para>A test runner is exactly the case it exists for: standard input is redirected,
-    /// so there is no terminal to prompt on. Asserting that is asserting the predicate.</para>
+    /// A relative <c>--out</c>, which is the case <c>Path.GetFullPath</c> was added for: the
+    /// report gave a relative path for a relative <c>--out</c> and an absolute one otherwise, so a
+    /// caller resolving it from anywhere but the process's own directory found nothing half the
+    /// time. Asserting "the reported path is absolute" while only ever passing an absolute
+    /// <c>--out</c> proved nothing.
     /// </summary>
+    [Fact]
+    public void ARelativeOutputDirectoryIsReportedAsAnAbsolutePath()
+    {
+        var previous = Directory.GetCurrentDirectory();
+        try
+        {
+            Directory.SetCurrentDirectory(_scratch);
+
+            var run  = Invoke("--from", SampleHeroFile(), "--out", "relative-out");
+            var text = (string)run.Report["exports"]!["text"]!;
+
+            Assert.True(Path.IsPathFullyQualified(text), $"'{text}' is not an absolute path.");
+            Assert.True(File.Exists(text));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(previous);
+        }
+    }
+
+    /// <summary>
+    /// A figure the engine could not supply, with no error beside it, is a fault here — and
+    /// saying so is what stops a caller repairing a character that is already legal for ever.
+    /// </summary>
+    [Fact]
+    public void AFigureMissingWithNothingToFixIsNeverReportedAsSuccess()
+    {
+        var sheet = RulesFixture.StandardSheet();
+        sheet.Flaws.Add(new SelectedFlaw("code"));
+        sheet.SelectedPowers.Add(new SelectedPower("determination", 0)
+        { Units = 600_000_000, SourceId = "innate" });
+
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(sheet)), "--no-export");
+
+        Assert.NotEqual(BuildCommand.Ok, run.ExitCode);
+        Assert.False((bool)run.Report["ok"]!);
+        Assert.Contains(run.Issues, i => (string?)i!["severity"] == "error");
+    }
+
+    /// <summary>
+    /// <b>Both halves of the terminal check, each on its own.</b> As one expression it could only
+    /// be tested in the environment a runner provides — where both halves say the same thing — so
+    /// either could be deleted and nothing would notice. The doc comment says both are needed;
+    /// this is what makes that checkable.
+    /// </summary>
+    [Theory]
+    [InlineData(false, true, true)]     // a real terminal
+    [InlineData(true, true, false)]     // piped input, capable console
+    [InlineData(false, false, false)]   // a console that cannot prompt
+    [InlineData(true, false, false)]
+    public void ATerminalIsUsableOnlyWhenBothHalvesAgree(
+        bool inputRedirected, bool profileIsInteractive, bool expected)
+    {
+        Assert.Equal(expected,
+            InteractiveTerminal.IsAvailableGiven(inputRedirected, profileIsInteractive));
+    }
+
     [Fact]
     public void ThereIsNoInteractiveTerminalUnderATestRunner()
     {

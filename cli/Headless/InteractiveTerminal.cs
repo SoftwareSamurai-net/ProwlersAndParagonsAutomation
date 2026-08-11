@@ -24,7 +24,18 @@ public static class InteractiveTerminal
     /// cannot render its own prompts fails before it ever reads a key.
     /// </summary>
     public static bool IsAvailable =>
-        !Console.IsInputRedirected && AnsiConsole.Profile.Capabilities.Interactive;
+        IsAvailableGiven(Console.IsInputRedirected, AnsiConsole.Profile.Capabilities.Interactive);
+
+    /// <summary>
+    /// The decision, separated from the two facts it is made of so that both can be tested.
+    ///
+    /// <para>As one expression it could only ever be checked in the environment a test runner
+    /// provides — where both halves happen to say the same thing — so either half could be
+    /// deleted and nothing would notice. The comment above claims both are needed; this is what
+    /// makes that claim checkable.</para>
+    /// </summary>
+    public static bool IsAvailableGiven(bool inputRedirected, bool profileIsInteractive) =>
+        !inputRedirected && profileIsInteractive;
 
     /// <summary>
     /// What to say instead of a stack trace. It names the command that does work this way,

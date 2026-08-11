@@ -166,7 +166,12 @@ public sealed class CharacterStore
     {
         if (saved is not { Version: CurrentVersion, Sheet: { } sheet }) return null;
 
-        return (CharacterSheetJson.Repair(sheet), Enum.IsDefined(saved.Mode) ? saved.Mode : SheetMode.Hero);
+        // dropIdlessEntries: an entry naming nothing is junk to a browser restoring its own
+        // storage, and one lost entry is worth less than the character. The headless command asks
+        // for the opposite, because there the same entry has to be reported rather than quietly
+        // removed from somebody's submitted file.
+        return (CharacterSheetJson.Repair(sheet, dropIdlessEntries: true),
+                Enum.IsDefined(saved.Mode) ? saved.Mode : SheetMode.Hero);
     }
 
     /// <summary>

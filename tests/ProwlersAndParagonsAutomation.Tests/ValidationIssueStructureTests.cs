@@ -505,6 +505,157 @@ public sealed class ValidationIssueStructureTests
         Assert.False(Reports(flat, "PER_UNIT_WITHOUT_UNITS"));
     }
 
+    /// <summary>
+    /// <b>Exactly on budget is legal.</b> The budget check is a strict comparison, and turning it
+    /// into <c>&gt;=</c> reported every character that spends its last Hero Point as over budget —
+    /// with the whole suite green, including the twenty published Heroes, because those assert
+    /// their totals and never their legality. Fifteen of them are on exactly 125.
+    /// </summary>
+    [Theory]
+    [InlineData(0, false)]      // exactly the budget
+    [InlineData(-1, false)]     // a point under
+    [InlineData(1, true)]       // a point over
+    public void TheBudgetIsBreachedOnlyByGoingOverIt(int offset, bool shouldReport)
+    {
+        var tier  = _f.Rules.GetTier("standard")!;
+        var sheet = Legal();
+
+        // Abilities cost 1 HP per rank with no package, so the total is the rank total.
+        var wanted = tier.HeroPoints + offset;
+        var per    = wanted / _f.Rules.Abilities.Count;
+        var rest   = wanted - per * (_f.Rules.Abilities.Count - 1);
+
+        for (var i = 0; i < _f.Rules.Abilities.Count; i++)
+            sheet.AbilityRanks[_f.Rules.Abilities[i].Id] = i == 0 ? rest : per;
+
+        Assert.Equal(wanted, _f.Costs.TotalCost(sheet));
+        Assert.Equal(shouldReport, Reports(sheet, "HP_BUDGET_EXCEEDED"));
+    }
+
+    /// <summary>
+    /// <b>The backstop must stay unreachable.</b> <c>CHARACTER_NOT_PRICEABLE</c> is the
+    /// <c>catch</c> inside the budget check, and its whole value is that every gap which used to
+    /// reach it is now reported by name. Without this, a check could stop reporting its own
+    /// finding and the backstop would quietly cover for it — which is exactly what happened when
+    /// two resolvability flags were made to lie: the tests stayed green because *something* was
+    /// reported, just not the thing that names the fault.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Cases))]
+    public void TheUnpriceableBackstopIsNeverWhatAnswers(string which)
+    {
+        var codes = IssuesFor(which).Select(i => i.Code).ToList();
+
+        Assert.DoesNotContain("CHARACTER_NOT_PRICEABLE", codes);
+    }
+
+    /// <summary>
+    /// <b>Which kind of thing each code is about, pinned per code.</b> The two invariants below
+    /// assert that a subject is present and named; neither asks whether the kind is <em>right</em>,
+    /// so labelling a Talent problem as an Ability walked through both — and a repair loop
+    /// following it writes into the wrong dictionary, which is the failure one test already
+    /// guards for one code. This is that guard for all of them.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Cases))]
+    public void EachCodeReportsTheKindOfThingItIsAbout(string which)
+    {
+        foreach (var issue in IssuesFor(which))
+        {
+            if (!ExpectedKinds.TryGetValue(issue.Code, out var expected)) continue;
+
+            Assert.Contains(issue.SubjectKind, expected);
+        }
+    }
+
+    /// <summary>
+    /// The kind each code must carry. Deliberately a table rather than a rule: the point is that
+    /// somebody wrote down what each one is about, so a change to one of them has to disagree
+    /// with a line here rather than with nothing.
+    /// </summary>
+    private static readonly Dictionary<string, ValidationSubject[]> ExpectedKinds = new(StringComparer.Ordinal)
+    {
+        ["NO_TIER_SELECTED"]                = [ValidationSubject.Character],
+        ["UNKNOWN_TIER"]                    = [ValidationSubject.Tier],
+        ["ICONIC_TIER_OPEN_BUDGET"]         = [ValidationSubject.Tier],
+        ["UNKNOWN_PACKAGE"]                 = [ValidationSubject.Character],
+        ["HP_BUDGET_EXCEEDED"]              = [ValidationSubject.Character],
+        ["FLAW_MIN_NOT_MET"]                = [ValidationSubject.Character],
+        ["FLAW_MAX_EXCEEDED"]               = [ValidationSubject.Character],
+        ["UNKNOWN_FLAW"]                    = [ValidationSubject.Flaw],
+        ["DUPLICATE_FLAW"]                  = [ValidationSubject.Flaw],
+        ["UNKNOWN_ABILITY"]                 = [ValidationSubject.Ability],
+        ["UNKNOWN_TALENT"]                  = [ValidationSubject.Talent],
+        ["MODIFIER_ON_UNBOUGHT_ABILITY"]    = [ValidationSubject.Ability],
+        ["UNKNOWN_POWER"]                   = [ValidationSubject.Power],
+        ["DUPLICATE_POWER"]                 = [ValidationSubject.Power],
+        ["POWER_HAS_NO_RANK"]               = [ValidationSubject.Power],
+        ["POWER_VARIANT_NOT_CHOSEN"]        = [ValidationSubject.Power],
+        ["POWER_BASELINE_TRAIT_NOT_CHOSEN"] = [ValidationSubject.Power],
+        ["POWER_COST_AT_MINIMUM"]           = [ValidationSubject.Power],
+        ["POWER_WITHOUT_SOURCE"]            = [ValidationSubject.Power],
+        ["RANKLESS_POWER_WITHOUT_SOURCE"]   = [ValidationSubject.Power],
+        ["UNKNOWN_GEAR_FEATURE"]            = [ValidationSubject.GearFeature],
+        ["GEAR_FEATURE_NEEDS_GRADE"]        = [ValidationSubject.GearFeature],
+        ["GEAR_COST_AT_MINIMUM"]            = [ValidationSubject.Gear],
+        ["TWO_FISTED_PAIR_WITHOUT_POWER"]   = [ValidationSubject.Gear],
+        ["UNKNOWN_PERK"]                    = [ValidationSubject.Character],
+        ["GEAR_WITHOUT_NAME"]               = [ValidationSubject.Character],
+        ["PER_UNIT_WITHOUT_UNITS"]          = [ValidationSubject.Character, ValidationSubject.Power],
+    };
+
+    /// <summary>
+    /// <b>A code whose fix is a choice must offer the choices.</b>
+    /// <see cref="EveryOptionOfferedIsOneTheRulesAccept"/> walks the option list, so emptying one
+    /// passes it by having nothing to walk — three codes had their options deleted with the suite
+    /// green. This is the other half: these codes are useless without them.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Cases))]
+    public void ACodeWhoseFixIsAChoiceOffersTheChoices(string which)
+    {
+        foreach (var issue in IssuesFor(which).Where(i => MustOfferOptions.Contains(i.Code)))
+            Assert.NotEmpty(issue.Options);
+    }
+
+    private static readonly HashSet<string> MustOfferOptions = new(StringComparer.Ordinal)
+    {
+        "NO_TIER_SELECTED", "UNKNOWN_TIER", "UNKNOWN_PACKAGE", "UNKNOWN_FLAW", "UNKNOWN_PERK",
+        "UNKNOWN_ABILITY", "UNKNOWN_TALENT", "UNKNOWN_GEAR_FEATURE", "GEAR_FEATURE_NEEDS_GRADE",
+        "UNKNOWN_SOURCE", "UNKNOWN_TRAIT_SOURCE", "POWER_VARIANT_NOT_CHOSEN",
+        "PRO_VARIANT_NOT_CHOSEN", "CON_VARIANT_NOT_CHOSEN", "RANKLESS_POWER_WITHOUT_SOURCE",
+        "POWER_WITHOUT_SOURCE", "MODIFIER_ON_UNBOUGHT_ABILITY", "FLAW_MIN_NOT_MET"
+    };
+
+    /// <summary>
+    /// Severity is what decides whether a character is legal, and several tests asserted a code
+    /// was reported without asserting it was an error — so downgrading it to a warning left a
+    /// character on a misspelled package validating clean.
+    /// </summary>
+    [Theory]
+    [InlineData("UNKNOWN_PACKAGE")]
+    [InlineData("PER_UNIT_WITHOUT_UNITS")]
+    [InlineData("UNKNOWN_PERK")]
+    [InlineData("DUPLICATE_FLAW")]
+    [InlineData("MODIFIER_ON_UNBOUGHT_ABILITY")]
+    public void ACodeThatMakesACharacterIllegalIsAnError(string code)
+    {
+        var sheets = CaseNames.Select(Build)
+            .Where(s => _f.Validator.Validate(s).Issues.Any(i => i.Code == code))
+            .ToList();
+
+        Assert.NotEmpty(sheets);
+
+        foreach (var sheet in sheets)
+        {
+            var result = _f.Validator.Validate(sheet);
+
+            Assert.All(result.Issues.Where(i => i.Code == code),
+                i => Assert.Equal(ValidationSeverity.Error, i.Severity));
+            Assert.False(result.IsValid);
+        }
+    }
+
     /// <summary>No package at all is the ordinary case and is not a finding.</summary>
     [Fact]
     public void NoStartingPackageIsNotAnIssue()
@@ -526,7 +677,7 @@ public sealed class ValidationIssueStructureTests
         "no tier", "over budget", "above cap", "no flaws", "too many flaws",
         "unknown ids", "gear", "ranks on a rankless power", "unresolved selections",
         "iconic", "unknown tier", "unknown package", "unknown traits", "unknown modifiers",
-        "ungraded modifiers", "negative quantities", "gear at its floor", "power at its floor",
+        "ungraded modifiers", "negative quantities", "gear without a name", "gear at its floor", "power at its floor",
         "unpriceable", "duplicates", "per-unit with no units",
         "power-specific ungraded", "sample villain"
     ];
@@ -701,6 +852,13 @@ public sealed class ValidationIssueStructureTests
                 return sheet;
             }
 
+            case "gear without a name":
+            {
+                var sheet = Legal();
+                sheet.Gear.Add(new SelectedGear("  "));
+                return sheet;
+            }
+
             case "gear at its floor":
             {
                 var sheet = Legal();
@@ -774,8 +932,13 @@ public sealed class ValidationIssueStructureTests
         var source = File.ReadAllText(
             Path.Combine(RulesFixture.RepoRoot, "engine", "CharacterValidator.cs"));
 
-        var declared = new Regex(@"ValidationSeverity\.\w+,\s*""([A-Z_]+)""",
-                RegexOptions.None, TimeSpan.FromSeconds(5))
+        // Every code-shaped literal in the file, not only the ones written immediately after a
+        // severity. The narrower pattern missed eight of forty codes — the two spellings that
+        // hide one are a `isPro ? "UNKNOWN_PRO" : "UNKNOWN_CON"` ternary and a helper called with
+        // the code as an argument — and it missed them by *how they were written*, which is how
+        // the next one will be written too. All eight happened to be provoked already; the point
+        // is that they were exempt from the guarantee without anybody choosing that.
+        var declared = new Regex(@"""([A-Z]+(?:_[A-Z]+)+)""", RegexOptions.None, TimeSpan.FromSeconds(5))
             .Matches(source)
             .Select(m => m.Groups[1].Value)
             .ToHashSet(StringComparer.Ordinal);

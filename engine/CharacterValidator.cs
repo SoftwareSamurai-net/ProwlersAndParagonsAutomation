@@ -296,7 +296,7 @@ public sealed class CharacterValidator
             // one throws. CheckPowerSelections reports the unknown id; this must not turn
             // that report into a crash on the way past. The same ordering trap was fixed
             // for gear once already.
-            if (_rules.GetPower(sp.PowerId) is null) continue;
+            if (Power(sp.PowerId) is null) continue;
 
             var effective = _derived.GetEffectiveRank(sp, sheet);
             if (effective > cap)
@@ -436,7 +436,7 @@ public sealed class CharacterValidator
 
         foreach (var perk in sheet.Perks.Where(p => p.Units < 0))
             issues.Add(Negative("NEGATIVE_UNITS", ValidationSubject.Character, perk.PerkId,
-                $"The perk '{_rules.GetPerk(perk.PerkId)?.Name ?? perk.PerkId}' is bought "
+                $"The perk '{Perk(perk.PerkId)?.Name ?? perk.PerkId}' is bought "
                 + $"{perk.Units} times, which would pay the character Hero Points rather than "
                 + "cost them.", perk.Units));
 
@@ -451,9 +451,9 @@ public sealed class CharacterValidator
 
         // Zero is not a purchase. A per-unit Perk or Power at no units costs nothing and does
         // nothing, so it is a line on the sheet the character did not buy.
-        foreach (var perk in sheet.Perks.Where(p => p.Units == 0 && _rules.GetPerk(p.PerkId)?.CostType == "per_unit"))
+        foreach (var perk in sheet.Perks.Where(p => p.Units == 0 && Perk(p.PerkId)?.CostType == "per_unit"))
             issues.Add(new(ValidationSeverity.Error, "PER_UNIT_WITHOUT_UNITS",
-                $"The perk '{_rules.GetPerk(perk.PerkId)!.Name}' is priced by the unit and none "
+                $"The perk '{Perk(perk.PerkId)!.Name}' is priced by the unit and none "
                 + "has been bought, so it would cost nothing and do nothing.")
             {
                 SubjectKind = ValidationSubject.Character,
@@ -462,7 +462,7 @@ public sealed class CharacterValidator
                 Limit       = 1
             });
 
-        foreach (var sp in sheet.SelectedPowers.Where(p => p.Units == 0 && _rules.GetPower(p.PowerId)?.CostType == "per_unit"))
+        foreach (var sp in sheet.SelectedPowers.Where(p => p.Units == 0 && Power(p.PowerId)?.CostType == "per_unit"))
             issues.Add(new(ValidationSeverity.Error, "PER_UNIT_WITHOUT_UNITS",
                 $"{PowerName(sp.PowerId)} is priced by the unit and none has been bought, so it "
                 + "would cost nothing and do nothing.")
@@ -518,10 +518,16 @@ public sealed class CharacterValidator
     {
         var resolvable = true;
 
-        foreach (var perk in sheet.Perks.Where(p => _rules.GetPerk(p.PerkId) is null))
+        // `p.PerkId is null` first: GetPerk throws on a null id rather than answering, and a null
+        // id is what a hand-written `{"Perks":[{}]}` produces. Reported by name, like every other
+        // id the rulebook does not have — the alternative was the validator throwing and the whole
+        // character coming back as merely "unusable".
+        foreach (var perk in sheet.Perks.Where(p => p.PerkId is null || Perk(p.PerkId) is null))
         {
             issues.Add(new(ValidationSeverity.Error, "UNKNOWN_PERK",
-                $"There is no perk called '{perk.PerkId}' in the rulebook data.")
+                perk.PerkId is null
+                    ? "One of the perks has no name at all."
+                    : $"There is no perk called '{perk.PerkId}' in the rulebook data.")
             {
                 SubjectKind = ValidationSubject.Character,
                 SubjectId   = perk.PerkId,
@@ -549,7 +555,7 @@ public sealed class CharacterValidator
 
         foreach (var sp in sheet.SelectedPowers)
         {
-            var power = _rules.GetPower(sp.PowerId);
+            var power = Power(sp.PowerId);
             resolvable &= CheckModifierList(sp.Pros, isPro: true, power, sp.PowerId, PowerName(sp.PowerId), issues);
             resolvable &= CheckModifierList(sp.Cons, isPro: false, power, sp.PowerId, PowerName(sp.PowerId), issues);
         }
@@ -619,9 +625,10 @@ public sealed class CharacterValidator
             // reported legal with an empty issue list. A Trait or a Power carries a given Pro
             // or Con once — a second copy is not a second discount, and a sheet prints it once
             // either way.
-            // A null id is a Pro or Con with no name, which only a hand-written file produces.
-            // Reported as unknown, which is what it is, and refused before anything looks it up.
-            if (choice.Id is null)
+            // A null id — or a null entry, which is the same thing one level out — is a Pro or Con
+            // with no name, which only a hand-written file produces. Reported as unknown, which is
+            // what it is, and refused before anything looks it up.
+            if (choice?.Id is null)
             {
                 issues.Add(new(ValidationSeverity.Error, isPro ? "UNKNOWN_PRO" : "UNKNOWN_CON",
                     $"{ownerName} has a {kind} with no name at all.")
@@ -741,7 +748,7 @@ public sealed class CharacterValidator
 
         foreach (var sf in sheet.Flaws.Where(f => f.FlawId is not null && !seen.Add(f.FlawId)))
             issues.Add(new(ValidationSeverity.Error, "DUPLICATE_FLAW",
-                $"The flaw '{_rules.GetFlaw(sf.FlawId)?.Name ?? sf.FlawId}' is taken more than "
+                $"The flaw '{Flaw(sf.FlawId)?.Name ?? sf.FlawId}' is taken more than "
                 + "once. Taking it twice counts twice against the limit and pays Resolve twice "
                 + "for one drawback.")
             {
@@ -777,9 +784,11 @@ public sealed class CharacterValidator
     {
         foreach (var sf in sheet.Flaws)
         {
-            if (_rules.GetFlaw(sf.FlawId) is null)
+            if (sf.FlawId is null || Flaw(sf.FlawId) is null)
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_FLAW",
-                    $"There is no flaw called '{sf.FlawId}' in the rulebook data.")
+                    sf.FlawId is null
+                        ? "One of the flaws has no name at all."
+                        : $"There is no flaw called '{sf.FlawId}' in the rulebook data.")
                 {
                     SubjectKind = ValidationSubject.Flaw,
                     SubjectId   = sf.FlawId,
@@ -802,19 +811,40 @@ public sealed class CharacterValidator
 
         foreach (var gear in sheet.Gear)
         {
+            // Gear is identified by its name and has no id, so a nameless item cannot be
+            // reported about, printed, or repaired — every message about it would name nothing.
+            if (string.IsNullOrWhiteSpace(gear.Name))
+            {
+                issues.Add(new(ValidationSeverity.Error, "GEAR_WITHOUT_NAME",
+                    "A piece of gear has no name. Gear is identified by its name, so an item "
+                    + "without one cannot be put on a sheet.")
+                {
+                    // Character, not Gear: gear is identified by its name and this one has
+                    // none, so there is no item for a caller to go and look at. Naming the kind
+                    // Gear while being unable to say which would be worse than saying neither.
+                    SubjectKind = ValidationSubject.Character
+                });
+                resolvable = false;
+                continue;
+            }
+
             var itemResolvable = true;
 
             foreach (var f in gear.Features)
             {
-                var feature = _rules.GetGearFeature(f.FeatureId);
+                // A null entry, or one with no id: reported as a feature the rulebook does not
+                // have, which is what it is. The lookup would throw on the id rather than answer.
+                var feature = f?.FeatureId is null ? null : _rules.GetGearFeature(f.FeatureId);
                 if (feature is null)
                 {
                     issues.Add(new(ValidationSeverity.Error, "UNKNOWN_GEAR_FEATURE",
-                        $"{gear.Name} has a custom feature, '{f.FeatureId}', that is not one "
-                        + "the rulebook lists.")
+                        f?.FeatureId is null
+                            ? $"{gear.Name} has a custom feature with no name at all."
+                            : $"{gear.Name} has a custom feature, '{f.FeatureId}', that is not one "
+                              + "the rulebook lists.")
                     {
                         SubjectKind = ValidationSubject.GearFeature,
-                        SubjectId   = f.FeatureId,
+                        SubjectId   = f?.FeatureId,
                         OwnerId     = gear.Name,
                         Options     = _rules.GearFeatures.Select(g => g.Id).ToList()
                     });
@@ -822,8 +852,9 @@ public sealed class CharacterValidator
                     continue;
                 }
 
+                // f is not null here: a null entry has no feature and was reported above.
                 if (feature.CostType != "flat"
-                    && (f.GradeKey is null || feature.CostRange?.ContainsKey(f.GradeKey) != true))
+                    && (f!.GradeKey is null || feature.CostRange?.ContainsKey(f.GradeKey) != true))
                 {
                     issues.Add(new(ValidationSeverity.Error, "GEAR_FEATURE_NEEDS_GRADE",
                         $"{gear.Name}'s {feature.Name} feature is priced by grade, and no grade "
@@ -910,7 +941,7 @@ public sealed class CharacterValidator
                 continue;
             }
 
-            var power = _rules.GetPower(sp.PowerId);
+            var power = Power(sp.PowerId);
             if (power is null || sp.SourceId is not null) continue;
 
             if (power.RankType is "default" or "special")
@@ -1006,7 +1037,7 @@ public sealed class CharacterValidator
         {
             if (!sp.Cons.Any()) continue;
 
-            var power = _rules.GetPower(sp.PowerId);
+            var power = Power(sp.PowerId);
             if (power is null) continue;
 
             // Report when Cons have driven the cost down to the rulebook floor, since
@@ -1036,7 +1067,7 @@ public sealed class CharacterValidator
     {
         foreach (var sp in sheet.SelectedPowers)
         {
-            var power = _rules.GetPower(sp.PowerId);
+            var power = Power(sp.PowerId);
             if (power is null) continue;
 
             if (power.MaxRank == 0 && sp.PurchasedRanks > 0)
@@ -1066,11 +1097,15 @@ public sealed class CharacterValidator
 
         foreach (var sp in sheet.SelectedPowers)
         {
-            var power = _rules.GetPower(sp.PowerId);
+            // Null-checked before the lookup: GetPower throws on a null id, which is what
+            // `{"SelectedPowers":[{}]}` supplies.
+            var power = Power(sp.PowerId);
             if (power is null)
             {
                 issues.Add(new(ValidationSeverity.Error, "UNKNOWN_POWER",
-                    $"There is no Power called '{sp.PowerId}' in the rulebook data.")
+                    sp.PowerId is null
+                        ? "One of the Powers has no name at all."
+                        : $"There is no Power called '{sp.PowerId}' in the rulebook data.")
                 {
                     // No Options here, deliberately. There are 141 Powers and the caller
                     // already has the list; repeating it on every typo would make the report
@@ -1132,7 +1167,7 @@ public sealed class CharacterValidator
     {
         foreach (var sp in sheet.SelectedPowers)
         {
-            var power = _rules.GetPower(sp.PowerId);
+            var power = Power(sp.PowerId);
             if (power is null) continue;
 
             if (power.NeedsReview)
@@ -1146,7 +1181,7 @@ public sealed class CharacterValidator
         }
 
         var unverifiedText = sheet.SelectedPowers
-            .Select(sp => _rules.GetPower(sp.PowerId))
+            .Select(sp => Power(sp.PowerId))
             .OfType<PowerModel>()
             .Where(p => !p.DescriptionVerified)
             .Select(p => p.Name)
@@ -1168,7 +1203,24 @@ public sealed class CharacterValidator
     /// exports. None of them may print an id, a file name or an internal flag; there is a
     /// test that says so.</para>
     /// </summary>
-    private string PowerName(string powerId) => TraitName(_rules.GetPower(powerId)?.Name, powerId);
+    private string PowerName(string? powerId) =>
+        powerId is null ? "A Power with no name" : TraitName(Power(powerId)?.Name, powerId);
+
+    /// <summary>
+    /// The rules lookups this class makes, made safe for an id that is null.
+    ///
+    /// <para><b>The repository's own lookups throw on a null id rather than answering</b>, which
+    /// is right for it — a null id is a programming error to everything except this class, whose
+    /// job is reading what somebody else wrote. <c>{"Perks":[{}]}</c> is well-formed JSON and
+    /// supplies exactly that. Routing every lookup through these three is what makes "a null id
+    /// is reported by name" true of the whole file rather than of the four places somebody
+    /// remembered.</para>
+    /// </summary>
+    private PowerModel? Power(string? id) => id is null ? null : _rules.GetPower(id);
+
+    private PerkModel? Perk(string? id) => id is null ? null : _rules.GetPerk(id);
+
+    private FlawModel? Flaw(string? id) => id is null ? null : _rules.GetFlaw(id);
 
     /// <summary>
     /// A Trait's printed name, or its id **in quotes** when the rules do not have it.
