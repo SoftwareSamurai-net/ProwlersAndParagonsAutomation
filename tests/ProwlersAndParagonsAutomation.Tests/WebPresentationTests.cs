@@ -516,6 +516,51 @@ public sealed class WebPresentationTests
         Assert.Contains("text-transform:uppercase", declarations, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The <c>Abilities (…)</c> line that opens a Source group is set apart from the Powers
+    /// under it. It is not a Power — no rank, no cost — and in the same face it reads as the
+    /// first entry in the list, which is a misreading the markup cannot prevent: the class is
+    /// on the element either way, so every rendering test passes with this rule emptied.
+    ///
+    /// <para>The print size is asserted too. On screen it is set in <c>rem</c>, which the
+    /// print block overrides for everything else on the sheet — leaving this one behind would
+    /// print it visibly larger than the Power names beside it.</para>
+    /// </summary>
+    [Fact]
+    public void ATraitSourceLineIsSetApartFromThePowersBelowIt()
+    {
+        var css  = WithoutCssComments(AppCss);
+        var rule = Rx(@"(?<![\w.-])\.power-entry\.trait-sources\s*\{([^{}]*)\}").Match(css);
+
+        Assert.True(rule.Success,
+            "app.css does not set the trait Source line apart, so it reads as the first Power.");
+
+        var declarations = Normalise(rule.Groups[1].Value);
+        Assert.Contains("font-style:italic", declarations, StringComparison.Ordinal);
+
+        // The value, not just the property. `Contains("font-size:")` passed at 3rem — three
+        // times the body size — which is the same weakness this test's print half already
+        // had. Set apart means a step down from the entries it sits above, not a shout.
+        var screen = Rx(@"font-size:\s*([0-9.]+)rem").Match(declarations);
+        Assert.True(screen.Success, "The screen rule sets no font size in rem.");
+        Assert.InRange(double.Parse(screen.Groups[1].Value, CultureInfo.InvariantCulture), 0.7, 1.0);
+
+        var printed = PrintRuleFor(".power-entry.trait-sources");
+        Assert.True(printed is not null,
+            "The print block leaves the trait Source line at its screen size.");
+
+        // The value, not merely the unit. `Contains("pt")` passed at 30pt, while this test's
+        // own comment claimed it stopped the line printing larger than the entries around it.
+        // The band it belongs to runs from the stat lines (7.5pt) to the body size (10.5pt).
+        var size = Rx(@"font-size:\s*([0-9.]+)pt").Match(Normalise(printed!));
+        Assert.True(size.Success, "The print rule sets no font size in points.");
+
+        // Strictly under the 10.5pt body size the Power names take, which an inclusive upper
+        // bound of 10.5 did not enforce: the line has to read as a step below them.
+        var points = double.Parse(size.Groups[1].Value, CultureInfo.InvariantCulture);
+        Assert.InRange(points, 7.5, 9.5);
+    }
+
     /// <summary>A heading that strands at the foot of a page belongs to nothing.</summary>
     [Fact]
     public void ASectionHeadingNeverStrandsAtTheFootOfAPage()

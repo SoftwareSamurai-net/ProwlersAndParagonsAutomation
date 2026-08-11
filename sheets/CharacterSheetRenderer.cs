@@ -102,7 +102,13 @@ public static class CharacterSheetRenderer
     private static void WritePowers(StringBuilder sb, CharacterSheet sheet,
         RulesRepository rules, CostCalculator costs, DerivedStatsCalculator derived)
     {
-        if (sheet.SelectedPowers.Count == 0)
+        // A published sheet groups Powers under Source headings — TECH POWERS, MAGIC
+        // POWERS — rather than listing them flat, and records an Ability's or Talent's
+        // Source as a line inside the group rather than on the Abilities block. See
+        // SourceGrouping.
+        var groups = new SourceGrouping(rules).GroupBySource(sheet);
+
+        if (groups.Count == 0)
         {
             sb.AppendLine("─── POWERS ─────────────────────────────────────────────────");
             sb.AppendLine("  (none)");
@@ -110,12 +116,13 @@ public static class CharacterSheetRenderer
             return;
         }
 
-        // A published sheet groups Powers under Source headings — TECH POWERS, MAGIC
-        // POWERS — rather than listing them flat. See SourceGrouping.
-        foreach (var group in new SourceGrouping(rules).GroupPowers(sheet))
+        foreach (var group in groups)
         {
             var rule = new string('─', Math.Max(3, 59 - group.Heading.Length));
             sb.AppendLine($"─── {group.Heading} {rule}");
+
+            foreach (var line in group.TraitLines)
+                sb.AppendLine($"  {line}");
 
             foreach (var sp in group.Powers)
             {
@@ -283,6 +290,7 @@ public static class CharacterSheetRenderer
                       : rules.CreationRules.OptionalPackages.FirstOrDefault(p => p.Id == sheet.SelectedPackageId);
         var spent   = costs.TotalCost(sheet);
         var budget  = tier?.HeroPoints ?? 0;
+        var grouping = new SourceGrouping(rules);
 
         var root = new JsonObject
         {
@@ -315,16 +323,41 @@ public static class CharacterSheetRenderer
             {
                 ["id"]   = ab.Id,
                 ["name"] = ab.Name,
-                ["rank"] = sheet.GetAbilityRank(ab.Id)
+                ["rank"] = sheet.GetAbilityRank(ab.Id),
+                // Both, because they answer different questions. "source" is what the sheet
+                // recorded and null means "the default was not overridden" — the input a
+                // rebuild needs. "effective_source" is what the Trait actually is.
+                ["source"]           = sheet.AbilitySources.GetValueOrDefault(ab.Id),
+                ["effective_source"] = grouping.EffectiveAbilitySource(sheet, ab.Id)
             }).ToArray()),
+            // Bought ranks, plus any Talent carrying a Source. A Source can be set on a 0d
+            // Talent — both editors offer all twelve — and the rank filter alone dropped it,
+            // so every sheet printed "Talents (Academics)" while this export carried no
+            // Academics entry for it to come from. Abilities are unfiltered, so the two
+            // behaved differently for the same state.
             ["talents"] = new JsonArray(rules.Talents
-                .Where(ta => sheet.GetTalentRank(ta.Id) > 0)
+                .Where(ta => sheet.GetTalentRank(ta.Id) > 0 || sheet.TalentSources.ContainsKey(ta.Id))
                 .Select(ta => (JsonNode)new JsonObject
                 {
-                    ["id"]             = ta.Id,
-                    ["name"]           = ta.Name,
-                    ["rank"]           = sheet.GetTalentRank(ta.Id),
-                    ["linked_ability"] = ta.LinkedAbility
+                    ["id"]               = ta.Id,
+                    ["name"]             = ta.Name,
+                    ["rank"]             = sheet.GetTalentRank(ta.Id),
+                    ["linked_ability"]   = ta.LinkedAbility,
+                    ["source"]           = sheet.TalentSources.GetValueOrDefault(ta.Id),
+                    ["effective_source"] = grouping.EffectiveTalentSource(sheet, ta.Id)
+                }).ToArray()),
+            // The Source headings as a sheet prints them, with the Abilities (…) and
+            // Talents (…) lines that belong inside each. Otherwise this export is the one
+            // surface of the three that cannot show a Trait's Source where the book puts it.
+            ["source_groups"] = new JsonArray(grouping.GroupBySource(sheet)
+                .Select(g => (JsonNode)new JsonObject
+                {
+                    ["heading"]     = g.Heading,
+                    ["source"]      = g.Source?.Id,
+                    ["trait_lines"] = new JsonArray(g.TraitLines
+                        .Select(l => (JsonNode)JsonValue.Create(l)!).ToArray()),
+                    ["power_ids"]   = new JsonArray(g.Powers
+                        .Select(p => (JsonNode)JsonValue.Create(p.PowerId)!).ToArray())
                 }).ToArray()),
             ["powers"] = new JsonArray(sheet.SelectedPowers.Select(sp =>
             {

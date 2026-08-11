@@ -73,7 +73,7 @@ public record SelectedPower(
     public string? BaselineTraitId { get; init; }
 
     /// <summary>
-    /// Which of the six Sources this Power comes from (Ch.2 p.15). Costs nothing and never
+    /// Which of the six Sources this Power comes from (Ch.2 p.16). Costs nothing and never
     /// changes a Power's rank, but a published sheet groups Powers under Source headings,
     /// and a rankless Power takes its default rank from the Source's Ability. Null means
     /// the player has not said yet.
@@ -96,7 +96,7 @@ public record SelectedGearFeature(string FeatureId, string? GradeKey = null);
 /// </summary>
 public record SelectedGear(string Name)
 {
-    /// <summary>Custom features bought for this item (Ch.6, p.92). Usually empty.</summary>
+    /// <summary>Custom features bought for this item (Ch.6, p.93). Usually empty.</summary>
     public IReadOnlyList<SelectedGearFeature> Features { get; init; } = [];
 
     /// <summary>Pros applied to this item. They cost the same on gear as on a Power.</summary>
@@ -145,6 +145,30 @@ public class CharacterSheet
 
     /// <summary>Purchased talent ranks, keyed by talent id.</summary>
     public Dictionary<string, int> TalentRanks { get; } = new();
+
+    /// <summary>
+    /// Sources for Abilities, keyed by ability id. Ch.2 p.16: every Ability, Talent and
+    /// Power has a Source, and Abilities are usually Innate "at least when dealing with
+    /// ordinary people. When dealing with supers and characters who aren't human, however,
+    /// anything goes." An entry here is therefore a Trait whose Source is <em>not</em> the
+    /// default — which is exactly what a published sheet prints, as an
+    /// <c>Abilities (…)</c> line inside a Power group.
+    ///
+    /// <para><b>This cannot be derived from rank.</b> Ch.2 p.64 says "Sources for your
+    /// Powers and Abilities with a rank of 7d or greater", which reads like a threshold and
+    /// is not one — it is an instruction about which Traits to roll Sources for during
+    /// random generation. The printed sheets disagree with it in both directions: Alabama
+    /// Slammer marks 6d Perception and Toughness, and Citizen Soldier leaves 9d Willpower
+    /// unmarked. Storing the answer is the only way to reproduce them.</para>
+    /// </summary>
+    public Dictionary<string, string> AbilitySources { get; } = new();
+
+    /// <summary>
+    /// Sources for Talents, keyed by talent id. Absent means the Trained default. Kept apart
+    /// from <see cref="AbilitySources"/> because the two defaults differ, so a single
+    /// dictionary could not say what a missing entry meant.
+    /// </summary>
+    public Dictionary<string, string> TalentSources { get; } = new();
 
     /// <summary>Powers on this character sheet.</summary>
     public List<SelectedPower> SelectedPowers { get; } = new();

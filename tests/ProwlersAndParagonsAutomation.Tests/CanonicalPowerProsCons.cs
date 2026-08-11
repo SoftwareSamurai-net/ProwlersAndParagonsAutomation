@@ -7,7 +7,7 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// per rank rather than its total.
 ///
 /// <para>Almost all are printed inside the Power's own entry in Chapter 2. Three are not:
-/// Caustic, Lethal Disease and Non-Lethal Disease sit in Chapter 7's Toxins section (p.108)
+/// Caustic, Lethal Disease and Non-Lethal Disease sit in Chapter 7's Toxins section (pp.108-109)
 /// and name Stun or Slay in their text. Sweeping the whole book for a PRO/CON Hero Point
 /// marker returns those three and nothing else outside Chapter 2.</para>
 ///

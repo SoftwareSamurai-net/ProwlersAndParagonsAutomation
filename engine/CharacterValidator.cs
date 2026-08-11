@@ -129,11 +129,11 @@ public sealed class CharacterValidator
         // The message used to say the tier "is marked needs_review", which was both jargon
         // and untrue — nothing in data/rules/ carries such a flag, and this fires on the
         // Iconic tier's id regardless. What it is actually reporting is the rulebook's own
-        // open end: Ch.2 p.17 calls Iconic's 200 Hero Points a bare minimum.
+        // open end: Ch.2 p.15 calls Iconic's 200 Hero Points a bare minimum.
         if (tier.NeedsReview || tier.Id == "iconic")
             issues.Add(new(ValidationSeverity.Warning, "ICONIC_TIER_OPEN_BUDGET",
                 $"The {tier.Name} tier's Hero Point budget is a minimum rather than a limit " +
-                "(Ch.2, Power Level, p.17), so how far above it you go is the GM's call."));
+                "(Ch.2, Power Level, p.15), so how far above it you go is the GM's call."));
     }
 
     private void CheckFlawCount(CharacterSheet sheet, List<ValidationIssue> issues)
@@ -163,7 +163,7 @@ public sealed class CharacterValidator
     }
 
     /// <summary>
-    /// Custom gear (Ch.6, p.92). Mundane gear is free and untracked, so an uncustomised
+    /// Custom gear (Ch.6, p.93). Mundane gear is free and untracked, so an uncustomised
     /// item is never an issue; these only bite once Hero Points are involved.
     ///
     /// <para>Returns false if any item cannot be priced at all, which stops the caller
@@ -219,12 +219,23 @@ public sealed class CharacterValidator
     }
 
     /// <summary>
-    /// Sources (Ch.2, p.15). A Source costs nothing and changes no rank, so a missing one
+    /// Sources (Ch.2, p.16). A Source costs nothing and changes no rank, so a missing one
     /// is never an error — but a Power the rulebook gives no rank needs its Source to know
     /// which Ability stands in when another Power acts on it, so that gap is worth saying.
+    ///
+    /// <para><b>An Ability or Talent with no Source is not a gap at all</b>, and is
+    /// deliberately not reported. The rulebook supplies a default for both — Abilities are
+    /// usually Innate, Talents usually Trained — so silence there means "on its default",
+    /// not "unanswered". Powers have no such default, which is why they warn and Traits do
+    /// not.</para>
     /// </summary>
     private void CheckSources(CharacterSheet sheet, List<ValidationIssue> issues)
     {
+        CheckTraitSources(sheet.AbilitySources, "Ability", "Abilities",
+            id => _rules.GetAbility(id)?.Name, issues);
+        CheckTraitSources(sheet.TalentSources, "Talent", "Talents",
+            id => _rules.GetTalent(id)?.Name, issues);
+
         foreach (var sp in sheet.SelectedPowers)
         {
             if (sp.SourceId is not null && _rules.GetSource(sp.SourceId) is null)
@@ -247,6 +258,53 @@ public sealed class CharacterValidator
                 issues.Add(new(ValidationSeverity.Warning, "POWER_WITHOUT_SOURCE",
                     $"Power '{power.Name}' has no Source recorded. A published sheet groups " +
                     "Powers under Source headings, so the sheet will list it as unsourced."));
+        }
+    }
+
+    /// <summary>
+    /// Sources recorded against Abilities or Talents. Two things can be wrong and both are
+    /// errors rather than warnings: a Source that is not one of the six, and a Source
+    /// recorded against a Trait that does not exist. Neither can be rendered, and neither
+    /// is something a player chose — they mean a hand-edited or stale saved character.
+    /// </summary>
+    private void CheckTraitSources(
+        IReadOnlyDictionary<string, string> sources,
+        string traitKind,
+        string traitKindPlural,
+        Func<string, string?> nameOf,
+        List<ValidationIssue> issues)
+    {
+        foreach (var (traitId, sourceId) in sources)
+        {
+            var name = nameOf(traitId);
+
+            if (name is null)
+            {
+                // "the Abilities in the rulebook", not "the abilitys": the plural is written
+                // out rather than built by appending an s to a lowercased word.
+                issues.Add(new(ValidationSeverity.Error, "UNKNOWN_TRAIT_SOURCE",
+                    $"A Source is recorded against '{traitId}', which is not one of the "
+                    + $"{traitKindPlural} in the rulebook."));
+                continue;
+            }
+
+            // Null-checked before the lookup, not after. A stored character can carry a null
+            // here — the type says it cannot, and the deserializer does not care — and
+            // GetSource would throw ArgumentNullException on it rather than report it. That
+            // is the ordering trap this validator has already been caught by twice: an
+            // unknown Power id, and gear that could not be priced.
+            //
+            // A blank gets its own sentence. Printed through the message below it read "names
+            // a Source, '', that is not one of the six", which says the Trait names a Source
+            // and then names none.
+            if (string.IsNullOrWhiteSpace(sourceId))
+                issues.Add(new(ValidationSeverity.Error, "UNKNOWN_SOURCE",
+                    $"The {traitKind} '{name}' has a Source recorded against it with no value. "
+                    + "Choose one of the six the rulebook gives, or leave it on its default."));
+            else if (_rules.GetSource(sourceId) is null)
+                issues.Add(new(ValidationSeverity.Error, "UNKNOWN_SOURCE",
+                    $"The {traitKind} '{name}' names a Source, '{sourceId}', that is not one "
+                    + "of the six the rulebook gives."));
         }
     }
 

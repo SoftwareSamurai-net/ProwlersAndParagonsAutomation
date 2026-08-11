@@ -193,7 +193,7 @@ public sealed class PowerBrowser
     }
 
     /// <summary>
-    /// Which of the six Sources the Power comes from (Ch.2, p.15). Costs nothing, but the
+    /// Which of the six Sources the Power comes from (Ch.2, p.16). Costs nothing, but the
     /// sheet groups Powers by it, and a Power with no rank of its own takes its default
     /// rank from the Source's Ability — so the prompt says so when that applies.
     /// </summary>

@@ -97,14 +97,14 @@ public sealed class RulesRepository
         _perks ??= Load<List<PerkModel>>("perks.json");
 
     /// <summary>
-    /// Custom features that can be bought for a piece of mundane gear (Ch.6, p.92). The
+    /// Custom features that can be bought for a piece of mundane gear (Ch.6, p.93). The
     /// gear itself is free; these are the only part of it that costs Hero Points.
     /// </summary>
     public IReadOnlyList<GearFeatureModel> GearFeatures =>
         _gearFeatures ??= Load<List<GearFeatureModel>>("gear_features.json");
 
     /// <summary>
-    /// The six Sources (Ch.2, p.15). A Source says what a Trait is meant to be, and sets
+    /// The six Sources (Ch.2, p.16). A Source says what a Trait is meant to be, and sets
     /// the default rank a rankless Power uses when Powers act on other Powers.
     /// </summary>
     public IReadOnlyList<SourceModel> Sources =>

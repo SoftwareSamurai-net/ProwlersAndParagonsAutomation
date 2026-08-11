@@ -262,7 +262,7 @@ Pro costs and con discounts are then added (cons are stored as **negative** inte
 | `baseline_greater_of` | Strike | max(Might, Martial Arts) + purchased |
 | `baseline_selected_trait` | Boost, Expertise | rank of a Trait the player nominates + purchased |
 
-Halves round **up** throughout, per the rulebook's global "half of an odd number always rounds up" rule.
+Halves round **up** throughout, per the rulebook's global "Whenever we refer to half of an odd number (or half of an odd number of dice), always round up, regardless of the context" rule.
 
 ### Perk costs
 
@@ -278,7 +278,7 @@ Flat perks cost their `cost`. Per-unit perks cost `cost_per_unit × units`.
 
 Three powers touch Edge, each differently:
 
-- **Danger Sense** *replaces* Perception in the sum — "use this Power instead of Perception when determining your Edge". It is not added on top.
+- **Danger Sense** *replaces* Perception in the sum — "Use this Power instead of Perception when making rolls to detect danger and when determining your Edge". It is not added on top.
 - **Lightning Reflexes** adds a flat **+6**. It has no rank, so nothing scales.
 - **Super Speed** sets Edge to its rank × 3; treated as a floor so it never lowers an already-higher Edge.
 
@@ -312,14 +312,14 @@ They have earned their keep twice over, catching two cost bugs that unit tests h
 |---|---|---|
 | `powers.json` | 141 | Ch.2 Powers, pp.21–48 — range, rank type, cost, baseline and description |
 | `pros.json` | 23 | Ch.2 Pros and Cons, pp.48–53 |
-| `cons.json` | 28 | Ch.2 Pros and Cons, pp.48–53 |
+| `cons.json` | 28 | Ch.2 Pros and Cons, pp.48–54 |
 | `perks.json` | 13 | Ch.2 Perks, pp.54–55 |
-| `flaws.json` | 53 | Ch.2 Flaws, pp.55–59 |
+| `flaws.json` | 53 | Ch.2 Flaws, pp.55–60 |
 | `abilities.json` | 6 | Ch.2, p.17 |
-| `talents.json` | 12 | Ch.2, p.17 |
-| `tiers.json` | 6 | Ch.2 Power Levels, p.17 |
-| `gear_features.json` | 12 | Ch.6 Equipment, p.92 — custom gear features |
-| `sources.json` | 6 | Ch.2 Sources, p.15 — default rank per Source |
+| `talents.json` | 12 | Ch.2, p.18 |
+| `tiers.json` | 6 | Ch.2 Power Levels, p.15 |
+| `gear_features.json` | 12 | Ch.6 Equipment, p.93 — custom gear features |
+| `sources.json` | 6 | Ch.2 Sources, p.16 — default rank per Source |
 
 A single `needs_review` boolean could not tell a verified cost from a verified description, and it drifted badly: 27 power entries were unflagged while their costs were wrong. `powers.json` therefore carries `verified_fields` plus a `source_ref` page reference on every entry:
 

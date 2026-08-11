@@ -679,6 +679,11 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .power-entry .head .hp { align-self: baseline; margin-right: -0.08em; }
 .power-entry .statline { font-size: 0.78rem; color: var(--muted); }
 
+/* The Abilities (…) line that opens a Source group. It is not a Power — it has no rank and
+   costs nothing — so it is set apart from the entries below it rather than reading as the
+   first of them, which is how the published sheets set it too. */
+.power-entry.trait-sources { font-style: italic; font-size: 0.85rem; }
+
 .sheet .quote { font-style: italic; }
 
 /* Paper only. On screen the sheet is already framed by the page around it. */
@@ -822,6 +827,11 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     .stat-table td { padding: 0.5mm 1mm; font-size: 8pt; }
     .power-entry { padding: 1mm 0; }
     .power-entry .statline { font-size: 7.5pt; }
+    /* Restated because the screen rule is in rem, which the print block overrides for
+       everything else on the sheet. A half-point above the stat lines (7.5pt) and well under
+       the Power names, which take the 10.5pt body size: the line names Traits rather than
+       announcing one, so it reads as supporting text that happens to come first. */
+    .power-entry.trait-sources { font-size: 8pt; }
     /* Set with the stat lines rather than below them. A cost belongs a step behind a rank,
        which the case, the weight and the muted ink already do; taking it under 7pt as well
        made it a thing you squint at, and it is set in small caps, which reads smaller than

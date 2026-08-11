@@ -381,6 +381,207 @@ public sealed class SheetRenderTests
     }
 
     /// <summary>
+    /// The sheet prints the <c>Abilities (…)</c> line the engine builds, inside the Source
+    /// group it belongs to and above the Powers — which is where the published sheets put
+    /// it, and the whole reason the line is not a marking on the Abilities table.
+    ///
+    /// <para>Asserted against the engine's own answer rather than against a string this test
+    /// spells out, so the two cannot drift apart in agreement with each other. Both samples
+    /// carry one: the Hero has Tech Abilities behind an Item Con, the Villain a Magic
+    /// Talent.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void TheSheetPrintsTheTraitSourceLineInsideItsGroup(SheetMode mode)
+    {
+        using var ctx = new RenderContext().With(mode);
+
+        var groups = ctx.Session.Grouping.GroupBySource(ctx.Session.Sheet);
+        var expected = groups.SelectMany(g => g.TraitLines).ToList();
+        Assert.NotEmpty(expected);
+
+        var sheet = ctx.Render<SheetView>();
+
+        Assert.Equal(expected,
+            sheet.FindAll(".power-entry.trait-sources").Select(e => Collapse(e.TextContent)));
+
+        // Above the Powers in the same box, not appended after them. Read off the rendered
+        // order of the whole column, so a line printed in the wrong group fails too.
+        foreach (var group in groups.Where(g => g.TraitLines.Count > 0 && g.Powers.Count > 0))
+        {
+            var box = sheet.FindAll(".sheet-section.powers")
+                .Single(s => Collapse(s.TextContent).StartsWith(group.Heading, StringComparison.Ordinal));
+
+            var entries = box.QuerySelectorAll(".power-entry").Select(e => Collapse(e.TextContent)).ToList();
+
+            Assert.Equal(group.TraitLines, entries.Take(group.TraitLines.Count));
+        }
+    }
+
+    /// <summary>
+    /// A Trait on its default Source prints nothing at all. Without this, a renderer that
+    /// listed every Ability under INNATE POWERS would satisfy the test above — it would
+    /// still match the engine — and the sheet would carry eighteen lines saying that an
+    /// ordinary character is ordinary.
+    /// </summary>
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void TraitsOnTheirDefaultSourceArePrintedNowhere(SheetMode mode)
+    {
+        using var ctx = new RenderContext().With(mode);
+
+        var named = ctx.Session.Sheet.AbilitySources.Keys
+            .Concat(ctx.Session.Sheet.TalentSources.Keys)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var onDefault = ctx.Session.Rules.Abilities.Select(a => a.Name)
+            .Concat(ctx.Session.Rules.Talents.Select(t => t.Name))
+            .Where(n => !named.Contains(Id(ctx, n)))
+            .ToList();
+
+        Assert.NotEmpty(onDefault);
+
+        var lines = ctx.Render<SheetView>()
+            .FindAll(".power-entry.trait-sources")
+            .Select(e => Collapse(e.TextContent))
+            .ToList();
+
+        foreach (var name in onDefault)
+            Assert.DoesNotContain(lines, l => l.Contains(name, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A Source group holding <b>only</b> a trait line still prints on the sheet — a Trait
+    /// bought through powered armour on a character with no Tech Power.
+    ///
+    /// <para>This exists because an adversarial pass filtered the sheet's groups to those
+    /// with Powers in them and <b>every test stayed green</b>. Both samples happen to put
+    /// their marked Traits in a Source that also has Powers, so nothing noticed that a
+    /// Trait-only group had stopped rendering. The rule is stated in CLAUDE.md — nothing
+    /// that renders groups may gate on there being Powers — and three places once did.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void ASourceWithNoPowersStillPrintsOnTheSheet(SheetMode mode)
+    {
+        using var ctx = new RenderContext().With(mode);
+
+        // A Source no Power on either sample uses, so the group can only exist because of
+        // the Trait. Chosen from the rules rather than named, so it cannot go stale — and
+        // never the Ability default, which is filtered out precisely because it says
+        // nothing. Picking the default made this test's own setup a no-op.
+        var unused = ctx.Session.Rules.Sources.First(s =>
+            s.Id != SourceGrouping.DefaultAbilitySourceId &&
+            ctx.Session.Sheet.SelectedPowers.All(p => p.SourceId != s.Id));
+
+        ctx.Session.Sheet.AbilitySources["intellect"] = unused.Id;
+
+        var heading = SourceGrouping.HeadingFor(unused);
+        var boxes = ctx.Render<SheetView>().FindAll(".sheet-section.powers")
+            .Select(e => Collapse(e.TextContent))
+            .ToList();
+
+        var box = Assert.Single(boxes, b => b.StartsWith(heading, StringComparison.Ordinal));
+        Assert.Contains("Abilities (Intellect)", box, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A character with a Trait Source and <b>no Powers at all</b> gets a real Powers column
+    /// rather than the blank form. The test above cannot reach this: its sample still has
+    /// Powers, so the "is this column empty?" branch is never taken, and reverting that
+    /// branch to ask about <c>SelectedPowers</c> left the whole suite green.
+    /// </summary>
+    [Fact]
+    public void ASheetWithATraitSourceAndNoPowersIsNotABlankForm()
+    {
+        using var ctx = new RenderContext();
+        ctx.Session.Sheet.SelectedTierId = "standard";
+        ctx.Session.Sheet.AbilitySources["might"] = "tech";
+
+        Assert.Empty(ctx.Session.Sheet.SelectedPowers);
+
+        var sheet = ctx.Render<SheetView>();
+        var boxes = sheet.FindAll(".sheet-section.powers").Select(e => Collapse(e.TextContent)).ToList();
+
+        var box = Assert.Single(boxes);
+        Assert.StartsWith("TECH POWERS", box, StringComparison.Ordinal);
+        Assert.Contains("Abilities (Might)", box, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// And the other way: a character with nothing at all still gets the blank Powers form,
+    /// so deleting that branch would not satisfy the test above.
+    /// </summary>
+    [Fact]
+    public void AnEmptySheetStillPrintsABlankPowersForm()
+    {
+        using var ctx = new RenderContext();
+        ctx.Session.Sheet.SelectedTierId = "standard";
+
+        var sheet = ctx.Render<SheetView>();
+
+        Assert.Empty(sheet.FindAll(".sheet-section.powers"));
+        Assert.Contains(sheet.FindAll(".sheet-section"), s =>
+            Collapse(s.TextContent).StartsWith("Powers", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The Origin box lists the Sources the character draws on, and it is read off the
+    /// groups rather than off the Powers — so a Trait bought through powered armour puts
+    /// Tech there even with no Tech Power. Reverting it to scan Powers stayed green.
+    /// </summary>
+    [Fact]
+    public void TheOriginBoxNamesASourceHeldOnlyByATrait()
+    {
+        using var ctx = new RenderContext();
+        ctx.Session.Sheet.SelectedTierId = "standard";
+        ctx.Session.Sheet.AbilitySources["might"] = "tech";
+
+        var origin = ctx.Render<SheetView>().FindAll(".sheet-section")
+            .Select(e => Collapse(e.TextContent))
+            .Single(t => t.StartsWith("Origin", StringComparison.Ordinal));
+
+        Assert.Contains("Tech", origin, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Powers tab is the one surface that deliberately skips a group holding only a
+    /// trait line: it edits Powers, and a heading with nothing under it says less than no
+    /// heading. Asserted in both directions so the exception cannot quietly become general.
+    /// </summary>
+    [Fact]
+    public void ThePowersTabSkipsAGroupThatHoldsNoPowers()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        var unusedSource = ctx.Session.Rules.Sources.First(s =>
+            s.Id != SourceGrouping.DefaultAbilitySourceId &&
+            ctx.Session.Sheet.SelectedPowers.All(p => p.SourceId != s.Id));
+
+        ctx.Session.Sheet.AbilitySources["intellect"] = unusedSource.Id;
+
+        var headings = ctx.Render<PowersTab>().FindAll("h3")
+            .Select(h => Collapse(h.TextContent))
+            .ToList();
+
+        Assert.DoesNotContain(SourceGrouping.HeadingFor(unusedSource), headings);
+
+        // The groups that do hold Powers are all still there, so this is a skip and not a
+        // failure to render.
+        var expected = ctx.Session.Grouping.GroupBySource(ctx.Session.Sheet)
+            .Where(g => g.Powers.Count > 0)
+            .Select(g => g.Heading);
+
+        Assert.Equal(expected, headings);
+    }
+
+    private static string Id(RenderContext ctx, string traitName) =>
+        ctx.Session.Rules.Abilities.FirstOrDefault(a => a.Name == traitName)?.Id
+        ?? ctx.Session.Rules.Talents.First(t => t.Name == traitName).Id;
+
+    /// <summary>
     /// Text as a reader sees it: tags removed, entities resolved, runs of whitespace
     /// collapsed — but <b>not</b> collapsed away, because a missing space is the whole point.
     /// </summary>

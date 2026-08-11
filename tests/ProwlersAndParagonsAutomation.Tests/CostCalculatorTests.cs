@@ -316,7 +316,7 @@ public sealed class CostCalculatorTests
     [Fact]
     public void TheBruteOptionBuysMightAtHalfPrice()
     {
-        // Ch.1: applying Overkill to Might means "1 Hero Point for every 2 ranks".
+        // Ch.2 p.17: applying Overkill to Might means "1 Hero Point for every 2 ranks".
         var sheet = RulesFixture.StandardSheet();
         sheet.AbilityRanks["might"] = 9;
         sheet.AbilityModifiers["might"] = [new SelectedProCon("overkill")];

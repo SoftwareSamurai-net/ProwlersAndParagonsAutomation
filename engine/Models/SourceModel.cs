@@ -1,7 +1,7 @@
 namespace ProwlersAndParagonsAutomation.Engine.Models;
 
 /// <summary>
-/// One of the six Sources (Ch.2, p.15). Every Ability, Talent and Power has one, saying
+/// One of the six Sources (Ch.2, p.16). Every Ability, Talent and Power has one, saying
 /// what the Trait is meant to be: something the character was born with, a machine, a
 /// spell, a trained skill.
 ///
