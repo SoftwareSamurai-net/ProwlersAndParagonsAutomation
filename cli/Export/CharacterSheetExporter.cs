@@ -16,7 +16,10 @@ public sealed class CharacterSheetExporter
     private const string OutputDir = "output";
 
     /// <summary>
-    /// Exports the character sheet to both .txt and .json in output/.
+    /// Exports the character sheet to both .txt and .json in output/, or in
+    /// <paramref name="outputDirectory"/> where one is given — the headless
+    /// <c>build</c> command lets the caller say where, since it may be running
+    /// anywhere and against a character it did not create.
     /// Returns (txtPath, jsonPath).
     /// </summary>
     public (string TxtPath, string JsonPath) Export(
@@ -25,9 +28,10 @@ public sealed class CharacterSheetExporter
         CostCalculator costs,
         DerivedStatsCalculator derived,
         ValidationResult validation,
-        string projectRoot)
+        string projectRoot,
+        string? outputDirectory = null)
     {
-        var dir = Path.Combine(projectRoot, OutputDir);
+        var dir = outputDirectory ?? Path.Combine(projectRoot, OutputDir);
         Directory.CreateDirectory(dir);
 
         var generatedAt = DateTime.Now;
