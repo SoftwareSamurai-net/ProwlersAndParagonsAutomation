@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3189 across two projects — 3099 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3190 across two projects — 3100 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two, plus a headless command — the terminal wizard, a Blazor WebAssembly app, and `build --from`, all on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -26,7 +26,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Known-wrong data | None outstanding |
 | Licence | MIT, in `LICENSE`. Covers this repository only — the game system is © LakeSide Games and no rulebook text is here |
 
-The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **15 of the 20 to exactly their 125 Hero Point budget**. The remaining five are all within 2 HP, each for a recorded reason — see [Close the last five Heroes](#1-close-the-last-five-heroes).
+The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **16 of the 20 to exactly their 125 Hero Point budget**. The remaining four are all 1 HP out, each for a recorded reason — see [Close the last four Heroes](#1-close-the-last-four-heroes).
 
 ---
 
@@ -34,21 +34,22 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 Roughly in the order that unblocks the most.
 
-### 1. Close the last five Heroes
+### 1. Close the last four Heroes
 
-Fifteen of the twenty published Heroes now rebuild to exactly 125 Hero Points. The other five are held at a known residual in `PrebuiltHeroes.BuildByHero`, each with a reason:
+Sixteen of the twenty published Heroes now rebuild to exactly 125 Hero Points. The other four are held at a known residual in `PrebuiltHeroes.BuildByHero`, each with a reason:
 
 | Hero | Residual | Why |
 |---|---|---|
-| Herald (Airmid) | +2 | Unresolved |
 | Herald (Scathach) | +1 | Strike carries four Pros and Cons at once — most likely a variant reading |
 | Shadow | +1 | Unexplained |
 | T-Kay | −1 | `Limited: only for Telekinesis` does not say which grade |
 | Vigilant | −1 | Its Jo Sticks are *Upgraded*, a custom gear feature worth +2 — which would take him to +1, not to zero |
 
-Nothing left is more than 2 HP out, and the test asserting that bound has been tightened from 6 to 2 so it stays true.
+Nothing left is more than 1 HP out, and the test asserting that bound has been tightened from 6 to 2 and now to 1, so it stays true.
 
-**The "residuals pair up" lead is spent.** It was worth chasing and it paid twice — see the completed item below — but what closed Vector and Talon was reading the rulebook entry in each case, not the pattern. What is left is −1, −1, +1, +1, +2, and five values in a four-point range pair up by chance. Do not read more into it.
+**The "residuals pair up" lead is spent.** It was worth chasing and it paid twice — see the completed item below — but what closed Vector and Talon was reading the rulebook entry in each case, not the pattern. What is left is −1, −1, +1, +1, and four values one point either side of zero pair up by chance. Do not read more into it.
+
+**What has closed a Hero, three times now, is reading their sheet against the transcription line by line.** Vector's was Deflection, Talon's was Super Senses, and Airmid's was a whole Power the transcription had dropped. **Check the transcription against the printed page before theorising about the rules** — Scathach's has been verified this way and is faithful, so hers is a pricing question; Shadow's and Vigilant's have not.
 
 The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for Telekinesis`) remain guesses that could be revisited, but do not tune them just to force a zero — that is fitting the model to the answer.
 
@@ -62,7 +63,7 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 - **T-Kay's grade is a judgement call by the rulebook's own words.** The Limited entry (Ch.2) reads: −1 "if the Power is somewhat limited", −2 "if it's significantly limited", −4 "if it's severely limited", and then *"Use this Con as a catch-all when nothing else seems appropriate."* There is no rule mapping "only for Telekinesis" onto a grade, so the milder reading has nothing recommending it except that it produces a zero. **Left as recorded.**
 - **Vigilant's Upgraded is confirmed printed** — his Gear box reads `2 Jo Sticks: 10d (s) Melee (Upgraded)`, and he has Two-Fisted, so the pair is customised for one price of 2 HP. He is 1 HP under, so transcribing it lands him on +1. It closes nothing and is left recorded rather than half-applied.
-- **Herald (Airmid) has a concrete lead now, and it is her package.** She is recorded as taking the Superhero Package, and her sheet prints **nine of her twelve Talents at 2d** — the package grants 3d and its own rule is that you "cannot lower any of these below the package rank". The attribution and the printed sheet contradict each other, and she is also the worst residual at +2. Those are almost certainly the same fact. No other package resolves it: the Hero Package makes her printed ranks legal and moves her total 7 HP the wrong way, to −5. **So something in her transcription, or in how one of her Powers is priced, is worth about 5 HP, and the package was chosen to absorb it.** Left as a recorded contradiction rather than swapped for another guess.
+- **Herald (Airmid) is closed.** The lead was her package: she was recorded on the Superhero Package while her sheet prints nine of twelve Talents at 2d, and a package's granted ranks are a floor. Following it found the actual fault — **her sheet prints two Expertise Powers, "Expertise (Medicine: Ancient Remedies) 12d" and "Expertise (Science: Botany) 12d", and only the first was transcribed.** Expertise costs half a Hero Point per rank and takes its baseline from the nominated Trait, so 12d over Science 2d is ten purchased ranks and **exactly 5 HP** — which is what the wrong package was absorbing. With the second Expertise transcribed and the package corrected to the one her printed Talents allow, she rebuilds to 125 to the point. Both halves are forced by the printed page.
 - **Scathach's transcription is verified faithful to the printed sheet** — every Ability, all twelve Talents, all eleven Powers, both her Edge/Health/Resolve and her Determination, and all four modifiers on Strike. The rulebook gives Strike two different deflection Pros, `Deflect` (+4, physical *and* energy) and `Deflect Missiles` (+2, physical only); her sheet prints the plain one and the data uses +4, which is right. So her +1 is in the pricing model, not in the data — which is a narrowing rather than an answer.
 - **Shadow** still has no candidate at all.
 

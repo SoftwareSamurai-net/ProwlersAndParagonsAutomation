@@ -220,9 +220,16 @@ public sealed class PrebuiltHeroTests
 
         // A baseline that already exceeded the printed rank would silently inflate the
         // Power and skew Resolve, so check the reconstruction actually lands.
-        foreach (var p in hero.Powers.Where(p => p.EffectiveRank > 0))
+        // Matched by position rather than by id, because a sheet can print the same Power twice:
+        // Herald (Airmid) carries Expertise for Medicine and again for Science, and looking one up
+        // by id threw rather than checking either of them.
+        var ranked = hero.Powers.Select((p, index) => (p, index)).Where(x => x.p.EffectiveRank > 0);
+
+        foreach (var (p, index) in ranked)
         {
-            var selection = sheet.SelectedPowers.Single(sp => sp.PowerId == p.Id);
+            var selection = sheet.SelectedPowers[index];
+
+            Assert.Equal(p.Id, selection.PowerId);
             Assert.Equal(p.EffectiveRank, _f.Derived.GetEffectiveRank(selection, sheet));
         }
     }
@@ -344,12 +351,15 @@ public sealed class PrebuiltHeroTests
     }
 
     /// <summary>
-    /// The other five, held at the residual they currently show so a change that moves one
+    /// The other four, held at the residual they currently show so a change that moves one
     /// is noticed. Each residual has a reason recorded in
-    /// <see cref="PrebuiltHeroes.BuildByHero"/>. All five are within 2 Hero Points.
+    /// <see cref="PrebuiltHeroes.BuildByHero"/>. All four are 1 Hero Point out.
+    ///
+    /// <para>Herald (Airmid) used to be here at +2, the worst of them. She is exact now: her sheet
+    /// prints two Expertise Powers and only one was transcribed, and the missing one is worth
+    /// exactly the 5 Hero Points her wrongly-attributed package was absorbing.</para>
     /// </summary>
     [Theory]
-    [InlineData("Herald (Airmid)")]
     [InlineData("Herald (Scathach)")]
     [InlineData("Shadow")]
     [InlineData("T-Kay")]
@@ -367,11 +377,12 @@ public sealed class PrebuiltHeroTests
     public void MostHeroesReconcileExactly()
     {
         var exact = PrebuiltHeroes.BuildByHero.Count(kv => kv.Value.Residual == 0);
-        Assert.Equal(15, exact);
+        Assert.Equal(16, exact);
 
-        // Nothing is more than 2 Hero Points out.
+        // Nothing is more than 1 Hero Point out. Airmid was the only 2, and closing her tightened
+        // this from 2 — the bound has only ever moved down: 6, then 2, now 1.
         Assert.All(PrebuiltHeroes.BuildByHero,
-            kv => Assert.True(Math.Abs(kv.Value.Residual) <= 2, $"{kv.Key} is {kv.Value.Residual} out."));
+            kv => Assert.True(Math.Abs(kv.Value.Residual) <= 1, $"{kv.Key} is {kv.Value.Residual} out."));
     }
 
     /// <summary>
@@ -423,7 +434,10 @@ public sealed class PrebuiltHeroTests
         var listed = groups.SelectMany(g => g.PowerIds).ToList();
 
         Assert.All(groups, g => Assert.NotNull(_f.Rules.GetSource(g.SourceId)));
-        Assert.Equal(listed.Count, listed.Distinct(StringComparer.Ordinal).Count());
+
+        // Compared as a multiset, not a set: a sheet may print the same Power twice, and Herald
+        // (Airmid) does — Expertise for Medicine and again for Science. Requiring the ids to be
+        // distinct rejected a faithful transcription.
         Assert.Equal(hero.Powers.Select(p => p.Id).Order(), listed.Order());
     }
 
@@ -585,9 +599,9 @@ public sealed class PrebuiltHeroTests
     [MemberData(nameof(HeroNames))]
     public void NoHeroPrintsATraitBelowWhatItsPackageGrants(string name)
     {
-        // Airmid fails this, and the failure is the finding rather than a gap in the test; it is
-        // asserted on its own below so that it is recorded rather than merely tolerated.
-        if (name == "Herald (Airmid)") return;
+
+
+
 
         var hero    = PrebuiltHeroes.All.Single(h => h.Name == name);
         var package = _f.Rules.CreationRules.OptionalPackages
@@ -618,26 +632,32 @@ public sealed class PrebuiltHeroTests
     /// transcription or in how one of her Powers is priced is worth about 5 HP, and the package
     /// was chosen to absorb it.</para>
     ///
-    /// <para>This is asserted rather than fixed because guessing again would be the same mistake
-    /// in a new shape — the attribution is already an inference, and replacing one unsupported
-    /// inference with another buys nothing. <b>It is the most concrete lead item 1 has.</b></para>
+    /// <para><b>It was the lead that closed her</b>, and the closing needed no guesswork: her
+    /// sheet prints <em>two</em> Expertise Powers, "Expertise (Medicine: Ancient Remedies) 12d"
+    /// and "Expertise (Science: Botany) 12d", and only the first was transcribed. Expertise costs
+    /// half a Hero Point per rank and takes its baseline from the nominated Trait, so 12d over
+    /// Science 2d is ten purchased ranks and exactly 5 HP — which is what the wrong package was
+    /// absorbing. With the second Expertise transcribed and the package corrected to the one her
+    /// printed 2d Talents allow, she lands on 125 to the point.</para>
+    ///
+    /// <para>Both halves are forced by the printed page rather than chosen to make the number
+    /// come out, which is the distinction this item turns on.</para>
     /// </summary>
     [Fact]
-    public void TheHeraldsAirmidPackageContradictsHerPrintedSheet()
+    public void TheHeraldsAirmidCarriesTwoExpertisePowers()
     {
-        var package = _f.Rules.CreationRules.OptionalPackages
-            .Single(p => p.Id == PrebuiltHeroes.BuildByHero["Herald (Airmid)"].Package);
+        var airmid = PrebuiltHeroes.All.Single(h => h.Name == "Herald (Airmid)");
 
-        var below = PrebuiltHeroes.TalentsByHero["Herald (Airmid)"]
-            .Where(rank => rank < package.TalentsRank)
-            .ToList();
+        var expertise = airmid.Powers.Where(p => p.Id == "expertise").ToList();
 
-        Assert.NotEmpty(below);
-        Assert.Equal("superhero_package", package.Id);
+        Assert.Equal(2, expertise.Count);
+        Assert.Equal(["medicine", "science"], expertise.Select(p => p.BaselineTrait).Order());
 
-        // And no other package fits either: the two that would make her printed ranks legal both
-        // move her total further from 125 than the bound the other four Heroes sit inside.
-        Assert.Equal(2, PrebuiltHeroes.BuildByHero["Herald (Airmid)"].Residual);
+        // Half a Hero Point per rank is what makes the second one worth exactly the 5 HP the
+        // wrong package was absorbing.
+        Assert.Equal(0.5, _f.Rules.GetPower("expertise")!.CostPerRank);
+        Assert.Equal("hero_package", PrebuiltHeroes.BuildByHero["Herald (Airmid)"].Package);
+        Assert.Equal(0, PrebuiltHeroes.BuildByHero["Herald (Airmid)"].Residual);
     }
 
     [Fact]
