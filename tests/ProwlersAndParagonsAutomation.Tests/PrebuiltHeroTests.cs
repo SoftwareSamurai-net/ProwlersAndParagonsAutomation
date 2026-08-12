@@ -565,6 +565,81 @@ public sealed class PrebuiltHeroTests
     /// <para>A range and a uniqueness check rather than a page each: the point is to catch the
     /// whole block sliding, which is how it went wrong in the first place.</para>
     /// </summary>
+    /// <summary>
+    /// <b>A package's granted ranks are a floor, so the printed ranks corroborate the inference
+    /// independently of the arithmetic.</b>
+    ///
+    /// <para>Which package each Hero took is never printed, and is inferred by whichever one
+    /// lands the rebuild on 125 — which is an argument from a total, and totals can agree for the
+    /// wrong reasons. This is a second, unrelated argument: a package cannot be the answer if the
+    /// sheet prints a Trait <em>below</em> what it grants. Herald (Scáthach) prints Academics 2d,
+    /// which rules the Superhero Package out on sight whatever the total says, and prints
+    /// Intellect 3d and 2d talents, which is exactly the Hero Package's floor.</para>
+    ///
+    /// <para>It matters most for the five Heroes whose totals do not land on 125: for them the
+    /// package was chosen as the closest fit, so the totals argument is weakest exactly where a
+    /// second one is worth having. <b>And it immediately caught one</b> — see
+    /// <see cref="TheHeraldsAirmidPackageContradictsHerPrintedSheet"/>.</para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(HeroNames))]
+    public void NoHeroPrintsATraitBelowWhatItsPackageGrants(string name)
+    {
+        // Airmid fails this, and the failure is the finding rather than a gap in the test; it is
+        // asserted on its own below so that it is recorded rather than merely tolerated.
+        if (name == "Herald (Airmid)") return;
+
+        var hero    = PrebuiltHeroes.All.Single(h => h.Name == name);
+        var package = _f.Rules.CreationRules.OptionalPackages
+            .Single(p => p.Id == PrebuiltHeroes.BuildByHero[name].Package);
+
+        var abilities = new[] { hero.Agility, hero.Intellect, hero.Might,
+                                hero.Perception, hero.Toughness, hero.Willpower };
+
+        Assert.All(abilities, rank =>
+            Assert.True(rank >= package.AbilitiesRank,
+                $"{name} prints an Ability at {rank}d, below the {package.Name}'s {package.AbilitiesRank}d."));
+
+        Assert.All(PrebuiltHeroes.TalentsByHero[name], rank =>
+            Assert.True(rank >= package.TalentsRank,
+                $"{name} prints a Talent at {rank}d, below the {package.Name}'s {package.TalentsRank}d."));
+    }
+
+    /// <summary>
+    /// <b>Herald (Airmid) cannot have taken the Superhero Package, and she is recorded as having
+    /// taken it.</b> Her sheet prints nine of her twelve Talents at 2d; the package grants 3d and
+    /// its own rule is that you "cannot lower any of these below the package rank". The
+    /// attribution and the printed sheet contradict each other.
+    ///
+    /// <para>She is also the worst of the five residuals at +2, and the two facts are almost
+    /// certainly the same fact. No package resolves it either: switching her to the Hero Package
+    /// makes the printed ranks legal and moves her total 7 Hero Points the wrong way, to −5,
+    /// which is outside the 2 HP bound the other four sit inside. So something in her
+    /// transcription or in how one of her Powers is priced is worth about 5 HP, and the package
+    /// was chosen to absorb it.</para>
+    ///
+    /// <para>This is asserted rather than fixed because guessing again would be the same mistake
+    /// in a new shape — the attribution is already an inference, and replacing one unsupported
+    /// inference with another buys nothing. <b>It is the most concrete lead item 1 has.</b></para>
+    /// </summary>
+    [Fact]
+    public void TheHeraldsAirmidPackageContradictsHerPrintedSheet()
+    {
+        var package = _f.Rules.CreationRules.OptionalPackages
+            .Single(p => p.Id == PrebuiltHeroes.BuildByHero["Herald (Airmid)"].Package);
+
+        var below = PrebuiltHeroes.TalentsByHero["Herald (Airmid)"]
+            .Where(rank => rank < package.TalentsRank)
+            .ToList();
+
+        Assert.NotEmpty(below);
+        Assert.Equal("superhero_package", package.Id);
+
+        // And no other package fits either: the two that would make her printed ranks legal both
+        // move her total further from 125 than the bound the other four Heroes sit inside.
+        Assert.Equal(2, PrebuiltHeroes.BuildByHero["Herald (Airmid)"].Residual);
+    }
+
     [Fact]
     public void EveryHeroIsCitedInsideChapterEight()
     {
