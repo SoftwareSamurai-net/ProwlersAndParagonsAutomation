@@ -35,6 +35,28 @@ public sealed class RulesFixture
     /// <summary>A Standard-tier sheet (125 HP, 12d trait cap) with no traits bought.</summary>
     public static CharacterSheet StandardSheet() => new() { SelectedTierId = "standard" };
 
+    /// <summary>
+    /// A Standard-tier sheet that is actually legal: every Ability and Talent at the 1d minimum,
+    /// and one flaw.
+    ///
+    /// <para><b>This exists because "an empty sheet plus the thing under test" was not legal and
+    /// several tests assumed it was.</b> Ch.2 states, once for Abilities and again for Talents,
+    /// that no rank can be lower than 1d — a character has all eighteen. Until that was enforced,
+    /// a sheet with one Ability set and seventeen Traits at 0d validated clean, and every test
+    /// built on one was quietly asserting things about an impossible character.</para>
+    /// </summary>
+    public CharacterSheet LegalSheet()
+    {
+        var sheet = StandardSheet();
+
+        foreach (var ability in Rules.Abilities) sheet.AbilityRanks[ability.Id] = 1;
+        foreach (var talent in Rules.Talents) sheet.TalentRanks[talent.Id] = 1;
+
+        sheet.Flaws.Add(new SelectedFlaw(Rules.Flaws[0].Id));
+
+        return sheet;
+    }
+
     private static string FindRepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

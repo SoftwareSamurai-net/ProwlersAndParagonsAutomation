@@ -410,3 +410,12 @@ Settled rules questions:
 - An illegal character is **reported, never repaired**: the engine is a judge and does not make design decisions about somebody's character
 
 Each of these was wrong at some point and is now covered by a regression test naming the rule. If one appears to be violated, read `PROGRESS.md` and the test before changing the code.
+
+### The 1d minimum on every Trait
+
+Ch.2 states it twice — once for Abilities (p.17), once for Talents (p.18): **no rank can be lower than 1d**, and "ordinary people have 2d in every" one. So **a character has all six Abilities and all twelve Talents**, and 0d is not a low rank but a Trait nobody can be without. `TRAIT_BELOW_MINIMUM` enforces it.
+
+- **It costs Hero Points.** Without a package you pay for all eighteen at 1d — 18 HP before anything interesting. The Civilian Package's 35 HP for 2d in all eighteen is 36 points of ranks, which is exactly the "small discount" the rulebook calls a package. That is the corroboration, and it is why the reading is not negotiable.
+- **All twenty published Heroes take a package**, so every one of their Traits sits at or above its floor. That is why rebuilding them never caught this, and why a rule can be missing for a long time without the strongest test in the suite noticing.
+- **`TRAIT_BELOW_PACKAGE` is the other floor**: a package's granted ranks "cannot be lowered below the package rank". It costs nothing to break — `AbilityCost` and `TalentCost` charge only for ranks above what the package covers — so the mistake was free and therefore silent. It is the rule that proved Herald (Airmid)'s recorded package impossible.
+- **A printed sheet still shows 0d for a Trait not filled in yet**, and should: the sheet is a form, and 0d is a fact about the page in front of you. The validator is what says the character is not finished.

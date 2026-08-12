@@ -113,8 +113,16 @@ Everything is optional. A minimal legal character is a tier and one flaw.
   "SelectedTierId": "standard",          // required in practice: it sets the budget and cap
   "SelectedPackageId": "hero_package",   // optional; omit for a character who took none
 
-  "AbilityRanks": { "might": 8, "agility": 6 },
-  "TalentRanks":  { "streetwise": 4 },
+  // ALL SIX Abilities and ALL TWELVE Talents, always. See "What trips up a first draft".
+  "AbilityRanks": {
+    "might": 8, "agility": 6, "intellect": 3,
+    "perception": 3, "toughness": 3, "willpower": 3
+  },
+  "TalentRanks": {
+    "streetwise": 4, "academics": 2, "charm": 2, "command": 2, "covert": 2,
+    "investigation": 2, "medicine": 2, "professional": 2, "science": 2,
+    "survival": 2, "technology": 2, "vehicles": 2
+  },
 
   // Pros and Cons applied to an Ability rather than a Power. The Brute Option is Overkill
   // on Might; the published Stronghold buys four Abilities through his armour with Item.
@@ -186,10 +194,18 @@ Most of these are things the engine will tell you. They are here so the first pa
   refusal, not a shrug.
 - **1 to 3 flaws at creation.** None is an error, and so is a fourth — the rulebook prices a
   fourth at 3 HP during play, but this tool refuses it at creation rather than charging for it.
-- **A package grants its ranks, implicitly.** A character whose only entry is
-  `"SelectedPackageId": "superhero_package"` already has 3d in every Ability and Talent and
-  costs 50 HP. Write a rank out only to go *above* what the package gives; the cost of ranks it
-  already covers is not charged twice.
+- **Write out all six Abilities and all twelve Talents, every time.** Ch.2 says it once for each:
+  *"No Ability can have a rank lower than 1d"*, *"No Talent can have a rank lower than 1d"*. A
+  character has all eighteen — 0d is not a low rank, it is a Trait nobody can be without — so a
+  missing one is `TRAIT_BELOW_MINIMUM` and the character is refused. Ordinary people have 2d in
+  each, which is the sensible filler for the ones your concept does not care about.
+- **The minimum costs Hero Points.** Without a package you pay for all eighteen at 1d, which is
+  18 HP before anything interesting. That is why the Civilian Package is 35 HP for 2d in all
+  eighteen — 36 points of ranks — and why the rulebook calls a package a small discount.
+- **A package grants its ranks and they are a floor, not an offer.** With
+  `"SelectedPackageId": "superhero_package"` every Ability and Talent is 3d, and writing one
+  *below* 3d is `TRAIT_BELOW_PACKAGE` — "cannot lower any of these below the package rank". Still
+  write all eighteen out; ranks the package covers simply cost nothing.
 - **The Trait Cap applies to Powers too**, at their *effective* rank — baseline plus
   purchased. Standard tier is 12d.
 - **A rankless Power takes no ranks.** `max_rank: 0` in `powers.json` means it is priced as a

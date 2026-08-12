@@ -36,7 +36,11 @@
     [Parameter] public int Rank { get; set; }
     [Parameter] public int Max { get; set; }
 
-    /// <summary>The lowest rank allowed at all — 1d for an Ability, 0d for a Talent.</summary>
+    /// <summary>
+    /// The lowest rank allowed at all: 1d for both. Ch.2 states it once for Abilities (p.17)
+    /// and again for Talents (p.18) — "No Ability can have a rank lower than 1d", "No Talent can
+    /// have a rank lower than 1d". The Talents tab used 0d, which the book contradicts.
+    /// </summary>
     [Parameter] public int Floor { get; set; }
 
     /// <summary>The rank a starting package already grants, and so pays for.</summary>

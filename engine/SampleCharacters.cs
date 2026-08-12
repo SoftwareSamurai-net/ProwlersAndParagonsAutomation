@@ -50,8 +50,14 @@ public static class SampleCharacters
         Set(sheet.AbilityRanks, ("agility", 6), ("intellect", 9), ("might", 8),
                                 ("perception", 9), ("toughness", 8), ("willpower", 7));
 
+        // All twelve, because a character has all twelve: Ch.2 p.18 says no Talent can be lower
+        // than 1d, and ordinary people have 2d in every one. The four she is good at are bought
+        // up; the rest sit at the 2d her Hero Package grants, which it has already paid for — so
+        // recording them costs nothing and leaving them out was simply wrong.
         Set(sheet.TalentRanks, ("investigation", 7), ("streetwise", 6),
-                               ("technology", 6), ("professional", 4));
+                               ("technology", 6), ("professional", 4),
+                               ("academics", 2), ("charm", 2), ("command", 2), ("covert", 2),
+                               ("medicine", 2), ("science", 2), ("survival", 2), ("vehicles", 2));
 
         // Bought through the armour, which is what the Item Con records. Ch.6: gear-derived
         // Traits carry it, and CostCalculator discounts the ranks a package does not cover.
@@ -131,7 +137,11 @@ public static class SampleCharacters
         Set(sheet.AbilityRanks, ("agility", 8), ("intellect", 9), ("might", 5),
                                 ("perception", 9), ("toughness", 7), ("willpower", 11));
 
-        Set(sheet.TalentRanks, ("covert", 8), ("charm", 7), ("academics", 6));
+        // All twelve, as above: the three he is good at, and the rest at his package's 2d.
+        Set(sheet.TalentRanks, ("covert", 8), ("charm", 7), ("academics", 6),
+                               ("command", 2), ("investigation", 2), ("medicine", 2),
+                               ("professional", 2), ("science", 2), ("streetwise", 2),
+                               ("survival", 2), ("technology", 2), ("vehicles", 2));
 
         // A Talent that was not trained. No published Ch.8 sheet prints a Talents (…) line
         // on its own — the three that mark Talents at all mark every Trait and collapse to

@@ -10,7 +10,7 @@
         <RankRow Name="@talent.Name"
                  Sub="@($"linked to {Session.Rules.GetAbility(talent.LinkedAbility)?.Name ?? talent.LinkedAbility}")"
                  Rank="Session.Sheet.GetTalentRank(id)"
-                 Floor="0"
+                 Floor="1"
                  PackageFloor="@PackageTalentRank"
                  Max="@Session.TraitCap"
                  RankChanged="rank => SetTalent(id, rank)" />

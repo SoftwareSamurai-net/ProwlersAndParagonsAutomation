@@ -131,9 +131,37 @@ public sealed class SheetRenderTests
         Assert.Equal(6 + 12, printed.Count);
         Assert.Equal(12, ctx.Session.Rules.Talents.Count);
 
-        // An unbought Trait reads 0d, never a rule to write on: 0d is a fact about the
-        // character, and a blank invites someone to fill in a number the tool has decided.
-        Assert.Contains("0d", printed.Values);
+        // Never a rule to write on: a blank invites someone to fill in a number the tool has
+        // decided. What an *unfilled* Trait prints is asserted below, on a part-built character —
+        // the samples no longer have one, because a legal character has all eighteen Traits.
+        Assert.Empty(view.FindAll(".trait-table .rule-line"));
+    }
+
+    /// <summary>
+    /// A Trait the character has not filled in yet reads <c>0d</c>, not a blank rule: 0d is a
+    /// fact about the sheet in front of you.
+    ///
+    /// <para>It needs a part-built character to show, which is why it is its own test. Both
+    /// samples now carry all eighteen Traits, because Ch.2 says no Ability or Talent can be
+    /// lower than 1d and the validator enforces it — so a sample with a 0d Trait would be an
+    /// illegal character shipped as an example.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void ATraitNotFilledInYetReadsZeroDice(SheetMode mode)
+    {
+        using var ctx = new RenderContext().With(mode);
+
+        var talent = ctx.Session.Rules.Talents[0];
+        ctx.Session.Sheet.TalentRanks.Remove(talent.Id);
+
+        var view = ctx.Render<SheetView>();
+
+        var row = view.FindAll(".trait-table tr")
+            .Single(tr => Collapse(tr.QuerySelector("td")!.TextContent) == talent.Name);
+
+        Assert.Equal("0d", Collapse(row.QuerySelector("td:last-child")!.TextContent));
         Assert.Empty(view.FindAll(".trait-table .rule-line"));
     }
 

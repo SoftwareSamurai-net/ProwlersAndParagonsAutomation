@@ -17,13 +17,14 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3173 across two projects — 3085 on the engine, 88 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3189 across two projects — 3099 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two, plus a headless command — the terminal wizard, a Blazor WebAssembly app, and `build --from`, all on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
 | Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero |
 | Known-wrong data | None outstanding |
+| Licence | MIT, in `LICENSE`. Covers this repository only — the game system is © LakeSide Games and no rulebook text is here |
 
 The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **15 of the 20 to exactly their 125 Hero Point budget**. The remaining five are all within 2 HP, each for a recorded reason — see [Close the last five Heroes](#1-close-the-last-five-heroes).
 
@@ -87,15 +88,33 @@ Found by an adversarial audit during the sheet-polish slice; real, and out of sc
 
 **A printed page in the middle of a sheet is anonymous.** Much less pressing now the sheet is one page for an ordinary character, but a Powers-heavy one still runs over. The name is on page one and in a colophon on the last; every page between them relies on the browser's own print header, which the user can switch off — and unticking it is exactly what the review step now tells them to do, because that header is also where the web address comes from. CSS has no portable answer: `position: fixed` renders once at the top of page two in Chrome, and Chrome supports neither `@page` margin boxes nor `counter(page)`. The only mechanism that genuinely repeats per page is a table `<thead>`, which would mean rebuilding the sheet as one table.
 
-Smaller, from the same audits: the GM review step lists findings with no route back to the step that caused them, and a fresh sheet starts every Ability at 0d although the editor's floor is 1d without anything objecting.
+Smaller, from the same audits: the GM review step lists findings with no route back to the step that caused them.
 
-### 3. Remaining rulebook chapters
+**The 0d half of this item turned out to be a rules gap rather than a UI wrinkle, and is closed.** It was recorded as "a fresh sheet starts every Ability at 0d although the editor's floor is 1d without anything objecting". The floor was right and nearly everything else was wrong: Ch.2 states, once for Abilities (p.17) and again for Talents (p.18), that **no rank can be lower than 1d** and that ordinary people have 2d in every one — so a character has all eighteen Traits, 0d is not a low rank but a Trait nobody can be without, and the Talents editor's floor of 0d contradicted the book outright.
 
-Chapters 3–9 are not extracted, apart from the two pieces pulled out because the engine needed them: Ch.6's custom gear features and Ch.7's three toxin Pros/Cons. Rough order of usefulness to the wizard: 6 (the rest of Equipment), 5 (Resolve, already partly used), 4 (Combat), 8 (Friends and Foes), then the rest.
+It was enforced nowhere, and it costs Hero Points: without a package a character pays for all eighteen at 1d, which is 18 HP before anything interesting. **The packages corroborate it** — the Civilian Package is 35 HP for 2d in all eighteen, which is 36 points of ranks, exactly the "small discount" the rulebook calls a package. All twenty published Heroes take a package, so every one of their Traits sits at or above its floor, which is why rebuilding them never caught this.
 
-### 4. Shrink the browser payload
+Now `TRAIT_BELOW_MINIMUM`, with `TRAIT_BELOW_PACKAGE` beside it for the other floor — a package's granted ranks cannot be lowered, which is the rule that proved Airmid's attribution impossible and was a test over the published Heroes before it was a check here. Both samples had to gain their missing Talents; both were illegal characters shipped as examples.
 
-Deployment is done — see the completed item below. What it left open is size: the first load is **27 MiB uncompressed**, about a third of that over the wire once Cloudflare applies Brotli, and cached hard afterwards because every framework asset is fingerprinted.
+### 3. Remaining rulebook chapters — mostly not this tool's business
+
+**This item used to say chapters 3–9 were "not extracted" and rank them "by usefulness to the wizard", with Combat third. That was wrong, and it made a finished job look unfinished.** Read against the table of contents, everything a *character generator* needs is extracted:
+
+| Chapter | What is in it | Relevant to creating a character? |
+|---|---|---|
+| 3, Action (p.67) | Challenge rolls, assisting, contests | No — play |
+| 4, Combat (p.73) | Combat, stunts, minions, gritty rules | No — play |
+| 5, Resolve and Adversity (p.83) | Earning and **spending** Resolve | No — play. The Resolve a character *starts with* is Ch.2 p.60, extracted and implemented |
+| 6, Equipment (p.87) | Gear limits, armour, weapons, **custom gear (p.92)**, gadgets, vehicles, headquarters | Custom gear features: **extracted**. Mundane gear is free and untracked. See below for the one gap |
+| 7, Environment (p.105) | Disasters, falling, lifting, **toxins (p.108)** | No — play. The three toxin Pros/Cons are extracted |
+| 8, Friends and Foes (p.111) | The pre-built Heroes and Villains | Transcribed in the test suite, where they verify the engine |
+| 9, Creating Villains (p.167) | Villain guidance, GM tips | No mechanics to extract — Ch.9 builds Villains by the Hero rules, which is why the mode is presentation only |
+
+**The one genuine gap is Ch.6's vehicles and headquarters (pp.94–104).** `unique_vehicle` and `headquarters` are Perks priced per unit — a Hero Point buys 25 Vehicle Points — and what those points buy is not modelled, so the perk is a cost and a free-text note. That is a sub-tool of its own (spend a vehicle's points on a vehicle), not a chapter to extract, and nothing else needs it.
+
+### 4. The browser payload is large — a characteristic, not a defect
+
+**The site works.** It is deployed, it loads, it builds characters — this is not a fault, and it was listed alongside real gaps for too long. The first load is **27 MiB uncompressed**, about a third of that over the wire once Cloudflare applies Brotli, and cached hard afterwards because every framework asset is fingerprinted, so a returning visitor pays nothing. Everything below is what it would take to make that number smaller, kept because the *reasons* are expensive to rediscover — not because anything is broken.
 
 It is that large because **IL trimming is disabled**. `RulesRepository` deserializes with reflection-based `System.Text.Json`, so the trimmer is free to remove model properties it can only see through reflection, and the failure mode is not a build error but a silently empty rules set at runtime. `System.Private.Xml` alone is 3 MB of assembly nothing references.
 
@@ -113,10 +132,6 @@ It surfaced loudly only because the applicability check had *just* started readi
 **Either needs a machine that can run the trimmer to verify.** It cannot run locally: the ILLink task host crashes without the `wasm-tools` workload, on the stock Blazor template too. CI can, so the work is possible — but "it built" is not evidence here, because a trimmed-away model is a runtime silence. Whatever is done needs a check that actually loads the published site and reads a rule out of it.
 
 Not urgent. The site works, and a returning visitor pays nothing.
-
-### 5. Choose and apply a licence
-
-The project is intended for open-source release but is currently unlicensed, which legally means nobody may use it. Apache 2.0 is the working preference: its NOTICE requirement makes the "no rulebook content here, you must own the rulebook" statement travel with any fork. Whatever is chosen must be explicit that it covers this project's code and original text only — not the game system, which is © LakeSide Games. Worth contacting LakeSide before any public release.
 
 ---
 
