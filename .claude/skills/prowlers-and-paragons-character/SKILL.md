@@ -225,11 +225,10 @@ Most of these are things the engine will tell you. They are here so the first pa
   caveat and are the GM's call, deliberately. Mention one if it is clearly being stretched;
   do not refuse the character over it.
 
-  **This cuts the other way too, and it is the one thing here you have to watch yourself.**
-  Even the constraints the rulebook *does* print for every Power — a Pro's `applies_to_ranges`
-  and `applies_to_rank_types` — are enforced by the two editors' pickers and **not** by the
-  validator, so a submitted character carrying the Ranged Pro on a Self-range Power exits 0.
-  Read those two fields on the option before you use it; the engine will not catch you.
+  **The constraints the rulebook does print are enforced, though.** An option's
+  `applies_to_ranges` and `applies_to_rank_types` are checked on submit, so the Ranged Pro on a
+  Self-range Power comes back as `PRO_NOT_APPLICABLE` rather than passing. Read those two
+  fields when choosing an option and you will not meet it.
 
 - **Do not read the Iconic tier's warning as permission.** `ICONIC_TIER_OPEN_BUDGET` says its
   200 points are a minimum, and `HP_BUDGET_EXCEEDED` still errors above them. Going over is the

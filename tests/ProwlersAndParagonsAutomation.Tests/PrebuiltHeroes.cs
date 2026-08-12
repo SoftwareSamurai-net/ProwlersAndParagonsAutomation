@@ -511,7 +511,7 @@ public static class PrebuiltHeroes
 
     public static readonly IReadOnlyList<Hero> All =
     [
-        new("Alabama Slammer", 137,
+        new("Alabama Slammer", 127,
             Agility: 3, Intellect: 3, Might: 3, Perception: 6, Toughness: 6, Willpower: 5,
             Powers:
             [
@@ -522,7 +522,7 @@ public static class PrebuiltHeroes
             Edge: 36, Health: 6, Resolve: 4, DeterminationResolve: 3,
             Note: "Edge 36 is Super Speed 12d x 3, which is the only place that rule shows up in a printed sheet."),
 
-        new("Black Dragon", 138,
+        new("Black Dragon", 128,
             Agility: 10, Intellect: 4, Might: 4, Perception: 6, Toughness: 6, Willpower: 10,
             Powers:
             [
@@ -534,19 +534,19 @@ public static class PrebuiltHeroes
             Edge: 20, Health: 8, Resolve: 6,
             Note: "Edge 20 = Danger Sense 10d + Agility 10d. Adding Danger Sense to Perception would give 26, so this sheet proves it replaces Perception."),
 
-        new("Blastwave", 139,
+        new("Blastwave", 129,
             Agility: 5, Intellect: 4, Might: 5, Perception: 5, Toughness: 10, Willpower: 7,
             Powers: [new("energy_absorption", 12, null, 1, "kinetic"), P("lightning_reflexes"), P("martial_arts", 10), P("running", 5)],
             Flaws: ["relationship", "secret_identity", "wanted"],
             Edge: 16, Health: 9, Resolve: 2),
 
-        new("Citizen Soldier", 140,
+        new("Citizen Soldier", 130,
             Agility: 6, Intellect: 6, Might: 12, Perception: 6, Toughness: 12, Willpower: 9,
             Powers: [P("armor", 12), P("regeneration"), P("determination"), P("leadership")],
             Flaws: ["enemy", "relationship", "secret_identity"],
             Edge: 12, Health: 12, Resolve: 4, DeterminationResolve: 2),
 
-        new("Combustion", 141,
+        new("Combustion", 131,
             Agility: 4, Intellect: 3, Might: 3, Perception: 3, Toughness: 4, Willpower: 4,
             Powers:
             [
@@ -556,7 +556,7 @@ public static class PrebuiltHeroes
             Flaws: ["finite_power", "quirk", "relationship"],
             Edge: 7, Health: 4, Resolve: 2, DeterminationResolve: 1),
 
-        new("Darkwolf", 142,
+        new("Darkwolf", 132,
             Agility: 10, Intellect: 3, Might: 6, Perception: 10, Toughness: 10, Willpower: 10,
             Powers:
             [
@@ -568,13 +568,13 @@ public static class PrebuiltHeroes
             Flaws: ["relationship", "restriction", "secret_identity"],
             Edge: 20, Health: 10, Resolve: 5),
 
-        new("Eidolon", 143,
+        new("Eidolon", 133,
             Agility: 8, Intellect: 3, Might: 3, Perception: 6, Toughness: 8, Willpower: 6,
             Powers: [new("omni_power", 10, null, 1, "broad"), P("light_effect")],
             Flaws: ["enemy", "relationship", "outsider"],
             Edge: 14, Health: 7, Resolve: 6),
 
-        new("Herald (Airmid)", 144,
+        new("Herald (Airmid)", 134,
             Agility: 6, Intellect: 4, Might: 4, Perception: 6, Toughness: 4, Willpower: 8,
             Powers:
             [
@@ -584,7 +584,7 @@ public static class PrebuiltHeroes
             Flaws: ["alter_ego", "relationship", "secret_identity"],
             Edge: 12, Health: 6, Resolve: 5),
 
-        new("Herald (Scathach)", 145,
+        new("Herald (Scathach)", 135,
             Agility: 8, Intellect: 3, Might: 8, Perception: 6, Toughness: 6, Willpower: 6,
             Powers:
             [
@@ -596,7 +596,7 @@ public static class PrebuiltHeroes
             Edge: 22, Health: 7, Resolve: 5, DeterminationResolve: 2,
             Note: "Edge 22 = Danger Sense 8d + Agility 8d + Lightning Reflexes 6. A second sheet confirming Danger Sense replaces Perception."),
 
-        new("Nano", 146,
+        new("Nano", 136,
             Agility: 3, Intellect: 3, Might: 3, Perception: 3, Toughness: 6, Willpower: 6,
             Powers:
             [
@@ -608,13 +608,13 @@ public static class PrebuiltHeroes
             Flaws: ["emotionless", "quirk", "restriction"],
             Edge: 6, Health: 6, Resolve: 2, DeterminationResolve: 2),
 
-        new("Pandora", 147,
+        new("Pandora", 137,
             Agility: 3, Intellect: 5, Might: 3, Perception: 4, Toughness: 3, Willpower: 12,
             Powers: [new("omni_power", 12, null, 1, "broad"), new("expertise", 10, "academics")],
             Flaws: ["enemy", "relationship", "secret_identity"],
             Edge: 9, Health: 8, Resolve: 2),
 
-        new("Psi Lance", 148,
+        new("Psi Lance", 138,
             Agility: 3, Intellect: 6, Might: 3, Perception: 3, Toughness: 3, Willpower: 12,
             Powers:
             [
@@ -624,7 +624,7 @@ public static class PrebuiltHeroes
             Flaws: ["obligation", "relationship", "secret_identity"],
             Edge: 9, Health: 8, Resolve: 2),
 
-        new("Psidearm", 149,
+        new("Psidearm", 139,
             Agility: 10, Intellect: 3, Might: 3, Perception: 6, Toughness: 5, Willpower: 9,
             Powers:
             [
@@ -635,7 +635,7 @@ public static class PrebuiltHeroes
             Flaws: ["compulsion", "relationship", "secret_identity"],
             Edge: 22, Health: 7, Resolve: 5),
 
-        new("Shadow", 150,
+        new("Shadow", 140,
             Agility: 10, Intellect: 3, Might: 3, Perception: 8, Toughness: 4, Willpower: 6,
             Powers:
             [
@@ -648,7 +648,7 @@ public static class PrebuiltHeroes
             Flaws: ["enemy", "quirk", "secret_identity"],
             Edge: 18, Health: 5, Resolve: 6, DeterminationResolve: 1),
 
-        new("Siren", 151,
+        new("Siren", 141,
             Agility: 9, Intellect: 6, Might: 9, Perception: 6, Toughness: 9, Willpower: 6,
             Powers:
             [
@@ -658,7 +658,7 @@ public static class PrebuiltHeroes
             Flaws: ["light_sensitive", "quirk", "relationship"],
             Edge: 15, Health: 9, Resolve: 5),
 
-        new("Stronghold", 152,
+        new("Stronghold", 142,
             Agility: 6, Intellect: 10, Might: 10, Perception: 6, Toughness: 10, Willpower: 5,
             Powers:
             [
@@ -668,7 +668,7 @@ public static class PrebuiltHeroes
             Flaws: ["finite_power", "relationship", "secret_identity"],
             Edge: 16, Health: 10, Resolve: 3),
 
-        new("T-Kay", 153,
+        new("T-Kay", 143,
             Agility: 4, Intellect: 3, Might: 3, Perception: 4, Toughness: 3, Willpower: 9,
             Powers:
             [
@@ -679,7 +679,7 @@ public static class PrebuiltHeroes
             Edge: 14, Health: 6, Resolve: 3, DeterminationResolve: 2,
             Note: "The sheet prints \"Edge 8/14\" because this Lightning Reflexes carries Limited (only for Telekinesis), so the +6 applies conditionally. The engine has no notion of a conditionally active Con and reports the unrestricted 14."),
 
-        new("Talon", 154,
+        new("Talon", 144,
             Agility: 6, Intellect: 6, Might: 6, Perception: 6, Toughness: 6, Willpower: 9,
             Powers:
             [
@@ -690,7 +690,7 @@ public static class PrebuiltHeroes
             Flaws: ["relationship", "secret", "secret_identity"],
             Edge: 12, Health: 8, Resolve: 5),
 
-        new("Vector", 155,
+        new("Vector", 145,
             Agility: 3, Intellect: 6, Might: 3, Perception: 4, Toughness: 4, Willpower: 4,
             Powers:
             [
@@ -701,7 +701,7 @@ public static class PrebuiltHeroes
             Flaws: ["enemy", "finite_power", "relationship"],
             Edge: 10, Health: 4, Resolve: 6),
 
-        new("Vigilant", 156,
+        new("Vigilant", 146,
             Agility: 9, Intellect: 4, Might: 4, Perception: 9, Toughness: 6, Willpower: 9,
             Powers:
             [

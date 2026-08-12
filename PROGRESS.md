@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3137 across two projects — 3049 on the engine, 88 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3151 across two projects — 3063 on the engine, 88 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two, plus a headless command — the terminal wizard, a Blazor WebAssembly app, and `build --from`, all on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -51,6 +51,22 @@ Nothing left is more than 2 HP out, and the test asserting that bound has been t
 
 The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for Telekinesis`) remain guesses that could be revisited, but do not tune them just to force a zero — that is fitting the model to the answer.
 
+**Revisited, and deliberately not closed.** The arithmetic was worked out and it is a trap:
+
+- **T-Kay closes exactly** if `Limited: only for Telekinesis` is read as *somewhat limited* (−1) rather than *significantly limited* (−2). It sits on Lightning Reflexes, a flat 3 HP Power, so the grade is worth 1 HP after the floor — precisely his −1. **That is the tuning this item forbids.** The sheet prints no grade; "only for Telekinesis" reads at least as much like the harsher grade as the milder one, and the only thing recommending the milder one is that it makes the number come out. Deciding it needs the Power's entry in the book, not this file.
+- **Vigilant cannot be closed by his gear.** His Jo Sticks are *Upgraded*, worth +2, and he is 1 HP under: transcribing the feature moves him to +1 rather than to 0. Adding it would make the transcription more faithful and the residual no smaller, so it is left recorded rather than half-applied.
+- **Herald (Airmid) at +2, Herald (Scathach) at +1 and Shadow at +1** have no candidate in the data at all. Scathach's Strike carrying four Pros and Cons at once remains the most likely place for a variant reading to be wrong.
+
+**The book was then opened, and it settled two of the three questions above.** `docs/` holds both PDFs — they are gitignored, so they are in the main working directory and **not in a worktree's `docs/`**, which is how they were missed at first.
+
+- **T-Kay's grade is a judgement call by the rulebook's own words.** The Limited entry (Ch.2) reads: −1 "if the Power is somewhat limited", −2 "if it's significantly limited", −4 "if it's severely limited", and then *"Use this Con as a catch-all when nothing else seems appropriate."* There is no rule mapping "only for Telekinesis" onto a grade, so the milder reading has nothing recommending it except that it produces a zero. **Left as recorded.**
+- **Vigilant's Upgraded is confirmed printed** — his Gear box reads `2 Jo Sticks: 10d (s) Melee (Upgraded)`, and he has Two-Fisted, so the pair is customised for one price of 2 HP. He is 1 HP under, so transcribing it lands him on +1. It closes nothing and is left recorded rather than half-applied.
+- **Airmid, Scathach and Shadow** still have no candidate. Scathach's Strike carrying four Pros and Cons at once remains the likeliest place for a variant reading to be wrong.
+
+**What reading the book did find is that every one of the twenty page citations was ten pages out.** Chapter 8 runs from printed 127 to 146 and the transcription recorded 137 to 156 — the offset applied twice. This is the error `CLAUDE.md` already warns about ("was ten pages out in the chapter it was offered for"); the note was corrected and the transcription was not, because nothing read those numbers. `PrebuiltHeroTests.EveryHeroIsCitedInsideChapterEight` now does.
+
+Five residuals inside a 2 HP bound, each with a recorded reason, remains a more honest state than five zeroes.
+
 One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a *mimicked* Power. Pros are stored per Power, so there is nowhere for it to live. Eidolon reconciles anyway, so it costs nothing today.
 
 ### 1b. Semantic pro/con constraints are still unenforced
@@ -82,7 +98,13 @@ It is that large because **IL trimming is disabled**. `RulesRepository` deserial
 Two ways to close it, neither free:
 
 - **Root the engine assembly** for the trimmer (`TrimmerRootAssembly`). Smallest change, but it only preserves what is named, and a Power model gaining a property later would be trimmed away without a warning.
-- **Source-generate the JSON contexts** (`JsonSerializerContext`) so deserialization stops being reflective at all. Better, and it would speed up startup, but it touches `RulesRepository` — which every test runs through — and the engine is deliberately the part of this project that does not churn.
+- **Source-generate the JSON contexts** (`JsonSerializerContext`) so deserialization stops being reflective at all. Better in principle, and it would speed up startup — **but it was tried, and it does not drop in.**
+
+**What the source-generation attempt found, so the next one does not repeat it.** A context over the eleven rules types builds clean, loads every file, and returns **null** for six collection properties that are declared non-null with an `= []` initializer: `PowerModel.PowerPros` and `PowerCons`, and the four applicability lists on `ProModel` and `ConModel`. `CostCalculator.ResolveModifiers` dereferences the first of those for any Power carrying a Pro. The reflective reader honours the initializers; the generated one does not.
+
+It surfaced loudly only because the applicability check had *just* started reading two of the six — the other four would have been a quiet wrong answer, which is the same shape as the trimming hazard the change was meant to remove. `RulesLoadingTests.NoCollectionOnAnyLoadedRulesModelComesBackNull` is what caught it and is kept: it walks every loaded model and fails on any non-nullable collection that came back null, whatever the cause. **Anything done here has to keep that test green.** A next attempt would need the models to stop declaring initialised `IReadOnlyList<T>` init-properties, which is a change to the engine's public shape rather than to how it is read.
+
+**The local toolchain still cannot verify any of it.** `dotnet workload install wasm-tools` needs elevation, and without the workload the trimmer cannot run at all. Attempting the install unelevated leaves advertising manifests under `~/.dotnet/sdk-advertising` that make the SDK demand the workload and refuse to build `web/` at all; deleting that directory undoes it.
 
 **Either needs a machine that can run the trimmer to verify.** It cannot run locally: the ILLink task host crashes without the `wasm-tools` workload, on the stock Blazor template too. CI can, so the work is possible — but "it built" is not evidence here, because a trimmed-away model is a runtime silence. Whatever is done needs a check that actually loads the published site and reads a rule out of it.
 

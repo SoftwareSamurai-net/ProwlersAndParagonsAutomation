@@ -714,6 +714,39 @@ public sealed class CharacterValidator
                 continue;
             }
 
+            // <b>What the rulebook prints for every Power: the option's own Range and Rank-type
+            // constraints.</b> Both editors' pickers filter on these and the validator did not,
+            // so a submitted character could carry the Ranged Pro on a Self-range Power — which
+            // raises a Touch Power to Distant Range, and has nothing to raise on a Power that
+            // affects only you — and come back legal. That was a hole in the one claim this
+            // whole surface makes.
+            //
+            // Only here, and only for a generic option on a Power. A Pro printed inside a
+            // Power's own entry is applicable to that Power by definition, and gear and
+            // Abilities are not Powers, so neither has a Range for an option to object to.
+            if (power is not null)
+            {
+                var generic = isPro
+                    ? (IGenericProCon?)_rules.GetPro(choice.Id)
+                    : _rules.GetCon(choice.Id);
+
+                if (generic is not null && !ProConApplicability.IsApplicable(generic, power))
+                {
+                    issues.Add(new(ValidationSeverity.Error,
+                        isPro ? "PRO_NOT_APPLICABLE" : "CON_NOT_APPLICABLE",
+                        $"The {kind} '{generic.Name}' cannot be applied to {ownerName}. "
+                        + $"{Applicability(generic)}")
+                    {
+                        SubjectKind = ValidationSubject.Character,
+                        SubjectId   = choice.Id,
+                        OwnerId     = ownerId
+                    });
+
+                    // Still priceable: the engine knows what it costs, it just may not be taken.
+                    continue;
+                }
+            }
+
             if (range is null) continue;
 
             // Priced by grade. Absent and wrong are the same repair — choose one of these —
@@ -1237,6 +1270,26 @@ public sealed class CharacterValidator
 
     /// <summary>The six Sources, for an issue whose fix is choosing one of them.</summary>
     private IReadOnlyList<string> SourceIds => _rules.Sources.Select(s => s.Id).ToList();
+
+    /// <summary>
+    /// What an option says about where it may be applied, as a sentence. The rulebook states
+    /// this inside the option — "This Pro applies to Zone Powers" — so the message quotes the
+    /// constraint rather than the Power, which is where a reader would otherwise go looking.
+    /// </summary>
+    private static string Applicability(IGenericProCon option)
+    {
+        var parts = new List<string>();
+
+        if (option.AppliesToRanges.Count > 0)
+            parts.Add($"a Range of {Names(option.AppliesToRanges)}");
+
+        if (option.AppliesToRankTypes.Count > 0)
+            parts.Add($"a rank of {Names(option.AppliesToRankTypes)}");
+
+        return parts.Count == 0
+            ? "The rulebook does not say where it applies."
+            : $"It applies to Powers with {string.Join(" and ", parts)}.";
+    }
 
     /// <summary>The six tiers, likewise.</summary>
     private IReadOnlyList<string> TierIds => _rules.Tiers.Select(t => t.Id).ToList();
