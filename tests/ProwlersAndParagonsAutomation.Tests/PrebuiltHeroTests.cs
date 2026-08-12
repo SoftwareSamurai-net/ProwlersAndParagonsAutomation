@@ -551,4 +551,26 @@ public sealed class PrebuiltHeroTests
     [Fact]
     public void EveryHeroIsStandardTierAndSoCapsAtTwelveDice() =>
         Assert.Equal(12, _f.Rules.GetTier("standard")!.TraitCapRank);
+
+    /// <summary>
+    /// <b>Every recorded page was ten out, and stayed ten out through five review rounds.</b>
+    /// Chapter 8's twenty Heroes run from printed 127 to 146, verified against the PDF one page at
+    /// a time by reading the name off each sheet. The transcription recorded 137 to 156 — the
+    /// PDF's own page numbers with the +3 offset applied and then the whole block shifted again.
+    ///
+    /// <para><c>CLAUDE.md</c> warns about exactly this: an earlier note "was ten pages out in the
+    /// chapter it was offered for". That note was corrected and these were not, because nothing
+    /// read them. A citation nothing reads is a citation nothing checks.</para>
+    ///
+    /// <para>A range and a uniqueness check rather than a page each: the point is to catch the
+    /// whole block sliding, which is how it went wrong in the first place.</para>
+    /// </summary>
+    [Fact]
+    public void EveryHeroIsCitedInsideChapterEight()
+    {
+        Assert.All(PrebuiltHeroes.All, hero => Assert.InRange(hero.Page, 127, 146));
+
+        Assert.Equal(PrebuiltHeroes.All.Count,
+                     PrebuiltHeroes.All.Select(h => h.Page).Distinct().Count());
+    }
 }

@@ -57,7 +57,15 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 - **Vigilant cannot be closed by his gear.** His Jo Sticks are *Upgraded*, worth +2, and he is 1 HP under: transcribing the feature moves him to +1 rather than to 0. Adding it would make the transcription more faithful and the residual no smaller, so it is left recorded rather than half-applied.
 - **Herald (Airmid) at +2, Herald (Scathach) at +1 and Shadow at +1** have no candidate in the data at all. Scathach's Strike carrying four Pros and Cons at once remains the most likely place for a variant reading to be wrong.
 
-The rulebook is not in the repository — `*.pdf` is gitignored repository-wide and each person supplies their own copy — so none of these can be settled from what is checked in. **The next attempt needs the book open at the Power's entry**, and the extraction recipe is at the end of the printed-sheet section in `CLAUDE.md`. Until then five residuals inside a 2 HP bound, each with a recorded reason, is a more honest state than five zeroes.
+**The book was then opened, and it settled two of the three questions above.** `docs/` holds both PDFs — they are gitignored, so they are in the main working directory and **not in a worktree's `docs/`**, which is how they were missed at first.
+
+- **T-Kay's grade is a judgement call by the rulebook's own words.** The Limited entry (Ch.2) reads: −1 "if the Power is somewhat limited", −2 "if it's significantly limited", −4 "if it's severely limited", and then *"Use this Con as a catch-all when nothing else seems appropriate."* There is no rule mapping "only for Telekinesis" onto a grade, so the milder reading has nothing recommending it except that it produces a zero. **Left as recorded.**
+- **Vigilant's Upgraded is confirmed printed** — his Gear box reads `2 Jo Sticks: 10d (s) Melee (Upgraded)`, and he has Two-Fisted, so the pair is customised for one price of 2 HP. He is 1 HP under, so transcribing it lands him on +1. It closes nothing and is left recorded rather than half-applied.
+- **Airmid, Scathach and Shadow** still have no candidate. Scathach's Strike carrying four Pros and Cons at once remains the likeliest place for a variant reading to be wrong.
+
+**What reading the book did find is that every one of the twenty page citations was ten pages out.** Chapter 8 runs from printed 127 to 146 and the transcription recorded 137 to 156 — the offset applied twice. This is the error `CLAUDE.md` already warns about ("was ten pages out in the chapter it was offered for"); the note was corrected and the transcription was not, because nothing read those numbers. `PrebuiltHeroTests.EveryHeroIsCitedInsideChapterEight` now does.
+
+Five residuals inside a 2 HP bound, each with a recorded reason, remains a more honest state than five zeroes.
 
 One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a *mimicked* Power. Pros are stored per Power, so there is nowhere for it to live. Eidolon reconciles anyway, so it costs nothing today.
 
