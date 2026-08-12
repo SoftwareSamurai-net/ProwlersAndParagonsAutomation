@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3137 across two projects — 3049 on the engine, 88 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3151 across two projects — 3063 on the engine, 88 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two, plus a headless command — the terminal wizard, a Blazor WebAssembly app, and `build --from`, all on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -50,6 +50,14 @@ Nothing left is more than 2 HP out, and the test asserting that bound has been t
 **The "residuals pair up" lead is spent.** It was worth chasing and it paid twice — see the completed item below — but what closed Vector and Talon was reading the rulebook entry in each case, not the pattern. What is left is −1, −1, +1, +1, +2, and five values in a four-point range pair up by chance. Do not read more into it.
 
 The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for Telekinesis`) remain guesses that could be revisited, but do not tune them just to force a zero — that is fitting the model to the answer.
+
+**Revisited, and deliberately not closed.** The arithmetic was worked out and it is a trap:
+
+- **T-Kay closes exactly** if `Limited: only for Telekinesis` is read as *somewhat limited* (−1) rather than *significantly limited* (−2). It sits on Lightning Reflexes, a flat 3 HP Power, so the grade is worth 1 HP after the floor — precisely his −1. **That is the tuning this item forbids.** The sheet prints no grade; "only for Telekinesis" reads at least as much like the harsher grade as the milder one, and the only thing recommending the milder one is that it makes the number come out. Deciding it needs the Power's entry in the book, not this file.
+- **Vigilant cannot be closed by his gear.** His Jo Sticks are *Upgraded*, worth +2, and he is 1 HP under: transcribing the feature moves him to +1 rather than to 0. Adding it would make the transcription more faithful and the residual no smaller, so it is left recorded rather than half-applied.
+- **Herald (Airmid) at +2, Herald (Scathach) at +1 and Shadow at +1** have no candidate in the data at all. Scathach's Strike carrying four Pros and Cons at once remains the most likely place for a variant reading to be wrong.
+
+The rulebook is not in the repository — `*.pdf` is gitignored repository-wide and each person supplies their own copy — so none of these can be settled from what is checked in. **The next attempt needs the book open at the Power's entry**, and the extraction recipe is at the end of the printed-sheet section in `CLAUDE.md`. Until then five residuals inside a 2 HP bound, each with a recorded reason, is a more honest state than five zeroes.
 
 One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a *mimicked* Power. Pros are stored per Power, so there is nowhere for it to live. Eidolon reconciles anyway, so it costs nothing today.
 
