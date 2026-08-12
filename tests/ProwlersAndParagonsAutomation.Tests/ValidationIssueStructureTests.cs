@@ -656,6 +656,87 @@ public sealed class ValidationIssueStructureTests
         }
     }
 
+    /// <summary>
+    /// <b>The constraints the rulebook prints inside an option are now enforced on a submitted
+    /// character, not only by the two editors' pickers.</b> Until this, a file could carry the
+    /// Ranged Pro on a Self-range Power — which raises a Touch Power to Distant Range and has
+    /// nothing to raise on a Power that affects only you — and come back legal at exit 0, which
+    /// was a hole in the one claim the whole surface makes.
+    /// </summary>
+    [Theory]
+    [InlineData("ranged", true, "PRO_NOT_APPLICABLE")]
+    [InlineData("close", false, "CON_NOT_APPLICABLE")]
+    public void AnOptionTheRulebookDoesNotAllowOnThisPowerIsRefused(string id, bool isPro, string code)
+    {
+        var sheet = Legal();
+        sheet.SelectedPowers.Add(isPro
+            ? new SelectedPower("armor", 2, [new SelectedProCon(id, "from_touch")], [])
+            : new SelectedPower("armor", 2, [], [new SelectedProCon(id)]));
+
+        var issue = Issue(sheet, code);
+
+        Assert.Equal(id, issue.SubjectId);
+        Assert.Equal("armor", issue.OwnerId);
+        Assert.False(_f.Validator.Validate(sheet).IsValid);
+
+        // The pickers and the validator have to agree, or a character the editors built would be
+        // refused — or worse, one they refused to build would be accepted.
+        var armor = _f.Rules.GetPower("armor")!;
+        Assert.DoesNotContain(id, new ProConApplicability(_f.Rules).ProsFor(armor).Select(p => p.Id));
+        Assert.DoesNotContain(id, new ProConApplicability(_f.Rules).ConsFor(armor).Select(c => c.Id));
+    }
+
+    /// <summary>
+    /// <b>And the same option on a Power it does allow is accepted.</b> Half a rule enforced in
+    /// only one direction would be worse than none: the previous per-Power lists were deleted
+    /// because they refused options the rulebook permits, and this must not reintroduce that.
+    /// </summary>
+    [Fact]
+    public void AnOptionTheRulebookDoesAllowIsNotRefused()
+    {
+        var applicability = new ProConApplicability(_f.Rules);
+
+        foreach (var power in _f.Rules.Powers)
+        {
+            var sheet = Legal();
+            sheet.SelectedPowers.Add(new SelectedPower(power.Id, 0,
+                [.. applicability.ProsFor(power).Select(p => new SelectedProCon(p.Id, FirstKey(p.CostModifierRange)))],
+                [.. applicability.ConsFor(power).Select(c => new SelectedProCon(c.Id, FirstKey(c.CostModifierRange)))])
+            { SourceId = "innate" });
+
+            var refused = _f.Validator.Validate(sheet).Issues
+                .Where(i => i.Code is "PRO_NOT_APPLICABLE" or "CON_NOT_APPLICABLE")
+                .ToList();
+
+            Assert.True(refused.Count == 0,
+                $"{power.Id} was offered options the validator then refused: "
+                + string.Join(", ", refused.Select(i => i.SubjectId)));
+        }
+    }
+
+    private static string? FirstKey(IReadOnlyDictionary<string, int>? range) => range?.Keys.FirstOrDefault();
+
+    /// <summary>
+    /// <b>A caveat must never become a filter.</b> Most of what an option states — "Powers that
+    /// inflict physical or energy damage" — is not something the rulebook prints per Power, and
+    /// enforcing it would mean about a thousand fresh judgements. Only Range and Rank type are
+    /// enforced, and this says so in the only way that stays true: an option with neither
+    /// constraint is applicable to every one of the 141 Powers.
+    /// </summary>
+    [Fact]
+    public void AnOptionWithNoPrintedConstraintAppliesToEveryPower()
+    {
+        var unconstrained = _f.Rules.Pros.Cast<Engine.Models.IGenericProCon>()
+            .Concat(_f.Rules.Cons.Cast<Engine.Models.IGenericProCon>())
+            .Where(o => o.AppliesToRanges.Count == 0 && o.AppliesToRankTypes.Count == 0)
+            .ToList();
+
+        Assert.NotEmpty(unconstrained);
+
+        foreach (var option in unconstrained)
+            Assert.All(_f.Rules.Powers, p => Assert.True(ProConApplicability.IsApplicable(option, p)));
+    }
+
     /// <summary>No package at all is the ordinary case and is not a finding.</summary>
     [Fact]
     public void NoStartingPackageIsNotAnIssue()
@@ -677,7 +758,8 @@ public sealed class ValidationIssueStructureTests
         "no tier", "over budget", "above cap", "no flaws", "too many flaws",
         "unknown ids", "gear", "ranks on a rankless power", "unresolved selections",
         "iconic", "unknown tier", "unknown package", "unknown traits", "unknown modifiers",
-        "ungraded modifiers", "negative quantities", "gear without a name", "gear at its floor", "power at its floor",
+        "ungraded modifiers", "negative quantities", "options that do not apply",
+        "gear without a name", "gear at its floor", "power at its floor",
         "unpriceable", "duplicates", "per-unit with no units",
         "power-specific ungraded", "sample villain"
     ];
@@ -849,6 +931,17 @@ public sealed class ValidationIssueStructureTests
                 sheet.Perks.Add(new SelectedPerk("contacts", 0));
                 sheet.SelectedPowers.Add(new SelectedPower("determination", 0)
                 { Units = 0, SourceId = "innate" });
+                return sheet;
+            }
+
+            case "options that do not apply":
+            {
+                // The Ranged Pro raises a Touch or Zone Power to Distant Range, and has nothing
+                // to raise on Armor, which affects only you. Close is a Con for Ranged Powers.
+                var sheet = Legal();
+                sheet.SelectedPowers.Add(new SelectedPower("armor", 2,
+                    [new SelectedProCon("ranged", "from_touch")],
+                    [new SelectedProCon("close")]) { SourceId = "tech" });
                 return sheet;
             }
 

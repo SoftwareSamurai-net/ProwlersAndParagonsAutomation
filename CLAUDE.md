@@ -315,6 +315,8 @@ Only constraints the book prints for every Power are enforced: `applies_to_range
 
 Everything else an option states — "Powers that inflict physical or energy damage", "that can be activated and deactivated at will" — is an `applicability_caveat`: shown to the player, never enforced. Enforcing it would mean ~7 booleans × 141 Powers of fresh guesswork. Ch.2 calls the list "not intended to cover every possible option" and puts it under GM approval, so a caveat is the honest model. **A caveat must never become a filter** — there is a test.
 
+**Those ten enforced constraints are checked by `CharacterValidator` as well as by the two editors' pickers**, as `PRO_NOT_APPLICABLE` / `CON_NOT_APPLICABLE`. They were the pickers' business alone until then, so a submitted character could carry the Ranged Pro on a Self-range Power and exit 0 — a hole in the claim the headless command exists to make. Only generic options on a Power are checked: a Pro printed inside a Power's own entry is applicable to that Power by definition, and gear and Abilities have no Range for an option to object to. A test builds every one of the 141 Powers with every option the pickers offer it and asserts the validator refuses none of them, so the two can never disagree in either direction.
+
 ### The engine never touches the filesystem
 
 `RulesRepository` reads through `IRulesSource`, not `File.ReadAllText`. Two implementations ship: `FileSystemRulesSource` (the CLI) and `InMemoryRulesSource` (any host that loads the data itself — a browser has no filesystem). `RulesRepository(string)` and `FromBasePath` still work exactly as before.
