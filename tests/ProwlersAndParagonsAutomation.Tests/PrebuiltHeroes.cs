@@ -271,7 +271,7 @@ public static class PrebuiltHeroes
             ["Shadow"]            = ("superhero_package", 1),   // unexplained
             ["T-Kay"]             = ("superhero_package", -1),  // Limited grade is not stated
             ["Vigilant"]          = ("superhero_package", -1),  // Jo Sticks are Upgraded, a custom feature not modelled
-            ["Herald (Airmid)"]   = ("superhero_package", 2)
+            ["Herald (Airmid)"]   = ("hero_package", 0)
         };
 
     /// <summary>One Source heading on a printed sheet, and the Powers listed beneath it.</summary>
@@ -331,7 +331,9 @@ public static class PrebuiltHeroes
             ],
             ["Herald (Airmid)"] =
             [
-                new("magic", ["alternate_form", "elemental_control", "expertise", "healing"])
+                // Expertise twice: the sheet prints one for Medicine and one for Science.
+                new("magic", ["alternate_form", "elemental_control", "expertise", "expertise",
+                              "healing"])
             ],
             ["Herald (Scathach)"] =
             [
@@ -578,8 +580,14 @@ public static class PrebuiltHeroes
             Agility: 6, Intellect: 4, Might: 4, Perception: 6, Toughness: 4, Willpower: 8,
             Powers:
             [
+                // Two Expertise Powers, both printed at 12d: "Expertise (Medicine: Ancient
+                // Remedies)" and "Expertise (Science: Botany)". The second was missing, and it
+                // is the whole of her residual — Expertise costs half a Hero Point per rank and
+                // takes its baseline from the nominated Trait, so 12d over Science 2d is ten
+                // purchased ranks and exactly 5 HP.
                 new("alternate_form", 0, null, 3), P("elemental_control", 10),
-                new("expertise", 12, "medicine"), P("healing", 10)
+                new("expertise", 12, "medicine"), new("expertise", 12, "science"),
+                P("healing", 10)
             ],
             Flaws: ["alter_ego", "relationship", "secret_identity"],
             Edge: 12, Health: 6, Resolve: 5),
