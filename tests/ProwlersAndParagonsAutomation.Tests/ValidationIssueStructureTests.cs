@@ -21,9 +21,15 @@ public sealed class ValidationIssueStructureTests
 
     public ValidationIssueStructureTests(RulesFixture f) => _f = f;
 
-    private static CharacterSheet Legal()
+    /// <summary>
+    /// A legal starting point — which means all eighteen Traits at the 1d minimum, not an empty
+    /// sheet with a flaw on it. Ch.2 says no Ability or Talent can be lower than 1d, so the
+    /// emptier version was never legal; it merely passed a validator that did not check.
+    /// </summary>
+    private CharacterSheet Legal()
     {
-        var sheet = RulesFixture.StandardSheet();
+        var sheet = _f.LegalSheet();
+        sheet.Flaws.Clear();
         sheet.Flaws.Add(new SelectedFlaw("code"));
         return sheet;
     }
@@ -363,6 +369,8 @@ public sealed class ValidationIssueStructureTests
     [Fact]
     public void OnlyMightIsHalvedByTheBruteOption()
     {
+        // Compared against each other rather than against a constant, because a legal sheet now
+        // carries all eighteen Traits at 1d and both totals include that floor.
         var might = Legal();
         might.AbilityRanks["might"] = 12;
         might.AbilityModifiers["might"] = [new("overkill")];
@@ -371,8 +379,17 @@ public sealed class ValidationIssueStructureTests
         intellect.AbilityRanks["intellect"] = 12;
         intellect.AbilityModifiers["intellect"] = [new("overkill")];
 
-        Assert.Equal(6, _f.Costs.AbilityCost(might));
-        Assert.Equal(12, _f.Costs.AbilityCost(intellect));
+        var plain = Legal();
+        plain.AbilityRanks["might"] = 12;
+
+        // Might is halved: 12 ranks become 6, so it saves 6 against the undiscounted version.
+        Assert.Equal(_f.Costs.AbilityCost(plain) - 6, _f.Costs.AbilityCost(might));
+
+        // Intellect is not: Overkill on it is flat, and Overkill's flat value is nothing.
+        var plainIntellect = Legal();
+        plainIntellect.AbilityRanks["intellect"] = 12;
+
+        Assert.Equal(_f.Costs.AbilityCost(plainIntellect), _f.Costs.AbilityCost(intellect));
     }
 
     /// <summary>
@@ -520,13 +537,13 @@ public sealed class ValidationIssueStructureTests
         var tier  = _f.Rules.GetTier("standard")!;
         var sheet = Legal();
 
-        // Abilities cost 1 HP per rank with no package, so the total is the rank total.
+        // A legal sheet already carries all eighteen Traits at 1d, so the twelve Talents are
+        // 12 HP of the total before anything is bought. Abilities cost 1 HP per rank with no
+        // package, so the rest of the budget goes into Might.
         var wanted = tier.HeroPoints + offset;
-        var per    = wanted / _f.Rules.Abilities.Count;
-        var rest   = wanted - per * (_f.Rules.Abilities.Count - 1);
+        var floor  = _f.Costs.TotalCost(sheet);
 
-        for (var i = 0; i < _f.Rules.Abilities.Count; i++)
-            sheet.AbilityRanks[_f.Rules.Abilities[i].Id] = i == 0 ? rest : per;
+        sheet.AbilityRanks["might"] = 1 + (wanted - floor);
 
         Assert.Equal(wanted, _f.Costs.TotalCost(sheet));
         Assert.Equal(shouldReport, Reports(sheet, "HP_BUDGET_EXCEEDED"));
@@ -759,7 +776,7 @@ public sealed class ValidationIssueStructureTests
         "unknown ids", "gear", "ranks on a rankless power", "unresolved selections",
         "iconic", "unknown tier", "unknown package", "unknown traits", "unknown modifiers",
         "ungraded modifiers", "negative quantities", "options that do not apply",
-        "gear without a name", "gear at its floor", "power at its floor",
+        "no traits at all", "below its package", "gear without a name", "gear at its floor", "power at its floor",
         "unpriceable", "duplicates", "per-unit with no units",
         "power-specific ungraded", "sample villain"
     ];
@@ -945,6 +962,25 @@ public sealed class ValidationIssueStructureTests
                 return sheet;
             }
 
+            case "no traits at all":
+            {
+                // Deliberately the bare sheet: every Trait at 0d, which is what an unenforced
+                // 1d minimum used to allow, plus a Con keyed to an Ability that has no ranks.
+                var sheet = RulesFixture.StandardSheet();
+                sheet.Flaws.Add(new SelectedFlaw("code"));
+                sheet.AbilityModifiers["intellect"] = [new SelectedProCon("overkill")];
+                return sheet;
+            }
+
+            case "below its package":
+            {
+                // A package grants a floor and cannot be lowered below it — the rule that proved
+                // Airmid's recorded package impossible, checked here on a submitted character.
+                var sheet = Legal();
+                sheet.SelectedPackageId = "superhero_package";
+                return sheet;
+            }
+
             case "gear without a name":
             {
                 var sheet = Legal();
@@ -1111,6 +1147,8 @@ public sealed class ValidationIssueStructureTests
             if (issue.Value is not { } value || issue.Limit is not { } limit) continue;
 
             if (issue.Code.Contains("MIN_NOT_MET", StringComparison.Ordinal)
+                || issue.Code.EndsWith("BELOW_MINIMUM", StringComparison.Ordinal)
+                || issue.Code.EndsWith("BELOW_PACKAGE", StringComparison.Ordinal)
                 || issue.Code.StartsWith("NEGATIVE_", StringComparison.Ordinal)
                 || issue.Code.EndsWith("WITHOUT_UNITS", StringComparison.Ordinal))
                 Assert.True(value < limit, $"{issue.Code}: {value} is not below its minimum of {limit}.");

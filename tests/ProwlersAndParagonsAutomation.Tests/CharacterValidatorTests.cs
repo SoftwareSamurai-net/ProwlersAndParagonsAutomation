@@ -9,11 +9,15 @@ public sealed class CharacterValidatorTests
 
     public CharacterValidatorTests(RulesFixture fixture) => _f = fixture;
 
+    /// <summary>
+    /// A legal sheet needs all eighteen Traits at 1d, not one Ability and a flaw: Ch.2 says no
+    /// Ability or Talent can be lower than 1d. The old version of this helper was an impossible
+    /// character that validated clean, which is what the rule going unenforced looked like.
+    /// </summary>
     private static CharacterSheet LegalSheet(RulesFixture f)
     {
-        var sheet = RulesFixture.StandardSheet();
+        var sheet = f.LegalSheet();
         sheet.AbilityRanks["might"] = 4;
-        sheet.Flaws.Add(new SelectedFlaw(f.Rules.Flaws[0].Id));
         return sheet;
     }
 
@@ -220,10 +224,8 @@ public sealed class CharacterValidatorTests
     [Fact]
     public void TheIconicTierIsFlaggedAsGmDiscretion()
     {
-        var sheet = RulesFixture.StandardSheet();
+        var sheet = LegalSheet(_f);
         sheet.SelectedTierId = "iconic";
-        sheet.AbilityRanks["might"] = 4;
-        sheet.Flaws.Add(new SelectedFlaw(_f.Rules.Flaws[0].Id));
 
         var result = _f.Validator.Validate(sheet);
 

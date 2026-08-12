@@ -141,6 +141,8 @@ public sealed class CharacterValidator
         }
 
         CheckTraitIds(sheet, issues);
+        CheckTraitMinimums(sheet, issues);
+        CheckPackageFloors(sheet, issues);
         CheckFlawCount(sheet, issues);
         CheckFlawIds(sheet, issues);
         CheckDuplicateFlaws(sheet, issues);
@@ -376,6 +378,94 @@ public sealed class CharacterValidator
     /// hand or by another program can, and does — the skill's own example named a Talent the
     /// rulebook does not have, and nothing said so.</para>
     /// </summary>
+    /// <summary>
+    /// <b>Every Ability and every Talent has a minimum of 1d, and a character has all eighteen.</b>
+    /// Ch.2 says it twice, once for each: "No Ability can have a rank lower than 1d or higher than
+    /// the game's Trait Cap. Ordinary people have 2d in every Ability", and the same sentence again
+    /// for Talents. So 0d is not a rank a character can hold — it is the absence of a Trait nobody
+    /// can be without.
+    ///
+    /// <para>This was enforced nowhere. The Abilities editor already used a floor of 1d while a
+    /// fresh sheet started every Ability at 0d, so the default sat below the floor and nothing
+    /// objected; the Talents editor used a floor of 0d, which contradicts the book outright.</para>
+    ///
+    /// <para><b>It costs Hero Points, and the packages are the corroboration.</b> Without a package
+    /// a character pays for all eighteen Traits at 1d, which is 18 HP to exist — and the Civilian
+    /// Package is 35 HP for 2d in all eighteen, which is 36 points of ranks. That is the "small
+    /// discount" the rulebook says a package is. All twenty published Heroes take a package, so
+    /// every one of their Talents is covered by its floor, which is why rebuilding them never
+    /// caught this.</para>
+    /// </summary>
+    private void CheckTraitMinimums(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        foreach (var ability in _rules.Abilities)
+            Report(ability.Id, ability.Name, sheet.GetAbilityRank(ability.Id), ValidationSubject.Ability);
+
+        foreach (var talent in _rules.Talents)
+            Report(talent.Id, talent.Name, sheet.GetTalentRank(talent.Id), ValidationSubject.Talent);
+
+        void Report(string id, string name, int rank, ValidationSubject kind)
+        {
+            if (rank >= MinimumTraitRank) return;
+
+            issues.Add(new(ValidationSeverity.Error, "TRAIT_BELOW_MINIMUM",
+                $"{name} is {rank}d. No Ability or Talent can be lower than {MinimumTraitRank}d — "
+                + "every character has all of them, and ordinary people have 2d in each.")
+            {
+                SubjectKind = kind,
+                SubjectId   = id,
+                Value       = rank,
+                Limit       = MinimumTraitRank
+            });
+        }
+    }
+
+    private int MinimumTraitRank => _rules.CreationRules.TraitRankLimits.Minimum;
+
+    /// <summary>
+    /// <b>A package's granted ranks are a floor, not a starting offer.</b> Every package says so:
+    /// "Cannot lower any of these below the package rank." A Trait recorded beneath it is not a
+    /// cheaper character, it is an impossible one — and it costs nothing either way, because
+    /// <c>AbilityCost</c> and <c>TalentCost</c> charge only for ranks above what the package
+    /// covers, so the mistake is free and therefore silent.
+    ///
+    /// <para>This is the rule that proved Herald (Airmid)'s recorded package impossible, and it
+    /// was a test over the twenty published Heroes before it was a check here. The samples then
+    /// showed why it belongs here too: filling their Talents in at 1d looked right, sat below the
+    /// 2d their Hero Package grants, and cost nothing.</para>
+    /// </summary>
+    private void CheckPackageFloors(CharacterSheet sheet, List<ValidationIssue> issues)
+    {
+        // Resolved here rather than through CostCalculator, whose own lookup is private and
+        // should stay that way: this is a question about the rules, not about a price.
+        if (sheet.SelectedPackageId is null) return;
+        if (_rules.CreationRules.OptionalPackages
+                .FirstOrDefault(p => p.Id == sheet.SelectedPackageId) is not { } package) return;
+
+        foreach (var ability in _rules.Abilities)
+            Report(ability.Id, ability.Name, sheet.GetAbilityRank(ability.Id),
+                   package.AbilitiesRank, ValidationSubject.Ability);
+
+        foreach (var talent in _rules.Talents)
+            Report(talent.Id, talent.Name, sheet.GetTalentRank(talent.Id),
+                   package.TalentsRank, ValidationSubject.Talent);
+
+        void Report(string id, string name, int rank, int granted, ValidationSubject kind)
+        {
+            if (rank >= granted) return;
+
+            issues.Add(new(ValidationSeverity.Error, "TRAIT_BELOW_PACKAGE",
+                $"{name} is {rank}d, below the {granted}d the {package.Name} grants. A package "
+                + "cannot be taken and then lowered below what it gives.")
+            {
+                SubjectKind = kind,
+                SubjectId   = id,
+                Value       = rank,
+                Limit       = granted
+            });
+        }
+    }
+
     private void CheckTraitIds(CharacterSheet sheet, List<ValidationIssue> issues)
     {
         foreach (var id in sheet.AbilityRanks.Keys.Where(id => _rules.GetAbility(id) is null))
@@ -579,9 +669,12 @@ public sealed class CharacterValidator
                     $"Pros or Cons are recorded against '{abilityId}', which is not an Ability "
                     + "this character has bought ranks in, so they would change nothing.")
                 {
+                    // The six Abilities, not the ones this character happens to have bought: a
+                    // sheet with none bought offered an empty list, which is no help at all —
+                    // and with the 1d minimum enforced, every Ability has ranks anyway.
                     SubjectKind = ValidationSubject.Ability,
                     SubjectId   = abilityId,
-                    Options     = sheet.AbilityRanks.Keys.ToList()
+                    Options     = _rules.Abilities.Select(a => a.Id).ToList()
                 });
                 continue;
             }

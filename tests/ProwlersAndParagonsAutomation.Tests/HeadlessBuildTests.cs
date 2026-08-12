@@ -574,7 +574,12 @@ public sealed class HeadlessBuildTests : IDisposable
         var run = Invoke("--from", CharacterFile("""
             {
               "selectedTierId": "standard",
-              "abilityRanks": { "might": 8 },
+              "abilityRanks": { "might": 8, "agility": 1, "intellect": 1,
+                                "perception": 1, "toughness": 1, "willpower": 1 },
+              "talentRanks": { "academics": 1, "charm": 1, "command": 1, "covert": 1,
+                               "investigation": 1, "medicine": 1, "professional": 1,
+                               "science": 1, "streetwise": 1, "survival": 1,
+                               "technology": 1, "vehicles": 1 },
               "flaws": [ { "flawId": "code" } ]
             }
             """), "--no-export");
