@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.JSInterop;
 using ProwlersAndParagonsAutomation.Engine;
 
@@ -51,15 +50,12 @@ public sealed class CharacterStore
     }
 
     /// <summary>
-    /// Populate rather than replace, because <see cref="CharacterSheet"/> exposes its
-    /// collections as get-only properties with initialisers — the shape the engine wants,
-    /// and one that a deserializer has to be told to fill rather than assign.
+    /// The engine's own options for the sheet shape, shared with the headless <c>build</c>
+    /// command. Populate rather than replace, because <see cref="CharacterSheet"/> exposes
+    /// its collections as get-only properties with initialisers — the shape the engine
+    /// wants, and one that a deserializer has to be told to fill rather than assign.
     /// </summary>
-    private static readonly JsonSerializerOptions Options = new()
-    {
-        PreferredObjectCreationHandling = JsonObjectCreationHandling.Populate,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
+    private static JsonSerializerOptions Options => CharacterSheetJson.Options;
 
     private sealed record Saved(int Version, SheetMode Mode, CharacterSheet? Sheet);
 
@@ -160,38 +156,22 @@ public sealed class CharacterStore
     ///     every check made against it.</item>
     ///   <item>A <c>SelectedPower</c>'s <c>Pros</c> and <c>Cons</c> are declared non-null and
     ///     come back null when the keys are absent, which is a NullReferenceException on the
-    ///     next render rather than anything a JSON catch would ever see.</item>
+    ///     next render rather than anything a JSON catch would ever see. That one, and the
+    ///     nulls inside the four lists and the four free-text fields, are repaired by
+    ///     <see cref="CharacterSheetJson.Repair"/> — shared with the headless command,
+    ///     because a second copy of this would be a second copy that goes stale.</item>
     /// </list>
     /// </summary>
     private static (CharacterSheet Sheet, SheetMode Mode)? Usable(Saved? saved)
     {
         if (saved is not { Version: CurrentVersion, Sheet: { } sheet }) return null;
 
-        for (var i = 0; i < sheet.SelectedPowers.Count; i++)
-        {
-            var power = sheet.SelectedPowers[i];
-            if (power is null || (power.Pros is not null && power.Cons is not null)) continue;
-
-            sheet.SelectedPowers[i] = power with { Pros = power.Pros ?? [], Cons = power.Cons ?? [] };
-        }
-
-        // The four free-text fields are declared non-nullable strings and come back null when
-        // the key is absent. Nothing in the engine minds, and both call sites in web/ use
-        // IsNullOrWhiteSpace — but the text export does sheet.Name.Select(...), which is a
-        // NullReferenceException in the last place a player wants one. Repaired rather than
-        // rejected: losing a name is not worth losing a character over.
-        sheet.Name       ??= "";
-        sheet.Appearance ??= "";
-        sheet.Motivation ??= "";
-        sheet.Quote      ??= "";
-
-        sheet.SelectedPowers.RemoveAll(p => p is null);
-        sheet.Perks.RemoveAll(p => p is null);
-        sheet.Flaws.RemoveAll(f => f is null);
-        sheet.Gear.RemoveAll(g => g is null);
-        sheet.Connections.RemoveAll(c => c is null);
-
-        return (sheet, Enum.IsDefined(saved.Mode) ? saved.Mode : SheetMode.Hero);
+        // dropIdlessEntries: an entry naming nothing is junk to a browser restoring its own
+        // storage, and one lost entry is worth less than the character. The headless command asks
+        // for the opposite, because there the same entry has to be reported rather than quietly
+        // removed from somebody's submitted file.
+        return (CharacterSheetJson.Repair(sheet, dropIdlessEntries: true),
+                Enum.IsDefined(saved.Mode) ? saved.Mode : SheetMode.Hero);
     }
 
     /// <summary>

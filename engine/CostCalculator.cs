@@ -26,15 +26,23 @@ public sealed class CostCalculator
     {
         var covered = SelectedPackage(sheet)?.AbilitiesRank ?? 0;
 
-        return sheet.AbilityRanks.Sum(entry =>
+        // Ranks against an Ability the rulebook does not have are not charged for. They used to
+        // be: the total included them, so a character with a misspelled Ability was quoted a
+        // price that covered a Trait it could not possibly have — a figure printed as fact
+        // beside the error saying the Trait does not exist. UNKNOWN_ABILITY reports it; the
+        // cost should not also invent it.
+        return sheet.AbilityRanks.Where(e => _rules.GetAbility(e.Key) is not null).Sum(entry =>
         {
             var chargeable = Math.Max(0, entry.Value - covered);
             if (chargeable == 0) return 0;
 
             var modifiers = sheet.AbilityModifiers.GetValueOrDefault(entry.Key) ?? [];
 
-            // The Brute Option: Overkill on Might buys it at 1 HP per 2 ranks.
-            var cost = modifiers.Any(m => m.Id is "overkill" or "weak")
+            // The Brute Option: Overkill on **Might** buys it at 1 HP per 2 ranks. The
+            // Ability is part of the rule, not decoration — the id was not checked, so
+            // Overkill or Weak on any of the six halved it, and 12d Intellect for 6 HP was a
+            // legal character with one Con on it. Ch.2 p.17 names Might and nothing else.
+            var cost = entry.Key == "might" && modifiers.Any(m => m.Id is "overkill" or "weak")
                 ? (int)Math.Ceiling(chargeable / 2.0)
                 : chargeable;
 
@@ -54,7 +62,11 @@ public sealed class CostCalculator
     public int TalentCost(CharacterSheet sheet)
     {
         var covered = SelectedPackage(sheet)?.TalentsRank ?? 0;
-        return sheet.TalentRanks.Values.Sum(rank => Math.Max(0, rank - covered));
+
+        // Unknown ids are not charged for — see AbilityCost for why.
+        return sheet.TalentRanks
+            .Where(entry => _rules.GetTalent(entry.Key) is not null)
+            .Sum(entry => Math.Max(0, entry.Value - covered));
     }
 
     // ── Package ──────────────────────────────────────────────────────────
@@ -129,7 +141,12 @@ public sealed class CostCalculator
                     Fixed((int)calc.ResolveVariant(power, selection)),
 
                 "per_unit" =>
-                    Fixed((power.CostPerUnit ?? throw MissingCost(power, "cost_per_unit")) * selection.Units),
+                    // checked: unchecked, a large quantity wrapped to a negative cost, which
+                    // Fixed() then floored to 1 — Determination at 500,000,000 units cost 5 HP
+                    // and gave 500,000,016 Resolve, exit 0, no findings. Making TotalCost
+                    // checked was not enough; the multiplications underneath it are where the
+                    // wrap happens.
+                    Fixed(checked((power.CostPerUnit ?? throw MissingCost(power, "cost_per_unit")) * selection.Units)),
 
                 _ => throw new InvalidOperationException(
                          $"Unknown cost_type '{power.CostType}' on power '{power.Id}'.")
@@ -185,7 +202,7 @@ public sealed class CostCalculator
                 return (0, entry.CostPerRank ?? throw MissingProConCost(power, entry, "cost_per_rank"));
 
             case "per_unit":
-                return ((entry.CostPerUnit ?? throw MissingProConCost(power, entry, "cost_per_unit")) * units, 0);
+                return (checked((entry.CostPerUnit ?? throw MissingProConCost(power, entry, "cost_per_unit")) * units), 0);
 
             case "per_rank_per_unit":
                 return (0, (entry.CostPerRank ?? throw MissingProConCost(power, entry, "cost_per_rank")) * units);
@@ -389,7 +406,7 @@ public sealed class CostCalculator
         return perk.CostType switch
         {
             "flat"     => perk.Cost ?? 0,
-            "per_unit" => (perk.CostPerUnit ?? 1) * selection.Units,
+            "per_unit" => checked((perk.CostPerUnit ?? 1) * selection.Units),
             _          => throw new InvalidOperationException(
                               $"Unknown cost_type '{perk.CostType}' on perk '{perk.Id}'.")
         };
@@ -469,14 +486,29 @@ public sealed class CostCalculator
     /// Grand total HP spend: package + abilities + talents + powers + perks + gear.
     /// This is compared against the tier's HeroPoints budget by CharacterValidator.
     /// </summary>
+    /// <remarks>
+    /// <b>Checked, because unchecked it wrapped to a negative total and the budget check then
+    /// passed.</b> Each component sums with <c>Enumerable.Sum</c>, which is checked and throws
+    /// — but the six additions between them were not, so Determination at 400,000,000 units
+    /// plus a Perk at 200,000,000 came to −2,094,967,284 HP, reported legal with no findings
+    /// at all. A quantity that large is nonsense either way; the point is that the answer has
+    /// to be either right or refused, and silently negative is neither.
+    ///
+    /// <para><see cref="OverflowException"/> is one of the exceptions the validator turns into
+    /// <c>CHARACTER_NOT_PRICEABLE</c>, so a character this big is now reported rather than
+    /// certified.</para>
+    /// </remarks>
     public int TotalCost(CharacterSheet sheet)
     {
-        return PackageCost(sheet)
-             + AbilityCost(sheet)
-             + TalentCost(sheet)
-             + TotalPowersCost(sheet)
-             + TotalPerksCost(sheet)
-             + TotalGearCost(sheet);
+        checked
+        {
+            return PackageCost(sheet)
+                 + AbilityCost(sheet)
+                 + TalentCost(sheet)
+                 + TotalPowersCost(sheet)
+                 + TotalPerksCost(sheet)
+                 + TotalGearCost(sheet);
+        }
     }
 
     // ── Private ──────────────────────────────────────────────────────────

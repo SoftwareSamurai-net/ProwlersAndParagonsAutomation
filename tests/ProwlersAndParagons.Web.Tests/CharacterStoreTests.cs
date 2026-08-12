@@ -302,22 +302,67 @@ public sealed class CharacterStoreTests
     /// validate the sheet once, and a payload it cannot answer for is not handed to the app.
     /// A list of shapes goes stale the first time somebody adds a field, and they will not be
     /// thinking about this file when they do.</para>
+    ///
+    /// <para><b>The null payloads that used to be here are repaired now rather than refused</b>,
+    /// and they moved to the test below. They were refused because the engine <em>threw</em> on a
+    /// null id instead of reporting one; it reports them, so the right answer changed. What is
+    /// left here is the case no repair can help: a value of the wrong type for its field.</para>
     /// </summary>
     [Theory]
-    [InlineData("\"SelectedPowers\":[{\"PowerId\":\"armor\",\"PurchasedRanks\":2,\"Pros\":[null],\"Cons\":[]}]")]
-    [InlineData("\"SelectedPowers\":[{\"PowerId\":\"armor\",\"PurchasedRanks\":2,\"Pros\":[],\"Cons\":[null]}]")]
-    [InlineData("\"SelectedPowers\":[{\"PowerId\":null,\"PurchasedRanks\":2,\"Pros\":[],\"Cons\":[]}]")]
-    [InlineData("\"Perks\":[{\"PerkId\":null,\"Units\":1}]")]
-    [InlineData("\"Flaws\":[{\"FlawId\":null}]")]
-    [InlineData("\"AbilityRanks\":{\"might\":5},\"AbilityModifiers\":{\"might\":[null]}")]
-    [InlineData("\"Gear\":[{\"Name\":\"Rope\",\"Features\":null,\"Pros\":null,\"Cons\":null}]")]
-    [InlineData("\"Gear\":[{\"Name\":\"Rope\",\"Features\":[null],\"Pros\":[null],\"Cons\":[null]}]")]
+    [InlineData("\"AbilityRanks\":{\"might\":\"not a number\"}")]
+    [InlineData("\"SelectedPowers\":\"not a list\"")]
     public async Task APayloadTheEngineCannotAnswerForIsNotHandedToTheApp(string sheetBody)
     {
         var (store, storage) = Fresh();
         storage.Poke(Key, Payload(sheetBody));
 
         Assert.Null(await store.LoadAsync());
+    }
+
+    /// <summary>
+    /// <b>An entry that names nothing is dropped, and the character survives it.</b>
+    ///
+    /// <para>These payloads used to be refused outright, because the engine threw on a null id
+    /// rather than reporting one and the guard above could not tell that from corruption. The
+    /// engine reports them now, which changes the right answer here: an entry naming nothing is
+    /// junk, it can only come from a hand-edited or half-written payload, and one lost entry is
+    /// worth far less than the character around it.</para>
+    ///
+    /// <para>The headless command asks <c>Repair</c> for the opposite, and that is the point of
+    /// the flag: there the same entry is in a file somebody submitted, and dropping it silently
+    /// would hand back a cheaper character than the one that was sent.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("\"SelectedPowers\":[{\"PowerId\":null,\"PurchasedRanks\":2,\"Pros\":[],\"Cons\":[]}]")]
+    [InlineData("\"Perks\":[{\"PerkId\":null,\"Units\":1}]")]
+    [InlineData("\"Flaws\":[{\"FlawId\":null}]")]
+    [InlineData("\"Gear\":[{\"Name\":null}]")]
+    [InlineData("\"Gear\":[{\"Name\":\"Rope\",\"Features\":null,\"Pros\":null,\"Cons\":null}]")]
+    [InlineData("\"Gear\":[{\"Name\":\"Rope\",\"Features\":[null],\"Pros\":[null],\"Cons\":[null]}]")]
+    [InlineData("\"SelectedPowers\":[{\"PowerId\":\"armor\",\"PurchasedRanks\":2,\"Pros\":[null],\"Cons\":[]}]")]
+    [InlineData("\"SelectedPowers\":[{\"PowerId\":\"armor\",\"PurchasedRanks\":2,\"Pros\":[],\"Cons\":[null]}]")]
+    [InlineData("\"AbilityRanks\":{\"might\":5},\"AbilityModifiers\":{\"might\":[null]}")]
+    public async Task AnEntryNamingNothingIsDroppedRatherThanLosingTheCharacter(string sheetBody)
+    {
+        var (store, storage) = Fresh();
+        storage.Poke(Key, Payload(sheetBody));
+
+        var restored = await store.LoadAsync();
+
+        Assert.NotNull(restored);
+
+        var sheet = restored.Value.Sheet;
+
+        Assert.DoesNotContain(sheet.SelectedPowers, p => p.PowerId is null);
+        Assert.DoesNotContain(sheet.Perks, p => p.PerkId is null);
+        Assert.DoesNotContain(sheet.Flaws, f => f.FlawId is null);
+        Assert.DoesNotContain(sheet.Gear, g => g.Name is null);
+        Assert.All(sheet.Gear, g =>
+        {
+            Assert.NotNull(g.Features);
+            Assert.NotNull(g.Pros);
+            Assert.NotNull(g.Cons);
+        });
     }
 
     /// <summary>

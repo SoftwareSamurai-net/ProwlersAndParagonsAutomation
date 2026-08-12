@@ -85,19 +85,43 @@ resharper_auto_property_can_be_made_get_only_global_highlighting = none
 resharper_unused_member_global_highlighting = none
 resharper_class_never_instantiated_global_highlighting = none
 
-[web/Services/CharacterStore.cs]
-# This file reads JSON that a browser stored, and its whole job is that the
-# declared types are not to be trusted. System.Text.Json hands back null for a
-# property whose type says it cannot be null — an absent key, an older build's
-# payload, storage somebody edited by hand — so every null check here is a check
-# against something that has actually happened, not against the annotation.
+[engine/CharacterValidator.cs]
+# Since the headless build command, this file's job includes checking a character
+# somebody else wrote — and a deserializer hands back null for a property whose
+# declared type says it cannot be null. So `choice.Id is not null` and its like
+# are checks against something that has actually happened: `{"Perks":[{"PerkId":
+# null}]}` is well-formed JSON, and unguarded it crashed the command with an exit
+# code outside the three it documents. Six such payloads did.
+#
+# ReSharper reads the annotations and calls the checks impossible. Acting on it
+# would delete the guards and restore that crash. See
+# HeadlessBuildTests.ACharacterWithNullsWhereIdsBelongIsReportedNotThrown.
+#
+# The conditional-access one is the same objection about `choice?.Id`, where the
+# entry itself can be null — `{"Pros":[null]}` — as well as its id.
+resharper_condition_is_always_true_or_false_according_to_nullable_api_contract_highlighting = none
+resharper_conditional_access_qualifier_is_non_nullable_according_to_api_contract_highlighting = none
+
+[engine/CharacterSheetJson.cs]
+# This file reads JSON somebody else wrote — a browser's stored character, or one
+# submitted to the build command — and its whole job is that the declared types
+# are not to be trusted. System.Text.Json hands back null for a property whose
+# type says it cannot be null — an absent key, an older build's payload, a file
+# edited by hand — so every null check here is a check against something that has
+# actually happened, not against the annotation.
 #
 # ReSharper reads the annotations and calls the checks impossible. Acting on it
 # would delete the guards and restore the bug they were written for: a stored
 # {"Version":1,"Mode":0} threw before the first render, so the app did not start
-# at all. There are tests for each one; see CharacterStoreTests.
+# at all. There are tests for each one; see CharacterStoreTests and
+# HeadlessBuildTests.ACharacterWithNullsWhereIdsBelongIsReportedNotThrown.
+#
+# The exception used to be scoped to web/Services/CharacterStore.cs, which is
+# where this code was until both front ends needed it.
 resharper_condition_is_always_true_or_false_according_to_nullable_api_contract_highlighting = none
 resharper_null_coalescing_condition_is_always_not_null_according_to_api_contract_highlighting = none
+# `f?.FeatureId`, where the list entry itself can be null as well as its id.
+resharper_conditional_access_qualifier_is_non_nullable_according_to_api_contract_highlighting = none
 
 [sheets/CharacterSheetRenderer.cs]
 # JsonValue.Create(...) is declared to return JsonValue?, so the null-forgiving
