@@ -3,6 +3,7 @@ using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
+using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Layout;
 using ProwlersAndParagonsAutomation.Web.Pages;
 
@@ -311,18 +312,24 @@ public sealed class ReplayRenderTests
     /// name — which is the kind of wrong that looks entirely right. The test loads a sample
     /// first, so there is a different character present to be printed by mistake.</para>
     ///
-    /// <para><b>All three figures, because asserting one of three was not enough.</b> An
-    /// adversarial pass put Health and Resolve back on the visitor's own character and left
-    /// Edge alone; the suite stayed green, under a comment naming all three.</para>
+    /// <para><b>All four boxes, and asserted on the value rather than on the box.</b> Two
+    /// adversarial passes walked through weaker versions of this test. The first asserted Edge
+    /// alone, so Health and Resolve went back to the visitor's character unnoticed. Widened to
+    /// three, the next moved the <em>fourth</em> box — the Hero Point spend, which is the
+    /// headline figure a GM checks a character against — and it still passed, because the box
+    /// carries "105" over a sub-line reading "of 75" and a search of the box's whole text for
+    /// "75" finds the budget. So this reads <c>.value</c>, and compares it whole.</para>
     /// </summary>
     [Theory]
     [InlineData("Edge")]
     [InlineData("Health")]
     [InlineData("Resolve")]
+    [InlineData("Hero Points")]
     public void TheSheetAtTheEndCarriesTheRecordedCharactersOwnFigures(string label)
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
         var derived = ctx.Services.GetRequiredService<DerivedStatsCalculator>();
+        var costs = ctx.Services.GetRequiredService<CostCalculator>();
 
         var recorded = Conversation(ctx, Cheap).FinalCharacter!;
 
@@ -330,7 +337,8 @@ public sealed class ReplayRenderTests
         {
             "Edge" => derived.CalculateEdge(sheet),
             "Health" => derived.CalculateHealth(sheet),
-            _ => derived.CalculateResolve(sheet)
+            "Resolve" => derived.CalculateResolve(sheet),
+            _ => costs.TotalCost(sheet)
         };
 
         // The test can only bite if the two disagree. Asserting that first turns a sample that
@@ -346,12 +354,82 @@ public sealed class ReplayRenderTests
         Assert.DoesNotContain(ctx.Session.Sheet.Name, sheet.TextContent, StringComparison.Ordinal);
 
         var block = page.FindAll(".sheet .stat-block")
-            .Single(b => b.TextContent.Contains(label, StringComparison.Ordinal));
+            .Single(b => b.QuerySelector(".label")!.TextContent.Trim() == label);
 
-        Assert.Contains(
+        Assert.Equal(
             Stat(recorded).ToString(System.Globalization.CultureInfo.InvariantCulture),
-            block.TextContent,
-            StringComparison.Ordinal);
+            block.QuerySelector(".value")!.TextContent.Trim());
+    }
+
+    /// <summary>
+    /// And every Power on that sheet prints its <em>own</em> effective rank.
+    ///
+    /// <para>The four boxes were not the only figures able to read the wrong character: moving
+    /// the sheet's rank calculation back to the visitor's own sheet gives every Power on Vera
+    /// Nunn's sheet an extra rank, because both of hers take a baseline from an Ability that
+    /// would then belong to somebody else. A rank is what a player rolls, so a wrong one is
+    /// worse than a wrong cost.</para>
+    /// </summary>
+    [Fact]
+    public void EveryPowerOnTheSheetPrintsTheRecordedCharactersOwnRank()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        var derived = ctx.Services.GetRequiredService<DerivedStatsCalculator>();
+        var rules = ctx.Services.GetRequiredService<RulesRepository>();
+
+        var recorded = Conversation(ctx, Cheap).FinalCharacter!;
+
+        // Both of her Powers move if the wrong character is read. Asserting that keeps this
+        // test honest if she ever changes into one whose Powers would not.
+        Assert.All(recorded.SelectedPowers, p => Assert.NotEqual(
+            derived.GetEffectiveRank(p, ctx.Session.Sheet),
+            derived.GetEffectiveRank(p, recorded)));
+
+        var page = Play(ctx, Cheap);
+        ShowAll(page);
+
+        var entries = page.FindAll(".sheet .power-entry .head").Select(e => e.TextContent).ToList();
+
+        foreach (var power in recorded.SelectedPowers)
+        {
+            var name = rules.GetPower(power.PowerId)!.Name;
+            var rank = derived.GetEffectiveRank(power, recorded)
+                .ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            // Name and rank read as one string, the way a browser concatenates them — which is
+            // also what catches the separator going missing and printing "Armor8d".
+            Assert.Contains(entries, e => e.Contains($"{name} {rank}d", StringComparison.Ordinal));
+        }
+    }
+
+    /// <summary>
+    /// <b>A character the engine cannot price still renders.</b>
+    ///
+    /// <para>The sheet's Perk and Gear boxes called the engine bare while every other cost on
+    /// it went through a guard, and the engine throws rather than guessing on an id it does not
+    /// have. A throw during render in the browser takes down the whole app rather than one box,
+    /// and it reaches a character restored from an older build as much as a recorded one —
+    /// which is why this builds the character by hand rather than going through the replay,
+    /// where none of the four has a Perk or a piece of gear to break.</para>
+    /// </summary>
+    [Fact]
+    public void ASheetWithAnIdTheRulesDoNotHaveStillRenders()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+
+        ctx.Session.Sheet.Perks.Add(new SelectedPerk("no_such_perk"));
+        ctx.Session.Sheet.Gear.Add(new SelectedGear("Something odd")
+        {
+            Features = [new SelectedGearFeature("no_such_feature")]
+        });
+
+        var page = ctx.Render<SheetView>();
+        var sheet = page.Find(".sheet").TextContent;
+
+        // It rendered at all, which is most of the assertion — and it kept the parts it could
+        // still answer for rather than dropping the line, which is the other part.
+        Assert.Contains("no_such_perk", sheet, StringComparison.Ordinal);
+        Assert.Contains("Something odd", sheet, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -365,19 +443,34 @@ public sealed class ReplayRenderTests
     /// a different character entirely. Rendered through the layout, because the bar is in the
     /// shell and the page under it cannot see it.</para>
     /// </summary>
-    [Fact]
-    public void TheVisitorsOwnBudgetBarIsNotShownOverARecordedCharacter()
+    /// <param name="address">
+    /// The capitalised form is not decoration. Blazor's route matching is case-insensitive, so
+    /// <c>/Replay/…</c> serves the recording; an ordinal comparison in the shell served it with
+    /// the budget bar over the top, reachable by anybody who capitalised a shared link.
+    /// </param>
+    [Theory]
+    [InlineData("replay/the-conductor")]
+    [InlineData("Replay/the-conductor")]
+    [InlineData("replay")]
+    public void TheVisitorsOwnBudgetBarIsNotShownOverARecordedCharacter(string address)
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
         var nav = ctx.Services.GetRequiredService<NavigationManager>();
 
-        // The wizard, where it belongs.
+        // The wizard first, so a shell that never draws the bar at all cannot pass the half of
+        // this that matters.
         nav.NavigateTo("characteristics");
-        Assert.Single(ctx.Render<MainLayout>(p => p.Add(l => l.Body, _ => { })).FindAll(".budget"));
+        var shell = ctx.Render<MainLayout>(p => p.Add(l => l.Body, _ => { }));
+        Assert.Single(shell.FindAll(".budget"));
 
-        // And a recording, where it does not.
-        nav.NavigateTo($"replay/{Villain}");
-        Assert.Empty(ctx.Render<MainLayout>(p => p.Add(l => l.Body, _ => { })).FindAll(".budget"));
+        // The same rendered shell is navigated rather than a fresh one, because the layout has
+        // to notice the move on its own — and then back, because a bar that never returns is
+        // the same bug facing the other way.
+        nav.NavigateTo(address);
+        Assert.Empty(shell.FindAll(".budget"));
+
+        nav.NavigateTo("characteristics");
+        Assert.Single(shell.FindAll(".budget"));
     }
 
     // ── The hand-off ────────────────────────────────────────────────────────────

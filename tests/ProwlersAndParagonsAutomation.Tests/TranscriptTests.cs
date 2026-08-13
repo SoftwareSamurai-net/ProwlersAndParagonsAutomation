@@ -257,10 +257,15 @@ public sealed class TranscriptTests
             + "|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty"
             + "|fifty|sixty|seventy|eighty|ninety|hundred)";
 
-        // Deliberately not "cost" or "points": "it costs more than all six of her Abilities"
-        // is a comparison rather than a quoted figure, and is the kind of sentence this
-        // surface exists to allow.
-        const string figure = "(HP|hero points?|edge|health|resolve|budget)";
+        // "points" on its own is in the set, and it was not: "she spends 40 points of the 75
+        // the tier hands you" walked straight through. That is not an exotic phrasing — it is
+        // how the rulebook and this app's own sheet ("Points Spent") write it.
+        //
+        // "cost" stays out. "It costs more than all six of her Abilities put together" is a
+        // comparison rather than a quoted figure, and is exactly the sentence this surface
+        // exists to allow: a recording that can say where the money went without saying how
+        // much of it there was.
+        const string figure = "(HP|hero points?|points?|edge|health|resolve|budget)";
 
         // Both directions, with a short window either way rather than a list of verbs.
         var quoted = Rx(

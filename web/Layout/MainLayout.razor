@@ -55,9 +55,17 @@
     /// and cannot ask it anything. Matched on the path's first segment so that both
     /// <c>/replay</c> and <c>/replay/anything</c> count, and so that a future page whose name
     /// merely begins with those letters does not.</para>
+    ///
+    /// <para><b>Case-insensitively</b>, because Blazor's own route matching is: <c>/Replay/…</c>
+    /// serves the recording, and an ordinal comparison here served it with the visitor's budget
+    /// bar over the top — the exact thing this exists to prevent, reachable by anybody who
+    /// capitalised a shared link.</para>
     /// </summary>
     private bool ShowingARecording =>
-        Nav.ToBaseRelativePath(Nav.Uri).Split('/', '?', '#')[0] == "replay";
+        string.Equals(
+            Nav.ToBaseRelativePath(Nav.Uri).Split('/', '?', '#')[0],
+            "replay",
+            StringComparison.OrdinalIgnoreCase);
 
     protected override void OnInitialized()
     {
