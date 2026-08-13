@@ -352,10 +352,17 @@
     /// <see cref="Cost"/>, and the name is the part worth keeping on the page: a piece of gear
     /// nobody can cost is still a piece of gear the character is carrying.
     /// </summary>
-    private string Describe(SelectedGear item)
+    /// <remarks>
+    /// Returns <c>string?</c> rather than coalescing to empty. <c>Name</c> is declared
+    /// non-null and a deserializer will put a null there anyway — the same story as the null
+    /// checks in <c>CharacterValidator</c> — so the coalesce read as dead code to an
+    /// inspection that believes the declaration. Razor renders a null as nothing, which is
+    /// what the coalesce was for.
+    /// </remarks>
+    private string? Describe(SelectedGear item)
     {
         try { return GearFormatter.Describe(item, Session.Rules, Session.Costs); }
-        catch (InvalidOperationException) { return item.Name ?? ""; }
+        catch (InvalidOperationException) { return item.Name; }
     }
 
     private string DisplayName =>
