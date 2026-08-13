@@ -9,20 +9,26 @@ sessions, not documentation.
 
 ---
 
-## Half of this is now done
+## The MCP server is finished. The replay demo has not been started.
 
-**The MCP server has shipped.** `mcp/` wraps the engine, six tools, and the question policy is
-written down and embedded at `mcp/QUESTION-POLICY.md` — see the entry in `PROGRESS.md` and the
-"The MCP server" section of `CLAUDE.md` before re-reading the design below, which is the brief
-rather than the outcome. The README carries the setup a stranger needs.
+This file describes one slice with two surfaces, for two audiences, and only one of them is
+built. **The MCP server is complete** — not partly complete: `mcp/` wraps the engine, six
+tools, the question policy is written down and embedded at `mcp/QUESTION-POLICY.md`, the README
+carries the setup a stranger needs, and it shipped in
+[#39](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/39). Read the entry in
+`PROGRESS.md` and the "The MCP server" section of `CLAUDE.md` before the design below, which is
+the brief rather than the outcome.
 
-**What is left of this file is the replay demo**, for the audience that cannot bring its own
+**What this file is still for is the replay demo**, for the audience that cannot bring its own
 inference — "the normie mates". Nothing about it has changed and the recommendation below
 stands. Delete this file when that ships.
 
+**Everything below this line was written before the MCP server existed**, so its figures are
+the ones from that session. `PROGRESS.md` has the current ones.
+
 ---
 
-## Where things stand
+## Where things stood when this note was written
 
 Six pull requests merged: [#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30)–[#35](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/35).
 3190 tests, zero warnings at CI strictness, a whole-tree Qodana scan at zero, and MIT in
