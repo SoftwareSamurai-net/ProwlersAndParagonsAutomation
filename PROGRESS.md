@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3284 across two projects — 3194 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3286 across two projects — 3196 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -253,6 +253,26 @@ they threw at it. What they found instead:
   illegal alike" was true of the verdict test and not the figures test — the figures test now
   covers both), and `CLAUDE.md`'s "nothing may make `TotalCost` negative" describes a floor that
   is not in the code. What actually holds is `NEGATIVE_UNITS` and `checked`.
+
+**A fourth review was pointed at the fixes rather than the code, and two of the eight did not
+hold** — which is the same finding this file already records from the last slice, in the same
+proportion.
+
+- **The test for the truncation fix did not bite.** Its query's top row matched by name, so
+  cutting the list to one still left a name match in it and the buggy and fixed versions
+  agreed. Reintroducing the bug left all 94 tests green. The query now ranks a
+  description-only row first and every name match below the cut.
+- **Nothing asserted that `Program.cs` calls `ReadEverything`.** The unit test covered the
+  method; swapping the program back to warming one catalogue left the suite green while the
+  binary started cleanly on a one-file rules directory. There is now a test that runs the
+  built program.
+- **The runtime standard-output test was not the backstop its own comment claimed.** It drove
+  the binary through the SDK's client and asserted the session worked — and a real stray line,
+  spelled to evade the source scan, left the client perfectly happy. The client skips what it
+  cannot parse, which is exactly why the test now reads the stream itself and requires every
+  line to be a JSON-RPC message. Verified by mutation, both ways.
+- And one of the new tests **hung** rather than failed when its mutation was applied, because
+  the failure it looks for is a server that keeps running. It bounds its own wait now.
 
 **What this deliberately did not do** is the browser replay demo — the other half of the
 handover's slice, and a slice of its own. A visitor with no Claude account has no way to bring

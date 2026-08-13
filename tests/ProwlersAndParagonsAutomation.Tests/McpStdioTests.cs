@@ -1,5 +1,6 @@
-using ModelContextProtocol.Client;
-using ModelContextProtocol.Protocol;
+using System.Diagnostics;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Mcp;
 
@@ -67,7 +68,7 @@ public sealed class McpStdioTests
                 // bare WriteLine is invisible to any search for "Console.".
                 foreach (var spelling in new[]
                          {
-                             "using static System.Console", "= System.Console",
+                             "using static System.Console", "= System.Console", "= Console",
                              "OpenStandardOutput", "SetOut", "Console.Out"
                          })
                 {
@@ -91,36 +92,196 @@ public sealed class McpStdioTests
     }
 
     /// <summary>
-    /// <b>And the property itself, from the outside.</b> The check above reads source, which
-    /// cannot see a write from a library, from <c>engine/</c> or <c>sheets/</c>, or through a
-    /// spelling nobody thought of. This starts the built program the way a client does and
-    /// completes a real session with it: anything else on that stream and the handshake fails,
-    /// because a JSON-RPC reader has no way to skip a line it did not expect.
+    /// <b>The property itself, read off the stream.</b> The source check above cannot see a
+    /// write from a library, from <c>engine/</c> or <c>sheets/</c>, or through a spelling
+    /// nobody thought of — so this starts the built program the way a client does and reads
+    /// its standard output by hand.
+    ///
+    /// <para><b>Every line has to be a JSON-RPC message.</b> An earlier version of this test
+    /// drove the same binary through the SDK's client and asserted the session worked, under a
+    /// comment claiming a stray line would break the handshake. It does not: a real stray line
+    /// on that stream, printed before the transport starts, left the client perfectly happy and
+    /// the test green. The client skipping what it cannot parse is exactly why this has to look
+    /// at the bytes.</para>
     /// </summary>
     [Fact]
     public async Task TheBuiltProgramSpeaksNothingButTheProtocol()
     {
         var cancellation = TestContext.Current.CancellationToken;
 
-        await using var client = await McpClient.CreateAsync(
-            new StdioClientTransport(new StdioClientTransportOptions
+        using var server = Start(ServerExecutable(), rulesDirectory: null);
+
+        try
+        {
+            await Say(server, """
+                {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"stdout-hygiene","version":"1"}}}
+                """, cancellation);
+            await Say(server, """{"jsonrpc":"2.0","method":"notifications/initialized"}""", cancellation);
+            await Say(server, """{"jsonrpc":"2.0","id":2,"method":"tools/list"}""", cancellation);
+
+            var lines = new List<string>();
+
+            // Reads until the answer to the second request arrives, so the run covers the
+            // startup, the handshake and a request — every point at which something could
+            // print. A line that is not JSON is a failure whatever else it says.
+            while (await server.StandardOutput.ReadLineAsync(cancellation) is { } line)
             {
-                Name = "stdout-hygiene",
-                Command = ServerExecutable()
-            }),
-            cancellationToken: cancellation);
+                if (line.Length == 0) continue;
 
-        var tools = await client.ListToolsAsync(cancellationToken: cancellation);
+                lines.Add(line);
 
-        Assert.Equal(6, tools.Count);
+                JsonNode node;
+                try
+                {
+                    node = JsonNode.Parse(line)
+                           ?? throw new InvalidOperationException("null");
+                }
+                catch (Exception e) when (e is JsonException or InvalidOperationException)
+                {
+                    Assert.Fail(
+                        "Standard output carries the protocol and nothing else, and this line "
+                        + $"is not a JSON-RPC message:\n{line}");
+                    return;
+                }
 
-        var guide = await client.CallToolAsync(
-            CharacterServer.CreationGuideTool, cancellationToken: cancellation);
+                Assert.Equal("2.0", node["jsonrpc"]!.GetValue<string>());
 
-        Assert.NotEqual(true, guide.IsError);
-        Assert.Contains("The engine decides",
-            string.Concat(guide.Content.OfType<TextContentBlock>().Select(c => c.Text)),
-            StringComparison.OrdinalIgnoreCase);
+                if (node["id"]?.GetValue<int>() == 2) break;
+            }
+
+            // Two answers, and the second one really is the tool list — so the loop above did
+            // not fall out of an empty stream having asserted nothing.
+            Assert.Equal(2, lines.Count);
+            Assert.Contains(CharacterServer.CheckCharacterTool, lines[1], StringComparison.Ordinal);
+        }
+        finally
+        {
+            Stop(server);
+        }
+    }
+
+    /// <summary>
+    /// <b>A partial rules directory is refused by the program, not merely by a method it
+    /// owns.</b> The startup check has a unit test, and swapping <c>Program.cs</c> back to
+    /// warming one catalogue left that test green while the binary started cleanly on a
+    /// directory holding a single rules file — the whole bug, restored, invisible. This runs
+    /// the program.
+    /// </summary>
+    [Fact]
+    public async Task TheBuiltProgramRefusesAPartialRulesDirectory()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+
+        var scratch = Path.Combine(Path.GetTempPath(), "pp-mcp-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(scratch);
+
+        try
+        {
+            File.Copy(Path.Combine(RulesFixture.DataPath, "tiers.json"),
+                      Path.Combine(scratch, "tiers.json"));
+
+            using var server = Start(ServerExecutable(), scratch);
+
+            await Ends(server, cancellation);
+
+            Assert.Equal(2, server.ExitCode);
+
+            var said = await server.StandardError.ReadToEndAsync(cancellation);
+            Assert.Contains("could not be read", said, StringComparison.OrdinalIgnoreCase);
+
+            // And it said nothing on the stream that belongs to the protocol, even while
+            // failing — a client that saw a diagnostic there would report a broken session
+            // rather than a missing file.
+            Assert.Equal("", (await server.StandardOutput.ReadToEndAsync(cancellation)).Trim());
+        }
+        finally
+        {
+            try { Directory.Delete(scratch, recursive: true); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    /// <summary>
+    /// And a directory the user named that is not there, from the outside as well: the fix
+    /// that stopped it falling through to the shipped copy is only worth what the program
+    /// does with it.
+    /// </summary>
+    [Fact]
+    public async Task TheBuiltProgramRefusesADirectoryThatIsNotThere()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+
+        using var server = Start(ServerExecutable(),
+            Path.Combine(Path.GetTempPath(), "pp-mcp-not-here-" + Guid.NewGuid().ToString("N")));
+
+        await Ends(server, cancellation);
+
+        Assert.Equal(2, server.ExitCode);
+        Assert.Contains("not a directory on this machine",
+            await server.StandardError.ReadToEndAsync(cancellation), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static Process Start(string executable, string? rulesDirectory)
+    {
+        var start = new ProcessStartInfo(executable)
+        {
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+
+            // Somewhere with no rules under it, so a run that is meant to fail cannot be
+            // rescued by the walk upwards finding this repository's own copy.
+            WorkingDirectory = Path.GetTempPath()
+        };
+
+        if (rulesDirectory is not null) start.ArgumentList.Add(rulesDirectory);
+
+        return Process.Start(start)
+               ?? throw new InvalidOperationException($"'{executable}' did not start.");
+    }
+
+    /// <summary>
+    /// Waits for a run that is supposed to stop, and fails rather than waiting for ever if it
+    /// does not.
+    ///
+    /// <para><b>A server that keeps running is exactly what these two tests are looking for</b>
+    /// — it is what the bug they cover looks like — and a bare wait turns catching it into a
+    /// test run that never finishes. Verified by reintroducing the bug: the mutation hung the
+    /// suite instead of failing it.</para>
+    /// </summary>
+    private static async Task Ends(Process server, CancellationToken cancellation)
+    {
+        using var giveUp = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        giveUp.CancelAfter(TimeSpan.FromSeconds(30));
+
+        try
+        {
+            await server.WaitForExitAsync(giveUp.Token);
+        }
+        catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
+        {
+            Stop(server);
+            Assert.Fail(
+                "The server was supposed to refuse this and stop, and it started instead. It is "
+                + "now serving a session on rules it should not have accepted.");
+        }
+    }
+
+    private static async Task Say(Process server, string message, CancellationToken cancellation)
+    {
+        await server.StandardInput.WriteLineAsync(message.AsMemory(), cancellation);
+        await server.StandardInput.FlushAsync(cancellation);
+    }
+
+    private static void Stop(Process server)
+    {
+        try
+        {
+            if (!server.HasExited) server.Kill(entireProcessTree: true);
+        }
+        catch (InvalidOperationException) { /* already gone */ }
     }
 
     /// <summary>
@@ -249,6 +410,11 @@ public sealed class McpStdioTests
 
         Assert.Contains("--rules", CommandLine.Read(["--rules", "x"]).Error!, StringComparison.Ordinal);
         Assert.Contains("Only one", CommandLine.Read(["a", "b"]).Error!, StringComparison.Ordinal);
+
+        // A blank argument — a quoted empty variable in a client's configuration — is the one
+        // shape that still fell through to the shipped copy without saying anything.
+        Assert.Contains("blank", CommandLine.Read([" "]).Error!, StringComparison.Ordinal);
+        Assert.Contains("blank", CommandLine.Read([""]).Error!, StringComparison.Ordinal);
     }
 
     /// <summary>

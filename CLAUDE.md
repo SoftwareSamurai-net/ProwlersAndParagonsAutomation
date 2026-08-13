@@ -148,13 +148,18 @@ questions about the rules. It does not replace `build --from`; both call the sam
   catalogues are one `list_options` for the same reason in reverse — ten tools for a dozen
   entries each would crowd out the ones that matter. Powers get two tools of their own because
   141 entries are searched rather than listed.
-- **Standard output carries the protocol and nothing else.** A stray line lands mid-stream and
-  the client drops the session with an error nobody can trace. Everything said to a human goes
-  to standard error. `McpStdioTests` reads the source for `Console.` followed by anything but
-  `Error` — not for `Console.WriteLine`, because `Console.Out.Write` and
-  `OpenStandardOutput` are the same mistake in other spellings. **This is also why the README
-  points a client at the published binary rather than at `dotnet run`**, which writes MSBuild's
-  own progress to standard output.
+- **Standard output carries the protocol and nothing else.** Everything said to a human goes to
+  standard error. `McpStdioTests` checks this twice, and needs both: it reads the source for
+  `Console.` followed by anything but `Error` (not for `Console.WriteLine`, because
+  `Console.Out.Write` and `OpenStandardOutput` are the same mistake in other spellings), **and
+  it runs the built program and requires every line on that stream to be a JSON-RPC message.**
+  The runtime half exists because a source scan cannot see a write from a library or a spelling
+  split across two lines; the source half exists because **a stray line does not necessarily
+  break a client** — the first runtime test drove the binary through the SDK's own client and
+  asserted the session worked, and a real stray line left it perfectly happy, because the client
+  skips what it cannot parse. Do not replace either with the other. **This is also why the
+  README points a client at the published binary rather than at `dotnet run`**, which writes
+  MSBuild's own progress to standard output.
 - **The rules are found beside the binary, then upwards — never by walking up for a `.sln`.**
   That is the CLI's answer and it is wrong here: a client launches the published program from a
   directory of its own choosing and there may be no repository on the machine. `PROWLERS_RULES_DIR`
@@ -164,6 +169,11 @@ questions about the rules. It does not replace `build --from`; both call the sam
   is not there is a refusal too, not a candidate that failed** — it used to fall through to the
   shipped copy, so a typo in the variable the README tells a stuck user to set produced a
   working server on somebody else's rules and no message at all.
+- **A test for any of this has to run the program, not the method it calls.** The startup check
+  and the two refusals all had unit tests that passed while `Program.cs` was mutated back to the
+  bug — a method nobody calls is not a check. Three tests start the built binary and read its
+  exit code, and one of them bounds its own wait, because "the server started anyway" is the
+  failure being looked for and a bare wait turns catching it into a run that never ends.
 - **The startup check reads every rules file, and `ReadEverything` is what makes that true.**
   A repository loads each file lazily, so warming the tiers alone let a directory holding
   nothing but `tiers.json` start cleanly and then throw out of five of the six tools — the

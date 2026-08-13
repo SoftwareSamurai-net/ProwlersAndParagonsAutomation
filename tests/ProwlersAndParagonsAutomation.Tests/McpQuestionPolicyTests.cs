@@ -38,9 +38,9 @@ public sealed class McpQuestionPolicyTests
         new Regex(@"\s+", RegexOptions.None, TimeSpan.FromSeconds(5)).Replace(Text, " ");
 
     /// <summary>
-    /// The document as the tool serves it. Reading the embedded copy rather than the file on
-    /// disk is deliberate: the file could be perfect and the csproj could have stopped
-    /// embedding it, and then every conversation starts with an empty guide.
+    /// The document as the tool serves it, compared with the file in the repository. Both
+    /// halves are the point: the file could be perfect while the csproj had stopped embedding
+    /// it — and then every conversation starts with the wrong document, or with none.
     /// </summary>
     [Fact]
     public void TheGuideToolAnswersWithTheDocumentOnDisk()

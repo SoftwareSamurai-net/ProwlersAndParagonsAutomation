@@ -552,6 +552,9 @@ public sealed class McpServerTests
     /// </summary>
     private static readonly string[] RefusalCodes = ["NO_CHARACTER", "CHARACTER_UNREADABLE"];
 
+    /// <summary>What a row that matched on nothing but a word in its own entry reports.</summary>
+    private static readonly string[] DescriptionOnly = ["description"];
+
     [Theory]
     [InlineData("\"a washed-up boxer who punches through time\"")] // the description, not a character
     [InlineData("null")]
@@ -950,11 +953,24 @@ public sealed class McpServerTests
     [Fact]
     public void SuperDoesNotCarryASearchByItself()
     {
-        var ids = Parse(Tools().SearchPowers("super strong"))["matches"]!.AsArray()
-            .Select(m => m!["id"]!.GetValue<string>()).ToList();
+        var report = Parse(Tools().SearchPowers("super strong"));
+        var ids = report["matches"]!.AsArray().Select(m => m!["id"]!.GetValue<string>()).ToList();
 
         Assert.DoesNotContain("super_speed", ids);
         Assert.DoesNotContain(ids, id => id.StartsWith("super_senses", StringComparison.Ordinal));
+
+        // <b>And the honest answer to "super strong" is that there is no Power for it</b> —
+        // strength is the Might Ability, which this tool does not search and should not
+        // pretend to. So the assertions above are not satisfied by a search that has stopped
+        // working: this one says the result really is empty, and which answer that produces.
+        Assert.Equal(0, report["found"]!.GetValue<int>());
+        Assert.Contains("Nothing matched at all",
+            report["caution"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
+
+        // The word is only dropped as a whole word, so the Powers it names are still reachable.
+        Assert.Contains("super_speed",
+            Parse(Tools().SearchPowers("moves at superhuman speed"))["matches"]!.AsArray()
+                .Select(m => m!["id"]!.GetValue<string>()));
     }
 
     /// <summary>
@@ -967,19 +983,30 @@ public sealed class McpServerTests
     [Fact]
     public void ATightLimitDoesNotChangeWhatTheSearchFound()
     {
-        const string query = "flight armor telepathy regeneration invisibility";
+        // <b>The query matters, and the first one chosen here did not bite.</b> Its top row
+        // matched by name, so cutting the list to one left a name match in it and the buggy
+        // and fixed versions agreed. This one ranks a description-only row first — enough of
+        // the words are inside Telepathy's entry to outscore a single name match — and puts
+        // every name match below the cut.
+        const string query =
+            "read thoughts within distant range sense sentient probe memories armor";
 
         var wide = Parse(Tools().SearchPowers(query, 25));
         var narrow = Parse(Tools().SearchPowers(query, 1));
 
-        Assert.True(wide["matches"]!.AsArray().Count > 1);
-        Assert.Single(narrow["matches"]!.AsArray());
+        var top = narrow["matches"]!.AsArray().Single()!;
+        Assert.Equal(
+            DescriptionOnly,
+            top["matched_on"]!.AsArray().Select(m => m!.GetValue<string>()).ToArray());
+
+        Assert.Contains("name",
+            wide["matches"]!.AsArray().SelectMany(m => m!["matched_on"]!.AsArray())
+                .Select(m => m!.GetValue<string>()));
 
         Assert.Equal(wide["found"]!.GetValue<int>(), narrow["found"]!.GetValue<int>());
-        Assert.Equal(
-            wide["nothing_matched_by_name"]!.GetValue<bool>(),
-            narrow["nothing_matched_by_name"]!.GetValue<bool>());
+        Assert.False(wide["nothing_matched_by_name"]!.GetValue<bool>());
         Assert.False(narrow["nothing_matched_by_name"]!.GetValue<bool>());
+        Assert.Equal(wide["caution"]!.GetValue<string>(), narrow["caution"]!.GetValue<string>());
     }
 
     /// <summary>A limit outside the range it accepts is brought inside it rather than obeyed.</summary>

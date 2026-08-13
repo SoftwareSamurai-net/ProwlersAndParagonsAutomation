@@ -30,6 +30,14 @@ public static class CommandLine
             if (argument is "--help" or "-h")
                 return new ServerArguments(true, null, null);
 
+            // A whitespace-only argument is not a directory, and it is the one shape that
+            // still fell through to the shipped copy in silence — a quoted empty variable in
+            // a client's configuration is how it arrives.
+            if (string.IsNullOrWhiteSpace(argument))
+                return new ServerArguments(false, null,
+                    "The directory of rules files given here is blank. Leave it out to use the "
+                    + "copy that ships beside this program.");
+
             if (argument.StartsWith('-'))
                 return new ServerArguments(false, null,
                     $"'{argument}' is not an option this program has. The only one is --help; "
