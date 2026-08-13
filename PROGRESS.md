@@ -22,7 +22,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Front ends | Two, plus a headless command — the terminal wizard, a Blazor WebAssembly app, and `build --from`, all on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
-| Static analysis | Zero warnings at CI strictness. A whole-tree Qodana scan reported zero on the Community linter; the release linter is now configured and its count is unverified until CI reports |
+| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero |
 | Known-wrong data | None outstanding |
 | Licence | MIT, in `LICENSE`. Covers this repository only — the game system is © LakeSide Games and no rulebook text is here |
 
