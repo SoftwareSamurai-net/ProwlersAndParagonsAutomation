@@ -374,6 +374,30 @@ public sealed class McpStdioTests
     }
 
     /// <summary>
+    /// <b>Set and empty is refused too.</b> It was skipped, so it fell through to the shipped
+    /// copy in silence — the failure the refusal above exists to stop, on the one path it did
+    /// not cover. `"env": {"PROWLERS_RULES_DIR": ""}` in a client's configuration is how it
+    /// arrives, and an empty entry there is easier to write than a wrong one.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void AnOverrideThatIsSetAndBlankIsRefusedRatherThanIgnored(string blank)
+    {
+        var located = RulesLocation.Find(
+            null, v => v == RulesLocation.OverrideVariable ? blank : null,
+            Path.Combine("C:", "app"), _ => true);
+
+        Assert.Null(located.Directory);
+        Assert.Contains(RulesLocation.OverrideVariable, located.Refusal!, StringComparison.Ordinal);
+        Assert.Contains("empty", located.Refusal!, StringComparison.OrdinalIgnoreCase);
+
+        // And unset still means "use the copy beside the binary", which is the whole point of
+        // telling the two apart.
+        Assert.NotNull(RulesLocation.Find(null, _ => null, Path.Combine("C:", "app"), _ => true).Directory);
+    }
+
+    /// <summary>
     /// <b>No rules is a refusal, not a guess.</b> A repository built for a directory that is
     /// not there gets as far as a connected session and then answers every question with an
     /// error, several layers from the cause.

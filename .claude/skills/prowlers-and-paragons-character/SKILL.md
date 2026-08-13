@@ -105,7 +105,10 @@ Field names are the ones below. Case is forgiven (`selectedTierId` works); under
 not, and **a field name that is not on this list is refused rather than ignored** — so a typo
 is reported instead of silently emptying the section it was meant to fill.
 
-Everything is optional. A minimal legal character is a tier and one flaw.
+Every field is optional to the *reader*, and a character with only some of them is not legal:
+the smallest legal one is a tier, one flaw, **and all six Abilities and all twelve Talents**,
+because no Trait can be lower than 1d. A tier and a flaw alone comes back with eighteen
+`TRAIT_BELOW_MINIMUM` errors.
 
 ```jsonc
 {

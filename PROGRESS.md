@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3286 across two projects — 3196 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3298 across two projects — 3208 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -273,6 +273,45 @@ proportion.
   line to be a JSON-RPC message. Verified by mutation, both ways.
 - And one of the new tests **hung** rather than failed when its mutation was applied, because
   the failure it looks for is a server that keeps running. It bounds its own wait now.
+
+**A fifth review, of the whole slice, and a whole-tree Qodana scan.** The scan reports zero
+again; getting there found that three tool parameters guarded against a `null` while declaring
+themselves non-null, so the guards read as dead code — and a client really can send
+`{"category": null}`, checked against the built binary. Two of the scan's findings predate this
+slice and made the "reports zero" claim untrue: a doc comment pointing at a test renamed in
+[#33](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/33), and a redundant
+`Cast`.
+
+The review found nothing that certifies a bad character, and four things a stranger would meet:
+
+- **A correctly named field holding the wrong kind of value was reported as a misspelling.**
+  `"might": "8d"` is the rank written the way the rulebook writes it — the likeliest first
+  mistake there is — and the answer sent a repair loop hunting for a spelling error that did
+  not exist. The two are told apart now by reading the same text leniently: lenient reading
+  ignores unknown field names and nothing else, so if it succeeds the name was the problem.
+- **A blank `PROWLERS_RULES_DIR` still fell through to the shipped copy in silence.** The
+  refusal had landed on the argument and not on the variable, which is the one the README tells
+  a stuck user to set and the one a client's config writes as `""`.
+- **`SKILL.md` said "a minimal legal character is a tier and one flaw"**, which the 1d Trait
+  floor made false in
+  [#34](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/34): it comes back
+  with eighteen errors. Two documents teaching the same JSON shape disagreed, and the wrong one
+  was the older and more linked.
+- **The tier lookup in `Judgement` was outside its guards** while the class summary said every
+  engine call was guarded. Unreachable today only because the validator makes the same lookup
+  first, which is an accident of ordering.
+
+**And one finding was left open on purpose, which is the interesting one.** `search_powers`
+ranks "walks through walls" by putting twenty-one Powers on two points each — every one of them
+matching only the filler word "through", Phasing among them — so which eight a caller sees is
+alphabetical, under a caution calling them the closest entries. Weighting each word by how much
+of the rulebook uses it was implemented and **reverted**: it fixed that query and broke "reads
+minds", which dropped Telepathy out of the first three because four Powers carry "mind" in their
+names. A half-tuned scorer is worse than a dull one, and tuning it properly needs its own
+evidence rather than two examples. What shipped instead is the truth about each row —
+`matched_terms` says which of the caller's words it matched, `more_beyond_these` says the list
+was cut, and the caution says rows matching the same words are in no meaningful order. **The
+ranking is a known limitation, recorded rather than papered over.**
 
 **What this deliberately did not do** is the browser replay demo — the other half of the
 handover's slice, and a slice of its own. A visitor with no Claude account has no way to bring

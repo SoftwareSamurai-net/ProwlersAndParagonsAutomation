@@ -287,6 +287,7 @@ public sealed class CharacterTools
             .Select(p => (Power: p, Score: Score(p, query!, terms)))
             .Where(m => m.Score.Points > 0)
             .OrderByDescending(m => m.Score.Points)
+            .ThenByDescending(m => m.Score.MatchedTerms.Count)
             .ThenBy(m => m.Power.Name, StringComparer.Ordinal)
             .ToList();
 
@@ -303,7 +304,12 @@ public sealed class CharacterTools
                 ["category"] = power.Category,
                 ["stat_line"] = PowerFormatter.StatLine(power),
                 ["description"] = power.Description,
-                ["matched_on"] = Strings(score.MatchedOn)
+                ["matched_on"] = Strings(score.MatchedOn),
+
+                // The actual words, because "matched on its description" does not say whether
+                // the word was "invisible" or "through". A row here on one common word is a
+                // coincidence, and a reader can only see that if the word is shown.
+                ["matched_terms"] = Strings(score.MatchedTerms)
             });
         }
 
@@ -330,6 +336,7 @@ public sealed class CharacterTools
             ["found"] = scored.Count,
             ["matches"] = entries,
             ["nothing_matched_by_name"] = nothingMatchedByName,
+            ["more_beyond_these"] = scored.Count > matches.Count,
 
             // Three different things to say, and saying the wrong one is how a model is told
             // to name "the nearest" out of a list with nothing in it.
@@ -348,9 +355,13 @@ public sealed class CharacterTools
                    + "what was asked; if none does, say so rather than picking the top row.",
 
                 _ => "These are the closest entries, not a promise that one of them does what "
-                   + "was described. If none does, say so — and consider whether the effect is "
-                   + "an Ability rank, an Expertise, a Perk or narrative colour rather than a "
-                   + "Power. A Power id that is not in this list does not exist."
+                   + "was described. Read matched_terms on each: a row that matched one common "
+                   + "word is a coincidence, and rows that matched the same words are in no "
+                   + "meaningful order. If more_beyond_these is true there are others — search "
+                   + "a more distinctive word, or raise limit. If none of them does it, say so, "
+                   + "and consider whether the effect is an Ability rank, an Expertise, a Perk "
+                   + "or narrative colour rather than a Power. A Power id that is not in this "
+                   + "list does not exist."
             }
         });
     }
@@ -362,7 +373,10 @@ public sealed class CharacterTools
     public string PowerDetail(
         [Description("The Power's id — the \"id\" field of a search_powers match.")] string? powerId)
     {
-        var id = (powerId ?? "").Trim();
+        // Folded, because "Blast" is what a person reads off the page and every id in the
+        // rules files is lower case. Refusing it would be a round trip spent on nothing —
+        // and it is still an exact id, not a search: "blast power" remains no such Power.
+        var id = (powerId ?? "").Trim().ToLowerInvariant();
 
         if (_rules.GetPower(id) is not { } power)
         {
@@ -550,10 +564,28 @@ public sealed class CharacterTools
             var where = e.Path is { } path ? $" at {path}" : "";
             var line  = e.LineNumber is { } n ? $", line {n + 1}" : "";
 
+            // <b>Which of the two it was, rather than one guess for both.</b> Reading the same
+            // text leniently ignores unknown field names and nothing else, so if that succeeds
+            // the field name was the problem and if it fails the value was. The message used
+            // to say "check the spelling" either way — and `"might": "8d"` is a correctly
+            // named field holding the rank written the way the rulebook writes it, which is
+            // the likeliest first mistake there is. A caller was sent hunting for a
+            // misspelling that did not exist.
+            var fieldName = true;
+
+            try { _ = CharacterSheetJson.Read(text, strict: false); }
+            catch (Exception second) when (second is JsonException or InvalidOperationException)
+            {
+                fieldName = false;
+            }
+
             problem = Judgement.Problem("CHARACTER_UNREADABLE",
-                $"That is not a character in the shape these tools take{where}{line}. A field "
-                + "name that is not part of a character is refused rather than ignored, so "
-                + "check the spelling against creation_guide.");
+                $"That is not a character in the shape these tools take{where}{line}. "
+                + (fieldName
+                    ? "A field name that is not part of a character is refused rather than "
+                      + "ignored, so check the spelling against creation_guide."
+                    : "The field name is one a character has and the value in it is the wrong "
+                      + "kind of thing — a rank is a number, so 8 rather than \"8d\"."));
             return false;
         }
         // InvalidOperationException, not JsonException, is what the deserializer throws when
@@ -570,18 +602,29 @@ public sealed class CharacterTools
 
     // ── Searching ─────────────────────────────────────────────────────────
 
-    private readonly record struct Match(int Points, IReadOnlyList<string> MatchedOn);
+    private readonly record struct Match(
+        int Points, IReadOnlyList<string> MatchedOn, IReadOnlyList<string> MatchedTerms);
 
     /// <summary>
     /// How well a Power answers a described effect. Deliberately dull: a name match beats an
     /// id match beats a tag beats a description, and the reasons come back with the result so
     /// a reader can see that "closest" meant "the word appears in its description" rather
     /// than anything cleverer. Nothing here decides that a Power <em>fits</em>.
+    ///
+    /// <para><b>It is not a relevance engine and the answer says so.</b> "Walks through walls"
+    /// puts twenty-one Powers on two points each — every one of them matching only the filler
+    /// word "through", Phasing among them — and which eight a caller sees is then alphabetical.
+    /// Weighting a word by how much of the rulebook uses it was tried: it fixed that query and
+    /// broke "reads minds", which dropped Telepathy out of the first three because four Powers
+    /// carry "mind" in their names. Tuning it properly is a piece of work with its own
+    /// evidence, so what ships instead is the truth about each row — which words it matched,
+    /// and that rows matching the same words are in no order worth reading.</para>
     /// </summary>
     private static Match Score(PowerModel power, string query, IReadOnlyList<string> terms)
     {
         var points = 0;
         var matchedOn = new List<string>();
+        var matchedTerms = new List<string>();
 
         if (string.Equals(power.Name, query.Trim(), StringComparison.OrdinalIgnoreCase) ||
             string.Equals(power.Id, query.Trim(), StringComparison.OrdinalIgnoreCase))
@@ -592,37 +635,46 @@ public sealed class CharacterTools
 
         foreach (var term in terms)
         {
+            var matched = false;
+
             if (Mentions(power.Name, term))
             {
                 points += 10;
+                matched = true;
                 if (!matchedOn.Contains("name")) matchedOn.Add("name");
             }
             else if (Mentions(power.Id, term))
             {
                 points += 8;
+                matched = true;
                 if (!matchedOn.Contains("id")) matchedOn.Add("id");
             }
 
             if (power.Tags.Any(t => Mentions(t, term)))
             {
                 points += 6;
+                matched = true;
                 if (!matchedOn.Contains("tag")) matchedOn.Add("tag");
             }
 
             if (Mentions(power.Category, term))
             {
                 points += 4;
+                matched = true;
                 if (!matchedOn.Contains("category")) matchedOn.Add("category");
             }
 
             if (Mentions(power.Description, term))
             {
                 points += 2;
+                matched = true;
                 if (!matchedOn.Contains("description")) matchedOn.Add("description");
             }
+
+            if (matched) matchedTerms.Add(term);
         }
 
-        return new Match(points, matchedOn);
+        return new Match(points, matchedOn, matchedTerms);
     }
 
     /// <summary>
@@ -646,7 +698,15 @@ public sealed class CharacterTools
 
             // A shared prefix long enough to be the same word with a different ending, rather
             // than two words that happen to start alike: "invisible" and "invisibility" share
-            // eight letters, "bread" and "breath" share four.
+            // seven letters, "bread" and "breath" share four.
+            //
+            // <b>It does let a coincidence through</b> — "animals" reaches Animation, which
+            // shares five — and requiring the leftovers to be short instead was tried and is
+            // worse: the leftovers of animal/animation are "l" and "tion", and those of
+            // invisible/invisibility are "le" and "ility", so any rule that refuses the first
+            // refuses the second. A search that misses Invisibility for "invisible" is a worse
+            // tool than one that offers Animation for "animals", and `matched_terms` shows the
+            // reader which word did it.
             var shared = SharedPrefixLength(word, term);
             if (shared >= 5 && shared >= Math.Min(word.Length, term.Length) - 3) return true;
         }

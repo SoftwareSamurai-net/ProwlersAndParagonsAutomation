@@ -72,7 +72,13 @@ public sealed class Judgement
                 + $"rules. The engine said: {e.Message}");
         }
 
-        var tier  = sheet.SelectedTierId is null ? null : _rules.GetTier(sheet.SelectedTierId);
+        // Guarded like the rest, and it is the one that was not: a duplicate id in tiers.json
+        // throws out of this lookup, and the summary above claims every engine call here is
+        // guarded. It is unreachable today only because the validator makes the same lookup
+        // first, inside its own guard — which is an accident of ordering rather than a design.
+        var tier  = Looked(() => sheet.SelectedTierId is null
+                                    ? null
+                                    : _rules.GetTier(sheet.SelectedTierId));
         var spent = Answer(() => _costs.TotalCost(sheet));
 
         return Report(sheet, validation, tier, spent);
@@ -286,6 +292,13 @@ public sealed class Judgement
     private static string? Named(Func<string?> name)
     {
         try { return name(); }
+        catch (Exception e) when (IsUnanswerable(e)) { return null; }
+    }
+
+    /// <summary>The same for the tier, which is a model rather than a number or a name.</summary>
+    private static TierModel? Looked(Func<TierModel?> tier)
+    {
+        try { return tier(); }
         catch (Exception e) when (IsUnanswerable(e)) { return null; }
     }
 

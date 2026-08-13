@@ -51,6 +51,12 @@ public static class RulesLocation
 
         foreach (var (path, named) in Named(explicitPath, environment))
         {
+            if (string.IsNullOrWhiteSpace(path))
+                return new Located(null,
+                    $"{named} is set and empty. Unset it to use the copy of the rules that "
+                    + "ships beside this program; an empty value is refused rather than "
+                    + "treated as though it had never been set.");
+
             if (directoryExists(path)) return new Located(path, null);
 
             return new Located(null,
@@ -83,8 +89,12 @@ public static class RulesLocation
         if (!string.IsNullOrWhiteSpace(explicitPath))
             yield return (explicitPath, "The directory given as the first argument");
 
-        else if (environment(OverrideVariable) is { } fromEnvironment
-                 && !string.IsNullOrWhiteSpace(fromEnvironment))
+        // <b>Set and blank is named, not skipped.</b> Skipping it fell through to the shipped
+        // copy in silence, which is the whole failure this method exists to stop — and
+        // `"env": {"PROWLERS_RULES_DIR": ""}` in a client's configuration is exactly how it
+        // arrives. The blank *argument* was refused a commit earlier, on the path the comment
+        // there did not describe.
+        else if (environment(OverrideVariable) is { } fromEnvironment)
             yield return (fromEnvironment, OverrideVariable);
     }
 

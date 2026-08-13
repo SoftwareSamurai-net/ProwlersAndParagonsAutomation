@@ -130,6 +130,13 @@ nothing that does what they described:
   name, id or tag matched — not that the rulebook has nothing. It is how Flight answers "he
   can fly", because the word is in the entry rather than in the name. The `caution` field says
   which case you are in; `found: 0` is the one that really means there is nothing.
+- **`matched_terms` is how you tell a match from a coincidence.** It lists the words of your
+  query that a row actually matched. A row on one ordinary word — "through", "against" — is
+  usually nothing; a row on two or three of your words is worth reading. **Rows that matched
+  the same words are in no meaningful order**, so do not read the top one as the best one.
+- **`more_beyond_these: true` means the list was cut.** `found` is how many matched in all.
+  Search a more distinctive word from the description before concluding the rulebook has
+  nothing — "passes through solid matter" finds what "walks through walls" buries.
 - Consider whether the effect is really a Power at all — a lot of concepts are an Ability
   rank, an Expertise, a Perk, or narrative colour that costs nothing.
 - Omni-Power exists for effects that will not sit still, and it is expensive for that reason.

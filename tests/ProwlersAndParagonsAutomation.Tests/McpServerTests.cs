@@ -584,6 +584,9 @@ public sealed class McpServerTests
     /// <summary>What a row that matched on nothing but a word in its own entry reports.</summary>
     private static readonly string[] DescriptionOnly = ["description"];
 
+    /// <summary>The searchable words of "turns invisible" — the filler is dropped.</summary>
+    private static readonly string[] TurnsInvisible = ["turns", "invisible"];
+
     [Theory]
     [InlineData("\"a washed-up boxer who punches through time\"")] // the description, not a character
     [InlineData("null")]
@@ -599,6 +602,32 @@ public sealed class McpServerTests
         Assert.False(answer["ok"]!.GetValue<bool>());
         Assert.Contains(answer["problem"]!["code"]!.GetValue<string>(), RefusalCodes);
         Assert.False(string.IsNullOrWhiteSpace(answer["problem"]!["message"]!.GetValue<string>()));
+    }
+
+    /// <summary>
+    /// <b>A correctly named field holding the wrong kind of value is not a misspelling, and
+    /// is not reported as one.</b> `"might": "8d"` is the rank written the way the rulebook
+    /// writes it — the likeliest first mistake there is — and the answer used to send a repair
+    /// loop hunting for a spelling error that did not exist.
+    /// </summary>
+    [Fact]
+    public void AWrongValueAndAWrongFieldNameAreToldApart()
+    {
+        var wrongValue = Parse(Tools().CheckCharacter(Element(
+            """{ "SelectedTierId": "standard", "AbilityRanks": { "might": "8d" } }""")));
+
+        Assert.Equal("CHARACTER_UNREADABLE", wrongValue["problem"]!["code"]!.GetValue<string>());
+
+        var said = wrongValue["problem"]!["message"]!.GetValue<string>();
+        Assert.Contains("wrong kind of thing", said, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("spelling", said, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("AbilityRanks.might", said, StringComparison.Ordinal);
+
+        var wrongName = Parse(Tools().CheckCharacter(Element(
+            """{ "SelectedTierId": "standard", "AbilityRnaks": { "might": 8 } }""")));
+
+        Assert.Contains("spelling", wrongName["problem"]!["message"]!.GetValue<string>(),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -1129,6 +1158,81 @@ public sealed class McpServerTests
     }
 
     /// <summary>
+    /// <b>A row that matched one common word looks exactly like a row that answers the
+    /// description, and the only thing that tells them apart is the word.</b> "Walks through
+    /// walls" puts twenty-one Powers on two points each, every one of them on the filler word
+    /// "through", and which of them a caller sees is alphabetical — so the answer says which
+    /// word each row matched, that ties are unordered, and that there are more.
+    /// </summary>
+    [Fact]
+    public void AThinMatchCanBeSeenToBeThin()
+    {
+        var report = Parse(Tools().SearchPowers("walks through walls", 8));
+
+        var onOneCommonWord = report["matches"]!.AsArray()
+            .Where(m => m!["matched_terms"]!.AsArray().Count == 1
+                     && m["matched_terms"]![0]!.GetValue<string>() == "through")
+            .ToList();
+
+        Assert.NotEmpty(onOneCommonWord);
+        Assert.True(report["more_beyond_these"]!.GetValue<bool>());
+        Assert.True(report["found"]!.GetValue<int>() > 8);
+
+        var caution = report["caution"]!.GetValue<string>();
+        Assert.Contains("matched_terms", caution, StringComparison.Ordinal);
+        Assert.Contains("no meaningful order", caution, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("more_beyond_these", caution, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Every row says which words it matched, which is the only way a reader can tell a real
+    /// match from a coincidence — "matched on its description" does not say whether the word
+    /// was "invisible" or "through".
+    /// </summary>
+    [Fact]
+    public void EveryMatchSaysWhichWordsItMatched()
+    {
+        var report = Parse(Tools().SearchPowers("turns invisible", 5));
+
+        foreach (var match in report["matches"]!.AsArray())
+        {
+            var terms = match!["matched_terms"]!.AsArray().Select(t => t!.GetValue<string>()).ToList();
+
+            Assert.NotEmpty(terms);
+            Assert.All(terms, t => Assert.Contains(t, TurnsInvisible));
+        }
+
+        // And whether there are more than were returned, so a caller reading eight of
+        // twenty-two knows the rest exist rather than assuming eight is all there is.
+        Assert.True(Parse(Tools().SearchPowers("turns invisible", 1))["more_beyond_these"]!
+            .GetValue<bool>());
+    }
+
+    /// <summary>
+    /// A word with a different ending is the same word: "invisible" reaches Invisibility and
+    /// "regenerates" reaches Regeneration.
+    ///
+    /// <para><b>This is what a tighter rule would have cost.</b> Requiring the leftovers to be
+    /// short refuses "animals"/"animation" — a coincidence worth refusing — and refuses both
+    /// of these with it, because "le"/"ility" is no shorter than "l"/"tion". A search that
+    /// misses Invisibility for "invisible" is a worse tool than one that offers Animation for
+    /// "animals", so the coincidence stays and `matched_terms` shows the reader the word that
+    /// caused it.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("invisible", "invisibility")]
+    [InlineData("regenerates", "regeneration")]
+    [InlineData("armored", "armor")]
+    public void AWordWithADifferentEndingIsTheSameWord(string query, string expected)
+    {
+        var match = Assert.Single(
+            Parse(Tools().SearchPowers(query, 25))["matches"]!.AsArray(),
+            m => m!["id"]!.GetValue<string>() == expected);
+
+        Assert.Contains("name", match!["matched_on"]!.AsArray().Select(m => m!.GetValue<string>()));
+    }
+
+    /// <summary>
     /// A Power's detail offers only the options it may legally take. The pickers in both other
     /// front ends derive this the same way, from the option's own entry — so an assistant
     /// reading this list cannot propose the Ranged Pro on a Self-range Power.
@@ -1234,6 +1338,20 @@ public sealed class McpServerTests
             Assert.False(report["ok"]!.GetValue<bool>());
             Assert.Equal("NO_SUCH_POWER", report["problem"]!["code"]!.GetValue<string>());
         }
+    }
+
+    /// <summary>
+    /// An id in the case a person reads off the page is the same Power. Every id in the rules
+    /// files is lower case, and refusing "Blast" costs a round trip on the most natural
+    /// mistake there is — while a name that is not an id is still refused.
+    /// </summary>
+    [Fact]
+    public void APowerIdIsFoundWhateverCaseItIsWrittenIn()
+    {
+        Assert.Equal("blast", Parse(Tools().PowerDetail("Blast"))["id"]!.GetValue<string>());
+        Assert.Equal("blast", Parse(Tools().PowerDetail("  BLAST "))["id"]!.GetValue<string>());
+
+        Assert.False(Parse(Tools().PowerDetail("Blast Power"))["ok"]!.GetValue<bool>());
     }
 
     /// <summary>
