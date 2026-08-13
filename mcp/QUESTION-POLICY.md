@@ -194,6 +194,22 @@ A Pro or Con is `{ "Id": "...", "VariantKey": null, "Units": null }`. `VariantKe
 **required** for one priced by grade — Charges, Area/Burst, Limited — and the report hands
 you the accepted keys in `options`.
 
+### Two shapes of answer
+
+Every tool answers with JSON, and there are only two shapes. A tool that could do what was
+asked answers `{"ok": true, …}`; `check_character` adds `verdict`, which is `legal`,
+`breaks_a_rule` or `engine_could_not_answer`. A tool that could not answers:
+
+```jsonc
+{ "ok": false, "problem": { "code": "NO_SUCH_POWER", "message": "…" } }
+```
+
+A `problem` is about the *request* — a category that does not exist, a Power id that does not
+exist, something sent that is not a character. It is not a finding about the character, and
+it is never a verdict: nothing in a `problem` says a character is illegal. Read the message
+and fix the call. `character_sheet` is the one tool whose success is not JSON at all — it
+answers with the sheet itself, as text, and only uses this shape when it has to refuse.
+
 ### Repairing from an issue
 
 Every issue carries the facts as well as the sentence, so **do not parse the message**:
