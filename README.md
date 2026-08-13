@@ -2,9 +2,9 @@
 
 A character-creation tool for the **Prowlers & Paragons Ultimate Edition** tabletop RPG by LakeSide Games, Inc. — in a terminal, in a browser, or with no interface at all.
 
-The two interactive front ends walk players and GMs through the full creation process, tracking the Hero Point budget live, validating every choice against the system rules, and exporting a finished character sheet. The third way in is `build --from character.json`, which costs and validates a character and asks nothing: it exists so a language model can propose a character during play and have the engine decide whether it is legal.
+The two interactive front ends walk players and GMs through the full creation process, tracking the Hero Point budget live, validating every choice against the system rules, and exporting a finished character sheet. The third way in is `build --from character.json`, which costs and validates a character and asks nothing: it exists so a language model can propose a character during play and have the engine decide whether it is legal. The fourth is an **MCP server**: connect it to your own Claude, describe a character out loud, and answer the two or three questions that actually change the build.
 
-All three run the *same* rules engine — the browser build compiles it to WebAssembly rather than reimplementing it — so nothing can disagree about what a Power costs.
+All four run the *same* rules engine — the browser build compiles it to WebAssembly rather than reimplementing it — so nothing can disagree about what a Power costs.
 
 [![Build](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/build.yml/badge.svg)](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/build.yml)
 [![Qodana](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/qodana_code_quality.yml/badge.svg)](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/qodana_code_quality.yml)
@@ -24,6 +24,7 @@ All three run the *same* rules engine — the browser build compiles it to WebAs
 - **53 flaws and 13 perks**, wired into Resolve and the HP budget
 - **Validation engine** — errors for budget overruns, both Trait floors and the Trait Cap, flaw-count breaches, ranks bought on rankless powers, unresolved player choices, and every id or quantity a hand-written character can get wrong; warnings for anything still unverified. **Each finding carries the facts as well as the sentence** — which Trait, what it is, what it may be, and the values a fix must be chosen from — so a repair loop never has to parse English
 - **Both Trait floors, which nothing used to enforce** — Ch.2 states twice that no Ability or Talent can be lower than 1d, so a character has all eighteen and 0d is a Trait nobody can be without; and a starting package's granted ranks cannot be lowered below what it gives. Neither costs anything to break, which is why both were silent
+- **An MCP server, for describing a character to your own Claude** — six tools over stdio, wrapping the same engine: the question policy, the catalogues, a Power search, one Power in full, the judge, and the printed sheet. It handles no credentials and holds no key; the conversation happens in the client you already pay for. See [Connecting it to your own Claude](#connecting-it-to-your-own-claude)
 - **A headless `build` command and a skill to drive it** — one JSON report on standard output for each of its three exits, and a `SKILL.md` teaching the schema and the propose/validate/repair loop. The model proposes and the engine decides: nothing in the command computes a Hero Point, and an illegal character is reported, never repaired
 - **Every rules value verified against the rulebook and locked by tests** — the suite holds the printed Range, Rank and Cost of all 141 powers, so a data edit that contradicts the book fails CI
 - **Dual export** — formatted `.txt` and structured `.json`, written to `output/` by the CLI and downloaded by the browser, from one implementation
@@ -89,6 +90,71 @@ dotnet test
 
 ---
 
+## Connecting it to your own Claude
+
+The MCP server lets you describe a character in ordinary words — *"a washed-up boxer who punches through time"* — and get a legal, costed one back, with Claude asking you the two or three questions the description leaves open. **It handles no credentials and holds no API key**: the server is a local program that answers questions about the rules, and the conversation happens in the Claude client you already use.
+
+### 1. Build it
+
+```bash
+dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o mcp-server
+```
+
+That produces `mcp-server/ProwlersAndParagons.Mcp.exe` (`ProwlersAndParagons.Mcp` on macOS and Linux) with the rules files beside it, so it needs nothing else on the machine and no repository checked out.
+
+**Point your client at that binary rather than at `dotnet run`.** MSBuild writes its own progress to standard output, which is where the protocol lives — a client reading it sees a corrupt stream and drops the session.
+
+### 2. Tell your client about it
+
+**Claude Code**, from anywhere:
+
+```bash
+claude mcp add prowlers-and-paragons -- /absolute/path/to/mcp-server/ProwlersAndParagons.Mcp.exe
+```
+
+**Claude Desktop** — Settings → Developer → Edit Config, which opens `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "prowlers-and-paragons": {
+      "command": "C:\\absolute\\path\\to\\mcp-server\\ProwlersAndParagons.Mcp.exe"
+    }
+  }
+}
+```
+
+Restart Claude Desktop. Use an absolute path in both: a client starts the program from a working directory of its own choosing.
+
+### 3. Describe a character
+
+> *"Build me a Prowlers & Paragons character: a washed-up boxer who punches through time."*
+
+Claude reads the question policy, asks you what it genuinely cannot infer, proposes a whole character, and hands it to the engine. What comes back is the engine's answer — every Hero Point figure and the word "legal" come from `CostCalculator` and `CharacterValidator`, never from the model.
+
+### The six tools, and why six
+
+| | |
+|---|---|
+| `creation_guide` | The question policy: which two or three questions change the build, what to decide silently, and the JSON shape a character takes |
+| `list_options` | Tiers, packages, abilities, talents, sources, perks, flaws, pros, cons, gear features |
+| `search_powers` | Which Powers could realise a described effect — and an explicit flag when nothing matched by name, which usually means the rulebook has no Power for it |
+| `power_detail` | One Power in full, with only the Pros and Cons it may legally take |
+| `check_character` | **The judge.** Costs and validates, and reports what was spent on what |
+| `character_sheet` | The printed sheet, as text |
+
+**Costing and validating are one tool on purpose.** `cost_character` beside `validate_character` is the engine's API rather than the conversation's: no turn of a conversation wants a price without knowing whether the thing priced is allowed, and a separate costing tool is an invitation to quote a number for a character that breaks a rule.
+
+The hard part of this front end is not the transport — it is deciding which questions are worth asking. That reasoning lives in [`mcp/QUESTION-POLICY.md`](mcp/QUESTION-POLICY.md), which *is* what `creation_guide` returns, so there is one copy of it and it cannot drift from what the tool teaches.
+
+### If it does not connect
+
+- **Nothing appears in the client's tool list.** Check the path is absolute and the file exists. The server writes one line to standard error on startup naming the rules directory it found; clients keep that in their MCP log.
+- **"The rules files could not be found."** You are running the binary somewhere without its `data/rules/` folder beside it. Either publish again with `-o`, or set `PROWLERS_RULES_DIR` to a directory holding `tiers.json` and the rest.
+- **The session drops immediately.** Something is writing to standard output. Point the client at the built binary, not at `dotnet run`.
+
+---
+
 ## Project Structure
 
 ```
@@ -143,6 +209,14 @@ ProwlersAndParagonsAutomation/
 │       ├── _redirects            # Cloudflare: every path serves the app, with a 200
 │       └── data/rules/           # Staged from data/rules/ by the build (gitignored)
 │
+├── mcp/                          # MCP server — the engine, in somebody else's Claude
+│   ├── QUESTION-POLICY.md        # The two or three questions worth asking. Embedded, and served verbatim
+│   ├── CharacterTools.cs         # The six tools, and why there are six
+│   ├── CharacterServer.cs        # Wire names, server instructions, the tool collection
+│   ├── Judgement.cs              # What the engine said, written down. Computes nothing
+│   ├── RulesLocation.cs          # Finds data/rules beside the binary, not by walking up for a .sln
+│   └── Program.cs                # stdio. Standard output carries the protocol and nothing else
+│
 ├── tests/ProwlersAndParagonsAutomation.Tests/
 │   ├── CanonicalPowers.cs        # Range/Rank/Cost of all 141 powers, from the rulebook
 │   ├── PowerDataTests.cs         # powers.json vs the rulebook, plus schema invariants
@@ -188,8 +262,9 @@ ProwlersAndParagonsAutomation/
 Four layers with a strict no-upward-dependency rule:
 
 ```
-data/rules/   →   engine/   →   sheets/   →   cli/
-                                          ↘   web/
+                                          ↗   cli/
+data/rules/   →   engine/   →   sheets/   →   web/
+                                          ↘   mcp/
 ```
 
 | Layer | Rule |
@@ -199,6 +274,7 @@ data/rules/   →   engine/   →   sheets/   →   cli/
 | `sheets/` | The exports, as strings. Shared because both front ends need the same two documents; separate from `engine/` because that layer stays free of presentation. |
 | `cli/` | Terminal rendering and prompting. **The CLI never tallies points itself.** |
 | `web/` | Browser rendering. Same rule, and it is now enforced by the build rather than by discipline — `web/` cannot reach a calculator it does not have, and it has no copy of one. |
+| `mcp/` | Protocol plumbing and the question policy. Same rule again: it references `engine/` and `sheets/` and cannot reference `cli/`, so nothing in it can compute a Hero Point or write a file. |
 
 Each is its own project, which is what makes the arrows above true at compile time. `engine/` and `sheets/` were part of the root executable until the browser front end needed them without Spectre.Console attached.
 

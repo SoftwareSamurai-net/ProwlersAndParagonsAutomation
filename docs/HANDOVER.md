@@ -9,6 +9,19 @@ sessions, not documentation.
 
 ---
 
+## Half of this is now done
+
+**The MCP server has shipped.** `mcp/` wraps the engine, six tools, and the question policy is
+written down and embedded at `mcp/QUESTION-POLICY.md` — see the entry in `PROGRESS.md` and the
+"The MCP server" section of `CLAUDE.md` before re-reading the design below, which is the brief
+rather than the outcome. The README carries the setup a stranger needs.
+
+**What is left of this file is the replay demo**, for the audience that cannot bring its own
+inference — "the normie mates". Nothing about it has changed and the recommendation below
+stands. Delete this file when that ships.
+
+---
+
 ## Where things stand
 
 Six pull requests merged: [#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30)–[#35](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/35).

@@ -17,9 +17,9 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3190 across two projects — 3100 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3255 across two projects — 3165 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
-| Front ends | Two, plus a headless command — the terminal wizard, a Blazor WebAssembly app, and `build --from`, all on the same engine assembly |
+| Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
 | Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero |
@@ -146,6 +146,79 @@ Not urgent. The site works, and a returning visitor pays nothing.
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Conversational creation, half of it: the MCP server, and the questions worth asking
+
+`mcp/` is a stdio MCP server wrapping the same engine, so somebody can connect their own Claude,
+describe a character out loud, and get a legal costed one back. It handles no credentials and
+holds no key — the conversation happens in the client they already pay for. The setup a stranger
+needs is in the README; the dependency arrows hold at compile time, because `mcp/` references
+`engine/` and `sheets/` and cannot reference `cli/`.
+
+**The transport was the easy half and the question policy is the deliverable.** A description
+under-determines dozens of fields and almost all of them can be defaulted without anybody
+caring. Four change the character materially:
+
+| | |
+|---|---|
+| **Which tier** | It sets the budget and the Trait Cap, and everything else is measured against them. Never guessed |
+| **One Power or several** | "Punches through time" is Strike plus Blink, or Omni-Power, or Alternate Form. **The question a model is most tempted to answer silently**, and the one that most changes the build |
+| **What they are deliberately ordinary at** | Every character has all eighteen Traits and the points for a 10d come from somewhere. A characterisation question, not an arithmetic one |
+| **Where it comes from** | One of six Sources. Costs nothing and changes no rank, so it is inferred and stated rather than asked unless genuinely open |
+
+Everything else — rank spread, which package, which Flaw, gear, Perks — is decided and *shown*.
+**Ask at most three questions**: a questionnaire is a worse interface than a wizard, and the
+wizard already exists.
+
+That reasoning lives in **`mcp/QUESTION-POLICY.md`**, which is embedded in the assembly and
+served verbatim as the `creation_guide` tool, so the document the next person reads and the one
+the assistant is taught are the same bytes. `McpQuestionPolicyTests` holds it to the standard
+`SkillDocumentationTests` holds the skill to: its example character goes through the strict
+reader and the validator, every id in it must exist, and the four questions are asserted by name.
+
+**Six tools, chosen by what a conversation needs rather than by mirroring the engine.**
+`cost_character` beside `validate_character` is the engine's API: no turn of a conversation
+wants a price without knowing whether the thing priced is allowed, and a separate costing tool
+is an invitation to quote a number for a character that breaks a rule. So `check_character`
+does both and is the only place the word "legal" is decided. The ten catalogues are one
+`list_options` for the mirror-image reason. Powers get `search_powers` and `power_detail`
+because 141 entries are searched rather than listed.
+
+**Nothing in it computes a Hero Point**, and the test for that is not a reading of the code:
+every figure in the report is asserted equal to the calculator's own answer for the same sheet,
+figure by figure rather than by total, over legal and illegal characters alike — because a
+front end that always said "legal" would pass a suite run only over legal ones.
+
+Four descriptions were run through the published binary, which is how two of the decisions
+above were found rather than reasoned:
+
+- **A cheap character** came back with `TRAIT_BELOW_PACKAGE` on an Intellect of 2d under a
+  package that grants 3d — the loop working, on a first draft written by hand.
+- **"Superman, but also a detective"** came back at 152 against a 125 budget, `remaining: -27`,
+  with the spending breakdown naming where it went. That is the number to quote and the trade
+  to offer, never a quietly weaker character presented as what was asked for.
+- **"Punches through time"** returned Time Travel, Time Stop, Precognition and Blink — which is
+  the ambiguity, not the answer, and is why the policy asks whether it is one Power or several.
+- **"He plays the trumpet so beautifully people weep"**, the interesting one, returned four
+  unrelated Powers matched on a word inside their descriptions. **A search that always returns
+  its five best rows reads as five answers however carefully the caution is worded**, so
+  `nothing_matched_by_name` and a note now say it outright. The same run found that substring
+  matching answered "she bakes bread in the city" with **Elasticity**; matching is word by word
+  with a shared-prefix rule now, because a match like that is worse than none — nothing in it
+  looks wrong.
+
+Smaller things worth keeping: standard output carries the protocol and nothing else, asserted by
+reading the source for `Console.` followed by anything but `Error` (the obvious check for
+`Console.WriteLine` passes while `Console.Out.Write` ships); the rules are found beside the
+binary rather than by walking up for a `.sln`, because a client launches the published program
+from a directory of its own choosing; and `RulesLocation.Find` returns null rather than a guess,
+since a repository built for a directory that is not there fails on the first tool call instead
+of at startup.
+
+**What this deliberately did not do** is the browser replay demo — the other half of the
+handover's slice, and a slice of its own. A visitor with no Claude account has no way to bring
+their own inference, and the recommendation there stands: replay real transcripts with the
+engine running for real in WebAssembly, and label the replay as a replay.
 
 ### Nine ways an illegal character was reported legal, and the one thing they had in common — [#31](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/31), [#32](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/32), [#33](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/33), [#34](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/34)
 

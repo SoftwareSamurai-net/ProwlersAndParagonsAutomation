@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- The MCP server: a third front end, for somebody who wants to build a character by
+         describing it to their own Claude rather than by working a wizard.
+
+         It references engine and sheets and nothing else. It cannot reference cli/ — that
+         would invert the one dependency rule this architecture has — and it does not need
+         to: everything it answers with comes from CostCalculator, CharacterValidator and
+         CharacterSheetRenderer, which are the same compiled code the terminal wizard and the
+         browser run. Nothing here computes a Hero Point. -->
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>ProwlersAndParagonsAutomation.Mcp</RootNamespace>
+        <AssemblyName>ProwlersAndParagons.Mcp</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\engine\ProwlersAndParagons.Engine.csproj" />
+        <ProjectReference Include="..\sheets\ProwlersAndParagons.Sheets.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Core rather than the full ModelContextProtocol package: this repository wires its
+             services by hand everywhere else, and the hosting package exists to wire them
+             through dependency injection. Pinned exactly, like Spectre.Console — a floating
+             version made restores non-reproducible once already. -->
+        <PackageReference Include="ModelContextProtocol.Core" Version="2.1.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The question policy is the payload of the creation_guide tool, embedded so there
+             is one copy of it: a second copy in a string literal would drift from the file
+             the next person reads, and the drift would be invisible. -->
+        <EmbeddedResource Include="QUESTION-POLICY.md" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The rules ship beside the binary. An MCP client launches this from wherever it
+             likes, with no repository in sight. -->
+        <Content Include="..\data\rules\*.json" CopyToOutputDirectory="PreserveNewest" LinkBase="data\rules\" />
+    </ItemGroup>
+
+</Project>

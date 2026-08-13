@@ -21,6 +21,12 @@
              it asserts on the rules data, on the engine's arithmetic, and on the text
              sheet the exporter writes. -->
         <ProjectReference Include="..\..\ProwlersAndParagonsAutomation.csproj" />
+
+        <!-- The MCP server, which is a front end like the CLI and is tested here for the same
+             reason: it is driven through streams rather than a terminal, so a failure names a
+             line. Only web/ has a test project of its own, because rendering components needs
+             one. -->
+        <ProjectReference Include="..\..\mcp\ProwlersAndParagons.Mcp.csproj" />
     </ItemGroup>
 
 </Project>
