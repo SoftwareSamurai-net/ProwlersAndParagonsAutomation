@@ -238,7 +238,7 @@ public sealed class ReplayRenderTests
         // And the three figures a player reads off mid-scene. Scoped to the first panel, to
         // match the character taken above: one recording puts a draft and a settlement on the
         // page and each gets a panel of its own.
-        var stats = page.FindAll(".replay-verdict").First()
+        var stats = page.FindAll(".replay-verdict")[0]
             .QuerySelectorAll(".stat-block").Select(b => b.TextContent).ToList();
         foreach (var (label, value) in new[]
                  {
@@ -326,7 +326,7 @@ public sealed class ReplayRenderTests
 
         var recorded = Conversation(ctx, Cheap).FinalCharacter!;
 
-        int Figure(CharacterSheet sheet) => label switch
+        int Stat(CharacterSheet sheet) => label switch
         {
             "Edge" => derived.CalculateEdge(sheet),
             "Health" => derived.CalculateHealth(sheet),
@@ -335,7 +335,7 @@ public sealed class ReplayRenderTests
 
         // The test can only bite if the two disagree. Asserting that first turns a sample that
         // drifted into a failure here rather than into a test that passes for no reason.
-        Assert.NotEqual(Figure(ctx.Session.Sheet), Figure(recorded));
+        Assert.NotEqual(Stat(ctx.Session.Sheet), Stat(recorded));
 
         var page = Play(ctx, Cheap);
         ShowAll(page);
@@ -349,7 +349,7 @@ public sealed class ReplayRenderTests
             .Single(b => b.TextContent.Contains(label, StringComparison.Ordinal));
 
         Assert.Contains(
-            Figure(recorded).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Stat(recorded).ToString(System.Globalization.CultureInfo.InvariantCulture),
             block.TextContent,
             StringComparison.Ordinal);
     }
@@ -373,11 +373,11 @@ public sealed class ReplayRenderTests
 
         // The wizard, where it belongs.
         nav.NavigateTo("characteristics");
-        Assert.Single(ctx.Render<MainLayout>(p => p.Add(l => l.Body, b => { })).FindAll(".budget"));
+        Assert.Single(ctx.Render<MainLayout>(p => p.Add(l => l.Body, _ => { })).FindAll(".budget"));
 
         // And a recording, where it does not.
         nav.NavigateTo($"replay/{Villain}");
-        Assert.Empty(ctx.Render<MainLayout>(p => p.Add(l => l.Body, b => { })).FindAll(".budget"));
+        Assert.Empty(ctx.Render<MainLayout>(p => p.Add(l => l.Body, _ => { })).FindAll(".budget"));
     }
 
     // ── The hand-off ────────────────────────────────────────────────────────────

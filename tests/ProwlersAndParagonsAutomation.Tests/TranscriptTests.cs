@@ -254,13 +254,13 @@ public sealed class TranscriptTests
     {
         const string number =
             @"(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen"
-            + @"|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty"
-            + @"|fifty|sixty|seventy|eighty|ninety|hundred)";
+            + "|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty"
+            + "|fifty|sixty|seventy|eighty|ninety|hundred)";
 
         // Deliberately not "cost" or "points": "it costs more than all six of her Abilities"
         // is a comparison rather than a quoted figure, and is the kind of sentence this
         // surface exists to allow.
-        const string figure = @"(HP|hero points?|edge|health|resolve|budget)";
+        const string figure = "(HP|hero points?|edge|health|resolve|budget)";
 
         // Both directions, with a short window either way rather than a list of verbs.
         var quoted = Rx(
