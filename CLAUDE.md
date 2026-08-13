@@ -119,6 +119,14 @@ exactly as the rules are, and fetched by `Program.cs` from `TranscriptLibrary.Fi
   looking identical while being wrong. `TranscriptTests` refuses a recorded line that quotes a
   Hero Point figure, an Edge, a Health or a Resolve. Ranks are allowed and should be — a rank is
   an input the transcript already carries.
+- **What the tests do not cover is whether a recorded sentence about the rules is true**, and
+  that gap is not closeable by a regular expression. The characters are held to the engine and
+  figures are banned from the prose, but a line saying "the Trait Cap is a limit on Abilities
+  alone" passes everything. The cheap conversation shipped for two commits asserting the
+  rulebook has no Power for detecting a lie — it has one, at Perception, for a flat price — and
+  a person caught it, not a test. **Read a changed transcript against the rulebook.** A green
+  suite says the characters are legal and no figure was quoted; it does not say the recording
+  is accurate.
 - **Several turns of one transcript may carry a character**, and the one about a draft that did
   not fit depends on it: the draft is stored as a draft, so it is *shown* not fitting rather than
   said to be. `TranscriptLibrary` reads them **strictly**, so a field a character no longer has

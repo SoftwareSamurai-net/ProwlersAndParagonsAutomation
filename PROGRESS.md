@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3345 across two projects — 3227 on the engine, 118 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3350 across two projects — 3227 on the engine, 123 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -277,6 +277,29 @@ the calculator, or make the hand-off mutate the recording. What they found:
 - **A whole-tree Qodana scan run in place reports 1471 findings for a commit that reports 0 from
   a clean export**, `.CSharpErrors` included, on files that build clean. Export before scanning;
   the note is in `CLAUDE.md`.
+
+**A fourth review was pointed at the fixes rather than at the code, and found three more — one
+of them inside a fix.** That is the same proportion this file already records from the last two
+slices, and the same lesson: a fix without a mutation behind it is a claim.
+
+- **The Hero Point box on a replayed sheet could still print the visitor's own total.** The test
+  meant to close this went from asserting one of three boxes to three of four, and the box it
+  kept missing is the headline figure a GM checks a character against. It also searched the
+  box's whole text, so `105` over a sub-line reading "of 75" satisfied a search for "75". It
+  reads the value element now and compares it whole.
+- **Powers on a replayed sheet could print the wrong effective rank**, for the same reason and
+  with nothing looking. A rank is what a player rolls.
+- **The route check was case-sensitive while Blazor's routing is not**, so `/Replay/…` served a
+  recording with the budget bar over it.
+- The honesty regex did not include the bare word "points", and the Perk and Gear guards added
+  in the previous round had no test at all — removing them left the whole suite green.
+
+**And one limit is stated rather than closed: nothing checks whether a recorded sentence about
+the rules is true.** The characters are held to the engine and figures are banned from the
+prose, but a line claiming "the Trait Cap is a limit on Abilities alone" passes everything here.
+The lie-detection error is what that looks like when it happens, and a person caught it. A green
+suite says the characters are legal and no figure was quoted; read a changed transcript against
+the rulebook before merging it.
 
 ### Conversational creation, half of it: the MCP server, and the questions worth asking — [#39](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/39)
 

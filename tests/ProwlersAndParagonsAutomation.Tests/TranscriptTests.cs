@@ -19,6 +19,15 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// line quoted one instead, the replay would be showing a number that had stopped being true
 /// and looking exactly as convincing —
 /// <see cref="NoRecordedLineQuotesAFigureTheEngineIsSupposedToAnswer"/> is what stops it.</para>
+///
+/// <para><b>What is not checked here, and cannot be: whether a recorded sentence about the
+/// rules is true.</b> The characters are held to the engine and the figures are banned from
+/// the prose, but a line claiming "the Trait Cap is a limit on Abilities alone" would pass
+/// every test in this file. That is not hypothetical — the cheap conversation shipped for two
+/// commits asserting the rulebook has no Power for detecting a lie, which it has, and a person
+/// caught it rather than a test. So do not read a green suite as saying a recording is
+/// accurate; it says the characters are legal and no figure was quoted. **Read the prose
+/// against the rulebook before merging a change to one of these files.**</para>
 /// </summary>
 [Collection(SharedRules.Name)]
 public sealed class TranscriptTests
