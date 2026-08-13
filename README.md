@@ -1,8 +1,10 @@
 # Prowlers & Paragons Automation
 
-A character-creation wizard for the **Prowlers & Paragons Ultimate Edition** tabletop RPG by LakeSide Games, Inc., in a terminal or in a browser.
+A character-creation tool for the **Prowlers & Paragons Ultimate Edition** tabletop RPG by LakeSide Games, Inc. — in a terminal, in a browser, or with no interface at all.
 
-Either front end walks players and GMs through the full creation process — tracking the Hero Point budget live, validating every choice against the system rules, and exporting a finished character sheet. Both run the *same* rules engine: the browser build compiles it to WebAssembly rather than reimplementing it, so the two cannot disagree about what a Power costs.
+The two interactive front ends walk players and GMs through the full creation process, tracking the Hero Point budget live, validating every choice against the system rules, and exporting a finished character sheet. The third way in is `build --from character.json`, which costs and validates a character and asks nothing: it exists so a language model can propose a character during play and have the engine decide whether it is legal.
+
+All three run the *same* rules engine — the browser build compiles it to WebAssembly rather than reimplementing it — so nothing can disagree about what a Power costs.
 
 [![Build](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/build.yml/badge.svg)](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/build.yml)
 [![Qodana](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/qodana_code_quality.yml/badge.svg)](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/qodana_code_quality.yml)
@@ -17,10 +19,12 @@ Either front end walks players and GMs through the full creation process — tra
 - **27 baseline-rank powers** (Armor = ½ Toughness, Evasion = Agility, Running = flat 3d, Strike = Might *or* Martial Arts, Boost/Expertise = a Trait you nominate)
 - **23 generic pros and 28 generic cons**, including variable-cost variants (Charges, Area/Burst) and Overkill/Weak's −1 HP per rank
 - **106 power-specific pros and cons** the rulebook attaches to one named power — unlike the generic ones, several change a power's cost *per rank* rather than its total
-- **Generic pro/con applicability derived from the rulebook**, not curated per power — each option states which Powers it applies to, so nothing legal is hidden from the player
+- **Generic pro/con applicability derived from the rulebook**, not curated per power — each option states which Powers it applies to, so nothing legal is hidden from the player, and the constraints the book prints for every Power (its Range and rank type) are enforced on a submitted character as well as filtered in the pickers
 - **The six Sources**, with Powers grouped under Source headings on every sheet the way the published ones print them
 - **53 flaws and 13 perks**, wired into Resolve and the HP budget
-- **Validation engine** — errors for budget overruns, trait-cap violations, flaw-count breaches, ranks bought on rankless powers and unresolved player choices; warnings for anything still unverified
+- **Validation engine** — errors for budget overruns, both Trait floors and the Trait Cap, flaw-count breaches, ranks bought on rankless powers, unresolved player choices, and every id or quantity a hand-written character can get wrong; warnings for anything still unverified. **Each finding carries the facts as well as the sentence** — which Trait, what it is, what it may be, and the values a fix must be chosen from — so a repair loop never has to parse English
+- **Both Trait floors, which nothing used to enforce** — Ch.2 states twice that no Ability or Talent can be lower than 1d, so a character has all eighteen and 0d is a Trait nobody can be without; and a starting package's granted ranks cannot be lowered below what it gives. Neither costs anything to break, which is why both were silent
+- **A headless `build` command and a skill to drive it** — one JSON report on standard output for each of its three exits, and a `SKILL.md` teaching the schema and the propose/validate/repair loop. The model proposes and the engine decides: nothing in the command computes a Hero Point, and an illegal character is reported, never repaired
 - **Every rules value verified against the rulebook and locked by tests** — the suite holds the printed Range, Rank and Cost of all 141 powers, so a data edit that contradicts the book fails CI
 - **Dual export** — formatted `.txt` and structured `.json`, written to `output/` by the CLI and downloaded by the browser, from one implementation
 - **Two front ends on one engine** — a Spectre.Console wizard and a Blazor WebAssembly app that runs `CostCalculator` and `CharacterValidator` as the same compiled code, with Hero and Villain palettes
@@ -66,6 +70,16 @@ dotnet run --project web/ProwlersAndParagons.Web.csproj
 ```
 
 Then open the address it prints. It is a static site — `dotnet publish web/ProwlersAndParagons.Web.csproj -c Release` produces a `wwwroot/` that any static host can serve, with no server-side component. The rules JSON is copied into `wwwroot/data/rules/` by the build and fetched over HTTP at startup; `data/rules/` remains the only copy in the repository.
+
+To cost and validate a character without a terminal:
+
+```bash
+dotnet run -- build --from character.json --no-export
+```
+
+It writes one JSON report to standard output and exits **0** if the character is legal, **1** if it breaks a rule, or **2** if the input could not be read. `--help` lists the rest. The input is the character-sheet shape — the *inputs* of a character, which is also what the browser keeps in local storage — not the JSON export, which is a report and would mean rebuilding a character from its own conclusions.
+
+`.claude/skills/prowlers-and-paragons-character/SKILL.md` teaches that loop to a language model: propose a character, submit it, read the structured findings, adjust, resubmit. The ordering is the whole point — the model proposes and the engine decides what anything costs.
 
 To run the test suite:
 
@@ -458,6 +472,6 @@ This project follows [Semantic Versioning](https://semver.org/) and [Conventiona
 
 ## License
 
-Intended for open-source release to the P&P community; until a licence is chosen the code is unlicensed and all rights are reserved. It is not sold, and any hosted instance is self-hosted.
+**MIT** — see [LICENSE](LICENSE). It covers this repository's own code and text and nothing else. The tool is not sold, and any hosted instance is self-hosted.
 
 Prowlers & Paragons is © LakeSide Games, Inc. (2013–2021), by Leonard A. Pimentel and Sean Patrick Fannon. **No rulebook content is redistributed here.** What lives in `data/rules/` is structured metadata — names, costs, ranges, rank types — together with this project's own explanations of what each option does. Descriptions are written from scratch, not copied. The rulebook itself is required to play, and is not included in this repository.
