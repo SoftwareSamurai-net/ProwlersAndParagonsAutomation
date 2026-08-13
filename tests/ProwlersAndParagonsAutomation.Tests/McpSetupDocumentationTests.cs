@@ -101,23 +101,42 @@ public sealed class McpSetupDocumentationTests
     }
 
     /// <summary>
-    /// The publish command names a project file that exists, and the binary it tells a client
-    /// to point at is the one that project produces. A guide that publishes one project and
-    /// registers another is a session that never connects.
+    /// Every publish command names a project file that exists, and the binary the guide tells a
+    /// client to point at is the one that project produces. A guide that publishes one project
+    /// and registers another is a session that never connects.
+    ///
+    /// <para><b>Every command, not the first.</b> The guide gives one per shell now, and a
+    /// reviewer pointed out that checking only the first leaves the rest free — which turned
+    /// out to matter immediately, because the PowerShell one is written with backslashes and
+    /// was the one that broke.</para>
+    ///
+    /// <para>Which is also why the separator is normalised. A Windows-style path in the
+    /// document combines cleanly on Windows and not on Linux, so this passed locally and failed
+    /// in the container — the whole reason the suite is run there before anything is pushed.
+    /// </para>
     /// </summary>
     [Fact]
-    public void TheGuidePublishesTheProjectThatProducesTheBinaryItRegisters()
+    public void EveryPublishCommandNamesTheProjectThatProducesTheRegisteredBinary()
     {
-        var project = Rx(@"dotnet publish (\S+\.csproj)").Match(Guide);
-        Assert.True(project.Success, "The guide no longer says which project to publish.");
-        Assert.True(File.Exists(Path(project.Groups[1].Value.Split('/'))),
-            $"The guide publishes '{project.Groups[1].Value}', which is not in this repository.");
+        var projects = Rx(@"dotnet publish (\S+\.csproj)").Matches(Guide)
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
 
-        var assemblyName = Rx("<AssemblyName>([^<]+)</AssemblyName>")
-            .Match(File.ReadAllText(Path(project.Groups[1].Value.Split('/'))));
+        Assert.NotEmpty(projects);
 
-        Assert.True(assemblyName.Success, "The MCP project does not set an AssemblyName.");
-        Assert.Contains($"{assemblyName.Groups[1].Value}.exe", Guide, StringComparison.Ordinal);
+        foreach (var project in projects)
+        {
+            var onDisk = Path(project.Split('/', '\\'));
+
+            Assert.True(File.Exists(onDisk),
+                $"The guide publishes '{project}', which is not in this repository.");
+
+            var assemblyName = Rx("<AssemblyName>([^<]+)</AssemblyName>").Match(File.ReadAllText(onDisk));
+
+            Assert.True(assemblyName.Success, $"'{project}' does not set an AssemblyName.");
+            Assert.Contains(assemblyName.Groups[1].Value, Guide, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
