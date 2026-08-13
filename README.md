@@ -116,6 +116,8 @@ That produces `ProwlersAndParagons.Mcp.exe` (no extension on macOS and Linux) wi
 claude mcp add --scope user prowlers-and-paragons -- "%LOCALAPPDATA%\ProwlersAndParagons\mcp-server\ProwlersAndParagons.Mcp.exe"
 ```
 
+**If `claude` is not a recognised command**, the CLI is installed and not on your `PATH` — the native installer puts it at `%USERPROFILE%\.local\bin\claude.exe` on Windows and `~/.local/bin/claude` elsewhere. Call it by full path (`& "$env:USERPROFILE\.local\bin\claude.exe" mcp add …` in PowerShell), or put that directory on your `PATH` and open a new terminal.
+
 `--scope user` registers it for **every project on your machine**, which is what you want for a character builder: you are most likely to use it in a session that has nothing to do with this repository. The default scope is `local`, which is this-project-only — fine if you only ever build characters while working on the tool itself, and confusing if you expect it elsewhere. There is deliberately no `.mcp.json` checked in here, because a project-scoped entry needs an absolute path and there is no path that is right on two machines.
 
 Check it, and remove it, with:
