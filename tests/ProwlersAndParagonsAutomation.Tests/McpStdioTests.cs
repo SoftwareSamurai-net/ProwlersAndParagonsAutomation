@@ -22,6 +22,20 @@ public sealed class McpStdioTests
 {
     private static string McpDirectory => Path.Combine(RulesFixture.RepoRoot, "mcp");
 
+    /// <summary>
+    /// A directory that is rooted, is not there, and is spelt the way the host spells one.
+    ///
+    /// <para><b>These tests built one out of a drive letter, and passed on Windows and failed
+    /// in CI.</b> Combining "C:" with a folder name gives a <em>relative</em> path on Linux —
+    /// a directory literally called <c>C:</c> — so <see cref="RulesLocation.Candidates"/>'s
+    /// walk resolved it against the working directory and started climbing the runner's
+    /// checkout. The production code was right and the test was asserting a Windows-shaped
+    /// answer, which is the one kind of mistake a green local run cannot show you.</para>
+    /// </summary>
+    private static string Nowhere(params string[] parts) =>
+        Path.GetFullPath(Path.Combine([
+            Path.GetTempPath(), "pp-mcp-nowhere-" + nameof(McpStdioTests), .. parts]));
+
     private static IEnumerable<string> SourceFiles =>
         Directory.EnumerateFiles(McpDirectory, "*.cs", SearchOption.AllDirectories)
             .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
@@ -314,10 +328,10 @@ public sealed class McpStdioTests
     public void TheRulesAreLookedForBesideTheBinaryFirst()
     {
         var candidates = RulesLocation.Candidates(
-            null, _ => null, Path.Combine("C:", "app", "bin")).ToList();
+            null, _ => null, Nowhere("app", "bin")).ToList();
 
-        Assert.Equal(Path.Combine("C:", "app", "bin", "data", "rules"), candidates[0]);
-        Assert.Contains(Path.Combine("C:", "app", "data", "rules"), candidates);
+        Assert.Equal(Nowhere("app", "bin", "data", "rules"), candidates[0]);
+        Assert.Contains(Nowhere("app", "data", "rules"), candidates);
     }
 
     /// <summary>
@@ -335,16 +349,16 @@ public sealed class McpStdioTests
         static string? Environment(string name) =>
             name == RulesLocation.OverrideVariable ? "from-environment" : null;
 
-        var beside = Path.Combine("C:", "app", "data", "rules");
+        var beside = Nowhere("app", "data", "rules");
 
         Assert.Equal("explicit",
-            RulesLocation.Find("explicit", Environment, Path.Combine("C:", "app"), _ => true).Directory);
+            RulesLocation.Find("explicit", Environment, Nowhere("app"), _ => true).Directory);
 
         Assert.Equal("from-environment",
-            RulesLocation.Find(null, Environment, Path.Combine("C:", "app"), _ => true).Directory);
+            RulesLocation.Find(null, Environment, Nowhere("app"), _ => true).Directory);
 
         Assert.Equal(beside,
-            RulesLocation.Find(null, _ => null, Path.Combine("C:", "app"), _ => true).Directory);
+            RulesLocation.Find(null, _ => null, Nowhere("app"), _ => true).Directory);
     }
 
     /// <summary>
@@ -359,7 +373,7 @@ public sealed class McpStdioTests
         var everythingElseExists = new Func<string, bool>(d => d != "wrong");
 
         var fromArgument = RulesLocation.Find(
-            "wrong", _ => null, Path.Combine("C:", "app"), everythingElseExists);
+            "wrong", _ => null, Nowhere("app"), everythingElseExists);
 
         Assert.Null(fromArgument.Directory);
         Assert.Contains("wrong", fromArgument.Refusal!, StringComparison.Ordinal);
@@ -367,7 +381,7 @@ public sealed class McpStdioTests
 
         var fromEnvironment = RulesLocation.Find(
             null, v => v == RulesLocation.OverrideVariable ? "wrong" : null,
-            Path.Combine("C:", "app"), everythingElseExists);
+            Nowhere("app"), everythingElseExists);
 
         Assert.Null(fromEnvironment.Directory);
         Assert.Contains(RulesLocation.OverrideVariable, fromEnvironment.Refusal!, StringComparison.Ordinal);
@@ -386,7 +400,7 @@ public sealed class McpStdioTests
     {
         var located = RulesLocation.Find(
             null, v => v == RulesLocation.OverrideVariable ? blank : null,
-            Path.Combine("C:", "app"), _ => true);
+            Nowhere("app"), _ => true);
 
         Assert.Null(located.Directory);
         Assert.Contains(RulesLocation.OverrideVariable, located.Refusal!, StringComparison.Ordinal);
@@ -394,7 +408,7 @@ public sealed class McpStdioTests
 
         // And unset still means "use the copy beside the binary", which is the whole point of
         // telling the two apart.
-        Assert.NotNull(RulesLocation.Find(null, _ => null, Path.Combine("C:", "app"), _ => true).Directory);
+        Assert.NotNull(RulesLocation.Find(null, _ => null, Nowhere("app"), _ => true).Directory);
     }
 
     /// <summary>
@@ -405,15 +419,15 @@ public sealed class McpStdioTests
     [Fact]
     public void NoRulesAnywhereIsAnAnswerRatherThanAGuess()
     {
-        var nowhere = RulesLocation.Find(null, _ => null, Path.Combine("C:", "app"), _ => false);
+        var nowhere = RulesLocation.Find(null, _ => null, Nowhere("app"), _ => false);
 
         Assert.Null(nowhere.Directory);
         Assert.Contains(RulesLocation.OverrideVariable, nowhere.Refusal!, StringComparison.Ordinal);
 
         Assert.Equal(
-            Path.Combine("C:", "app", "data", "rules"),
-            RulesLocation.Find(null, _ => null, Path.Combine("C:", "app"),
-                d => d == Path.Combine("C:", "app", "data", "rules")).Directory);
+            Nowhere("app", "data", "rules"),
+            RulesLocation.Find(null, _ => null, Nowhere("app"),
+                d => d == Nowhere("app", "data", "rules")).Directory);
     }
 
     /// <summary>
@@ -449,10 +463,10 @@ public sealed class McpStdioTests
     [Fact]
     public void TheMessageForNoRulesNamesTheOverride()
     {
-        var message = RulesLocation.NotFoundMessage(Path.Combine("C:", "app"));
+        var message = RulesLocation.NotFoundMessage(Nowhere("app"));
 
         Assert.Contains(RulesLocation.OverrideVariable, message, StringComparison.Ordinal);
-        Assert.Contains(Path.Combine("C:", "app"), message, StringComparison.Ordinal);
+        Assert.Contains(Nowhere("app"), message, StringComparison.Ordinal);
         Assert.Contains("data/rules", message, StringComparison.Ordinal);
     }
 
