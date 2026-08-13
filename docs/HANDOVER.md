@@ -9,160 +9,102 @@ sessions, not documentation.
 
 ---
 
-## The MCP server is finished. The replay demo has not been started.
+## Where things stand
 
-This file describes one slice with two surfaces, for two audiences, and only one of them is
-built. **The MCP server is complete** — not partly complete: `mcp/` wraps the engine, six
-tools, the question policy is written down and embedded at `mcp/QUESTION-POLICY.md`, the README
-carries the setup a stranger needs, and it shipped in
-[#39](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/39). Read the entry in
-`PROGRESS.md` and the "The MCP server" section of `CLAUDE.md` before the design below, which is
-the brief rather than the outcome.
+Nine pull requests merged, [#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30)–[#39](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/39).
+3298 tests, zero warnings at CI strictness, a whole-tree Qodana scan at zero, MIT in `LICENSE`,
+and the site live on Cloudflare Pages. The tool creates, prices, validates, prints and exports
+characters through **four** front ends: the terminal wizard, the browser app,
+`build --from character.json`, and an MCP server somebody can connect to their own Claude.
 
-**What this file is still for is the replay demo**, for the audience that cannot bring its own
-inference — "the normie mates". Nothing about it has changed and the recommendation below
-stands. Delete this file when that ships.
-
-**Everything below this line was written before the MCP server existed**, so its figures are
-the ones from that session. `PROGRESS.md` has the current ones.
+The last slice built that MCP server ([#39](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/39)).
+Its entry in `PROGRESS.md` and the "The MCP server" section of `CLAUDE.md` carry the reasoning;
+the question policy — which two or three questions are worth asking somebody describing a
+character out loud — is `mcp/QUESTION-POLICY.md`, embedded in the assembly and served verbatim
+as the `creation_guide` tool.
 
 ---
 
-## Where things stood when this note was written
+## The slice to build: the replay demo
 
-Six pull requests merged: [#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30)–[#35](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/35).
-3190 tests, zero warnings at CI strictness, a whole-tree Qodana scan at zero, and MIT in
-`LICENSE`. The tool creates, prices, validates, prints and exports characters through three
-front ends: the terminal wizard, the browser app, and `build --from character.json`.
+**Who it is for.** The MCP server serves people who code and can bring their own Claude. This is
+the other audience the owner named — "normie mates who just want to see it work in the browser".
+They have no account to bring.
 
-The current branch is `claude/last-four-heroes`, which holds one `PROGRESS.md` edit recording
-that all four remaining Hero residuals are pricing questions rather than transcription faults.
-Commit it or fold it into the next slice; nothing depends on it.
+**They cannot bring one, and this is settled** — do not re-investigate it. A claude.ai
+subscription cannot be lent to a third-party site (there is no sign-in-with-Claude that hands a
+website your inference quota), the API is separate billing with its own keys and no dependable
+free tier, and claude.ai's custom connectors are gated to paid plans.
 
----
+So the two options are a proxy the owner funds — a Worker holding his key, rate-limited, which
+costs money, invites abuse and **breaks the static-site property the README advertises** — or a
+**replay**: three or four real transcripts of a description, the questions back, the answers and
+the resulting character, with the model's turns replayed and **the engine run for real in
+WebAssembly**. Costs, validation and the printed sheet genuinely computed client-side; then hand
+the character to the existing editor so the visitor can poke at it.
 
-## The slice to build: conversational character creation
+**The replay is the recommendation.** No account, no key, no server, no running cost, nothing to
+abuse. It is also the honest demonstration, because the half worth showing off is the engine
+deciding, and that half stays live.
 
-**The goal, in the owner's words:** he describes a character out loud, and the tool builds one
-that can do what he described. Ask him questions back when the description does not determine
-something that matters.
+### The two things that would ruin it
 
-**And it has to be something other people can use with their own Claude**, which is what decides
-the surface below. The audience is two groups the owner named himself: people who code, and
-"normie mates who just want to see it work in the browser". They need different answers, and only
-one of them can bring their own inference.
-
-That is a different job from what `build --from` and the existing skill already do, and the
-difference is the whole slice. Today the loop is: a model writes a JSON file, submits it, reads
-the findings, resubmits. That works and is tested. What it is not is a **conversation** — there
-is nothing that turns "a washed-up boxer who punches through time" into the two or three
-questions whose answers actually change the build, and nothing that reports back in the
-language the description was given in.
+1. **Faking the numbers.** If the sheet is a screenshot, or the costs are baked into the
+   transcript, the demo misrepresents the thing that was built. Every figure on screen must come
+   back from `CostCalculator` and `CharacterValidator` running in the visitor's browser — which
+   they already do, because `web/` is the same compiled engine. **If the replay data holds a
+   Hero Point total, that is the bug.**
+2. **Not labelling it.** A replayed conversation presented as a live one is a lie about what the
+   visitor is looking at. Say it is a recording, in the UI, where they cannot miss it.
 
 ### What already exists, so you do not rebuild it
 
 | | |
 |---|---|
-| `dotnet run -- build --from x.json` | Costs and validates. Exits 0 legal, 1 illegal, 2 unreadable. One JSON report on stdout for all three. `cli/Headless/BuildCommand.cs` |
-| Structured findings | Every issue carries `subject_kind`, `subject_id`, `owner_id`, `value`, `limit`, `options` beside the sentence, so a repair loop never parses English |
-| `.claude/skills/prowlers-and-paragons-character/SKILL.md` | The schema, the report shape, the repair loop, and the rules that trip up a first draft. `SkillDocumentationTests` feeds its own example through the strict reader, so it cannot rot silently |
-| `engine/CharacterSheetJson` | Reads and writes the character-sheet shape. Strict on submit (an unknown field is refused), lenient for the browser's local storage |
-| The engine | 141 Powers, both Trait floors, the Trait Cap, budget, applicability, duplicates, quantities. **It is the judge and it is trustworthy**: 16 of 20 published Heroes rebuild to exactly 125 |
-
-### The surface, and why it is now two things
-
-**For the owner and anyone else who codes: an MCP server.** This reverses an earlier note in this
-file, and the reversal is correct rather than a change of mind — the old note said "a skill plus
-the command, not an MCP server", and that reasoning was scoped to *the owner, in Claude Code,
-with the repo checked out*. The question that reopened it is different: **other people connecting
-their own Claude account.** MCP is the mechanism built for exactly that, and it puts the
-conversation in a client designed for it while we handle no credentials at all — the user talks
-through the subscription they already pay for.
-
-A stdio server wrapping the engine, exposing something like `cost_character`,
-`validate_character` and `list_powers`. The engine is already pure, synchronous and
-filesystem-free, so this is small. It does not replace `build --from`; both call the same engine.
-
-**For everyone else: a replay demo with the engine live.** The owner asked whether a visitor could
-use a free Claude account from the browser. **They cannot, and this is worth writing down so it is
-not re-investigated:** a claude.ai subscription cannot be lent to a third-party site (there is no
-sign-in-with-Claude that hands a website your inference quota), the API is separate billing with
-its own keys and no dependable free tier, and claude.ai's custom connectors are gated to paid
-plans. A browser visitor has no way to bring their own inference.
-
-So the two real options are a proxy the owner funds — a Worker holding his key, rate-limited,
-which costs money, invites abuse and **breaks the static-site property the README advertises** —
-or a **replay**: three or four real transcripts of a description, the questions back, the answers
-and the resulting character, with the model's turns replayed and **the engine run for real in
-WASM**. Costs, validation and the printed sheet genuinely computed client-side; then hand the
-character to the existing editor so the visitor can poke at it.
-
-The replay is the recommendation for a portfolio piece: no account, no key, no server, no running
-cost, nothing to abuse. **The one thing that would ruin it is faking the numbers.** If the sheet
-is a screenshot then the demo misrepresents the thing that was built; the half worth showing off
-is the engine deciding, and that half must stay live. Label the replay as a replay.
-
-Either way, the hard part is the same and it is below: the question policy, the register of the
-reply, and never inventing a Hero Point. The transport is the easy half.
+| `web/` | Blazor WebAssembly, the engine compiled to WASM, `CharacterSession` + `CharacterStore`, the six creation pages and `SheetView`. A character already survives a refresh and a shared link |
+| `mcp/QUESTION-POLICY.md` | The question policy. **The transcripts should follow it** — that is what makes the demo a demonstration of the design rather than of a chat |
+| `mcp/` over stdio | How to *produce* the transcripts: drive a real conversation through the real server and record it, rather than writing dialogue by hand |
+| `engine/CharacterSheetJson` | Reads and writes the character-sheet shape — the inputs, not the export. The shape a transcript's final character should be stored in |
+| `SampleCharacters` | Two finished characters and the "load a sample" flow the replay can hand off to |
+| `CharacterStore` | Storing a character the app can restore, and the guard that refuses one the engine cannot answer for |
 
 ### What to actually build
 
-1. **A question policy.** The interesting design question is *which* questions are worth asking.
-   A description under-determines dozens of fields; almost all of them can be defaulted without
-   the owner caring. The ones that change the character materially are few:
+1. **Three or four recorded conversations**, each with a description, the questions the assistant
+   asked back, the answers, and the character that came out. Cover the cases that make the
+   design visible: one that is cheap, one that does not fit the budget and has to give something
+   up, and one where the description is ambiguous about whether it is one Power or several.
+2. **A replay surface in `web/`** that steps through a transcript at the visitor's pace, and at
+   the end **runs the character through the engine in front of them** — the budget bar, the
+   findings, the printed sheet.
+3. **A hand-off into the editor**, so the visitor can change a rank and watch the numbers move.
+   That is the moment the demo earns its keep.
+4. **A label**, and a line saying where the live version is: the MCP server, with the README's
+   setup.
 
-   - **Tier**, because it sets the budget and the Trait Cap and everything else is measured
-     against it. Never guess this.
-   - **Where the power comes from** — one of the six Sources. It costs nothing and changes no
-     rank, but it decides how a sheet reads and what a rankless Power's default rank is.
-   - **Whether a described effect is one Power or several.** "Punches through time" could be
-     Strike plus Blink, or Omni-Power, or Alternate Form. This is the question that most changes
-     the build, and it is the one a model is most tempted to answer silently.
-   - **What the character is bad at**, because a package sets a floor at 2d or 3d and the
-     remaining points have to come from somewhere. Ordinary people have 2d in everything;
-     deciding what stays ordinary is a characterisation question, not an arithmetic one.
+### Traps this slice will hit
 
-   Everything else — talent spread, exact ranks, which Flaw, gear — can be proposed and shown,
-   not asked. **Ask two or three questions, not ten.** A questionnaire is a worse interface than
-   a wizard, and the wizard already exists.
-
-2. **Report back in his language, not the engine's.** He said "a character who can do what I
-   described". The reply should say what the character can *do* — "9d Strike, so you hit at
-   Extreme difficulty most of the time" — and mention Hero Points as bookkeeping. The validator's
-   messages are already written for a player rather than a developer (there is a test for it);
-   match that register. Do not print `TRAIT_BELOW_MINIMUM` at him.
-
-3. **Show the sheet, not the JSON.** `build` writes a `.txt` sheet and a `.json` export. The
-   `.txt` is the one a person reads. Offer it.
-
-4. **Keep the ordering.** The model proposes, the engine decides. Nothing in this slice may
-   compute a Hero Point, quote a cost from memory, or declare a character legal without the
-   command having said so. Every previous slice that drifted here produced a confidently wrong
-   number.
-
-### Two traps this specific slice will hit
-
-- **A description that cannot be afforded.** "Superman, but also a detective" is 300 Hero Points
-  at Standard tier. The right move is to say so and offer the trade — a lower rank, a narrower
-  Power, or a higher tier if the GM allows — not to silently build something weaker and present
-  it as what was asked for. `hero_points.remaining` goes negative by exactly the overspend, which
-  is the number to quote.
-- **The rulebook is in `docs/` and a worktree cannot see it.** `*.pdf` is gitignored, so both
-  PDFs live in the main working directory only. `ls docs/*.pdf` from a worktree reports nothing,
-  which reads as "there is no rulebook" and is wrong — a whole slice was worked through on that
-  assumption last session. The extraction recipe is at the end of the printed-sheet section of
-  `CLAUDE.md`; PdfPig in a scratch console project, page offset a constant +3.
+- **`web/` names no colour and no internal type**, and `WebPresentationTests` fails the build if
+  a new component does either. Read the "three presentation rules" section of `CLAUDE.md` before
+  writing markup; one component owns each repeated class.
+- **Anything about what a component renders is tested in `tests/ProwlersAndParagons.Web.Tests`
+  with bUnit**, not by reading source. That split exists because a source-reading test shipped
+  "Armor8d" twice.
+- **The transcripts are data and will rot.** If they hold ids the rules files no longer have, the
+  replay breaks quietly. Hold them to the engine the way `SkillDocumentationTests` holds the
+  skill: read every character in every transcript through the strict reader and validate it.
+- **The payload is already 27 MiB** (item 5 in `PROGRESS.md`). Do not make it worse with images;
+  the transcripts are text.
+- **The rulebook PDFs are in `docs/` and a worktree cannot see them** — `*.pdf` is gitignored, so
+  they live in the main working directory only. `ls docs/*.pdf` from a worktree reports nothing,
+  which reads as "there is no rulebook" and is wrong.
 
 ### How to know it works
 
-The existing tests cover the command. What this slice needs is different: **run it against real
-descriptions and read the output as the owner would.** Try at least one description that is
-cheap, one that is unaffordable, one that is ambiguous about whether it is one Power or three,
-and one that names something the system has no Power for. The last is the interesting one — the
-honest answer is to say which Power comes closest and why, not to invent one.
-
-If a description reveals a rules gap, that is a finding for `PROGRESS.md`, not something to paper
-over in the prompt.
+Open it as somebody who has never seen the tool. Can they tell it is a recording? Do they reach
+a printed sheet? Can they change something and see the number move? And **check the numbers on
+screen against `dotnet run -- build --from` for the same character** — if the two disagree, the
+demo is lying, which is the one failure that matters here.
 
 ---
 
@@ -174,18 +116,28 @@ Not preferences — this is what the last few slices cost when they were skipped
    reasoning survives, and it has twice been allowed to describe a state the code had left.
 2. **Have the work adversarially reviewed by agents that know nothing about it**, act on the
    findings, re-review, and only then merge. Ask each reviewer, for every guard test, to name a
-   plausible bug the test claims to cover but would not catch. Over three rounds last session
-   that question found nine ways an illegal character was certified legal, a command that hung
-   for ever on `--from CON`, and thirteen false claims in the prose — two of them in the entry
-   written to describe the work.
+   plausible bug the test claims to cover but would not catch. Over five rounds last session
+   that question found a search flag that told a model the rulebook has no Power for flight,
+   five tests that were theatre, and two fixes that did not hold.
 3. **Ask a reviewer to audit the fixes, not just the code.** The single most valuable reviewer of
-   the session was the one pointed at the previous round's fixes: four of the six it checked did
-   not hold.
-4. **Commit before letting a mutation pass run, or give it its own worktree.** A reviewer doing
-   mutation testing restores files with `git checkout -- <file>` and reverted an uncommitted fix
-   in a file we were both touching. The single-file form does this as surely as `git checkout --
-   .` does.
-5. **Do not start a dev server.** It raises an approval dialogue that blocks unattended work.
+   the last two sessions was the one pointed at the previous round's fixes: four of six did not
+   hold the first time, two of eight the second.
+4. **Run the suite on Linux before you push.** Every reviewer and every local run is on Windows,
+   and CI is not: `Path.Combine("C:", "app")` is rooted on Windows and relative on Linux, which
+   is how a green local run pushed a red build. Four minutes closes it:
+
+   ```bash
+   docker run --rm -v "$(pwd -W):/src" -w //src mcr.microsoft.com/dotnet/sdk:10.0 \
+     bash -c "dotnet test --configuration Release -p:ContinuousIntegrationBuild=true"
+   ```
+
+   Copy the tree somewhere first, or the Linux build leaves Linux artifacts in your `bin`/`obj`.
+5. **Commit before letting a mutation pass run, or give it its own worktree.** A reviewer doing
+   mutation testing restores files with `git checkout -- <file>` and has reverted uncommitted work.
+6. **Do not start a dev server.** It raises an approval dialogue that blocks unattended work.
    `dotnet build`, `dotnet test` and the Docker Qodana scan do not.
-6. **Check a rulebook citation before repeating it.** Every one of the twenty Hero page citations
+7. **Check a rulebook citation before repeating it.** Every one of the twenty Hero page citations
    was ten pages out, and had been through five review rounds, because nothing read them.
+8. **A whole-tree Qodana scan is part of finishing**, not an extra. The command is in `CLAUDE.md`;
+   the repository holds it at zero, and the last slice's scan found three guards that an
+   inspection read as dead code and a client can actually reach.
