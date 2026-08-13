@@ -1,6 +1,6 @@
 # Prowlers & Paragons Automation
 
-A character-creation tool for the **Prowlers & Paragons Ultimate Edition** tabletop RPG by LakeSide Games, Inc. — in a terminal, in a browser, or with no interface at all.
+A character-creation tool for the **Prowlers & Paragons Ultimate Edition** tabletop RPG by LakeSide Games, Inc. — in a terminal, in a browser, with no interface at all, or by describing a character to your own Claude.
 
 The two interactive front ends walk players and GMs through the full creation process, tracking the Hero Point budget live, validating every choice against the system rules, and exporting a finished character sheet. The third way in is `build --from character.json`, which costs and validates a character and asks nothing: it exists so a language model can propose a character during play and have the engine decide whether it is legal. The fourth is an **MCP server**: connect it to your own Claude, describe a character out loud, and answer the two or three questions that actually change the build.
 
@@ -28,7 +28,7 @@ All four run the *same* rules engine — the browser build compiles it to WebAss
 - **A headless `build` command and a skill to drive it** — one JSON report on standard output for each of its three exits, and a `SKILL.md` teaching the schema and the propose/validate/repair loop. The model proposes and the engine decides: nothing in the command computes a Hero Point, and an illegal character is reported, never repaired
 - **Every rules value verified against the rulebook and locked by tests** — the suite holds the printed Range, Rank and Cost of all 141 powers, so a data edit that contradicts the book fails CI
 - **Dual export** — formatted `.txt` and structured `.json`, written to `output/` by the CLI and downloaded by the browser, from one implementation
-- **Two front ends on one engine** — a Spectre.Console wizard and a Blazor WebAssembly app that runs `CostCalculator` and `CharacterValidator` as the same compiled code, with Hero and Villain palettes
+- **Four front ends on one engine** — a Spectre.Console wizard, a Blazor WebAssembly app that runs `CostCalculator` and `CharacterValidator` as the same compiled code with Hero and Villain palettes, the headless `build` command, and the MCP server. None of them holds a second copy of a rule
 - **Two sample characters** — a finished Hero and Villain, loadable in one click, for seeing a sheet without building one first; both held to the rules by tests
 - **A printed sheet modelled on the published Hero Sheet** — one A4 page, three columns, ruled boxes with centred headings, every Ability and Talent listed, and blank ruled space for the fields a pen fills in. White paper and readable ink in both modes: a Hero sheet prints navy, a Villain crimson, and colour appears as ink and as a tint behind a heading bar, never as a fill
 - **The character is kept in the browser between visits** — a refresh, a bookmark or a shared link no longer throws it away, and nothing is sent anywhere. A saved character that this build cannot read is discarded rather than restored, because a tool that will not open is worse than one that forgets
@@ -183,7 +183,7 @@ ProwlersAndParagonsAutomation/
 │   ├── CharacterValidator.cs     # Validation with Error/Warning severity
 │   └── SampleCharacters.cs       # Two finished characters for preview — no rules logic
 │
-├── sheets/                       # Rendering shared by both front ends, no host coupling
+├── sheets/                       # Rendering shared by every host, no host coupling
 │   ├── CharacterSheetRenderer.cs # The .txt and .json sheets, built as strings
 │   ├── PowerFormatter.cs         # A Power's rulebook stat line
 │   └── GearFormatter.cs          # A piece of gear as one line
@@ -249,7 +249,7 @@ ProwlersAndParagonsAutomation/
 │   └── qodana_code_quality.yml   # ReSharper inspections
 │
 ├── output/                       # Generated character sheets (gitignored)
-├── Directory.Build.props         # Target framework and the analyzer contract, shared by all five projects
+├── Directory.Build.props         # Target framework and the analyzer contract, shared by every project
 ├── qodana.yaml                   # Linter, profile and the load-bearing dotnet.solution key
 ├── PROGRESS.md                   # What is done and what remains — kept current
 ├── CLAUDE.md                     # Working notes: the decisions that are expensive to re-derive
@@ -261,7 +261,7 @@ ProwlersAndParagonsAutomation/
 
 ## Architecture
 
-Four layers with a strict no-upward-dependency rule:
+Four layers with a strict no-upward-dependency rule, and three hosts sharing the top one:
 
 ```
                                           ↗   cli/
@@ -273,7 +273,7 @@ data/rules/   →   engine/   →   sheets/   →   web/
 |---|---|
 | `data/rules/` | JSON only. No logic lives here. |
 | `engine/` | Pure C#, zero Spectre.Console references and no filesystem coupling — rules arrive through `IRulesSource`, so the same assembly runs in a browser. `CostCalculator` and `CharacterValidator` are the authority on cost and validity. |
-| `sheets/` | The exports, as strings. Shared because both front ends need the same two documents; separate from `engine/` because that layer stays free of presentation. |
+| `sheets/` | The exports, as strings. Shared because three hosts need the same two documents; separate from `engine/` because that layer stays free of presentation. |
 | `cli/` | Terminal rendering and prompting. **The CLI never tallies points itself.** |
 | `web/` | Browser rendering. Same rule, and it is now enforced by the build rather than by discipline — `web/` cannot reach a calculator it does not have, and it has no copy of one. |
 | `mcp/` | Protocol plumbing and the question policy. Same rule again: it references `engine/` and `sheets/` and cannot reference `cli/`, so nothing in it can compute a Hero Point or write a file. |
@@ -390,7 +390,7 @@ Resolve's base term is the rulebook's Resolve table (Trait Cap → 0, Cap−1d �
 
 Every entry in every rules file has been checked against the rulebook — chapters 1–2 throughout, plus Ch.6 for the gear features and Ch.7 for the three toxin Pros and Cons — and **the test suite is what keeps it that way** — `CanonicalPowers.cs` holds the Range, Rank and Cost printed for all 141 Powers, and `RulesDataTests` holds the tier, ability, talent, pro, con, perk and flaw values. A data edit that contradicts the book fails a test.
 
-On top of that, the **20 pre-built Heroes from Chapter 8** are transcribed and rebuilt through the engine. They are finished, playable Standard-tier characters the authors published, so they check the rules as *applied* rather than as transcribed. The engine reproduces all sixty of their printed Edge, Health and Resolve values, and rebuilds **15 of the 20 to exactly their 125 Hero Point budget**; the other five are within 2 HP for reasons recorded in [PROGRESS.md](PROGRESS.md).
+On top of that, the **20 pre-built Heroes from Chapter 8** are transcribed and rebuilt through the engine. They are finished, playable Standard-tier characters the authors published, so they check the rules as *applied* rather than as transcribed. The engine reproduces all sixty of their printed Edge, Health and Resolve values, and rebuilds **16 of the 20 to exactly their 125 Hero Point budget**; the other four are 1 HP out, each for a reason recorded in [PROGRESS.md](PROGRESS.md).
 
 They have earned their keep twice over, catching two cost bugs that unit tests had missed — the minimum-cost floor, and a starting package being charged on top of the ranks it grants. Three of them also pin down rules that are easy to read wrongly:
 
@@ -436,7 +436,7 @@ Power descriptions are **original text written from the rulebook entry**, not ru
 
 They are held to the mechanics they sit beside: `PowerDescriptionTests` fails a rankless Power whose description claims anything scales per rank, which is how the original set went wrong on 44 of the 46 rankless Powers.
 
-Data coverage is limited to chapters 1–2 of the rulebook (Basics and Characters).
+Data coverage is everything character creation needs: chapters 1–2 (Basics and Characters) in full, plus Ch.6's twelve custom gear features and Ch.7's three toxin Pros and Cons. Chapters 3, 4, 5 and 7 are play rules, 8 is the pre-built characters — transcribed in the test suite, where they verify the engine — and Ch.9 builds Villains by the Hero rules, which is why the mode is presentation only. The one genuine gap is Ch.6's vehicles and headquarters; see [PROGRESS.md](PROGRESS.md).
 
 ---
 

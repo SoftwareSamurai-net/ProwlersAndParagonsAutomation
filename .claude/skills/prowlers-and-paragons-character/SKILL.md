@@ -12,7 +12,7 @@ is legal. You choose a concept, pick Traits and Powers that express it, and hand
 `build`; `CostCalculator` and `CharacterValidator` answer, and you adjust until the answer is
 zero. Invert that ordering and this is a random number generator with good prose — the whole
 reason it is worth doing is that the engine is trustworthy: 141 Powers priced against the
-book, and fifteen of the twenty published Heroes rebuilt to their exact 125-point budget.
+book, and sixteen of the twenty published Heroes rebuilt to their exact 125-point budget.
 
 You will get the arithmetic wrong if you try it. Do not try it.
 
@@ -21,6 +21,12 @@ You will get the arithmetic wrong if you try it. Do not try it.
 ```bash
 dotnet run -- build --from character.json
 ```
+
+**This skill is for working inside this repository.** There is a second way in for somebody who
+has not checked it out: `mcp/` is an MCP server over the same engine, and its own document —
+`mcp/QUESTION-POLICY.md`, served as the `creation_guide` tool — covers which questions to ask
+somebody describing a character out loud. The rules below are the same either way, because both
+call the same `CostCalculator` and `CharacterValidator`.
 
 | | |
 |---|---|

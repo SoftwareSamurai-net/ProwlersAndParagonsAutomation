@@ -32,7 +32,7 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 ## Remaining work
 
-Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through three front ends. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, and a payload size.
+Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, a Power search that orders ties by name, and a payload size.
 
 ### 1. Close the last four Heroes
 
@@ -120,7 +120,32 @@ Now `TRAIT_BELOW_MINIMUM`, with `TRAIT_BELOW_PACKAGE` beside it for the other fl
 
 **The one genuine gap is Ch.6's vehicles and headquarters (pp.94–104).** `unique_vehicle` and `headquarters` are Perks priced per unit — a Hero Point buys 25 Vehicle Points — and what those points buy is not modelled, so the perk is a cost and a free-text note. That is a sub-tool of its own (spend a vehicle's points on a vehicle), not a chapter to extract, and nothing else needs it.
 
-### 4. The browser payload is large — a characteristic, not a defect
+### 4. `search_powers` ranks ties alphabetically
+
+The MCP server's Power search is a word match, and when several Powers match the same words it
+puts them in name order under a caution calling them "the closest entries". **"Walks through
+walls" is the case to reproduce**: twenty-one Powers score two points each, every one of them on
+the filler word "through" — Phasing among them, at position eleven, where a caller asking for
+eight rows never sees it. "He shoots fire from his hands" is the same weakness the other way
+round: Blast is never returned, because its description says "a damaging ranged attack" and none
+of those words is in it.
+
+**Weighting each word by how much of the rulebook uses it was implemented and reverted**, and
+that is the finding rather than the fix. It sorted "walks through walls" correctly and broke
+"reads minds", which dropped Telepathy out of the first three because four Powers carry "mind"
+in their names. Two examples are not evidence; a half-tuned scorer is worse than a dull one,
+because it is wrong in places nobody has looked at rather than in the place they tested.
+
+What shipped instead is the truth about each row — `matched_terms` names which of the caller's
+words it matched, `found` and `more_beyond_these` say the list was cut, and the caution says
+rows matching the same words are in no meaningful order and to search a more distinctive word.
+The guide teaches all three.
+
+Closing it properly needs a set of descriptions with expected answers — twenty or thirty, written
+from the Powers rather than from the scorer — and then a scoring change measured against them.
+That is a slice of its own, and until somebody wants it, an honest label beats a tuned guess.
+
+### 5. The browser payload is large — a characteristic, not a defect
 
 **The site works.** It is deployed, it loads, it builds characters — this is not a fault, and it was listed alongside real gaps for too long. The first load is **27 MiB uncompressed**, about a third of that over the wire once Cloudflare applies Brotli, and cached hard afterwards because every framework asset is fingerprinted, so a returning visitor pays nothing. Everything below is what it would take to make that number smaller, kept because the *reasons* are expensive to rediscover — not because anything is broken.
 
@@ -346,7 +371,8 @@ Also in this run: **Herald (Airmid) closed** — her sheet prints two Expertise 
 
 ### Assisted character creation, and the three ways a character could be wrong and not be told — [#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30)
 
-This closes what was item 5. `dotnet run -- build --from character.json` costs and validates a
+This closes the assisted-creation item, which was numbered 5 when it was open — not the item
+numbered 5 above, which is newer. `dotnet run -- build --from character.json` costs and validates a
 character, writes both exports and exits 0, 1 or 2 — legal, illegal, unreadable — with one
 JSON report on standard output for all three. A skill at
 `.claude/skills/prowlers-and-paragons-character/` teaches the schema and the
@@ -716,7 +742,7 @@ Two security choices behind the arrangement, both about blast radius rather than
 - **The workflow never triggers on `pull_request`.** That trigger runs a contributor's workflow changes with the base repository's secrets in scope, which would put the Cloudflare token one PR away from anyone.
 - **A subdomain and a token scoped to Pages on one account.** A leaked token can redeploy this one site and nothing else, and a mistake in the Pages config cannot reach the apex domain.
 
-What it left open is payload size — see item 4.
+What it left open is payload size — see item 5.
 
 ### A browser front end, on the same engine — [#17](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/17)
 
@@ -731,7 +757,7 @@ A character can now be created end to end in a browser and exported, with the te
 Some things the build found:
 
 - **`Content Include="..\data\rules\*.json" LinkBase="wwwroot\data\rules"` looks right and silently is not.** The asset gets registered with a content root of `wwwroot/` while the file stays outside it, so every request answers `200` with an empty body and the engine reports the rulebook as malformed JSON. The csproj copies the files into `wwwroot/data/rules/` before static-asset discovery instead, and errors if it finds none — the failure it guards against is a site that loads and then cannot start.
-- **Trimming is off on publish.** `RulesRepository` deserializes with reflection-based `System.Text.Json`, so the trimmer may remove model properties it can only see through reflection, and the failure is not a build error but a silently empty rules set at runtime. Rooting the engine assembly would keep the smaller payload, but the local toolchain cannot run the trimmer at all — the ILLink task host crashes without the `wasm-tools` workload, on the stock template too — so that is a change nobody could verify here. Recorded in item 4.
+- **Trimming is off on publish.** `RulesRepository` deserializes with reflection-based `System.Text.Json`, so the trimmer may remove model properties it can only see through reflection, and the failure is not a build error but a silently empty rules set at runtime. Rooting the engine assembly would keep the smaller payload, but the local toolchain cannot run the trimmer at all — the ILLink task host crashes without the `wasm-tools` workload, on the stock template too — so that is a change nobody could verify here. Recorded in item 5.
 - **Pros and Cons on Abilities offer Cons only, and that is the rulebook's answer rather than a shortcut.** Each option's entry states what it may be applied to; of 23 Pros and 28 Cons, exactly two name Abilities and both are Cons. The picker filters on that field, so the list follows the data.
 - **Blazor's `#blazor-error-ui` needs a `display: none` rule of its own.** Without one it shows from the first paint and reports a failure that never happened — which it duly did, twice, before being noticed.
 
