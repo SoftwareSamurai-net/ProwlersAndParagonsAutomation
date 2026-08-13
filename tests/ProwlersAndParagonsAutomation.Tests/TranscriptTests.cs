@@ -150,11 +150,31 @@ public sealed class TranscriptTests
     /// longer has — and this is the other half: an id that has gone, a rank that is now over
     /// a cap, a Trait under a package floor.
     ///
-    /// <para>The allowance is deliberately one code and not a per-file list. Two of these
-    /// conversations are <em>about</em> a character being over the tier's budget — the draft
-    /// that had to give something up, and the Villain, who has no budget at all under Ch.9.
-    /// Everything else the validator can say means the transcript has drifted away from the
-    /// rules, whatever it is.</para>
+    /// <para><b>The budget allowance is named, not blanket.</b> It was blanket, and an
+    /// adversarial pass showed what that costs: pushed to 146 Hero Points against a 75 budget,
+    /// the cheap character still passed every test here, while the page rendered "Over by 71"
+    /// beside a recorded line saying she comes in under it. Two conversations are <em>about</em>
+    /// being over — the draft that had to give something up, and the Villain, who has no budget
+    /// at all under Ch.9 — and the prose of both depends on that. So the exact turns that may
+    /// be over are listed, and any other transcript going over is a failure like any other.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void OnlyTheTwoConversationsThatAreAboutNotFittingGoOverTheBudget()
+    {
+        (string Id, int Turn)[] expected = [("sheet-lightning", 4), ("the-conductor", 4)];
+
+        var over = EveryCharacter()
+            .Where(x => _f.Validator.Validate(x.Character).Issues.Any(i => i.Code == "HP_BUDGET_EXCEEDED"))
+            .Select(x => (x.Transcript.Id, x.Turn))
+            .ToList();
+
+        Assert.Equal(expected, over);
+    }
+
+    /// <summary>
+    /// And nothing else the validator can say. Every other code means the transcript has
+    /// drifted away from the rules, whatever it is.
     /// </summary>
     [Fact]
     public void EveryCharacterInEveryTranscriptIsStillLegalByTheseRules() =>
@@ -222,25 +242,46 @@ public sealed class TranscriptTests
     /// <para>Ranks are deliberately <em>not</em> caught. A rank is an input — it is in the
     /// character the transcript already carries, and the assistant saying "his Might at 11d"
     /// is repeating a decision rather than reporting a calculation.</para>
+    ///
+    /// <para><b>Three holes an adversarial pass drove straight through, all now closed.</b>
+    /// The scan read <c>Text</c> only, so a figure in a <c>Title</c> or a <c>Blurb</c> — both
+    /// printed on the list of recordings — was unguarded. It matched digits only, so "works
+    /// out to nine" walked past. And its second direction listed the verbs it would accept
+    /// (<c>of|is|at|:</c>), which is a closed set masquerading as a rule.</para>
     /// </summary>
     [Fact]
     public void NoRecordedLineQuotesAFigureTheEngineIsSupposedToAnswer()
     {
-        // Both directions: "12 Hero Points" and "Resolve of 5". Word characters between the
-        // number and the noun are allowed for "125 spare Hero Points" and the like.
+        const string number =
+            @"(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen"
+            + @"|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty"
+            + @"|fifty|sixty|seventy|eighty|ninety|hundred)";
+
+        // Deliberately not "cost" or "points": "it costs more than all six of her Abilities"
+        // is a comparison rather than a quoted figure, and is the kind of sentence this
+        // surface exists to allow.
+        const string figure = @"(HP|hero points?|edge|health|resolve|budget)";
+
+        // Both directions, with a short window either way rather than a list of verbs.
         var quoted = Rx(
-            @"\b\d+\s*(\w+\s+){0,2}(HP|hero points?|edge|health|resolve)\b"
-            + @"|\b(HP|hero points?|edge|health|resolve)\s+(of|is|at|:)\s*\d+",
+            $@"\b{number}\W+(\w+\W+){{0,3}}{figure}\b|\b{figure}\W+(\w+\W+){{0,3}}{number}\b",
             RegexOptions.IgnoreCase);
 
         foreach (var transcript in All())
         {
-            foreach (var (turn, i) in transcript.Turns.Select((t, i) => (t, i + 1)))
+            // Title and Blurb are prose the visitor reads before choosing a recording, so they
+            // are held to the same rule as a line inside one.
+            var prose = transcript.Turns
+                .Select((t, i) => ($"turn {i + 1}", t.Text))
+                .Prepend(("blurb", transcript.Blurb))
+                .Prepend(("title", transcript.Title));
+
+            foreach (var (where, text) in prose)
             {
-                var match = quoted.Match(turn.Text);
+                var match = quoted.Match(text);
 
                 Assert.False(match.Success,
-                    $"{transcript.Id} turn {i} says \"{match.Value}\". Every such figure has to "
+                    $"{transcript.Id} {where} says \"{match.Value}\". Every such figure has to "
                     + "come back from the engine in the browser, not out of the recording.");
             }
         }

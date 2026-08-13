@@ -578,7 +578,9 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .replay-turn p:last-child { margin-bottom: 0; }
 
 /* Offset, not just tinted. Colour alone would carry the whole distinction between the two
-   speakers, and a third of a percent of readers would lose it entirely. */
+   speakers, and around one man in twelve has some colour-vision deficiency — and the tint
+   between --panel and --panel-sunk is slight even for everyone else. The attribution above
+   each turn is the third carrier, and the only one a screen reader gets. */
 .replay-turn.said-by-them { background: var(--panel-sunk); }
 .replay-turn.said-by-it { margin-left: auto; }
 
@@ -590,8 +592,9 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     margin-bottom: 0.2rem;
 }
 
-/* The figures. Tabular numerals so a column of them lines up as the conversation grows, and
-   wrapping rather than scrolling, because this has to survive a phone. */
+/* The figures. Tabular numerals because these are re-costed live and a proportional 1 makes
+   the whole row twitch as a value changes; wrapping rather than scrolling, because this has
+   to survive a phone. */
 .replay-figures {
     display: flex;
     flex-wrap: wrap;

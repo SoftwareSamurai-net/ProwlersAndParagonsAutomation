@@ -200,7 +200,7 @@ ProwlersAndParagonsAutomation/
 │   └── sources.json              # 6 Sources and the default rank each supplies
 │
 ├── data/transcripts/             # Four recorded conversations the browser replays — characters, never totals
-│   ├── vera-nunn.json            # Street Level, and the effect the rulebook turns out not to have
+│   ├── vera-nunn.json            # Street Level, and a Power the first search very nearly buried
 │   ├── chrono-jab.json           # "punches through time" — one Power or three
 │   ├── sheet-lightning.json      # a first draft over budget, the trade offered, the settlement
 │   └── the-conductor.json        # a Villain, who has no Hero Point budget at all (Ch.9)
@@ -230,7 +230,7 @@ ProwlersAndParagonsAutomation/
 │
 ├── web/                          # Blazor WebAssembly front end — the engine, in a browser
 │   ├── Program.cs                # Fetches the rules over HTTP into an InMemoryRulesSource
-│   ├── Pages/                    # One page per creation step, mirroring the CLI's six
+│   ├── Pages/                    # The six creation steps, mirroring the CLI, plus the replay
 │   ├── Components/               # Panel, Field, SheetSection, OptionRow… and SheetView
 │   ├── Services/CharacterSession.cs  # The CharacterSheet plus the calculators
 │   ├── Services/Labels.cs        # Turns a rules key into something a player can read

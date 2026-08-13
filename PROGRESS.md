@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3335 across two projects — 3226 on the engine, 109 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3345 across two projects — 3227 on the engine, 118 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -195,20 +195,29 @@ recorded line may quote a Hero Point figure, an Edge, a Health or a Resolve. Ran
 deliberately allowed, because a rank is an input the transcript already carries.
 
 **The transcripts were produced by driving the real server, not written as dialogue**, and the
-searching is what shaped two of them. "Cannot be hurt by anything" comes back with
-`nothing_matched_by_name` and six Powers that matched on the word "cannot" — the honesty flag
-doing its job — and "knows when someone is lying" turns out to have no Power behind it at all,
-which is Perception and a Talent and is the most useful thing in that conversation. "Punches
-through time" returns Time Travel, Time Stop, Precognition and Blink, which is the ambiguity
-rather than the answer, and is why the policy asks whether it is one Power or several.
+searching is what shaped two of them. "Punches through time" returns Time Travel, Time Stop,
+Precognition and Blink among twenty-one matches, which is the ambiguity rather than the answer,
+and is why the policy asks whether it is one Power or several.
 
-**The four cover what makes the design visible**: one that comes in under a Street-level budget
-and finds the rulebook has nothing for half the description; one whose first draft is over a
-Standard budget and has to give something up, with the trade offered and taken; one where four
-words could be one Power or three; and a Villain, who has no Hero Point budget at all under Ch.9
-— so the replay shows that finding and explains it rather than hiding it, which is what the GM
-review step does. Each figure was cross-checked three ways: the MCP server, the rendered page
-asserted equal to `CostCalculator`, and `dotnet run -- build --from` on the same character.
+**And the cheap one records a mistake rather than a success, because that is what happened.**
+Asked for a character who knows when she is being lied to, the search — "knows when someone is
+lying, reads intentions" — came back with a mind-shield, an out-of-body Power and a radar sense,
+all matched on the word "knows". The conclusion drawn was that the rulebook has no Power for it,
+and the transcript said so, and **it was wrong**: `super_senses_lie_detection` does exactly that,
+at Perception, for a flat price. What was skipped is the part of the answer that says how many
+matched and that the list was cut — the guide's own instruction is to search a more distinctive
+word before concluding the rulebook has nothing, and `found: 0` is the only case that means it.
+Asking again in the describer's words rather than the model's returns two rows with it first.
+That is now what the recording shows, which makes it the more useful of the four: this is the
+failure the search's caution fields exist to prevent, made by the person who wrote them.
+
+**The four cover what makes the design visible**: one at Street level where the interesting part
+is a search that nearly buried the answer; one whose first draft is over a Standard budget and
+has to give something up, with the trade offered and taken; one where four words could be one
+Power or three; and a Villain, who has no Hero Point budget at all under Ch.9 — so the replay
+shows that finding and explains it rather than hiding it, which is what the GM review step does.
+Every character was cross-checked three ways: the MCP server, `dotnet run -- build --from`, and
+the rendered page asserted figure by figure against `CostCalculator` in bUnit.
 
 Smaller decisions worth keeping:
 
@@ -231,7 +240,43 @@ Smaller decisions worth keeping:
   with the empty library and the page prints it, so it is not a silent nothing.
 - **The label is the first thing under the heading**, not a note at the bottom, and it says both
   halves: the words are a recording, the figures are not. A notice that only appears at the end
-  has been read after it was needed.
+  has been read after it was needed, so the test asserts its position in the rendered text and
+  not merely its presence.
+- **The shell's budget bar does not render on a replay route.** It is the visitor's own
+  character, in the same six-label format as the recorded one directly below it, and nothing on
+  the page said whose was whose — worst on the Villain, whose own panel deliberately shows no
+  budget, leaving the only budget on screen belonging to somebody else.
+- **A failed load is not a bad link.** Both reach the same branch, and the page answered both
+  with "that address does not name one of the recorded conversations" — so a deploy that missed
+  the transcripts would tell everyone following a good shared link that they had typed it wrong.
+
+**Three adversarial reviews, by agents told nothing about the work, and the worst thing in it was
+in the demonstration rather than the code.** None could make a figure on the page disagree with
+the calculator, or make the hand-off mutate the recording. What they found:
+
+- **The lie-detection error above**, which is the one that mattered: a recorded line asserting
+  something about the rulebook that the rulebook contradicts, on a page whose whole claim is that
+  these conversations really happened.
+- **A trade the recording offered that would not have worked.** "Take the storm down two ranks
+  and she keeps the foresight" saves 6 against an overspend of 12 — the prose invited the visitor
+  to make a change and watch, and the change would have left the character still over. Four is
+  the true figure and lands it exactly. The guard tests covered the two *stored* drafts and had
+  nothing to say about a trade described only in words.
+- **Six of seven mutations survived the new tests.** Swapping the two speaker labels credited
+  every line in every recording to the wrong side and nothing went red; putting Health and
+  Resolve back on the visitor's own character passed under a comment naming all three; a figure
+  written into a `Title` or a `Blurb` was unguarded because the honesty scan read `Text` only;
+  numbers written as words walked past it; and the budget allowance was blanket, so the cheap
+  character pushed to 146 against a 75 budget still passed every test here while the page
+  rendered "Over by 71" beside a line saying she comes in under it. All closed, each with the
+  mutation named in the test that now catches it.
+- **Two unguarded engine calls on the sheet** — `PerkCost` and the gear line — which the replay
+  did not introduce but did widen: an unknown id throws during render, and a throw during render
+  in the browser takes down the app rather than one box. That reaches a restored character as
+  much as a recorded one.
+- **A whole-tree Qodana scan run in place reports 1471 findings for a commit that reports 0 from
+  a clean export**, `.CSharpErrors` included, on files that build clean. Export before scanning;
+  the note is in `CLAUDE.md`.
 
 ### Conversational creation, half of it: the MCP server, and the questions worth asking — [#39](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/39)
 

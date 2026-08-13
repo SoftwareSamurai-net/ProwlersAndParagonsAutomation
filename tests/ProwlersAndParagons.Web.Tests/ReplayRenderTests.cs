@@ -3,7 +3,7 @@ using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
-using ProwlersAndParagonsAutomation.Web.Components;
+using ProwlersAndParagonsAutomation.Web.Layout;
 using ProwlersAndParagonsAutomation.Web.Pages;
 
 namespace ProwlersAndParagons.Web.Tests;
@@ -26,6 +26,7 @@ namespace ProwlersAndParagons.Web.Tests;
 public sealed class ReplayRenderTests
 {
     private const string Cheap = "vera-nunn";
+    private const string Ambiguous = "chrono-jab";
     private const string DidNotFit = "sheet-lightning";
     private const string Villain = "the-conductor";
 
@@ -50,7 +51,13 @@ public sealed class ReplayRenderTests
             .Select(s => s.TextContent.Trim())
             .First(t => t.StartsWith(label, StringComparison.Ordinal));
 
-        return int.Parse(text[label.Length..].Trim(), System.Globalization.CultureInfo.InvariantCulture);
+        // The Trait Cap is a rank and prints as "12d", the way the rulebook writes one. The
+        // trailing d is trimmed here rather than the parse being made lenient: anything else
+        // left over is still a failure, which is what catches a figure that arrived with the
+        // wrong unit stuck to it.
+        return int.Parse(
+            text[label.Length..].Trim().TrimEnd('d'),
+            System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static void ShowAll(IRenderedComponent<ReplayConversation> page) =>
@@ -74,6 +81,7 @@ public sealed class ReplayRenderTests
     /// </summary>
     [Theory]
     [InlineData(Cheap)]
+    [InlineData(Ambiguous)]
     [InlineData(DidNotFit)]
     [InlineData(Villain)]
     public void EveryRecordingSaysItIsARecordingBeforeAnythingElseHappens(string id)
@@ -81,26 +89,55 @@ public sealed class ReplayRenderTests
         using var ctx = new RenderContext();
         var page = Play(ctx, id);
 
-        Assert.Contains("This is a recording", Text(page), StringComparison.Ordinal);
+        var text = Text(page);
+        Assert.Contains("This is a recording", text, StringComparison.Ordinal);
+
+        // Before the conversation, in reading order — not merely somewhere on the page. Moved
+        // to the foot, the label passed a `Contains` check while a visitor met the recording
+        // first and the notice about it only if they scrolled past everything.
+        Assert.True(
+            text.IndexOf("This is a recording", StringComparison.Ordinal)
+            < text.IndexOf(Conversation(ctx, id).Turns[0].Text, StringComparison.Ordinal),
+            "The label comes after the first line of the recording it is labelling.");
     }
 
     /// <summary>
-    /// And both sides of every line are attributed, always. A block of speech with no
-    /// attribution is exactly what reads as something happening now.
+    /// And every line is attributed to the side that actually said it.
+    ///
+    /// <para><b>Asserting the attribution is <em>present</em> is not enough</b>, which an
+    /// adversarial pass demonstrated by swapping the two labels: every line in every recording
+    /// was credited to the wrong speaker and this test, which counted the labels and checked
+    /// they were not blank, stayed green. The parser already refuses a turn with no speaker
+    /// and says why — that guard is about the file, and this one is about the screen.</para>
     /// </summary>
-    [Fact]
-    public void EveryLineSaysWhoSaidIt()
+    [Theory]
+    [InlineData(Cheap)]
+    [InlineData(Ambiguous)]
+    [InlineData(DidNotFit)]
+    [InlineData(Villain)]
+    public void EveryLineIsAttributedToTheSideThatSaidIt(string id)
     {
         using var ctx = new RenderContext();
-        var page = Play(ctx, DidNotFit);
+        var page = Play(ctx, id);
         ShowAll(page);
 
-        var turns = page.FindAll(".replay-turn");
-        var who = page.FindAll(".replay-who");
+        var recorded = Conversation(ctx, id).Turns;
+        var rendered = page.FindAll(".replay-turn");
 
-        Assert.Equal(Conversation(ctx, DidNotFit).Turns.Count, turns.Count);
-        Assert.Equal(turns.Count, who.Count);
-        Assert.All(who, w => Assert.False(string.IsNullOrWhiteSpace(w.TextContent)));
+        Assert.Equal(recorded.Count, rendered.Count);
+
+        for (var i = 0; i < recorded.Count; i++)
+        {
+            var who = rendered[i].QuerySelector(".replay-who")!.TextContent.Trim();
+
+            // The recorded words and the attribution beside them, together. Checked as a pair
+            // so a page that labelled every turn correctly while showing them out of order
+            // still fails.
+            Assert.Contains(recorded[i].Text, rendered[i].TextContent, StringComparison.Ordinal);
+            Assert.Equal(
+                recorded[i].Speaker == TranscriptSpeaker.Person ? "The player" : "The assistant",
+                who);
+        }
     }
 
     // ── It goes at the visitor's pace ───────────────────────────────────────────
@@ -158,6 +195,7 @@ public sealed class ReplayRenderTests
     /// </summary>
     [Theory]
     [InlineData(Cheap)]
+    [InlineData(Ambiguous)]
     [InlineData(DidNotFit)]
     [InlineData(Villain)]
     public void EverySpendOnThePageIsTheOneTheCalculatorAnswers(string id)
@@ -167,13 +205,52 @@ public sealed class ReplayRenderTests
         var page = Play(ctx, id);
         ShowAll(page);
 
-        var character = Conversation(ctx, id).Turns.First(t => t.Character is not null).Character!;
+        var rules = ctx.Services.GetRequiredService<RulesRepository>();
+        var derived = ctx.Services.GetRequiredService<DerivedStatsCalculator>();
+        var conversation = Conversation(ctx, id);
+        var character = conversation.Turns.First(t => t.Character is not null).Character!;
 
         Assert.Equal(costs.TotalCost(character), Figure(page, "Spent"));
         Assert.Equal(costs.PackageCost(character), Figure(page, "Package"));
         Assert.Equal(costs.AbilityCost(character), Figure(page, "Abilities"));
         Assert.Equal(costs.TalentCost(character), Figure(page, "Talents"));
         Assert.Equal(costs.TotalPowersCost(character), Figure(page, "Powers"));
+
+        // Perks and Gear were left off this list, and a pass that added 7 to one and 3 to the
+        // other went unnoticed. They are 0 on every recorded character, which is exactly why
+        // they need asserting: a figure nobody checks is a figure that can say anything.
+        Assert.Equal(costs.TotalPerksCost(character), Figure(page, "Perks"));
+        Assert.Equal(costs.TotalGearCost(character), Figure(page, "Gear"));
+
+        // The tier's own two numbers, and the gap — the line somebody actually reads to decide
+        // whether the character fits.
+        var tier = rules.GetTier(character.SelectedTierId!)!;
+        Assert.Equal(tier.TraitCapRank, Figure(page, "Trait Cap"));
+
+        if (!conversation.Villain)
+        {
+            Assert.Equal(tier.HeroPoints, Figure(page, "Budget"));
+            Assert.Equal(
+                Math.Abs(tier.HeroPoints - costs.TotalCost(character)),
+                Figure(page, costs.TotalCost(character) > tier.HeroPoints ? "Over by" : "Left"));
+        }
+
+        // And the three figures a player reads off mid-scene. Scoped to the first panel, to
+        // match the character taken above: one recording puts a draft and a settlement on the
+        // page and each gets a panel of its own.
+        var stats = page.FindAll(".replay-verdict").First()
+            .QuerySelectorAll(".stat-block").Select(b => b.TextContent).ToList();
+        foreach (var (label, value) in new[]
+                 {
+                     ("Edge", derived.CalculateEdge(character)),
+                     ("Health", derived.CalculateHealth(character)),
+                     ("Resolve", derived.CalculateResolve(character))
+                 })
+        {
+            var block = stats.Single(s => s.Contains(label, StringComparison.Ordinal));
+            Assert.Contains(value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                block, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
@@ -233,18 +310,32 @@ public sealed class ReplayRenderTests
     /// a replay printed somebody else's Edge, Health and Resolve under a recorded character's
     /// name — which is the kind of wrong that looks entirely right. The test loads a sample
     /// first, so there is a different character present to be printed by mistake.</para>
+    ///
+    /// <para><b>All three figures, because asserting one of three was not enough.</b> An
+    /// adversarial pass put Health and Resolve back on the visitor's own character and left
+    /// Edge alone; the suite stayed green, under a comment naming all three.</para>
     /// </summary>
-    [Fact]
-    public void TheSheetAtTheEndCarriesTheRecordedCharactersOwnFigures()
+    [Theory]
+    [InlineData("Edge")]
+    [InlineData("Health")]
+    [InlineData("Resolve")]
+    public void TheSheetAtTheEndCarriesTheRecordedCharactersOwnFigures(string label)
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
         var derived = ctx.Services.GetRequiredService<DerivedStatsCalculator>();
 
         var recorded = Conversation(ctx, Cheap).FinalCharacter!;
 
+        int Figure(CharacterSheet sheet) => label switch
+        {
+            "Edge" => derived.CalculateEdge(sheet),
+            "Health" => derived.CalculateHealth(sheet),
+            _ => derived.CalculateResolve(sheet)
+        };
+
         // The test can only bite if the two disagree. Asserting that first turns a sample that
         // drifted into a failure here rather than into a test that passes for no reason.
-        Assert.NotEqual(derived.CalculateEdge(ctx.Session.Sheet), derived.CalculateEdge(recorded));
+        Assert.NotEqual(Figure(ctx.Session.Sheet), Figure(recorded));
 
         var page = Play(ctx, Cheap);
         ShowAll(page);
@@ -254,13 +345,39 @@ public sealed class ReplayRenderTests
         Assert.Contains(recorded.Name, sheet.TextContent, StringComparison.Ordinal);
         Assert.DoesNotContain(ctx.Session.Sheet.Name, sheet.TextContent, StringComparison.Ordinal);
 
-        var edge = page.FindAll(".sheet .stat-block")
-            .Single(b => b.TextContent.Contains("Edge", StringComparison.Ordinal));
+        var block = page.FindAll(".sheet .stat-block")
+            .Single(b => b.TextContent.Contains(label, StringComparison.Ordinal));
 
         Assert.Contains(
-            derived.CalculateEdge(recorded).ToString(System.Globalization.CultureInfo.InvariantCulture),
-            edge.TextContent,
+            Figure(recorded).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            block.TextContent,
             StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The shell's budget bar is the visitor's own character and does not belong above a
+    /// recording of somebody else's.</b>
+    ///
+    /// <para>Both are six labelled figures in the same format, so a visitor part-way through
+    /// their own build met "of 125 spent, remaining" directly over a recorded character costed
+    /// at something else, with nothing saying whose was whose. Worst on the Villain recording,
+    /// which shows no budget of its own on purpose: the only budget on the screen belonged to
+    /// a different character entirely. Rendered through the layout, because the bar is in the
+    /// shell and the page under it cannot see it.</para>
+    /// </summary>
+    [Fact]
+    public void TheVisitorsOwnBudgetBarIsNotShownOverARecordedCharacter()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        var nav = ctx.Services.GetRequiredService<NavigationManager>();
+
+        // The wizard, where it belongs.
+        nav.NavigateTo("characteristics");
+        Assert.Single(ctx.Render<MainLayout>(p => p.Add(l => l.Body, b => { })).FindAll(".budget"));
+
+        // And a recording, where it does not.
+        nav.NavigateTo($"replay/{Villain}");
+        Assert.Empty(ctx.Render<MainLayout>(p => p.Add(l => l.Body, b => { })).FindAll(".budget"));
     }
 
     // ── The hand-off ────────────────────────────────────────────────────────────
@@ -358,6 +475,32 @@ public sealed class ReplayRenderTests
 
         Assert.Contains("No such recording", Text(page), StringComparison.Ordinal);
         Assert.Empty(page.FindAll(".replay-turn"));
+    }
+
+    /// <summary>
+    /// <b>A recording that could not be loaded is not a bad link, and must not be reported as
+    /// one.</b>
+    ///
+    /// <para>Both states reach the same branch — the library cannot find the id — and the app
+    /// answered both with "that address does not name one of the recorded conversations". So a
+    /// deploy that failed to ship the transcripts told everyone following a perfectly good
+    /// shared link that they had typed it wrong, while the actual reason sat unread on the
+    /// library. The two are told apart now, and both pages print the reason.</para>
+    /// </summary>
+    [Fact]
+    public void RecordingsThatCouldNotBeLoadedAreNotReportedAsABadAddress()
+    {
+        const string reason = "the transcripts answered 404";
+        using var ctx = new RenderContext(reason);
+
+        var conversation = ctx.Render<ReplayConversation>(p => p.Add(c => c.Id, DidNotFit));
+        var text = Text(conversation);
+
+        Assert.DoesNotContain("No such recording", text, StringComparison.Ordinal);
+        Assert.Contains(reason, text, StringComparison.Ordinal);
+
+        // And the list, which is where somebody who did not follow a link arrives.
+        Assert.Contains(reason, Text(ctx.Render<Replay>()), StringComparison.Ordinal);
     }
 
     /// <summary>

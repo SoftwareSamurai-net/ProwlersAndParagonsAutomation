@@ -195,7 +195,7 @@
                                                 <span class="muted small"> — @sp.NarrativeDetail</span>
                                             }
                                         </td>
-                                        <td><span class="hp">@Session.Costs.PerkCost(sp) HP</span></td>
+                                        <td><span class="hp">@Cost(() => Session.Costs.PerkCost(sp)) HP</span></td>
                                     </tr>
                                 }
                             </tbody>
@@ -214,7 +214,7 @@
                             <tbody>
                                 @foreach (var item in Sheet.Gear)
                                 {
-                                    <tr><td colspan="2">@GearFormatter.Describe(item, Session.Rules, Session.Costs)</td></tr>
+                                    <tr><td colspan="2">@Describe(item)</td></tr>
                                 }
                             </tbody>
                         </table>
@@ -336,6 +336,27 @@
     [Parameter] public bool? ShowBudget { get; set; }
 
     private CharacterSheet Sheet => Character ?? Session.Sheet;
+
+    /// <summary>
+    /// A Hero Point figure, or a dash. Every other cost on this sheet already went through
+    /// this and the Perk and Gear boxes did not, which was a real crash rather than an
+    /// inconsistency: the engine throws rather than guessing on an id it does not have, and a
+    /// throw during render in the browser takes down the whole app rather than one box. That
+    /// reaches an unknown perk id in a restored character as well as in a recorded one.
+    /// </summary>
+    private static string Cost(Func<int> cost) =>
+        CharacterSession.TryCost(cost)?.ToString() ?? "—";
+
+    /// <summary>
+    /// One line of gear, or the item's bare name if it cannot be priced. Same objection as
+    /// <see cref="Cost"/>, and the name is the part worth keeping on the page: a piece of gear
+    /// nobody can cost is still a piece of gear the character is carrying.
+    /// </summary>
+    private string Describe(SelectedGear item)
+    {
+        try { return GearFormatter.Describe(item, Session.Rules, Session.Costs); }
+        catch (InvalidOperationException) { return item.Name ?? ""; }
+    }
 
     private string DisplayName =>
         string.IsNullOrWhiteSpace(Sheet.Name) ? "Unnamed" : Sheet.Name;

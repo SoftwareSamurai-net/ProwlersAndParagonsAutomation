@@ -85,6 +85,19 @@ resharper_auto_property_can_be_made_get_only_global_highlighting = none
 resharper_unused_member_global_highlighting = none
 resharper_class_never_instantiated_global_highlighting = none
 
+[engine/TranscriptLibrary.cs]
+# The same objection as engine/Models above, one level in: Envelope and
+# TurnEnvelope are the shape of data/transcripts/*.json, constructed only by
+# System.Text.Json through reflection. The `.Local` variants rather than the
+# `.Global` ones because these two are private to the reader — which is where
+# they belong, since nothing outside it should know the file format.
+#
+# Acting on either would silently drop a field from a loaded transcript, and a
+# transcript that loses a field does not fail to load: it replays a conversation
+# with a line or a character quietly missing from it.
+resharper_unused_auto_property_accessor_local_highlighting = none
+resharper_class_never_instantiated_local_highlighting = none
+
 [engine/CharacterValidator.cs]
 # Since the headless build command, this file's job includes checking a character
 # somebody else wrote — and a deserializer hands back null for a property whose

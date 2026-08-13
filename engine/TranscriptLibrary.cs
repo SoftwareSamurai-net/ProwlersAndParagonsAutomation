@@ -61,13 +61,17 @@ public static class TranscriptLibrary
                 : throw new InvalidOperationException($"The transcript '{name}' was not supplied."))];
     }
 
-    /// <summary>One transcript.</summary>
+    /// <summary>
+    /// One transcript. Private because <see cref="ReadAll"/> is the only way in: the file
+    /// names are this class's business, and a caller that could read one file by name would
+    /// be a second place that knows what is in the directory.
+    /// </summary>
     /// <param name="json">The file's contents.</param>
     /// <param name="fileName">Named in any error, so a failure says which file to open.</param>
     /// <exception cref="InvalidOperationException">The text is not a transcript this build can
     /// read — malformed, missing a required part, or naming a field a character no longer has.
     /// </exception>
-    public static Transcript Read(string json, string fileName)
+    private static Transcript Read(string json, string fileName)
     {
         Envelope envelope;
 

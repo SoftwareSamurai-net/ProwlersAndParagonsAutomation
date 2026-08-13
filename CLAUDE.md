@@ -135,8 +135,16 @@ exactly as the rules are, and fetched by `Program.cs` from `TranscriptLibrary.Fi
   library and carries the reason so the page can print it.
 - **The Villain recording shows its budget finding rather than hiding it.** The GM review step
   hides `HP_BUDGET_EXCEEDED` in Villain mode; here it is shown with Ch.9 beside it, because one
-  recording is about exactly that difference. That branch shows no verdict word at all — a
-  Villain has no budget to be over.
+  recording is about exactly that difference. **That branch claims no verdict at all** — not
+  "legal", not "not legal yet" — and the reason is broader than the budget: this program is not
+  the one that decides whether somebody's Villain is finished, and a word in a heading would be
+  read as though it were. The findings themselves are all still printed and all still mean what
+  they say.
+- **The shell's budget bar does not render on a replay route.** It is the visitor's own
+  character in the same six-label format as the recorded one below it, and the two were
+  indistinguishable — worst on the Villain, whose own panel deliberately shows no budget, so
+  the only budget on the screen belonged to somebody else entirely. `MainLayout` reads the
+  first path segment; there is a test through the layout, because a page cannot see the shell.
 - The replay does not change the app's palette while you watch; opening the character does, the
   way loading a sample does. Whether a *recorded* character is a Villain has nothing to do with
   what colour the visitor is wearing, which is why `SheetView` takes `ShowBudget` too.

@@ -6,7 +6,20 @@
 
 <PageTitle>@(Conversation?.Title ?? "Recording") — Prowlers &amp; Paragons</PageTitle>
 
-@if (Conversation is null)
+@* Two ways to have no recording, and telling somebody the wrong one wastes their time. If
+   the library failed to load then every address is unknown, including a correct one somebody
+   shared — so "your link is wrong" would be a confident lie. Say which it is. *@
+@if (Conversation is null && Replays.Problem is { } problem)
+{
+    <h1>The recordings did not load</h1>
+    <p class="muted">
+        This is not your link — none of the recordings can be reached at the moment.
+        Everything else on this site works, so you can still build a character.
+    </p>
+    <p class="small muted">What went wrong: @problem</p>
+    <NavLink class="btn" href="">Build one instead</NavLink>
+}
+else if (Conversation is null)
 {
     <h1>No such recording</h1>
     <p class="muted">That address does not name one of the recorded conversations.</p>

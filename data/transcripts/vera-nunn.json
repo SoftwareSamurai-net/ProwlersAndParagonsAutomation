@@ -1,7 +1,7 @@
 {
   "Id": "vera-nunn",
   "Title": "The woman nobody got one past",
-  "Blurb": "A description with no super in it. The interesting part is what the rulebook turns out not to have.",
+  "Blurb": "A description with no super in it, and a Power the first search very nearly buried.",
   "Villain": false,
   "Turns": [
     {
@@ -18,7 +18,7 @@
     },
     {
       "Speaker": "assistant",
-      "Text": "Then here she is. One thing worth saying before you look: I went hunting for a Power that means \"knows when you are lying\" and the rulebook does not have one. That is not a hole in her — it is Perception and the Investigation Talent, both bought high, and at those ranks nobody gets one past her. The armour is the other half of what you said, and it starts from her Toughness rather than being bought from nothing.",
+      "Text": "Worth telling you how the second half of that was nearly missed, because it is the mistake this tool is built to catch me making. I searched for \"knows when someone is lying, reads intentions\" and got back a mind-shield, an out-of-body Power and a radar sense — everything matched on the word \"knows\", and none of it did what you said. What I did not do at first was read the rest of the answer, which said plainly that there were more matches than it had shown me and that I should search a more distinctive word. Asking again in your words instead of mine — \"can tell when somebody is lying to her\" — cut it to two entries, and the first was exactly it: a Super Sense that reads a lie automatically, at her Perception. So she has it, and it is the last thing she could afford. The armour is the other half of what you said, and that one starts from her Toughness rather than being bought from nothing.",
       "Character": {
         "Name": "Vera Nunn",
         "SelectedTierId": "street_level",
@@ -29,7 +29,8 @@
           "professional": 6, "science": 2, "streetwise": 6, "survival": 2, "technology": 2, "vehicles": 2
         },
         "SelectedPowers": [
-          { "PowerId": "armor", "PurchasedRanks": 5, "Pros": [], "Cons": [], "SourceId": "innate" }
+          { "PowerId": "armor", "PurchasedRanks": 5, "Pros": [], "Cons": [], "SourceId": "innate" },
+          { "PowerId": "super_senses_lie_detection", "PurchasedRanks": 0, "Pros": [], "Cons": [], "SourceId": "innate" }
         ],
         "Perks": [],
         "Flaws": [
@@ -44,7 +45,7 @@
     },
     {
       "Speaker": "assistant",
-      "Text": "She comes in under the tier's budget rather than filling it, which for a character like this is the honest answer — there is nothing else she does. If you want the rest spent, her Toughness is where it would go, and the armour rises with it because it takes its baseline from that Ability."
+      "Text": "Both of her Powers start from an Ability rather than from nothing — the armour from her Toughness, the lie-sense from her Perception — so if you ever want her tougher or sharper, change the Ability and the Power comes up with it. The lie-sense has no ranks to buy at all: it is one flat price and it reads at whatever her Perception is. That is also the answer to \"is she a super?\" She is a woman with very good instincts, written down in a way the rules can price."
     }
   ]
 }

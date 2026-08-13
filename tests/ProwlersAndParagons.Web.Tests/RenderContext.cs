@@ -17,7 +17,13 @@ public sealed class RenderContext : BunitContext
 {
     public CharacterSession Session { get; }
 
-    public RenderContext()
+    /// <param name="recordingsProblem">
+    /// Set to render the app as it is when the recordings could not be fetched — an empty
+    /// library carrying the reason, which is what <c>web/Program.cs</c> registers when the
+    /// fetch or the parse fails. There is no way to reach that state through the UI, and it is
+    /// the state in which the replay pages have to say something true rather than guess.
+    /// </param>
+    public RenderContext(string? recordingsProblem = null)
     {
         var rules     = RulesRepository.FromBasePath(RepoRoot());
         var costs     = new CostCalculator(rules);
@@ -35,11 +41,13 @@ public sealed class RenderContext : BunitContext
         // the rules are read from the real data/rules: a replay that renders correctly against
         // an invented transcript and wrongly against the shipped ones has been tested for
         // nothing. This is the fetch in Program.cs, minus the HTTP.
-        Services.AddSingleton(new ReplayLibrary(TranscriptLibrary.ReadAll(
-            TranscriptLibrary.FileNames.ToDictionary(
-                name => name,
-                name => File.ReadAllText(Path.Combine(RepoRoot(), "data", "transcripts", name)),
-                StringComparer.Ordinal))));
+        Services.AddSingleton(recordingsProblem is null
+            ? new ReplayLibrary(TranscriptLibrary.ReadAll(
+                TranscriptLibrary.FileNames.ToDictionary(
+                    name => name,
+                    name => File.ReadAllText(Path.Combine(RepoRoot(), "data", "transcripts", name)),
+                    StringComparer.Ordinal)))
+            : new ReplayLibrary([], recordingsProblem));
         Services.AddScoped<CharacterSession>();
 
         // Resolves bUnit's own IJSRuntime, so a component that persists can be rendered and

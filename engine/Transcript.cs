@@ -66,9 +66,12 @@ public sealed record Transcript
     ///
     /// <para>It is a property of the <em>conversation</em> and not of the character, which is
     /// why it sits here and not on <see cref="CharacterSheet"/>. Ch.9 builds Villains by
-    /// exactly the Hero rules and the engine is never told which it is looking at; all this
-    /// does is set the palette the replay wears, and say that a budget finding is the GM's
-    /// call rather than a rule broken.</para>
+    /// exactly the Hero rules and the engine is never told which it is looking at, so nothing
+    /// this changes is mechanical. What it changes is what is <em>said</em>: a Villain has no
+    /// Hero Point budget, so the replay quotes no budget figure, claims no verdict, and prints
+    /// the reason the overspend it does report is the GM's call rather than a rule broken. It
+    /// also picks the palette handed over with the character — but only on hand-off, not while
+    /// the recording is being watched.</para>
     /// </summary>
     public bool Villain { get; init; }
 
