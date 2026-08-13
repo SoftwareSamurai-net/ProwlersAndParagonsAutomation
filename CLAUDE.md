@@ -81,11 +81,12 @@ top layer, none of which may hold a rule of its own:
 
 ```
                                           ↗   cli/
-data/rules/   →   engine/   →   sheets/   →   web/
+data/rules/   →   engine/   →   sheets/   →   web/   ←   data/transcripts/
                                           ↘   mcp/
 ```
 
 - **`data/rules/`** — JSON files only. No logic. All rules data extracted from the P&P Ultimate Edition PDF lives here.
+- **`data/transcripts/`** — the second data input, and **not rules**: four recorded conversations the browser replays, read by `engine/TranscriptLibrary`. They are read *through* the engine rather than by it — every character in one goes through `CharacterSheetJson`'s strict reader — and nothing in the engine's rules logic knows they exist. Only `web/` loads them. See "The replay".
 - **`engine/`** — Pure C#, zero Spectre.Console references, no filesystem access. `CostCalculator` and `CharacterValidator` are the authority on HP costs and validity. No front end tallies points itself. The one file here that is not rules logic is `SampleCharacters.cs`, which builds two `CharacterSheet`s for preview — see below.
 - **`sheets/`** — The `.txt` and `.json` exports, plus the stat-line and gear-line formatters, all returning strings. Shared by every host — the wizard, the browser, the build command and the MCP server; writing a string somewhere is the host's job.
 - **`cli/`** — Terminal presentation. Uses Spectre.Console for all rendering. Each wizard step implements `IWizardStep` and receives `CharacterSheet`, `RulesRepository`, `CostCalculator`, and `DerivedStatsCalculator` via `Execute()`.
