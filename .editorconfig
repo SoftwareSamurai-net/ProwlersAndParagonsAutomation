@@ -85,6 +85,18 @@ resharper_auto_property_can_be_made_get_only_global_highlighting = none
 resharper_unused_member_global_highlighting = none
 resharper_class_never_instantiated_global_highlighting = none
 
+[web/Components/SheetView.razor]
+# `item.Name ?? ""` on a piece of gear the engine could not price. SelectedGear.Name is
+# declared non-null and a deserializer puts a null there regardless — the same objection
+# already recorded for engine/CharacterValidator.cs and engine/CharacterSheetJson.cs, now
+# reaching a sheet because this component renders a character it did not build.
+#
+# The two spellings pull opposite inspections and only one can be silenced honestly: written
+# as a nullable return instead, ReturnTypeCanBeNotNullable fires on exactly the same false
+# premise. Acting on either puts a NullReferenceException back into a render, which in the
+# browser takes the whole app down rather than one box.
+resharper_null_coalescing_condition_is_always_not_null_according_to_api_contract_highlighting = none
+
 [engine/TranscriptLibrary.cs]
 # The same objection as engine/Models above, one level in: Envelope and
 # TurnEnvelope are the shape of data/transcripts/*.json, constructed only by

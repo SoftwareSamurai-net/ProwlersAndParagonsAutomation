@@ -353,16 +353,17 @@
     /// nobody can cost is still a piece of gear the character is carrying.
     /// </summary>
     /// <remarks>
-    /// Returns <c>string?</c> rather than coalescing to empty. <c>Name</c> is declared
-    /// non-null and a deserializer will put a null there anyway — the same story as the null
-    /// checks in <c>CharacterValidator</c> — so the coalesce read as dead code to an
-    /// inspection that believes the declaration. Razor renders a null as nothing, which is
-    /// what the coalesce was for.
+    /// <c>Name</c> is declared non-null and a deserializer puts a null there anyway — the same
+    /// story as the null checks in <c>CharacterValidator</c>, and silenced in
+    /// <c>.editorconfig</c> for the same reason. Written as a coalesce rather than as a
+    /// nullable return because the two spellings pull opposite inspections: dropping the
+    /// coalesce trades "this can never be null" for "then why is the return type nullable",
+    /// and only one of the two can be silenced honestly.
     /// </remarks>
-    private string? Describe(SelectedGear item)
+    private string Describe(SelectedGear item)
     {
         try { return GearFormatter.Describe(item, Session.Rules, Session.Costs); }
-        catch (InvalidOperationException) { return item.Name; }
+        catch (InvalidOperationException) { return item.Name ?? ""; }
     }
 
     private string DisplayName =>
