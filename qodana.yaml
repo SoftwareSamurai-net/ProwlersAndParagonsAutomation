@@ -20,11 +20,18 @@ version: "1.0"
 # a token through at all: a scan cannot be broken by a credential it never reads.
 # See PR #38 for both runs.
 #
-# To upgrade, get a Qodana Cloud plan that licenses the .NET linter, keep the
-# QODANA_TOKEN secret (the workflow already passes it through), and change this
-# one line to jetbrains/qodana-dotnet:2026.2. Nothing else moves: the path
-# exclusions below and every severity in .editorconfig apply to both images.
+# To upgrade you need three things together, and any two without the third break the
+# scan: a Qodana Cloud plan that licenses the .NET linter, a QODANA_TOKEN secret, and
+# an `env: QODANA_TOKEN:` back on the scan step — the workflow does not pass one now,
+# and the secret has been deleted. Then change this one line to
+# jetbrains/qodana-dotnet:2026.2. Nothing else moves: the path exclusions below and
+# every severity in .editorconfig apply to both images.
 # Expect a different count — cdnet's zero was measured on cdnet.
+#
+# There is no reason to do any of that for a one-developer repository. Community
+# analyses everything and reports zero. If what you want is a dashboard rather than
+# more inspections, making the repo public turns on the free GitHub code-scanning
+# upload at the foot of the workflow by itself.
 #
 # Both images bundle .NET SDK 8.0, 9.0 and 10.0, so net10.0 analyses natively.
 # Pinned rather than :latest so CI results stay reproducible.
