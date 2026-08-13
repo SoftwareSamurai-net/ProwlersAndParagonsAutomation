@@ -17,9 +17,13 @@ public static class CharacterServer
     public const string Name = "prowlers-and-paragons";
 
     /// <summary>
-    /// The wire names, in the order a conversation uses them. They are set here rather than
-    /// taken from the method names so that renaming a C# method cannot rename a tool a
-    /// stranger's client is configured against.
+    /// The wire names. They are set here rather than taken from the method names so that
+    /// renaming a C# method cannot rename a tool a stranger's client is configured against —
+    /// and the tests assert the literal strings, because a constant compared with itself
+    /// proves nothing about a contract somebody else has written down.
+    ///
+    /// <para>The order they are declared in is not the order a client lists them in: the
+    /// collection a server keeps its tools in does not promise one.</para>
     /// </summary>
     public const string CreationGuideTool = "creation_guide";
     public const string ListOptionsTool = "list_options";
@@ -32,7 +36,8 @@ public static class CharacterServer
     /// What the client is told at the start of the session. Short on purpose — the policy is
     /// long and lives behind <c>creation_guide</c>, and instructions a client shows in full
     /// crowd out the conversation. The one thing that has to be true before the first tool
-    /// call is the ordering: propose, then ask.
+    /// call is who decides: the model proposes a character and the engine prices and judges
+    /// it, never the other way round.
     /// </summary>
     public const string Instructions =
         "Builds Prowlers & Paragons Ultimate Edition characters from a description. "

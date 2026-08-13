@@ -1,3 +1,6 @@
+using ModelContextProtocol.Client;
+using ModelContextProtocol.Protocol;
+using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Mcp;
 
 namespace ProwlersAndParagonsAutomation.Tests;
@@ -45,21 +48,100 @@ public sealed class McpStdioTests
             {
                 var line = lines[i];
 
-                var index = line.IndexOf("Console.", StringComparison.Ordinal);
-                if (index < 0) continue;
-
                 // A comment about standard output is not a write to it, and this file's own
                 // reasoning is written down in several of them.
                 if (line.TrimStart().StartsWith("//", StringComparison.Ordinal)) continue;
-                if (line.AsSpan(index).StartsWith("Console.Error", StringComparison.Ordinal)) continue;
 
-                offenders.Add($"{Path.GetFileName(file)}:{i + 1}  {line.Trim()}");
+                // <b>Every occurrence on the line, not the first.</b> Looking at the first one
+                // only, `Console.Error.WriteLine(a); Console.Write(b);` passed whole.
+                foreach (var index in Occurrences(line, "Console."))
+                {
+                    if (line.AsSpan(index).StartsWith("Console.Error", StringComparison.Ordinal))
+                        continue;
+
+                    offenders.Add($"{Path.GetFileName(file)}:{i + 1}  {line.Trim()}");
+                }
+
+                // The spellings that get at the same stream without the token: an alias or a
+                // static import, and the handle itself. `using static System.Console;` and a
+                // bare WriteLine is invisible to any search for "Console.".
+                foreach (var spelling in new[]
+                         {
+                             "using static System.Console", "= System.Console",
+                             "OpenStandardOutput", "SetOut", "Console.Out"
+                         })
+                {
+                    if (line.Contains(spelling, StringComparison.Ordinal))
+                        offenders.Add($"{Path.GetFileName(file)}:{i + 1}  {line.Trim()}");
+                }
             }
         }
 
         Assert.True(offenders.Count == 0,
             "Standard output carries the protocol and nothing else, so the server may only "
             + "write to Console.Error:\n" + string.Join("\n", offenders));
+    }
+
+    private static IEnumerable<int> Occurrences(string line, string token)
+    {
+        for (var index = line.IndexOf(token, StringComparison.Ordinal);
+             index >= 0;
+             index = line.IndexOf(token, index + 1, StringComparison.Ordinal))
+            yield return index;
+    }
+
+    /// <summary>
+    /// <b>And the property itself, from the outside.</b> The check above reads source, which
+    /// cannot see a write from a library, from <c>engine/</c> or <c>sheets/</c>, or through a
+    /// spelling nobody thought of. This starts the built program the way a client does and
+    /// completes a real session with it: anything else on that stream and the handshake fails,
+    /// because a JSON-RPC reader has no way to skip a line it did not expect.
+    /// </summary>
+    [Fact]
+    public async Task TheBuiltProgramSpeaksNothingButTheProtocol()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+
+        await using var client = await McpClient.CreateAsync(
+            new StdioClientTransport(new StdioClientTransportOptions
+            {
+                Name = "stdout-hygiene",
+                Command = ServerExecutable()
+            }),
+            cancellationToken: cancellation);
+
+        var tools = await client.ListToolsAsync(cancellationToken: cancellation);
+
+        Assert.Equal(6, tools.Count);
+
+        var guide = await client.CallToolAsync(
+            CharacterServer.CreationGuideTool, cancellationToken: cancellation);
+
+        Assert.NotEqual(true, guide.IsError);
+        Assert.Contains("The engine decides",
+            string.Concat(guide.Content.OfType<TextContentBlock>().Select(c => c.Text)),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The server as it was built beside this test run — same configuration, same framework,
+    /// so this cannot end up testing a stale binary from some earlier build.
+    /// </summary>
+    private static string ServerExecutable()
+    {
+        var here = new DirectoryInfo(AppContext.BaseDirectory);          // …/bin/<cfg>/<tfm>/
+        var framework = here.Name;
+        var configuration = here.Parent!.Name;
+
+        var path = Path.Combine(
+            RulesFixture.RepoRoot, "mcp", "bin", configuration, framework,
+            OperatingSystem.IsWindows() ? "ProwlersAndParagons.Mcp.exe" : "ProwlersAndParagons.Mcp");
+
+        Assert.True(File.Exists(path),
+            $"The MCP server was not built at '{path}'. It is a project reference of this test "
+            + "project, so `dotnet test` builds it; a missing binary means the layout moved.");
+
+        return path;
     }
 
     /// <summary>
@@ -80,38 +162,93 @@ public sealed class McpStdioTests
     /// <summary>
     /// What the user says wins over what the environment says, and both win over the copy
     /// beside the binary — otherwise an override is only an override when nothing shipped.
+    ///
+    /// <para><b>Asserted through <c>Find</c> with every candidate existing</b>, not only
+    /// through the order <c>Candidates</c> yields. With one directory in existence, reversing
+    /// the search order left both precedence tests green while the shipped copy beat an
+    /// explicit argument.</para>
     /// </summary>
     [Fact]
     public void AnExplicitDirectoryAndTheEnvironmentBothOutrankTheShippedCopy()
     {
-        var withBoth = RulesLocation.Candidates(
-            "explicit", v => v == RulesLocation.OverrideVariable ? "from-environment" : null,
-            Path.Combine("C:", "app")).ToList();
+        static string? Environment(string name) =>
+            name == RulesLocation.OverrideVariable ? "from-environment" : null;
 
-        Assert.Equal("explicit", withBoth[0]);
-        Assert.Equal("from-environment", withBoth[1]);
+        var beside = Path.Combine("C:", "app", "data", "rules");
 
-        var withEnvironmentOnly = RulesLocation.Candidates(
-            null, v => v == RulesLocation.OverrideVariable ? "from-environment" : null,
-            Path.Combine("C:", "app")).ToList();
+        Assert.Equal("explicit",
+            RulesLocation.Find("explicit", Environment, Path.Combine("C:", "app"), _ => true).Directory);
 
-        Assert.Equal("from-environment", withEnvironmentOnly[0]);
+        Assert.Equal("from-environment",
+            RulesLocation.Find(null, Environment, Path.Combine("C:", "app"), _ => true).Directory);
+
+        Assert.Equal(beside,
+            RulesLocation.Find(null, _ => null, Path.Combine("C:", "app"), _ => true).Directory);
     }
 
     /// <summary>
-    /// <b>No rules is null, not a guess.</b> A repository built for a directory that is not
-    /// there gets as far as a connected session and then answers every question with an
+    /// <b>A directory the user named and that is not there is refused, not skipped.</b> The
+    /// README's troubleshooting tells a stuck user to set that variable; when it fell through
+    /// to the shipped copy, a typo produced a server that worked perfectly on rules that were
+    /// not the ones they meant, and said nothing.
+    /// </summary>
+    [Fact]
+    public void ADirectoryTheUserNamedAndThatIsNotThereIsRefused()
+    {
+        var everythingElseExists = new Func<string, bool>(d => d != "wrong");
+
+        var fromArgument = RulesLocation.Find(
+            "wrong", _ => null, Path.Combine("C:", "app"), everythingElseExists);
+
+        Assert.Null(fromArgument.Directory);
+        Assert.Contains("wrong", fromArgument.Refusal!, StringComparison.Ordinal);
+        Assert.Contains("first argument", fromArgument.Refusal!, StringComparison.OrdinalIgnoreCase);
+
+        var fromEnvironment = RulesLocation.Find(
+            null, v => v == RulesLocation.OverrideVariable ? "wrong" : null,
+            Path.Combine("C:", "app"), everythingElseExists);
+
+        Assert.Null(fromEnvironment.Directory);
+        Assert.Contains(RulesLocation.OverrideVariable, fromEnvironment.Refusal!, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>No rules is a refusal, not a guess.</b> A repository built for a directory that is
+    /// not there gets as far as a connected session and then answers every question with an
     /// error, several layers from the cause.
     /// </summary>
     [Fact]
     public void NoRulesAnywhereIsAnAnswerRatherThanAGuess()
     {
-        Assert.Null(RulesLocation.Find(null, _ => null, Path.Combine("C:", "app"), _ => false));
+        var nowhere = RulesLocation.Find(null, _ => null, Path.Combine("C:", "app"), _ => false);
+
+        Assert.Null(nowhere.Directory);
+        Assert.Contains(RulesLocation.OverrideVariable, nowhere.Refusal!, StringComparison.Ordinal);
 
         Assert.Equal(
             Path.Combine("C:", "app", "data", "rules"),
             RulesLocation.Find(null, _ => null, Path.Combine("C:", "app"),
-                d => d == Path.Combine("C:", "app", "data", "rules")));
+                d => d == Path.Combine("C:", "app", "data", "rules")).Directory);
+    }
+
+    /// <summary>
+    /// The arguments, which were four lines at the top of <c>Program.cs</c> where nothing
+    /// could reach them. An option this program does not have is refused rather than ignored:
+    /// somebody who passes <c>--rules</c> and sees it do nothing has no way to find out why.
+    /// </summary>
+    [Fact]
+    public void TheArgumentsAreReadAndAnUnknownOneIsRefused()
+    {
+        Assert.True(CommandLine.Read(["--help"]).Help);
+        Assert.True(CommandLine.Read(["-h"]).Help);
+        Assert.True(CommandLine.Read(["some/dir", "--help"]).Help);
+
+        Assert.Equal("some/dir", CommandLine.Read(["some/dir"]).RulesDirectory);
+        Assert.Null(CommandLine.Read([]).RulesDirectory);
+        Assert.Null(CommandLine.Read([]).Error);
+
+        Assert.Contains("--rules", CommandLine.Read(["--rules", "x"]).Error!, StringComparison.Ordinal);
+        Assert.Contains("Only one", CommandLine.Read(["a", "b"]).Error!, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -127,5 +264,58 @@ public sealed class McpStdioTests
         Assert.Contains(RulesLocation.OverrideVariable, message, StringComparison.Ordinal);
         Assert.Contains(Path.Combine("C:", "app"), message, StringComparison.Ordinal);
         Assert.Contains("data/rules", message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The startup check reads every rules file, not one.</b> It warmed the tiers alone, so
+    /// a directory holding nothing but <c>tiers.json</c> started cleanly and then threw out of
+    /// five of the six tools — the exact failure the check exists to prevent, passing itself.
+    /// </summary>
+    [Fact]
+    public void APartialRulesDirectoryIsRefusedAtStartupRatherThanAtTheFirstQuestion()
+    {
+        var scratch = Path.Combine(Path.GetTempPath(), "pp-mcp-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(scratch);
+
+        try
+        {
+            File.Copy(Path.Combine(RulesFixture.DataPath, "tiers.json"),
+                      Path.Combine(scratch, "tiers.json"));
+
+            var tools = CharacterServer.ToolsFor(scratch);
+
+            Assert.ThrowsAny<Exception>(tools.ReadEverything);
+        }
+        finally
+        {
+            try { Directory.Delete(scratch, recursive: true); }
+            catch (IOException) { /* a temp directory that outlives the run is not a failure */ }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    /// <summary>And a complete one is not, which is what keeps the test above honest.</summary>
+    [Fact]
+    public void ACompleteRulesDirectoryStartsCleanly()
+    {
+        CharacterServer.ToolsFor(RulesFixture.DataPath).ReadEverything();
+    }
+
+    /// <summary>
+    /// <b>The wire names of a validation subject are the same here as from the <c>build</c>
+    /// command.</b> Two copies of a conversion, and a doc comment saying a caller reads the
+    /// same names from both — with nothing asserting it. The same conversion in the same
+    /// repository once shipped <c>gearfeature</c> on one side and <c>gear_feature</c> on the
+    /// other, with both tests green.
+    /// </summary>
+    [Fact]
+    public void ASubjectKindIsSpeltTheSameWayAsTheBuildCommandSpellsIt()
+    {
+        foreach (var kind in Enum.GetValues<ValidationSubject>())
+            Assert.Equal(Cli.Headless.BuildCommand.SubjectKindName(kind), Judgement.SubjectKindName(kind));
+
+        // And it is the snake_case spelling rather than the enum's own, which is what the two
+        // documents promise their readers.
+        Assert.Equal("gear_feature", Judgement.SubjectKindName(ValidationSubject.GearFeature));
     }
 }

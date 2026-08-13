@@ -100,7 +100,7 @@ The MCP server lets you describe a character in ordinary words — *"a washed-up
 dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o mcp-server
 ```
 
-That produces `mcp-server/ProwlersAndParagons.Mcp.exe` (`ProwlersAndParagons.Mcp` on macOS and Linux) with the rules files beside it, so it needs nothing else on the machine and no repository checked out.
+That produces `mcp-server/ProwlersAndParagons.Mcp.exe` (`ProwlersAndParagons.Mcp` on macOS and Linux) with the rules files beside it, so it needs no repository checked out and no working directory of its own. It is framework-dependent, so the machine running it still needs the **.NET 10 runtime** — add `--self-contained -r win-x64` (or your own runtime identifier) to publish one that does not.
 
 **Point your client at that binary rather than at `dotnet run`.** MSBuild writes its own progress to standard output, which is where the protocol lives — a client reading it sees a corrupt stream and drops the session.
 
@@ -138,7 +138,7 @@ Claude reads the question policy, asks you what it genuinely cannot infer, propo
 |---|---|
 | `creation_guide` | The question policy: which two or three questions change the build, what to decide silently, and the JSON shape a character takes |
 | `list_options` | Tiers, packages, abilities, talents, sources, perks, flaws, pros, cons, gear features |
-| `search_powers` | Which Powers could realise a described effect — and an explicit flag when nothing matched by name, which usually means the rulebook has no Power for it |
+| `search_powers` | Which Powers could realise a described effect, with how each row matched — by name, or only on a word inside its description, which cuts both ways and says so |
 | `power_detail` | One Power in full, with only the Pros and Cons it may legally take |
 | `check_character` | **The judge.** Costs and validates, and reports what was spent on what |
 | `character_sheet` | The printed sheet, as text |
@@ -214,7 +214,9 @@ ProwlersAndParagonsAutomation/
 │   ├── CharacterTools.cs         # The six tools, and why there are six
 │   ├── CharacterServer.cs        # Wire names, server instructions, the tool collection
 │   ├── Judgement.cs              # What the engine said, written down. Computes nothing
+│   ├── QuestionPolicy.cs         # Serves QUESTION-POLICY.md from the assembly, verbatim
 │   ├── RulesLocation.cs          # Finds data/rules beside the binary, not by walking up for a .sln
+│   ├── CommandLine.cs            # The two arguments, where a test can reach them
 │   └── Program.cs                # stdio. Standard output carries the protocol and nothing else
 │
 ├── tests/ProwlersAndParagonsAutomation.Tests/

@@ -85,6 +85,16 @@ public sealed class McpServerTests
     /// adding a seventh must be a decision rather than an accident. Both directions are
     /// asserted, so a tool that quietly stops being served fails here.
     /// </summary>
+    /// <summary>
+    /// The six names a stranger's configuration and an assistant's tool calls use, written out
+    /// rather than taken from the constants that produce them.
+    /// </summary>
+    private static readonly string[] WireNames =
+    [
+        "character_sheet", "check_character", "creation_guide",
+        "list_options", "power_detail", "search_powers"
+    ];
+
     [Fact]
     public async Task TheServerServesTheSixToolsUnderTheirWireNames()
     {
@@ -96,17 +106,11 @@ public sealed class McpServerTests
             var served = (await client.ListToolsAsync())
                 .Select(t => t.Name).OrderBy(n => n, StringComparer.Ordinal).ToList();
 
-            Assert.Equal(
-                new[]
-                {
-                    CharacterServer.CreationGuideTool,
-                    CharacterServer.ListOptionsTool,
-                    CharacterServer.SearchPowersTool,
-                    CharacterServer.PowerDetailTool,
-                    CharacterServer.CheckCharacterTool,
-                    CharacterServer.CharacterSheetTool
-                }.OrderBy(n => n, StringComparer.Ordinal).ToList(),
-                served);
+            // <b>The literal strings, not the constants.</b> Comparing the served names with
+            // the constants the server registers them from is a comparison with itself:
+            // renaming check_character to "judge" would break every configuration a stranger
+            // has written down, and pass.
+            Assert.Equal(WireNames, served);
         });
     }
 
@@ -125,6 +129,25 @@ public sealed class McpServerTests
                 Assert.False(string.IsNullOrWhiteSpace(tool.Description),
                     $"{tool.Name} has no description.");
                 Assert.True(tool.Description!.Length > 60, $"{tool.Name}'s description is a stub.");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Every tool is declared read-only and non-destructive, which is what lets a client run
+    /// one without stopping to ask. A character builder that needs approval per rules lookup
+    /// is not a conversation — and the annotations are a promise: nothing here writes a file
+    /// or changes anything on the machine.
+    /// </summary>
+    [Fact]
+    public async Task EveryToolIsDeclaredReadOnly()
+    {
+        await WithClient(async client =>
+        {
+            foreach (var tool in await client.ListToolsAsync())
+            {
+                Assert.Equal(true, tool.ProtocolTool.Annotations?.ReadOnlyHint);
+                Assert.Equal(false, tool.ProtocolTool.Annotations?.DestructiveHint);
             }
         });
     }
@@ -213,7 +236,25 @@ public sealed class McpServerTests
     [Fact]
     public void EveryFigureReportedIsTheEnginesOwnAnswer()
     {
-        foreach (var sheet in new[] { SampleCharacters.Hero(), SampleCharacters.Villain(), _f.LegalSheet() })
+        // Illegal sheets as well as legal ones. A character that breaks a rule is still costed
+        // and its figures are what the conversation quotes when deciding what to give up, so
+        // "the numbers are only trustworthy while the character is legal" would be no use.
+        var overBudget = _f.LegalSheet();
+        foreach (var ability in _f.Rules.Abilities) overBudget.AbilityRanks[ability.Id] = 12;
+        foreach (var talent in _f.Rules.Talents) overBudget.TalentRanks[talent.Id] = 12;
+
+        var aboveCap = _f.LegalSheet();
+        aboveCap.AbilityRanks["intellect"] = 40;
+
+        var sheets = new[]
+        {
+            SampleCharacters.Hero(), SampleCharacters.Villain(), _f.LegalSheet(),
+            overBudget, aboveCap
+        };
+
+        Assert.Contains(sheets, s => !_f.Validator.Validate(s).IsValid);
+
+        foreach (var sheet in sheets)
         {
             var report = Check(sheet);
 
@@ -258,10 +299,52 @@ public sealed class McpServerTests
             var selection = sheet.SelectedPowers[i];
 
             Assert.Equal(selection.PowerId, byPower[i]!["power_id"]!.GetValue<string>());
+            Assert.Equal(_f.Rules.GetPower(selection.PowerId)!.Name,
+                byPower[i]!["name"]!.GetValue<string>());
             Assert.Equal(_f.Costs.PowerCost(selection), byPower[i]!["hero_points"]!.GetValue<int>());
             Assert.Equal(_f.Derived.GetEffectiveRank(selection, sheet),
                 byPower[i]!["effective_rank"]!.GetValue<int>());
         }
+    }
+
+    /// <summary>
+    /// And the Perks, which had no assertion at all while their sibling had a thorough one —
+    /// so emptying <c>by_perk</c> was invisible. Per-unit Perks are where a quantity was worth
+    /// unlimited Hero Points once already, which makes their line the one worth showing.
+    /// </summary>
+    [Fact]
+    public void ThePerPerkBreakdownIsTheEnginesToo()
+    {
+        var sheet = SampleCharacters.Hero();
+        var byPerk = Check(sheet)["spending"]!["by_perk"]!.AsArray();
+
+        Assert.NotEmpty(sheet.Perks);
+        Assert.Equal(sheet.Perks.Count, byPerk.Count);
+
+        for (var i = 0; i < sheet.Perks.Count; i++)
+        {
+            var perk = sheet.Perks[i];
+
+            Assert.Equal(perk.PerkId, byPerk[i]!["perk_id"]!.GetValue<string>());
+            Assert.Equal(_f.Rules.GetPerk(perk.PerkId)!.Name, byPerk[i]!["name"]!.GetValue<string>());
+            Assert.Equal(perk.Units, byPerk[i]!["units"]!.GetValue<int>());
+            Assert.Equal(_f.Costs.PerkCost(perk), byPerk[i]!["hero_points"]!.GetValue<int>());
+        }
+    }
+
+    /// <summary>
+    /// The character block: which character this report is about. It is what a conversation
+    /// holding two drafts tells them apart by, and it was emitted and never read.
+    /// </summary>
+    [Fact]
+    public void TheReportSaysWhichCharacterItIsAbout()
+    {
+        var sheet = SampleCharacters.Hero();
+        var character = Check(sheet)["character"]!;
+
+        Assert.Equal(sheet.Name, character["name"]!.GetValue<string>());
+        Assert.Equal(sheet.SelectedTierId, character["tier"]!.GetValue<string>());
+        Assert.Equal(sheet.SelectedPackageId, character["package"]!.GetValue<string>());
     }
 
     /// <summary>
@@ -354,6 +437,62 @@ public sealed class McpServerTests
     }
 
     /// <summary>
+    /// <b>The backstop for a legal character the engine cannot price</b>, which no character
+    /// can reach: <see cref="CharacterValidator"/> reports <c>CHARACTER_NOT_PRICEABLE</c> for
+    /// every sheet whose total throws, so a legal character always has a total. It is here
+    /// because a caller told "fix the errors and the figure appears" about a character with no
+    /// errors has a loop with no way out — and because the branch was documented in the guide
+    /// as one of three verdicts while nothing in the suite ever produced it.
+    /// </summary>
+    [Fact]
+    public void ALegalCharacterWithNoTotalIsThisProgramsFaultAndSaysSo()
+    {
+        var sheet = _f.LegalSheet();
+        var judgement = new Judgement(_f.Rules, _f.Costs, _f.Derived, _f.Validator);
+
+        var report = judgement.Report(
+            sheet, new ValidationResult([]), _f.Rules.GetTier("standard"), spent: null);
+
+        Assert.False(report["ok"]!.GetValue<bool>());
+        Assert.Equal("engine_could_not_answer", report["verdict"]!.GetValue<string>());
+
+        var issue = Assert.Single(report["issues"]!.AsArray());
+        Assert.Equal("ENGINE_COULD_NOT_ANSWER", issue!["code"]!.GetValue<string>());
+        Assert.Contains("fault in this program", issue["message"]!.GetValue<string>(),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// And the guarantee that keeps that branch dark, asserted where it actually lives: a
+    /// character the engine cannot price is one the validator refuses. If that ever stops
+    /// being true, the branch above stops being unreachable — and this is the test that says
+    /// so, rather than a comment claiming it.
+    /// </summary>
+    [Fact]
+    public void ACharacterTheEngineCannotPriceIsAlwaysRefusedByTheValidator()
+    {
+        var variable = _f.LegalSheet();
+        variable.SelectedPowers.Add(
+            new SelectedPower(_f.Rules.Powers.First(p => p.CostType == "per_rank_variable").Id, 2));
+
+        var enormous = _f.LegalSheet();
+        enormous.Perks.Add(new SelectedPerk("contacts", int.MaxValue));
+
+        var invented = _f.LegalSheet();
+        invented.SelectedPowers.Add(new SelectedPower("no_such_power", 1));
+
+        foreach (var sheet in new[] { variable, enormous, invented })
+        {
+            var priced = true;
+            try { _ = _f.Costs.TotalCost(sheet); }
+            catch (Exception e) when (Judgement.IsUnanswerable(e)) { priced = false; }
+
+            Assert.False(priced, "This sheet was supposed to be one the engine cannot price.");
+            Assert.False(_f.Validator.Validate(sheet).IsValid);
+        }
+    }
+
+    /// <summary>
     /// The issues carry the facts as well as the sentence, because a repair loop that has to
     /// parse English back into the numbers it was built from will get it wrong. Same fields as
     /// the <c>build</c> command's report, and the same wire spelling.
@@ -374,20 +513,33 @@ public sealed class McpServerTests
     }
 
     /// <summary>
-    /// A duplicate Power costs Hero Points twice and prints once, so the engine warns about
-    /// it. The point of this test is not the warning: it is that a warning does not become an
-    /// "illegal" verdict, which would send a repair loop after a character that is fine.
+    /// A warning does not become an "illegal" verdict, which would send a repair loop after a
+    /// character that is fine.
+    ///
+    /// <para><b>The sheet is the Villain, and that is the whole test.</b> It was the Hero,
+    /// which carries no findings at all — so the assertion compared zero warnings to zero
+    /// warnings, and reporting every warning in every report as an error would have passed.
+    /// The Villain deliberately leaves one Power without a Source, so there is a warning here
+    /// to be got wrong.</para>
     /// </summary>
     [Fact]
     public void AWarningDoesNotMakeACharacterIllegal()
     {
-        var sheet = SampleCharacters.Hero();
+        var sheet = SampleCharacters.Villain();
+        var expected = _f.Validator.Validate(sheet);
+
+        Assert.True(expected.IsValid);
+        Assert.NotEmpty(expected.Warnings);
+
         var report = Check(sheet);
 
         Assert.True(report["ok"]!.GetValue<bool>());
+        Assert.Equal("legal", report["verdict"]!.GetValue<string>());
         Assert.Equal(
-            _f.Validator.Validate(sheet).Warnings.Count(),
+            expected.Warnings.Count(),
             report["issues"]!.AsArray().Count(i => i!["severity"]!.GetValue<string>() == "warning"));
+        Assert.DoesNotContain(report["issues"]!.AsArray(),
+            i => i!["severity"]!.GetValue<string>() == "error");
     }
 
     // ── Input this program did not write ──────────────────────────────────
@@ -475,13 +627,21 @@ public sealed class McpServerTests
     [Fact]
     public void TheSheetIsTheOneTheOtherFrontEndsPrint()
     {
-        var sheet = SampleCharacters.Hero();
         var stamp = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        var expected = Sheets.CharacterSheetRenderer.RenderText(
-            sheet, _f.Rules, _f.Costs, _f.Derived, _f.Validator.Validate(sheet), stamp);
+        // Both samples, and the Villain matters: it is the one with a finding on it. Rendered
+        // against a sheet with none, handing the renderer an empty ValidationResult instead of
+        // the validator's own answer produced a byte-identical document, so the sheet could
+        // have printed with its findings section silently blank.
+        foreach (var sheet in new[] { SampleCharacters.Hero(), SampleCharacters.Villain() })
+        {
+            var expected = Sheets.CharacterSheetRenderer.RenderText(
+                sheet, _f.Rules, _f.Costs, _f.Derived, _f.Validator.Validate(sheet), stamp);
 
-        Assert.Equal(expected, Tools().CharacterSheetText(Element(CharacterSheetJson.Write(sheet))));
+            Assert.Equal(expected, Tools().CharacterSheetText(Element(CharacterSheetJson.Write(sheet))));
+        }
+
+        Assert.NotEmpty(_f.Validator.Validate(SampleCharacters.Villain()).Issues);
     }
 
     /// <summary>
@@ -558,6 +718,104 @@ public sealed class McpServerTests
             Assert.Equal(tier.HeroPoints, entry!["hero_points"]!.GetValue<int>());
             Assert.Equal(tier.TraitCapRank, entry["trait_cap"]!.GetValue<int>());
         }
+    }
+
+    /// <summary>
+    /// <b>And the numbers beside the ids, which is what the catalogues are for.</b> Checking
+    /// only that the ids resolve left every figure free: reporting each Pro's Hero Point cost
+    /// as zero passed, and an assistant reading that would offer them all as free.
+    ///
+    /// <para>Cons are asserted negative for the same reason — the sign is the difference
+    /// between a discount and a surcharge, and it is stored rather than derived.</para>
+    /// </summary>
+    [Fact]
+    public void TheCatalogueNumbersAreTheRulesOwn()
+    {
+        var packages = Parse(Tools().ListOptions("packages"))["entries"]!.AsArray();
+
+        foreach (var (entry, package) in packages.Zip(_f.Rules.CreationRules.OptionalPackages))
+        {
+            Assert.Equal(package.Cost, entry!["hero_points"]!.GetValue<int>());
+            Assert.Equal(package.AbilitiesRank, entry["grants_every_ability"]!.GetValue<int>());
+            Assert.Equal(package.TalentsRank, entry["grants_every_talent"]!.GetValue<int>());
+        }
+
+        var abilities = Parse(Tools().ListOptions("abilities"))["entries"]!.AsArray();
+
+        foreach (var (entry, ability) in abilities.Zip(_f.Rules.Abilities))
+        {
+            Assert.Equal(ability.CostPerRank, entry!["hero_points_per_rank"]!.GetValue<int>());
+            Assert.Equal(ability.OrdinaryHumanRank, entry["ordinary_human_rank"]!.GetValue<int>());
+        }
+
+        var talents = Parse(Tools().ListOptions("talents"))["entries"]!.AsArray();
+
+        foreach (var (entry, talent) in talents.Zip(_f.Rules.Talents))
+        {
+            Assert.Equal(talent.CostPerRank, entry!["hero_points_per_rank"]!.GetValue<int>());
+            Assert.Equal(talent.LinkedAbility, entry["linked_ability"]!.GetValue<string>());
+        }
+
+        var perks = Parse(Tools().ListOptions("perks"))["entries"]!.AsArray();
+
+        foreach (var (entry, perk) in perks.Zip(_f.Rules.Perks))
+        {
+            Assert.Equal(perk.CostType, entry!["cost_type"]!.GetValue<string>());
+            Assert.Equal(perk.Cost, entry["hero_points"]?.GetValue<int>());
+            Assert.Equal(perk.CostPerUnit, entry["hero_points_per_unit"]?.GetValue<int>());
+        }
+
+        var pros = Parse(Tools().ListOptions("pros"))["entries"]!.AsArray();
+
+        foreach (var (entry, pro) in pros.Zip(_f.Rules.Pros))
+        {
+            Assert.Equal(pro.CostModifier, entry!["hero_points"]?.GetValue<int>());
+            Assert.Equal(pro.AppliesToRanges,
+                entry["applies_to_ranges"]!.AsArray().Select(r => r!.GetValue<string>()).ToList());
+            Assert.Equal(pro.ApplicabilityCaveat, entry["caveat"]?.GetValue<string>());
+        }
+
+        var cons = Parse(Tools().ListOptions("cons"))["entries"]!.AsArray();
+
+        foreach (var (entry, con) in cons.Zip(_f.Rules.Cons))
+        {
+            Assert.Equal(con.CostModifier, entry!["hero_points"]?.GetValue<int>());
+            Assert.Equal(con.AppliesToRankTypes,
+                entry["applies_to_rank_types"]!.AsArray().Select(r => r!.GetValue<string>()).ToList());
+        }
+
+        // A Con is stored as a negative number, and reporting one as positive would read as a
+        // surcharge. Every flat Con, and there is at least one.
+        var flatCons = cons.Where(e => e!["hero_points"] is not null).ToList();
+        Assert.NotEmpty(flatCons);
+        Assert.All(flatCons, e => Assert.True(e!["hero_points"]!.GetValue<int>() <= 0));
+
+        var features = Parse(Tools().ListOptions("gear_features"))["entries"]!.AsArray();
+
+        foreach (var (entry, feature) in features.Zip(_f.Rules.GearFeatures))
+        {
+            Assert.Equal(feature.Cost, entry!["hero_points"]?.GetValue<int>());
+            Assert.Equal(feature.AppliesTo, entry["applies_to"]!.GetValue<string>());
+        }
+
+        var sources = Parse(Tools().ListOptions("sources"))["entries"]!.AsArray();
+
+        foreach (var (entry, source) in sources.Zip(_f.Rules.Sources))
+            Assert.Equal(source.DefaultRankAbility, entry!["default_rank_ability"]!.GetValue<string>());
+    }
+
+    /// <summary>
+    /// The flaw count at creation, which is a rule rather than a number on any flaw: one to
+    /// three, and a fourth is refused rather than charged for.
+    /// </summary>
+    [Fact]
+    public void TheFlawsCatalogueCarriesTheLimitsAtCreation()
+    {
+        var report = Parse(Tools().ListOptions("flaws"));
+        var rules = _f.Rules.CreationRules.FlawRules;
+
+        Assert.Equal(rules.MinAtCreation, report["at_creation"]!["minimum"]!.GetValue<int>());
+        Assert.Equal(rules.MaxAtCreation, report["at_creation"]!["maximum"]!.GetValue<int>());
     }
 
     /// <summary>An unknown category names the ones there are, rather than answering nothing.</summary>
@@ -648,7 +906,7 @@ public sealed class McpServerTests
     /// </summary>
     [Theory]
     [InlineData("he plays the trumpet so beautifully that people weep", true)]
-    [InlineData("she bakes the best bread in the city", true)]
+    [InlineData("he can fly", true)]
     [InlineData("turns invisible", false)]
     [InlineData("reads minds", false)]
     public void SearchSaysWhenNothingMatchedByNameAtAll(string query, bool expected)
@@ -657,11 +915,125 @@ public sealed class McpServerTests
 
         Assert.Equal(expected, report["nothing_matched_by_name"]!.GetValue<bool>());
 
+        // The caution follows the flag, and it says what the flag is worth rather than what to
+        // conclude from it. "He can fly" is in this theory as a true case on purpose: the flag
+        // is right there and the rulebook does have the Power.
+        var caution = report["caution"]!.GetValue<string>();
+
         if (expected)
-            Assert.Contains("no Power for this",
-                report["note"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("matched on a word inside its description", caution, StringComparison.OrdinalIgnoreCase);
         else
-            Assert.Null(report["note"]);
+            Assert.Contains("closest entries", caution, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// A match on the Power's own name is never called a description-only match. This is the
+    /// half that keeps the flag from being free: a flag that is always true would satisfy the
+    /// theory above for its true cases and say nothing.
+    /// </summary>
+    [Fact]
+    public void AMatchByNameIsReportedAsOne()
+    {
+        var report = Parse(Tools().SearchPowers("invisibility"));
+        var first = report["matches"]!.AsArray()[0]!;
+
+        Assert.Equal("invisibility", first["id"]!.GetValue<string>());
+        Assert.Contains("name", first["matched_on"]!.AsArray().Select(m => m!.GetValue<string>()));
+        Assert.False(report["nothing_matched_by_name"]!.GetValue<bool>());
+    }
+
+    /// <summary>
+    /// "Super" is in seventeen Power names, so it carried a query on its own: "super strong"
+    /// answered with Super Speed and three Super Senses options and neither Might nor Strike.
+    /// In a rulebook about supers the word says nothing about what the effect is.
+    /// </summary>
+    [Fact]
+    public void SuperDoesNotCarryASearchByItself()
+    {
+        var ids = Parse(Tools().SearchPowers("super strong"))["matches"]!.AsArray()
+            .Select(m => m!["id"]!.GetValue<string>()).ToList();
+
+        Assert.DoesNotContain("super_speed", ids);
+        Assert.DoesNotContain(ids, id => id.StartsWith("super_senses", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>The flag describes the search, not the page of it that was asked for.</b> It was
+    /// computed after the list was cut to <c>limit</c>, so asking for one match on a query
+    /// whose name match ranked second turned "these matched by description" into "nothing
+    /// matched by name" — and the guide tells an assistant to act on that by declining to
+    /// build. `limit` is the caller's, and no test passed one at all.
+    /// </summary>
+    [Fact]
+    public void ATightLimitDoesNotChangeWhatTheSearchFound()
+    {
+        const string query = "flight armor telepathy regeneration invisibility";
+
+        var wide = Parse(Tools().SearchPowers(query, 25));
+        var narrow = Parse(Tools().SearchPowers(query, 1));
+
+        Assert.True(wide["matches"]!.AsArray().Count > 1);
+        Assert.Single(narrow["matches"]!.AsArray());
+
+        Assert.Equal(wide["found"]!.GetValue<int>(), narrow["found"]!.GetValue<int>());
+        Assert.Equal(
+            wide["nothing_matched_by_name"]!.GetValue<bool>(),
+            narrow["nothing_matched_by_name"]!.GetValue<bool>());
+        Assert.False(narrow["nothing_matched_by_name"]!.GetValue<bool>());
+    }
+
+    /// <summary>A limit outside the range it accepts is brought inside it rather than obeyed.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    [InlineData(int.MinValue)]
+    [InlineData(int.MaxValue)]
+    public void ALimitOutsideTheRangeIsBroughtInsideIt(int limit)
+    {
+        var matches = Parse(Tools().SearchPowers("armor", limit))["matches"]!.AsArray();
+
+        Assert.InRange(matches.Count, 1, 25);
+    }
+
+    /// <summary>
+    /// A search that found nothing says so, and says nothing about "the nearest" — there is no
+    /// nearest, and inviting a model to name one out of an empty list is how a Power that was
+    /// never returned ends up on a character sheet.
+    /// </summary>
+    [Fact]
+    public void ASearchThatFoundNothingDoesNotAskForTheNearest()
+    {
+        var report = Parse(Tools().SearchPowers("bread bakery sourdough"));
+
+        Assert.Empty(report["matches"]!.AsArray());
+        Assert.Equal(0, report["found"]!.GetValue<int>());
+
+        var caution = report["caution"]!.GetValue<string>();
+        Assert.Contains("Nothing matched at all", caution, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("nearest", caution, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("above", caution, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// <b>And the description of a Power the rulebook does have is not told the rulebook has
+    /// none.</b> "Fly" is not a prefix of "Flight", so Flight matches on the word inside its
+    /// own entry — the first version of the note read that as "usually means the rulebook has
+    /// no Power for this", which is the worst answer this tool can give a description it can
+    /// actually serve.
+    /// </summary>
+    [Theory]
+    [InlineData("he can fly", "flight")]
+    [InlineData("heals fast", "healing")]
+    public void ADescriptionOnlyMatchIsNotReportedAsTheRulebookHavingNothing(string query, string expected)
+    {
+        var report = Parse(Tools().SearchPowers(query));
+
+        Assert.Contains(expected,
+            report["matches"]!.AsArray().Select(m => m!["id"]!.GetValue<string>()));
+
+        var caution = report["caution"]!.GetValue<string>();
+        Assert.DoesNotContain("no Power for this", caution, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Read each one", caution, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -688,7 +1060,47 @@ public sealed class McpServerTests
             Assert.Equal(
                 power.PowerPros.Select(p => p.Id).ToList(),
                 report["pros"]!["own"]!.AsArray().Select(p => p!["id"]!.GetValue<string>()).ToList());
+
+            // The Power's own Cons, which had no assertion at all — so serving its Pros in
+            // their place was invisible, across 62 Powers and 106 options.
+            Assert.Equal(
+                power.PowerCons.Select(c => c.Id).ToList(),
+                report["cons"]!["own"]!.AsArray().Select(c => c!["id"]!.GetValue<string>()).ToList());
         }
+    }
+
+    /// <summary>
+    /// <b>And what a Power's own Pros and Cons cost, which is not one number.</b> Eleven of
+    /// the 106 change the Power's rate rather than its total — Constructs' Devices is +2 Hero
+    /// Points <em>per rank</em> — so reporting a per-rank figure in the flat field is wrong by
+    /// a factor of the Power's rank, and nothing was reading either field.
+    /// </summary>
+    [Fact]
+    public void APowersOwnProsAndConsCarryTheirRealPrices()
+    {
+        var perRank = 0;
+
+        foreach (var power in _f.Rules.Powers.Where(p => p.PowerPros.Count + p.PowerCons.Count > 0))
+        {
+            var report = Parse(Tools().PowerDetail(power.Id));
+
+            foreach (var (entry, option) in report["pros"]!["own"]!.AsArray()
+                         .Zip(power.PowerPros)
+                         .Concat(report["cons"]!["own"]!.AsArray().Zip(power.PowerCons)))
+            {
+                Assert.Equal(option.CostType, entry!["cost_type"]!.GetValue<string>());
+                Assert.Equal(option.CostModifier, entry["hero_points"]?.GetValue<int>());
+                Assert.Equal(option.CostPerRank, entry["hero_points_per_rank"]?.GetValue<double>());
+                Assert.Equal(option.CostPerUnit, entry["hero_points_per_unit"]?.GetValue<int>());
+                Assert.Equal(option.NeedsVariant, entry["needs_variant"]!.GetValue<bool>());
+
+                if (option.CostPerRank is not null) perRank++;
+            }
+        }
+
+        // The per-rank ones are the reason this test exists; if the data ever stopped having
+        // any, the loop above would be asserting nothing interesting and should be revisited.
+        Assert.True(perRank > 0, "No Power-specific option priced per rank was checked.");
     }
 
     /// <summary>
@@ -704,6 +1116,32 @@ public sealed class McpServerTests
         Assert.False(report["ok"]!.GetValue<bool>());
         Assert.Equal("NO_SUCH_POWER", report["problem"]!["code"]!.GetValue<string>());
         Assert.Contains("time_punch", report["problem"]!["message"]!.GetValue<string>(), StringComparison.Ordinal);
+
+        // <b>The near misses, which this test's own name promises and did not read.</b>
+        // Deleting the whole suggestion block left it green, and the name was the only thing
+        // asserting the feature existed at all.
+        var suggestions = report["problem"]!["did_you_mean"]!.AsArray()
+            .Select(s => s!.GetValue<string>()).ToList();
+
+        Assert.NotEmpty(suggestions);
+        Assert.All(suggestions, id => Assert.NotNull(_f.Rules.GetPower(id)));
+        Assert.Contains("time_travel", suggestions);
+    }
+
+    /// <summary>
+    /// An id with nothing to go on gets the refusal without invented suggestions. The near-miss
+    /// scan works on words, and a Power id is not going to be recovered from two letters.
+    /// </summary>
+    [Fact]
+    public void AnUnknownPowerWithNothingToGoOnStillRefusesCleanly()
+    {
+        foreach (var id in new[] { "", "  ", "ab", "!!" })
+        {
+            var report = Parse(Tools().PowerDetail(id));
+
+            Assert.False(report["ok"]!.GetValue<bool>());
+            Assert.Equal("NO_SUCH_POWER", report["problem"]!["code"]!.GetValue<string>());
+        }
     }
 
     /// <summary>

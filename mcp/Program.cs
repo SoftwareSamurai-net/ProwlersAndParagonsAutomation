@@ -10,19 +10,27 @@ using ProwlersAndParagonsAutomation.Mcp;
 // standard error, which clients collect into a log. That is also why the README tells a
 // stranger to point their client at the built binary rather than at `dotnet run`.
 
-var help = args.Contains("--help") || args.Contains("-h");
+var arguments = CommandLine.Read(args);
 
-if (help)
+if (arguments.Error is { } argumentError)
+{
+    Console.Error.WriteLine(argumentError);
+    Console.Error.WriteLine();
+    Console.Error.WriteLine(Usage());
+    return 2;
+}
+
+if (arguments.Help)
 {
     Console.Error.WriteLine(Usage());
     return 0;
 }
 
-var explicitPath = args.FirstOrDefault(a => !a.StartsWith('-'));
+var located = RulesLocation.Find(arguments.RulesDirectory);
 
-if (RulesLocation.Find(explicitPath) is not { } rulesDirectory)
+if (located.Directory is not { } rulesDirectory)
 {
-    Console.Error.WriteLine(RulesLocation.NotFoundMessage(AppContext.BaseDirectory));
+    Console.Error.WriteLine(located.Refusal);
     return 2;
 }
 
@@ -31,14 +39,19 @@ var tools = CharacterServer.ToolsFor(rulesDirectory);
 // Fail here rather than on the first tool call. A repository is lazy, so a directory that
 // holds the wrong files gets as far as a connected session and then answers every question
 // with an error the client shows as a tool failure. One line on standard error and a
-// non-zero exit is something a person can act on.
+// non-zero exit is something a person can act on — and it reads *everything*, because warming
+// one catalogue let a directory holding a single rules file start cleanly and then throw out
+// of five of the six tools, which is the failure this check is here to prevent.
 try
 {
     _ = CharacterServer.Tools(tools).ToList();
-    _ = tools.ListOptions("tiers");
+    tools.ReadEverything();
 }
+// ArgumentException as well as the three obvious ones: a duplicate id in a rules file throws
+// it out of the lookup dictionaries rather than out of the deserializer, and that is this
+// program's own data being wrong — exactly the case this check exists to catch early.
 catch (Exception e) when (e is IOException or InvalidOperationException
-                            or System.Text.Json.JsonException)
+                            or System.Text.Json.JsonException or ArgumentException)
 {
     Console.Error.WriteLine($"The rules in '{rulesDirectory}' could not be read: {e.Message}");
     return 2;
@@ -63,6 +76,8 @@ static string Usage() =>
 
       <directory>   Where the rules JSON files are. Defaults to the copy beside this
                     program, then to a data/rules folder in any directory above it.
+                    PROWLERS_RULES_DIR does the same. A directory named either way and
+                    not found is refused rather than guessed past.
       --help        This text, on standard error.
 
     Standard output carries the protocol and nothing else.

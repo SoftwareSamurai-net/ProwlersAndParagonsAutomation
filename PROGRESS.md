@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3255 across two projects — 3165 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3284 across two projects — 3194 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -214,6 +214,45 @@ binary rather than by walking up for a `.sln`, because a client launches the pub
 from a directory of its own choosing; and `RulesLocation.Find` returns null rather than a guess,
 since a repository built for a directory that is not there fails on the first tool call instead
 of at startup.
+
+**Three adversarial reviews, by agents told nothing about the work, and the search flag above
+was the worst thing in it.** None of them could make `check_character` certify a bad character
+or quote a figure that was not the calculator's — that ordering held under every hostile shape
+they threw at it. What they found instead:
+
+- **The honesty flag lied, in the direction that matters.** `nothing_matched_by_name` came with
+  "which usually means the rulebook has no Power for this" — so *"he can fly"* returned Flight
+  and then told the assistant there is no Power for flight, because "fly" is not a prefix of
+  "Flight" and the entry matched on the word inside its own description. The flag was right and
+  the advice was wrong. The three cases are now told apart, and `found: 0` is the only one that
+  means the rulebook has nothing. **Two tests straddled this and neither could see it**: one
+  asserted `"flying"` finds Flight, the other asserted the flag's meaning over four curated
+  queries, and both passed while contradicting each other.
+- **It was also computed after the list was cut to `limit`.** With `limit: 1`, a name match at
+  position two became "nothing matched by name at all". `limit` is the caller's and no test had
+  ever passed one.
+- **With no matches at all it still said "name the nearest"** — an invitation to name a Power
+  that was never returned, which is the failure this tool exists to prevent.
+- **The startup check passed itself.** It warmed one catalogue, so a directory holding nothing
+  but `tiers.json` started cleanly and then threw out of five of the six tools — the exact
+  failure its own comment claimed to prevent.
+- **A mistyped `PROWLERS_RULES_DIR` fell through to the shipped copy**, silently. The README's
+  troubleshooting is what sends a stuck user to set that variable.
+- **Five guard tests were theatre**, and the mutations were demonstrated rather than argued:
+  `AnUnknownPowerIsReportedWithTheNearMisses` never read `did_you_mean`; the Power detail test
+  checked own Pros and not own Cons, so serving one in place of the other was invisible across
+  106 options; `AWarningDoesNotMakeACharacterIllegal` used the Hero, which has no warnings, and
+  compared zero to zero; the guide test compared `QuestionPolicy.Text` with a method returning
+  `QuestionPolicy.Text`; and the catalogues asserted only that ids resolved, so reporting every
+  Pro as costing nothing passed.
+- **`ENGINE_COULD_NOT_ANSWER` was documented as one of three verdicts and produced by no test.**
+  It cannot be reached through any character — the validator refuses every sheet the engine
+  cannot price — so `Judgement.Report` is now a seam that a test can drive directly, and the
+  guarantee keeping the branch dark is asserted where it lives rather than claimed in a comment.
+- **Prose:** three claims were wrong, including one of this entry's own ("over legal and
+  illegal alike" was true of the verdict test and not the figures test — the figures test now
+  covers both), and `CLAUDE.md`'s "nothing may make `TotalCost` negative" describes a floor that
+  is not in the code. What actually holds is `NEGATIVE_UNITS` and `checked`.
 
 **What this deliberately did not do** is the browser replay demo — the other half of the
 handover's slice, and a slice of its own. A visitor with no Claude account has no way to bring

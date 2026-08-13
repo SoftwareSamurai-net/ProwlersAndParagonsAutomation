@@ -63,6 +63,28 @@ public sealed class CharacterTools
         _now           = now ?? (() => DateTime.Now);
     }
 
+    /// <summary>
+    /// Reads everything the tools will need, so that a bad or partial rules directory is a
+    /// refusal at startup rather than an error on every question.
+    ///
+    /// <para><b>It has to touch every catalogue, not one.</b> A repository loads each file
+    /// lazily on first use, so warming <c>tiers</c> alone let a directory holding nothing but
+    /// <c>tiers.json</c> start cleanly and then throw out of five of the six tools — the exact
+    /// failure this is here to prevent, passing its own check. The guide is read here too: it
+    /// is an embedded resource, and the way it goes missing is a csproj edit that no test in
+    /// the world would connect to a conversation starting with an empty document.</para>
+    /// </summary>
+    /// <exception cref="Exception">Whatever reading the rules threw. The caller reports it and
+    /// exits; there is nothing this class can do about it.</exception>
+    public void ReadEverything()
+    {
+        foreach (var category in Categories) _ = ListOptions(category);
+
+        _ = _rules.Powers.Count;
+        _ = _rules.CreationRules.TraitRankLimits.Minimum;
+        _ = QuestionPolicy.Text.Length;
+    }
+
     // ── The guide ─────────────────────────────────────────────────────────
 
     /// <summary>
@@ -237,7 +259,9 @@ public sealed class CharacterTools
         + "Powers and the book does not have everything. Never invent a Power id.")]
     public string SearchPowers(
         [Description("What the effect does, in ordinary words.")] string query,
-        [Description("How many matches to return. Defaults to 8.")] int limit = 8)
+        [Description("How many matches to return. Defaults to 8; anything outside 1 to 25 is "
+                     + "brought inside it.")]
+        int limit = 8)
     {
         var terms = Terms(query ?? "");
 
@@ -248,13 +272,18 @@ public sealed class CharacterTools
 
         var wanted = Math.Clamp(limit, 1, 25);
 
-        var matches = _rules.Powers
+        // Scored whole, then cut. <b>Deciding anything from the cut list is a lie about the
+        // rulebook rather than about the search</b>: with limit 1, a Power that matched by
+        // name at position 2 vanished and the answer then said nothing matched by name at
+        // all — which the guide tells the assistant to act on by declining to build.
+        var scored = _rules.Powers
             .Select(p => (Power: p, Score: Score(p, query!, terms)))
             .Where(m => m.Score.Points > 0)
             .OrderByDescending(m => m.Score.Points)
             .ThenBy(m => m.Power.Name, StringComparer.Ordinal)
-            .Take(wanted)
             .ToList();
+
+        var matches = scored.Take(wanted).ToList();
 
         var entries = new JsonArray();
 
@@ -271,36 +300,52 @@ public sealed class CharacterTools
             });
         }
 
-        // <b>The honest signal for "the rulebook has no Power for this".</b> A search that
-        // always returns its five best rows reads as five answers, whatever the caution says —
-        // and the description that names something the system does not have is exactly the one
-        // a model is most likely to build anyway. A match on nothing but a word inside a
-        // description is what that failure looks like from here, so it is reported as a fact
-        // rather than left for the reader to infer from the matched_on lists.
-        var nothingMatchedByName = matches.Count == 0 ||
-            matches.TrueForAll(m => !m.Score.MatchedOn.Contains("name")
-                                 && !m.Score.MatchedOn.Contains("id")
-                                 && !m.Score.MatchedOn.Contains("tag"));
+        // <b>How much a match is worth, said out loud.</b> A search that returns its five best
+        // rows reads as five answers whatever the caution says, and the description naming
+        // something the rulebook does not have is exactly the one a model will build anyway.
+        //
+        // <para>What this can honestly report is <em>how</em> the rows matched, not whether any
+        // of them fits. The first version of this note went further and said a
+        // description-only match "usually means the rulebook has no Power for this" — which
+        // told an assistant that asked for a flying character that there is no Power for
+        // flight. "Fly" is not a prefix of "Flight", so Flight matches that description on the
+        // word inside its own entry, and the flag was right while the advice was wrong.</para>
+        var nothingMatchedByName = scored.Count == 0 ||
+            scored.TrueForAll(m => !m.Score.MatchedOn.Contains("name")
+                                && !m.Score.MatchedOn.Contains("id")
+                                && !m.Score.MatchedOn.Contains("tag"));
 
         var report = new JsonObject
         {
             ["ok"] = true,
             ["query"] = query,
             ["searched"] = _rules.Powers.Count,
+            ["found"] = scored.Count,
             ["matches"] = entries,
-            ["nothing_matched_by_name"] = nothingMatchedByName,
-            ["caution"] = "These are the closest entries, not a promise that one of them does "
-                        + "what was described. If none does, say so and name the nearest — and "
-                        + "consider whether the effect is an Ability rank, an Expertise, a Perk "
-                        + "or narrative colour rather than a Power. A Power id that is not in "
-                        + "this list does not exist."
+            ["nothing_matched_by_name"] = nothingMatchedByName
         };
 
-        if (nothingMatchedByName)
-            report["note"] = "Nothing matched by name, id or tag — every entry above matched "
-                           + "only on a word inside its description, which usually means the "
-                           + "rulebook has no Power for this. Say so rather than picking the "
-                           + "top row.";
+        // Three different things to say, and saying the wrong one is how a model is told to
+        // name "the nearest" out of a list with nothing in it.
+        report["caution"] = scored.Count switch
+        {
+            0 => "Nothing matched at all — not by name and not by a word in any description. "
+               + "Say that the rulebook has no Power for this rather than naming one, and "
+               + "consider whether the effect is an Ability rank, an Expertise, a Perk, or "
+               + "narrative colour that costs nothing.",
+
+            _ when nothingMatchedByName =>
+                 "Nothing matched by name, id or tag: every entry above matched on a word "
+               + "inside its description. That cuts both ways — it is how Flight answers "
+               + "\"he can fly\", and it is also what a Power that has nothing to do with the "
+               + "description looks like. Read each one and say which, if any, does what was "
+               + "asked; if none does, say so rather than picking the top row.",
+
+            _ => "These are the closest entries, not a promise that one of them does what was "
+               + "described. If none does, say so — and consider whether the effect is an "
+               + "Ability rank, an Expertise, a Perk or narrative colour rather than a Power. "
+               + "A Power id that is not in this list does not exist."
+        };
 
         return Write(report);
     }
@@ -660,7 +705,12 @@ public sealed class CharacterTools
         "are", "was", "were", "been", "has", "have", "had", "does", "did", "you", "your",
         "any", "all", "one", "two", "not", "when", "what", "how", "why", "where", "which",
         "able", "very", "just", "like", "also", "make", "makes", "made", "get", "gets",
-        "power", "powers", "character", "something", "someone", "anything"
+        "power", "powers", "character", "something", "someone", "anything",
+
+        // "super" is in seventeen Power names — Super Speed and the sixteen Super Senses
+        // options — so "super strong" answered with four of them and neither Might nor
+        // Strike. It carries no information in this rulebook, which is about supers.
+        "super"
     };
 
     // ── JSON helpers ──────────────────────────────────────────────────────

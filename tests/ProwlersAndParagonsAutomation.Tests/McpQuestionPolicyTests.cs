@@ -43,13 +43,23 @@ public sealed class McpQuestionPolicyTests
     /// embedding it, and then every conversation starts with an empty guide.
     /// </summary>
     [Fact]
-    public void TheGuideToolAnswersWithTheDocument()
+    public void TheGuideToolAnswersWithTheDocumentOnDisk()
     {
         var tools = new CharacterTools(_f.Rules, _f.Costs, _f.Derived, _f.Validator);
 
-        Assert.Equal(Text, tools.CreationGuide());
+        // <b>Against the file, not against itself.</b> This compared QuestionPolicy.Text with
+        // CreationGuide(), which returns QuestionPolicy.Text — a comparison that cannot fail,
+        // leaving the claim that the tool serves *this document* asserted nowhere. Pointing
+        // the csproj at any other long markdown file passed.
+        var onDisk = File.ReadAllText(Path.Combine(RulesFixture.RepoRoot, "mcp", "QUESTION-POLICY.md"));
+
+        // Line endings are the one difference allowed: git checks this file out with the
+        // platform's, and an embedded resource keeps whatever was on disk at build time.
+        Assert.Equal(Normalised(onDisk), Normalised(tools.CreationGuide()));
         Assert.True(Text.Length > 3000, "The embedded question policy is a stub.");
     }
+
+    private static string Normalised(string text) => text.Replace("\r\n", "\n", StringComparison.Ordinal);
 
     /// <summary>
     /// <b>All four questions are named.</b> The policy is that these four change the build and
@@ -107,6 +117,48 @@ public sealed class McpQuestionPolicyTests
 
         Assert.Contains("no Power for it", Flowed, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Never invent a Power id", Flowed, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// And what the search's own flag means, in the document that tells the assistant to act
+    /// on it. `nothing_matched_by_name` is true of "he can fly", which the rulebook answers
+    /// with Flight — a guide that reads the flag as "there is no Power" turns the tool's most
+    /// consequential field into a refusal to build something buildable.
+    /// </summary>
+    [Fact]
+    public void TheGuideSaysWhatTheSearchFlagIsWorth()
+    {
+        Assert.Contains("nothing_matched_by_name", Flowed, StringComparison.Ordinal);
+        Assert.Contains("not that the rulebook has nothing", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("found: 0", Flowed, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Villains. Ch.9 builds them by the Hero rules and the engine is never told which is
+    /// being built, so <c>HP_BUDGET_EXCEEDED</c> arrives on a Villain exactly as it does on a
+    /// Hero — and for a Villain it is the GM's call rather than a rule broken. Without this
+    /// the assistant reports every Villain over the tier's points as illegal.
+    /// </summary>
+    [Fact]
+    public void TheGuideSaysWhatToDoWithAVillain()
+    {
+        Assert.Contains("Villain", Text, StringComparison.Ordinal);
+        Assert.Contains("no Hero Point budget", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("HP_BUDGET_EXCEEDED", Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A null figure has three causes and they want different things. The guide used to give
+    /// one instruction — "fix the errors and the figures appear" — which is wrong for the two
+    /// that have no errors to fix, and one of those is a loop with no way out.
+    /// </summary>
+    [Fact]
+    public void TheGuideTellsTheThreeNullFiguresApart()
+    {
+        Assert.Contains("hero_points.spent` is null", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("no usable tier", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("fault in the tool", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("engine_could_not_answer", Text, StringComparison.Ordinal);
     }
 
     /// <summary>Every tool the guide names is one the server actually serves.</summary>
@@ -214,6 +266,32 @@ public sealed class McpQuestionPolicyTests
 
         Assert.All(sheet.Gear.SelectMany(g => g.Features),
             f => Assert.NotNull(_f.Rules.GetGearFeature(f.FeatureId)));
+    }
+
+    /// <summary>
+    /// The example carries a custom gear feature, because that shape is the one a proposer is
+    /// most likely to get wrong: a feature is <c>{FeatureId, GradeKey}</c> and a Pro two lines
+    /// above it is <c>{Id, VariantKey}</c>, reading is strict, and the wrong guess comes back
+    /// as an unreadable character with no hint which spelling was wanted.
+    ///
+    /// <para>It also makes the id check below mean something. It was <c>"Features": []</c>,
+    /// so <c>Assert.All</c> over the example's gear features iterated zero times.</para>
+    /// </summary>
+    [Fact]
+    public void TheExampleShowsWhatACustomGearFeatureLooksLike()
+    {
+        var sheet = CharacterSheetJson.Read(ExampleCharacter(), strict: true)!;
+
+        var feature = Assert.Single(sheet.Gear.SelectMany(g => g.Features));
+
+        Assert.NotNull(_f.Rules.GetGearFeature(feature.FeatureId));
+        Assert.NotNull(feature.GradeKey);
+
+        // A graded feature is the one that needs the key, and showing an ungraded one with a
+        // key would teach the opposite of the rule the guide states beside it.
+        var graded = _f.Rules.GetGearFeature(feature.FeatureId)!;
+        Assert.Equal("flat_variable", graded.CostType);
+        Assert.Contains(feature.GradeKey!, graded.CostRange!.Keys);
     }
 
     /// <summary>

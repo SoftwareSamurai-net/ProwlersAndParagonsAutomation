@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using ProwlersAndParagonsAutomation.Engine;
+using ProwlersAndParagonsAutomation.Engine.Models;
 
 namespace ProwlersAndParagonsAutomation.Mcp;
 
@@ -74,6 +75,26 @@ public sealed class Judgement
         var tier  = sheet.SelectedTierId is null ? null : _rules.GetTier(sheet.SelectedTierId);
         var spent = Answer(() => _costs.TotalCost(sheet));
 
+        return Report(sheet, validation, tier, spent);
+    }
+
+    /// <summary>
+    /// The document, from what the engine said. Separate from <see cref="Judge"/> so that the
+    /// one branch below which no character can reach — a legal character the engine cannot
+    /// price — can be exercised by a test.
+    ///
+    /// <para>It cannot be reached today because <see cref="CharacterValidator"/> reports
+    /// <c>CHARACTER_NOT_PRICEABLE</c> for every sheet whose total throws, so a legal character
+    /// always has a total. That is the validator's guarantee rather than this class's, it is
+    /// held by a test of its own, and it is exactly the kind of guarantee that changes without
+    /// anybody noticing this depended on it.</para>
+    /// </summary>
+    public JsonObject Report(
+        CharacterSheet sheet, ValidationResult validation, TierModel? tier, int? spent)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+        ArgumentNullException.ThrowIfNull(validation);
+
         var report = new JsonObject
         {
             ["ok"]      = validation.IsValid,
@@ -140,9 +161,9 @@ public sealed class Judgement
             byPower.Add(new JsonObject
             {
                 ["power_id"]       = selection.PowerId,
-                ["name"]           = selection.PowerId is null
+                ["name"]           = Named(() => selection.PowerId is null
                                         ? null
-                                        : _rules.GetPower(selection.PowerId)?.Name,
+                                        : _rules.GetPower(selection.PowerId)?.Name),
                 ["effective_rank"] = Answer(() => _derived.GetEffectiveRank(selection, sheet)),
                 ["hero_points"]    = Answer(() => _costs.PowerCost(selection))
             });
@@ -155,7 +176,9 @@ public sealed class Judgement
             byPerk.Add(new JsonObject
             {
                 ["perk_id"]     = perk.PerkId,
-                ["name"]        = perk.PerkId is null ? null : _rules.GetPerk(perk.PerkId)?.Name,
+                ["name"]        = Named(() => perk.PerkId is null
+                                     ? null
+                                     : _rules.GetPerk(perk.PerkId)?.Name),
                 ["units"]       = perk.Units,
                 ["hero_points"] = Answer(() => _costs.PerkCost(perk))
             });
@@ -242,6 +265,18 @@ public sealed class Judgement
     private static int? Answer(Func<int> figure)
     {
         try { return figure(); }
+        catch (Exception e) when (IsUnanswerable(e)) { return null; }
+    }
+
+    /// <summary>
+    /// The same for a name. These are lookups rather than arithmetic, and they were the two
+    /// calls in this file outside a guard while its own summary said every engine call was
+    /// guarded — a duplicate id in one of the rules files throws out of a lookup, and it would
+    /// have cost the caller the whole report rather than one label.
+    /// </summary>
+    private static string? Named(Func<string?> name)
+    {
+        try { return name(); }
         catch (Exception e) when (IsUnanswerable(e)) { return null; }
     }
 

@@ -112,7 +112,7 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 - **Standard output is exactly one JSON report for each of the three exits**, `--help` excepted. Anything about the run itself goes to stderr, so a caller parses stdout whole. There is a test; do not print a warning above the report. `CommandLine` handles the arguments `BuildCommand` never sees, and reports them the same way — it existed as six lines of top-level statements in `Program.cs`, none of them covered, and one answered a misspelled verb with exit 2 and an empty stdout.
 - **Every engine call in `Judge` is guarded, and a figure the engine cannot supply comes back null rather than 0.** Reporting 0 for a character that cannot be priced is a lie a caller would act on. `Validate` is guarded too, and separately, because its failure leaves no findings to report at all — it was the one bare call here, under a comment claiming otherwise, and ten shapes of hand-written character came out as a stack trace through it.
 - **`CharacterValidator` reports rather than throws, and `CheckHpBudget` carries a `catch` to keep that true.** The specific checks around it — unknown Pro, Con, Perk, nominated Trait, and variant or grade keys that are present but wrong — are what a repair loop acts on; the `catch` only promises the validator answers. Do not delete either for the other: the set of unpriceable shapes grows with every field added, and a validator that throws costs the caller every other finding.
-- **Nothing may make `TotalCost` negative, and its arithmetic is `checked`.** A negative `Units` on a per-unit Perk paid the character Hero Points and reported an over-budget character legal at exit 0; a very large one wrapped to a negative total and did the same. Six fields carry a quantity — ability rank, talent rank, a Power's purchased ranks, a Power's `Units`, a Perk's `Units`, and a Pro or Con's `Units` — and the last was the one missed first time. `checked` on the total alone is not enough: the per-unit multiplications underneath it are where the wrap happens.
+- **A negative quantity is refused by the validator, and `TotalCost`'s arithmetic is `checked`. Nothing floors the total itself.** A negative `Units` on a per-unit Perk paid the character Hero Points and reported an over-budget character legal at exit 0; a very large one wrapped to a negative total and did the same. What stops both now is `NEGATIVE_UNITS` and `checked`, so the verdict is right — but a report for such a character still quotes a negative spend, because the figures are the engine's and the engine was asked to price nonsense. Do not read this bullet as a floor in `CostCalculator`: there is none, and an earlier version of this sentence said there was. Six fields carry a quantity — ability rank, talent rank, a Power's purchased ranks, a Power's `Units`, a Perk's `Units`, and a Pro or Con's `Units` — and the last was the one missed first time. `checked` on the total alone is not enough: the per-unit multiplications underneath it are where the wrap happens.
 - **The same Pro or Con twice is refused.** Every cost floors at zero, so three Burnouts cancelled a 12d Ability exactly — six Abilities at the Trait Cap for 0 HP, reported legal with an empty issue list. A duplicate flaw is refused too (it paid Resolve twice for one drawback); a duplicate **Power** is only a warning, because the rulebook does not forbid it and two Blasts with different Pros is a shape a player might want — what is wrong is that the budget charges for both while the sheet shows the first.
 - **`--from` refuses Windows device names.** `File.ReadAllText("CON")` opens the console and blocks for ever: no output, no exit code, no end. `NUL` and `PRN` fail politely and `CON`, `COM1` and `CONIN$` do not, so the whole reserved set is refused rather than the three that were caught.
 - **A report must not blame the caller for a fault here.** A duplicate id in a rules file throws the same exception type as a bad character; `CHARACTER_UNUSABLE` used to say "a null where an id belongs, most likely" and send a repair loop after its own file for ever. It no longer guesses, and `ENGINE_COULD_NOT_ANSWER` exists for the other half: a figure the engine cannot supply with no error beside it is this program's fault, and saying so is what stops a caller looping on a legal character.
@@ -158,9 +158,18 @@ questions about the rules. It does not replace `build --from`; both call the sam
 - **The rules are found beside the binary, then upwards — never by walking up for a `.sln`.**
   That is the CLI's answer and it is wrong here: a client launches the published program from a
   directory of its own choosing and there may be no repository on the machine. `PROWLERS_RULES_DIR`
-  and a first argument override it, and `RulesLocation.Find` returns **null** rather than a
-  guess, because a repository built for a directory that is not there gets as far as a
-  connected session and then answers every question with an error.
+  and a first argument override it, and `RulesLocation.Find` **refuses** rather than guessing,
+  because a repository built for a directory that is not there gets as far as a connected
+  session and then answers every question with an error. **A directory the user named and that
+  is not there is a refusal too, not a candidate that failed** — it used to fall through to the
+  shipped copy, so a typo in the variable the README tells a stuck user to set produced a
+  working server on somebody else's rules and no message at all.
+- **The startup check reads every rules file, and `ReadEverything` is what makes that true.**
+  A repository loads each file lazily, so warming the tiers alone let a directory holding
+  nothing but `tiers.json` start cleanly and then throw out of five of the six tools — the
+  exact failure the check exists to prevent, passing its own check. The embedded guide is read
+  there too, so the way it goes missing (a csproj edit) is a startup failure rather than a
+  conversation that begins with an empty document.
 - **`Judgement` guards every engine call and duplicates `BuildCommand`'s guarding on purpose.**
   What is shared is the part that matters — the engine — and the two reports are different
   documents: one names the files it wrote, this one carries a spending breakdown and no paths,
@@ -176,6 +185,14 @@ questions about the rules. It does not replace `build --from`; both call the sam
   the one a model will build anyway. Matching is word by word with a shared-prefix rule, not by
   substring: substring matching answered "she bakes bread in the city" with **Elasticity**, and
   a match like that is worse than none because nothing in it looks wrong.
+- **That flag says how the rows matched and never what to conclude**, and the first version got
+  this exactly wrong. It attached "usually means the rulebook has no Power for this" — so
+  "he can fly" returned Flight and then told the assistant there is no Power for flight, because
+  "fly" is not a prefix of "Flight" and the entry matched on the word inside its own
+  description. The three cases are told apart in `caution`, and `found: 0` is the only one that
+  means the rulebook has nothing. **It is also computed over the whole result and then
+  truncated**: computed after `Take(limit)`, a caller asking for one match turned a name match
+  at position two into "nothing matched by name at all".
 - **No server-side elicitation.** MCP can ask the user a question from the server; the question
   policy deliberately does not use it. The conversation is the client's, and a question asked
   through a schema-shaped dialogue is the questionnaire this design exists to avoid.
