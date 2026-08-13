@@ -32,7 +32,7 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 ## Remaining work
 
-Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, a Power search that orders ties by name, and a payload size.
+Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, a Power search that orders ties by name, a payload size — and one piece of new work, the replay demo, which is item 6 and has a brief of its own in [`docs/HANDOVER.md`](docs/HANDOVER.md).
 
 ### 1. Close the last four Heroes
 
@@ -166,13 +166,34 @@ It surfaced loudly only because the applicability check had *just* started readi
 
 Not urgent. The site works, and a returning visitor pays nothing.
 
+### 6. The replay demo — the other half of conversational creation
+
+**This is the next slice, and [`docs/HANDOVER.md`](docs/HANDOVER.md) is its brief.** The MCP
+server serves people who code and can bring their own Claude; a visitor to the site cannot bring
+one, and that is settled rather than open — a claude.ai subscription cannot be lent to a
+third-party site, the API is separate billing with no dependable free tier, and custom connectors
+are gated to paid plans. **Do not re-investigate it.**
+
+So: three or four recorded conversations — a description, the questions back, the answers, the
+character — replayed at the visitor's pace, with **the engine run for real in WebAssembly** at
+the end, and the character handed to the existing editor so they can change a rank and watch the
+numbers move.
+
+Two things would ruin it, and both are about honesty rather than effort. **Faking the numbers**:
+if the replay data holds a Hero Point total, that is the bug — every figure must come back from
+`CostCalculator` in the visitor's browser, which is free, because `web/` already is that engine.
+And **not labelling it**: a recording presented as a live conversation misrepresents what they
+are looking at.
+
+Not started.
+
 ---
 
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
 
-### Conversational creation, half of it: the MCP server, and the questions worth asking
+### Conversational creation, half of it: the MCP server, and the questions worth asking — [#39](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/39)
 
 `mcp/` is a stdio MCP server wrapping the same engine, so somebody can connect their own Claude,
 describe a character out loud, and get a legal costed one back. It handles no credentials and
