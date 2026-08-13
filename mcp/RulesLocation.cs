@@ -32,7 +32,7 @@ public static class RulesLocation
     ///
     /// <para><b>A directory the user named and that is not there is a refusal, not a candidate
     /// that failed.</b> It used to fall through to the copy beside the binary, so a typo in
-    /// <see cref="OverrideVariable"/> — which is what the README tells a stuck user to set —
+    /// <see cref="OverrideVariable"/> — which is what docs/MCP-SETUP.md tells a stuck user to set —
     /// produced a working server running on somebody else's rules and no message at all.</para>
     /// </summary>
     /// <param name="explicitPath">A directory named on the command line, if any.</param>

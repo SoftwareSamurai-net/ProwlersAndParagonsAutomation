@@ -121,15 +121,94 @@ public sealed class McpSetupDocumentationTests
     }
 
     /// <summary>
+    /// <b>The guide still contains the things a stranger cannot finish without.</b>
+    ///
+    /// <para>Every other test here checks that what the guide says is <em>true</em>. None of
+    /// them noticed when an adversarial pass cut the document from 104 lines to a 21-line stub
+    /// — no registration command, no scope, no Desktop configuration, no troubleshooting — and
+    /// the suite stayed green, because everything that remained was accurate. A document can be
+    /// wrong by omission and that is the likelier way this one rots: somebody tidying it.</para>
+    ///
+    /// <para>Deliberately a short list of load-bearing parts rather than a line count. A line
+    /// count would fail on an edit that improved it.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("dotnet publish", "how to build the server at all")]
+    [InlineData("claude mcp add", "how to register it with Claude Code")]
+    [InlineData("--scope user", "the scope, which is the one argument that is easy to get wrong")]
+    [InlineData("mcpServers", "the Claude Desktop configuration")]
+    [InlineData("claude mcp remove", "how to undo it")]
+    [InlineData("## Troubleshooting", "what to do when it does not work")]
+    public void TheGuideStillCarriesEveryPartAStrangerNeeds(string needle, string why) =>
+        Assert.True(Guide.Contains(needle, StringComparison.Ordinal),
+            $"The guide no longer says {why} (looked for '{needle}').");
+
+    /// <summary>
+    /// The scope is <c>user</c>, and the guide says why.
+    ///
+    /// <para>Its own prose calls this "the part that matters": <c>--scope local</c> is the
+    /// default and registers the server for this project only, so a reader who follows a guide
+    /// that quietly said <c>local</c> gets a server that works in the repository and nowhere
+    /// else — which is the opposite of what a character builder is for, and reads as a broken
+    /// installation rather than a wrong flag. Changing it was one of the mutations nothing
+    /// caught.</para>
+    /// </summary>
+    [Fact]
+    public void EveryRegistrationCommandInTheGuideUsesTheUserScope()
+    {
+        var commands = Rx(@"claude mcp add[^\r\n]*").Matches(Guide)
+            .Select(m => m.Value).ToList();
+
+        Assert.NotEmpty(commands);
+        Assert.All(commands, command =>
+            Assert.Contains("--scope user", command, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The path the guide publishes to is the path it then registers.
+    ///
+    /// <para>A guide that publishes to one directory and points the client at another is the
+    /// single most confusing failure available here, because both commands succeed: the server
+    /// is built, the registration is accepted, and the tools never appear. Checked per shell,
+    /// because the guide gives three and they are the pairs most likely to drift apart when one
+    /// of them is edited.</para>
+    /// </summary>
+    [Fact]
+    public void EveryShellPublishesToThePathItThenRegisters()
+    {
+        var published = Rx(@"dotnet publish[^\r\n]*-o ""([^""]+)""").Matches(Guide)
+            .Select(m => m.Groups[1].Value).ToList();
+
+        var registered = Rx(@"claude mcp add[^\r\n]*-- ""([^""]+)""").Matches(Guide)
+            .Select(m => m.Groups[1].Value).ToList();
+
+        Assert.NotEmpty(published);
+        Assert.Equal(published.Count, registered.Count);
+
+        // Pairwise and in order, which is how they are written and how a reader takes them.
+        foreach (var (directory, binary) in published.Zip(registered))
+            Assert.True(
+                binary.StartsWith(directory, StringComparison.Ordinal),
+                $"The guide publishes to '{directory}' and registers '{binary}', which is "
+                + "somewhere else. Both commands would succeed and no tool would appear.");
+    }
+
+    /// <summary>
     /// Every relative link in the guide resolves. It moved out of the README, and a link that
     /// was right at the repository root is one directory wrong here — which is exactly the
     /// error a move makes and the only one nothing else would catch.
+    ///
+    /// <para><b>Anchored links are checked too.</b> The first version excluded anything
+    /// containing a <c>#</c>, so a link to a heading was skipped in silence — and had every
+    /// link acquired an anchor, the test would have asserted over an empty set and passed on
+    /// nothing at all. The anchor is dropped and the file part is what is checked.</para>
     /// </summary>
     [Fact]
     public void EveryRelativeLinkInTheGuideResolves()
     {
-        var links = Rx(@"\]\((?!https?:)([^)#]+)\)").Matches(Guide)
-            .Select(m => m.Groups[1].Value)
+        var links = Rx(@"\]\((?!https?:)([^)]+)\)").Matches(Guide)
+            .Select(m => m.Groups[1].Value.Split('#')[0])
+            .Where(path => path.Length > 0)   // a bare "#anchor" points inside this document
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
@@ -140,16 +219,51 @@ public sealed class McpSetupDocumentationTests
     }
 
     /// <summary>
-    /// And the README still points at it. The guide is only reachable through that link, so a
-    /// section rewritten without it leaves a document nobody finds — which is the same as not
-    /// having written it.
+    /// And the README still <em>links</em> to it. The guide is only reachable through that link,
+    /// so a section rewritten without it leaves a document nobody finds — which is the same as
+    /// not having written it.
+    ///
+    /// <para><b>A markdown link, not the bare string.</b> A substring check is satisfied by the
+    /// directory-tree diagram alone, and by prose reading "docs/MCP-SETUP.md was deleted; ask in
+    /// the issue tracker" — both mention the path and neither gets a reader there. That was a
+    /// mutation nothing caught.</para>
     /// </summary>
     [Fact]
-    public void TheReadmePointsAtTheGuide()
+    public void TheReadmeLinksToTheGuide()
     {
         var readme = File.ReadAllText(Path("README.md"));
 
-        Assert.Contains("docs/MCP-SETUP.md", readme, StringComparison.Ordinal);
+        Assert.Matches(@"\]\(docs/MCP-SETUP\.md\)", readme);
+    }
+
+    /// <summary>
+    /// <b>Nothing in <c>mcp/</c> sends a reader to the README for setup.</b>
+    ///
+    /// <para>This is the failure that prompted the test, found by a reviewer rather than by
+    /// anything here: the setup moved out of the README, and three places in the server were
+    /// left pointing at where it used to be — including the program's own <c>--help</c>, which
+    /// is text a stuck person reads on the way to being more stuck. `CLAUDE.md` and
+    /// `PROGRESS.md` had the identical sentence corrected in the same commit; the code did
+    /// not, because prose in a source file is the copy nobody greps for.</para>
+    ///
+    /// <para>Matched on the file name rather than on the word "README", so that a sentence
+    /// mentioning the README for some other reason is still allowed to exist.</para>
+    /// </summary>
+    [Fact]
+    public void NothingInTheServerSendsAReaderToTheReadmeForSetup()
+    {
+        var sources = Directory
+            .GetFiles(Path("mcp"), "*.cs", SearchOption.AllDirectories)
+            .Where(p => !p.Contains($"{System.IO.Path.DirectorySeparatorChar}obj{System.IO.Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Where(p => !p.Contains($"{System.IO.Path.DirectorySeparatorChar}bin{System.IO.Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.NotEmpty(sources);
+
+        Assert.All(sources, file => Assert.False(
+            Rx(@"\bREADME(\.md)?\b").IsMatch(File.ReadAllText(file)),
+            $"{System.IO.Path.GetFileName(file)} points a reader at the README. The setup a "
+            + "stranger needs is docs/MCP-SETUP.md."));
     }
 
     /// <summary>
@@ -159,15 +273,23 @@ public sealed class McpSetupDocumentationTests
     /// lives, so a client reading it sees a corrupt stream and drops the session. The guide
     /// warns about this in as many words; what this checks is that no <em>instruction</em> in
     /// it does the opposite — a command block is the part people copy.</para>
+    ///
+    /// <para><b>Every fenced block, whatever it is tagged.</b> The first version listed
+    /// <c>bash</c> and <c>json</c>, and a <c>powershell</c> block carrying
+    /// <c>dotnet run</c> walked straight past it — a tag the guide's own prose invites, since
+    /// it gives PowerShell commands. A test that names the spellings it will look at is a test
+    /// that misses the next one.</para>
     /// </summary>
     [Fact]
     public void NoCommandInTheGuideStartsTheServerThroughTheBuildTool()
     {
-        var commands = Rx("```(?:bash|json)\r?\n(.*?)```", RegexOptions.Singleline)
+        var blocks = Rx("```[a-z]*\r?\n(.*?)```", RegexOptions.Singleline)
             .Matches(Guide)
-            .Select(m => m.Groups[1].Value);
+            .Select(m => m.Groups[1].Value)
+            .ToList();
 
-        Assert.All(commands, block =>
+        Assert.NotEmpty(blocks);
+        Assert.All(blocks, block =>
             Assert.DoesNotContain("dotnet run", block, StringComparison.Ordinal));
     }
 }

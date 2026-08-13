@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3356 across two projects — 3233 on the engine, 123 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3365 across two projects — 3242 on the engine, 123 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -66,7 +66,7 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 - **T-Kay closes exactly** if `Limited: only for Telekinesis` is read as *somewhat limited* (−1) rather than *significantly limited* (−2). It sits on Lightning Reflexes, a flat 3 HP Power, so the grade is worth 1 HP after the floor — precisely his −1. **That is the tuning this item forbids.** The sheet prints no grade; "only for Telekinesis" reads at least as much like the harsher grade as the milder one, and the only thing recommending the milder one is that it makes the number come out. Deciding it needs the Power's entry in the book, not this file.
 - **Vigilant cannot be closed by his gear.** His Jo Sticks are *Upgraded*, worth +2, and he is 1 HP under: transcribing the feature moves him to +1 rather than to 0. Adding it would make the transcription more faithful and the residual no smaller, so it is left recorded rather than half-applied.
-- **Herald (Airmid) at +2, Herald (Scathach) at +1 and Shadow at +1** have no candidate in the data at all. Scathach's Strike carrying four Pros and Cons at once remains the most likely place for a variant reading to be wrong.
+- **Herald (Scathach) at +1 and Shadow at +1** have no candidate in the data at all. (Airmid was at +2 when this was written and is closed — see below.) Scathach's Strike carrying four Pros and Cons at once remains the most likely place for a variant reading to be wrong.
 
 **The book was then opened, and it settled two of the three questions above.** `docs/` holds both PDFs — they are gitignored, so they are in the main working directory and **not in a worktree's `docs/`**, which is how they were missed at first.
 
@@ -80,7 +80,7 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 **What reading the book did find is that every one of the twenty page citations was ten pages out.** Chapter 8 runs from printed 127 to 146 and the transcription recorded 137 to 156 — the offset applied twice. This is the error `CLAUDE.md` already warns about ("was ten pages out in the chapter it was offered for"); the note was corrected and the transcription was not, because nothing read those numbers. `PrebuiltHeroTests.EveryHeroIsCitedInsideChapterEight` now does.
 
-Five residuals inside a 2 HP bound, each with a recorded reason, remains a more honest state than five zeroes.
+Four residuals inside a 1 HP bound, each with a recorded reason, remains a more honest state than four zeroes.
 
 One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a *mimicked* Power. Pros are stored per Power, so there is nowhere for it to live. Eidolon reconciles anyway, so it costs nothing today.
 
@@ -126,9 +126,11 @@ Now `TRAIT_BELOW_MINIMUM`, with `TRAIT_BELOW_PACKAGE` beside it for the other fl
 
 The MCP server's Power search is a word match, and when several Powers match the same words it
 puts them in name order under a caution calling them "the closest entries". **"Walks through
-walls" is the case to reproduce**: twenty-one Powers score two points each, every one of them on
-the filler word "through" — Phasing among them, at position eleven, where a caller asking for
-eight rows never sees it. "He shoots fire from his hands" is the same weakness the other way
+walls" is the case to reproduce**: it returns twenty-two, of which **twenty tie on a single
+word** — eighteen on "through" and two on "walls" — so which of them a caller sees is
+alphabetical. Phasing is eleventh, where a caller asking for eight rows never sees it. (Measured
+against the built server; an earlier version of this paragraph said twenty-one on "through", and
+was wrong on both figures.) "He shoots fire from his hands" is the same weakness the other way
 round: Blast is never returned, because its description says "a damaging ranged attack" and none
 of those words is in it.
 
@@ -296,6 +298,15 @@ slices, and the same lesson: a fix without a mutation behind it is a claim.
 - The honesty regex did not include the bare word "points", and the Perk and Gear guards added
   in the previous round had no test at all — removing them left the whole suite green.
 
+**Twice in this slice, a mutation pass reverting with `git checkout -- .` took uncommitted work
+with it** — both times work written minutes earlier, both times needing to be redone from the
+transcript of what had been changed. The repository already recorded this hazard from
+[#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30) in its single-file
+form; it is written here in the whole-directory form because knowing about it was not enough.
+**Commit before letting anything mutate files**, and verify a mutation applied — `git diff
+--numstat` non-empty — before believing a green result, because a silently-failed edit and a
+passing test look identical.
+
 **And one limit is stated rather than closed: nothing checks whether a recorded sentence about
 the rules is true.** The characters are held to the engine and figures are banned from the
 prose, but a line claiming "the Trait Cap is a limit on Abilities alone" passes everything here.
@@ -392,7 +403,7 @@ they threw at it. What they found instead:
 - **The startup check passed itself.** It warmed one catalogue, so a directory holding nothing
   but `tiers.json` started cleanly and then threw out of five of the six tools — the exact
   failure its own comment claimed to prevent.
-- **A mistyped `PROWLERS_RULES_DIR` fell through to the shipped copy**, silently. The README's
+- **A mistyped `PROWLERS_RULES_DIR` fell through to the shipped copy**, silently. The setup guide's
   troubleshooting is what sends a stuck user to set that variable.
 - **Five guard tests were theatre**, and the mutations were demonstrated rather than argued:
   `AnUnknownPowerIsReportedWithTheNearMisses` never read `did_you_mean`; the Power detail test
@@ -446,7 +457,7 @@ The review found nothing that certifies a bad character, and four things a stran
   not exist. The two are told apart now by reading the same text leniently: lenient reading
   ignores unknown field names and nothing else, so if it succeeds the name was the problem.
 - **A blank `PROWLERS_RULES_DIR` still fell through to the shipped copy in silence.** The
-  refusal had landed on the argument and not on the variable, which is the one the README tells
+  refusal had landed on the argument and not on the variable, which is the one the setup guide tells
   a stuck user to set and the one a client's config writes as `""`.
 - **`SKILL.md` said "a minimal legal character is a tier and one flaw"**, which the 1d Trait
   floor made false in

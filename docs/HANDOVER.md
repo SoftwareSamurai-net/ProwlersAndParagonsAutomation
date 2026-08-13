@@ -12,7 +12,7 @@ replay shipped, and this replaces it.)
 
 ## Where things stand
 
-Forty pull requests merged, the most recent being [#41](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/41). 3356 tests, zero warnings at CI strictness, a whole-tree Qodana scan at
+Forty pull requests merged, the most recent being [#41](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/41). 3365 tests, zero warnings at CI strictness, a whole-tree Qodana scan at
 zero, MIT in `LICENSE`, and the site live on Cloudflare Pages. The tool creates, prices,
 validates, prints and exports characters through **four** front ends — the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server somebody connects to their own
@@ -54,8 +54,9 @@ only one where a finding would change a number the tool reports.
 
 The Power search is a word match, and when several Powers score the same it puts them in name
 order under a caution calling them "the closest entries". **"Walks through walls" is the case to
-reproduce**: twenty-one Powers score two points each, every one on the filler word "through",
-with Phasing at position eleven where a caller asking for eight rows never sees it.
+reproduce**: twenty-two matches, of which twenty tie on a single word — eighteen on "through",
+two on "walls" — so which of them a caller sees is alphabetical, with Phasing eleventh, where
+anybody asking for eight rows never sees it.
 
 **Weighting each word by how much of the rulebook uses it was implemented and reverted**, and
 that is the finding rather than the fix: it sorted that query and broke "reads minds". Two
@@ -109,8 +110,12 @@ Lowest value of the three, and the one most likely to eat a day for nothing.
 
   Export the tree first, or the Linux build leaves Linux artifacts in your `bin`/`obj`.
 - **Commit before letting anything mutate files.** A mutation pass reverts with
-  `git checkout -- .`, which takes uncommitted work with it. That cost two rounds of rework last
-  slice, both times on work that had just been written.
+  `git checkout -- .`, which takes uncommitted work with it. That cost two rounds of rework in
+  the replay slice, both times on work written minutes earlier — and the hazard was already
+  recorded from [#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30) in
+  its single-file form, so knowing about it is demonstrably not enough. **Also verify a mutation
+  applied** (`git diff --numstat` non-empty) before believing a green result: a silently-failed
+  edit and a passing test look exactly the same.
 
 ---
 

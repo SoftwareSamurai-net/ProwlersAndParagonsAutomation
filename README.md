@@ -190,7 +190,8 @@ ProwlersAndParagonsAutomation/
 │   ├── SampleCharacterTests.cs   # the two preview characters must be legal and printable
 │   ├── WebPresentationTests.cs   # no colour outside theme.css, no jargon on screen, print rules
 │   ├── ValidationMessageTests.cs # every message a player can be shown, held to the same rule
-│   └── TranscriptTests.cs        # the recordings, held to the engine — and no figure in their prose
+│   ├── TranscriptTests.cs        # the recordings, held to the engine — and no figure in their prose
+│   └── McpSetupDocumentationTests.cs  # docs/MCP-SETUP.md, held to the code it describes
 │
 ├── tests/ProwlersAndParagons.Web.Tests/   # bUnit — renders components and reads the output
 │   ├── RenderContext.cs          # the app's own services, on the real data/rules
@@ -227,13 +228,14 @@ Four layers with a strict no-upward-dependency rule, and three hosts sharing the
 
 ```
                                           ↗   cli/
-data/rules/   →   engine/   →   sheets/   →   web/
+data/rules/   →   engine/   →   sheets/   →   web/   ←   data/transcripts/
                                           ↘   mcp/
 ```
 
 | Layer | Rule |
 |---|---|
 | `data/rules/` | JSON only. No logic lives here. |
+| `data/transcripts/` | The second data input, and not rules: the recorded conversations `/replay` plays. Read through the engine — every character in one goes through the strict reader — and loaded only by `web/`. |
 | `engine/` | Pure C#, zero Spectre.Console references and no filesystem coupling — rules arrive through `IRulesSource`, so the same assembly runs in a browser. `CostCalculator` and `CharacterValidator` are the authority on cost and validity. |
 | `sheets/` | The exports, as strings. Shared because three hosts need the same two documents; separate from `engine/` because that layer stays free of presentation. |
 | `cli/` | Terminal rendering and prompting. **The CLI never tallies points itself.** |

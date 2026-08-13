@@ -21,11 +21,29 @@ show the same thing, with the engine costing and validating in your browser as y
 
 ## 1. Publish it somewhere it will stay
 
+Pick the block for your shell. **An unexpanded variable does not error** — it publishes the
+server to a directory named after the variable, and then step 2 registers a path that is not
+there, which surfaces much later as "nothing appears in the tool list".
+
+**Windows, PowerShell:**
+
+```powershell
+dotnet publish mcp\ProwlersAndParagons.Mcp.csproj -c Release -o "$env:LOCALAPPDATA\ProwlersAndParagons\mcp-server"
+```
+
+**Windows, Git Bash:**
+
 ```bash
 dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o "$LOCALAPPDATA/ProwlersAndParagons/mcp-server"
 ```
 
-`-o mcp-server` inside the checkout works too, but **the path you give your client has to keep existing** — a checkout you move, or a git worktree you delete when a branch is done, takes the server with it. Somewhere outside the repository is the boring choice: `%LOCALAPPDATA%\ProwlersAndParagons\mcp-server` on Windows, `~/.local/share/prowlers-and-paragons` on macOS or Linux.
+**macOS or Linux:**
+
+```bash
+dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o "$HOME/.local/share/prowlers-and-paragons"
+```
+
+`-o mcp-server` inside the checkout works too, but **the path you give your client has to keep existing** — a checkout you move, or a git worktree you delete when a branch is done, takes the server with it. Somewhere outside the repository is the boring choice, which is what all three blocks above do.
 
 That produces `ProwlersAndParagons.Mcp.exe` (no extension on macOS and Linux) with the rules files beside it, so it needs no repository checked out and no working directory of its own. It is framework-dependent, so the machine running it still needs the **.NET 10 runtime** — add `--self-contained -r win-x64` (or your own runtime identifier) to publish one that does not.
 
@@ -35,10 +53,25 @@ That produces `ProwlersAndParagons.Mcp.exe` (no extension on macOS and Linux) wi
 
 ## 2. Tell your client about it
 
-**Claude Code.** The scope is the part that matters:
+**Claude Code.** The scope is the part that matters. Same three shells, same order, and the path
+has to be the one you just published to:
+
+**Windows, PowerShell:**
+
+```powershell
+claude mcp add --scope user prowlers-and-paragons -- "$env:LOCALAPPDATA\ProwlersAndParagons\mcp-server\ProwlersAndParagons.Mcp.exe"
+```
+
+**Windows, Git Bash:**
 
 ```bash
-claude mcp add --scope user prowlers-and-paragons -- "%LOCALAPPDATA%\ProwlersAndParagons\mcp-server\ProwlersAndParagons.Mcp.exe"
+claude mcp add --scope user prowlers-and-paragons -- "$LOCALAPPDATA/ProwlersAndParagons/mcp-server/ProwlersAndParagons.Mcp.exe"
+```
+
+**macOS or Linux** — no `.exe`, and it needs the executable bit, which `dotnet publish` sets:
+
+```bash
+claude mcp add --scope user prowlers-and-paragons -- "$HOME/.local/share/prowlers-and-paragons/ProwlersAndParagons.Mcp"
 ```
 
 **If `claude` is not a recognised command**, the CLI is installed and not on your `PATH` — the native installer puts it at `%USERPROFILE%\.local\bin\claude.exe` on Windows and `~/.local/bin/claude` elsewhere. Call it by full path (`& "$env:USERPROFILE\.local\bin\claude.exe" mcp add …` in PowerShell), or put that directory on your `PATH` and open a new terminal.
@@ -64,6 +97,18 @@ claude mcp remove prowlers-and-paragons --scope user
   "mcpServers": {
     "prowlers-and-paragons": {
       "command": "C:\\Users\\you\\AppData\\Local\\ProwlersAndParagons\\mcp-server\\ProwlersAndParagons.Mcp.exe"
+    }
+  }
+}
+```
+
+On macOS or Linux the same file takes an ordinary path and no extension:
+
+```json
+{
+  "mcpServers": {
+    "prowlers-and-paragons": {
+      "command": "/Users/you/.local/share/prowlers-and-paragons/ProwlersAndParagons.Mcp"
     }
   }
 }
