@@ -743,8 +743,9 @@ public sealed class ValidationIssueStructureTests
     [Fact]
     public void AnOptionWithNoPrintedConstraintAppliesToEveryPower()
     {
-        var unconstrained = _f.Rules.Pros.Cast<Engine.Models.IGenericProCon>()
-            .Concat(_f.Rules.Cons.Cast<Engine.Models.IGenericProCon>())
+        // Concat with the interface named once, rather than a Cast on each side: a list of
+        // Pros is already a sequence of the interface, so the casts were doing nothing.
+        var unconstrained = _f.Rules.Pros.Concat<Engine.Models.IGenericProCon>(_f.Rules.Cons)
             .Where(o => o.AppliesToRanges.Count == 0 && o.AppliesToRankTypes.Count == 0)
             .ToList();
 

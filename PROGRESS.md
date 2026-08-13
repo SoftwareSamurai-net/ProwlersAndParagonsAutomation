@@ -17,9 +17,9 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3190 across two projects — 3100 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3298 across two projects — 3208 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
-| Front ends | Two, plus a headless command — the terminal wizard, a Blazor WebAssembly app, and `build --from`, all on the same engine assembly |
+| Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
 | Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero |
@@ -32,7 +32,7 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 ## Remaining work
 
-Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through three front ends. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, and a payload size.
+Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, a Power search that orders ties by name, and a payload size.
 
 ### 1. Close the last four Heroes
 
@@ -120,7 +120,32 @@ Now `TRAIT_BELOW_MINIMUM`, with `TRAIT_BELOW_PACKAGE` beside it for the other fl
 
 **The one genuine gap is Ch.6's vehicles and headquarters (pp.94–104).** `unique_vehicle` and `headquarters` are Perks priced per unit — a Hero Point buys 25 Vehicle Points — and what those points buy is not modelled, so the perk is a cost and a free-text note. That is a sub-tool of its own (spend a vehicle's points on a vehicle), not a chapter to extract, and nothing else needs it.
 
-### 4. The browser payload is large — a characteristic, not a defect
+### 4. `search_powers` ranks ties alphabetically
+
+The MCP server's Power search is a word match, and when several Powers match the same words it
+puts them in name order under a caution calling them "the closest entries". **"Walks through
+walls" is the case to reproduce**: twenty-one Powers score two points each, every one of them on
+the filler word "through" — Phasing among them, at position eleven, where a caller asking for
+eight rows never sees it. "He shoots fire from his hands" is the same weakness the other way
+round: Blast is never returned, because its description says "a damaging ranged attack" and none
+of those words is in it.
+
+**Weighting each word by how much of the rulebook uses it was implemented and reverted**, and
+that is the finding rather than the fix. It sorted "walks through walls" correctly and broke
+"reads minds", which dropped Telepathy out of the first three because four Powers carry "mind"
+in their names. Two examples are not evidence; a half-tuned scorer is worse than a dull one,
+because it is wrong in places nobody has looked at rather than in the place they tested.
+
+What shipped instead is the truth about each row — `matched_terms` names which of the caller's
+words it matched, `found` and `more_beyond_these` say the list was cut, and the caution says
+rows matching the same words are in no meaningful order and to search a more distinctive word.
+The guide teaches all three.
+
+Closing it properly needs a set of descriptions with expected answers — twenty or thirty, written
+from the Powers rather than from the scorer — and then a scoring change measured against them.
+That is a slice of its own, and until somebody wants it, an honest label beats a tuned guess.
+
+### 5. The browser payload is large — a characteristic, not a defect
 
 **The site works.** It is deployed, it loads, it builds characters — this is not a fault, and it was listed alongside real gaps for too long. The first load is **27 MiB uncompressed**, about a third of that over the wire once Cloudflare applies Brotli, and cached hard afterwards because every framework asset is fingerprinted, so a returning visitor pays nothing. Everything below is what it would take to make that number smaller, kept because the *reasons* are expensive to rediscover — not because anything is broken.
 
@@ -146,6 +171,177 @@ Not urgent. The site works, and a returning visitor pays nothing.
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Conversational creation, half of it: the MCP server, and the questions worth asking
+
+`mcp/` is a stdio MCP server wrapping the same engine, so somebody can connect their own Claude,
+describe a character out loud, and get a legal costed one back. It handles no credentials and
+holds no key — the conversation happens in the client they already pay for. The setup a stranger
+needs is in the README; the dependency arrows hold at compile time, because `mcp/` references
+`engine/` and `sheets/` and cannot reference `cli/`.
+
+**The transport was the easy half and the question policy is the deliverable.** A description
+under-determines dozens of fields and almost all of them can be defaulted without anybody
+caring. Four change the character materially:
+
+| | |
+|---|---|
+| **Which tier** | It sets the budget and the Trait Cap, and everything else is measured against them. Never guessed |
+| **One Power or several** | "Punches through time" is Strike plus Blink, or Omni-Power, or Alternate Form. **The question a model is most tempted to answer silently**, and the one that most changes the build |
+| **What they are deliberately ordinary at** | Every character has all eighteen Traits and the points for a 10d come from somewhere. A characterisation question, not an arithmetic one |
+| **Where it comes from** | One of six Sources. Costs nothing and changes no rank, so it is inferred and stated rather than asked unless genuinely open |
+
+Everything else — rank spread, which package, which Flaw, gear, Perks — is decided and *shown*.
+**Ask at most three questions**: a questionnaire is a worse interface than a wizard, and the
+wizard already exists.
+
+That reasoning lives in **`mcp/QUESTION-POLICY.md`**, which is embedded in the assembly and
+served verbatim as the `creation_guide` tool, so the document the next person reads and the one
+the assistant is taught are the same bytes. `McpQuestionPolicyTests` holds it to the standard
+`SkillDocumentationTests` holds the skill to: its example character goes through the strict
+reader and the validator, every id in it must exist, and the four questions are asserted by name.
+
+**Six tools, chosen by what a conversation needs rather than by mirroring the engine.**
+`cost_character` beside `validate_character` is the engine's API: no turn of a conversation
+wants a price without knowing whether the thing priced is allowed, and a separate costing tool
+is an invitation to quote a number for a character that breaks a rule. So `check_character`
+does both and is the only place the word "legal" is decided. The ten catalogues are one
+`list_options` for the mirror-image reason. Powers get `search_powers` and `power_detail`
+because 141 entries are searched rather than listed.
+
+**Nothing in it computes a Hero Point**, and the test for that is not a reading of the code:
+every figure in the report is asserted equal to the calculator's own answer for the same sheet,
+figure by figure rather than by total, over legal and illegal characters alike — because a
+front end that always said "legal" would pass a suite run only over legal ones.
+
+Four descriptions were run through the published binary, which is how two of the decisions
+above were found rather than reasoned:
+
+- **A cheap character** came back with `TRAIT_BELOW_PACKAGE` on an Intellect of 2d under a
+  package that grants 3d — the loop working, on a first draft written by hand.
+- **"Superman, but also a detective"** came back at 152 against a 125 budget, `remaining: -27`,
+  with the spending breakdown naming where it went. That is the number to quote and the trade
+  to offer, never a quietly weaker character presented as what was asked for.
+- **"Punches through time"** returned Time Travel, Time Stop, Precognition and Blink — which is
+  the ambiguity, not the answer, and is why the policy asks whether it is one Power or several.
+- **"He plays the trumpet so beautifully people weep"**, the interesting one, returned four
+  unrelated Powers matched on a word inside their descriptions. **A search that always returns
+  its five best rows reads as five answers however carefully the caution is worded**, so
+  `nothing_matched_by_name` and a note now say it outright. The same run found that substring
+  matching answered "she bakes bread in the city" with **Elasticity**; matching is word by word
+  with a shared-prefix rule now, because a match like that is worse than none — nothing in it
+  looks wrong.
+
+Smaller things worth keeping: standard output carries the protocol and nothing else, asserted by
+reading the source for `Console.` followed by anything but `Error` (the obvious check for
+`Console.WriteLine` passes while `Console.Out.Write` ships); the rules are found beside the
+binary rather than by walking up for a `.sln`, because a client launches the published program
+from a directory of its own choosing; and `RulesLocation.Find` returns null rather than a guess,
+since a repository built for a directory that is not there fails on the first tool call instead
+of at startup.
+
+**Three adversarial reviews, by agents told nothing about the work, and the search flag above
+was the worst thing in it.** None of them could make `check_character` certify a bad character
+or quote a figure that was not the calculator's — that ordering held under every hostile shape
+they threw at it. What they found instead:
+
+- **The honesty flag lied, in the direction that matters.** `nothing_matched_by_name` came with
+  "which usually means the rulebook has no Power for this" — so *"he can fly"* returned Flight
+  and then told the assistant there is no Power for flight, because "fly" is not a prefix of
+  "Flight" and the entry matched on the word inside its own description. The flag was right and
+  the advice was wrong. The three cases are now told apart, and `found: 0` is the only one that
+  means the rulebook has nothing. **Two tests straddled this and neither could see it**: one
+  asserted `"flying"` finds Flight, the other asserted the flag's meaning over four curated
+  queries, and both passed while contradicting each other.
+- **It was also computed after the list was cut to `limit`.** With `limit: 1`, a name match at
+  position two became "nothing matched by name at all". `limit` is the caller's and no test had
+  ever passed one.
+- **With no matches at all it still said "name the nearest"** — an invitation to name a Power
+  that was never returned, which is the failure this tool exists to prevent.
+- **The startup check passed itself.** It warmed one catalogue, so a directory holding nothing
+  but `tiers.json` started cleanly and then threw out of five of the six tools — the exact
+  failure its own comment claimed to prevent.
+- **A mistyped `PROWLERS_RULES_DIR` fell through to the shipped copy**, silently. The README's
+  troubleshooting is what sends a stuck user to set that variable.
+- **Five guard tests were theatre**, and the mutations were demonstrated rather than argued:
+  `AnUnknownPowerIsReportedWithTheNearMisses` never read `did_you_mean`; the Power detail test
+  checked own Pros and not own Cons, so serving one in place of the other was invisible across
+  106 options; `AWarningDoesNotMakeACharacterIllegal` used the Hero, which has no warnings, and
+  compared zero to zero; the guide test compared `QuestionPolicy.Text` with a method returning
+  `QuestionPolicy.Text`; and the catalogues asserted only that ids resolved, so reporting every
+  Pro as costing nothing passed.
+- **`ENGINE_COULD_NOT_ANSWER` was documented as one of three verdicts and produced by no test.**
+  It cannot be reached through any character — the validator refuses every sheet the engine
+  cannot price — so `Judgement.Report` is now a seam that a test can drive directly, and the
+  guarantee keeping the branch dark is asserted where it lives rather than claimed in a comment.
+- **Prose:** three claims were wrong, including one of this entry's own ("over legal and
+  illegal alike" was true of the verdict test and not the figures test — the figures test now
+  covers both), and `CLAUDE.md`'s "nothing may make `TotalCost` negative" describes a floor that
+  is not in the code. What actually holds is `NEGATIVE_UNITS` and `checked`.
+
+**A fourth review was pointed at the fixes rather than the code, and two of the eight did not
+hold** — which is the same finding this file already records from the last slice, in the same
+proportion.
+
+- **The test for the truncation fix did not bite.** Its query's top row matched by name, so
+  cutting the list to one still left a name match in it and the buggy and fixed versions
+  agreed. Reintroducing the bug left all 94 tests green. The query now ranks a
+  description-only row first and every name match below the cut.
+- **Nothing asserted that `Program.cs` calls `ReadEverything`.** The unit test covered the
+  method; swapping the program back to warming one catalogue left the suite green while the
+  binary started cleanly on a one-file rules directory. There is now a test that runs the
+  built program.
+- **The runtime standard-output test was not the backstop its own comment claimed.** It drove
+  the binary through the SDK's client and asserted the session worked — and a real stray line,
+  spelled to evade the source scan, left the client perfectly happy. The client skips what it
+  cannot parse, which is exactly why the test now reads the stream itself and requires every
+  line to be a JSON-RPC message. Verified by mutation, both ways.
+- And one of the new tests **hung** rather than failed when its mutation was applied, because
+  the failure it looks for is a server that keeps running. It bounds its own wait now.
+
+**A fifth review, of the whole slice, and a whole-tree Qodana scan.** The scan reports zero
+again; getting there found that three tool parameters guarded against a `null` while declaring
+themselves non-null, so the guards read as dead code — and a client really can send
+`{"category": null}`, checked against the built binary. Two of the scan's findings predate this
+slice and made the "reports zero" claim untrue: a doc comment pointing at a test renamed in
+[#33](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/33), and a redundant
+`Cast`.
+
+The review found nothing that certifies a bad character, and four things a stranger would meet:
+
+- **A correctly named field holding the wrong kind of value was reported as a misspelling.**
+  `"might": "8d"` is the rank written the way the rulebook writes it — the likeliest first
+  mistake there is — and the answer sent a repair loop hunting for a spelling error that did
+  not exist. The two are told apart now by reading the same text leniently: lenient reading
+  ignores unknown field names and nothing else, so if it succeeds the name was the problem.
+- **A blank `PROWLERS_RULES_DIR` still fell through to the shipped copy in silence.** The
+  refusal had landed on the argument and not on the variable, which is the one the README tells
+  a stuck user to set and the one a client's config writes as `""`.
+- **`SKILL.md` said "a minimal legal character is a tier and one flaw"**, which the 1d Trait
+  floor made false in
+  [#34](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/34): it comes back
+  with eighteen errors. Two documents teaching the same JSON shape disagreed, and the wrong one
+  was the older and more linked.
+- **The tier lookup in `Judgement` was outside its guards** while the class summary said every
+  engine call was guarded. Unreachable today only because the validator makes the same lookup
+  first, which is an accident of ordering.
+
+**And one finding was left open on purpose, which is the interesting one.** `search_powers`
+ranks "walks through walls" by putting twenty-one Powers on two points each — every one of them
+matching only the filler word "through", Phasing among them — so which eight a caller sees is
+alphabetical, under a caution calling them the closest entries. Weighting each word by how much
+of the rulebook uses it was implemented and **reverted**: it fixed that query and broke "reads
+minds", which dropped Telepathy out of the first three because four Powers carry "mind" in their
+names. A half-tuned scorer is worse than a dull one, and tuning it properly needs its own
+evidence rather than two examples. What shipped instead is the truth about each row —
+`matched_terms` says which of the caller's words it matched, `more_beyond_these` says the list
+was cut, and the caution says rows matching the same words are in no meaningful order. **The
+ranking is a known limitation, recorded rather than papered over.**
+
+**What this deliberately did not do** is the browser replay demo — the other half of the
+handover's slice, and a slice of its own. A visitor with no Claude account has no way to bring
+their own inference, and the recommendation there stands: replay real transcripts with the
+engine running for real in WebAssembly, and label the replay as a replay.
 
 ### Nine ways an illegal character was reported legal, and the one thing they had in common — [#31](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/31), [#32](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/32), [#33](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/33), [#34](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/34)
 
@@ -175,7 +371,8 @@ Also in this run: **Herald (Airmid) closed** — her sheet prints two Expertise 
 
 ### Assisted character creation, and the three ways a character could be wrong and not be told — [#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30)
 
-This closes what was item 5. `dotnet run -- build --from character.json` costs and validates a
+This closes the assisted-creation item, which was numbered 5 when it was open — not the item
+numbered 5 above, which is newer. `dotnet run -- build --from character.json` costs and validates a
 character, writes both exports and exits 0, 1 or 2 — legal, illegal, unreadable — with one
 JSON report on standard output for all three. A skill at
 `.claude/skills/prowlers-and-paragons-character/` teaches the schema and the
@@ -545,7 +742,7 @@ Two security choices behind the arrangement, both about blast radius rather than
 - **The workflow never triggers on `pull_request`.** That trigger runs a contributor's workflow changes with the base repository's secrets in scope, which would put the Cloudflare token one PR away from anyone.
 - **A subdomain and a token scoped to Pages on one account.** A leaked token can redeploy this one site and nothing else, and a mistake in the Pages config cannot reach the apex domain.
 
-What it left open is payload size — see item 4.
+What it left open is payload size — see item 5.
 
 ### A browser front end, on the same engine — [#17](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/17)
 
@@ -560,7 +757,7 @@ A character can now be created end to end in a browser and exported, with the te
 Some things the build found:
 
 - **`Content Include="..\data\rules\*.json" LinkBase="wwwroot\data\rules"` looks right and silently is not.** The asset gets registered with a content root of `wwwroot/` while the file stays outside it, so every request answers `200` with an empty body and the engine reports the rulebook as malformed JSON. The csproj copies the files into `wwwroot/data/rules/` before static-asset discovery instead, and errors if it finds none — the failure it guards against is a site that loads and then cannot start.
-- **Trimming is off on publish.** `RulesRepository` deserializes with reflection-based `System.Text.Json`, so the trimmer may remove model properties it can only see through reflection, and the failure is not a build error but a silently empty rules set at runtime. Rooting the engine assembly would keep the smaller payload, but the local toolchain cannot run the trimmer at all — the ILLink task host crashes without the `wasm-tools` workload, on the stock template too — so that is a change nobody could verify here. Recorded in item 4.
+- **Trimming is off on publish.** `RulesRepository` deserializes with reflection-based `System.Text.Json`, so the trimmer may remove model properties it can only see through reflection, and the failure is not a build error but a silently empty rules set at runtime. Rooting the engine assembly would keep the smaller payload, but the local toolchain cannot run the trimmer at all — the ILLink task host crashes without the `wasm-tools` workload, on the stock template too — so that is a change nobody could verify here. Recorded in item 5.
 - **Pros and Cons on Abilities offer Cons only, and that is the rulebook's answer rather than a shortcut.** Each option's entry states what it may be applied to; of 23 Pros and 28 Cons, exactly two name Abilities and both are Cons. The picker filters on that field, so the list follows the data.
 - **Blazor's `#blazor-error-ui` needs a `display: none` rule of its own.** Without one it shows from the first paint and reports a failure that never happened — which it duly did, twice, before being noticed.
 

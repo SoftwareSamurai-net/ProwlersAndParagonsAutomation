@@ -593,7 +593,7 @@ public sealed class PrebuiltHeroTests
     /// <para>It matters most for the five Heroes whose totals do not land on 125: for them the
     /// package was chosen as the closest fit, so the totals argument is weakest exactly where a
     /// second one is worth having. <b>And it immediately caught one</b> — see
-    /// <see cref="TheHeraldsAirmidPackageContradictsHerPrintedSheet"/>.</para>
+    /// <see cref="TheHeraldsAirmidCarriesTwoExpertisePowers"/>.</para>
     /// </summary>
     [Theory]
     [MemberData(nameof(HeroNames))]

@@ -22,6 +22,9 @@ dotnet run -- build --from character.json --no-export
 # Run the browser front end
 dotnet run --project web/ProwlersAndParagons.Web.csproj
 
+# Publish the MCP server where a client can launch it (see "The MCP server")
+dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o mcp-server
+
 # Publish the browser front end as a static site
 dotnet publish web/ProwlersAndParagons.Web.csproj --configuration Release
 
@@ -48,7 +51,7 @@ dotnet test
 - **16 of the 20 Heroes rebuild to exactly 125 Hero Points** and are asserted as such. The other four are held at a recorded residual in `PrebuiltHeroes.BuildByHero`, none more than 1 HP out. Do not tune an ambiguous variant just to force one of those to zero — that is fitting the model to the answer. Fix the underlying gap instead.
 - The package each Hero used is inferred, not printed. `ExactlyOnePackageLandsAnExactHeroOn125` re-runs that inference and asserts exactly one package fits each exact Hero, so the attribution cannot quietly become a convenient guess; for the other four it is the closest fit. Vector is why that test exists — his package was recorded as Superhero on a closest-fit basis while his Deflection was underpriced, and correcting the Power made Hero the only fit.
 
-The root `.csproj` sits at the repository root, so it carries a `<Compile Remove="…" />` for every sibling project directory; without them the default `**/*.cs` glob pulls their sources into the CLI. Shared build settings — target framework, nullability, the analyzer contract — live in `Directory.Build.props`, so the five projects cannot drift into different strictness.
+The root `.csproj` sits at the repository root, so it carries a `<Compile Remove="…" />` for every sibling project directory; without them the default `**/*.cs` glob pulls their sources into the CLI. Shared build settings — target framework, nullability, the analyzer contract — live in `Directory.Build.props`, so the seven projects in the solution — the CLI at the root, `engine`, `sheets`, `web`, `mcp` and the two test projects — cannot drift into different strictness.
 
 The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestMinor` rollForward). The 9.x SDK cannot build it; install with `winget install --id Microsoft.DotNet.SDK.10`.
 
@@ -71,18 +74,21 @@ The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestM
 
 ## Architecture
 
-Four layers with a strict no-upward-dependency rule, one project each:
+Four layers with a strict no-upward-dependency rule, one project each — and three hosts on the
+top layer, none of which may hold a rule of its own:
 
 ```
-data/rules/   →   engine/   →   sheets/   →   cli/
-                                          ↘   web/
+                                          ↗   cli/
+data/rules/   →   engine/   →   sheets/   →   web/
+                                          ↘   mcp/
 ```
 
 - **`data/rules/`** — JSON files only. No logic. All rules data extracted from the P&P Ultimate Edition PDF lives here.
 - **`engine/`** — Pure C#, zero Spectre.Console references, no filesystem access. `CostCalculator` and `CharacterValidator` are the authority on HP costs and validity. No front end tallies points itself. The one file here that is not rules logic is `SampleCharacters.cs`, which builds two `CharacterSheet`s for preview — see below.
-- **`sheets/`** — The `.txt` and `.json` exports, plus the stat-line and gear-line formatters, all returning strings. Shared by both front ends; writing a string somewhere is the host's job.
+- **`sheets/`** — The `.txt` and `.json` exports, plus the stat-line and gear-line formatters, all returning strings. Shared by every host — the wizard, the browser, the build command and the MCP server; writing a string somewhere is the host's job.
 - **`cli/`** — Terminal presentation. Uses Spectre.Console for all rendering. Each wizard step implements `IWizardStep` and receives `CharacterSheet`, `RulesRepository`, `CostCalculator`, and `DerivedStatsCalculator` via `Execute()`.
 - **`web/`** — Browser presentation. Blazor WebAssembly; see below.
+- **`mcp/`** — Protocol presentation. An MCP server over stdio; see below.
 
 **These are separate projects on purpose, and splitting them was the point of the Blazor slice.** `engine/` and `sheets/` used to be compiled into the root executable, which a WebAssembly project cannot reference without dragging Spectre.Console in with it. Now the arrows above hold at compile time: `web/` has no calculator of its own and no reference that could reach one. Do not merge them back.
 
@@ -95,7 +101,7 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 - `CharacterSession` (scoped) owns the `CharacterSheet` and forwards to the calculators. **Anything resembling arithmetic in that file is a bug.**
 - `CharacterSession.TryCost` exists because the engine throws rather than guessing on an incomplete selection — a variable-cost Power with no variant. The editors never commit one, so this is only for the always-on budget bar.
 - **`CharacterStore` decides what a stored character is by asking the engine, not by checking its shape.** A saved sheet is nested several levels deep, and `System.Text.Json` will put a null at any of them without the type system objecting — so the guard costs and validates the sheet once and rejects a payload the engine cannot answer for. The first version stripped nulls level by level and missed `"Pros":[null]`, which restored cleanly and then took the app down on the first frame, because the budget bar renders on every route. **Do not replace this with a list of shapes**: the list goes stale the first time somebody adds a field. `InvalidOperationException` is deliberately not caught there — that is a half-finished character, not a corrupt one.
-- **Trimming is disabled on publish.** `RulesRepository` deserializes by reflection, so the trimmer can quietly remove model properties and leave the site running on empty rules. See `PROGRESS.md` item 4 before turning it back on.
+- **Trimming is disabled on publish.** `RulesRepository` deserializes by reflection, so the trimmer can quietly remove model properties and leave the site running on empty rules. See `PROGRESS.md` item 5 before turning it back on.
 
 ### The headless build command
 
@@ -107,7 +113,7 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 - **Standard output is exactly one JSON report for each of the three exits**, `--help` excepted. Anything about the run itself goes to stderr, so a caller parses stdout whole. There is a test; do not print a warning above the report. `CommandLine` handles the arguments `BuildCommand` never sees, and reports them the same way — it existed as six lines of top-level statements in `Program.cs`, none of them covered, and one answered a misspelled verb with exit 2 and an empty stdout.
 - **Every engine call in `Judge` is guarded, and a figure the engine cannot supply comes back null rather than 0.** Reporting 0 for a character that cannot be priced is a lie a caller would act on. `Validate` is guarded too, and separately, because its failure leaves no findings to report at all — it was the one bare call here, under a comment claiming otherwise, and ten shapes of hand-written character came out as a stack trace through it.
 - **`CharacterValidator` reports rather than throws, and `CheckHpBudget` carries a `catch` to keep that true.** The specific checks around it — unknown Pro, Con, Perk, nominated Trait, and variant or grade keys that are present but wrong — are what a repair loop acts on; the `catch` only promises the validator answers. Do not delete either for the other: the set of unpriceable shapes grows with every field added, and a validator that throws costs the caller every other finding.
-- **Nothing may make `TotalCost` negative, and its arithmetic is `checked`.** A negative `Units` on a per-unit Perk paid the character Hero Points and reported an over-budget character legal at exit 0; a very large one wrapped to a negative total and did the same. Six fields carry a quantity — ability rank, talent rank, a Power's purchased ranks, a Power's `Units`, a Perk's `Units`, and a Pro or Con's `Units` — and the last was the one missed first time. `checked` on the total alone is not enough: the per-unit multiplications underneath it are where the wrap happens.
+- **A negative quantity is refused by the validator, and `TotalCost`'s arithmetic is `checked`. Nothing floors the total itself.** A negative `Units` on a per-unit Perk paid the character Hero Points and reported an over-budget character legal at exit 0; a very large one wrapped to a negative total and did the same. What stops both now is `NEGATIVE_UNITS` and `checked`, so the verdict is right — but a report for such a character still quotes a negative spend, because the figures are the engine's and the engine was asked to price nonsense. Do not read this bullet as a floor in `CostCalculator`: there is none, and an earlier version of this sentence said there was. Six fields carry a quantity — ability rank, talent rank, a Power's purchased ranks, a Power's `Units`, a Perk's `Units`, and a Pro or Con's `Units` — and the last was the one missed first time. `checked` on the total alone is not enough: the per-unit multiplications underneath it are where the wrap happens.
 - **The same Pro or Con twice is refused.** Every cost floors at zero, so three Burnouts cancelled a 12d Ability exactly — six Abilities at the Trait Cap for 0 HP, reported legal with an empty issue list. A duplicate flaw is refused too (it paid Resolve twice for one drawback); a duplicate **Power** is only a warning, because the rulebook does not forbid it and two Blasts with different Pros is a shape a player might want — what is wrong is that the budget charges for both while the sheet shows the first.
 - **`--from` refuses Windows device names.** `File.ReadAllText("CON")` opens the console and blocks for ever: no output, no exit code, no end. `NUL` and `PRN` fail politely and `CON`, `COM1` and `CONIN$` do not, so the whole reserved set is refused rather than the three that were caught.
 - **A report must not blame the caller for a fault here.** A duplicate id in a rules file throws the same exception type as a bad character; `CHARACTER_UNUSABLE` used to say "a null where an id belongs, most likely" and send a repair loop after its own file for ever. It no longer guesses, and `ENGINE_COULD_NOT_ANSWER` exists for the other half: a figure the engine cannot supply with no error beside it is this program's fault, and saying so is what stops a caller looping on a legal character.
@@ -115,6 +121,100 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 - **`UNKNOWN_TIER`, `UNKNOWN_PACKAGE`, `UNKNOWN_ABILITY` and `UNKNOWN_TALENT` exist because the wizard picks from a list and a submitted file does not.** An unknown tier used to skip *both* the budget and the Trait Cap checks, so a 99d Ability reported clean. Do not remove them on the grounds that no front end can produce one.
 - `SkillDocumentationTests` feeds the skill's own example through the strict reader and validates it. It is documentation of a schema, which rots silently; it caught two errors in its first run. **It must ask `BuildCommand.SubjectKindName` for the wire names rather than converting the enum itself** — it did convert them itself, and so agreed with a broken copy.
 - **`ValidationIssueStructureTests` checks its own case list against the validator's source**, so every code the validator can construct is provoked by some sheet. Without it the structural invariants were worth only what somebody remembered to add: two codes shipped uncovered in the change that introduced the invariants, and one invariant would have failed had they been listed. Three codes are exempt by name with a reason; do not add a fourth without one.
+
+### The MCP server
+
+`mcp/` is a stdio MCP server wrapping the same engine, so somebody can describe a character to
+their own Claude and get a legal costed one back. It handles no credentials and holds no key —
+the conversation happens in the client the user already pays for, and this program only answers
+questions about the rules. It does not replace `build --from`; both call the same engine.
+
+- **The question policy is the deliverable, not the transport.** Which two or three questions
+  are worth asking is the whole design problem: ask none and you build somebody else's
+  character, ask ten and this is a questionnaire wrapped around a wizard that already exists.
+  It is written down in **`mcp/QUESTION-POLICY.md`**, which is *embedded in the assembly and
+  served verbatim* as the `creation_guide` tool — one copy, so the document the next person
+  reads and the document the assistant is taught cannot drift. `McpQuestionPolicyTests` holds
+  it to the same standard as the skill: its example character goes through the strict reader
+  and the validator, and the four questions are asserted by name.
+- **The four that change the build are tier, one-Power-or-several, what the character is
+  deliberately ordinary at, and Source** — and the second is the one a model is most tempted
+  to answer silently. Everything else is decided and *shown*. The reasoning for each is in the
+  document; do not re-derive it from the tool descriptions.
+- **Six tools, chosen by what a conversation needs rather than by mirroring the engine.**
+  `cost_character` beside `validate_character` is the engine's API: no turn of a conversation
+  wants a price without knowing whether the thing priced is allowed, and a separate costing
+  tool is an invitation to quote a number for a character that breaks a rule. So
+  `check_character` answers both and is the only place the word "legal" is decided. The ten
+  catalogues are one `list_options` for the same reason in reverse — ten tools for a dozen
+  entries each would crowd out the ones that matter. Powers get two tools of their own because
+  141 entries are searched rather than listed.
+- **Standard output carries the protocol and nothing else.** Everything said to a human goes to
+  standard error. `McpStdioTests` checks this twice, and needs both: it reads the source for
+  `Console.` followed by anything but `Error` (not for `Console.WriteLine`, because
+  `Console.Out.Write` and `OpenStandardOutput` are the same mistake in other spellings), **and
+  it runs the built program and requires every line on that stream to be a JSON-RPC message.**
+  The runtime half exists because a source scan cannot see a write from a library or a spelling
+  split across two lines; the source half exists because **a stray line does not necessarily
+  break a client** — the first runtime test drove the binary through the SDK's own client and
+  asserted the session worked, and a real stray line left it perfectly happy, because the client
+  skips what it cannot parse. Do not replace either with the other. **This is also why the
+  README points a client at the published binary rather than at `dotnet run`**, which writes
+  MSBuild's own progress to standard output.
+- **The rules are found beside the binary, then upwards — never by walking up for a `.sln`.**
+  That is the CLI's answer and it is wrong here: a client launches the published program from a
+  directory of its own choosing and there may be no repository on the machine. `PROWLERS_RULES_DIR`
+  and a first argument override it, and `RulesLocation.Find` **refuses** rather than guessing,
+  because a repository built for a directory that is not there gets as far as a connected
+  session and then answers every question with an error. **A directory the user named and that
+  is not there is a refusal too, not a candidate that failed** — it used to fall through to the
+  shipped copy, so a typo in the variable the README tells a stuck user to set produced a
+  working server on somebody else's rules and no message at all.
+- **A test for any of this has to run the program, not the method it calls.** The startup check
+  and the two refusals all had unit tests that passed while `Program.cs` was mutated back to the
+  bug — a method nobody calls is not a check. Three tests start the built binary and read its
+  exit code, and one of them bounds its own wait, because "the server started anyway" is the
+  failure being looked for and a bare wait turns catching it into a run that never ends.
+- **The startup check reads every rules file, and `ReadEverything` is what makes that true.**
+  A repository loads each file lazily, so warming the tiers alone let a directory holding
+  nothing but `tiers.json` start cleanly and then throw out of five of the six tools — the
+  exact failure the check exists to prevent, passing its own check. The embedded guide is read
+  there too, so the way it goes missing (a csproj edit) is a startup failure rather than a
+  conversation that begins with an empty document.
+- **`Judgement` guards every engine call and duplicates `BuildCommand`'s guarding on purpose.**
+  What is shared is the part that matters — the engine — and the two reports are different
+  documents: one names the files it wrote, this one carries a spending breakdown and no paths,
+  because this program writes nothing. A figure the engine cannot supply comes back **null**,
+  never 0.
+- **The per-Power figures need not add up to the powers total, and the report says so.** Super
+  Senses is one Power whose options are stored separately, so the group is costed once with one
+  floor. The total is the engine's and the parts are indicative — the alternative is a total
+  this program added up itself.
+- **`search_powers` is deliberately dull**, and its most valuable field is `nothing_matched_by_name`.
+  A search that always returns its five best rows reads as five answers however carefully the
+  caution is worded, and the description naming something the rulebook does not have is exactly
+  the one a model will build anyway. Matching is word by word with a shared-prefix rule, not by
+  substring: substring matching answered "she bakes bread in the city" with **Elasticity**, and
+  a match like that is worse than none because nothing in it looks wrong.
+- **That flag says how the rows matched and never what to conclude**, and the first version got
+  this exactly wrong. It attached "usually means the rulebook has no Power for this" — so
+  "he can fly" returned Flight and then told the assistant there is no Power for flight, because
+  "fly" is not a prefix of "Flight" and the entry matched on the word inside its own
+  description. The three cases are told apart in `caution`, and `found: 0` is the only one that
+  means the rulebook has nothing. **It is also computed over the whole result and then
+  truncated**: computed after `Take(limit)`, a caller asking for one match turned a name match
+  at position two into "nothing matched by name at all".
+- **No server-side elicitation.** MCP can ask the user a question from the server; the question
+  policy deliberately does not use it. The conversation is the client's, and a question asked
+  through a schema-shaped dialogue is the questionnaire this design exists to avoid.
+- Three traps that cost time here: the embedded resource name comes from **`RootNamespace`**
+  (`ProwlersAndParagonsAutomation.Mcp`) and not from `AssemblyName` (`ProwlersAndParagons.Mcp`),
+  which differ in this repository; `CallToolResult.IsError` is a **`bool?`** whose null means
+  success, so `Assert.False` on it fails every passing call; and the root `.csproj` globs from
+  the repository root, so `mcp/` needed its own `<Compile Remove>` like every other sibling.
+- The tests live in `tests/ProwlersAndParagonsAutomation.Tests` beside `HeadlessBuildTests`,
+  driven over a real pair of pipes with the SDK's own client. Only `web/` has a test project of
+  its own, because rendering components needs one.
 
 ### Hosting
 
@@ -178,7 +278,7 @@ Rasterising the result needs a PDF library (there is no `pdftoppm` or Python on 
 
 ### Two test projects, and the difference between them
 
-- **`tests/ProwlersAndParagonsAutomation.Tests`** — the rules engine, plus `WebPresentationTests`, which *reads the source* of `web/` because the disciplines below are statements about how it is written, and `HeadlessBuildTests`, which drives the `build` command end to end. **The wizard itself still has no harness** — that is the CLI gap, and it is narrower than it was rather than closed.
+- **`tests/ProwlersAndParagonsAutomation.Tests`** — the rules engine, plus `WebPresentationTests`, which *reads the source* of `web/` because the disciplines below are statements about how it is written, and `HeadlessBuildTests`, which drives the `build` command end to end, and the three `Mcp*Tests`, which drive the MCP server over a pair of pipes. **The wizard itself still has no harness** — that is the CLI gap, and it is narrower than it was rather than closed.
 - **`tests/ProwlersAndParagons.Web.Tests`** — bUnit. It *renders components* and asserts on the output, and it is the only project that may reference `web/`.
 
 **The split is the point.** A source-reading test cannot see a bug in rendered output, and one duly shipped: Razor swallowed the space in `@name` + `<text> @(rank)d</text>` and the sheet printed **"Armor8d"**. It was fixed on the sheet and the same bug in a second spelling survived on the Powers tab for another whole slice, because no source file looks wrong. Anything about what a component *produces* belongs in the bUnit project; anything about how the source is *written* belongs in the other.
@@ -406,7 +506,7 @@ Settled rules questions:
 - The Iconic tier's "200+" is explicitly a bare minimum, so it is GM discretion rather than missing data
 - Hero and Villain are **one app with two palettes**, and the mode is not a field on `CharacterSheet`
 - `engine/`, `sheets/`, `cli/` and `web/` are **separate projects**, so the dependency arrows hold at compile time rather than by convention
-- Assisted creation is a **non-interactive command plus a skill**, not an MCP server or an in-app API — and the model proposes while the engine decides, never the other way round
+- Assisted creation *in this repository, for somebody with it checked out*, is a **non-interactive command plus a skill** — and the model proposes while the engine decides, never the other way round. **For somebody else, connecting their own Claude, it is an MCP server**, which is the mechanism built for exactly that and lets us handle no credentials at all. The two are not in tension and both call the same engine; the earlier flat "not an MCP server" note was scoped to the first case and is superseded
 - An illegal character is **reported, never repaired**: the engine is a judge and does not make design decisions about somebody's character
 
 Each of these was wrong at some point and is now covered by a regression test naming the rule. If one appears to be violated, read `PROGRESS.md` and the test before changing the code.

@@ -15,6 +15,7 @@
         <Compile Remove="engine\**" />
         <Compile Remove="sheets\**" />
         <Compile Remove="web\**" />
+        <Compile Remove="mcp\**" />
         <Compile Remove="tests\**" />
     </ItemGroup>
 

@@ -1,10 +1,10 @@
 # Prowlers & Paragons Automation
 
-A character-creation tool for the **Prowlers & Paragons Ultimate Edition** tabletop RPG by LakeSide Games, Inc. — in a terminal, in a browser, or with no interface at all.
+A character-creation tool for the **Prowlers & Paragons Ultimate Edition** tabletop RPG by LakeSide Games, Inc. — in a terminal, in a browser, with no interface at all, or by describing a character to your own Claude.
 
-The two interactive front ends walk players and GMs through the full creation process, tracking the Hero Point budget live, validating every choice against the system rules, and exporting a finished character sheet. The third way in is `build --from character.json`, which costs and validates a character and asks nothing: it exists so a language model can propose a character during play and have the engine decide whether it is legal.
+The two interactive front ends walk players and GMs through the full creation process, tracking the Hero Point budget live, validating every choice against the system rules, and exporting a finished character sheet. The third way in is `build --from character.json`, which costs and validates a character and asks nothing: it exists so a language model can propose a character during play and have the engine decide whether it is legal. The fourth is an **MCP server**: connect it to your own Claude, describe a character out loud, and answer the two or three questions that actually change the build.
 
-All three run the *same* rules engine — the browser build compiles it to WebAssembly rather than reimplementing it — so nothing can disagree about what a Power costs.
+All four run the *same* rules engine — the browser build compiles it to WebAssembly rather than reimplementing it — so nothing can disagree about what a Power costs.
 
 [![Build](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/build.yml/badge.svg)](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/build.yml)
 [![Qodana](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/qodana_code_quality.yml/badge.svg)](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/actions/workflows/qodana_code_quality.yml)
@@ -24,10 +24,11 @@ All three run the *same* rules engine — the browser build compiles it to WebAs
 - **53 flaws and 13 perks**, wired into Resolve and the HP budget
 - **Validation engine** — errors for budget overruns, both Trait floors and the Trait Cap, flaw-count breaches, ranks bought on rankless powers, unresolved player choices, and every id or quantity a hand-written character can get wrong; warnings for anything still unverified. **Each finding carries the facts as well as the sentence** — which Trait, what it is, what it may be, and the values a fix must be chosen from — so a repair loop never has to parse English
 - **Both Trait floors, which nothing used to enforce** — Ch.2 states twice that no Ability or Talent can be lower than 1d, so a character has all eighteen and 0d is a Trait nobody can be without; and a starting package's granted ranks cannot be lowered below what it gives. Neither costs anything to break, which is why both were silent
+- **An MCP server, for describing a character to your own Claude** — six tools over stdio, wrapping the same engine: the question policy, the catalogues, a Power search, one Power in full, the judge, and the printed sheet. It handles no credentials and holds no key; the conversation happens in the client you already pay for. See [Connecting it to your own Claude](#connecting-it-to-your-own-claude)
 - **A headless `build` command and a skill to drive it** — one JSON report on standard output for each of its three exits, and a `SKILL.md` teaching the schema and the propose/validate/repair loop. The model proposes and the engine decides: nothing in the command computes a Hero Point, and an illegal character is reported, never repaired
 - **Every rules value verified against the rulebook and locked by tests** — the suite holds the printed Range, Rank and Cost of all 141 powers, so a data edit that contradicts the book fails CI
 - **Dual export** — formatted `.txt` and structured `.json`, written to `output/` by the CLI and downloaded by the browser, from one implementation
-- **Two front ends on one engine** — a Spectre.Console wizard and a Blazor WebAssembly app that runs `CostCalculator` and `CharacterValidator` as the same compiled code, with Hero and Villain palettes
+- **Four front ends on one engine** — a Spectre.Console wizard, a Blazor WebAssembly app that runs `CostCalculator` and `CharacterValidator` as the same compiled code with Hero and Villain palettes, the headless `build` command, and the MCP server. None of them holds a second copy of a rule
 - **Two sample characters** — a finished Hero and Villain, loadable in one click, for seeing a sheet without building one first; both held to the rules by tests
 - **A printed sheet modelled on the published Hero Sheet** — one A4 page, three columns, ruled boxes with centred headings, every Ability and Talent listed, and blank ruled space for the fields a pen fills in. White paper and readable ink in both modes: a Hero sheet prints navy, a Villain crimson, and colour appears as ink and as a tint behind a heading bar, never as a fill
 - **The character is kept in the browser between visits** — a refresh, a bookmark or a shared link no longer throws it away, and nothing is sent anywhere. A saved character that this build cannot read is discarded rather than restored, because a tool that will not open is worse than one that forgets
@@ -89,6 +90,71 @@ dotnet test
 
 ---
 
+## Connecting it to your own Claude
+
+The MCP server lets you describe a character in ordinary words — *"a washed-up boxer who punches through time"* — and get a legal, costed one back, with Claude asking you the two or three questions the description leaves open. **It handles no credentials and holds no API key**: the server is a local program that answers questions about the rules, and the conversation happens in the Claude client you already use.
+
+### 1. Build it
+
+```bash
+dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o mcp-server
+```
+
+That produces `mcp-server/ProwlersAndParagons.Mcp.exe` (`ProwlersAndParagons.Mcp` on macOS and Linux) with the rules files beside it, so it needs no repository checked out and no working directory of its own. It is framework-dependent, so the machine running it still needs the **.NET 10 runtime** — add `--self-contained -r win-x64` (or your own runtime identifier) to publish one that does not.
+
+**Point your client at that binary rather than at `dotnet run`.** MSBuild writes its own progress to standard output, which is where the protocol lives — a client reading it sees a corrupt stream and drops the session.
+
+### 2. Tell your client about it
+
+**Claude Code**, from anywhere:
+
+```bash
+claude mcp add prowlers-and-paragons -- /absolute/path/to/mcp-server/ProwlersAndParagons.Mcp.exe
+```
+
+**Claude Desktop** — Settings → Developer → Edit Config, which opens `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "prowlers-and-paragons": {
+      "command": "C:\\absolute\\path\\to\\mcp-server\\ProwlersAndParagons.Mcp.exe"
+    }
+  }
+}
+```
+
+Restart Claude Desktop. Use an absolute path in both: a client starts the program from a working directory of its own choosing.
+
+### 3. Describe a character
+
+> *"Build me a Prowlers & Paragons character: a washed-up boxer who punches through time."*
+
+Claude reads the question policy, asks you what it genuinely cannot infer, proposes a whole character, and hands it to the engine. What comes back is the engine's answer — every Hero Point figure and the word "legal" come from `CostCalculator` and `CharacterValidator`, never from the model.
+
+### The six tools, and why six
+
+| | |
+|---|---|
+| `creation_guide` | The question policy: which two or three questions change the build, what to decide silently, and the JSON shape a character takes |
+| `list_options` | Tiers, packages, abilities, talents, sources, perks, flaws, pros, cons, gear features |
+| `search_powers` | Which Powers could realise a described effect, with how each row matched — by name, or only on a word inside its description, which cuts both ways and says so |
+| `power_detail` | One Power in full, with only the Pros and Cons it may legally take |
+| `check_character` | **The judge.** Costs and validates, and reports what was spent on what |
+| `character_sheet` | The printed sheet, as text |
+
+**Costing and validating are one tool on purpose.** `cost_character` beside `validate_character` is the engine's API rather than the conversation's: no turn of a conversation wants a price without knowing whether the thing priced is allowed, and a separate costing tool is an invitation to quote a number for a character that breaks a rule.
+
+The hard part of this front end is not the transport — it is deciding which questions are worth asking. That reasoning lives in [`mcp/QUESTION-POLICY.md`](mcp/QUESTION-POLICY.md), which *is* what `creation_guide` returns, so there is one copy of it and it cannot drift from what the tool teaches.
+
+### If it does not connect
+
+- **Nothing appears in the client's tool list.** Check the path is absolute and the file exists. The server writes one line to standard error on startup naming the rules directory it found; clients keep that in their MCP log.
+- **"The rules files could not be found."** You are running the binary somewhere without its `data/rules/` folder beside it. Either publish again with `-o`, or set `PROWLERS_RULES_DIR` to a directory holding `tiers.json` and the rest.
+- **The session drops immediately.** Something is writing to standard output. Point the client at the built binary, not at `dotnet run`.
+
+---
+
 ## Project Structure
 
 ```
@@ -117,7 +183,7 @@ ProwlersAndParagonsAutomation/
 │   ├── CharacterValidator.cs     # Validation with Error/Warning severity
 │   └── SampleCharacters.cs       # Two finished characters for preview — no rules logic
 │
-├── sheets/                       # Rendering shared by both front ends, no host coupling
+├── sheets/                       # Rendering shared by every host, no host coupling
 │   ├── CharacterSheetRenderer.cs # The .txt and .json sheets, built as strings
 │   ├── PowerFormatter.cs         # A Power's rulebook stat line
 │   └── GearFormatter.cs          # A piece of gear as one line
@@ -142,6 +208,16 @@ ProwlersAndParagonsAutomation/
 │       ├── js/download.js        # The whole of the JavaScript: a blob download and the mode switch
 │       ├── _redirects            # Cloudflare: every path serves the app, with a 200
 │       └── data/rules/           # Staged from data/rules/ by the build (gitignored)
+│
+├── mcp/                          # MCP server — the engine, in somebody else's Claude
+│   ├── QUESTION-POLICY.md        # The two or three questions worth asking. Embedded, and served verbatim
+│   ├── CharacterTools.cs         # The six tools, and why there are six
+│   ├── CharacterServer.cs        # Wire names, server instructions, the tool collection
+│   ├── Judgement.cs              # What the engine said, written down. Computes nothing
+│   ├── QuestionPolicy.cs         # Serves QUESTION-POLICY.md from the assembly, verbatim
+│   ├── RulesLocation.cs          # Finds data/rules beside the binary, not by walking up for a .sln
+│   ├── CommandLine.cs            # The two arguments, where a test can reach them
+│   └── Program.cs                # stdio. Standard output carries the protocol and nothing else
 │
 ├── tests/ProwlersAndParagonsAutomation.Tests/
 │   ├── CanonicalPowers.cs        # Range/Rank/Cost of all 141 powers, from the rulebook
@@ -173,7 +249,7 @@ ProwlersAndParagonsAutomation/
 │   └── qodana_code_quality.yml   # ReSharper inspections
 │
 ├── output/                       # Generated character sheets (gitignored)
-├── Directory.Build.props         # Target framework and the analyzer contract, shared by all five projects
+├── Directory.Build.props         # Target framework and the analyzer contract, shared by every project
 ├── qodana.yaml                   # Linter, profile and the load-bearing dotnet.solution key
 ├── PROGRESS.md                   # What is done and what remains — kept current
 ├── CLAUDE.md                     # Working notes: the decisions that are expensive to re-derive
@@ -185,20 +261,22 @@ ProwlersAndParagonsAutomation/
 
 ## Architecture
 
-Four layers with a strict no-upward-dependency rule:
+Four layers with a strict no-upward-dependency rule, and three hosts sharing the top one:
 
 ```
-data/rules/   →   engine/   →   sheets/   →   cli/
-                                          ↘   web/
+                                          ↗   cli/
+data/rules/   →   engine/   →   sheets/   →   web/
+                                          ↘   mcp/
 ```
 
 | Layer | Rule |
 |---|---|
 | `data/rules/` | JSON only. No logic lives here. |
 | `engine/` | Pure C#, zero Spectre.Console references and no filesystem coupling — rules arrive through `IRulesSource`, so the same assembly runs in a browser. `CostCalculator` and `CharacterValidator` are the authority on cost and validity. |
-| `sheets/` | The exports, as strings. Shared because both front ends need the same two documents; separate from `engine/` because that layer stays free of presentation. |
+| `sheets/` | The exports, as strings. Shared because three hosts need the same two documents; separate from `engine/` because that layer stays free of presentation. |
 | `cli/` | Terminal rendering and prompting. **The CLI never tallies points itself.** |
 | `web/` | Browser rendering. Same rule, and it is now enforced by the build rather than by discipline — `web/` cannot reach a calculator it does not have, and it has no copy of one. |
+| `mcp/` | Protocol plumbing and the question policy. Same rule again: it references `engine/` and `sheets/` and cannot reference `cli/`, so nothing in it can compute a Hero Point or write a file. |
 
 Each is its own project, which is what makes the arrows above true at compile time. `engine/` and `sheets/` were part of the root executable until the browser front end needed them without Spectre.Console attached.
 
@@ -312,7 +390,7 @@ Resolve's base term is the rulebook's Resolve table (Trait Cap → 0, Cap−1d �
 
 Every entry in every rules file has been checked against the rulebook — chapters 1–2 throughout, plus Ch.6 for the gear features and Ch.7 for the three toxin Pros and Cons — and **the test suite is what keeps it that way** — `CanonicalPowers.cs` holds the Range, Rank and Cost printed for all 141 Powers, and `RulesDataTests` holds the tier, ability, talent, pro, con, perk and flaw values. A data edit that contradicts the book fails a test.
 
-On top of that, the **20 pre-built Heroes from Chapter 8** are transcribed and rebuilt through the engine. They are finished, playable Standard-tier characters the authors published, so they check the rules as *applied* rather than as transcribed. The engine reproduces all sixty of their printed Edge, Health and Resolve values, and rebuilds **15 of the 20 to exactly their 125 Hero Point budget**; the other five are within 2 HP for reasons recorded in [PROGRESS.md](PROGRESS.md).
+On top of that, the **20 pre-built Heroes from Chapter 8** are transcribed and rebuilt through the engine. They are finished, playable Standard-tier characters the authors published, so they check the rules as *applied* rather than as transcribed. The engine reproduces all sixty of their printed Edge, Health and Resolve values, and rebuilds **16 of the 20 to exactly their 125 Hero Point budget**; the other four are 1 HP out, each for a reason recorded in [PROGRESS.md](PROGRESS.md).
 
 They have earned their keep twice over, catching two cost bugs that unit tests had missed — the minimum-cost floor, and a starting package being charged on top of the ranks it grants. Three of them also pin down rules that are easy to read wrongly:
 
@@ -358,7 +436,7 @@ Power descriptions are **original text written from the rulebook entry**, not ru
 
 They are held to the mechanics they sit beside: `PowerDescriptionTests` fails a rankless Power whose description claims anything scales per rank, which is how the original set went wrong on 44 of the 46 rankless Powers.
 
-Data coverage is limited to chapters 1–2 of the rulebook (Basics and Characters).
+Data coverage is everything character creation needs: chapters 1–2 (Basics and Characters) in full, plus Ch.6's twelve custom gear features and Ch.7's three toxin Pros and Cons. Chapters 3, 4, 5 and 7 are play rules, 8 is the pre-built characters — transcribed in the test suite, where they verify the engine — and Ch.9 builds Villains by the Hero rules, which is why the mode is presentation only. The one genuine gap is Ch.6's vehicles and headquarters; see [PROGRESS.md](PROGRESS.md).
 
 ---
 

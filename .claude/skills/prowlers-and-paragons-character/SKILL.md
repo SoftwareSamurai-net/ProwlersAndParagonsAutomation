@@ -12,7 +12,7 @@ is legal. You choose a concept, pick Traits and Powers that express it, and hand
 `build`; `CostCalculator` and `CharacterValidator` answer, and you adjust until the answer is
 zero. Invert that ordering and this is a random number generator with good prose — the whole
 reason it is worth doing is that the engine is trustworthy: 141 Powers priced against the
-book, and fifteen of the twenty published Heroes rebuilt to their exact 125-point budget.
+book, and sixteen of the twenty published Heroes rebuilt to their exact 125-point budget.
 
 You will get the arithmetic wrong if you try it. Do not try it.
 
@@ -21,6 +21,12 @@ You will get the arithmetic wrong if you try it. Do not try it.
 ```bash
 dotnet run -- build --from character.json
 ```
+
+**This skill is for working inside this repository.** There is a second way in for somebody who
+has not checked it out: `mcp/` is an MCP server over the same engine, and its own document —
+`mcp/QUESTION-POLICY.md`, served as the `creation_guide` tool — covers which questions to ask
+somebody describing a character out loud. The rules below are the same either way, because both
+call the same `CostCalculator` and `CharacterValidator`.
 
 | | |
 |---|---|
@@ -105,7 +111,10 @@ Field names are the ones below. Case is forgiven (`selectedTierId` works); under
 not, and **a field name that is not on this list is refused rather than ignored** — so a typo
 is reported instead of silently emptying the section it was meant to fill.
 
-Everything is optional. A minimal legal character is a tier and one flaw.
+Every field is optional to the *reader*, and a character with only some of them is not legal:
+the smallest legal one is a tier, one flaw, **and all six Abilities and all twelve Talents**,
+because no Trait can be lower than 1d. A tier and a flaw alone comes back with eighteen
+`TRAIT_BELOW_MINIMUM` errors.
 
 ```jsonc
 {
