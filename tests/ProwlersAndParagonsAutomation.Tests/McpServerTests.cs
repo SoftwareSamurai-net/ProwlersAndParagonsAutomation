@@ -1167,7 +1167,11 @@ public sealed class McpServerTests
     [Fact]
     public void AThinMatchCanBeSeenToBeThin()
     {
-        var report = Parse(Tools().SearchPowers("walks through walls", 8));
+        // A window this test names rather than the default one, so what it asserts about the
+        // cut does not quietly become an assertion about whatever the default happens to be.
+        const int window = 6;
+
+        var report = Parse(Tools().SearchPowers("walks through walls", window));
 
         var onOneCommonWord = report["matches"]!.AsArray()
             .Where(m => m!["matched_terms"]!.AsArray().Count == 1
@@ -1176,7 +1180,8 @@ public sealed class McpServerTests
 
         Assert.NotEmpty(onOneCommonWord);
         Assert.True(report["more_beyond_these"]!.GetValue<bool>());
-        Assert.True(report["found"]!.GetValue<int>() > 8);
+        Assert.True(report["found"]!.GetValue<int>() > window);
+        Assert.Equal(window, report["matches"]!.AsArray().Count);
 
         var caution = report["caution"]!.GetValue<string>();
         Assert.Contains("matched_terms", caution, StringComparison.Ordinal);
