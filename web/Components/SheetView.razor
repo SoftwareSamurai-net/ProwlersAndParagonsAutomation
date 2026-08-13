@@ -38,13 +38,13 @@
                        sink in a file whose whole argument is that markup lives in
                        components. Razor escapes an expression on its own. *@
                     <dd>
-                        @if (string.IsNullOrWhiteSpace(Session.Sheet.Motivation))
+                        @if (string.IsNullOrWhiteSpace(Sheet.Motivation))
                         {
                             <RuledLines Count="1" Inline="true" />
                         }
                         else
                         {
-                            @Session.Sheet.Motivation
+                            @Sheet.Motivation
                         }
                     </dd>
                 </dl>
@@ -57,13 +57,13 @@
             </SheetSection>
 
             <SheetSection Title="Quote">
-                @if (string.IsNullOrWhiteSpace(Session.Sheet.Quote))
+                @if (string.IsNullOrWhiteSpace(Sheet.Quote))
                 {
                     <RuledLines Count="3" />
                 }
                 else
                 {
-                    <p class="quote">“@Session.Sheet.Quote”</p>
+                    <p class="quote">“@Sheet.Quote”</p>
                 }
             </SheetSection>
         </div>
@@ -79,7 +79,7 @@
                             {
                                 <tr>
                                     <td>@ability.Name</td>
-                                    <td>@Rank(Session.Sheet.GetAbilityRank(ability.Id))</td>
+                                    <td>@Rank(Sheet.GetAbilityRank(ability.Id))</td>
                                 </tr>
                             }
                         </tbody>
@@ -93,7 +93,7 @@
                             {
                                 <tr>
                                     <td>@talent.Name</td>
-                                    <td>@Rank(Session.Sheet.GetTalentRank(talent.Id))</td>
+                                    <td>@Rank(Sheet.GetTalentRank(talent.Id))</td>
                                 </tr>
                             }
                         </tbody>
@@ -136,7 +136,7 @@
                             @foreach (var sp in group.Powers)
                             {
                                 var power = Session.Rules.GetPower(sp.PowerId);
-                                var rank  = power is null ? 0 : Session.Derived.GetEffectiveRank(sp, Session.Sheet);
+                                var rank  = power is null ? 0 : Session.Derived.GetEffectiveRank(sp, Sheet);
                                 <div class="power-entry">
                                     <div class="head">
                                         @* One expression: Razor strips the leading
@@ -177,7 +177,7 @@
                 }
 
                 <SheetSection Title="Perks">
-                    @if (Session.Sheet.Perks.Count == 0)
+                    @if (Sheet.Perks.Count == 0)
                     {
                         <RuledLines Count="5" />
                     }
@@ -185,7 +185,7 @@
                     {
                         <table class="stat-table">
                             <tbody>
-                                @foreach (var sp in Session.Sheet.Perks)
+                                @foreach (var sp in Sheet.Perks)
                                 {
                                     <tr>
                                         <td>
@@ -195,7 +195,7 @@
                                                 <span class="muted small"> — @sp.NarrativeDetail</span>
                                             }
                                         </td>
-                                        <td><span class="hp">@Session.Costs.PerkCost(sp) HP</span></td>
+                                        <td><span class="hp">@Cost(() => Session.Costs.PerkCost(sp)) HP</span></td>
                                     </tr>
                                 }
                             </tbody>
@@ -204,7 +204,7 @@
                 </SheetSection>
 
                 <SheetSection Title="Gear">
-                    @if (Session.Sheet.Gear.Count == 0)
+                    @if (Sheet.Gear.Count == 0)
                     {
                         <RuledLines Count="5" />
                     }
@@ -212,9 +212,9 @@
                     {
                         <table class="stat-table">
                             <tbody>
-                                @foreach (var item in Session.Sheet.Gear)
+                                @foreach (var item in Sheet.Gear)
                                 {
-                                    <tr><td colspan="2">@GearFormatter.Describe(item, Session.Rules, Session.Costs)</td></tr>
+                                    <tr><td colspan="2">@Describe(item)</td></tr>
                                 }
                             </tbody>
                         </table>
@@ -222,7 +222,7 @@
                 </SheetSection>
 
                 <SheetSection Title="Flaws">
-                    @if (Session.Sheet.Flaws.Count == 0)
+                    @if (Sheet.Flaws.Count == 0)
                     {
                         <RuledLines Count="5" />
                     }
@@ -230,7 +230,7 @@
                     {
                         <table class="stat-table">
                             <tbody>
-                                @foreach (var sf in Session.Sheet.Flaws)
+                                @foreach (var sf in Sheet.Flaws)
                                 {
                                     var flaw = Session.Rules.GetFlaw(sf.FlawId);
                                     <tr>
@@ -254,7 +254,8 @@
                 @* The four figures a player reads off mid-scene, set as big as the
                    published sheet sets them. Hero Points is the tier budget: a Villain has
                    none (Ch.9), so that box carries what the character cost instead. *@
-                <DerivedStatBlocks Class="quad" WithPoints="true" />
+                <DerivedStatBlocks Class="quad" WithPoints="true"
+                                   Character="@Character" ShowBudget="@ShowBudget" />
 
                 <SheetSection Title="Origin" Class="fill">
                     @if (Sources.Count > 0)
@@ -269,13 +270,13 @@
         @* ── Foot ──────────────────────────────────────────────────────────── *@
         <div class="grid three sheet-foot">
             <SheetSection Title="Description">
-                @if (string.IsNullOrWhiteSpace(Session.Sheet.Appearance))
+                @if (string.IsNullOrWhiteSpace(Sheet.Appearance))
                 {
                     <RuledLines Count="8" />
                 }
                 else
                 {
-                    <p class="small">@Session.Sheet.Appearance</p>
+                    <p class="small">@Sheet.Appearance</p>
                 }
             </SheetSection>
 
@@ -284,14 +285,14 @@
             </SheetSection>
 
             <SheetSection Title="Connections">
-                @if (Session.Sheet.Connections.Count == 0)
+                @if (Sheet.Connections.Count == 0)
                 {
                     <RuledLines Count="8" />
                 }
                 else
                 {
                     <ul class="plain-list small">
-                        @foreach (var connection in Session.Sheet.Connections)
+                        @foreach (var connection in Sheet.Connections)
                         {
                             <li>@connection</li>
                         }
@@ -313,17 +314,69 @@
 </article>
 
 @code {
+    /// <summary>
+    /// A character to print instead of the one being built.
+    ///
+    /// <para>It exists so the replay can put a recorded character's sheet in front of somebody
+    /// without loading it over theirs first. There is deliberately only <b>one</b> sheet
+    /// component in this app: a second copy would look right for exactly as long as it took
+    /// the first to change, and the printed sheet is the thing this whole tool produces.</para>
+    ///
+    /// <para>It replaces the character and nothing else. The rules, the calculators and the
+    /// Source grouping still come from the session, because they are the same for everyone —
+    /// only the sheet being read differs.</para>
+    /// </summary>
+    [Parameter] public CharacterSheet? Character { get; set; }
+
+    /// <summary>
+    /// Whether the four-figure block measures the spend against a budget. Defaults to the
+    /// app's own mode; passed only when printing somebody else's character, because whether
+    /// <em>that</em> one is a Villain has nothing to do with the palette this visitor is in.
+    /// </summary>
+    [Parameter] public bool? ShowBudget { get; set; }
+
+    private CharacterSheet Sheet => Character ?? Session.Sheet;
+
+    /// <summary>
+    /// A Hero Point figure, or a dash. Every other cost on this sheet already went through
+    /// this and the Perk and Gear boxes did not, which was a real crash rather than an
+    /// inconsistency: the engine throws rather than guessing on an id it does not have, and a
+    /// throw during render in the browser takes down the whole app rather than one box. That
+    /// reaches an unknown perk id in a restored character as well as in a recorded one.
+    /// </summary>
+    private static string Cost(Func<int> cost) =>
+        CharacterSession.TryCost(cost)?.ToString() ?? "—";
+
+    /// <summary>
+    /// One line of gear, or the item's bare name if it cannot be priced. Same objection as
+    /// <see cref="Cost"/>, and the name is the part worth keeping on the page: a piece of gear
+    /// nobody can cost is still a piece of gear the character is carrying.
+    /// </summary>
+    /// <remarks>
+    /// <c>Name</c> is declared non-null and a deserializer puts a null there anyway — the same
+    /// story as the null checks in <c>CharacterValidator</c>, and silenced in
+    /// <c>.editorconfig</c> for the same reason. Written as a coalesce rather than as a
+    /// nullable return because the two spellings pull opposite inspections: dropping the
+    /// coalesce trades "this can never be null" for "then why is the return type nullable",
+    /// and only one of the two can be silenced honestly.
+    /// </remarks>
+    private string Describe(SelectedGear item)
+    {
+        try { return GearFormatter.Describe(item, Session.Rules, Session.Costs); }
+        catch (InvalidOperationException) { return item.Name ?? ""; }
+    }
+
     private string DisplayName =>
-        string.IsNullOrWhiteSpace(Session.Sheet.Name) ? "Unnamed" : Session.Sheet.Name;
+        string.IsNullOrWhiteSpace(Sheet.Name) ? "Unnamed" : Sheet.Name;
 
     private TierModel? Tier =>
-        Session.Sheet.SelectedTierId is null ? null : Session.Rules.GetTier(Session.Sheet.SelectedTierId);
+        Sheet.SelectedTierId is null ? null : Session.Rules.GetTier(Sheet.SelectedTierId);
 
     private OptionalPackage? Package =>
-        Session.Sheet.SelectedPackageId is null
+        Sheet.SelectedPackageId is null
             ? null
             : Session.Rules.CreationRules.OptionalPackages
-                .FirstOrDefault(p => p.Id == Session.Sheet.SelectedPackageId);
+                .FirstOrDefault(p => p.Id == Sheet.SelectedPackageId);
 
     /// <summary>Tier, package and Trait Cap — the frame the rest of the sheet is measured in.</summary>
     private string Meta
@@ -348,7 +401,7 @@
     /// would add a way for the sheet to render a character it no longer holds.</para>
     /// </summary>
     private IReadOnlyList<SourceGrouping.Group> Groups =>
-        Session.Grouping.GroupBySource(Session.Sheet);
+        Session.Grouping.GroupBySource(Sheet);
 
     /// <summary>
     /// The Sources this character draws on, in the rulebook's order. Read off the groups
@@ -390,7 +443,7 @@
 
         var ability = Session.Rules.GetAbility(source.DefaultRankAbility)?.Name ?? source.DefaultRankAbility;
 
-        return $"Against other Powers: {ability} {Session.Derived.GetRankAgainstPowers(sp, Session.Sheet)}d";
+        return $"Against other Powers: {ability} {Session.Derived.GetRankAgainstPowers(sp, Sheet)}d";
     }
 
     private static string FlawType(string flawType) => flawType switch

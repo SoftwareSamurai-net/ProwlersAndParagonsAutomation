@@ -2,12 +2,18 @@
 @implements IDisposable
 @inject CharacterSession Session
 @inject IJSRuntime Js
+@inject NavigationManager Nav
 
 <header class="banner">
     <div class="banner-title">
         Prowlers &amp; Paragons
         <small>Character creation — @(Session.Mode == SheetMode.Hero ? "Hero" : "Villain")</small>
     </div>
+
+    @* The way in to the recordings. It sits in the banner rather than in the step list
+       because it is not a step — somebody who watches one has not started building, and
+       somebody who is building does not want it numbered between two things they are doing. *@
+    <NavLink class="banner-link" href="replay">Watch one being built</NavLink>
 
     @* aria-pressed is written out as a string on purpose. Blazor drops a bool attribute
        when it is false and renders it as `aria-pressed=""` when it is true, and an empty
@@ -25,14 +31,52 @@
 
 <main class="shell">
     <StepNav />
-    <HpBudgetBar />
+    @* The budget bar is the character being built, and it does not belong above a recording
+       of somebody else's. Both are six labelled figures in the same format — Package,
+       Abilities, Talents, Powers, Perks, Gear — so a visitor part-way through their own
+       character met "105 of 125 spent, 20 remaining" directly above a recorded character
+       costed at 136, with nothing on the page saying whose was whose. Worse on the Villain
+       recording, which deliberately shows no budget of its own: the only budget on the screen
+       belonged to a different character entirely. *@
+    @if (!ShowingARecording)
+    {
+        <HpBudgetBar />
+    }
     @Body
 </main>
 
 @code {
     private string Pressed(SheetMode mode) => Session.Mode == mode ? "true" : "false";
 
-    protected override void OnInitialized() => Session.Changed += StateHasChanged;
+    /// <summary>
+    /// Whether the page under the shell is a recording rather than the character being built.
+    ///
+    /// <para>Read from the address rather than passed down, because the shell renders the body
+    /// and cannot ask it anything. Matched on the path's first segment so that both
+    /// <c>/replay</c> and <c>/replay/anything</c> count, and so that a future page whose name
+    /// merely begins with those letters does not.</para>
+    ///
+    /// <para><b>Case-insensitively</b>, because Blazor's own route matching is: <c>/Replay/…</c>
+    /// serves the recording, and an ordinal comparison here served it with the visitor's budget
+    /// bar over the top — the exact thing this exists to prevent, reachable by anybody who
+    /// capitalised a shared link.</para>
+    /// </summary>
+    private bool ShowingARecording =>
+        string.Equals(
+            Nav.ToBaseRelativePath(Nav.Uri).Split('/', '?', '#')[0],
+            "replay",
+            StringComparison.OrdinalIgnoreCase);
+
+    protected override void OnInitialized()
+    {
+        Session.Changed += StateHasChanged;
+
+        // The shell has to redraw on a navigation as well as on a change to the character:
+        // walking from a recording back into the wizard has to bring the budget bar back.
+        Nav.LocationChanged += Moved;
+    }
+
+    private void Moved(object? sender, LocationChangedEventArgs e) => StateHasChanged();
 
     /// <summary>
     /// The palette is a data-mode attribute on the document element, set through interop
@@ -45,5 +89,9 @@
         await Js.InvokeVoidAsync("ppSetMode", mode == SheetMode.Hero ? "hero" : "villain");
     }
 
-    public void Dispose() => Session.Changed -= StateHasChanged;
+    public void Dispose()
+    {
+        Session.Changed -= StateHasChanged;
+        Nav.LocationChanged -= Moved;
+    }
 }

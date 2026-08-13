@@ -24,11 +24,12 @@ All four run the *same* rules engine — the browser build compiles it to WebAss
 - **53 flaws and 13 perks**, wired into Resolve and the HP budget
 - **Validation engine** — errors for budget overruns, both Trait floors and the Trait Cap, flaw-count breaches, ranks bought on rankless powers, unresolved player choices, and every id or quantity a hand-written character can get wrong; warnings for anything still unverified. **Each finding carries the facts as well as the sentence** — which Trait, what it is, what it may be, and the values a fix must be chosen from — so a repair loop never has to parse English
 - **Both Trait floors, which nothing used to enforce** — Ch.2 states twice that no Ability or Talent can be lower than 1d, so a character has all eighteen and 0d is a Trait nobody can be without; and a starting package's granted ranks cannot be lowered below what it gives. Neither costs anything to break, which is why both were silent
-- **An MCP server, for describing a character to your own Claude** — six tools over stdio, wrapping the same engine: the question policy, the catalogues, a Power search, one Power in full, the judge, and the printed sheet. It handles no credentials and holds no key; the conversation happens in the client you already pay for. See [Connecting it to your own Claude](#connecting-it-to-your-own-claude)
+- **An MCP server, for describing a character to your own Claude** — six tools over stdio, wrapping the same engine: the question policy, the catalogues, a Power search, one Power in full, the judge, and the printed sheet. It handles no credentials and holds no key; the conversation happens in the client you already pay for. Setting it up: [`docs/MCP-SETUP.md`](docs/MCP-SETUP.md)
 - **A headless `build` command and a skill to drive it** — one JSON report on standard output for each of its three exits, and a `SKILL.md` teaching the schema and the propose/validate/repair loop. The model proposes and the engine decides: nothing in the command computes a Hero Point, and an illegal character is reported, never repaired
 - **Every rules value verified against the rulebook and locked by tests** — the suite holds the printed Range, Rank and Cost of all 141 powers, so a data edit that contradicts the book fails CI
 - **Dual export** — formatted `.txt` and structured `.json`, written to `output/` by the CLI and downloaded by the browser, from one implementation
 - **Four front ends on one engine** — a Spectre.Console wizard, a Blazor WebAssembly app that runs `CostCalculator` and `CharacterValidator` as the same compiled code with Hero and Villain palettes, the headless `build` command, and the MCP server. None of them holds a second copy of a rule
+- **Four recorded conversations, replayed in the browser** — for anyone who wants to see what describing a character out loud gets you and has no Claude of their own to ask. The words are a recording and say so on the page; the numbers are not. Every Hero Point figure, every derived stat and every finding beside them is worked out in your browser as you reveal it, from the character the recording carries — **no transcript holds a total** — and at the end the character opens in the editors so you can change a rank and watch them move
 - **Two sample characters** — a finished Hero and Villain, loadable in one click, for seeing a sheet without building one first; both held to the rules by tests
 - **A printed sheet modelled on the published Hero Sheet** — one A4 page, three columns, ruled boxes with centred headings, every Ability and Talent listed, and blank ruled space for the fields a pen fills in. White paper and readable ink in both modes: a Hero sheet prints navy, a Villain crimson, and colour appears as ink and as a tint behind a heading bar, never as a fill
 - **The character is kept in the browser between visits** — a refresh, a bookmark or a shared link no longer throws it away, and nothing is sent anywhere. A saved character that this build cannot read is discarded rather than restored, because a tool that will not open is worse than one that forgets
@@ -70,7 +71,7 @@ For the browser front end:
 dotnet run --project web/ProwlersAndParagons.Web.csproj
 ```
 
-Then open the address it prints. It is a static site — `dotnet publish web/ProwlersAndParagons.Web.csproj -c Release` produces a `wwwroot/` that any static host can serve, with no server-side component. The rules JSON is copied into `wwwroot/data/rules/` by the build and fetched over HTTP at startup; `data/rules/` remains the only copy in the repository.
+Then open the address it prints. It is a static site — `dotnet publish web/ProwlersAndParagons.Web.csproj -c Release` produces a `wwwroot/` that any static host can serve, with no server-side component. The rules JSON is copied into `wwwroot/data/rules/` by the build and fetched over HTTP at startup; `data/rules/` remains the only copy in the repository. The recorded conversations at `/replay` are staged from `data/transcripts/` the same way.
 
 To cost and validate a character without a terminal:
 
@@ -94,88 +95,11 @@ dotnet test
 
 The MCP server lets you describe a character in ordinary words — *"a washed-up boxer who punches through time"* — and get a legal, costed one back, with Claude asking you the two or three questions the description leaves open. **It handles no credentials and holds no API key**: the server is a local program that answers questions about the rules, and the conversation happens in the Claude client you already use.
 
-### 1. Publish it somewhere it will stay
+**→ [Setting it up on your machine](docs/MCP-SETUP.md)** — publishing the server, registering it with Claude Code or Claude Desktop, what the six tools are for, and what to check when it does not connect.
 
-```bash
-dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o "$LOCALAPPDATA/ProwlersAndParagons/mcp-server"
-```
+It is one file rather than a section here because the setup is the part a stranger needs and the part with the traps in it: the path has to outlive a git worktree, the client has to point at the built binary rather than at `dotnet run`, and the published server carries its own copy of the rules — so it keeps answering with old ones, perfectly happily, until you re-publish.
 
-`-o mcp-server` inside the checkout works too, but **the path you give your client has to keep existing** — a checkout you move, or a git worktree you delete when a branch is done, takes the server with it. Somewhere outside the repository is the boring choice: `%LOCALAPPDATA%\ProwlersAndParagons\mcp-server` on Windows, `~/.local/share/prowlers-and-paragons` on macOS or Linux.
-
-That produces `ProwlersAndParagons.Mcp.exe` (no extension on macOS and Linux) with the rules files beside it, so it needs no repository checked out and no working directory of its own. It is framework-dependent, so the machine running it still needs the **.NET 10 runtime** — add `--self-contained -r win-x64` (or your own runtime identifier) to publish one that does not.
-
-**Point your client at that binary rather than at `dotnet run`.** MSBuild writes its own progress to standard output, which is where the protocol lives — a client reading it sees a corrupt stream and drops the session.
-
-**Re-publish to the same path after a `git pull`.** The server holds its own copy of the rules, so an old binary keeps answering with old rules, perfectly happily.
-
-### 2. Tell your client about it
-
-**Claude Code.** The scope is the part that matters:
-
-```bash
-claude mcp add --scope user prowlers-and-paragons -- "%LOCALAPPDATA%\ProwlersAndParagons\mcp-server\ProwlersAndParagons.Mcp.exe"
-```
-
-**If `claude` is not a recognised command**, the CLI is installed and not on your `PATH` — the native installer puts it at `%USERPROFILE%\.local\bin\claude.exe` on Windows and `~/.local/bin/claude` elsewhere. Call it by full path (`& "$env:USERPROFILE\.local\bin\claude.exe" mcp add …` in PowerShell), or put that directory on your `PATH` and open a new terminal.
-
-`--scope user` registers it for **every project on your machine**, which is what you want for a character builder: you are most likely to use it in a session that has nothing to do with this repository. The default scope is `local`, which is this-project-only — fine if you only ever build characters while working on the tool itself, and confusing if you expect it elsewhere. There is deliberately no `.mcp.json` checked in here, because a project-scoped entry needs an absolute path and there is no path that is right on two machines.
-
-Check it, and remove it, with:
-
-```bash
-claude mcp list
-```
-
-```bash
-claude mcp remove prowlers-and-paragons --scope user
-```
-
-**A session that is already running will not pick it up** — start a new one, then `/mcp` lists the connected servers. The tools arrive namespaced, as `mcp__prowlers-and-paragons__check_character` and so on; you never type those, you just describe a character.
-
-**Claude Desktop** — Settings → Developer → Edit Config, which opens `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "prowlers-and-paragons": {
-      "command": "C:\\Users\\you\\AppData\\Local\\ProwlersAndParagons\\mcp-server\\ProwlersAndParagons.Mcp.exe"
-    }
-  }
-}
-```
-
-Restart Claude Desktop. Use an absolute path in both — a client starts the program from a working directory of its own choosing — and note that JSON needs its backslashes doubled.
-
-### 3. Describe a character
-
-> *"Build me a Prowlers & Paragons character: a washed-up boxer who punches through time."*
-
-Claude reads the question policy, asks you what it genuinely cannot infer, proposes a whole character, and hands it to the engine. What comes back is the engine's answer — every Hero Point figure and the word "legal" come from `CostCalculator` and `CharacterValidator`, never from the model.
-
-You will be asked about two or three things and told about the rest: the tier, whether an effect you described is one Power or several, and what your character is deliberately ordinary at. Everything else — ranks, talents, which package, which flaw — is decided and shown to you, because a questionnaire is a worse interface than the wizard this repository already has. Ask for the sheet at the end and you get the printed one, not JSON.
-
-### The six tools, and why six
-
-| | |
-|---|---|
-| `creation_guide` | The question policy: which two or three questions change the build, what to decide silently, and the JSON shape a character takes |
-| `list_options` | Tiers, packages, abilities, talents, sources, perks, flaws, pros, cons, gear features |
-| `search_powers` | Which Powers could realise a described effect, with how each row matched — by name, or only on a word inside its description, which cuts both ways and says so |
-| `power_detail` | One Power in full, with only the Pros and Cons it may legally take |
-| `check_character` | **The judge.** Costs and validates, and reports what was spent on what |
-| `character_sheet` | The printed sheet, as text |
-
-**Costing and validating are one tool on purpose.** `cost_character` beside `validate_character` is the engine's API rather than the conversation's: no turn of a conversation wants a price without knowing whether the thing priced is allowed, and a separate costing tool is an invitation to quote a number for a character that breaks a rule.
-
-The hard part of this front end is not the transport — it is deciding which questions are worth asking. That reasoning lives in [`mcp/QUESTION-POLICY.md`](mcp/QUESTION-POLICY.md), which *is* what `creation_guide` returns, so there is one copy of it and it cannot drift from what the tool teaches.
-
-### If it does not connect
-
-- **Nothing appears in the client's tool list.** Check the path is absolute and the file exists. The server writes one line to standard error on startup naming the rules directory it found; clients keep that in their MCP log.
-- **`claude mcp list` shows it and the session does not.** The session was already running when you added it, or it was added at `local` scope from a different project. Start a new session, and check `claude mcp list` from the directory you are actually working in.
-- **It answers with rules you have edited since.** The published binary carries its own copy. Re-publish over the same path, or point `PROWLERS_RULES_DIR` at your checkout's `data/rules` while you are changing them.
-- **"The rules files could not be found."** You are running the binary somewhere without its `data/rules/` folder beside it. Either publish again with `-o`, or set `PROWLERS_RULES_DIR` to a directory holding `tiers.json` and the rest.
-- **The session drops immediately.** Something is writing to standard output. Point the client at the built binary, not at `dotnet run`.
+No Claude of your own? [`/replay`](https://prowlers-and-paragons-chargen.pages.dev/replay) plays four of these conversations back, with the engine costing and validating in your browser as you read.
 
 ---
 
@@ -198,6 +122,12 @@ ProwlersAndParagonsAutomation/
 │   ├── gear_features.json        # 12 custom gear features (Ch.6)
 │   └── sources.json              # 6 Sources and the default rank each supplies
 │
+├── data/transcripts/             # Four recorded conversations the browser replays — characters, never totals
+│   ├── vera-nunn.json            # Street Level, and a Power the first search very nearly buried
+│   ├── chrono-jab.json           # "punches through time" — one Power or three
+│   ├── sheet-lightning.json      # a first draft over budget, the trade offered, the settlement
+│   └── the-conductor.json        # a Villain, who has no Hero Point budget at all (Ch.9)
+│
 ├── engine/                       # Rules logic — pure C#, zero Spectre.Console
 │   ├── Models/                   # Immutable records mapping to the JSON schemas
 │   ├── CharacterSheet.cs         # Mutable wizard state
@@ -205,7 +135,9 @@ ProwlersAndParagonsAutomation/
 │   ├── CostCalculator.cs         # HP cost logic for every trait type
 │   ├── DerivedStatsCalculator.cs # Edge, Health, Resolve, baseline/effective rank
 │   ├── CharacterValidator.cs     # Validation with Error/Warning severity
-│   └── SampleCharacters.cs       # Two finished characters for preview — no rules logic
+│   ├── SampleCharacters.cs       # Two finished characters for preview — no rules logic
+│   ├── Transcript.cs             # A recorded conversation: turns, and the characters put to the engine
+│   └── TranscriptLibrary.cs      # Reads them, strictly — a renamed field fails at load
 │
 ├── sheets/                       # Rendering shared by every host, no host coupling
 │   ├── CharacterSheetRenderer.cs # The .txt and .json sheets, built as strings
@@ -221,17 +153,19 @@ ProwlersAndParagonsAutomation/
 │
 ├── web/                          # Blazor WebAssembly front end — the engine, in a browser
 │   ├── Program.cs                # Fetches the rules over HTTP into an InMemoryRulesSource
-│   ├── Pages/                    # One page per creation step, mirroring the CLI's six
+│   ├── Pages/                    # The six creation steps, mirroring the CLI, plus the replay
 │   ├── Components/               # Panel, Field, SheetSection, OptionRow… and SheetView
 │   ├── Services/CharacterSession.cs  # The CharacterSheet plus the calculators
 │   ├── Services/Labels.cs        # Turns a rules key into something a player can read
 │   ├── Services/CharacterStore.cs    # Keeps the character in the browser between visits
+│   ├── Services/ReplayLibrary.cs # The recorded conversations. Has no method that returns a number
 │   └── wwwroot/
 │       ├── css/theme.css         # Hero, Villain and print palettes, as CSS custom properties
 │       ├── css/app.css           # Layout, components and the print stylesheet. Names no colour
 │       ├── js/download.js        # The whole of the JavaScript: a blob download and the mode switch
 │       ├── _redirects            # Cloudflare: every path serves the app, with a 200
-│       └── data/rules/           # Staged from data/rules/ by the build (gitignored)
+│       ├── data/rules/           # Staged from data/rules/ by the build (gitignored)
+│       └── data/transcripts/     # Staged from data/transcripts/ the same way (gitignored)
 │
 ├── mcp/                          # MCP server — the engine, in somebody else's Claude
 │   ├── QUESTION-POLICY.md        # The two or three questions worth asking. Embedded, and served verbatim
@@ -255,14 +189,17 @@ ProwlersAndParagonsAutomation/
 │   ├── PrebuiltHeroTests.cs      # rebuilds each and checks their printed Edge/Health/Resolve
 │   ├── SampleCharacterTests.cs   # the two preview characters must be legal and printable
 │   ├── WebPresentationTests.cs   # no colour outside theme.css, no jargon on screen, print rules
-│   └── ValidationMessageTests.cs # every message a player can be shown, held to the same rule
+│   ├── ValidationMessageTests.cs # every message a player can be shown, held to the same rule
+│   ├── TranscriptTests.cs        # the recordings, held to the engine — and no figure in their prose
+│   └── McpSetupDocumentationTests.cs  # docs/MCP-SETUP.md, held to the code it describes
 │
 ├── tests/ProwlersAndParagons.Web.Tests/   # bUnit — renders components and reads the output
 │   ├── RenderContext.cs          # the app's own services, on the real data/rules
 │   ├── FakeLocalStorage.cs       # an IJSRuntime backed by a dictionary, and able to refuse
 │   ├── SheetRenderTests.cs       # what the sheet actually renders, "Armor8d" and all
 │   ├── StartAgainTests.cs        # all three controls that destroy work ask first, then clear
-│   └── CharacterStoreTests.cs    # a character survives the round trip; bad storage never throws
+│   ├── CharacterStoreTests.cs    # a character survives the round trip; bad storage never throws
+│   └── ReplayRenderTests.cs      # every figure on a replayed page equals the calculator's own answer
 │
 ├── scripts/
 │   └── write-cloudflare-headers.sh   # Generates _headers, hashing the inline import map
@@ -277,6 +214,8 @@ ProwlersAndParagonsAutomation/
 ├── qodana.yaml                   # Linter, profile and the load-bearing dotnet.solution key
 ├── PROGRESS.md                   # What is done and what remains — kept current
 ├── CLAUDE.md                     # Working notes: the decisions that are expensive to re-derive
+├── docs/HANDOVER.md              # Where the last session stopped and what the next one is for
+├── docs/MCP-SETUP.md             # Connecting the server to Claude Code or Claude Desktop
 ├── docs/RULES_EXTRACTION_GUIDE.md
 └── Program.cs                    # CLI entry point
 ```
@@ -289,13 +228,14 @@ Four layers with a strict no-upward-dependency rule, and three hosts sharing the
 
 ```
                                           ↗   cli/
-data/rules/   →   engine/   →   sheets/   →   web/
+data/rules/   →   engine/   →   sheets/   →   web/   ←   data/transcripts/
                                           ↘   mcp/
 ```
 
 | Layer | Rule |
 |---|---|
 | `data/rules/` | JSON only. No logic lives here. |
+| `data/transcripts/` | The second data input, and not rules: the recorded conversations `/replay` plays. Read through the engine — every character in one goes through the strict reader — and loaded only by `web/`. |
 | `engine/` | Pure C#, zero Spectre.Console references and no filesystem coupling — rules arrive through `IRulesSource`, so the same assembly runs in a browser. `CostCalculator` and `CharacterValidator` are the authority on cost and validity. |
 | `sheets/` | The exports, as strings. Shared because three hosts need the same two documents; separate from `engine/` because that layer stays free of presentation. |
 | `cli/` | Terminal rendering and prompting. **The CLI never tallies points itself.** |

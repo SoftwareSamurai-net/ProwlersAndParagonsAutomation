@@ -1,0 +1,51 @@
+{
+  "Id": "vera-nunn",
+  "Title": "The woman nobody got one past",
+  "Blurb": "A description with no super in it, and a Power the first search very nearly buried.",
+  "Villain": false,
+  "Turns": [
+    {
+      "Speaker": "person",
+      "Text": "My gran ran the chip shop on the corner for forty years. Nobody ever got one past her and nobody ever laid a finger on her. I want to play her."
+    },
+    {
+      "Speaker": "assistant",
+      "Text": "Two things and then I'll build her, and you can shrug at either. Street Level is the tier for people who are formidable rather than super, and I'll use it unless you want her bigger. And where does it come from — is she just like that, or is there a story behind it? I'll assume she's just like that."
+    },
+    {
+      "Speaker": "person",
+      "Text": "Street's right. And no story, she's just like that. She'd be offended by the question."
+    },
+    {
+      "Speaker": "assistant",
+      "Text": "Worth telling you how the second half of that was nearly missed, because it is the mistake this tool is built to catch me making. I searched for \"knows when someone is lying, reads intentions\" and got back a mind-shield, an out-of-body Power and a radar sense — every one of them matched on a word inside its own description, \"knows\" or \"reads\", and none of them did what you said. What I did not do at first was read the rest of the answer, which said plainly that there were more matches than it had shown me and that I should search a more distinctive word. Asking again in your words instead of mine — \"can tell when somebody is lying to her\" — cut it to two entries, and the first was exactly it: a Super Sense that reads a lie automatically, at her Perception. So she has it, and it is the last thing she could afford. The armour is the other half of what you said, and that one starts from her Toughness rather than being bought from nothing.",
+      "Character": {
+        "Name": "Vera Nunn",
+        "SelectedTierId": "street_level",
+        "SelectedPackageId": "civilian_package",
+        "AbilityRanks": { "might": 2, "agility": 2, "intellect": 4, "perception": 8, "toughness": 6, "willpower": 6 },
+        "TalentRanks": {
+          "academics": 2, "charm": 5, "command": 3, "covert": 2, "investigation": 6, "medicine": 2,
+          "professional": 6, "science": 2, "streetwise": 6, "survival": 2, "technology": 2, "vehicles": 2
+        },
+        "SelectedPowers": [
+          { "PowerId": "armor", "PurchasedRanks": 5, "Pros": [], "Cons": [], "SourceId": "innate" },
+          { "PowerId": "super_senses_lie_detection", "PurchasedRanks": 0, "Pros": [], "Cons": [], "SourceId": "innate" }
+        ],
+        "Perks": [],
+        "Flaws": [
+          { "FlawId": "obligation", "NarrativeDetail": "The shop opens at eleven whatever else is happening" },
+          { "FlawId": "relationship", "NarrativeDetail": "Two grandchildren who think she is just a nan" }
+        ],
+        "Appearance": "Seventy-one, an apron over a cardigan, forearms like a docker.",
+        "Motivation": "The corner is hers and she has never once said so out loud.",
+        "Quote": "Sit down. You'll have a cup of tea and then you'll tell me the truth.",
+        "Connections": ["Half the market, and the sergeant at the station who was in her Cubs"]
+      }
+    },
+    {
+      "Speaker": "assistant",
+      "Text": "Both of her Powers start from an Ability rather than from nothing — the armour from her Toughness, the lie-sense from her Perception — so if you ever want her tougher or sharper, change the Ability and the Power comes up with it. The lie-sense has no ranks to buy at all: it is one flat price and it reads at whatever her Perception is. That is also the answer to \"is she a super?\" She is a woman with very good instincts, written down in a way the rules can price."
+    }
+  ]
+}

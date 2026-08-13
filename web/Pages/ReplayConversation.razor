@@ -1,0 +1,213 @@
+@page "/replay/{Id}"
+@inject ReplayLibrary Replays
+@inject CharacterSession Session
+@inject NavigationManager Nav
+@inject IJSRuntime Js
+
+<PageTitle>@(Conversation?.Title ?? "Recording") — Prowlers &amp; Paragons</PageTitle>
+
+@* Two ways to have no recording, and telling somebody the wrong one wastes their time. If
+   the library failed to load then every address is unknown, including a correct one somebody
+   shared — so "your link is wrong" would be a confident lie. Say which it is. *@
+@if (Conversation is null && Replays.Problem is { } problem)
+{
+    <h1>The recordings did not load</h1>
+    <p class="muted">
+        This is not your link — none of the recordings can be reached at the moment.
+        Everything else on this site works, so you can still build a character.
+    </p>
+    <p class="small muted">What went wrong: @problem</p>
+    <NavLink class="btn" href="">Build one instead</NavLink>
+}
+else if (Conversation is null)
+{
+    <h1>No such recording</h1>
+    <p class="muted">That address does not name one of the recorded conversations.</p>
+    <NavLink class="btn" href="replay">See the ones there are</NavLink>
+}
+else
+{
+    <h1>@Conversation.Title</h1>
+
+    @* The label, and it is deliberately the first thing under the heading rather than a note
+       at the bottom. A replayed conversation presented as a live one is a lie about what the
+       visitor is looking at, and the only way to be sure they cannot miss it is to put it
+       where they cannot get past it. It says both halves: the words are a recording, and the
+       numbers are not. *@
+    @* Body size, not `small`. Every other explanatory note in this app is set down a step,
+       and this one is the exception on purpose: it is not an aside about the page, it is what
+       the page is. Set at 0.82rem beside a conversation at full size, the most important
+       sentence here was also the smallest. *@
+    <Panel Class="replay-label" NoPrint="true">
+        <p>
+            <b>This is a recording.</b> The conversation below happened once and is played
+            back word for word — nothing is being written for you now, and typing at it is not
+            an option this page has. What is <b>not</b> recorded is any figure: every Hero
+            Point cost, every one of the four derived figures and every finding on this page
+            is worked out in your browser as you reveal it, from the character the recording
+            carries. If the rules and the recording ever disagreed, you would see it happen.
+        </p>
+    </Panel>
+
+    <div class="replay">
+        @foreach (var turn in Shown)
+        {
+            <ReplayTurn Person="@(turn.Speaker == TranscriptSpeaker.Person)" Text="@turn.Text" />
+
+            @if (turn.Character is { } character)
+            {
+                <ReplayVerdict Character="@character" Villain="@Conversation.Villain" />
+            }
+        }
+    </div>
+
+    @if (!Finished)
+    {
+        @* no-print because these are the only controls on this page that sit outside a panel,
+           and a page printed mid-conversation would otherwise be blank except for two
+           buttons. Everything else here is either a panel that opts out or the recording
+           itself, which .replay hides. *@
+        <div class="inline no-print">
+            <button type="button" class="btn primary" @onclick="Next">Next</button>
+            <button type="button" class="btn" @onclick="ShowEverything">Show the rest</button>
+            <span class="small muted">@Shown.Count of @Conversation.Turns.Count</span>
+        </div>
+    }
+    else if (Conversation.FinalCharacter is { } settled)
+    {
+        <Panel Title="Take it further" NoPrint="true">
+            <p class="small">
+                This is where a recording stops being worth watching and starts being worth
+                poking at. Open the character and every editor in this tool is pointed at it —
+                change a rank, add a Con, take the tier down, and the costs and the checks
+                move with it. Nothing here is fixed and nothing was pre-computed.
+            </p>
+
+            @if (_pending)
+            {
+                <div class="inline">
+                    <button type="button" class="btn danger" @onclick="OpenIt">
+                        Yes, replace my character
+                    </button>
+                    <button type="button" class="btn" @onclick="() => _pending = false">
+                        Keep what I have
+                    </button>
+                </div>
+                <p class="small muted spaced">
+                    You have a character on the go in this browser. Opening this one replaces
+                    it, and there is no undo — download yours from the last step first if you
+                    want to keep it.
+                </p>
+            }
+            else
+            {
+                <div class="inline">
+                    <button type="button" class="btn primary" @onclick="Ask">
+                        Open @DisplayName in the editor
+                    </button>
+                    <NavLink class="btn" href="replay">Another recording</NavLink>
+                </div>
+            }
+        </Panel>
+
+        @* The sheet, printed from the recorded character rather than from whatever the
+           visitor has on the go. This is the same sheet component the last step of the tool
+           uses — there is only one — so what is below is exactly what they would print. *@
+        <SheetView Character="@settled" ShowBudget="@(!Conversation.Villain)" />
+    }
+}
+
+@code {
+    /// <summary>Which recording, from the address.</summary>
+    [Parameter] public string? Id { get; set; }
+
+    private Transcript? Conversation => Replays.Find(Id);
+
+    private int _revealed = 1;
+    private bool _pending;
+
+    /// <summary>
+    /// Reset when the address changes. Blazor reuses the component across a navigation
+    /// between two routes that differ only in a parameter, so without this, opening a second
+    /// recording from the first would start it half-read.
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        _revealed = 1;
+        _pending = false;
+    }
+
+    private IReadOnlyList<TranscriptTurn> Shown =>
+        Conversation is null ? [] : [.. Conversation.Turns.Take(_revealed)];
+
+    private bool Finished => Conversation is not null && _revealed >= Conversation.Turns.Count;
+
+    private string DisplayName
+    {
+        get
+        {
+            var name = Conversation?.FinalCharacter?.Name;
+            return string.IsNullOrWhiteSpace(name) ? "this character" : name;
+        }
+    }
+
+    private void Next() => _revealed++;
+
+    private void ShowEverything() => _revealed = Conversation?.Turns.Count ?? 0;
+
+    /// <summary>
+    /// Asks first, and only when there is something to lose — the same bargain the tier page
+    /// strikes over its samples, for the same reason: the character is kept in this browser
+    /// between visits, so a button here can destroy twenty minutes of work written down
+    /// nowhere else.
+    /// </summary>
+    private Task Ask()
+    {
+        if (HasSomethingToLose)
+        {
+            _pending = true;
+            return Task.CompletedTask;
+        }
+
+        return OpenIt();
+    }
+
+    private bool HasSomethingToLose =>
+        Session.Sheet.SelectedTierId is not null
+        || Session.Sheet.SelectedPowers.Count > 0
+        || Session.Sheet.AbilityRanks.Count > 0
+        || Session.Sheet.TalentRanks.Count > 0
+        || !string.IsNullOrWhiteSpace(Session.Sheet.Name);
+
+    /// <summary>
+    /// Hands the recorded character to the editors and lands on the last step, which is where
+    /// the sheet, the findings and the download buttons are.
+    ///
+    /// <para>The character is copied rather than handed over. What the library holds is read
+    /// once at startup and shared by every visit to this page, so passing the instance itself
+    /// would let the first edit rewrite the recording — and the replay would then play back a
+    /// character somebody had changed. Round-tripping it through the character's own JSON
+    /// shape is the copy, and it is the same shape this app already stores.</para>
+    /// </summary>
+    private async Task OpenIt()
+    {
+        if (Conversation?.FinalCharacter is not { } settled) return;
+
+        _pending = false;
+
+        var mode = Conversation.Villain ? SheetMode.Villain : SheetMode.Hero;
+        var copy = CharacterSheetJson.Read(CharacterSheetJson.Write(settled), strict: false);
+
+        if (copy is null) return;
+
+        Session.Restore(copy, mode);
+        Session.NotifyChanged();
+
+        // The palette lives as an attribute on the document element, outside the component
+        // tree, so it has to be pushed through interop — the same way the tier page's samples
+        // and the header's own switch do it.
+        await Js.InvokeVoidAsync("ppSetMode", Conversation.Villain ? "villain" : "hero");
+
+        Nav.NavigateTo("review");
+    }
+}

@@ -338,7 +338,15 @@ public sealed class WebPresentationTests
         // and one inside a MarkupString that also hand-rolled its own HtmlEncode, which is a
         // raw-HTML sink in the file whose whole argument is that markup lives in components.
         ("ruled", "RuledLines.razor"),
-        ("rule-line", "RuledLines.razor")
+        ("rule-line", "RuledLines.razor"),
+
+        // A recorded turn and the engine's answer about the character in it. They are owned
+        // for the reason the rest are, plus one of this surface's own: the attribution above
+        // a turn is half of what keeps a recording from reading as a live conversation, so
+        // it may not be something a second page can write without it.
+        ("replay-turn", "ReplayTurn.razor"),
+        ("replay-who", "ReplayTurn.razor"),
+        ("replay-figures", "ReplayVerdict.razor")
     ];
 
     public static TheoryData<string, string> Owned()
@@ -583,6 +591,8 @@ public sealed class WebPresentationTests
     [InlineData(".budget")]
     [InlineData(".tabs")]
     [InlineData(".mode-switch")]
+    [InlineData(".banner-link")]
+    [InlineData(".replay")]
     [InlineData(".no-print")]
     [InlineData("h1")]
     public void ThePrintedSheetLeavesOutTheToolAroundIt(string selector)

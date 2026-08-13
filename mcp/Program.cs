@@ -7,8 +7,8 @@ using ProwlersAndParagonsAutomation.Mcp;
 // greeting, a warning, MSBuild's own chatter — is not a cosmetic problem: it lands in the
 // middle of a JSON-RPC stream and the client drops the session with an error the person
 // reading it cannot connect to anything. Everything this program says to a human goes to
-// standard error, which clients collect into a log. That is also why the README tells a
-// stranger to point their client at the built binary rather than at `dotnet run`.
+// standard error, which clients collect into a log. That is also why docs/MCP-SETUP.md tells
+// a stranger to point their client at the built binary rather than at `dotnet run`.
 
 var arguments = CommandLine.Read(args);
 
@@ -72,7 +72,7 @@ static string Usage() =>
 
     It speaks the Model Context Protocol over standard input and output, so it is started by
     an MCP client rather than by a person. Connect it to Claude Desktop or Claude Code and
-    describe a character; see README.md for the two configuration snippets.
+    describe a character; see docs/MCP-SETUP.md for the two configuration snippets.
 
       <directory>   Where the rules JSON files are. Defaults to the copy beside this
                     program, then to a data/rules folder in any directory above it.

@@ -1,0 +1,19 @@
+@* One line of a recorded conversation.
+
+   Both sides are labelled every time rather than only when the speaker changes. A block of
+   text with no attribution is exactly what a replay must not produce: the whole risk here is
+   somebody reading a recording as something happening now, and half the defence is that the
+   page never stops saying who said what. *@
+
+<div class="replay-turn @(Person ? "said-by-them" : "said-by-it")">
+    <div class="replay-who">@(Person ? "The player" : "The assistant")</div>
+    <p>@Text</p>
+</div>
+
+@code {
+    /// <summary>True for the person describing a character, false for the assistant.</summary>
+    [Parameter] public bool Person { get; set; }
+
+    /// <summary>What they said.</summary>
+    [Parameter] public string Text { get; set; } = "";
+}

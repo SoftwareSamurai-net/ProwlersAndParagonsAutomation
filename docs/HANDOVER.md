@@ -5,106 +5,117 @@ single source of truth for what is done; this file is only the short version of 
 session stopped and what the next one is for.
 
 **Delete this file when you have finished the slice it describes.** It is a note between
-sessions, not documentation.
+sessions, not documentation. (The previous one was deleted on exactly that instruction when the
+replay shipped, and this replaces it.)
 
 ---
 
 ## Where things stand
 
-Nine pull requests merged, [#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30)–[#39](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/39).
-3298 tests, zero warnings at CI strictness, a whole-tree Qodana scan at zero, MIT in `LICENSE`,
-and the site live on Cloudflare Pages. The tool creates, prices, validates, prints and exports
-characters through **four** front ends: the terminal wizard, the browser app,
-`build --from character.json`, and an MCP server somebody can connect to their own Claude.
+Forty pull requests merged, the most recent being [#41](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/41). 3365 tests, zero warnings at CI strictness, a whole-tree Qodana scan at
+zero, MIT in `LICENSE`, and the site live on Cloudflare Pages. The tool creates, prices,
+validates, prints and exports characters through **four** front ends — the terminal wizard, the
+browser app, `build --from character.json`, and an MCP server somebody connects to their own
+Claude — and a visitor with no account can watch four real conversations build one at `/replay`.
 
-The last slice built that MCP server ([#39](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/39)).
-Its entry in `PROGRESS.md` and the "The MCP server" section of `CLAUDE.md` carry the reasoning;
-the question policy — which two or three questions are worth asking somebody describing a
-character out loud — is `mcp/QUESTION-POLICY.md`, embedded in the assembly and served verbatim
-as the `creation_guide` tool.
+The last slice built that replay. Its entry in `PROGRESS.md` and the "The replay" section of
+`CLAUDE.md` carry the reasoning. The setup a stranger needs for the MCP server moved out of the
+README into [`MCP-SETUP.md`](MCP-SETUP.md), which is held to the code by
+`McpSetupDocumentationTests`.
+
+**Nothing on the remaining list is a defect.** What follows is a judgement about which of them is
+worth a slice, not a queue of bugs.
 
 ---
 
-## The slice to build: the replay demo
+## The slice to build: pick one of these three
 
-**Who it is for.** The MCP server serves people who code and can bring their own Claude. This is
-the other audience the owner named — "normie mates who just want to see it work in the browser".
-They have no account to bring.
+They are genuinely different kinds of work, and the right choice depends on what you want the
+project to be next. Read the full entry in `PROGRESS.md` before starting any of them.
 
-**They cannot bring one, and this is settled** — do not re-investigate it. A claude.ai
-subscription cannot be lent to a third-party site (there is no sign-in-with-Claude that hands a
-website your inference quota), the API is separate billing with its own keys and no dependable
-free tier, and claude.ai's custom connectors are gated to paid plans.
+### A. Close the last four Heroes — `PROGRESS.md` item 1
 
-So the two options are a proxy the owner funds — a Worker holding his key, rate-limited, which
-costs money, invites abuse and **breaks the static-site property the README advertises** — or a
-**replay**: three or four real transcripts of a description, the questions back, the answers and
-the resulting character, with the model's turns replayed and **the engine run for real in
-WebAssembly**. Costs, validation and the printed sheet genuinely computed client-side; then hand
-the character to the existing editor so the visitor can poke at it.
+Sixteen of the twenty published Heroes rebuild to exactly 125 Hero Points. Four sit at ±1, each
+with a recorded reason. **The method that closed the other three is spent**: Vector, Talon and
+Airmid were transcription faults, and all four transcriptions have since been read line by line
+against the printed sheets and are faithful. So the remaining ±1 is in the **pricing model**, and
+finding it needs a per-element cost breakdown compared against a hand-computed expectation from
+the sheet — not another read of the page.
 
-**The replay is the recommendation.** No account, no key, no server, no running cost, nothing to
-abuse. It is also the honest demonstration, because the half worth showing off is the engine
-deciding, and that half stays live.
+**Do not tune an ambiguous variant to force a zero.** T-Kay closes exactly if `Limited: only for
+Telekinesis` is read as the milder grade, and the only thing recommending that reading is that it
+produces the answer. The rulebook prints no rule mapping the words onto a grade. That is the trap
+this item names, and it has been walked up to twice.
 
-### The two things that would ruin it
+This is the highest-value slice if you want the engine's arithmetic proved further, and it is the
+only one where a finding would change a number the tool reports.
 
-1. **Faking the numbers.** If the sheet is a screenshot, or the costs are baked into the
-   transcript, the demo misrepresents the thing that was built. Every figure on screen must come
-   back from `CostCalculator` and `CharacterValidator` running in the visitor's browser — which
-   they already do, because `web/` is the same compiled engine. **If the replay data holds a
-   Hero Point total, that is the bug.**
-2. **Not labelling it.** A replayed conversation presented as a live one is a lie about what the
-   visitor is looking at. Say it is a recording, in the UI, where they cannot miss it.
+### B. `search_powers` ranks ties alphabetically — `PROGRESS.md` item 4
 
-### What already exists, so you do not rebuild it
+The Power search is a word match, and when several Powers score the same it puts them in name
+order under a caution calling them "the closest entries". **"Walks through walls" is the case to
+reproduce**: twenty-two matches, of which twenty tie on a single word — eighteen on "through",
+two on "walls" — so which of them a caller sees is alphabetical, with Phasing eleventh, where
+anybody asking for eight rows never sees it.
 
-| | |
-|---|---|
-| `web/` | Blazor WebAssembly, the engine compiled to WASM, `CharacterSession` + `CharacterStore`, the six creation pages and `SheetView`. A character already survives a refresh and a shared link |
-| `mcp/QUESTION-POLICY.md` | The question policy. **The transcripts should follow it** — that is what makes the demo a demonstration of the design rather than of a chat |
-| `mcp/` over stdio | How to *produce* the transcripts: drive a real conversation through the real server and record it, rather than writing dialogue by hand |
-| `engine/CharacterSheetJson` | Reads and writes the character-sheet shape — the inputs, not the export. The shape a transcript's final character should be stored in |
-| `SampleCharacters` | Two finished characters and the "load a sample" flow the replay can hand off to |
-| `CharacterStore` | Storing a character the app can restore, and the guard that refuses one the engine cannot answer for |
+**Weighting each word by how much of the rulebook uses it was implemented and reverted**, and
+that is the finding rather than the fix: it sorted that query and broke "reads minds". Two
+examples are not evidence. Closing this properly needs **a set of twenty or thirty descriptions
+with expected answers, written from the Powers rather than from the scorer**, and then a scoring
+change measured against them. Build the evidence first or do not start.
 
-### What to actually build
+The replay's own cheap conversation is a live example of what the weakness costs: the model
+concluded the rulebook had no Power for detecting a lie, from a search that had told it there
+were more matches than it had shown. A better ranking would have put the answer on the first
+page.
 
-1. **Three or four recorded conversations**, each with a description, the questions the assistant
-   asked back, the answers, and the character that came out. Cover the cases that make the
-   design visible: one that is cheap, one that does not fit the budget and has to give something
-   up, and one where the description is ambiguous about whether it is one Power or several.
-2. **A replay surface in `web/`** that steps through a transcript at the visitor's pace, and at
-   the end **runs the character through the engine in front of them** — the budget bar, the
-   findings, the printed sheet.
-3. **A hand-off into the editor**, so the visitor can change a rank and watch the numbers move.
-   That is the moment the demo earns its keep.
-4. **A label**, and a line saying where the live version is: the MCP server, with the README's
-   setup.
+### C. The browser payload — `PROGRESS.md` item 5
 
-### Traps this slice will hit
+27 MiB uncompressed, about a third of that over the wire, cached hard after the first visit.
+**The site works and this is not a fault.** It is large because IL trimming is disabled, because
+`RulesRepository` deserializes by reflection and a trimmed-away model property is a silently
+empty rules set rather than a build error.
 
-- **`web/` names no colour and no internal type**, and `WebPresentationTests` fails the build if
-  a new component does either. Read the "three presentation rules" section of `CLAUDE.md` before
-  writing markup; one component owns each repeated class.
-- **Anything about what a component renders is tested in `tests/ProwlersAndParagons.Web.Tests`
-  with bUnit**, not by reading source. That split exists because a source-reading test shipped
-  "Armor8d" twice.
-- **The transcripts are data and will rot.** If they hold ids the rules files no longer have, the
-  replay breaks quietly. Hold them to the engine the way `SkillDocumentationTests` holds the
-  skill: read every character in every transcript through the strict reader and validate it.
-- **The payload is already 27 MiB** (item 5 in `PROGRESS.md`). Do not make it worse with images;
-  the transcripts are text.
-- **The rulebook PDFs are in `docs/` and a worktree cannot see them** — `*.pdf` is gitignored, so
+Two ways to close it, and the second **was tried and does not drop in**: a source-generated
+`JsonSerializerContext` returns null for six collection properties declared non-null with an
+`= []` initialiser, and `RulesLoadingTests.NoCollectionOnAnyLoadedRulesModelComesBackNull` is
+what caught it. Anything done here has to keep that test green, and **the local toolchain cannot
+verify any of it** — the ILLink task host crashes without the `wasm-tools` workload, which needs
+elevation. CI can. "It built" is not evidence, because the failure is a runtime silence: whatever
+is done needs a check that loads the published site and reads a rule out of it.
+
+Lowest value of the three, and the one most likely to eat a day for nothing.
+
+---
+
+## Traps whichever you pick
+
+- **The rulebook PDFs are in `docs/` and a worktree cannot see them.** `*.pdf` is gitignored, so
   they live in the main working directory only. `ls docs/*.pdf` from a worktree reports nothing,
-  which reads as "there is no rulebook" and is wrong.
+  which reads as "there is no rulebook" and is wrong. A whole slice was worked on that mistake.
+- **The printed page offset is a constant +3**, and each page prints its number twice,
+  interleaved, so a footer extracts as `151 5` for printed 15. Decode carefully or cross-check
+  against the table of contents on PDF 4. Every one of the twenty Hero citations was once ten
+  pages out because nothing read them.
+- **A whole-tree Qodana scan means nothing run in place.** The same commit reports 0 from
+  `git archive HEAD | tar -x -C <tmp>` and 1471 from a built working directory, `.CSharpErrors`
+  included, on files that compile. Export first.
+- **Run the suite on Linux at CI strictness before pushing.** Warnings are only errors under
+  `ContinuousIntegrationBuild`, so a local `dotnet test` passes over things CI fails on — that
+  happened last slice, on a `CA1826` inside a new test. Four minutes closes it:
 
-### How to know it works
+  ```bash
+  docker run --rm -v "$(pwd -W):/src" -w //src mcr.microsoft.com/dotnet/sdk:10.0 bash -c "dotnet test --configuration Release -p:ContinuousIntegrationBuild=true"
+  ```
 
-Open it as somebody who has never seen the tool. Can they tell it is a recording? Do they reach
-a printed sheet? Can they change something and see the number move? And **check the numbers on
-screen against `dotnet run -- build --from` for the same character** — if the two disagree, the
-demo is lying, which is the one failure that matters here.
+  Export the tree first, or the Linux build leaves Linux artifacts in your `bin`/`obj`.
+- **Commit before letting anything mutate files.** A mutation pass reverts with
+  `git checkout -- .`, which takes uncommitted work with it. That cost two rounds of rework in
+  the replay slice, both times on work written minutes earlier — and the hazard was already
+  recorded from [#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30) in
+  its single-file form, so knowing about it is demonstrably not enough. **Also verify a mutation
+  applied** (`git diff --numstat` non-empty) before believing a green result: a silently-failed
+  edit and a passing test look exactly the same.
 
 ---
 
@@ -113,31 +124,26 @@ demo is lying, which is the one failure that matters here.
 Not preferences — this is what the last few slices cost when they were skipped.
 
 1. **Update `PROGRESS.md` in the same change**, not afterwards. It is the only place the
-   reasoning survives, and it has twice been allowed to describe a state the code had left.
+   reasoning survives.
 2. **Have the work adversarially reviewed by agents that know nothing about it**, act on the
    findings, re-review, and only then merge. Ask each reviewer, for every guard test, to name a
-   plausible bug the test claims to cover but would not catch. Over five rounds last session
-   that question found a search flag that told a model the rulebook has no Power for flight,
-   five tests that were theatre, and two fixes that did not hold.
-3. **Ask a reviewer to audit the fixes, not just the code.** The single most valuable reviewer of
-   the last two sessions was the one pointed at the previous round's fixes: four of six did not
-   hold the first time, two of eight the second.
-4. **Run the suite on Linux before you push.** Every reviewer and every local run is on Windows,
-   and CI is not: `Path.Combine("C:", "app")` is rooted on Windows and relative on Linux, which
-   is how a green local run pushed a red build. Four minutes closes it:
-
-   ```bash
-   docker run --rm -v "$(pwd -W):/src" -w //src mcr.microsoft.com/dotnet/sdk:10.0 \
-     bash -c "dotnet test --configuration Release -p:ContinuousIntegrationBuild=true"
-   ```
-
-   Copy the tree somewhere first, or the Linux build leaves Linux artifacts in your `bin`/`obj`.
-5. **Commit before letting a mutation pass run, or give it its own worktree.** A reviewer doing
-   mutation testing restores files with `git checkout -- <file>` and has reverted uncommitted work.
+   plausible bug the test claims to cover but would not catch — **and to demonstrate it by
+   mutation rather than argue it.** Last slice that question found six of seven guards were
+   theatre on the first pass.
+3. **Ask a reviewer to audit the fixes, not just the code.** It has been the most valuable
+   reviewer of the last three sessions every time: four of six fixes did not hold, then two of
+   eight, then three more — one of them a hole inside a fix, where a test widened from one of
+   three figures to three of four still missed the fourth.
+4. **Look at the thing, do not only test it.** Render a component through bUnit into a static
+   page against the real stylesheets and screenshot it with headless Chrome; there is no dev
+   server in this workflow and starting one raises an approval dialogue. **Pass
+   `--force-prefers-reduced-motion` or `--virtual-time-budget`**, or you will photograph panels
+   mid-entry-animation and read washed-out styling as a palette fault. That happened, and was
+   half-fixed as one before a second screenshot showed nothing was wrong.
+5. **Check a rulebook citation before repeating it**, and read a changed transcript against the
+   rulebook. The test suite holds the recorded characters to the engine and bans figures from the
+   prose; **it cannot tell whether a recorded sentence about the rules is true.** One shipped for
+   two commits asserting the rulebook has no Power for detecting a lie. It has one.
 6. **Do not start a dev server.** It raises an approval dialogue that blocks unattended work.
-   `dotnet build`, `dotnet test` and the Docker Qodana scan do not.
-7. **Check a rulebook citation before repeating it.** Every one of the twenty Hero page citations
-   was ten pages out, and had been through five review rounds, because nothing read them.
-8. **A whole-tree Qodana scan is part of finishing**, not an extra. The command is in `CLAUDE.md`;
-   the repository holds it at zero, and the last slice's scan found three guards that an
-   inspection read as dead code and a client can actually reach.
+   `dotnet build`, `dotnet test`, the Docker Qodana scan and the bUnit-plus-headless-Chrome
+   screenshot route above all run without one.

@@ -69,6 +69,8 @@ The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestM
   ```
 
   The report is `results/qodana.sarif.json`; the summary counts by rule, never by file, so group it yourself.
+
+  **Run it on a clean export of the commit, not on your working directory.** That command mounts the directory as it is, `bin/` and `obj/` included, and a tree that has been built a few times scans very differently: the same commit reported **0** from `git archive HEAD | tar -x -C <tmp>` and **1471** in place — including `.CSharpErrors`, which is *compile* errors, on test files that build clean. Do not read a number off an in-place scan and conclude anything about the change; export first, and scan the parent commit the same way if you want a comparison.
 - What is silenced and why, in one line each: `engine/Models/*.cs` exists to be deserialized by reflection (four inspections), the test transcription records document a rulebook page rather than being read, a `[Theory]` body asserting on its parameter is not a precondition guard, `JsonValue.Create(...)!` is load-bearing (removing it fails the warnings-as-errors build), and this codebase writes explicit constructors and named backing fields on purpose.
 - `data/rules/*.json` is copied to the output directory by the csproj, so a published build works without the repo checked out.
 
@@ -79,11 +81,12 @@ top layer, none of which may hold a rule of its own:
 
 ```
                                           ↗   cli/
-data/rules/   →   engine/   →   sheets/   →   web/
+data/rules/   →   engine/   →   sheets/   →   web/   ←   data/transcripts/
                                           ↘   mcp/
 ```
 
 - **`data/rules/`** — JSON files only. No logic. All rules data extracted from the P&P Ultimate Edition PDF lives here.
+- **`data/transcripts/`** — the second data input, and **not rules**: four recorded conversations the browser replays, read by `engine/TranscriptLibrary`. They are read *through* the engine rather than by it — every character in one goes through `CharacterSheetJson`'s strict reader — and nothing in the engine's rules logic knows they exist. Only `web/` loads them. See "The replay".
 - **`engine/`** — Pure C#, zero Spectre.Console references, no filesystem access. `CostCalculator` and `CharacterValidator` are the authority on HP costs and validity. No front end tallies points itself. The one file here that is not rules logic is `SampleCharacters.cs`, which builds two `CharacterSheet`s for preview — see below.
 - **`sheets/`** — The `.txt` and `.json` exports, plus the stat-line and gear-line formatters, all returning strings. Shared by every host — the wizard, the browser, the build command and the MCP server; writing a string somewhere is the host's job.
 - **`cli/`** — Terminal presentation. Uses Spectre.Console for all rendering. Each wizard step implements `IWizardStep` and receives `CharacterSheet`, `RulesRepository`, `CostCalculator`, and `DerivedStatsCalculator` via `Execute()`.
@@ -102,6 +105,58 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 - `CharacterSession.TryCost` exists because the engine throws rather than guessing on an incomplete selection — a variable-cost Power with no variant. The editors never commit one, so this is only for the always-on budget bar.
 - **`CharacterStore` decides what a stored character is by asking the engine, not by checking its shape.** A saved sheet is nested several levels deep, and `System.Text.Json` will put a null at any of them without the type system objecting — so the guard costs and validates the sheet once and rejects a payload the engine cannot answer for. The first version stripped nulls level by level and missed `"Pros":[null]`, which restored cleanly and then took the app down on the first frame, because the budget bar renders on every route. **Do not replace this with a list of shapes**: the list goes stale the first time somebody adds a field. `InvalidOperationException` is deliberately not caught there — that is a half-finished character, not a corrupt one.
 - **Trimming is disabled on publish.** `RulesRepository` deserializes by reflection, so the trimmer can quietly remove model properties and leave the site running on empty rules. See `PROGRESS.md` item 5 before turning it back on.
+
+### The replay
+
+`/replay` plays back four real conversations for somebody who has no way to hold one — the MCP
+server needs a Claude of your own, and a visitor to the site has none. The transcripts are in
+`data/transcripts/`, read by `engine/TranscriptLibrary`, staged into `wwwroot` by the csproj
+exactly as the rules are, and fetched by `Program.cs` from `TranscriptLibrary.FileNames`.
+
+- **A transcript holds characters, never answers about them.** A turn carries a `CharacterSheet`
+  — the inputs — and the replay costs and validates it in the browser as the visitor reveals it.
+  **If a transcript ever holds a Hero Point total, that is the bug**: the number would sit there
+  looking identical while being wrong. `TranscriptTests` refuses a recorded line that quotes a
+  Hero Point figure, an Edge, a Health or a Resolve. Ranks are allowed and should be — a rank is
+  an input the transcript already carries.
+- **What the tests do not cover is whether a recorded sentence about the rules is true**, and
+  that gap is not closeable by a regular expression. The characters are held to the engine and
+  figures are banned from the prose, but a line saying "the Trait Cap is a limit on Abilities
+  alone" passes everything. The cheap conversation shipped for two commits asserting the
+  rulebook has no Power for detecting a lie — it has one, at Perception, for a flat price — and
+  a person caught it, not a test. **Read a changed transcript against the rulebook.** A green
+  suite says the characters are legal and no figure was quoted; it does not say the recording
+  is accurate.
+- **Several turns of one transcript may carry a character**, and the one about a draft that did
+  not fit depends on it: the draft is stored as a draft, so it is *shown* not fitting rather than
+  said to be. `TranscriptLibrary` reads them **strictly**, so a field a character no longer has
+  fails at load rather than quietly emptying a section.
+- **There is one sheet component.** `SheetView` and `DerivedStatBlocks` take an optional
+  `Character`; they do not have replay-shaped twins. The four big figures come from
+  `DerivedStatBlocks`, which read the character being built — so a replay printed the *visitor's*
+  Edge, Health and Resolve under a recorded name until it was given the recorded one. A bUnit
+  test loads a sample first so there is a different character present to be printed by mistake.
+- **The hand-off gives the editors a copy**, round-tripped through `CharacterSheetJson`. The
+  library is read once at startup and shared by every visit; handing the instance over lets the
+  first edit rewrite the recording.
+- **A failed transcript fetch must not stop the app.** Missing rules are a broken deployment;
+  missing recordings are a missing demonstration. `Program.cs` catches, registers an empty
+  library and carries the reason so the page can print it.
+- **The Villain recording shows its budget finding rather than hiding it.** The GM review step
+  hides `HP_BUDGET_EXCEEDED` in Villain mode; here it is shown with Ch.9 beside it, because one
+  recording is about exactly that difference. **That branch claims no verdict at all** — not
+  "legal", not "not legal yet" — and the reason is broader than the budget: this program is not
+  the one that decides whether somebody's Villain is finished, and a word in a heading would be
+  read as though it were. The findings themselves are all still printed and all still mean what
+  they say.
+- **The shell's budget bar does not render on a replay route.** It is the visitor's own
+  character in the same six-label format as the recorded one below it, and the two were
+  indistinguishable — worst on the Villain, whose own panel deliberately shows no budget, so
+  the only budget on the screen belonged to somebody else entirely. `MainLayout` reads the
+  first path segment; there is a test through the layout, because a page cannot see the shell.
+- The replay does not change the app's palette while you watch; opening the character does, the
+  way loading a sample does. Whether a *recorded* character is a Villain has nothing to do with
+  what colour the visitor is wearing, which is why `SheetView` takes `ShowBudget` too.
 
 ### The headless build command
 
@@ -159,7 +214,7 @@ questions about the rules. It does not replace `build --from`; both call the sam
   break a client** — the first runtime test drove the binary through the SDK's own client and
   asserted the session worked, and a real stray line left it perfectly happy, because the client
   skips what it cannot parse. Do not replace either with the other. **This is also why the
-  README points a client at the published binary rather than at `dotnet run`**, which writes
+  setup guide (`docs/MCP-SETUP.md`) points a client at the published binary rather than at `dotnet run`**, which writes
   MSBuild's own progress to standard output.
 - **The rules are found beside the binary, then upwards — never by walking up for a `.sln`.**
   That is the CLI's answer and it is wrong here: a client launches the published program from a
@@ -168,7 +223,7 @@ questions about the rules. It does not replace `build --from`; both call the sam
   because a repository built for a directory that is not there gets as far as a connected
   session and then answers every question with an error. **A directory the user named and that
   is not there is a refusal too, not a candidate that failed** — it used to fall through to the
-  shipped copy, so a typo in the variable the README tells a stuck user to set produced a
+  shipped copy, so a typo in the variable the setup guide tells a stuck user to set produced a
   working server on somebody else's rules and no message at all.
 - **A test for any of this has to run the program, not the method it calls.** The startup check
   and the two refusals all had unit tests that passed while `Program.cs` was mutated back to the
@@ -259,6 +314,8 @@ Two consequences of the reference being a **form** rather than a summary, both d
 Chapter marginalia are extractable too (`2 2` beside `chapter`), which is worth checking before citing one: the Random Hero Generator on printed p.63–64 is still **Chapter 2**, not Chapter 3.
 
 How to actually look at a printed sheet, since the browser pane cannot screenshot and headless Chrome cannot wait for Blazor to boot: **render `SheetView` through bUnit and write `.Markup` into a static page** against the real `theme.css` and `app.css`, then print that with `chrome --headless --print-to-pdf`. A throwaway `[Theory]` in the bUnit project taking the output directory from an environment variable does it in one `dotnet test` run — **no dev server**, which is the point: starting one raises an approval dialogue that blocks unattended work. (An earlier note here said to capture `document.querySelector('.sheet').outerHTML` from the running app. That works and needs a server; this does not.)
+
+The same harness screenshots the **screen** design — `--screenshot` instead of `--print-to-pdf`, with the real `theme.css` and `app.css` linked and `data-mode` set. **Pass `--virtual-time-budget=3000` or you will proof a lie.** `.panel` carries `animation: rise var(--enter) both`, which starts at `opacity: 0`, and a bare `--screenshot` fires before it finishes: every panel comes out washed and everything inside one reads as muted text on a faded ground. That was diagnosed as a palette fault and half-fixed as one before the second screenshot showed the label was bright the whole time.
 
 Two things Chrome will waste your time on: `--print-to-pdf` needs an **absolute Windows path** or it fails with "Access is denied", and `--no-pdf-header-footer` is what removes the URL-and-date band so you are judging the sheet rather than the print dialogue. Set `data-mode` on `<html>` in the harness or you will proof one palette twice.
 
@@ -507,6 +564,7 @@ Settled rules questions:
 - Hero and Villain are **one app with two palettes**, and the mode is not a field on `CharacterSheet`
 - `engine/`, `sheets/`, `cli/` and `web/` are **separate projects**, so the dependency arrows hold at compile time rather than by convention
 - Assisted creation *in this repository, for somebody with it checked out*, is a **non-interactive command plus a skill** — and the model proposes while the engine decides, never the other way round. **For somebody else, connecting their own Claude, it is an MCP server**, which is the mechanism built for exactly that and lets us handle no credentials at all. The two are not in tension and both call the same engine; the earlier flat "not an MCP server" note was scoped to the first case and is superseded
+- **A visitor to the site cannot bring their own Claude, and that is settled — do not re-investigate it.** A claude.ai subscription cannot be lent to a third-party site, the API is separate billing with no dependable free tier, and custom connectors are gated to paid plans. The answer is `/replay`: real conversations recorded, with the engine run for real in the visitor's browser. A proxy funded by the owner was rejected — it costs money, invites abuse, and breaks the static-site property the README advertises
 - An illegal character is **reported, never repaired**: the engine is a judge and does not make design decisions about somebody's character
 
 Each of these was wrong at some point and is now covered by a regression test naming the rule. If one appears to be violated, read `PROGRESS.md` and the test before changing the code.

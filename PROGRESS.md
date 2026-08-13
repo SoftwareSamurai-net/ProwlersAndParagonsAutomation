@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3298 across two projects — 3208 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3365 across two projects — 3242 on the engine, 123 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -32,7 +32,9 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 ## Remaining work
 
-Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, a Power search that orders ties by name, a payload size — and one piece of new work, the replay demo, which is item 6 and has a brief of its own in [`docs/HANDOVER.md`](docs/HANDOVER.md).
+Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends, and a visitor with no account can watch a real conversation build one. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, a Power search that orders ties by name, and a payload size.
+
+[`docs/HANDOVER.md`](docs/HANDOVER.md) picks three of these and says what a slice on each would actually involve, including which approaches are already spent. Read it before choosing; read the entry here before starting.
 
 ### 1. Close the last four Heroes
 
@@ -64,7 +66,7 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 - **T-Kay closes exactly** if `Limited: only for Telekinesis` is read as *somewhat limited* (−1) rather than *significantly limited* (−2). It sits on Lightning Reflexes, a flat 3 HP Power, so the grade is worth 1 HP after the floor — precisely his −1. **That is the tuning this item forbids.** The sheet prints no grade; "only for Telekinesis" reads at least as much like the harsher grade as the milder one, and the only thing recommending the milder one is that it makes the number come out. Deciding it needs the Power's entry in the book, not this file.
 - **Vigilant cannot be closed by his gear.** His Jo Sticks are *Upgraded*, worth +2, and he is 1 HP under: transcribing the feature moves him to +1 rather than to 0. Adding it would make the transcription more faithful and the residual no smaller, so it is left recorded rather than half-applied.
-- **Herald (Airmid) at +2, Herald (Scathach) at +1 and Shadow at +1** have no candidate in the data at all. Scathach's Strike carrying four Pros and Cons at once remains the most likely place for a variant reading to be wrong.
+- **Herald (Scathach) at +1 and Shadow at +1** have no candidate in the data at all. (Airmid was at +2 when this was written and is closed — see below.) Scathach's Strike carrying four Pros and Cons at once remains the most likely place for a variant reading to be wrong.
 
 **The book was then opened, and it settled two of the three questions above.** `docs/` holds both PDFs — they are gitignored, so they are in the main working directory and **not in a worktree's `docs/`**, which is how they were missed at first.
 
@@ -78,7 +80,7 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 **What reading the book did find is that every one of the twenty page citations was ten pages out.** Chapter 8 runs from printed 127 to 146 and the transcription recorded 137 to 156 — the offset applied twice. This is the error `CLAUDE.md` already warns about ("was ten pages out in the chapter it was offered for"); the note was corrected and the transcription was not, because nothing read those numbers. `PrebuiltHeroTests.EveryHeroIsCitedInsideChapterEight` now does.
 
-Five residuals inside a 2 HP bound, each with a recorded reason, remains a more honest state than five zeroes.
+Four residuals inside a 1 HP bound, each with a recorded reason, remains a more honest state than four zeroes.
 
 One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a *mimicked* Power. Pros are stored per Power, so there is nowhere for it to live. Eidolon reconciles anyway, so it costs nothing today.
 
@@ -124,9 +126,11 @@ Now `TRAIT_BELOW_MINIMUM`, with `TRAIT_BELOW_PACKAGE` beside it for the other fl
 
 The MCP server's Power search is a word match, and when several Powers match the same words it
 puts them in name order under a caution calling them "the closest entries". **"Walks through
-walls" is the case to reproduce**: twenty-one Powers score two points each, every one of them on
-the filler word "through" — Phasing among them, at position eleven, where a caller asking for
-eight rows never sees it. "He shoots fire from his hands" is the same weakness the other way
+walls" is the case to reproduce**: it returns twenty-two, of which **twenty tie on a single
+word** — eighteen on "through" and two on "walls" — so which of them a caller sees is
+alphabetical. Phasing is eleventh, where a caller asking for eight rows never sees it. (Measured
+against the built server; an earlier version of this paragraph said twenty-one on "through", and
+was wrong on both figures.) "He shoots fire from his hands" is the same weakness the other way
 round: Blast is never returned, because its description says "a damaging ranged attack" and none
 of those words is in it.
 
@@ -166,39 +170,156 @@ It surfaced loudly only because the applicability check had *just* started readi
 
 Not urgent. The site works, and a returning visitor pays nothing.
 
-### 6. The replay demo — the other half of conversational creation
-
-**This is the next slice, and [`docs/HANDOVER.md`](docs/HANDOVER.md) is its brief.** The MCP
-server serves people who code and can bring their own Claude; a visitor to the site cannot bring
-one, and that is settled rather than open — a claude.ai subscription cannot be lent to a
-third-party site, the API is separate billing with no dependable free tier, and custom connectors
-are gated to paid plans. **Do not re-investigate it.**
-
-So: three or four recorded conversations — a description, the questions back, the answers, the
-character — replayed at the visitor's pace, with **the engine run for real in WebAssembly** at
-the end, and the character handed to the existing editor so they can change a rank and watch the
-numbers move.
-
-Two things would ruin it, and both are about honesty rather than effort. **Faking the numbers**:
-if the replay data holds a Hero Point total, that is the bug — every figure must come back from
-`CostCalculator` in the visitor's browser, which is free, because `web/` already is that engine.
-And **not labelling it**: a recording presented as a live conversation misrepresents what they
-are looking at.
-
-Not started.
-
 ---
 
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
 
+### The other half: four recorded conversations, replayed with the engine run for real
+
+The MCP server serves people who code and can bring their own Claude. A visitor to the site
+cannot bring one — that was settled before this slice started and was not re-investigated: a
+claude.ai subscription cannot be lent to a third-party site, the API is separate billing with
+no dependable free tier, and custom connectors are gated to paid plans. The two options were a
+proxy the owner funds, which costs money, invites abuse and breaks the static-site property the
+README advertises, or a replay. This is the replay.
+
+**The half worth showing off is the engine deciding, and that half is live.** Four conversations
+in `data/transcripts/` are played back at the visitor's pace at `/replay`; every Hero Point
+figure, every derived stat and every finding beside them is computed in their browser, from the
+character the transcript carries, as they reveal it. At the end the character is handed to the
+existing editors so they can change a rank and watch the numbers move.
+
+**No transcript holds a number, and that is the whole design rather than a discipline.** A turn
+carries a *character* — the inputs — and never an answer about one. Several turns of one
+conversation may carry one, which is what lets the recording about a draft that did not fit show
+the draft not fitting rather than merely say so. `TranscriptTests` holds the prose to it: no
+recorded line may quote a Hero Point figure, an Edge, a Health or a Resolve. Ranks are
+deliberately allowed, because a rank is an input the transcript already carries.
+
+**The transcripts were produced by driving the real server, not written as dialogue**, and the
+searching is what shaped two of them. "Punches through time" returns Time Travel, Time Stop,
+Precognition and Blink among twenty-one matches, which is the ambiguity rather than the answer,
+and is why the policy asks whether it is one Power or several.
+
+**And the cheap one records a mistake rather than a success, because that is what happened.**
+Asked for a character who knows when she is being lied to, the search — "knows when someone is
+lying, reads intentions" — came back with a mind-shield, an out-of-body Power and a radar sense,
+all matched on the word "knows". The conclusion drawn was that the rulebook has no Power for it,
+and the transcript said so, and **it was wrong**: `super_senses_lie_detection` does exactly that,
+at Perception, for a flat price. What was skipped is the part of the answer that says how many
+matched and that the list was cut — the guide's own instruction is to search a more distinctive
+word before concluding the rulebook has nothing, and `found: 0` is the only case that means it.
+Asking again in the describer's words rather than the model's returns two rows with it first.
+That is now what the recording shows, which makes it the more useful of the four: this is the
+failure the search's caution fields exist to prevent, made by the person who wrote them.
+
+**The four cover what makes the design visible**: one at Street level where the interesting part
+is a search that nearly buried the answer; one whose first draft is over a Standard budget and
+has to give something up, with the trade offered and taken; one where four words could be one
+Power or three; and a Villain, who has no Hero Point budget at all under Ch.9 — so the replay
+shows that finding and explains it rather than hiding it, which is what the GM review step does.
+Every character was cross-checked three ways: the MCP server, `dotnet run -- build --from`, and
+the rendered page asserted figure by figure against `CostCalculator` in bUnit.
+
+Smaller decisions worth keeping:
+
+- **There is one sheet component and it gained a parameter rather than a twin.** `SheetView` and
+  `DerivedStatBlocks` now take an optional character instead of always reading the one being
+  built. That was not tidiness: the four big figures come from `DerivedStatBlocks`, so before it
+  was given the recorded character to read, a replay printed the *visitor's* Edge, Health and
+  Resolve under a recorded character's name. There is a bUnit test that loads a sample first, so
+  there is a different character present to be printed by mistake.
+- **What is handed off is a copy**, round-tripped through the character's own JSON shape. The
+  library is read once at startup and shared by every visit, so handing the instance over would
+  let the first edit rewrite the recording — after which the replay plays back a character
+  somebody changed, and nothing on the page would say so.
+- **The transcripts are read strictly**, the way a submitted file is. They are data that nothing
+  recompiles, so the way they rot is a rename: read leniently, a transcript whose `AbilityRanks`
+  had been renamed would replay a cheaper character with its abilities silently gone.
+- **A failed transcript fetch does not stop the app.** The rules are a broken deployment if they
+  are missing; the recordings are a demonstration, and refusing to let somebody build a character
+  because a demo file did not arrive is the wrong trade in every direction. The reason travels
+  with the empty library and the page prints it, so it is not a silent nothing.
+- **The label is the first thing under the heading**, not a note at the bottom, and it says both
+  halves: the words are a recording, the figures are not. A notice that only appears at the end
+  has been read after it was needed, so the test asserts its position in the rendered text and
+  not merely its presence.
+- **The shell's budget bar does not render on a replay route.** It is the visitor's own
+  character, in the same six-label format as the recorded one directly below it, and nothing on
+  the page said whose was whose — worst on the Villain, whose own panel deliberately shows no
+  budget, leaving the only budget on screen belonging to somebody else.
+- **A failed load is not a bad link.** Both reach the same branch, and the page answered both
+  with "that address does not name one of the recorded conversations" — so a deploy that missed
+  the transcripts would tell everyone following a good shared link that they had typed it wrong.
+
+**Three adversarial reviews, by agents told nothing about the work, and the worst thing in it was
+in the demonstration rather than the code.** None could make a figure on the page disagree with
+the calculator, or make the hand-off mutate the recording. What they found:
+
+- **The lie-detection error above**, which is the one that mattered: a recorded line asserting
+  something about the rulebook that the rulebook contradicts, on a page whose whole claim is that
+  these conversations really happened.
+- **A trade the recording offered that would not have worked.** "Take the storm down two ranks
+  and she keeps the foresight" saves 6 against an overspend of 12 — the prose invited the visitor
+  to make a change and watch, and the change would have left the character still over. Four is
+  the true figure and lands it exactly. The guard tests covered the two *stored* drafts and had
+  nothing to say about a trade described only in words.
+- **Six of seven mutations survived the new tests.** Swapping the two speaker labels credited
+  every line in every recording to the wrong side and nothing went red; putting Health and
+  Resolve back on the visitor's own character passed under a comment naming all three; a figure
+  written into a `Title` or a `Blurb` was unguarded because the honesty scan read `Text` only;
+  numbers written as words walked past it; and the budget allowance was blanket, so the cheap
+  character pushed to 146 against a 75 budget still passed every test here while the page
+  rendered "Over by 71" beside a line saying she comes in under it. All closed, each with the
+  mutation named in the test that now catches it.
+- **Two unguarded engine calls on the sheet** — `PerkCost` and the gear line — which the replay
+  did not introduce but did widen: an unknown id throws during render, and a throw during render
+  in the browser takes down the app rather than one box. That reaches a restored character as
+  much as a recorded one.
+- **A whole-tree Qodana scan run in place reports 1471 findings for a commit that reports 0 from
+  a clean export**, `.CSharpErrors` included, on files that build clean. Export before scanning;
+  the note is in `CLAUDE.md`.
+
+**A fourth review was pointed at the fixes rather than at the code, and found three more — one
+of them inside a fix.** That is the same proportion this file already records from the last two
+slices, and the same lesson: a fix without a mutation behind it is a claim.
+
+- **The Hero Point box on a replayed sheet could still print the visitor's own total.** The test
+  meant to close this went from asserting one of three boxes to three of four, and the box it
+  kept missing is the headline figure a GM checks a character against. It also searched the
+  box's whole text, so `105` over a sub-line reading "of 75" satisfied a search for "75". It
+  reads the value element now and compares it whole.
+- **Powers on a replayed sheet could print the wrong effective rank**, for the same reason and
+  with nothing looking. A rank is what a player rolls.
+- **The route check was case-sensitive while Blazor's routing is not**, so `/Replay/…` served a
+  recording with the budget bar over it.
+- The honesty regex did not include the bare word "points", and the Perk and Gear guards added
+  in the previous round had no test at all — removing them left the whole suite green.
+
+**Twice in this slice, a mutation pass reverting with `git checkout -- .` took uncommitted work
+with it** — both times work written minutes earlier, both times needing to be redone from the
+transcript of what had been changed. The repository already recorded this hazard from
+[#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30) in its single-file
+form; it is written here in the whole-directory form because knowing about it was not enough.
+**Commit before letting anything mutate files**, and verify a mutation applied — `git diff
+--numstat` non-empty — before believing a green result, because a silently-failed edit and a
+passing test look identical.
+
+**And one limit is stated rather than closed: nothing checks whether a recorded sentence about
+the rules is true.** The characters are held to the engine and figures are banned from the
+prose, but a line claiming "the Trait Cap is a limit on Abilities alone" passes everything here.
+The lie-detection error is what that looks like when it happens, and a person caught it. A green
+suite says the characters are legal and no figure was quoted; read a changed transcript against
+the rulebook before merging it.
+
 ### Conversational creation, half of it: the MCP server, and the questions worth asking — [#39](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/39)
 
 `mcp/` is a stdio MCP server wrapping the same engine, so somebody can connect their own Claude,
 describe a character out loud, and get a legal costed one back. It handles no credentials and
 holds no key — the conversation happens in the client they already pay for. The setup a stranger
-needs is in the README; the dependency arrows hold at compile time, because `mcp/` references
+needs is in `docs/MCP-SETUP.md`; the dependency arrows hold at compile time, because `mcp/` references
 `engine/` and `sheets/` and cannot reference `cli/`.
 
 **The transport was the easy half and the question policy is the deliverable.** A description
@@ -282,7 +403,7 @@ they threw at it. What they found instead:
 - **The startup check passed itself.** It warmed one catalogue, so a directory holding nothing
   but `tiers.json` started cleanly and then threw out of five of the six tools — the exact
   failure its own comment claimed to prevent.
-- **A mistyped `PROWLERS_RULES_DIR` fell through to the shipped copy**, silently. The README's
+- **A mistyped `PROWLERS_RULES_DIR` fell through to the shipped copy**, silently. The setup guide's
   troubleshooting is what sends a stuck user to set that variable.
 - **Five guard tests were theatre**, and the mutations were demonstrated rather than argued:
   `AnUnknownPowerIsReportedWithTheNearMisses` never read `did_you_mean`; the Power detail test
@@ -336,7 +457,7 @@ The review found nothing that certifies a bad character, and four things a stran
   not exist. The two are told apart now by reading the same text leniently: lenient reading
   ignores unknown field names and nothing else, so if it succeeds the name was the problem.
 - **A blank `PROWLERS_RULES_DIR` still fell through to the shipped copy in silence.** The
-  refusal had landed on the argument and not on the variable, which is the one the README tells
+  refusal had landed on the argument and not on the variable, which is the one the setup guide tells
   a stuck user to set and the one a client's config writes as `""`.
 - **`SKILL.md` said "a minimal legal character is a tier and one flaw"**, which the 1d Trait
   floor made false in

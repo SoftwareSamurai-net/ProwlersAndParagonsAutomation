@@ -1,0 +1,113 @@
+@inject CharacterSession Session
+
+@* The moment the replay exists for.
+
+   Everything in this panel is worked out here, now, from the character the recording carries
+   — the spend, the breakdown, the four figures, every finding. Nothing was stored with the
+   conversation and nothing is quoted from it. That is why a draft the recording describes as
+   not fitting can be shown not fitting rather than merely said to.
+
+   The Villain branch is not a hidden finding. Ch.9 gives a Villain no Hero Point budget, and
+   the engine is never told which it is looking at — so it measures every character against
+   the tier's points and reports the overspend either way. The GM review step hides that
+   finding in Villain mode; here it is shown and explained instead, because one of the
+   recordings is about precisely that difference, and hiding it would hide what is being
+   demonstrated. *@
+
+<Panel Title="What the rules say" Level="3" NoPrint="true" Class="replay-verdict">
+    <Head>
+        @if (!Villain)
+        {
+            <span class="verdict @(Legal ? "" : "invalid")">@(Legal ? "Legal" : "Not legal yet")</span>
+        }
+    </Head>
+    <ChildContent>
+        <div class="replay-figures">
+            <span>Spent <b class="num">@Figure(() => Session.Costs.TotalCost(Character))</b></span>
+            @if (!Villain)
+            {
+                <span>Budget <b class="num">@(Tier?.HeroPoints.ToString() ?? "—")</b></span>
+                <span>@(Over ? "Over by" : "Left") <b class="num">@Difference</b></span>
+            }
+            <span>Trait Cap <b class="num">@(Tier?.TraitCapRank.ToString() ?? "—")<span class="muted">d</span></b></span>
+        </div>
+
+        <div class="replay-figures spent-on">
+            <span>Package <b class="num">@Figure(() => Session.Costs.PackageCost(Character))</b></span>
+            <span>Abilities <b class="num">@Figure(() => Session.Costs.AbilityCost(Character))</b></span>
+            <span>Talents <b class="num">@Figure(() => Session.Costs.TalentCost(Character))</b></span>
+            <span>Powers <b class="num">@Figure(() => Session.Costs.TotalPowersCost(Character))</b></span>
+            <span>Perks <b class="num">@Figure(() => Session.Costs.TotalPerksCost(Character))</b></span>
+            <span>Gear <b class="num">@Figure(() => Session.Costs.TotalGearCost(Character))</b></span>
+        </div>
+
+        <StatBlockRow>
+            <StatBlock Label="Edge" Value="@Session.Derived.CalculateEdge(Character).ToString()" />
+            <StatBlock Label="Health" Value="@Session.Derived.CalculateHealth(Character).ToString()" />
+            <StatBlock Label="Resolve" Value="@Session.Derived.CalculateResolve(Character).ToString()" />
+        </StatBlockRow>
+
+        @if (Villain)
+        {
+            <p class="small muted spaced">
+                Ch.9 builds a Villain by exactly the Hero rules, and the rules engine is never
+                told which it is looking at — so it measures this one against the tier's Hero
+                Point budget and says when it is over. A Villain has no such budget: what this
+                one costs is the GM's call. Everything else below means what it says.
+            </p>
+        }
+
+        @if (Issues.Count == 0)
+        {
+            <p class="small muted">Nothing to report.</p>
+        }
+        else
+        {
+            <ul class="issues">
+                @foreach (var issue in Issues)
+                {
+                    <li class="@(issue.Severity == ValidationSeverity.Error ? "error" : "warning")">
+                        @issue.Message
+                    </li>
+                }
+            </ul>
+        }
+    </ChildContent>
+</Panel>
+
+@code {
+    /// <summary>The character put to the engine at this point in the conversation.</summary>
+    [Parameter, EditorRequired] public CharacterSheet Character { get; set; } = new();
+
+    /// <summary>Whether the conversation was building a Villain. Changes what is said about the budget, and nothing else.</summary>
+    [Parameter] public bool Villain { get; set; }
+
+    private ValidationResult Validation => Session.Validate(Character);
+
+    private IReadOnlyList<ValidationIssue> Issues => Validation.Issues;
+
+    private bool Legal => Validation.IsValid;
+
+    private TierModel? Tier =>
+        Character.SelectedTierId is null ? null : Session.Rules.GetTier(Character.SelectedTierId);
+
+    private int? Spent => CharacterSession.TryCost(() => Session.Costs.TotalCost(Character));
+
+    private bool Over => Tier is { } tier && Spent is { } spent && spent > tier.HeroPoints;
+
+    /// <summary>
+    /// The gap either way, always as a positive number with the direction in the label beside
+    /// it. A minus sign in a figure that is already called "over by" reads as a double
+    /// negative on the one line somebody has to get right.
+    /// </summary>
+    private string Difference =>
+        Tier is { } tier && Spent is { } spent ? Math.Abs(tier.HeroPoints - spent).ToString() : "—";
+
+    /// <summary>
+    /// A figure, or a dash. The engine throws rather than guessing on an incomplete selection
+    /// — none of the recorded characters has one, and a replay that took the app down if one
+    /// ever did would be a poor way to find out.
+    /// </summary>
+    private static string Figure(Func<int> cost) =>
+        CharacterSession.TryCost(cost)?.ToString() ?? "—";
+}

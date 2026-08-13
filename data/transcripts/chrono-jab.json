@@ -1,0 +1,54 @@
+{
+  "Id": "chrono-jab",
+  "Title": "Punches through time",
+  "Blurb": "Four words that could be one Power or three. This is the question a model is most tempted to answer without asking.",
+  "Villain": false,
+  "Turns": [
+    {
+      "Speaker": "person",
+      "Text": "A washed-up boxer who punches through time."
+    },
+    {
+      "Speaker": "assistant",
+      "Text": "Searching the rulebook for that gives four different things — travelling through time, stopping it, seeing a moment before it happens, and flickering out of reality mid-fight. They cost differently and they play very differently, so this one I do have to ask: can he only hit things in the past, or can he step there and stay? And Standard tier unless you say otherwise, which is what most games use."
+    },
+    {
+      "Speaker": "person",
+      "Text": "He can step there and stay. That's the whole problem — he keeps going back to a fight he lost and he can't leave it alone. Standard is fine."
+    },
+    {
+      "Speaker": "assistant",
+      "Text": "Then it is not one Power, it is three, and saying so is the difference between the character you described and a cheaper one that looks similar. Travelling is its own Power with no rank at all — a flat price, because going is going. The flickering in and out of a fight is a second one, and it is what he actually attacks with. And the punch itself starts from his Might rather than being bought from nothing, so the boxing is nearly free — you have already paid for it in the Ability.",
+      "Character": {
+        "Name": "Chrono Jab",
+        "SelectedTierId": "standard",
+        "SelectedPackageId": "hero_package",
+        "AbilityRanks": { "might": 11, "agility": 9, "intellect": 4, "perception": 8, "toughness": 9, "willpower": 8 },
+        "TalentRanks": {
+          "academics": 2, "charm": 4, "command": 2, "covert": 4, "investigation": 2, "medicine": 2,
+          "professional": 6, "science": 2, "streetwise": 6, "survival": 2, "technology": 2, "vehicles": 2
+        },
+        "SelectedPowers": [
+          { "PowerId": "strike", "PurchasedRanks": 1, "Pros": [], "Cons": [], "SourceId": "innate" },
+          { "PowerId": "time_travel", "PurchasedRanks": 0, "Pros": [], "Cons": [], "SourceId": "innate" },
+          { "PowerId": "blink", "PurchasedRanks": 10, "Pros": [], "Cons": [], "SourceId": "innate" },
+          { "PowerId": "armor", "PurchasedRanks": 3, "Pros": [], "Cons": [], "SourceId": "innate" },
+          { "PowerId": "determination", "PurchasedRanks": 0, "Units": 5, "Pros": [], "Cons": [], "SourceId": "innate" }
+        ],
+        "Perks": [],
+        "Flaws": [
+          { "FlawId": "obligation", "NarrativeDetail": "He still has to be at the gym at six to open up" },
+          { "FlawId": "outsider", "NarrativeDetail": "He keeps coming back from decades he did not live through" }
+        ],
+        "Appearance": "Late thirties, a nose that has been broken twice, a coat from 1974 he did not buy.",
+        "Motivation": "He is looking for the round he should have lost.",
+        "Quote": "I've already had this fight. You lose.",
+        "Connections": ["Mo, who still opens the gym when he doesn't"]
+      }
+    },
+    {
+      "Speaker": "assistant",
+      "Text": "The last of it went on Determination, which is bought a point of Resolve at a time and is the closest the rules come to a man who will not stay down. If you would rather he were harder to hit than harder to stop, move it into the flickering instead — that is one number and the rest re-costs itself."
+    }
+  ]
+}
