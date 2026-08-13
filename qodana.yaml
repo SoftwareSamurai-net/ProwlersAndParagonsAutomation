@@ -8,15 +8,17 @@ version: "1.0"
 #
 # Deliberately the *Community* linter (cdnet), not the release linter (dotnet).
 #
-# **A token is not enough — the release linter needs a valid Cloud licence.** This
-# was tried: with a QODANA_TOKEN secret set, `jetbrains/qodana-dotnet:2026.2`
-# linked the Cloud project and then died before inspecting anything —
+# **A token is not enough — the release linter needs a valid Cloud licence, and a
+# token alone breaks cdnet too.** This was tried: with a QODANA_TOKEN secret set,
+# *both* images linked the Cloud project and then died before inspecting anything —
 #
 #   level=fatal msg="License request: token was declined by Qodana Cloud server
 #   License verification failed."
 #
-# — so CI went red having analysed nothing. cdnet needs no token, no account and
-# no licence, which is why it is what runs here. See PR #38 for the whole run.
+# — so CI went red having analysed nothing. cdnet needs no token, no account and no
+# licence, which is why it is what runs here, and why the workflow no longer passes
+# a token through at all: a scan cannot be broken by a credential it never reads.
+# See PR #38 for both runs.
 #
 # To upgrade, get a Qodana Cloud plan that licenses the .NET linter, keep the
 # QODANA_TOKEN secret (the workflow already passes it through), and change this

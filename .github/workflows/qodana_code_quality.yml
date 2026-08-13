@@ -38,13 +38,21 @@ jobs:
           # reports. Once that is triaged, add `args: --baseline,qodana.sarif.json`
           # (committing the baseline) so only NEW problems fail the build.
           upload-result: true
-        env:
-          # Unused by the Community linter configured in qodana.yaml, so this workflow is
-          # green with or without the secret. It is passed through for the day the release
-          # linter becomes viable — which needs a Cloud *licence*, not just a token: with
-          # the token alone, qodana-dotnet linked the project and then died on "token was
-          # declined by Qodana Cloud server". See the note in qodana.yaml.
-          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
+      # **No QODANA_TOKEN here, deliberately, and do not put one back without a licence.**
+      #
+      # Passing a token makes Qodana link the Cloud project and then verify a licence — and
+      # it does that for the *Community* linter too, which otherwise needs no account at
+      # all. With a token and no licensed plan, both images die identically before
+      # inspecting a single file:
+      #
+      #   ✓  Linked https://qodana.cloud project: ProwlersAndParagonsAutomation
+      #   level=fatal msg="License request: token was declined by Qodana Cloud server"
+      #
+      # So a QODANA_TOKEN secret existing in the repository is enough to turn this workflow
+      # red while analysing nothing, whatever qodana.yaml says. Not referencing the secret
+      # is what makes that impossible: the scan cannot be broken by a credential it never
+      # reads. Add it back only together with a Cloud plan that licenses the .NET linter,
+      # and see the note in qodana.yaml for the rest of that change.
 
       # Code scanning needs GitHub Advanced Security on a private repository.
       # This repo is private, so the step is skipped rather than run-and-swallowed:
