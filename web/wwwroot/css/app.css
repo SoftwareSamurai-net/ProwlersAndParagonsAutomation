@@ -548,10 +548,20 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .banner-link:hover { opacity: 0.75; }
 
 /* The label saying this is a recording. It is marked out rather than styled quietly: it is
-   the one thing on the page a visitor must not skim past. */
+   the one thing on the page a visitor must not skim past.
+
+   Three markings rather than one, because each carries in a different failure: the tint
+   (--accent-soft reads as a notice band in both palettes), a heavy left edge (which survives
+   a viewer who has colour turned off), and the opening clause set in --heading, which is the
+   only one of the three that is contrast-rated as text in either mode. */
 .panel.replay-label {
-    border-left: 3px solid var(--accent);
+    border-left: 5px solid var(--accent);
     background: var(--accent-soft);
+}
+.panel.replay-label b:first-child {
+    color: var(--heading);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
 .panel.replay-label p:last-child { margin-bottom: 0; }
 

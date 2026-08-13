@@ -21,8 +21,12 @@ else
        visitor is looking at, and the only way to be sure they cannot miss it is to put it
        where they cannot get past it. It says both halves: the words are a recording, and the
        numbers are not. *@
+    @* Body size, not `small`. Every other explanatory note in this app is set down a step,
+       and this one is the exception on purpose: it is not an aside about the page, it is what
+       the page is. Set at 0.82rem beside a conversation at full size, the most important
+       sentence here was also the smallest. *@
     <Panel Class="replay-label" NoPrint="true">
-        <p class="small">
+        <p>
             <b>This is a recording.</b> The conversation below happened once and is played
             back word for word — nothing is being written for you now, and typing at it is not
             an option this page has. What is <b>not</b> recorded is any figure: every Hero
@@ -46,7 +50,11 @@ else
 
     @if (!Finished)
     {
-        <div class="inline">
+        @* no-print because these are the only controls on this page that sit outside a panel,
+           and a page printed mid-conversation would otherwise be blank except for two
+           buttons. Everything else here is either a panel that opts out or the recording
+           itself, which .replay hides. *@
+        <div class="inline no-print">
             <button type="button" class="btn primary" @onclick="Next">Next</button>
             <button type="button" class="btn" @onclick="ShowEverything">Show the rest</button>
             <span class="small muted">@Shown.Count of @Conversation.Turns.Count</span>

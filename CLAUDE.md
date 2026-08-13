@@ -69,6 +69,8 @@ The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestM
   ```
 
   The report is `results/qodana.sarif.json`; the summary counts by rule, never by file, so group it yourself.
+
+  **Run it on a clean export of the commit, not on your working directory.** That command mounts the directory as it is, `bin/` and `obj/` included, and a tree that has been built a few times scans very differently: the same commit reported **0** from `git archive HEAD | tar -x -C <tmp>` and **1471** in place — including `.CSharpErrors`, which is *compile* errors, on test files that build clean. Do not read a number off an in-place scan and conclude anything about the change; export first, and scan the parent commit the same way if you want a comparison.
 - What is silenced and why, in one line each: `engine/Models/*.cs` exists to be deserialized by reflection (four inspections), the test transcription records document a rulebook page rather than being read, a `[Theory]` body asserting on its parameter is not a precondition guard, `JsonValue.Create(...)!` is load-bearing (removing it fails the warnings-as-errors build), and this codebase writes explicit constructors and named backing fields on purpose.
 - `data/rules/*.json` is copied to the output directory by the csproj, so a published build works without the repo checked out.
 
@@ -295,6 +297,8 @@ Two consequences of the reference being a **form** rather than a summary, both d
 Chapter marginalia are extractable too (`2 2` beside `chapter`), which is worth checking before citing one: the Random Hero Generator on printed p.63–64 is still **Chapter 2**, not Chapter 3.
 
 How to actually look at a printed sheet, since the browser pane cannot screenshot and headless Chrome cannot wait for Blazor to boot: **render `SheetView` through bUnit and write `.Markup` into a static page** against the real `theme.css` and `app.css`, then print that with `chrome --headless --print-to-pdf`. A throwaway `[Theory]` in the bUnit project taking the output directory from an environment variable does it in one `dotnet test` run — **no dev server**, which is the point: starting one raises an approval dialogue that blocks unattended work. (An earlier note here said to capture `document.querySelector('.sheet').outerHTML` from the running app. That works and needs a server; this does not.)
+
+The same harness screenshots the **screen** design — `--screenshot` instead of `--print-to-pdf`, with the real `theme.css` and `app.css` linked and `data-mode` set. **Pass `--virtual-time-budget=3000` or you will proof a lie.** `.panel` carries `animation: rise var(--enter) both`, which starts at `opacity: 0`, and a bare `--screenshot` fires before it finishes: every panel comes out washed and everything inside one reads as muted text on a faded ground. That was diagnosed as a palette fault and half-fixed as one before the second screenshot showed the label was bright the whole time.
 
 Two things Chrome will waste your time on: `--print-to-pdf` needs an **absolute Windows path** or it fails with "Access is denied", and `--no-pdf-header-footer` is what removes the URL-and-date band so you are judging the sheet rather than the print dialogue. Set `data-mode` on `<html>` in the harness or you will proof one palette twice.
 
