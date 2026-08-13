@@ -54,7 +54,7 @@ public sealed class McpSetupDocumentationTests
     /// </summary>
     private static List<string> ToolsTheGuideNames()
     {
-        var section = Rx(@"^## The six tools.*?(?=^## )", RegexOptions.Multiline | RegexOptions.Singleline)
+        var section = Rx("^## The six tools.*?(?=^## )", RegexOptions.Multiline | RegexOptions.Singleline)
             .Match(Guide);
 
         Assert.True(section.Success, "The guide no longer has a section listing the tools.");
@@ -63,7 +63,7 @@ public sealed class McpSetupDocumentationTests
             .Split('\n')
             .Where(line => line.TrimStart().StartsWith('|'));
 
-        return [.. Rx(@"`([a-z][a-z_]*)`")
+        return [.. Rx("`([a-z][a-z_]*)`")
             .Matches(string.Join('\n', rows))
             .Select(m => m.Groups[1].Value)
             .Distinct(StringComparer.Ordinal)
@@ -113,7 +113,7 @@ public sealed class McpSetupDocumentationTests
         Assert.True(File.Exists(Path(project.Groups[1].Value.Split('/'))),
             $"The guide publishes '{project.Groups[1].Value}', which is not in this repository.");
 
-        var assemblyName = Rx(@"<AssemblyName>([^<]+)</AssemblyName>")
+        var assemblyName = Rx("<AssemblyName>([^<]+)</AssemblyName>")
             .Match(File.ReadAllText(Path(project.Groups[1].Value.Split('/'))));
 
         Assert.True(assemblyName.Success, "The MCP project does not set an AssemblyName.");
