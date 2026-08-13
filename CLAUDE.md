@@ -214,7 +214,7 @@ questions about the rules. It does not replace `build --from`; both call the sam
   break a client** — the first runtime test drove the binary through the SDK's own client and
   asserted the session worked, and a real stray line left it perfectly happy, because the client
   skips what it cannot parse. Do not replace either with the other. **This is also why the
-  README points a client at the published binary rather than at `dotnet run`**, which writes
+  setup guide (`docs/MCP-SETUP.md`) points a client at the published binary rather than at `dotnet run`**, which writes
   MSBuild's own progress to standard output.
 - **The rules are found beside the binary, then upwards — never by walking up for a `.sln`.**
   That is the CLI's answer and it is wrong here: a client launches the published program from a
@@ -223,7 +223,7 @@ questions about the rules. It does not replace `build --from`; both call the sam
   because a repository built for a directory that is not there gets as far as a connected
   session and then answers every question with an error. **A directory the user named and that
   is not there is a refusal too, not a candidate that failed** — it used to fall through to the
-  shipped copy, so a typo in the variable the README tells a stuck user to set produced a
+  shipped copy, so a typo in the variable the setup guide tells a stuck user to set produced a
   working server on somebody else's rules and no message at all.
 - **A test for any of this has to run the program, not the method it calls.** The startup check
   and the two refusals all had unit tests that passed while `Program.cs` was mutated back to the

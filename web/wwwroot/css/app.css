@@ -565,6 +565,15 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 }
 .panel.replay-label p:last-child { margin-bottom: 0; }
 
+/* The list of recordings, two by two rather than auto-fitting.
+
+   `grid two` fits as many 280px columns as the width allows, which is right for the tier page
+   — six tiers read as a rack. Four cards do not: at a desktop width three fit on the first row
+   and the fourth is stranded under them, reading as an afterthought rather than as one of
+   four. The floor is wide enough that two is the most that ever fit, and it still collapses to
+   one column on a phone. */
+.grid.replay-list { grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr)); }
+
 .replay { margin-bottom: 1.25rem; }
 
 .replay-turn {

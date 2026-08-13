@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3350 across two projects — 3227 on the engine, 123 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3356 across two projects — 3233 on the engine, 123 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -33,6 +33,8 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 ## Remaining work
 
 Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends, and a visitor with no account can watch a real conversation build one. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, a Power search that orders ties by name, and a payload size.
+
+[`docs/HANDOVER.md`](docs/HANDOVER.md) picks three of these and says what a slice on each would actually involve, including which approaches are already spent. Read it before choosing; read the entry here before starting.
 
 ### 1. Close the last four Heroes
 
@@ -306,7 +308,7 @@ the rulebook before merging it.
 `mcp/` is a stdio MCP server wrapping the same engine, so somebody can connect their own Claude,
 describe a character out loud, and get a legal costed one back. It handles no credentials and
 holds no key — the conversation happens in the client they already pay for. The setup a stranger
-needs is in the README; the dependency arrows hold at compile time, because `mcp/` references
+needs is in `docs/MCP-SETUP.md`; the dependency arrows hold at compile time, because `mcp/` references
 `engine/` and `sheets/` and cannot reference `cli/`.
 
 **The transport was the easy half and the question policy is the deliverable.** A description
