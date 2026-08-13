@@ -39,10 +39,11 @@ jobs:
           # (committing the baseline) so only NEW problems fail the build.
           upload-result: true
         env:
-          # Not required by the Community linter configured in qodana.yaml, which is
-          # why no secret is needed to make this workflow green. Set this secret only
-          # if you switch qodana.yaml to the release linter (jetbrains/qodana-dotnet),
-          # which refuses to start without a Qodana Cloud token.
+          # Unused by the Community linter configured in qodana.yaml, so this workflow is
+          # green with or without the secret. It is passed through for the day the release
+          # linter becomes viable — which needs a Cloud *licence*, not just a token: with
+          # the token alone, qodana-dotnet linked the project and then died on "token was
+          # declined by Qodana Cloud server". See the note in qodana.yaml.
           QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
 
       # Code scanning needs GitHub Advanced Security on a private repository.

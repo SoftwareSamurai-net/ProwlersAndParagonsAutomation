@@ -6,14 +6,23 @@ version: "1.0"
 
 # Qodana Community for .NET (ReSharper inspections). Verified working on this repo.
 #
-# Deliberately the *Community* linter (cdnet), not the release linter (dotnet):
-# since 2023.2 the release linters refuse to start without a Qodana Cloud
-# QODANA_TOKEN, so `jetbrains/qodana-dotnet` would fail CI on a repo with no
-# Qodana Cloud account. cdnet needs no token and no account.
+# Deliberately the *Community* linter (cdnet), not the release linter (dotnet).
 #
-# To upgrade to the full linter: register at https://qodana.cloud, add the
-# project token as a QODANA_TOKEN repository secret (the workflow already passes
-# it through), then change this line to jetbrains/qodana-dotnet:2026.2.
+# **A token is not enough — the release linter needs a valid Cloud licence.** This
+# was tried: with a QODANA_TOKEN secret set, `jetbrains/qodana-dotnet:2026.2`
+# linked the Cloud project and then died before inspecting anything —
+#
+#   level=fatal msg="License request: token was declined by Qodana Cloud server
+#   License verification failed."
+#
+# — so CI went red having analysed nothing. cdnet needs no token, no account and
+# no licence, which is why it is what runs here. See PR #38 for the whole run.
+#
+# To upgrade, get a Qodana Cloud plan that licenses the .NET linter, keep the
+# QODANA_TOKEN secret (the workflow already passes it through), and change this
+# one line to jetbrains/qodana-dotnet:2026.2. Nothing else moves: the path
+# exclusions below and every severity in .editorconfig apply to both images.
+# Expect a different count — cdnet's zero was measured on cdnet.
 #
 # Both images bundle .NET SDK 8.0, 9.0 and 10.0, so net10.0 analyses natively.
 # Pinned rather than :latest so CI results stay reproducible.
