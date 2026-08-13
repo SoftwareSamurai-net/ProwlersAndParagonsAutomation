@@ -254,7 +254,7 @@ public sealed class Judgement
     /// with a code and a sentence — never an exception across the transport, where the
     /// message arrives as a protocol error a model has no way to act on.
     /// </summary>
-    public static JsonObject Problem(string code, string message) => new()
+    internal static JsonObject Problem(string code, string message) => new()
     {
         ["ok"]      = false,
         ["problem"] = new JsonObject

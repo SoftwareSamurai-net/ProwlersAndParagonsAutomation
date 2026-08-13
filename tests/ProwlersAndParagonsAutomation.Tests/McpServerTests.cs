@@ -468,6 +468,30 @@ public sealed class McpServerTests
     }
 
     /// <summary>
+    /// <c>Judge</c> asks the engine and then hands the answers to <c>Report</c>, which is the
+    /// seam the test above uses. That is only worth having if the two agree, so this drives
+    /// <c>Judge</c> directly and checks it against the same document built from the engine's
+    /// own figures — otherwise the branch above is tested through a door nothing walks
+    /// through.
+    /// </summary>
+    [Fact]
+    public void JudgingACharacterIsAskingTheEngineAndThenReporting()
+    {
+        var sheet = SampleCharacters.Hero();
+        var judgement = new Judgement(_f.Rules, _f.Costs, _f.Derived, _f.Validator);
+
+        var judged = judgement.Judge(sheet);
+
+        var reported = judgement.Report(
+            sheet,
+            _f.Validator.Validate(sheet),
+            _f.Rules.GetTier(sheet.SelectedTierId!),
+            _f.Costs.TotalCost(sheet));
+
+        Assert.Equal(reported.ToJsonString(), judged.ToJsonString());
+    }
+
+    /// <summary>
     /// And the guarantee that keeps that branch dark, asserted where it actually lives: a
     /// character the engine cannot price is one the validator refuses. If that ever stops
     /// being true, the branch above stops being unreachable — and this is the test that says

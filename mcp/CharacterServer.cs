@@ -39,7 +39,7 @@ public static class CharacterServer
     /// call is who decides: the model proposes a character and the engine prices and judges
     /// it, never the other way round.
     /// </summary>
-    public const string Instructions =
+    private const string Instructions =
         "Builds Prowlers & Paragons Ultimate Edition characters from a description. "
         + "Call creation_guide first: it holds the two or three questions worth asking and "
         + "the JSON shape a character takes. You propose; the engine decides. Never state a "

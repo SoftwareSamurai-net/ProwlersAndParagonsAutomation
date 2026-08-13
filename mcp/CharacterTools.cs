@@ -45,8 +45,10 @@ public sealed class CharacterTools
     private readonly Judgement _judgement;
     private readonly Func<DateTime> _now;
 
-    /// <param name="now">The time a sheet is stamped with. Injected so a test can assert on
-    /// a sheet without matching a clock.</param>
+    /// <summary>
+    /// The engine, and a clock. <c>now</c> is the time a printed sheet is stamped with, and it
+    /// is injectable so a test can assert on a whole sheet without matching a clock.
+    /// </summary>
     public CharacterTools(
         RulesRepository rules,
         CostCalculator costs,
@@ -320,39 +322,37 @@ public sealed class CharacterTools
                                 && !m.Score.MatchedOn.Contains("id")
                                 && !m.Score.MatchedOn.Contains("tag"));
 
-        var report = new JsonObject
+        return Write(new JsonObject
         {
             ["ok"] = true,
             ["query"] = query,
             ["searched"] = _rules.Powers.Count,
             ["found"] = scored.Count,
             ["matches"] = entries,
-            ["nothing_matched_by_name"] = nothingMatchedByName
-        };
+            ["nothing_matched_by_name"] = nothingMatchedByName,
 
-        // Three different things to say, and saying the wrong one is how a model is told to
-        // name "the nearest" out of a list with nothing in it.
-        report["caution"] = scored.Count switch
-        {
-            0 => "Nothing matched at all — not by name and not by a word in any description. "
-               + "Say that the rulebook has no Power for this rather than naming one, and "
-               + "consider whether the effect is an Ability rank, an Expertise, a Perk, or "
-               + "narrative colour that costs nothing.",
+            // Three different things to say, and saying the wrong one is how a model is told
+            // to name "the nearest" out of a list with nothing in it.
+            ["caution"] = scored.Count switch
+            {
+                0 => "Nothing matched at all — not by name and not by a word in any "
+                   + "description. Say that the rulebook has no Power for this rather than "
+                   + "naming one, and consider whether the effect is an Ability rank, an "
+                   + "Expertise, a Perk, or narrative colour that costs nothing.",
 
-            _ when nothingMatchedByName =>
-                 "Nothing matched by name, id or tag: every entry above matched on a word "
-               + "inside its description. That cuts both ways — it is how Flight answers "
-               + "\"he can fly\", and it is also what a Power that has nothing to do with the "
-               + "description looks like. Read each one and say which, if any, does what was "
-               + "asked; if none does, say so rather than picking the top row.",
+                _ when nothingMatchedByName =>
+                     "Nothing matched by name, id or tag: every entry above matched on a word "
+                   + "inside its description. That cuts both ways — it is how Flight answers "
+                   + "\"he can fly\", and it is also what a Power that has nothing to do with "
+                   + "the description looks like. Read each one and say which, if any, does "
+                   + "what was asked; if none does, say so rather than picking the top row.",
 
-            _ => "These are the closest entries, not a promise that one of them does what was "
-               + "described. If none does, say so — and consider whether the effect is an "
-               + "Ability rank, an Expertise, a Perk or narrative colour rather than a Power. "
-               + "A Power id that is not in this list does not exist."
-        };
-
-        return Write(report);
+                _ => "These are the closest entries, not a promise that one of them does what "
+                   + "was described. If none does, say so — and consider whether the effect is "
+                   + "an Ability rank, an Expertise, a Perk or narrative colour rather than a "
+                   + "Power. A Power id that is not in this list does not exist."
+            }
+        });
     }
 
     [Description(
