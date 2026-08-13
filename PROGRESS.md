@@ -12,7 +12,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 
 | | |
 |---|---|
-| Rulebook coverage | Chapters 1–2 (Basics, Characters) fully extracted and verified; Ch.6 custom gear and Ch.7 toxin Pros/Cons extracted |
+| Rulebook coverage | Everything character creation needs. Chapters 1–2 fully extracted and verified, plus Ch.6's custom gear and Ch.7's toxin Pros/Cons. Chapters 3, 4, 5 and 7 are play rules, 8 is the pre-built characters (transcribed in the tests) and 9 builds Villains by the Hero rules — see item 3 |
 | Powers | 141 entries, all mechanically verified against Ch.2 pp.21–48 |
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
@@ -32,7 +32,7 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 ## Remaining work
 
-Roughly in the order that unblocks the most.
+Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through three front ends. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, and a payload size.
 
 ### 1. Close the last four Heroes
 
@@ -140,7 +140,33 @@ Not urgent. The site works, and a returning visitor pays nothing.
 
 Newest first. Link the PR so the reasoning stays findable.
 
-### Assisted character creation, and the three ways a character could be wrong and not be told
+### Nine ways an illegal character was reported legal, and the one thing they had in common — [#31](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/31), [#32](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/32), [#33](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/33), [#34](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/34)
+
+The validator had 26 checks and looked thorough. It was thorough about **the shapes a menu can produce**. Both editors pick from lists and count upwards, so a whole class of invalid character was unreachable — and the checks had been written, implicitly, against what the callers could build. The headless command let a *file* in, and the class became reachable all at once:
+
+| | The character that came back legal at exit 0 |
+|---|---|
+| An unknown tier id | 99d Ability, **zero findings** — the budget and the Trait Cap both hang off the tier, so one typo switched off both limits |
+| The same Con twice | Six Abilities at the cap for **0 HP**, empty issue list; scaled up, 216 HP inside a 125 budget |
+| A negative quantity on a Perk | *Paid* the character 1000 Hero Points |
+| A quantity large enough to wrap | A total of −2,094,967,284 HP passed the budget check |
+| Overkill on any Ability | 12d Intellect for 6 HP — the Brute Option is Might, and the id was never checked |
+| No 1d Trait floor | Up to 18 HP undercharged, and eighteen Traits at a rank nobody can hold |
+| A Trait below its package floor | Free, and therefore silent |
+| An unknown starting package | Silently no package at all |
+| Unenforced applicability | The Ranged Pro on a Self-range Power |
+
+**Three things explain all of it, and they are worth remembering because they will recur.**
+
+- **Free mistakes are silent mistakes.** A Con past a floor, a Trait under its package rank, a modifier on an unbought Ability: none moves a total, so no test can see one. The mistakes that *did* move a total were all found years ago.
+- **Floors launder invalid input into plausible output.** A Power floors at 1 HP per 2 ranks, gear at 0, an Ability at `Math.Max(0, …)`. Each is a real rule. Together they mean nonsense does not error — it rounds up into a believable number. Three Burnouts do not crash; they produce 0 HP and a clean report.
+- **The strongest test in the suite is structurally blind to some of this.** Rebuilding the twenty published Heroes to exactly 125 is the best end-to-end check here, and **all twenty take a package**, so every Trait of theirs sits at or above a floor. It cannot see the 1d minimum, the package floor, or anything that only bites a package-less character. A rule can be missing for years while it passes.
+
+**What actually found them**: adversarial reviewers given hostile input, and reading the printed page line by line. Reasoning about the rules found none of them.
+
+Also in this run: **Herald (Airmid) closed** — her sheet prints two Expertise Powers and one was never transcribed, worth exactly the 5 HP her wrongly-attributed package was absorbing, so 16 of 20 Heroes are now exact and the bound is 1 HP. **All twenty Hero page citations were ten pages out**, the error `CLAUDE.md` already warned about, still live because nothing read those numbers. And the rulebook itself turned out to be in `docs/` all along — `*.pdf` is gitignored, so it is absent from a worktree's `docs/`, and checking there reads as "there is no rulebook".
+
+### Assisted character creation, and the three ways a character could be wrong and not be told — [#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30)
 
 This closes what was item 5. `dotnet run -- build --from character.json` costs and validates a
 character, writes both exports and exits 0, 1 or 2 — legal, illegal, unreadable — with one
