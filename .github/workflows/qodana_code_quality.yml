@@ -1,59 +1,28 @@
 name: Qodana
-
 on:
   workflow_dispatch:
   pull_request:
   push:
-    branches:
-      - master
-
-permissions:
-  contents: read
-  # Required for the action to upload SARIF results to GitHub code scanning.
-  security-events: write
-  # Required for the action to annotate pull requests.
-  pull-requests: write
-  checks: write
-  # Required for the action to read its own workflow run. Without this it 403s
-  # with "Resource not accessible by integration" and skips its status report.
-  actions: read
+    branches: # Specify your branches here
+      - main # The 'main' branch
+      - 'releases/*' # The release branches
 
 jobs:
   qodana:
-    name: Qodana Code Quality
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: write
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v3
         with:
-          # Qodana needs the full history to compute the diff against the base branch.
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Qodana scan
-        uses: JetBrains/qodana-action@v2026.2
+          ref: ${{ github.event.pull_request.head.sha }}  # to check out the actual pull request commit, not the merge commit
+          fetch-depth: 0  # a full history is required for pull request analysis
+      - name: 'Qodana Scan'
+        uses: JetBrains/qodana-action@v2026.1
         with:
-          # No fail-threshold yet: the first runs establish what the codebase actually
-          # reports. Once that is triaged, add `args: --baseline,qodana.sarif.json`
-          # (committing the baseline) so only NEW problems fail the build.
-          upload-result: true
+          pr-mode: false
         env:
-          # Not required by the Community linter configured in qodana.yaml, which is
-          # why no secret is needed to make this workflow green. Set this secret only
-          # if you switch qodana.yaml to the release linter (jetbrains/qodana-dotnet),
-          # which refuses to start without a Qodana Cloud token.
-          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN }}
-
-      # Code scanning needs GitHub Advanced Security on a private repository.
-      # This repo is private, so the step is skipped rather than run-and-swallowed:
-      # letting it fail left a red "Code scanning is not enabled" annotation on
-      # every run, which trains you to ignore annotations. The scan itself still
-      # runs above and `upload-result: true` publishes the report as an artifact.
-      # This condition turns the upload on by itself if the repo becomes public.
-      - name: Upload SARIF to GitHub code scanning
-        if: always() && github.event.repository.visibility == 'public'
-        continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: ${{ runner.temp }}/qodana/results/qodana.sarif.json
+          QODANA_TOKEN: ${{ secrets.QODANA_TOKEN_495438398 }}
+          QODANA_ENDPOINT: 'https://qodana.cloud'
