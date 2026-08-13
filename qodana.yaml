@@ -4,20 +4,25 @@
 #-------------------------------------------------------------------------------#
 version: "1.0"
 
-# Qodana Community for .NET (ReSharper inspections). Verified working on this repo.
+# Qodana for .NET — the release linter (ReSharper inspections).
 #
-# Deliberately the *Community* linter (cdnet), not the release linter (dotnet):
-# since 2023.2 the release linters refuse to start without a Qodana Cloud
-# QODANA_TOKEN, so `jetbrains/qodana-dotnet` would fail CI on a repo with no
-# Qodana Cloud account. cdnet needs no token and no account.
+# This was the Community linter (cdnet) until a Qodana Cloud project token existed,
+# because since 2023.2 the release linters refuse to start without one and would
+# have failed CI on a repo with no Cloud account. A QODANA_TOKEN secret is now set
+# and the workflow already passes it through, so that constraint is gone.
 #
-# To upgrade to the full linter: register at https://qodana.cloud, add the
-# project token as a QODANA_TOKEN repository secret (the workflow already passes
-# it through), then change this line to jetbrains/qodana-dotnet:2026.2.
+# **A local whole-tree scan needs the token too.** The command in CLAUDE.md still
+# works, but export QODANA_TOKEN first or the container exits before inspecting:
+#
+#   docker run --rm -e QODANA_TOKEN -v "$(pwd -W):/data/project/" \
+#     -v "$PWD/results:/data/results/" jetbrains/qodana-dotnet:2026.2 --save-report
+#
+# To go back, change this line to jetbrains/qodana-cdnet:2026.2 and nothing else:
+# every path exclusion below and every severity in .editorconfig applies to both.
 #
 # Both images bundle .NET SDK 8.0, 9.0 and 10.0, so net10.0 analyses natively.
 # Pinned rather than :latest so CI results stay reproducible.
-linter: jetbrains/qodana-cdnet:2026.2
+linter: jetbrains/qodana-dotnet:2026.2
 
 # qodana.recommended is the default profile; qodana.starter is a smaller subset.
 profile:
