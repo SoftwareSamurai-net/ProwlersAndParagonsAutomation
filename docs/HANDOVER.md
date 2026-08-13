@@ -28,6 +28,11 @@ Commit it or fold it into the next slice; nothing depends on it.
 that can do what he described. Ask him questions back when the description does not determine
 something that matters.
 
+**And it has to be something other people can use with their own Claude**, which is what decides
+the surface below. The audience is two groups the owner named himself: people who code, and
+"normie mates who just want to see it work in the browser". They need different answers, and only
+one of them can bring their own inference.
+
 That is a different job from what `build --from` and the existing skill already do, and the
 difference is the whole slice. Today the loop is: a model writes a JSON file, submits it, reads
 the findings, resubmits. That works and is tested. What it is not is a **conversation** — there
@@ -45,16 +50,41 @@ language the description was given in.
 | `engine/CharacterSheetJson` | Reads and writes the character-sheet shape. Strict on submit (an unknown field is refused), lenient for the browser's local storage |
 | The engine | 141 Powers, both Trait floors, the Trait Cap, budget, applicability, duplicates, quantities. **It is the judge and it is trustworthy**: 16 of 20 published Heroes rebuild to exactly 125 |
 
-### The decision the owner has already made — do not re-ask
+### The surface, and why it is now two things
 
-**A skill plus the existing command, not an MCP server.** It was considered and deferred once
-already, and the reasoning has not changed: an MCP server would sit on top of `build --from`
-anyway, and it adds a process, a transport and a configuration step to something that is
-currently one file and one exit code. If the conversation needs a tool call, it needs the command
-that already exists.
+**For the owner and anyone else who codes: an MCP server.** This reverses an earlier note in this
+file, and the reversal is correct rather than a change of mind — the old note said "a skill plus
+the command, not an MCP server", and that reasoning was scoped to *the owner, in Claude Code,
+with the repo checked out*. The question that reopened it is different: **other people connecting
+their own Claude account.** MCP is the mechanism built for exactly that, and it puts the
+conversation in a client designed for it while we handle no credentials at all — the user talks
+through the subscription they already pay for.
 
-So this slice is mostly **prompt and process design**, plus whatever small engine affordances the
-conversation turns out to need. Resist the urge to add a subsystem.
+A stdio server wrapping the engine, exposing something like `cost_character`,
+`validate_character` and `list_powers`. The engine is already pure, synchronous and
+filesystem-free, so this is small. It does not replace `build --from`; both call the same engine.
+
+**For everyone else: a replay demo with the engine live.** The owner asked whether a visitor could
+use a free Claude account from the browser. **They cannot, and this is worth writing down so it is
+not re-investigated:** a claude.ai subscription cannot be lent to a third-party site (there is no
+sign-in-with-Claude that hands a website your inference quota), the API is separate billing with
+its own keys and no dependable free tier, and claude.ai's custom connectors are gated to paid
+plans. A browser visitor has no way to bring their own inference.
+
+So the two real options are a proxy the owner funds — a Worker holding his key, rate-limited,
+which costs money, invites abuse and **breaks the static-site property the README advertises** —
+or a **replay**: three or four real transcripts of a description, the questions back, the answers
+and the resulting character, with the model's turns replayed and **the engine run for real in
+WASM**. Costs, validation and the printed sheet genuinely computed client-side; then hand the
+character to the existing editor so the visitor can poke at it.
+
+The replay is the recommendation for a portfolio piece: no account, no key, no server, no running
+cost, nothing to abuse. **The one thing that would ruin it is faking the numbers.** If the sheet
+is a screenshot then the demo misrepresents the thing that was built; the half worth showing off
+is the engine deciding, and that half must stay live. Label the replay as a replay.
+
+Either way, the hard part is the same and it is below: the question policy, the register of the
+reply, and never inventing a Hero Point. The transport is the easy half.
 
 ### What to actually build
 
