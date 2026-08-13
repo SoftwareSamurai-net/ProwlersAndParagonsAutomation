@@ -136,4 +136,15 @@ public sealed class CharacterSession
     public bool ShowBudget => Mode == SheetMode.Hero;
 
     public ValidationResult Validate() => Validator.Validate(Sheet);
+
+    /// <summary>
+    /// The same, for a character that is not the one being built — a recorded one the replay
+    /// is showing.
+    ///
+    /// <para>It exists so the validator can stay private here. Every other engine service on
+    /// this class is exposed because components need to ask it things; making this one public
+    /// too would put a second way of reaching the same answer beside
+    /// <see cref="Validate()"/>, and two of those is how they end up disagreeing.</para>
+    /// </summary>
+    public ValidationResult Validate(CharacterSheet sheet) => Validator.Validate(sheet);
 }

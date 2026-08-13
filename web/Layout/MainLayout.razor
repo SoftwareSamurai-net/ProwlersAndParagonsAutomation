@@ -9,6 +9,11 @@
         <small>Character creation — @(Session.Mode == SheetMode.Hero ? "Hero" : "Villain")</small>
     </div>
 
+    @* The way in to the recordings. It sits in the banner rather than in the step list
+       because it is not a step — somebody who watches one has not started building, and
+       somebody who is building does not want it numbered between two things they are doing. *@
+    <NavLink class="banner-link" href="replay">Watch one being built</NavLink>
+
     @* aria-pressed is written out as a string on purpose. Blazor drops a bool attribute
        when it is false and renders it as `aria-pressed=""` when it is true, and an empty
        value is invalid ARIA that assistive technology reads as *not* pressed — so the

@@ -1,0 +1,85 @@
+{
+  "Id": "sheet-lightning",
+  "Title": "The one that did not fit",
+  "Blurb": "A first draft over the tier's budget, the trade that was offered, and the character that came back inside it.",
+  "Villain": false,
+  "Turns": [
+    {
+      "Speaker": "person",
+      "Text": "She's the weather. She flies, she throws lightning, she can see a storm coming a week out, and nothing physical touches her."
+    },
+    {
+      "Speaker": "assistant",
+      "Text": "Standard tier unless you'd rather go bigger — that is the one that sets what she can afford. The rest I can decide and show you: the storm itself is the Power the rulebook calls Elemental Control, which is the expensive kind because it does so much, and I'll give it the highest rank the tier allows and see what is left."
+    },
+    {
+      "Speaker": "person",
+      "Text": "Standard. And I do mean the highest — she is the weather, she isn't a woman who is quite good at weather."
+    },
+    {
+      "Speaker": "assistant",
+      "Text": "Then this is the honest first draft, and it does not fit. I have written down everything you said: the storm at the cap, flight, deflection for the things that come at her, and the week-ahead foresight.",
+      "Character": {
+        "Name": "Sheet Lightning",
+        "SelectedTierId": "standard",
+        "SelectedPackageId": "hero_package",
+        "AbilityRanks": { "might": 3, "agility": 6, "intellect": 5, "perception": 9, "toughness": 6, "willpower": 9 },
+        "TalentRanks": {
+          "academics": 3, "charm": 2, "command": 4, "covert": 2, "investigation": 2, "medicine": 2,
+          "professional": 2, "science": 6, "streetwise": 2, "survival": 4, "technology": 2, "vehicles": 2
+        },
+        "SelectedPowers": [
+          { "PowerId": "elemental_control", "PurchasedRanks": 12, "Pros": [], "Cons": [], "SourceId": "innate" },
+          { "PowerId": "flight", "PurchasedRanks": 8, "Pros": [], "Cons": [], "SourceId": "innate" },
+          { "PowerId": "precognition", "PurchasedRanks": 0, "Pros": [], "Cons": [], "SourceId": "innate" },
+          { "PowerId": "deflection", "PurchasedRanks": 6, "Pros": [], "Cons": [], "SourceId": "innate" },
+          { "PowerId": "armor", "PurchasedRanks": 6, "Pros": [], "Cons": [], "SourceId": "innate" }
+        ],
+        "Perks": [],
+        "Flaws": [
+          { "FlawId": "enemy", "NarrativeDetail": "A weather-modification contractor who wants her patented" }
+        ],
+        "Appearance": "",
+        "Motivation": "",
+        "Quote": "",
+        "Connections": []
+      }
+    },
+    {
+      "Speaker": "assistant",
+      "Text": "The breakdown says where it went, and it is the storm — at that rank it costs more than all six of her Abilities put together. So there are three ways out and they are yours to pick between, not mine. Take the storm down two ranks and she keeps the foresight. Drop the foresight and she keeps the storm at the cap. Or ask your GM for the tier above, where all of it fits and she is a different scale of character."
+    },
+    {
+      "Speaker": "person",
+      "Text": "Drop the foresight. She's a storm, not a forecast."
+    },
+    {
+      "Speaker": "assistant",
+      "Text": "Done, and now it fits. She keeps the storm at the highest rank the tier allows, which is the thing you were unwilling to give up, and the science Talent is still there — she can read a chart like a meteorologist, she just cannot see the future.",
+      "Character": {
+        "Name": "Sheet Lightning",
+        "SelectedTierId": "standard",
+        "SelectedPackageId": "hero_package",
+        "AbilityRanks": { "might": 3, "agility": 6, "intellect": 5, "perception": 9, "toughness": 6, "willpower": 9 },
+        "TalentRanks": {
+          "academics": 3, "charm": 2, "command": 4, "covert": 2, "investigation": 2, "medicine": 2,
+          "professional": 2, "science": 6, "streetwise": 2, "survival": 4, "technology": 2, "vehicles": 2
+        },
+        "SelectedPowers": [
+          { "PowerId": "elemental_control", "PurchasedRanks": 12, "Pros": [], "Cons": [], "SourceId": "innate" },
+          { "PowerId": "flight", "PurchasedRanks": 8, "Pros": [], "Cons": [], "SourceId": "innate" },
+          { "PowerId": "deflection", "PurchasedRanks": 6, "Pros": [], "Cons": [], "SourceId": "innate" },
+          { "PowerId": "armor", "PurchasedRanks": 6, "Pros": [], "Cons": [], "SourceId": "innate" }
+        ],
+        "Perks": [],
+        "Flaws": [
+          { "FlawId": "enemy", "NarrativeDetail": "A weather-modification contractor who wants her patented" }
+        ],
+        "Appearance": "Fifty-ish, cropped grey hair, a coat that never quite dries out.",
+        "Motivation": "She grew up on a coast that is not there any more.",
+        "Quote": "You felt that, didn't you. That's the pressure dropping.",
+        "Connections": ["The harbourmaster at Sheerness"]
+      }
+    }
+  ]
+}

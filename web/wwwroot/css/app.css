@@ -525,6 +525,74 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .verdict { font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
 .verdict.invalid { color: var(--danger); }
 
+/* ── The replay ──────────────────────────────────────────────────────────── */
+
+/* A recorded conversation, and the engine's answer about each character in it.
+
+   The whole visual job here is to keep two things apart: words that were said once, and
+   figures being worked out now. So a turn is set as speech — indented, attributed, tinted by
+   who spoke — and the panels between them are ordinary app panels, which is what the rest of
+   the tool uses to report a number. Nothing about a turn should read as a control, and
+   nothing about a verdict should read as dialogue. */
+
+.banner-link {
+    color: var(--on-primary);
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-decoration: none;
+    border-bottom: 1px solid var(--on-primary);
+    padding-bottom: 1px;
+    transition: opacity var(--swap) var(--ease);
+}
+.banner-link:hover { opacity: 0.75; }
+
+/* The label saying this is a recording. It is marked out rather than styled quietly: it is
+   the one thing on the page a visitor must not skim past. */
+.panel.replay-label {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+}
+.panel.replay-label p:last-child { margin-bottom: 0; }
+
+.replay { margin-bottom: 1.25rem; }
+
+.replay-turn {
+    max-width: 62ch;
+    margin-bottom: 0.9rem;
+    padding: 0.65rem 0.9rem;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--panel);
+}
+.replay-turn p:last-child { margin-bottom: 0; }
+
+/* Offset, not just tinted. Colour alone would carry the whole distinction between the two
+   speakers, and a third of a percent of readers would lose it entirely. */
+.replay-turn.said-by-them { background: var(--panel-sunk); }
+.replay-turn.said-by-it { margin-left: auto; }
+
+.replay-who {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 0.2rem;
+}
+
+/* The figures. Tabular numerals so a column of them lines up as the conversation grows, and
+   wrapping rather than scrolling, because this has to survive a phone. */
+.replay-figures {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 1.1rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 0.6rem;
+}
+.replay-figures b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.replay-figures.spent-on { font-size: 0.8rem; }
+
 /* ── The character sheet itself ──────────────────────────────────────────── */
 
 .sheet {
@@ -716,6 +784,8 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     .budget,
     .tabs,
     .mode-switch,
+    .banner-link,
+    .replay,
     .no-print,
     #blazor-error-ui {
         display: none !important;

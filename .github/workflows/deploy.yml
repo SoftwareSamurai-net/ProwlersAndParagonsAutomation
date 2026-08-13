@@ -17,6 +17,9 @@ on:
       - 'engine/**'
       - 'sheets/**'
       - 'data/rules/**'
+      # The recorded conversations the replay plays. They are staged into wwwroot by the
+      # build like the rules, so a transcript edited alone still changes the published site.
+      - 'data/transcripts/**'
       - 'scripts/write-cloudflare-headers.sh'
       - 'Directory.Build.props'
       - '.github/workflows/deploy.yml'

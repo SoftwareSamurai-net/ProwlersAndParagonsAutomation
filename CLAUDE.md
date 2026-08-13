@@ -103,6 +103,42 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 - **`CharacterStore` decides what a stored character is by asking the engine, not by checking its shape.** A saved sheet is nested several levels deep, and `System.Text.Json` will put a null at any of them without the type system objecting — so the guard costs and validates the sheet once and rejects a payload the engine cannot answer for. The first version stripped nulls level by level and missed `"Pros":[null]`, which restored cleanly and then took the app down on the first frame, because the budget bar renders on every route. **Do not replace this with a list of shapes**: the list goes stale the first time somebody adds a field. `InvalidOperationException` is deliberately not caught there — that is a half-finished character, not a corrupt one.
 - **Trimming is disabled on publish.** `RulesRepository` deserializes by reflection, so the trimmer can quietly remove model properties and leave the site running on empty rules. See `PROGRESS.md` item 5 before turning it back on.
 
+### The replay
+
+`/replay` plays back four real conversations for somebody who has no way to hold one — the MCP
+server needs a Claude of your own, and a visitor to the site has none. The transcripts are in
+`data/transcripts/`, read by `engine/TranscriptLibrary`, staged into `wwwroot` by the csproj
+exactly as the rules are, and fetched by `Program.cs` from `TranscriptLibrary.FileNames`.
+
+- **A transcript holds characters, never answers about them.** A turn carries a `CharacterSheet`
+  — the inputs — and the replay costs and validates it in the browser as the visitor reveals it.
+  **If a transcript ever holds a Hero Point total, that is the bug**: the number would sit there
+  looking identical while being wrong. `TranscriptTests` refuses a recorded line that quotes a
+  Hero Point figure, an Edge, a Health or a Resolve. Ranks are allowed and should be — a rank is
+  an input the transcript already carries.
+- **Several turns of one transcript may carry a character**, and the one about a draft that did
+  not fit depends on it: the draft is stored as a draft, so it is *shown* not fitting rather than
+  said to be. `TranscriptLibrary` reads them **strictly**, so a field a character no longer has
+  fails at load rather than quietly emptying a section.
+- **There is one sheet component.** `SheetView` and `DerivedStatBlocks` take an optional
+  `Character`; they do not have replay-shaped twins. The four big figures come from
+  `DerivedStatBlocks`, which read the character being built — so a replay printed the *visitor's*
+  Edge, Health and Resolve under a recorded name until it was given the recorded one. A bUnit
+  test loads a sample first so there is a different character present to be printed by mistake.
+- **The hand-off gives the editors a copy**, round-tripped through `CharacterSheetJson`. The
+  library is read once at startup and shared by every visit; handing the instance over lets the
+  first edit rewrite the recording.
+- **A failed transcript fetch must not stop the app.** Missing rules are a broken deployment;
+  missing recordings are a missing demonstration. `Program.cs` catches, registers an empty
+  library and carries the reason so the page can print it.
+- **The Villain recording shows its budget finding rather than hiding it.** The GM review step
+  hides `HP_BUDGET_EXCEEDED` in Villain mode; here it is shown with Ch.9 beside it, because one
+  recording is about exactly that difference. That branch shows no verdict word at all — a
+  Villain has no budget to be over.
+- The replay does not change the app's palette while you watch; opening the character does, the
+  way loading a sample does. Whether a *recorded* character is a Villain has nothing to do with
+  what colour the visitor is wearing, which is why `SheetView` takes `ShowBudget` too.
+
 ### The headless build command
 
 `dotnet run -- build --from character.json` costs and validates a character, writes both exports and exits **0** (legal), **1** (breaks a rule) or **2** (unreadable input or bad arguments). It exists so a model can propose a character during play and have the engine decide whether it is legal. The skill that teaches that loop is `.claude/skills/prowlers-and-paragons-character/SKILL.md`.
@@ -507,6 +543,7 @@ Settled rules questions:
 - Hero and Villain are **one app with two palettes**, and the mode is not a field on `CharacterSheet`
 - `engine/`, `sheets/`, `cli/` and `web/` are **separate projects**, so the dependency arrows hold at compile time rather than by convention
 - Assisted creation *in this repository, for somebody with it checked out*, is a **non-interactive command plus a skill** — and the model proposes while the engine decides, never the other way round. **For somebody else, connecting their own Claude, it is an MCP server**, which is the mechanism built for exactly that and lets us handle no credentials at all. The two are not in tension and both call the same engine; the earlier flat "not an MCP server" note was scoped to the first case and is superseded
+- **A visitor to the site cannot bring their own Claude, and that is settled — do not re-investigate it.** A claude.ai subscription cannot be lent to a third-party site, the API is separate billing with no dependable free tier, and custom connectors are gated to paid plans. The answer is `/replay`: real conversations recorded, with the engine run for real in the visitor's browser. A proxy funded by the owner was rejected — it costs money, invites abuse, and breaks the static-site property the README advertises
 - An illegal character is **reported, never repaired**: the engine is a judge and does not make design decisions about somebody's character
 
 Each of these was wrong at some point and is now covered by a regression test naming the rule. If one appears to be violated, read `PROGRESS.md` and the test before changing the code.

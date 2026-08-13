@@ -29,6 +29,7 @@ All four run the *same* rules engine — the browser build compiles it to WebAss
 - **Every rules value verified against the rulebook and locked by tests** — the suite holds the printed Range, Rank and Cost of all 141 powers, so a data edit that contradicts the book fails CI
 - **Dual export** — formatted `.txt` and structured `.json`, written to `output/` by the CLI and downloaded by the browser, from one implementation
 - **Four front ends on one engine** — a Spectre.Console wizard, a Blazor WebAssembly app that runs `CostCalculator` and `CharacterValidator` as the same compiled code with Hero and Villain palettes, the headless `build` command, and the MCP server. None of them holds a second copy of a rule
+- **Four recorded conversations, replayed in the browser** — for anyone who wants to see what describing a character out loud gets you and has no Claude of their own to ask. The words are a recording and say so on the page; the numbers are not. Every Hero Point figure, every derived stat and every finding beside them is worked out in your browser as you reveal it, from the character the recording carries — **no transcript holds a total** — and at the end the character opens in the editors so you can change a rank and watch them move
 - **Two sample characters** — a finished Hero and Villain, loadable in one click, for seeing a sheet without building one first; both held to the rules by tests
 - **A printed sheet modelled on the published Hero Sheet** — one A4 page, three columns, ruled boxes with centred headings, every Ability and Talent listed, and blank ruled space for the fields a pen fills in. White paper and readable ink in both modes: a Hero sheet prints navy, a Villain crimson, and colour appears as ink and as a tint behind a heading bar, never as a fill
 - **The character is kept in the browser between visits** — a refresh, a bookmark or a shared link no longer throws it away, and nothing is sent anywhere. A saved character that this build cannot read is discarded rather than restored, because a tool that will not open is worse than one that forgets
@@ -70,7 +71,7 @@ For the browser front end:
 dotnet run --project web/ProwlersAndParagons.Web.csproj
 ```
 
-Then open the address it prints. It is a static site — `dotnet publish web/ProwlersAndParagons.Web.csproj -c Release` produces a `wwwroot/` that any static host can serve, with no server-side component. The rules JSON is copied into `wwwroot/data/rules/` by the build and fetched over HTTP at startup; `data/rules/` remains the only copy in the repository.
+Then open the address it prints. It is a static site — `dotnet publish web/ProwlersAndParagons.Web.csproj -c Release` produces a `wwwroot/` that any static host can serve, with no server-side component. The rules JSON is copied into `wwwroot/data/rules/` by the build and fetched over HTTP at startup; `data/rules/` remains the only copy in the repository. The recorded conversations at `/replay` are staged from `data/transcripts/` the same way.
 
 To cost and validate a character without a terminal:
 
@@ -198,6 +199,12 @@ ProwlersAndParagonsAutomation/
 │   ├── gear_features.json        # 12 custom gear features (Ch.6)
 │   └── sources.json              # 6 Sources and the default rank each supplies
 │
+├── data/transcripts/             # Four recorded conversations the browser replays — characters, never totals
+│   ├── vera-nunn.json            # Street Level, and the effect the rulebook turns out not to have
+│   ├── chrono-jab.json           # "punches through time" — one Power or three
+│   ├── sheet-lightning.json      # a first draft over budget, the trade offered, the settlement
+│   └── the-conductor.json        # a Villain, who has no Hero Point budget at all (Ch.9)
+│
 ├── engine/                       # Rules logic — pure C#, zero Spectre.Console
 │   ├── Models/                   # Immutable records mapping to the JSON schemas
 │   ├── CharacterSheet.cs         # Mutable wizard state
@@ -205,7 +212,9 @@ ProwlersAndParagonsAutomation/
 │   ├── CostCalculator.cs         # HP cost logic for every trait type
 │   ├── DerivedStatsCalculator.cs # Edge, Health, Resolve, baseline/effective rank
 │   ├── CharacterValidator.cs     # Validation with Error/Warning severity
-│   └── SampleCharacters.cs       # Two finished characters for preview — no rules logic
+│   ├── SampleCharacters.cs       # Two finished characters for preview — no rules logic
+│   ├── Transcript.cs             # A recorded conversation: turns, and the characters put to the engine
+│   └── TranscriptLibrary.cs      # Reads them, strictly — a renamed field fails at load
 │
 ├── sheets/                       # Rendering shared by every host, no host coupling
 │   ├── CharacterSheetRenderer.cs # The .txt and .json sheets, built as strings
@@ -226,12 +235,14 @@ ProwlersAndParagonsAutomation/
 │   ├── Services/CharacterSession.cs  # The CharacterSheet plus the calculators
 │   ├── Services/Labels.cs        # Turns a rules key into something a player can read
 │   ├── Services/CharacterStore.cs    # Keeps the character in the browser between visits
+│   ├── Services/ReplayLibrary.cs # The recorded conversations. Has no method that returns a number
 │   └── wwwroot/
 │       ├── css/theme.css         # Hero, Villain and print palettes, as CSS custom properties
 │       ├── css/app.css           # Layout, components and the print stylesheet. Names no colour
 │       ├── js/download.js        # The whole of the JavaScript: a blob download and the mode switch
 │       ├── _redirects            # Cloudflare: every path serves the app, with a 200
-│       └── data/rules/           # Staged from data/rules/ by the build (gitignored)
+│       ├── data/rules/           # Staged from data/rules/ by the build (gitignored)
+│       └── data/transcripts/     # Staged from data/transcripts/ the same way (gitignored)
 │
 ├── mcp/                          # MCP server — the engine, in somebody else's Claude
 │   ├── QUESTION-POLICY.md        # The two or three questions worth asking. Embedded, and served verbatim
@@ -255,14 +266,16 @@ ProwlersAndParagonsAutomation/
 │   ├── PrebuiltHeroTests.cs      # rebuilds each and checks their printed Edge/Health/Resolve
 │   ├── SampleCharacterTests.cs   # the two preview characters must be legal and printable
 │   ├── WebPresentationTests.cs   # no colour outside theme.css, no jargon on screen, print rules
-│   └── ValidationMessageTests.cs # every message a player can be shown, held to the same rule
+│   ├── ValidationMessageTests.cs # every message a player can be shown, held to the same rule
+│   └── TranscriptTests.cs        # the recordings, held to the engine — and no figure in their prose
 │
 ├── tests/ProwlersAndParagons.Web.Tests/   # bUnit — renders components and reads the output
 │   ├── RenderContext.cs          # the app's own services, on the real data/rules
 │   ├── FakeLocalStorage.cs       # an IJSRuntime backed by a dictionary, and able to refuse
 │   ├── SheetRenderTests.cs       # what the sheet actually renders, "Armor8d" and all
 │   ├── StartAgainTests.cs        # all three controls that destroy work ask first, then clear
-│   └── CharacterStoreTests.cs    # a character survives the round trip; bad storage never throws
+│   ├── CharacterStoreTests.cs    # a character survives the round trip; bad storage never throws
+│   └── ReplayRenderTests.cs      # every figure on a replayed page equals the calculator's own answer
 │
 ├── scripts/
 │   └── write-cloudflare-headers.sh   # Generates _headers, hashing the inline import map

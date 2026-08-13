@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3298 across two projects — 3208 on the engine, 90 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3335 across two projects — 3226 on the engine, 109 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -32,7 +32,7 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 ## Remaining work
 
-Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, a Power search that orders ties by name, a payload size — and one piece of new work, the replay demo, which is item 6 and has a brief of its own in [`docs/HANDOVER.md`](docs/HANDOVER.md).
+Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends, and a visitor with no account can watch a real conversation build one. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, a Power search that orders ties by name, and a payload size.
 
 ### 1. Close the last four Heroes
 
@@ -166,32 +166,72 @@ It surfaced loudly only because the applicability check had *just* started readi
 
 Not urgent. The site works, and a returning visitor pays nothing.
 
-### 6. The replay demo — the other half of conversational creation
-
-**This is the next slice, and [`docs/HANDOVER.md`](docs/HANDOVER.md) is its brief.** The MCP
-server serves people who code and can bring their own Claude; a visitor to the site cannot bring
-one, and that is settled rather than open — a claude.ai subscription cannot be lent to a
-third-party site, the API is separate billing with no dependable free tier, and custom connectors
-are gated to paid plans. **Do not re-investigate it.**
-
-So: three or four recorded conversations — a description, the questions back, the answers, the
-character — replayed at the visitor's pace, with **the engine run for real in WebAssembly** at
-the end, and the character handed to the existing editor so they can change a rank and watch the
-numbers move.
-
-Two things would ruin it, and both are about honesty rather than effort. **Faking the numbers**:
-if the replay data holds a Hero Point total, that is the bug — every figure must come back from
-`CostCalculator` in the visitor's browser, which is free, because `web/` already is that engine.
-And **not labelling it**: a recording presented as a live conversation misrepresents what they
-are looking at.
-
-Not started.
-
 ---
 
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### The other half: four recorded conversations, replayed with the engine run for real
+
+The MCP server serves people who code and can bring their own Claude. A visitor to the site
+cannot bring one — that was settled before this slice started and was not re-investigated: a
+claude.ai subscription cannot be lent to a third-party site, the API is separate billing with
+no dependable free tier, and custom connectors are gated to paid plans. The two options were a
+proxy the owner funds, which costs money, invites abuse and breaks the static-site property the
+README advertises, or a replay. This is the replay.
+
+**The half worth showing off is the engine deciding, and that half is live.** Four conversations
+in `data/transcripts/` are played back at the visitor's pace at `/replay`; every Hero Point
+figure, every derived stat and every finding beside them is computed in their browser, from the
+character the transcript carries, as they reveal it. At the end the character is handed to the
+existing editors so they can change a rank and watch the numbers move.
+
+**No transcript holds a number, and that is the whole design rather than a discipline.** A turn
+carries a *character* — the inputs — and never an answer about one. Several turns of one
+conversation may carry one, which is what lets the recording about a draft that did not fit show
+the draft not fitting rather than merely say so. `TranscriptTests` holds the prose to it: no
+recorded line may quote a Hero Point figure, an Edge, a Health or a Resolve. Ranks are
+deliberately allowed, because a rank is an input the transcript already carries.
+
+**The transcripts were produced by driving the real server, not written as dialogue**, and the
+searching is what shaped two of them. "Cannot be hurt by anything" comes back with
+`nothing_matched_by_name` and six Powers that matched on the word "cannot" — the honesty flag
+doing its job — and "knows when someone is lying" turns out to have no Power behind it at all,
+which is Perception and a Talent and is the most useful thing in that conversation. "Punches
+through time" returns Time Travel, Time Stop, Precognition and Blink, which is the ambiguity
+rather than the answer, and is why the policy asks whether it is one Power or several.
+
+**The four cover what makes the design visible**: one that comes in under a Street-level budget
+and finds the rulebook has nothing for half the description; one whose first draft is over a
+Standard budget and has to give something up, with the trade offered and taken; one where four
+words could be one Power or three; and a Villain, who has no Hero Point budget at all under Ch.9
+— so the replay shows that finding and explains it rather than hiding it, which is what the GM
+review step does. Each figure was cross-checked three ways: the MCP server, the rendered page
+asserted equal to `CostCalculator`, and `dotnet run -- build --from` on the same character.
+
+Smaller decisions worth keeping:
+
+- **There is one sheet component and it gained a parameter rather than a twin.** `SheetView` and
+  `DerivedStatBlocks` now take an optional character instead of always reading the one being
+  built. That was not tidiness: the four big figures come from `DerivedStatBlocks`, so before it
+  was given the recorded character to read, a replay printed the *visitor's* Edge, Health and
+  Resolve under a recorded character's name. There is a bUnit test that loads a sample first, so
+  there is a different character present to be printed by mistake.
+- **What is handed off is a copy**, round-tripped through the character's own JSON shape. The
+  library is read once at startup and shared by every visit, so handing the instance over would
+  let the first edit rewrite the recording — after which the replay plays back a character
+  somebody changed, and nothing on the page would say so.
+- **The transcripts are read strictly**, the way a submitted file is. They are data that nothing
+  recompiles, so the way they rot is a rename: read leniently, a transcript whose `AbilityRanks`
+  had been renamed would replay a cheaper character with its abilities silently gone.
+- **A failed transcript fetch does not stop the app.** The rules are a broken deployment if they
+  are missing; the recordings are a demonstration, and refusing to let somebody build a character
+  because a demo file did not arrive is the wrong trade in every direction. The reason travels
+  with the empty library and the page prints it, so it is not a silent nothing.
+- **The label is the first thing under the heading**, not a note at the bottom, and it says both
+  halves: the words are a recording, the figures are not. A notice that only appears at the end
+  has been read after it was needed.
 
 ### Conversational creation, half of it: the MCP server, and the questions worth asking — [#39](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/39)
 

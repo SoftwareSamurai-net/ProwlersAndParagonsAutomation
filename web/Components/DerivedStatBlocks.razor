@@ -4,15 +4,15 @@
    both show them, and they must never disagree, so they ask once from here. *@
 
 <StatBlockRow Class="@Class">
-    <StatBlock Label="Edge" Value="@Session.Derived.CalculateEdge(Session.Sheet).ToString()" />
-    <StatBlock Label="Health" Value="@Session.Derived.CalculateHealth(Session.Sheet).ToString()" />
-    <StatBlock Label="Resolve" Value="@Session.Derived.CalculateResolve(Session.Sheet).ToString()" />
+    <StatBlock Label="Edge" Value="@Session.Derived.CalculateEdge(Sheet).ToString()" />
+    <StatBlock Label="Health" Value="@Session.Derived.CalculateHealth(Sheet).ToString()" />
+    <StatBlock Label="Resolve" Value="@Session.Derived.CalculateResolve(Sheet).ToString()" />
     @if (WithPoints)
     {
         @* The published sheet sets Hero Points beside the other three, and on paper that is
            right: it is the one figure a GM checks a character against. A Villain has no
            budget to check against (Ch.9), so the box carries what they cost instead. *@
-        <StatBlock Label="@(Session.ShowBudget ? "Hero Points" : "Points Spent")"
+        <StatBlock Label="@(Budgeted ? "Hero Points" : "Points Spent")"
                    Value="@Points" Sub="@Budget" />
     }
 </StatBlockRow>
@@ -24,10 +24,29 @@
     /// <summary>Adds the fourth box. The sheet shows it; the derived-stats step does not.</summary>
     [Parameter] public bool WithPoints { get; set; }
 
-    private int? Spent => CharacterSession.TryCost(() => Session.Spent);
+    /// <summary>
+    /// A character to read instead of the one being built — see the same parameter on
+    /// <c>SheetView</c>, which is what passes it here. Without it these four boxes would carry
+    /// the visitor's own figures on somebody else's sheet, which is the kind of wrong that
+    /// looks entirely right.
+    /// </summary>
+    [Parameter] public CharacterSheet? Character { get; set; }
+
+    /// <summary>
+    /// Whether to measure the spend against a budget. Defaults to the app's own mode; the
+    /// replay passes it, because whether a recorded character is a Villain is a fact about
+    /// that recording and not about what palette the visitor happens to be wearing.
+    /// </summary>
+    [Parameter] public bool? ShowBudget { get; set; }
+
+    private CharacterSheet Sheet => Character ?? Session.Sheet;
+
+    private bool Budgeted => ShowBudget ?? Session.ShowBudget;
+
+    private int? Spent => CharacterSession.TryCost(() => Session.Costs.TotalCost(Sheet));
 
     private TierModel? Tier =>
-        Session.Sheet.SelectedTierId is null ? null : Session.Rules.GetTier(Session.Sheet.SelectedTierId);
+        Sheet.SelectedTierId is null ? null : Session.Rules.GetTier(Sheet.SelectedTierId);
 
     /// <summary>The figure itself: what the character cost.</summary>
     private string Points => Spent?.ToString() ?? "—";
@@ -37,5 +56,5 @@
     /// so there is nothing to measure against and the box carries the spend alone.
     /// </summary>
     private string? Budget =>
-        Session.ShowBudget && Tier is { } tier && Spent is not null ? $"of {tier.HeroPoints}" : null;
+        Budgeted && Tier is { } tier && Spent is not null ? $"of {tier.HeroPoints}" : null;
 }

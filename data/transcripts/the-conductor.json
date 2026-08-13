@@ -1,0 +1,52 @@
+{
+  "Id": "the-conductor",
+  "Title": "The last bus",
+  "Blurb": "A Villain, and the one finding that is not a rule broken: Ch.9 gives a Villain no Hero Point budget at all.",
+  "Villain": true,
+  "Turns": [
+    {
+      "Speaker": "person",
+      "Text": "I need a Villain for Thursday. He runs the last night bus. Nobody who gets on remembers getting off."
+    },
+    {
+      "Speaker": "assistant",
+      "Text": "One question, because the answer changes what he is: is he doing it to them, or is the bus doing it and he is the driver? If it is him, he is a mind — control, illusion, the works — and he needs no bus at all. If it is the bus, he is an ordinary man with a very unusual piece of equipment, and that is a much cheaper and much stranger character. I'll take the first unless you say otherwise, and build him against your party's tier."
+    },
+    {
+      "Speaker": "person",
+      "Text": "It's him. The bus is just where he has them sitting still. Party's on Standard."
+    },
+    {
+      "Speaker": "assistant",
+      "Text": "Then he is a psychic and almost nothing else — no fists, no armour, a Willpower at the cap and a mind you cannot get into. The illusions are what the passengers remember instead. I have given him the compulsion as a Flaw rather than as colour, because a man who cannot leave a route unfinished is a thing your players can use against him.",
+      "Character": {
+        "Name": "The Conductor",
+        "SelectedTierId": "standard",
+        "SelectedPackageId": "superhero_package",
+        "AbilityRanks": { "might": 3, "agility": 4, "intellect": 8, "perception": 8, "toughness": 4, "willpower": 12 },
+        "TalentRanks": {
+          "academics": 4, "charm": 8, "command": 6, "covert": 6, "investigation": 3, "medicine": 3,
+          "professional": 6, "science": 3, "streetwise": 6, "survival": 3, "technology": 3, "vehicles": 6
+        },
+        "SelectedPowers": [
+          { "PowerId": "mind_control", "PurchasedRanks": 12, "Pros": [], "Cons": [], "SourceId": "psychic" },
+          { "PowerId": "illusions", "PurchasedRanks": 12, "Pros": [], "Cons": [], "SourceId": "psychic" },
+          { "PowerId": "emotion_control", "PurchasedRanks": 8, "Pros": [], "Cons": [], "SourceId": "psychic" },
+          { "PowerId": "psi_screen", "PurchasedRanks": 0, "Pros": [], "Cons": [], "SourceId": "psychic" }
+        ],
+        "Perks": [],
+        "Flaws": [
+          { "FlawId": "compulsion", "NarrativeDetail": "He cannot leave a route unfinished" }
+        ],
+        "Appearance": "A cap, a ticket machine nobody has used since 1987, and a lanyard with no name on it.",
+        "Motivation": "The route has to be run. He stopped asking why some time ago.",
+        "Quote": "Sit anywhere you like. It's a long way yet.",
+        "Connections": []
+      }
+    },
+    {
+      "Speaker": "assistant",
+      "Text": "One thing to read properly. The engine is never told whether it is looking at a Hero or a Villain, so it measures him against the tier's Hero Point budget and says he is over it. Ch.9 does not give a Villain a budget — you build him to whatever the scene needs — so that finding is your call and not a rule he breaks. Everything else it says means exactly what it says, which is why it is worth checking him at all. His defence against being reasoned with is free, incidentally: it takes its baseline from his Willpower, and his Willpower is at the cap."
+    }
+  ]
+}

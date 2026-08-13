@@ -1,0 +1,58 @@
+@page "/replay"
+@inject ReplayLibrary Replays
+
+<PageTitle>Recorded conversations — Prowlers &amp; Paragons</PageTitle>
+
+<h1>Watch one being built</h1>
+
+<p class="muted">
+    Four conversations in which somebody described a character in ordinary words and got a
+    legal, costed one back. They are recordings — the words below were said once and are
+    played back exactly as they were. Every Hero Point figure beside them is not: those are
+    worked out on this page, from the character the recording carries, while you read it.
+</p>
+
+@if (Replays.Problem is not null)
+{
+    <Panel Title="The recordings did not load" NoPrint="true">
+        <p class="small">
+            Nothing else on this site is affected — you can build a character normally. What
+            went wrong: @Replays.Problem
+        </p>
+    </Panel>
+}
+
+<div class="grid two">
+    @foreach (var conversation in Replays.Conversations)
+    {
+        <Panel Title="@conversation.Title" NoPrint="true">
+            <Head>
+                @if (conversation.Villain)
+                {
+                    <span class="tag warn">Villain</span>
+                }
+            </Head>
+            <ChildContent>
+                <p class="small muted">@conversation.Blurb</p>
+                <NavLink class="btn primary" href="@($"replay/{conversation.Id}")">
+                    Play it
+                </NavLink>
+            </ChildContent>
+        </Panel>
+    }
+</div>
+
+<Panel Title="Why these are recordings and not a conversation you can have" NoPrint="true">
+    <p class="small">
+        Holding the conversation live would mean this site paying for the model that answers
+        you, and it is a site with nothing behind it — no accounts, no server, nothing that
+        costs anything to run. So instead of a worse imitation of the real thing, these are
+        the real thing, recorded.
+    </p>
+    <p class="small">
+        You <em>can</em> have it live, if you already have Claude. The rules engine on this
+        page also ships as a small program you connect to it, after which you describe a
+        character to your own assistant and it asks the same two or three questions and builds
+        the same character. The instructions are in the project's README.
+    </p>
+</Panel>

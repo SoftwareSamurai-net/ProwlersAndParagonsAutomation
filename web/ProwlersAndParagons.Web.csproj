@@ -54,6 +54,11 @@
          the engine reports the rules as malformed JSON. Copy first, then register. -->
     <ItemGroup>
         <RulesDataFile Include="..\data\rules\*.json" />
+
+        <!-- The recorded conversations the replay plays, staged the same way. They are not
+             rules, and the site starts without them — see the comment in Program.cs — but a
+             build that quietly shipped none would be a demonstration nobody could reach. -->
+        <TranscriptDataFile Include="..\data\transcripts\*.json" />
     </ItemGroup>
 
     <Target Name="StageRulesDataInWwwroot" BeforeTargets="ResolveProjectStaticWebAssets">
@@ -62,9 +67,14 @@
              Better to fail the build. -->
         <Error Condition="'@(RulesDataFile)' == ''"
                Text="No rules files found at ..\data\rules\*.json. The browser build serves these; without them the site cannot start." />
+        <Error Condition="'@(TranscriptDataFile)' == ''"
+               Text="No transcripts found at ..\data\transcripts\*.json. The browser build serves these; without them the replay has nothing to play." />
 
         <Copy SourceFiles="@(RulesDataFile)"
               DestinationFolder="$(MSBuildProjectDirectory)\wwwroot\data\rules"
+              SkipUnchangedFiles="true" />
+        <Copy SourceFiles="@(TranscriptDataFile)"
+              DestinationFolder="$(MSBuildProjectDirectory)\wwwroot\data\transcripts"
               SkipUnchangedFiles="true" />
 
         <!-- Added here rather than in an evaluation-time ItemGroup because the files do not
@@ -72,6 +82,7 @@
              published site without its rules. -->
         <ItemGroup>
             <Content Include="wwwroot\data\rules\*.json" Exclude="@(Content)" />
+            <Content Include="wwwroot\data\transcripts\*.json" Exclude="@(Content)" />
         </ItemGroup>
     </Target>
 

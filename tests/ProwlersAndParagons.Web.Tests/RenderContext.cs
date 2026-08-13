@@ -30,6 +30,16 @@ public sealed class RenderContext : BunitContext
         Services.AddSingleton(validator);
         Services.AddSingleton(new ProConApplicability(rules));
         Services.AddSingleton(new SourceGrouping(rules));
+
+        // The recorded conversations, read from the real data/transcripts for the same reason
+        // the rules are read from the real data/rules: a replay that renders correctly against
+        // an invented transcript and wrongly against the shipped ones has been tested for
+        // nothing. This is the fetch in Program.cs, minus the HTTP.
+        Services.AddSingleton(new ReplayLibrary(TranscriptLibrary.ReadAll(
+            TranscriptLibrary.FileNames.ToDictionary(
+                name => name,
+                name => File.ReadAllText(Path.Combine(RepoRoot(), "data", "transcripts", name)),
+                StringComparer.Ordinal))));
         Services.AddScoped<CharacterSession>();
 
         // Resolves bUnit's own IJSRuntime, so a component that persists can be rendered and
