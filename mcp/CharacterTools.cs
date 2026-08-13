@@ -114,8 +114,13 @@ public sealed class CharacterTools
         + "and the Trait Cap.")]
     public string ListOptions(
         [Description("One of: tiers, packages, abilities, talents, sources, perks, flaws, pros, cons, gear_features.")]
-        string category)
+        string? category)
     {
+        // <b>Nullable because a client really can send null</b>, whatever the schema says —
+        // `{"category": null}` arrives here as one, and the argument is declared for what can
+        // actually arrive rather than for what a well-behaved caller would send. Declared
+        // non-null, this guard read as dead code to an inspection and deleting it would have
+        // turned a refusal into an exception across the transport.
         var wanted = (category ?? "").Trim().ToLowerInvariant();
 
         JsonArray entries;
@@ -258,7 +263,7 @@ public sealed class CharacterTools
         + "closest entries in the rulebook, which may be nothing that fits: there are 141 "
         + "Powers and the book does not have everything. Never invent a Power id.")]
     public string SearchPowers(
-        [Description("What the effect does, in ordinary words.")] string query,
+        [Description("What the effect does, in ordinary words.")] string? query,
         [Description("How many matches to return. Defaults to 8; anything outside 1 to 25 is "
                      + "brought inside it.")]
         int limit = 8)
@@ -355,7 +360,7 @@ public sealed class CharacterTools
         + "and Cons it may legally take — both the generic ones the rulebook allows on a "
         + "Power of this Range and rank type, and any printed in the Power's own entry.")]
     public string PowerDetail(
-        [Description("The Power's id — the \"id\" field of a search_powers match.")] string powerId)
+        [Description("The Power's id — the \"id\" field of a search_powers match.")] string? powerId)
     {
         var id = (powerId ?? "").Trim();
 

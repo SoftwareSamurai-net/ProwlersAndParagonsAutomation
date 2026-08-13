@@ -30,5 +30,8 @@ web/wwwroot/data/
 .vs/
 *.user
 
-# Qodana writes its report here when the scan is run locally (see README).
+# Qodana writes its report here when the scan is run locally (see README). The second name
+# is for a scan run beside an existing report rather than over it, which is how a before and
+# after are compared.
 results/
+results-mcp/

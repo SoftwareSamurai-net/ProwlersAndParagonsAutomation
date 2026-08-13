@@ -41,14 +41,18 @@ public sealed class McpServerTests
         var toServer = new Pipe();
         var toClient = new Pipe();
 
-        await using var transport = new StreamServerTransport(
+        // Disposed by hand rather than with `await using`, and in this order. The server's
+        // RunAsync only returns once the transport is gone, so the two have to be closed
+        // before that task is awaited — a `using` would dispose them after, and the wait for
+        // a run that cannot finish would hang the suite rather than fail it.
+        var transport = new StreamServerTransport(
             toServer.Reader.AsStream(), toClient.Writer.AsStream(), CharacterServer.Name);
 
-        await using var server = McpServer.Create(transport, CharacterServer.Options(Tools()));
+        var server = McpServer.Create(transport, CharacterServer.Options(Tools()));
 
         var running = server.RunAsync();
 
-        await using var client = await McpClient.CreateAsync(
+        var client = await McpClient.CreateAsync(
             new StreamClientTransport(toServer.Writer.AsStream(), toClient.Reader.AsStream()));
 
         try
@@ -59,6 +63,7 @@ public sealed class McpServerTests
         {
             await client.DisposeAsync();
             await transport.DisposeAsync();
+            await server.DisposeAsync();
             try { await running; } catch (OperationCanceledException) { }
         }
     }
@@ -604,6 +609,43 @@ public sealed class McpServerTests
     }
 
     /// <summary>
+    /// <b>A null argument is answered, not thrown at.</b> A schema saying "string" does not
+    /// stop a client sending <c>null</c>, and one arrives here as one — so the guards on these
+    /// three are load-bearing rather than defensive habit, and the parameters are declared
+    /// nullable to say so. Declared non-null they read as dead code to an inspection, and
+    /// removing them would turn each of these answers into an exception across the transport.
+    /// </summary>
+    [Fact]
+    public void ANullArgumentIsAnAnswerRatherThanACrash()
+    {
+        Assert.Equal("NO_SUCH_CATEGORY",
+            Parse(Tools().ListOptions(null))["problem"]!["code"]!.GetValue<string>());
+
+        Assert.Equal("EMPTY_QUERY",
+            Parse(Tools().SearchPowers(null))["problem"]!["code"]!.GetValue<string>());
+
+        Assert.Equal("NO_SUCH_POWER",
+            Parse(Tools().PowerDetail(null))["problem"]!["code"]!.GetValue<string>());
+    }
+
+    /// <summary>
+    /// And the same over the wire, because the argument has to survive being deserialized as
+    /// well as being handled — this is the shape a client actually sends.
+    /// </summary>
+    [Fact]
+    public async Task ANullArgumentOverTheWireIsAnsweredToo()
+    {
+        await WithClient(async client =>
+        {
+            var report = await Call(client, CharacterServer.ListOptionsTool,
+                new Dictionary<string, object?> { ["category"] = null });
+
+            Assert.False(report["ok"]!.GetValue<bool>());
+            Assert.Equal("NO_SUCH_CATEGORY", report["problem"]!["code"]!.GetValue<string>());
+        });
+    }
+
+    /// <summary>
     /// The empty-argument case, which every client produces at least once — a model calling a
     /// tool before it has a character to send.
     /// </summary>
@@ -923,10 +965,9 @@ public sealed class McpServerTests
         // is right there and the rulebook does have the Power.
         var caution = report["caution"]!.GetValue<string>();
 
-        if (expected)
-            Assert.Contains("matched on a word inside its description", caution, StringComparison.OrdinalIgnoreCase);
-        else
-            Assert.Contains("closest entries", caution, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            expected ? "matched on a word inside its description" : "closest entries",
+            caution, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

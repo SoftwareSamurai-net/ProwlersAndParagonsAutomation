@@ -158,12 +158,19 @@ public sealed class Judgement
 
         foreach (var selection in sheet.SelectedPowers)
         {
+            // <b>Nullable, whatever the record says.</b> `SelectedPower.PowerId` is declared
+            // non-null and a hand-written character can still arrive with a null in it — that
+            // is the whole reason CharacterSheetJson.Repair exists. Written as a plain check
+            // against the declared type, an inspection reads it as dead code, and deleting it
+            // costs the caller the report rather than one label.
+            var powerId = (string?)selection.PowerId;
+
             byPower.Add(new JsonObject
             {
-                ["power_id"]       = selection.PowerId,
-                ["name"]           = Named(() => selection.PowerId is null
+                ["power_id"]       = powerId,
+                ["name"]           = Named(() => powerId is null
                                         ? null
-                                        : _rules.GetPower(selection.PowerId)?.Name),
+                                        : _rules.GetPower(powerId)?.Name),
                 ["effective_rank"] = Answer(() => _derived.GetEffectiveRank(selection, sheet)),
                 ["hero_points"]    = Answer(() => _costs.PowerCost(selection))
             });
@@ -173,12 +180,14 @@ public sealed class Judgement
 
         foreach (var perk in sheet.Perks)
         {
+            var perkId = (string?)perk.PerkId;
+
             byPerk.Add(new JsonObject
             {
-                ["perk_id"]     = perk.PerkId,
-                ["name"]        = Named(() => perk.PerkId is null
+                ["perk_id"]     = perkId,
+                ["name"]        = Named(() => perkId is null
                                      ? null
-                                     : _rules.GetPerk(perk.PerkId)?.Name),
+                                     : _rules.GetPerk(perkId)?.Name),
                 ["units"]       = perk.Units,
                 ["hero_points"] = Answer(() => _costs.PerkCost(perk))
             });

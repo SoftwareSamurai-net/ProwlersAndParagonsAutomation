@@ -177,7 +177,7 @@ public sealed class McpQuestionPolicyTests
 
         // And the reverse: a tool named in the guide that no longer exists sends an assistant
         // after something that answers "unknown tool" — which reads as the server being broken.
-        var named = new Regex(@"`(?<tool>[a-z_]+)`", RegexOptions.None, TimeSpan.FromSeconds(5))
+        var named = new Regex("`(?<tool>[a-z_]+)`", RegexOptions.None, TimeSpan.FromSeconds(5))
             .Matches(Text)
             .Select(m => m.Groups["tool"].Value)
             .Where(t => t.EndsWith("_character", StringComparison.Ordinal)
