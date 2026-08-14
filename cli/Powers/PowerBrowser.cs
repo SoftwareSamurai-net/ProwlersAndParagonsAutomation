@@ -377,6 +377,9 @@ public sealed class PowerBrowser
             .AddColumn("Cons")
             .AddColumn(new TableColumn("HP Cost").Centered());
 
+        static string Keyed(SelectedProCon choice) =>
+            Markup.Escape(choice.VariantKey is null ? choice.Id : $"{choice.Id}:{choice.VariantKey}");
+
         foreach (var sp in sheet.SelectedPowers)
         {
             var power    = _rules.GetPower(sp.PowerId);
@@ -391,8 +394,10 @@ public sealed class PowerBrowser
                 baseline > 0 ? $"{baseline}d" : "—",
                 power?.MaxRank == 0 ? "—" : $"{sp.PurchasedRanks}d",
                 effective > 0 ? $"[bold]{effective}d[/]" : "[grey]no rank[/]",
-                sp.Pros.Count > 0 ? string.Join(", ", sp.Pros.Select(p => Markup.Escape(p.Id))) : "[grey]—[/]",
-                sp.Cons.Count > 0 ? string.Join(", ", sp.Cons.Select(c => Markup.Escape(c.Id))) : "[grey]—[/]",
+                // The shared formatter, and with the variant key, which this table dropped:
+                // two grades of Charges read as one option listed twice without it.
+                sp.Pros.Count > 0 ? PowerFormatter.ModifierLine(sp.Pros, Keyed) : "[grey]—[/]",
+                sp.Cons.Count > 0 ? PowerFormatter.ModifierLine(sp.Cons, Keyed) : "[grey]—[/]",
                 $"[bold]{cost}[/]");
         }
 

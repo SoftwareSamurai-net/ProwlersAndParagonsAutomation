@@ -1383,4 +1383,62 @@ public sealed class McpServerTests
         Assert.Equal("baseline_half", report["baseline"]!["relationship"]!.GetValue<string>());
         Assert.Equal("toughness", report["baseline"]!["ability"]!.GetValue<string>());
     }
+
+    private static JsonNode Row(JsonNode report, string half, string kind, string id) =>
+        report[half]![kind]!.AsArray().Single(r => r!["id"]!.GetValue<string>() == id)!;
+
+    /// <summary>
+    /// <b>An option that may be bought again says so, rather than leaving it to be inferred
+    /// from English.</b> Blastwave's six energy types are five copies of one Pro; a model with
+    /// no machine-readable signal either under-buys in silence or is refused for something the
+    /// rulebook permits. It sits beside <c>needs_variant</c> because it is the same kind of
+    /// fact — how to shape the selection — and that field is the precedent.
+    /// </summary>
+    [Fact]
+    public void APowerDetailSaysWhichOptionsMayBeBoughtAgain()
+    {
+        var absorption = Parse(Tools().PowerDetail("energy_absorption"));
+
+        Assert.True(Row(absorption, "pros", "own", "also_x")["repeatable"]!.GetValue<bool>());
+        Assert.True(Row(absorption, "pros", "generic", "affect_inanimate")["repeatable"]!.GetValue<bool>());
+
+        // And the ordinary case is stated rather than absent, so the field can be relied on.
+        Assert.False(Row(absorption, "pros", "generic", "armor_piercing")["repeatable"]!.GetValue<bool>());
+
+        // The per-unit Also X entries are not repeatable: there the quantity is the mechanism.
+        Assert.False(Row(Parse(Tools().PowerDetail("drain")), "pros", "own", "also_x")["repeatable"]!.GetValue<bool>());
+    }
+
+    /// <summary>
+    /// <b>A row that contradicts the Power it is listed on has to explain itself.</b> Force
+    /// Field is <c>"range": "self"</c> and legitimately offers the Ranged Pro, whose
+    /// <c>applies_to_ranges</c> reads touch and zone — which a model reading its own tool
+    /// output cannot tell from a bug. The row now carries the Power's printed sentence, and
+    /// the grades it offers are the ones that Power may actually pick.
+    /// </summary>
+    [Fact]
+    public void APowerWhoseOwnTextAllowsAProSaysSoAndNarrowsTheGrades()
+    {
+        var forceField = Parse(Tools().PowerDetail("force_field"));
+
+        Assert.Equal("self", forceField["range"]!.GetValue<string>());
+
+        var zone = Row(forceField, "pros", "generic", "zone_nova");
+        var why  = zone["allowed_by_this_power_text"]!.GetValue<string>();
+
+        Assert.Contains("Zone Pro", why, StringComparison.Ordinal);
+        Assert.Contains("p.29", why, StringComparison.Ordinal);
+
+        // Only the grades this Power may take, so the document cannot offer what
+        // check_character would then refuse.
+        Assert.Equal(["nova_ranged", "zone_ranged"],
+                     zone["grades"]!.AsObject().Select(kv => kv.Key).Order());
+
+        // A Power that reaches the option by its own Range is untouched by any of this.
+        var telekinesis = Parse(Tools().PowerDetail("telekinesis"));
+        var itsZone     = Row(telekinesis, "pros", "generic", "zone_nova");
+
+        Assert.Null(itsZone["allowed_by_this_power_text"]);
+        Assert.Equal(4, itsZone["grades"]!.AsObject().Count);
+    }
 }

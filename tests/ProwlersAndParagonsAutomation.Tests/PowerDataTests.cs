@@ -1,6 +1,7 @@
 using System.Globalization;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Engine.Models;
+using ProwlersAndParagonsAutomation.Sheets;
 
 namespace ProwlersAndParagonsAutomation.Tests;
 
@@ -325,5 +326,50 @@ public sealed class PowerDataTests
             Assert.True(_f.Costs.PowerCost(selection) > 0,
                 $"Power '{p.Id}' has cost_type 'special' with no CostCalculator handler.");
         }
+    }
+
+    private static string Keyed(SelectedProCon c) =>
+        c.VariantKey is null ? c.Id : $"{c.Id}:{c.VariantKey}";
+
+    /// <summary>
+    /// <b>A repeated option prints once with its count.</b> Three options in the rulebook are
+    /// bought again rather than repeated by mistake, and Blastwave's Energy Absorption carries
+    /// five copies of Also X — which printed as "also_x, also_x, also_x, also_x, also_x" on
+    /// the sheet, in the text export and in the wizard's review table.
+    ///
+    /// <para>The collapse itself was covered by nothing: reverting all three call sites to a
+    /// plain join left the whole suite green, because every test around it asserts on
+    /// characters that carry each option once.</para>
+    /// </summary>
+    [Fact]
+    public void ARepeatedOptionPrintsOnceWithItsCount()
+    {
+        Assert.Equal("also_x ×5", PowerFormatter.ModifierLine(
+            Enumerable.Repeat(new SelectedProCon("also_x"), 5), Keyed));
+
+        // First-seen order, so a repeat does not reshuffle the line.
+        Assert.Equal("item, also_x ×2, jamming", PowerFormatter.ModifierLine(
+            [new("item"), new("also_x"), new("jamming"), new("also_x")], Keyed));
+
+        // One copy stays a bare name: the count is only worth printing when there is one.
+        Assert.Equal("item", PowerFormatter.ModifierLine([new SelectedProCon("item")], Keyed));
+
+        Assert.Equal("", PowerFormatter.ModifierLine([], Keyed));
+    }
+
+    /// <summary>
+    /// Two grades of one option are two different things, and must not collapse into each
+    /// other. Charges at 3 per scene and at 1 per scene are priced differently, so a line
+    /// reading "charges ×2" would hide which was taken — and the count would be a lie about a
+    /// figure the reader is checking the character against.
+    /// </summary>
+    [Fact]
+    public void TwoGradesOfOneOptionAreNotCollapsedTogether()
+    {
+        var line = PowerFormatter.ModifierLine(
+            [new("charges", "3_per_scene"), new("charges", "1_per_scene"), new("charges", "3_per_scene")],
+            Keyed);
+
+        Assert.Equal("charges:3_per_scene ×2, charges:1_per_scene", line);
     }
 }

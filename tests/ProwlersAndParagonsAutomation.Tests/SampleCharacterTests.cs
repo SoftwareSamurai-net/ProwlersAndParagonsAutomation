@@ -138,6 +138,37 @@ public sealed class SampleCharacterTests : IClassFixture<RulesFixture>
     }
 
     /// <summary>
+    /// <b>The text export collapses a repeated option too, and its wiring needs its own
+    /// test.</b> The formatter has a unit test and it did not bite: reverting this call site
+    /// to a plain join left it green, because it exercises the function rather than the
+    /// export. Blastwave's five copies of Also X are what this is about.
+    ///
+    /// <para>The JSON export is deliberately not collapsed — one array element per selection
+    /// is the right shape for the machine-readable half, and a reader counts them.</para>
+    /// </summary>
+    [Fact]
+    public void TheTextExportCollapsesARepeatedOptionAndTheJsonDoesNot()
+    {
+        var sheet = Sample("Hero");
+        sheet.SelectedPowers.Add(new SelectedPower("energy_absorption", 6,
+            [new SelectedProCon("also_x"), new SelectedProCon("also_x"), new SelectedProCon("also_x")],
+            []) { SourceId = "super", CostVariantKey = "kinetic" });
+
+        var validation = _validator.Validate(sheet);
+        var stamp      = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+
+        var text = CharacterSheetRenderer.RenderText(sheet, _rules, _costs, _derived, validation, stamp);
+        var json = CharacterSheetRenderer.RenderJson(sheet, _rules, _costs, _derived, validation, stamp);
+
+        Assert.Contains("also_x ×3", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("also_x, also_x", text, StringComparison.Ordinal);
+
+        Assert.Equal(3, System.Text.RegularExpressions.Regex.Matches(
+            json, "\"also_x\"", System.Text.RegularExpressions.RegexOptions.None,
+            TimeSpan.FromSeconds(5)).Count);
+    }
+
+    /// <summary>
     /// The Villain is a legal character built by the Hero rules — Ch.9 is explicit that
     /// nothing about building one differs. Only the front end treats it differently, by
     /// hiding the budget, and nothing on the sheet itself records which it is.

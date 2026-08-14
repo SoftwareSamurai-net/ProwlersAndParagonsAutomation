@@ -136,13 +136,18 @@ public sealed class GmReviewStep : IWizardStep
             var cost      = costs.PowerCost(sp);
             var review    = power?.NeedsReview == true ? " [yellow]*[/]" : "";
 
+            // Through the shared formatter, so a repeated option reads the same here as on the
+            // sheet and in the export — five copies of Also X is "also_x ×5", not five names.
+            static string Keyed(SelectedProCon choice) =>
+                Markup.Escape(choice.VariantKey is null ? choice.Id : $"{choice.Id}:{choice.VariantKey}");
+
             var proConParts = new List<string>();
             if (sp.Pros.Count > 0)
-                proConParts.Add("[green]+" + string.Join(", +", sp.Pros.Select(p =>
-                    Markup.Escape(p.VariantKey is null ? p.Id : $"{p.Id}:{p.VariantKey}"))) + "[/]");
+                proConParts.Add("[green]+" + PowerFormatter.ModifierLine(sp.Pros, Keyed)
+                    .Replace(", ", ", +", StringComparison.Ordinal) + "[/]");
             if (sp.Cons.Count > 0)
-                proConParts.Add("[red]-" + string.Join(", -", sp.Cons.Select(c =>
-                    Markup.Escape(c.VariantKey is null ? c.Id : $"{c.Id}:{c.VariantKey}"))) + "[/]");
+                proConParts.Add("[red]-" + PowerFormatter.ModifierLine(sp.Cons, Keyed)
+                    .Replace(", ", ", -", StringComparison.Ordinal) + "[/]");
 
             table.AddRow(
                 $"{Markup.Escape(name)}{review}",

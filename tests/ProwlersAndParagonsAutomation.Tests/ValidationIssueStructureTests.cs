@@ -385,6 +385,41 @@ public sealed class ValidationIssueStructureTests
                      _f.Costs.PowerCost(twice.SelectedPowers[^1]));
     }
 
+    /// <summary>
+    /// <b>The validator asks the engine which grades a Power may pick, and that wiring needs
+    /// its own test.</b> Force Field is Self range and reaches the Zone Pro through its own
+    /// printed text; the Pro is priced by the base Power's Range, +2 from Ranged and +4 from
+    /// Touch, and the rulebook prices no Self figure — so both were accepted and T-Kay's
+    /// printed character costed two ways depending on which key was typed.
+    ///
+    /// <para>The published Heroes cover the accept path only: T-Kay is recorded with the
+    /// Ranged grade, so <c>EveryPublishedHeroIsALegalCharacter</c> never sees the refusal, and
+    /// reverting the validator to the option's full grade list left the whole suite green.</para>
+    /// </summary>
+    [Fact]
+    public void ASelfPowerIsRefusedTheTouchGradeOfAProItsOwnTextAllows()
+    {
+        static CharacterSheet WithZone(CharacterSheet sheet, string grade)
+        {
+            sheet.SelectedPowers.Add(new SelectedPower("force_field", 6,
+                [new SelectedProCon("zone_nova", grade)], []) { SourceId = "super" });
+            return sheet;
+        }
+
+        var refused = Issue(WithZone(Legal(), "zone_touch"), "PRO_VARIANT_NOT_CHOSEN");
+
+        Assert.Equal("zone_nova", refused.SubjectId);
+        Assert.Equal("force_field", refused.OwnerId);
+
+        // The repair is named, and names only the grades this Power may take.
+        Assert.Equal(["zone_ranged", "nova_ranged"], refused.Options);
+
+        // And the grade it may take is clean, so this is a narrowing rather than a refusal
+        // of the Pro the rulebook prints on T-Kay.
+        Assert.False(Reports(WithZone(Legal(), "zone_ranged"), "PRO_VARIANT_NOT_CHOSEN"));
+        Assert.False(Reports(WithZone(Legal(), "zone_ranged"), "PRO_NOT_APPLICABLE"));
+    }
+
     /// <summary>The same trap on a Power, where the floor is per Power rather than per Trait.</summary>
     [Fact]
     public void TheSameConTwiceOnAPowerIsRefused()

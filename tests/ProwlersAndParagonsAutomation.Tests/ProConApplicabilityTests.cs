@@ -256,18 +256,30 @@ public sealed class ProConApplicabilityTests
     [Fact]
     public void TheExemptionWidensRangeAloneAndReachesNoCon()
     {
-        var degrades = _f.Rules.Cons.Single(c => c.Id == "degrades");
-        Assert.NotEmpty(degrades.AppliesToRankTypes);
+        // <b>A synthetic Pro, because the rulebook has no Pro with a rank-type constraint.</b>
+        // The first version of this test used Degrades, which is a Con — so it was refused by
+        // the Pros-only guard before ordering could matter, and hoisting the exemption back
+        // above both checks left all 3397 tests green. Two assertions that were really one.
+        var rankTypePro = new ProModel
+        {
+            Id = "made_up_pro", Name = "Made Up",
+            AppliesToRanges     = ["ranged"],
+            AppliesToRankTypes  = ["power"]
+        };
 
-        // Rank type still refused, even with the id named — and named as a Pro allowance,
-        // which a Con must not read at all.
         var ranklessButNamed = new PowerModel
         {
             Id = "made_up", Range = "self", RankType = "default",
-            ProsAllowedByOwnText = [new ProAllowanceModel { Id = "degrades", Reason = "test" }]
+            ProsAllowedByOwnText = [new ProAllowanceModel { Id = "made_up_pro", Reason = "test" }]
         };
 
-        Assert.False(ProConApplicability.IsApplicable(degrades, ranklessButNamed));
+        // The Range it names is widened; the rank type it does not name is still refused.
+        Assert.False(ProConApplicability.IsApplicable(rankTypePro, ranklessButNamed));
+        Assert.True(ProConApplicability.IsApplicable(
+            rankTypePro, ranklessButNamed with { RankType = "power" }));
+
+        var degrades = _f.Rules.Cons.Single(c => c.Id == "degrades");
+        Assert.NotEmpty(degrades.AppliesToRankTypes);
 
         // A Con sharing an exempted Pro's id is not carried along by it.
         var conWithAProsId = new ConModel
