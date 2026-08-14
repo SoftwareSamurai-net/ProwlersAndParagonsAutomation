@@ -163,9 +163,9 @@ public sealed class SampleCharacterTests : IClassFixture<RulesFixture>
         Assert.Contains("also_x ×3", text, StringComparison.Ordinal);
         Assert.DoesNotContain("also_x, also_x", text, StringComparison.Ordinal);
 
-        Assert.Equal(3, System.Text.RegularExpressions.Regex.Matches(
+        Assert.Equal(3, System.Text.RegularExpressions.Regex.Count(
             json, "\"also_x\"", System.Text.RegularExpressions.RegexOptions.None,
-            TimeSpan.FromSeconds(5)).Count);
+            TimeSpan.FromSeconds(5)));
     }
 
     /// <summary>
