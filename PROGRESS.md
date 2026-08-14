@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3391 across two projects — 3268 on the engine, 123 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3397 across two projects — 3274 on the engine, 123 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -26,7 +26,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
 | Licence | MIT, in `LICENSE`. Covers this repository only — the game system is © LakeSide Games and no rulebook text is here |
 
-The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **16 of the 20 to exactly their 125 Hero Point budget**. The remaining four are all 1 HP out, each for a recorded reason — see [Close the last four Heroes](#1-close-the-last-four-heroes).
+The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **16 of the 20 to exactly their 125 Hero Point budget**. The remaining four each rebuild 1 HP out, for a recorded reason — see [Close the last four Heroes](#1-close-the-last-four-heroes), where the bound is stated exactly: it holds of what is *modelled*, and Shadow's printed Gear box carries a custom feature that would put him at +2.
 
 ---
 
@@ -95,7 +95,7 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 **What the breakdown did find was two defects, and neither is a Hero Point.** Both made a character printed in the rulebook one this tool refuses — see the completed entry below. They were reachable only because nothing had ever asked the validator about the twenty; `EveryPublishedHeroIsALegalCharacter` now does.
 
-Four residuals inside a 1 HP bound, each with a recorded reason, remains a more honest state than four zeroes.
+Four rebuilds 1 HP out, each with a recorded reason — and one of them, Shadow, 1 HP further out than that once his printed gear is counted — remains a more honest state than four zeroes.
 
 One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a *mimicked* Power. Pros are stored per Power, so there is nowhere for it to live. Eidolon reconciles anyway, so it costs nothing today.
 
@@ -238,6 +238,51 @@ disabling the own-text exemption fails on T-Kay. The first attempt at both mutat
 did not apply** — `perl -pi` edited nothing and the suite stayed green, which looks exactly
 like a fix that holds. `git diff --numstat` is what caught it, which is the check the handover
 already insisted on for the reason it gives.
+
+**Three adversarial reviews, by agents told nothing about the work, and none of them could make
+the change certify an illegal character.** All three verified every rulebook quotation and page
+citation in it, and one re-ran the Ch.2 sweep independently and got the same two hits. What they
+found instead was that the containment was looser than this entry's own first draft claimed:
+
+- **Two of the new paths were dead, proven by mutation rather than argued.** Stubbing the
+  *generic* half of the repeatable lookup to `return false` left the whole suite green — the
+  only repeat test used Also X, which resolves through the Power-specific branch, so Affect
+  Inanimate was covered by nothing. And replacing the data lookup with
+  `power.Id == "force_field" && …` hard-coded also left it green, so the JSON field was
+  behaviourally dead as far as the tests could tell and a second entry added later would have
+  done nothing while they said it was fine. A third mutation loosened the Power-specific branch
+  to "anything repeats" and stacked three of Flight's Levitation Con into a character 2 HP
+  cheaper with an empty error list — the "three Burnouts cancelled a 12d Ability" hole again,
+  one lookup over.
+- **The grade keys were the real defect, and a comment is not an enforcement.** Zone/Nova and
+  Ranged are priced by the base Power's Range; Force Field is Self, which the rulebook does not
+  price. `zone_ranged` (+2) and `zone_touch` (+4) were both accepted with no finding, so the
+  same printed character costed two ways depending on which key was typed, and the only reason
+  T-Kay came out at 124 was that the test fixture happened to pick one. The decision now lives
+  in the data as a per-allowance grade list, intersected with what the option actually prices,
+  and the validator and both editors read it through one seam.
+- **The widening overrode more than it claimed.** It returned early above the rank-type check as
+  well as the Range check, and because the applicability method takes the shared interface, an
+  id in a field named for Pros would have exempted a Con sharing it. Neither was reachable with
+  today's data; neither was prevented. Both are now, with tests that drive the mechanism against
+  a synthetic Power rather than observing the shipped data.
+- **The citation moved out of a free-text `notes` string** — which no code read and no test
+  asserted — into a modelled field a test requires to be present, alongside a check that every
+  id claimed resolves to a real Pro and every grade named is one that Pro prices. The standard
+  for adding an entry was documentation, and documentation is what drifted last time.
+- **The MCP server was serving a document that contradicted itself**: Force Field is
+  `"range": "self"` and its Ranged Pro row said `applies_to_ranges: ["touch","zone"]`, with
+  nothing to distinguish that from a bug. Rows now carry `allowed_by_this_power_text` with the
+  printed sentence, the narrowed grades, and `repeatable` beside `needs_variant` — which was
+  missing, so a model had no machine-readable signal that Also X may be listed five times.
+- **And the sheet printed `Also X, Also X, Also X, Also X, Also X`.** Legal, and useless. One
+  shared formatter now collapses a repeat to `Also X ×5` for the text export and both browser
+  surfaces, so it cannot read one way on the sheet and another on the tab.
+
+The reviews also found eleven things wrong with the written record, including two places where
+this file contradicted itself within five lines about the 1 HP bound, a claim in `SKILL.md` that
+would now teach a model to drop a legal Pro, and a `README.md` bullet still asserting the
+unqualified rule. All corrected here.
 
 ### The other half: four recorded conversations, replayed with the engine run for real
 

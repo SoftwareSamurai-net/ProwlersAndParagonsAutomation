@@ -240,10 +240,10 @@ public static class PrebuiltHeroes
     /// from their 125 Hero Point budget.
     ///
     /// <para>The sheets do not print which package was taken, so it is inferred: for the
-    /// twelve Heroes with a residual of 0 the inference is certain, because exactly one
-    /// package makes the total land on 125 to the point. For the other eight no package
+    /// sixteen Heroes with a residual of 0 the inference is certain, because exactly one
+    /// package makes the total land on 125 to the point. For the other four no package
     /// gets there, so the one recorded is simply the closest, and the residual is the part
-    /// still unexplained — mostly Chapter 6 gear, which is not modelled.</para>
+    /// still unexplained.</para>
     /// </summary>
     public static readonly IReadOnlyDictionary<string, (string Package, int Residual)> BuildByHero =
         new Dictionary<string, (string, int)>
