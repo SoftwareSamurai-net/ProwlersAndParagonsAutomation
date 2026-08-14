@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3397 across two projects — 3274 on the engine, 123 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3404 across two projects — 3280 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -283,6 +283,30 @@ The reviews also found eleven things wrong with the written record, including tw
 this file contradicted itself within five lines about the 1 HP bound, a claim in `SKILL.md` that
 would now teach a model to drop a legal Pro, and a `README.md` bullet still asserting the
 unqualified rule. All corrected here.
+
+**A fourth review was pointed at the fixes rather than the code, and three of the eight did not
+hold while two held halfway.** That is the same proportion this file records from each of the
+last three slices, and the same shape every time: a fix correct on inspection and pinned by
+nothing.
+
+- **The MCP fields were an untested claim.** Setting `repeatable` false in both serialisers and
+  the printed sentence to null left the whole suite green.
+- **The repeat collapse was too.** `PowerFormatter.ModifierLine` had no test, and reverting all
+  three call sites to a plain join was invisible. It now has both — unit tests for the function
+  and wiring tests for the text export and both browser surfaces, because a formatter test
+  exercises the function and not the wiring, which is exactly the distinction that let this
+  through.
+- **"One shared formatter" was untrue of the terminal**, where two surfaces still joined raw and
+  one dropped the variant key, so two grades of Charges read as one option listed twice.
+- **The Range-alone claim was pinned by nothing**: the test's rank-type half used Degrades,
+  which is a Con, so the Pros-only guard refused it before ordering could matter — two
+  assertions that were really one. The rulebook has no Pro carrying a rank-type constraint, so
+  the test now builds one.
+- **`GradesFor` was covered and none of its three consumers was.** The published Heroes exercise
+  the accept path only, since T-Kay is recorded with the grade that is allowed — so the refusal,
+  which is the entire point of the narrowing, was never run. The wizard is still the known CLI
+  gap; what changed there is that its option label no longer quotes a grade the prompt will not
+  offer.
 
 ### The other half: four recorded conversations, replayed with the engine run for real
 

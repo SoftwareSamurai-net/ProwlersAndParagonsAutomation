@@ -12,7 +12,7 @@ replay shipped, and this replaces it.)
 
 ## Where things stand
 
-Forty-one pull requests merged, the most recent being [#42](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/42). 3397 tests, zero warnings at CI strictness, a whole-tree Qodana scan at
+Forty-one pull requests merged, the most recent being [#42](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/42). 3404 tests, zero warnings at CI strictness, a whole-tree Qodana scan at
 zero, MIT in `LICENSE`, and the site live on Cloudflare Pages. The tool creates, prices,
 validates, prints and exports characters through **four** front ends — the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server somebody connects to their own
