@@ -1,4 +1,5 @@
 using System.Globalization;
+using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Engine.Models;
 
 namespace ProwlersAndParagonsAutomation.Sheets;
@@ -9,6 +10,40 @@ namespace ProwlersAndParagonsAutomation.Sheets;
 /// </summary>
 public static class PowerFormatter
 {
+    /// <summary>
+    /// A Power's Pros or Cons as one line, with a repeated option collapsed to "Name ×N".
+    ///
+    /// <para>Three options in the rulebook are bought again rather than repeated by mistake,
+    /// and Blastwave's Energy Absorption carries five copies of Also X — which printed as
+    /// "Also X, Also X, Also X, Also X, Also X". The count is the fact worth printing;
+    /// <c>SelectedProCon</c> has no free-text label, so which five energies they are cannot be
+    /// recovered here either way. Shared by the text export and both browser surfaces so a
+    /// repeat cannot read one way on the sheet and another on the tab.</para>
+    /// </summary>
+    /// <param name="choices">The selections, in the order the character carries them.</param>
+    /// <param name="label">How to name one — the callers differ, so they say.</param>
+    public static string ModifierLine(
+        IEnumerable<SelectedProCon> choices, Func<SelectedProCon, string> label)
+    {
+        ArgumentNullException.ThrowIfNull(choices);
+        ArgumentNullException.ThrowIfNull(label);
+
+        var labelled = choices.Select(label).ToList();
+
+        // First-seen order rather than GroupBy's, so a sheet lists options in the order the
+        // character carries them and a repeat does not reshuffle the line.
+        var parts  = new List<string>();
+        var seen   = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var text in labelled) if (seen.Add(text)) parts.Add(text);
+
+        var counts = labelled
+            .GroupBy(t => t, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+
+        return string.Join(", ",
+            parts.Select(t => counts[t] > 1 ? $"{t} ×{counts[t].ToString(CultureInfo.InvariantCulture)}" : t));
+    }
+
     private static string Range(PowerModel p) => p.Range switch
     {
         "self"    => "Self",

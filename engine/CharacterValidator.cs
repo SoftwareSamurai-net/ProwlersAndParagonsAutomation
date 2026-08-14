@@ -689,15 +689,6 @@ public sealed class CharacterValidator
     }
 
     /// <summary>
-    /// One list of Pros or Cons, on whatever carries it.
-    ///
-    /// <para><b><c>ownerId</c> is an id and <c>ownerName</c> is the printed name</b>, and the two
-    /// are separate on purpose: the id goes on the issue and the name goes in the sentence. The
-    /// issue carried the printed name at first, so a caller told a Pro was wrong on "Super Senses
-    /// — Thermal Vision" had a display string and nothing it could look up. Gear has only a name,
-    /// so for gear the two are the same string.</para>
-    /// </summary>
-    /// <summary>
     /// Whether the rulebook lets this option be taken more than once on the same owner.
     /// A Power's own entry wins over a generic one of the same id, as it does in
     /// <see cref="CostCalculator.ResolveModifiers"/>, so the two cannot disagree.
@@ -712,6 +703,16 @@ public sealed class CharacterValidator
         return isPro ? _rules.GetPro(id)?.Repeatable ?? false
                      : _rules.GetCon(id)?.Repeatable ?? false;
     }
+
+    /// <summary>
+    /// One list of Pros or Cons, on whatever carries it.
+    ///
+    /// <para><b><c>ownerId</c> is an id and <c>ownerName</c> is the printed name</b>, and the two
+    /// are separate on purpose: the id goes on the issue and the name goes in the sentence. The
+    /// issue carried the printed name at first, so a caller told a Pro was wrong on "Super Senses
+    /// — Thermal Vision" had a display string and nothing it could look up. Gear has only a name,
+    /// so for gear the two are the same string.</para>
+    /// </summary>
 
     private bool CheckModifierList(
         IReadOnlyList<SelectedProCon> modifiers,
@@ -749,10 +750,13 @@ public sealed class CharacterValidator
                 continue;
             }
 
-            // <b>Three options in the rulebook are bought again rather than repeated by
-            // mistake</b>, and each says so in its own entry: Also X ("each time you select
-            // this Pro") on the seven Powers that print it, and the generic Affect Inanimate
-            // ("You can apply this Pro multiple times"). The calculator has always charged
+            // <b>Three entries in the rulebook are bought again rather than repeated by
+            // mistake</b>, and each says so in its own text: Also X on Energy Absorption
+            // ("each time you select this Pro") and on Energy Form ("for every 2 extra Hero
+            // Points"), and the generic Affect Inanimate ("You can apply this Pro multiple
+            // times"). <b>Two of the seven Also X entries, not seven</b> — the other five are
+            // priced per unit, where the quantity is the mechanism and a second copy would
+            // charge twice for one thing. The calculator has always charged
             // every copy, which is what puts Blastwave's six energy types on his printed 125
             // — so refusing them here made the two halves of the engine contradict each
             // other about a Hero in the book. Repeatability is data, not a list of ids: see
@@ -841,18 +845,18 @@ public sealed class CharacterValidator
             // Only here, and only for a generic option on a Power. A Pro printed inside a
             // Power's own entry is applicable to that Power by definition, and gear and
             // Abilities are not Powers, so neither has a Range for an option to object to.
+            var option = isPro
+                ? (IGenericProCon?)_rules.GetPro(choice.Id)
+                : _rules.GetCon(choice.Id);
+
             if (power is not null)
             {
-                var generic = isPro
-                    ? (IGenericProCon?)_rules.GetPro(choice.Id)
-                    : _rules.GetCon(choice.Id);
-
-                if (generic is not null && !ProConApplicability.IsApplicable(generic, power))
+                if (option is not null && !ProConApplicability.IsApplicable(option, power))
                 {
                     issues.Add(new(ValidationSeverity.Error,
                         isPro ? "PRO_NOT_APPLICABLE" : "CON_NOT_APPLICABLE",
-                        $"The {kind} '{generic.Name}' cannot be applied to {ownerName}. "
-                        + $"{Applicability(generic)}")
+                        $"The {kind} '{option.Name}' cannot be applied to {ownerName}. "
+                        + $"{Applicability(option)}")
                     {
                         SubjectKind = ValidationSubject.Character,
                         SubjectId   = choice.Id,
@@ -866,19 +870,28 @@ public sealed class CharacterValidator
 
             if (range is null) continue;
 
+            // Not every grade the option prints is on offer here. Zone/Nova and Ranged price
+            // by the base Power's Range, and a Power that reaches them through its own text
+            // has a Range the rulebook does not price — so Force Field, which is Self, offers
+            // the Ranged grades and not the Touch ones. Without this, T-Kay's printed
+            // Force Field 12d (Zone) was accepted at +2 and at +4, with no finding either way.
+            var grades = option is null
+                ? Keys(range.Keys)
+                : ProConApplicability.GradesFor(option, power, range.Keys);
+
             // Priced by grade. Absent and wrong are the same repair — choose one of these —
             // so they are one finding with the keys attached.
-            if (choice.VariantKey is null || !range.ContainsKey(choice.VariantKey))
+            if (choice.VariantKey is null || !grades.Contains(choice.VariantKey, StringComparer.Ordinal))
             {
                 issues.Add(new(ValidationSeverity.Error,
                     isPro ? "PRO_VARIANT_NOT_CHOSEN" : "CON_VARIANT_NOT_CHOSEN",
                     $"{ownerName}'s {kind} '{choice.Id}' is priced by grade, and no grade the "
-                    + $"rulebook lists has been chosen. Pick one of: {Names(range.Keys)}.")
+                    + $"rulebook lists has been chosen. Pick one of: {Names(grades)}.")
                 {
                     SubjectKind = ValidationSubject.Character,
                     SubjectId   = choice.Id,
                     OwnerId     = ownerId,
-                    Options     = Keys(range.Keys)
+                    Options     = grades
                 });
                 resolvable = false;
             }

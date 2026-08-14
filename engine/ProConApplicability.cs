@@ -49,21 +49,62 @@ public sealed class ProConApplicability
         ArgumentNullException.ThrowIfNull(option);
         ArgumentNullException.ThrowIfNull(power);
 
-        // A Power whose own entry tells you to apply a named option overrides the option's
-        // Range rule. Only the Power's printed text can put an id here — see
-        // PowerModel.ProsAllowedByOwnText — and until it did, T-Kay's printed
+        // A Power whose own entry tells you to apply a named option overrides that option's
+        // Range rule — and nothing else. Only the Power's printed text can put an id here
+        // (see PowerModel.ProsAllowedByOwnText); until it could, T-Kay's printed
         // Force Field 12d (Zone) was refused by both editors and reported an error by the
         // validator, so a Hero in the rulebook could not be built in this tool.
-        if (power.ProsAllowedByOwnText.Contains(option.Id, StringComparer.Ordinal))
-            return true;
-
-        if (option.AppliesToRanges.Count > 0 &&
+        //
+        // The first version of this sat above both checks and returned early, which exempted
+        // the rank-type rule as well; and because this method takes the interface, a Con
+        // sharing one of the ids would have been exempted by a field named for Pros. Neither
+        // was reachable with the data as it stands, and neither was prevented.
+        if (!AllowedByOwnText(option, power) &&
+            option.AppliesToRanges.Count > 0 &&
             !string.Equals(power.Range, SpecialRange, StringComparison.Ordinal) &&
             !option.AppliesToRanges.Contains(power.Range, StringComparer.Ordinal))
             return false;
 
         return option.AppliesToRankTypes.Count == 0 ||
                option.AppliesToRankTypes.Contains(power.RankType, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Whether this Power's own printed text names this option. Pros only: the field is named
+    /// for Pros and a Con sharing an id must not ride along on it.
+    /// </summary>
+    private static bool AllowedByOwnText(IGenericProCon option, PowerModel power) =>
+        option is ProModel &&
+        power.ProsAllowedByOwnText.Any(a => string.Equals(a.Id, option.Id, StringComparison.Ordinal));
+
+    /// <summary>
+    /// The grades this Power may pick from for an option priced by grade — every grade the
+    /// option prints, unless the Power's own text allows the option and names which apply.
+    ///
+    /// <para>This exists because the grades of Zone/Nova and Ranged encode a <em>Range</em>,
+    /// and the Powers that reach those options through their own text have a Range the
+    /// rulebook never prices. Force Field is Self: <c>zone_ranged</c> is +2 and
+    /// <c>zone_touch</c> is +4, both were accepted, and T-Kay's printed character therefore
+    /// costed two ways. The validator and both editors ask here so they cannot disagree.</para>
+    /// </summary>
+    public static IReadOnlyList<string> GradesFor(
+        IGenericProCon option, PowerModel? power, IEnumerable<string> printedGrades)
+    {
+        ArgumentNullException.ThrowIfNull(option);
+        ArgumentNullException.ThrowIfNull(printedGrades);
+
+        var all = printedGrades.ToList();
+        if (power is null) return all;
+
+        var allowance = power.ProsAllowedByOwnText
+            .FirstOrDefault(a => option is ProModel &&
+                                 string.Equals(a.Id, option.Id, StringComparison.Ordinal));
+
+        if (allowance is null || allowance.Grades.Count == 0) return all;
+
+        // Intersected rather than returned as recorded, so a grade the rules file names but
+        // the option does not price cannot invent a key.
+        return all.Where(k => allowance.Grades.Contains(k, StringComparer.Ordinal)).ToList();
     }
 
     /// <summary>Generic Pros that may be applied to this Power, in rules-file order.</summary>

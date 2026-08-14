@@ -79,11 +79,17 @@ public record PowerModel
     /// to shield things at a distance, or the Area Pro to shield large areas at a distance"
     /// (Ch.2 p.29) — and T-Kay, printed on p.143, carries Force Field 12d (Zone).</para>
     ///
-    /// <para>An entry here needs a sentence of the Power's own text behind it. It is the
-    /// same shape as Deflection covering both attack types, which the book also states as
+    /// <para>An entry here needs a sentence of the Power's own text behind it, which it
+    /// carries in <see cref="ProAllowanceModel.Reason"/> and a test asserts is present. It is
+    /// the same shape as Deflection covering both attack types, which the book also states as
     /// prose rather than as a marked PRO.</para>
+    ///
+    /// <para><b>Pros only, and Range only.</b> The name says Pros and the applicability check
+    /// enforces it, so an id here cannot quietly exempt a Con that shares it; and it overrides
+    /// the option's Range rule alone, never its rank-type rule. Both were true of the field's
+    /// first version by accident rather than by construction.</para>
     /// </summary>
-    public IReadOnlyList<string> ProsAllowedByOwnText { get; init; } = [];
+    public IReadOnlyList<ProAllowanceModel> ProsAllowedByOwnText { get; init; } = [];
 
     /// <summary>Pros printed inside this Power's own rulebook entry.</summary>
     public IReadOnlyList<PowerProConModel> PowerPros { get; init; } = [];

@@ -335,6 +335,54 @@ public sealed class ValidationIssueStructureTests
         { SourceId = "super", CostVariantKey = "kinetic" });
 
         Assert.True(Reports(repeated, "DUPLICATE_PRO"));
+
+        // <b>And narrow on the Power-specific branch, which is a different lookup.</b> The
+        // check above uses a generic Pro, so it never reaches the branch that reads a Power's
+        // own entry — loosening that branch to "any Power-specific option repeats" left the
+        // whole suite green while three copies of Flight's Levitation Con stacked into a
+        // character 2 Hero Points cheaper with an empty error list. That is the "three
+        // Burnouts cancelled a 12d Ability" hole again, one lookup over.
+        Assert.False(_f.Rules.GetPower("flight")!.PowerCons.Single(c => c.Id == "levitation").Repeatable);
+
+        var stacked = Legal();
+        stacked.SelectedPowers.Add(new SelectedPower("flight", 12, [],
+            [new SelectedProCon("levitation"), new SelectedProCon("levitation")])
+        { SourceId = "super" });
+
+        Assert.True(Reports(stacked, "DUPLICATE_CON"));
+    }
+
+    /// <summary>
+    /// <b>The generic half of the same rule, which nothing exercised.</b> Affect Inanimate is
+    /// the case the rulebook states generically — "You can apply this Pro multiple times to
+    /// affect different types of inanimate beings" (Ch.2 p.48) — and it resolves through a
+    /// different branch from Also X, which is printed inside a Power's own entry.
+    ///
+    /// <para>Stubbing that branch to <c>return false</c> left all 3391 tests green, because
+    /// the only repeat test used a Power-specific option. The picker shows Affect Inanimate's
+    /// own description saying it may be applied multiple times, so the bug it hid was the
+    /// tool refusing what it had just told the player to do.</para>
+    /// </summary>
+    [Fact]
+    public void AGenericProTheRulebookRepeatsIsChargedAgainRatherThanRefused()
+    {
+        Assert.True(_f.Rules.GetPro("affect_inanimate")!.Repeatable);
+
+        var once = Legal();
+        once.SelectedPowers.Add(new SelectedPower("blast", 6,
+            [new SelectedProCon("affect_inanimate")], []) { SourceId = "tech" });
+
+        var twice = Legal();
+        twice.SelectedPowers.Add(new SelectedPower("blast", 6,
+            [new SelectedProCon("affect_inanimate"), new SelectedProCon("affect_inanimate")], [])
+        { SourceId = "tech" });
+
+        Assert.False(Reports(twice, "DUPLICATE_PRO"));
+
+        // +1 Hero Point a copy, and the second one is paid for. Asserting the cost as well as
+        // the finding matters: a fix that made the copies free would satisfy the finding alone.
+        Assert.Equal(_f.Costs.PowerCost(once.SelectedPowers[^1]) + 1,
+                     _f.Costs.PowerCost(twice.SelectedPowers[^1]));
     }
 
     /// <summary>The same trap on a Power, where the floor is per Power rather than per Trait.</summary>
