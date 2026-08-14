@@ -15,6 +15,12 @@ namespace ProwlersAndParagonsAutomation.Engine;
 /// absolutely: 68 of the 141 Powers offered no generic Pro at all, and six Self-range
 /// Powers offered the Ranged Pro, which its own text does not permit.</para>
 ///
+/// <para>One thing does come from the Power: a Power whose own printed text names a generic
+/// option overrides that option's Range rule, through
+/// <see cref="PowerModel.ProsAllowedByOwnText"/>. That is a record of a printed sentence,
+/// not a curated list of suitable options, and the distinction is the whole reason the
+/// removed lists are not creeping back.</para>
+///
 /// <para>Only constraints the rulebook prints for every Power — its Range and its Rank
 /// type — are enforced. The other constraints options state ("Powers that inflict physical
 /// or energy damage") would need per-Power judgements the rulebook does not supply, so they
@@ -42,6 +48,14 @@ public sealed class ProConApplicability
     {
         ArgumentNullException.ThrowIfNull(option);
         ArgumentNullException.ThrowIfNull(power);
+
+        // A Power whose own entry tells you to apply a named option overrides the option's
+        // Range rule. Only the Power's printed text can put an id here — see
+        // PowerModel.ProsAllowedByOwnText — and until it did, T-Kay's printed
+        // Force Field 12d (Zone) was refused by both editors and reported an error by the
+        // validator, so a Hero in the rulebook could not be built in this tool.
+        if (power.ProsAllowedByOwnText.Contains(option.Id, StringComparer.Ordinal))
+            return true;
 
         if (option.AppliesToRanges.Count > 0 &&
             !string.Equals(power.Range, SpecialRange, StringComparison.Ordinal) &&

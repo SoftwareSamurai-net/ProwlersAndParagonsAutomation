@@ -697,6 +697,22 @@ public sealed class CharacterValidator
     /// — Thermal Vision" had a display string and nothing it could look up. Gear has only a name,
     /// so for gear the two are the same string.</para>
     /// </summary>
+    /// <summary>
+    /// Whether the rulebook lets this option be taken more than once on the same owner.
+    /// A Power's own entry wins over a generic one of the same id, as it does in
+    /// <see cref="CostCalculator.ResolveModifiers"/>, so the two cannot disagree.
+    /// </summary>
+    private bool IsRepeatable(string id, bool isPro, PowerModel? power)
+    {
+        var specific = (isPro ? power?.PowerPros : power?.PowerCons)
+            ?.FirstOrDefault(x => x.Id == id);
+
+        if (specific is not null) return specific.Repeatable;
+
+        return isPro ? _rules.GetPro(id)?.Repeatable ?? false
+                     : _rules.GetCon(id)?.Repeatable ?? false;
+    }
+
     private bool CheckModifierList(
         IReadOnlyList<SelectedProCon> modifiers,
         bool isPro,
@@ -733,7 +749,15 @@ public sealed class CharacterValidator
                 continue;
             }
 
-            if (!seen.Add(choice.Id))
+            // <b>Three options in the rulebook are bought again rather than repeated by
+            // mistake</b>, and each says so in its own entry: Also X ("each time you select
+            // this Pro") on the seven Powers that print it, and the generic Affect Inanimate
+            // ("You can apply this Pro multiple times"). The calculator has always charged
+            // every copy, which is what puts Blastwave's six energy types on his printed 125
+            // — so refusing them here made the two halves of the engine contradict each
+            // other about a Hero in the book. Repeatability is data, not a list of ids: see
+            // PowerProConModel.Repeatable and IGenericProCon.Repeatable.
+            if (!seen.Add(choice.Id) && !IsRepeatable(choice.Id, isPro, power))
             {
                 issues.Add(new(ValidationSeverity.Error,
                     isPro ? "DUPLICATE_PRO" : "DUPLICATE_CON",

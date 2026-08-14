@@ -4,6 +4,7 @@
     "name": "Affect Inanimate",
     "cost_modifier": 1,
     "cost_type": "flat",
+    "repeatable": true,
     "applicable_to": ["powers"],
     "description": "Applies to Powers that affect only living beings. The Power can also affect one type of inanimate being (characters with the Inanimate Power from one Source, chosen when purchased). Can be applied multiple times for additional Inanimate Sources.",
     "narrative_constraint": null,

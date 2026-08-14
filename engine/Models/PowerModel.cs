@@ -66,6 +66,25 @@ public record PowerModel
     // applicability inside each generic option instead, so it is derived — see
     // ProConApplicability. The lists that used to live here were this project's guesses.
 
+    /// <summary>
+    /// Generic options this Power's own printed text names, overriding the Range constraint
+    /// the option itself states. Empty for all but a handful of entries.
+    ///
+    /// <para><b>This is not the <c>available_pros</c> list that was removed, and must never
+    /// grow into one.</b> That list was a guess about which options suited a Power, and it
+    /// filtered absolutely. This one records the opposite and much narrower thing: the
+    /// rulebook printing, inside a Power's entry, an instruction to apply a named generic
+    /// option that the option's own Range rule would otherwise forbid. Force Field is Self
+    /// range and its entry reads "Apply the Zone Pro to shield large areas, the Ranged Pro
+    /// to shield things at a distance, or the Area Pro to shield large areas at a distance"
+    /// (Ch.2 p.29) — and T-Kay, printed on p.143, carries Force Field 12d (Zone).</para>
+    ///
+    /// <para>An entry here needs a sentence of the Power's own text behind it. It is the
+    /// same shape as Deflection covering both attack types, which the book also states as
+    /// prose rather than as a marked PRO.</para>
+    /// </summary>
+    public IReadOnlyList<string> ProsAllowedByOwnText { get; init; } = [];
+
     /// <summary>Pros printed inside this Power's own rulebook entry.</summary>
     public IReadOnlyList<PowerProConModel> PowerPros { get; init; } = [];
 

@@ -1238,6 +1238,7 @@
         "name": "Also X",
         "cost_type": "flat",
         "cost_modifier": 2,
+        "repeatable": true,
         "description": "Absorb one extra type of energy per purchase. It cannot be used to add kinetic energy after the fact."
       }
     ],
@@ -1472,6 +1473,7 @@
     "dice_per_rank": 1,
     "description": "A projected field that shields everyone inside it. Protected characters use your rank as a passive defence against physical and energy attacks, and are immune to any attack at or below half your rank.",
     "prerequisite": null,
+    "pros_allowed_by_own_text": ["zone_nova", "area_burst", "ranged"],
     "power_pros": [
       {
         "id": "inviolate",
@@ -1518,7 +1520,8 @@
       "description",
       "pros_cons"
     ],
-    "source_ref": "Ultimate Edition, Ch.2 Powers, p.29"
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.29",
+    "notes": "pros_allowed_by_own_text records the Power's own instruction to apply three generic options its Self range would otherwise forbid: 'Apply the Zone Pro to shield large areas, the Ranged Pro to shield things at a distance, or the Area Pro to shield large areas at a distance.' T-Kay (Ch.8 p.143) is printed with Force Field 12d (Zone). The rulebook prices Zone by the base Power's range and gives no Self figure, so the Ranged price is charged."
   },
   {
     "id": "form_energy",
@@ -1538,6 +1541,7 @@
         "name": "Also X",
         "cost_type": "flat",
         "cost_modifier": 2,
+        "repeatable": true,
         "description": "One extra type of energy you can become, per purchase."
       }
     ],

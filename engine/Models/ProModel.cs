@@ -28,6 +28,9 @@ public record ProModel : IGenericProCon
     public IReadOnlyList<string> AppliesToRankTypes { get; init; } = [];
 
     /// <inheritdoc />
+    public bool Repeatable { get; init; }
+
+    /// <inheritdoc />
     public string? ApplicabilityCaveat { get; init; }
 
     public string Description { get; init; } = "";
