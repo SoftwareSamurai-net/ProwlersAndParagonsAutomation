@@ -206,6 +206,78 @@ public sealed class ProConApplicabilityTests
                         option.AppliesToRanges.Count > 0 || option.AppliesToRankTypes.Count > 0));
     }
 
+    /// <summary>
+    /// Force Field is Self range and its own entry names three generic Pros anyway:
+    /// "Apply the Zone Pro to shield large areas, the Ranged Pro to shield things at a
+    /// distance, or the Area Pro to shield large areas at a distance" (Ch.2 p.29). T-Kay
+    /// (Ch.8 p.143) is printed with Force Field 12d (Zone), so until this held, a Hero in
+    /// the rulebook was refused by both editors and by the validator.
+    /// </summary>
+    [Theory]
+    [InlineData("zone_nova")]
+    [InlineData("area_burst")]
+    [InlineData("ranged")]
+    public void ForceFieldOffersTheProsItsOwnEntryNames(string proId)
+    {
+        var forceField = Power("force_field");
+
+        Assert.Equal("self", forceField.Range);
+        Assert.Contains(_sut.ProsFor(forceField), p => p.Id == proId);
+    }
+
+    /// <summary>
+    /// The exemption is a record of one Power's printed sentence, not a hole in the Range
+    /// rule. Every other Self-range Power is still refused all three, and nothing else in
+    /// the data claims the exemption.
+    /// </summary>
+    [Fact]
+    public void TheOwnTextExemptionReachesNoOtherPower()
+    {
+        var claimed = _f.Rules.Powers.Where(p => p.ProsAllowedByOwnText.Count > 0)
+                                     .Select(p => p.Id)
+                                     .ToList();
+
+        Assert.Equal(["force_field"], claimed);
+
+        // Named separately from the loop below so the failure says which Pro escaped.
+        foreach (var proId in new[] { "zone_nova", "area_burst", "ranged" })
+        {
+            var pro = _f.Rules.Pros.Single(p => p.Id == proId);
+
+            Assert.All(_f.Rules.Powers.Where(p => p.Range == "self" && p.Id != "force_field"),
+                p => Assert.False(ProConApplicability.IsApplicable(pro, p),
+                    $"{proId} escaped onto {p.Id}, which is Self range and says nothing about it."));
+        }
+    }
+
+    /// <summary>
+    /// Repeatability is the rulebook's word in three places and nowhere else. Also X is
+    /// "each time you select this Pro" on Energy Absorption (Ch.2 p.28) and "one additional
+    /// type of energy for every 2 extra Hero Points" on Energy Form (p.30); Affect Inanimate
+    /// is "You can apply this Pro multiple times" (p.48).
+    ///
+    /// <para>The other five Also X entries are deliberately absent: they are priced per
+    /// unit, so the extra Sources are a quantity on one selection and a second copy really
+    /// would charge the same thing twice.</para>
+    /// </summary>
+    [Fact]
+    public void OnlyTheOptionsTheRulebookRepeatsAreRepeatable()
+    {
+        Assert.Equal(["affect_inanimate"],
+            _f.Rules.Pros.Where(p => p.Repeatable).Select(p => p.Id).Order());
+
+        Assert.DoesNotContain(_f.Rules.Cons, c => c.Repeatable);
+
+        var powerSpecific = _f.Rules.Powers
+            .SelectMany(p => p.PowerPros.Concat(p.PowerCons)
+                              .Where(x => x.Repeatable)
+                              .Select(x => $"{p.Id}/{x.Id}"))
+            .Order()
+            .ToList();
+
+        Assert.Equal(["energy_absorption/also_x", "form_energy/also_x"], powerSpecific);
+    }
+
     [Fact]
     public void NoPowerCarriesAnInventedProOrConList()
     {

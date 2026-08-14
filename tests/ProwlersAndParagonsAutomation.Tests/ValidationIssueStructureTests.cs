@@ -298,6 +298,45 @@ public sealed class ValidationIssueStructureTests
         Assert.False(Reports(honest, "DUPLICATE_CON"));
     }
 
+    /// <summary>
+    /// <b>The other half of that rule, which was missing and made a published Hero
+    /// illegal.</b> Three options are bought again rather than repeated by mistake, and each
+    /// says so in its own entry. Blastwave (Ch.8 p.129) prints six energy types on Energy
+    /// Absorption, so five copies of Also X — "You can absorb one extra type of energy …
+    /// each time you select this Pro" (Ch.2 p.28). The calculator charged all five, which is
+    /// exactly what lands him on his printed 125, while the validator returned four errors
+    /// on him.
+    ///
+    /// <para>The repeat is charged, not merely tolerated: a test that only checked the
+    /// finding had gone would pass just as well if the copies had become free.</para>
+    /// </summary>
+    [Fact]
+    public void AProTheRulebookRepeatsIsChargedAgainRatherThanRefused()
+    {
+        var once = Legal();
+        once.SelectedPowers.Add(new SelectedPower("energy_absorption", 6,
+            [new SelectedProCon("also_x")], []) { SourceId = "super", CostVariantKey = "kinetic" });
+
+        var twice = Legal();
+        twice.SelectedPowers.Add(new SelectedPower("energy_absorption", 6,
+            [new SelectedProCon("also_x"), new SelectedProCon("also_x")], [])
+        { SourceId = "super", CostVariantKey = "kinetic" });
+
+        Assert.False(Reports(twice, "DUPLICATE_PRO"));
+
+        // Also X is +2 Hero Points a copy, and the second one is paid for.
+        Assert.Equal(_f.Costs.PowerCost(once.SelectedPowers[^1]) + 2,
+                     _f.Costs.PowerCost(twice.SelectedPowers[^1]));
+
+        // Narrow: a Pro the rulebook does not repeat is still refused on the same Power.
+        var repeated = Legal();
+        repeated.SelectedPowers.Add(new SelectedPower("energy_absorption", 6,
+            [new SelectedProCon("armor_piercing"), new SelectedProCon("armor_piercing")], [])
+        { SourceId = "super", CostVariantKey = "kinetic" });
+
+        Assert.True(Reports(repeated, "DUPLICATE_PRO"));
+    }
+
     /// <summary>The same trap on a Power, where the floor is per Power rather than per Trait.</summary>
     [Fact]
     public void TheSameConTwiceOnAPowerIsRefused()
