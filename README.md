@@ -520,4 +520,8 @@ This project follows [Semantic Versioning](https://semver.org/) and [Conventiona
 
 **MIT** — see [LICENSE](LICENSE). It covers this repository's own code and text and nothing else. The tool is not sold, and any hosted instance is self-hosted.
 
-Prowlers & Paragons is © LakeSide Games, Inc. (2013–2021), by Leonard A. Pimentel and Sean Patrick Fannon. **No rulebook content is redistributed here.** What lives in `data/rules/` is structured metadata — names, costs, ranges, rank types — together with this project's own explanations of what each option does. Descriptions are written from scratch, not copied. The rulebook itself is required to play, and is not included in this repository.
+Prowlers & Paragons is © LakeSide Games, Inc. (2013–2021), by Leonard A. Pimentel and Sean Patrick Fannon. The rulebook itself is required to play and is not included in this repository.
+
+**What lives in `data/rules/` is structured metadata** — names, costs, ranges, rank types — together with this project's own explanations of what each option does. Those descriptions are written from scratch rather than copied, and that has not changed: `data/rules/` is what the deployed site serves.
+
+**`data/rulebook/` is different, and exists by the author's permission.** It holds the printed text of the book, extracted chapter by chapter, so a player at the owner's table can be shown what a rule actually says. It is **not** part of the browser payload — the web project copies `data/rules` and `data/transcripts` into `wwwroot` and nothing else — so the public site does not serve it. If you have forked this repository, that permission is not yours: it was given to this repository's owner for their table.

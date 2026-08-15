@@ -17,12 +17,23 @@ against the table of contents on PDF 4. The book runs printed 5–193 (PDF 8–1
 
 | | |
 |---|---|
-| **Last chapter swept** | 5 (Resolve and Adversity), printed 83–86 |
-| **Last page settled** | printed 86 |
-| **Next to read** | **Chapter 6, printed p.94** — Gadgets, then Vehicles (94) and Headquarters (100). Ch.6 pp.87–93 are already settled: Gear Limits, armour and weapons are free and untracked, and Custom Gear (p.92) is the twelve extracted features |
-| **Then** | Ch.7 pp.105–107 and 109–110 (Toxins on 108 is extracted); Ch.8 pp.111–125 (NPCs, animals, Extras); Ch.9 pp.167–189 |
-| **Also outstanding** | The unread-keys finding below is written up but **not actioned** — it needs a decision |
-| **Updated** | this sweep |
+| **Text extraction** | **DONE for the whole book.** All ten chapters are in `data/rulebook/`, printed pp.5–189, 1303 sections, each carrying its printed page |
+| **Rules extraction** | Ch.1–2 complete, plus Ch.6 custom gear and Ch.7 toxins. Ch.3–5 swept and settled as play rules |
+| **Next to read for *rules*** | **Chapter 6, printed p.94** — Gadgets, then Vehicles (94) and Headquarters (100), which is `PROGRESS.md`'s one acknowledged data gap. Ch.6 pp.87–93 are settled: Gear Limits, armour and weapons are free and untracked, Custom Gear (p.92) is the twelve extracted features |
+| **Then** | Ch.7 pp.105–107 and 109–110 (Toxins on 108 is extracted); Ch.8 pp.111–125 (NPC, animal and Extra stat blocks — GM material, so decide whether it is in scope at all); Ch.9 pp.167–189 |
+| **Reading it is now cheap** | The prose is in `data/rulebook/`, so a sweep no longer needs the PDF — grep the corpus, and open the page only to check a table |
+| **Updated** | the extraction sweep |
+
+## The two stores
+
+| | `data/rules/` | `data/rulebook/` |
+|---|---|---|
+| Holds | mechanics: ids, costs, ranges, rank types, and this project's own descriptions | the book's printed text, chapter by chapter |
+| Read by | the engine — every cost and every verdict | nothing yet; an account-gated reader is planned after the redesign |
+| Served publicly | **yes**, copied into `wwwroot` by the web csproj | **no**, deliberately excluded |
+| On a disagreement | wins | loses |
+
+**The corpus exists by the author's permission to this repository's owner**, which is what changed the rule that no rulebook wording may appear here. That permission does not travel with a fork.
 
 ## Status vocabulary
 
