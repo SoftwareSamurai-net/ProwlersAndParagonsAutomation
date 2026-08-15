@@ -400,7 +400,9 @@ Power descriptions are **original text written from the rulebook entry**, not ru
 
 They are held to the mechanics they sit beside: `PowerDescriptionTests` fails a rankless Power whose description claims anything scales per rank, which is how the original set went wrong on 44 of the 46 rankless Powers.
 
-Data coverage is everything character creation needs: chapters 1–2 (Basics and Characters) in full, plus Ch.6's twelve custom gear features and Ch.7's three toxin Pros and Cons. Chapters 3, 4, 5 and 7 are play rules, 8 is the pre-built characters — transcribed in the test suite, where they verify the engine — and Ch.9 builds Villains by the Hero rules, which is why the mode is presentation only. The one genuine gap is Ch.6's vehicles and headquarters; see [PROGRESS.md](PROGRESS.md).
+Data coverage is everything character creation needs: chapters 1–2 (Basics and Characters) in full, plus Ch.6's twelve custom gear features and Ch.7's three toxin Pros and Cons. Chapters 3, 4, 5 and the rest of 7 are play rules; Ch.9 builds Villains by the Hero rules, which is why the mode is presentation only. Ch.8 is broader than it looks — NPCs and animals from p.111, Extras from p.120, and the twenty pre-built Heroes and Villains from p.126, of which only the last are transcribed, in the test suite where they verify the engine. The one genuine gap is Ch.6's vehicles and headquarters.
+
+Which pages have actually been read, and which are deliberately skipped, is tracked page by page in [docs/RULEBOOK-COVERAGE.md](docs/RULEBOOK-COVERAGE.md); open work is in [PROGRESS.md](PROGRESS.md).
 
 ---
 
