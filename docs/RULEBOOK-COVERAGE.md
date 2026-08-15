@@ -120,17 +120,39 @@ now point at a single source. A prose copy of the derived-stat formulas inside a
 the same thing — a second statement of a rule, in a file whose entire premise is that a data
 edit contradicting the book fails a test. This one cannot fail a test, because it is not loaded.
 
-**Recommendation, not yet actioned** — it is a decision about rules data rather than a defect
-to fix silently:
+### Actioned, and the guard found four more
 
-1. **Delete `derived_characteristics` and `trait_costs`.** Both restate what the engine and the
-   other rules files already say authoritatively, and one has already rotted. The authority for
-   the formulas is `DerivedStatsCalculator` plus its tests and `CLAUDE.md`'s table.
-2. **Keep `advancement` and `global_caps`, and model them**, so a test can hold them to the book
-   — they are real rulebook content this tool does not yet use, which is a different thing from
-   a stale duplicate.
-3. Either way, add a test that **every top-level key in every rules file is read by some model**,
-   so the next unread block is caught when it is added rather than years later.
+1. **`derived_characteristics` and `trait_costs` are deleted.** Both restated what the engine and
+   the other rules files already say authoritatively, and one had rotted.
+   `RulesFileCoverageTests.TheDerivedStatFormulasAreNotRestatedInTheRulesData` asserts they do
+   not come back.
+2. **`advancement` and `global_caps` are modelled and tested** against Ch.2 pp.52 and 62. Nothing
+   consumes either — this tool builds a starting character — which is exactly why they needed a
+   test rather than a consumer. `global_caps` also gained the **converse** optional rule the
+   sweep found in the same passage: a GM may require every damaging Trait at or above a chosen
+   rank to carry Overkill or Weak, "never lower than 9d". Only the first half had been recorded.
+3. **`RulesFileCoverageTests` now deserializes every rules file with
+   `JsonUnmappedMemberHandling.Disallow`**, so a key no model reads fails a test by name. The
+   engine's own reader stays lenient on purpose: a rules file gaining a field should be a failing
+   test, never a broken site.
+
+**On its first run that guard failed on four more files**, none of which anybody had looked at:
+
+| File | Unread | Now |
+|---|---|---|
+| `talents.json` | `special_use` — Medicine treats wounds on a Hard (2) roll, Technology repairs objects, both 1 point per net success | modelled as `TalentSpecialUse` |
+| `pros.json` | `source_ref` | modelled — so a Pro's page citation was unreadable, and no test could check one |
+| `cons.json` | `source_ref` | modelled, same |
+| `creation_rules.json` | `trait_rank_limits.maximum` and `flaw_rules.notes` | modelled |
+
+### One thing this corrected, which was written down wrong
+
+An earlier draft of `docs/HANDOVER.md` said the **ABILITY RANKS and TALENT RANKS tables** (Ch.2
+pp.17–18 — Impaired/Undeveloped/…, Clueless/Unskilled/…) were "not in `data/rules/` at all" and
+told the next session to extract them. **They are there and they are read**: `rank_guide` on
+every entry in `abilities.json` and `talents.json`, bound to `AbilityModel.RankGuide` and
+`TalentModel.RankGuide`. The strict guard is what proved it, by *not* failing on them. Nothing
+needs extracting; what is missing is that no front end prints the word beside the rank.
 
 ---
 

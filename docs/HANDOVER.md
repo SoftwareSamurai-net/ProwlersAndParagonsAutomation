@@ -12,7 +12,7 @@ replay shipped, and this replaces it.)
 
 ## Where things stand
 
-Forty-one pull requests merged, the most recent being [#42](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/42). 3404 tests, zero warnings at CI strictness, a whole-tree Qodana scan at
+Forty-one pull requests merged, the most recent being [#42](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/42). 3419 tests, zero warnings at CI strictness, a whole-tree Qodana scan at
 zero, MIT in `LICENSE`, and the site live on Cloudflare Pages. The tool creates, prices,
 validates, prints and exports characters through **four** front ends — the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server somebody connects to their own
@@ -53,13 +53,17 @@ What it does that this app does not, in rising order of cost:
 4. **Every derived stat shows its formula** under the figure. `StatBlock` already takes a `Sub`.
    Teaching the rule is the point of running the real engine in the browser, and this is nearly
    free.
-5. **The rank descriptor beside the rank** — `1d Impaired`, `1d Clueless`. **That half is not
-   presentation at all**: Ch.2 prints an ABILITY RANKS table on printed p.17 (Impaired,
-   Undeveloped, Developed, Noteworthy, Exceptional, Peak) and a TALENT RANKS table on p.18
-   (Clueless, Unskilled, Proficient, Advanced, Expert, Master), both stopping at 6d because above
-   that is superhuman. This project does not have them in `data/rules/` at all. Extract them,
-   lock them with a test the way every other printed table is locked, and then the descriptor is
-   sayable.
+5. **The rank descriptor beside the rank** — `1d Impaired`, `1d Clueless`. Ch.2 prints an
+   ABILITY RANKS table on printed p.17 (Impaired, Undeveloped, Developed, Noteworthy,
+   Exceptional, Peak) and a TALENT RANKS table on p.18 (Clueless, Unskilled, Proficient,
+   Advanced, Expert, Master), both stopping at 6d because above that is superhuman.
+
+   **This is presentation only, and an earlier draft of this file said otherwise.** Both tables
+   are already extracted, as `rank_guide` on every entry in `abilities.json` and `talents.json`,
+   and both are already read — `AbilityModel.RankGuide` and `TalentModel.RankGuide`. Nothing is
+   missing from the data. What is missing is that **no front end shows them**: the editors print
+   a bare `4d`, and the rulebook's word for a 4d Ability is "Noteworthy". So this is a rendering
+   change against data that has been sitting there the whole time. Do not go extracting it.
 
 **The palette is in scope and it is the part that can go wrong quietly.** `theme.css`'s contrast
 figures are measured and commented, and the print block at the bottom restates *every* token —
