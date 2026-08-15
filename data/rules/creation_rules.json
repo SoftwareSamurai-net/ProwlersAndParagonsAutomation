@@ -11,7 +11,7 @@
     "choose_tier": "GM sets the power level for the campaign. Determines Hero Points and Trait Cap.",
     "buy_characteristics": "Spend Hero Points on Abilities, Talents, Powers, and Perks. Select Flaws (min 1, max 3 at creation). Step 2 in the rulebook.",
     "choose_gear": "Pick mundane gear — anything the GM considers reasonable. No Hero Point cost for mundane gear.",
-    "calculate_derived": "Compute Edge, Health, and Resolve using the formulas below.",
+    "calculate_derived": "Compute Edge, Health and Resolve. The formulas belong to the engine, in DerivedStatsCalculator, and are deliberately not restated here: the prose copy this file used to carry drifted out of step with the code and had to be deleted.",
     "finishing_touches": "Narrative elements: name, description, motivation, quote, connections, details, origin.",
     "gm_review": "Review character with GM for concept and rules fit."
   },
@@ -44,7 +44,7 @@
   "trait_rank_limits": {
     "minimum": 1,
     "maximum": "trait_cap (set by tier)",
-    "notes": "No Trait can have a rank lower than 1d or higher than the game's Trait Cap. No Power can ever cost less than 1 Hero Point (or 1 HP per 2 ranks) regardless of Cons applied."
+    "notes": "No Trait can have a rank lower than 1d or higher than the game's Trait Cap. No Power can ever cost less than 1 Hero Point (or 1 HP per 2 ranks) regardless of Cons applied. A Foe uses half the Health a Hero would have from the same Traits (Ch.2 p.60) — recorded because it is a printed rule, not applied, because this tool builds Heroes and is never asked for a Foe."
   },
   "flaw_rules": {
     "min_at_creation": 1,

@@ -29,12 +29,15 @@ public sealed class RulebookCorpusTests
 
     private sealed record Section(string Heading, int PrintedPage, string Text);
 
+    // Cached rather than constructed per call: CA1869, which is an error under
+    // ContinuousIntegrationBuild and so does not show up in a local `dotnet test`.
+    private static readonly JsonSerializerOptions SnakeCase =
+        new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
+
     private static Chapter[] All() =>
         Directory.GetFiles(CorpusPath, "*.json")
             .OrderBy(f => f, StringComparer.Ordinal)
-            .Select(f => JsonSerializer.Deserialize<Chapter>(
-                File.ReadAllText(f),
-                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower })
+            .Select(f => JsonSerializer.Deserialize<Chapter>(File.ReadAllText(f), SnakeCase)
                 ?? throw new InvalidOperationException($"{f} is not readable as a chapter."))
             .ToArray();
 

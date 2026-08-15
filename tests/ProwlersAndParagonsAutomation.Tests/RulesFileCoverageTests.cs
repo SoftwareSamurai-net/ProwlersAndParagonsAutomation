@@ -100,13 +100,129 @@ public sealed class RulesFileCoverageTests
     [Fact]
     public void TheDerivedStatFormulasAreNotRestatedInTheRulesData()
     {
+        // <b>Scanned for the formulas themselves, not for the two key names they used to sit
+        // under.</b> A review defeated the first version of this test in one move: several
+        // properties here are IReadOnlyDictionary&lt;string, string&gt;, which absorbs any key at
+        // all, so adding sequence_notes."derived_stat_formulas" — carrying the same rotted
+        // "Resolve adds Determination ranks" sentence — reintroduced the exact regression this
+        // test exists to prevent and left the whole suite green.
+        string[] tells =
+        [
+            "derived_characteristics", "trait_costs",
+            "Determination ranks", "per rank of Determination",
+            "Perception + max", "highestRelevantRank", "TraitCap -"
+        ];
+
         foreach (var fileName in RulesRepository.DataFileNames)
         {
             var json = File.ReadAllText(Path.Combine(RulesFixture.DataPath, fileName));
 
-            Assert.DoesNotContain("derived_characteristics", json, StringComparison.Ordinal);
-            Assert.DoesNotContain("trait_costs", json, StringComparison.Ordinal);
+            foreach (var tell in tells)
+                Assert.DoesNotContain(tell, json, StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    /// <summary>
+    /// <b>A Foe has half a Hero's Health, and deleting the prose block nearly lost it.</b> The
+    /// <c>derived_characteristics</c> block that was removed carried
+    /// <c>"foe_modifier": "Foes use half the normal Health value"</c> — a real rule (Ch.2 p.60,
+    /// "When creating a Foe, use half this value"), and the only statement of it anywhere in
+    /// the repository. The deletion was justified on the grounds that everything in the block
+    /// was said authoritatively elsewhere, and for this one key that was simply untrue.
+    ///
+    /// <para>It is recorded on the tier rather than restored to a prose blob, and it is
+    /// deliberately not applied: this tool builds Heroes, and nothing asks it for a Foe.</para>
+    /// </summary>
+    [Fact]
+    public void TheFoeHealthRuleSurvivedTheDeletionOfTheProseBlock()
+    {
+        var notes = _f.Rules.CreationRules.TraitRankLimits.Notes
+                  + " " + _f.Rules.CreationRules.GlobalCaps.Notes
+                  + " " + _f.Rules.CreationRules.Advancement.SpendingNotes;
+
+        Assert.Contains("Foe", notes, StringComparison.Ordinal);
+        Assert.Contains("half", notes, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// <b>Recording a sentence is not the same as recording it correctly.</b> Four
+    /// <c>Assert.Contains</c> calls on "3 ranks", "6 ranks", "9d" and "18d" cannot see how the
+    /// four are paired — a review swapped the thresholds, so the text read "3 ranks at 18d, 6
+    /// ranks at 9d", and every test stayed green. That is the single likeliest transcription
+    /// error for this sentence, and it was the one thing the test could not catch.
+    /// </summary>
+    [Fact]
+    public void TheOptionalCapRulePairsEachAllowanceWithTheRightThreshold()
+    {
+        var text = _f.Rules.CreationRules.GlobalCaps.OverkillWeakException;
+
+        var three = text.IndexOf("3 ranks", StringComparison.Ordinal);
+        var six   = text.IndexOf("6 ranks", StringComparison.Ordinal);
+        var nine  = text.IndexOf("9d", StringComparison.Ordinal);
+        var teen  = text.IndexOf("18d", StringComparison.Ordinal);
+
+        Assert.All(new[] { three, six, nine, teen }, i => Assert.True(i >= 0));
+
+        // Ch.2 p.52: 3 ranks goes with 9d and 6 ranks with 18d, in that order.
+        Assert.True(three < nine && nine < six && six < teen,
+            $"The allowances and thresholds are paired wrongly: \"{text}\"");
+    }
+
+    /// <summary>
+    /// The two Talents whose entries print a mechanical use, with their actual numbers rather
+    /// than a not-null check. Changing Medicine's threshold from Hard (2) to 9 passed the whole
+    /// suite: the property was modelled, which silenced the unread-field guard, and then
+    /// nothing held the value to the page. An unused property that satisfies the guard and
+    /// asserts nothing is the failure the guard's own docstring warns about.
+    /// </summary>
+    [Fact]
+    public void TheTwoTalentSpecialUsesMatchTheRulebook()
+    {
+        var medicine = _f.Rules.GetTalent("medicine")!.SpecialUse;
+        Assert.NotNull(medicine);
+        Assert.Equal("treat_wounds", medicine.Action);
+        Assert.Equal(2, medicine.Threshold);          // Hard
+        Assert.Equal(3, medicine.ThresholdSelf);      // Daunting, treating yourself
+        Assert.Equal(1, medicine.DamageHealedPerNetSuccess);
+
+        var technology = _f.Rules.GetTalent("technology")!.SpecialUse;
+        Assert.NotNull(technology);
+        Assert.Equal("repair_object", technology.Action);
+        Assert.Equal(2, technology.Threshold);
+        Assert.Equal(1, technology.DamageRepairedPerNetSuccess);
+
+        // The other ten print no such use, and inventing one for them would be a rule.
+        Assert.Equal(2, _f.Rules.Talents.Count(t => t.SpecialUse is not null));
+    }
+
+    /// <summary>
+    /// <b>The printed rank tables, locked like every other printed table.</b> They were
+    /// extracted long ago and read into <c>RankGuide</c>, but nothing asserted their values —
+    /// so an invented <c>"0d"</c> entry passed the whole suite, and the documents had begun
+    /// telling the next session this table was finished business.
+    /// </summary>
+    [Fact]
+    public void ThePrintedRankTablesAreWhatTheRulebookPrints()
+    {
+        string[] abilities = ["Impaired", "Undeveloped", "Developed", "Noteworthy", "Exceptional", "Peak"];
+        string[] talents   = ["Clueless", "Unskilled", "Proficient", "Advanced", "Expert", "Master"];
+
+        // 1d to 6d and nothing else: the tables stop at 6d because above that is superhuman.
+        string[] ranks = ["1d", "2d", "3d", "4d", "5d", "6d"];
+
+        Assert.All(_f.Rules.Abilities, a =>
+        {
+            Assert.Equal(ranks, a.RankGuide.Keys.OrderBy(k => k, StringComparer.Ordinal));
+            Assert.All(ranks.Index(), pair =>
+                Assert.StartsWith(abilities[pair.Index], a.RankGuide[pair.Item], StringComparison.Ordinal));
+        });
+
+        Assert.All(_f.Rules.Talents, t =>
+        {
+            Assert.Equal(ranks, t.RankGuide.Keys.OrderBy(k => k, StringComparer.Ordinal));
+            Assert.All(ranks.Index(), pair =>
+                Assert.StartsWith(talents[pair.Index], t.RankGuide[pair.Item], StringComparison.Ordinal));
+        });
     }
 
     /// <summary>
