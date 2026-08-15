@@ -65,6 +65,13 @@ What it does that this app does not, in rising order of cost:
    a bare `4d`, and the rulebook's word for a 4d Ability is "Noteworthy". So this is a rendering
    change against data that has been sitting there the whole time. Do not go extracting it.
 
+6. **The long lists need searching, and this is real user feedback rather than a guess.** The
+   report from the table is that scrolling the big lists is annoying — Pros, Cons, Perks, Flaws
+   and Powers are all pick-from-a-list surfaces, and Powers alone is 141 entries. `OptionList`
+   is one component, so a filter box belongs in it once rather than in five tabs. Treat this as
+   a requirement of the redesign, not a nice-to-have: it is the only item here that came from
+   somebody actually using the thing.
+
 **The palette is in scope and it is the part that can go wrong quietly.** `theme.css`'s contrast
 figures are measured and commented, and the print block at the bottom restates *every* token —
 one left out keeps its screen value through the cascade, which is exactly how a Villain sheet

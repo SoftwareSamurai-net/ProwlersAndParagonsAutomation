@@ -1,0 +1,2057 @@
+{
+  "chapter": 8,
+  "title": "Friends and Foes",
+  "printed_pages": [
+    111,
+    166
+  ],
+  "source_ref": "Ultimate Edition, Ch.8 Friends and Foes, pp.111-166",
+  "extraction": "Text extracted from the publisher's PDF, two-column aware. Headings are detected by case and length, so a mis-detected heading is a structural error rather than a content one — the prose beneath it is verbatim.",
+  "sections": [
+    {
+      "heading": "FRIENDS",
+      "printed_page": 111,
+      "text": "the rules Villains. entries fantasy You and your fellow Heroes aren’t the only ones walking around people, animals, and of course enemies. This chapter includes characters. It also provides several fully fleshed-out Heroes and your needs, as discussed below. You can also reskin these something else. For example, if the Heroes get transported to a orc, ogre, or troll."
+    },
+    {
+      "heading": "NON-PLAYER CHARACTERS",
+      "printed_page": 111,
+      "text": "As mentioned earlier, NPCs include all characters run by the GM, whether enemies, allies, or somewhere in between. As characters run the by GM, NPCs can bend or break the rules of the game. The GM has this leeway because, unlike Heroes, these characters aren’t avatars for interacting with the game world. NPCs are tools GMs uses when running a game. They exist only to interact with the Heroes, serving as encounters, obstacles, puzzles, and dramatic foils. These characters are a means to an end, the end being having fun at the table. As a result, the GM has a great deal of flexibility when creating and running NPCs. The following rules are specific examples of this."
+    },
+    {
+      "heading": "HEALTH",
+      "printed_page": 111,
+      "text": "The rules for calculating Health are guidelines rather than hard-and-fast rules when dealing with NPCs. Although the rules provide a concrete idea of what each character’s Health should be, GMs can change these numbers however they wish to suit their games. The distinction between Villains and Foes already highlights this flexibility, but GMs are well within their rights to take things farther when dealing with specific characters. For example, a GM may want to create a giant skyscraper-sized kaiju with 20d Might, 20d Toughness, and 60 Health. Conversely, a GM might want to create a group of super-tough flunkies with 20d Might, 20d Toughness, and 5 Health. Both options are perfectly valid."
+    },
+    {
+      "heading": "SPECIAL POWERS",
+      "printed_page": 111,
+      "text": "NPCs will occasionally have Special Powers, unique abilities that bend or break the rules of the game. Special Powers are often regular Powers that work in some unique way that would be unbalanced in the hands of a Hero. They can also represent abilities that don’t exist in the game, things these characters can just do (with or without making a challenge roll). They also sometimes represent special abilities that are easier to handle in narrative terms than with rules. Whatever the case, GMs should feel free to grant their NPCs whatever unique Special Powers they deem appropriate."
+    },
+    {
+      "heading": "CHAPTER 8",
+      "printed_page": 111,
+      "text": ""
+    },
+    {
+      "heading": "AND FOES",
+      "printed_page": 111,
+      "text": "game world. The world is filled with ordinary and not-so-ordinary for dealing with NPCs and provides entries for a variety of stock Feel free to use these characters as-is or modify them to suit as required, using the stat blocks as presented but calling them realm, there’s no reason you can’t use the Caveman as an"
+    },
+    {
+      "heading": "SUPER MOOKS",
+      "printed_page": 111,
+      "text": "If you find yourself in a pinch as GM and don’t have the stat block you need for a particular enemy, you can always use what we like to call Super Mooks. Super Mooks are simple characters you can create on the fly. To create a Super Mook, give the character a Threat rank, just like you would for a Minion. Use this Threat rank for most purposes and half this rank for anything the character isn’t supposed to be good at doing. Then give the character one or more specialties (whatever the character does especially well) and give each a Trait rank. That’s it; your Super Mook is done. Jennifer needs to create a fire-wielding Villain on the fly while running a game. Okay, no problem. She first gives him a 6d Threat rank, which means he effectively has 6d in most Traits and 3d in anything he isn’t particularly good at. She decides that means he has 9 Edge (splitting the difference between the Abilities used to calculate Edge) and 6 Health. Last, she gives him one specific 10d Trait rank for his fire powers, which he’ll use to make attack and defense rolls. And a flame-wielding Super Mook is born."
+    },
+    {
+      "heading": "ANIMALS",
+      "printed_page": 111,
+      "text": "The following section includes several common and not-so- common animals. Feel free to reskin or modify them to create alien creatures, magical beasts, and whatever else you need. A few notes about these entries: (a) animals don’t have Talents, Perks, or gear, (b) all animals have the Beast and Unusual Shape Flaws, (c) heavy animals have the Heavy or Very Heavy Flaw (whichever applies), and (d) aquatic animals have the Severe Requirement (Aquatic) Flaw. Most animal Traits are Innate, but anything goes when it comes to magical or extradimensional critters. Last, these entries include suggested Threat ranks and other relevant information for using these characters as Minions. 111111"
+    },
+    {
+      "heading": "ALLIGATOR",
+      "printed_page": 112,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 112,
+      "text": "Edge 6 Health 5"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 112,
+      "text": "Agility 2d Perception 4d Intellect 1d Toughness 5d Might 5d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 112,
+      "text": "Armor 5d Blending (Limited: swamp camouflage) Running 4d Strike (Physical) 7d Super Senses (Ultra Vision) Swimming 3d (Lungs) as mInIons Threat 5d (Animals)"
+    },
+    {
+      "heading": "ALLOSAURUS",
+      "printed_page": 112,
+      "text": "comBat Edge 6 Health 8 aBIlItIes Agility 2d Perception 4d Intellect 2d Toughness 8d Might 8d Willpower 3d poWers Armor 5d Running 4d Strike (Physical) 10d Super Senses (Acute Smell 10d, Tracking Scent) as mInIons Threat 9d (Animals)"
+    },
+    {
+      "heading": "APATOSAURUS",
+      "printed_page": 112,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 112,
+      "text": "Edge 5 Health 12"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 112,
+      "text": "Agility 1d Perception 4d Intellect 1d Toughness 12d Might 12d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 112,
+      "text": "Armor 8d Strike (Physical) 10d (Reach, Sweep) Super Senses (Acute Smell 10d) as mInIons Threat 10d (Animals) 111122"
+    },
+    {
+      "heading": "BADGER",
+      "printed_page": 112,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 112,
+      "text": "Edge 8 Health 4"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 112,
+      "text": "Agility 2d Perception 6d Intellect 2d Toughness 4d Might 3d Willpower 4d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 112,
+      "text": "Resistance 8d Running 4d Strike (Physical) 5d Super Senses (Acute Smell 10d, Tracking Scent) as mInIons Threat 3d (Animals)"
+    },
+    {
+      "heading": "BAT",
+      "printed_page": 112,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 112,
+      "text": "Edge Health 1"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 112,
+      "text": "Agility 7d Perception 4d Intellect 0d Toughness 0d Might 0d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 112,
+      "text": "Flight 4d (Wings) Radar Super Senses (Enhanced Hearing) Wall-Crawling 1d (Conditional: rough surfaces) as mInIons Threat n/a (Animals)"
+    },
+    {
+      "heading": "BEAR",
+      "printed_page": 112,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 112,
+      "text": "Edge 8 Health 6"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 112,
+      "text": "Agility 2d Perception 6d Intellect 2d Toughness 6d Might 6d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 112,
+      "text": "Running 4d Strike (Physical) 8d Super Senses (Acute Smell 10d, Tracking Scent) as mInIons Threat 6d (Animals)"
+    },
+    {
+      "heading": "BEAR, GRIZZLY",
+      "printed_page": 113,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 113,
+      "text": "Edge 8 Health 7"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 113,
+      "text": "Agility 2d Perception 6d Intellect 2d Toughness 7d Might 7d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 113,
+      "text": "Running 4d Strike (Physical) 9d Super Senses (Acute Smell 10d, Tracking Scent) as mInIons Threat 7d (Animals)"
+    },
+    {
+      "heading": "BUFFALO/BULL",
+      "printed_page": 113,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 113,
+      "text": "Edge 5 Health 8"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 113,
+      "text": "Agility 1d Perception 4d Intellect 1d Toughness 8d Might 7d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 113,
+      "text": "Running 4d Strike (Physical) 8d Super Senses (Acute Smell 8d) as mInIons Threat 7d (Animals)"
+    },
+    {
+      "heading": "CAMEL",
+      "printed_page": 113,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 113,
+      "text": "Edge 6 Health 6"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 113,
+      "text": "Agility 2d Perception 4d Intellect 2d Toughness 6d Might 5d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 113,
+      "text": "Immunity (Life Support) (Limited: can go for long periods without eating or drinking) Running 4d Super Senses (Acute Smell 10d) as mInIons Threat 2d (Animals)"
+    },
+    {
+      "heading": "CHEETAH",
+      "printed_page": 113,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 113,
+      "text": "Edge 12 Health 4"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 113,
+      "text": "Agility 6d Perception 6d Intellect 2d Toughness 4d Might 4d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 113,
+      "text": "Running 5d Strike (Physical) 5d Super Senses (Enhanced Hearing, Ultra Vision) as mInIons Threat 4d (Animals)"
+    },
+    {
+      "heading": "CROCODILE",
+      "printed_page": 113,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 113,
+      "text": "Edge 6 Health 6"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 113,
+      "text": "Agility 2d Perception 4d Intellect 1d Toughness 6d Might 6d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 113,
+      "text": "Armor 6d Blending (Limited: river camouflage) Running 4d Strike (Physical) 8d Super Senses (Ultra Vision) Swimming 3d (Lungs) as mInIons Threat 6d (Animals)"
+    },
+    {
+      "heading": "DOLPHIN",
+      "printed_page": 113,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 113,
+      "text": "Edge Health 6"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 113,
+      "text": "Agility 5d Perception 6d Intellect 3d Toughness 6d Might 5d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 113,
+      "text": "Radar (Sonar) Swimming 4d (Lungs) as mInIons Threat 2d (Animals) 111133"
+    },
+    {
+      "heading": "EAGLE/HAWK",
+      "printed_page": 114,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 114,
+      "text": "Edge 12 Health 2"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 114,
+      "text": "Agility 8d Perception 4d Intellect 1d Toughness 1d Might 1d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 114,
+      "text": "Flight 5d (Wings) Strike (Physical) 5d (Weak) Super Senses (Acute Vision 10d, Telescopic Vision) as mInIons Threat 3d (Animals)"
+    },
+    {
+      "heading": "ELEPHANT/MAMMOTH",
+      "printed_page": 114,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 114,
+      "text": "Edge 7 Health 10"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 114,
+      "text": "Agility 1d Perception 4d Intellect 3d Toughness 10d Might 10d Willpower 4d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 114,
+      "text": "Armor 7d Running 4d Strike (Physical) 12d Super Senses (Acute Smell 12d, Enhanced Hearing, Tracking Scent) as mInIons Threat 10d (Animals) 111144"
+    },
+    {
+      "heading": "GIRAFFE",
+      "printed_page": 114,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 114,
+      "text": "Edge 7 Health 6"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 114,
+      "text": "Agility 1d Perception 6d Intellect 1d Toughness 5d Might 6d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 114,
+      "text": "Running 4d Super Senses (Acute Hearing 10d, Enhanced Hearing, Telescopic Vision) as mInIons Threat 4d (Animals)"
+    },
+    {
+      "heading": "GORILLA",
+      "printed_page": 114,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 114,
+      "text": "Edge 9 Health 6"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 114,
+      "text": "Agility 4d Perception 5d Intellect 3d Toughness 6d Might 6d Willpower 4d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 114,
+      "text": "Strike (Physical) 6d as mInIons Threat 5d (Animals)"
+    },
+    {
+      "heading": "HIPPOPOTAMUS",
+      "printed_page": 115,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 115,
+      "text": "Edge 5 Health 8"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 115,
+      "text": "Agility 1d Perception 4d Intellect 1d Toughness 8d Might 8d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 115,
+      "text": "Armor 6d Running 4d Strike (Physical) 9d Swimming 3d (Lungs) as mInIons Threat 7d (Animals)"
+    },
+    {
+      "heading": "HORSE",
+      "printed_page": 115,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 115,
+      "text": "Edge 8 Health 5"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 115,
+      "text": "Agility 2d Perception 6d Intellect 2d Toughness 5d Might 5d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 115,
+      "text": "Running 4d Strike (Physical) 5d Super Senses (Acute Smell 10d) as mInIons Threat 3d (Animals)"
+    },
+    {
+      "heading": "HYENA",
+      "printed_page": 115,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 115,
+      "text": "Edge Health 5"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 115,
+      "text": "Agility 5d Perception 6d Intellect 2d Toughness 5d Might 4d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 115,
+      "text": "Running 4d Strike (Physical) 6d Super Senses (Acute Smell 10d, Enhanced Hearing, Tracking Scent, Ultra Vision) as mInIons Threat 5d (Animals)"
+    },
+    {
+      "heading": "KILLER WHALE",
+      "printed_page": 115,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 115,
+      "text": "Edge 9 Health 9"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 115,
+      "text": "Agility 4d Perception 5d Intellect 3d Toughness 9d Might 9d Willpower 4d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 115,
+      "text": "Radar (Sonar) Strike (Physical) 10d Swimming 4d (Lungs) as mInIons Threat 9d (Animals)"
+    },
+    {
+      "heading": "KOMODO DRAGON",
+      "printed_page": 115,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 115,
+      "text": "Edge 6 Health 4"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 115,
+      "text": "Agility 2d Perception 4d Intellect 1d Toughness 4d Might 4d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 115,
+      "text": "Armor 4d Running 4d Strike (Physical) 6d (Carrier Attack [Slay 6d (Delay, Toxin)]) Super Senses (Acute Smell 10d, Tracking Scent) as mInIons Threat 4d (Animals)"
+    },
+    {
+      "heading": "LEOPARD/PANTHER",
+      "printed_page": 115,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 115,
+      "text": "Edge 12 Health 4"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 115,
+      "text": "Agility 6d Perception 6d Intellect 2d Toughness 4d Might 4d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 115,
+      "text": "Running 4d Strike (Physical) 6d Super Senses (Enhanced Hearing, Ultra Vision) as mInIons Threat 5d (Animals) 111155"
+    },
+    {
+      "heading": "LION/TIGER",
+      "printed_page": 116,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 116,
+      "text": "Edge Health 6"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 116,
+      "text": "Agility 5d Perception 6d Intellect 2d Toughness 6d Might 6d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 116,
+      "text": "Running 4d Strike (Physical) 8d Super Senses (Enhanced Hearing, Ultra Vision) as mInIons Threat 6d (Animals)"
+    },
+    {
+      "heading": "MONGOOSE",
+      "printed_page": 116,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 116,
+      "text": "Edge 14 Health 1"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 116,
+      "text": "Agility 8d Perception 6d Intellect 1d Toughness 0d Might 0d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 116,
+      "text": "Immunity (Toxins) (Limited: only venom) Strike (Physical) 5d (Weak) Super Senses (Acute Smell 10d, Tracking Scent) as mInIons Threat n/a (Animals)"
+    },
+    {
+      "heading": "MONKEY",
+      "printed_page": 116,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 116,
+      "text": "Edge 13 Health 1"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 116,
+      "text": "Agility 8d Perception 5d Intellect 2d Toughness 0d Might 0d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 116,
+      "text": "Extra Limbs (Tail) Swing Line 4d (Natural) as mInIons Threat n/a (Animals) 111166"
+    },
+    {
+      "heading": "OCTOPUS, GIANT",
+      "printed_page": 116,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 116,
+      "text": "Edge 7 Health 4"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 116,
+      "text": "Agility 2d Perception 4d Intellect 3d Toughness 4d Might 4d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 116,
+      "text": "Blending Boost: Might 7d (Limited: only for grappling) Darkness (Charges 1) Extra Limbs (Arms) Super Senses (Ultra Vision) Swimming 4d as mInIons Threat 4d (Animals)"
+    },
+    {
+      "heading": "PLESIOSAUR",
+      "printed_page": 116,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 116,
+      "text": "Edge 9 Health 7"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 116,
+      "text": "Agility 3d Perception 6d Intellect 1d Toughness 7d Might 7d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 116,
+      "text": "Radar (Sonar) Strike (Physical) 8d Swimming 4d (Lungs) as mInIons Threat 6d (Animals)"
+    },
+    {
+      "heading": "PTERODACTYL",
+      "printed_page": 116,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 116,
+      "text": "Edge 9 Health 4"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 116,
+      "text": "Agility 5d Perception 4d Intellect 1d Toughness 4d Might 4d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 116,
+      "text": "Flight 5d (Wings) Strike (Physical) 5d Super Senses (Telescopic Vision) as mInIons Threat 3d (Animals)"
+    },
+    {
+      "heading": "RAPTOR, DEINONYCHUS",
+      "printed_page": 117,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 117,
+      "text": "Edge Health 5"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 117,
+      "text": "Agility 5d Perception 6d Intellect 2d Toughness 5d Might 4d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 117,
+      "text": "Running 4d Strike (Physical) 6d Super Senses (Acute Smell 10d, Tracking Scent) as mInIons Threat 5d (Animals)"
+    },
+    {
+      "heading": "RAPTOR, UTAHRAPTOR",
+      "printed_page": 117,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 117,
+      "text": "Edge 10 Health 7"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 117,
+      "text": "Agility 4d Perception 6d Intellect 2d Toughness 7d Might 6d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 117,
+      "text": "Running 4d Strike (Physical) 8d Super Senses (Acute Smell 10d, Tracking Scent) as mInIons Threat 7d (Animals)"
+    },
+    {
+      "heading": "RAPTOR, VELOCIRAPTOR",
+      "printed_page": 117,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 117,
+      "text": "Edge 12 Health 3"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 117,
+      "text": "Agility 6d Perception 6d Intellect 2d Toughness 3d Might 2d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 117,
+      "text": "Running 4d Strike (Physical) 4d Super Senses (Acute Smell 10d, Tracking Scent) as mInIons Threat 3d (Animals)"
+    },
+    {
+      "heading": "RHINOCEROS",
+      "printed_page": 117,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 117,
+      "text": "Edge 4 Health 8"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 117,
+      "text": "Agility 1d Perception 3d Intellect 1d Toughness 8d Might 8d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 117,
+      "text": "Armor 6d Running 4d Strike (Physical) 10d as mInIons Threat 8d (Animals)"
+    },
+    {
+      "heading": "SCORPION/SPIDER",
+      "printed_page": 117,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 117,
+      "text": "Edge 6 Health 1"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 117,
+      "text": "Agility 4d Perception 2d Intellect 0d Toughness 0d Might 0d Willpower 1d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 117,
+      "text": "Blending Slay 6d (Toxin) Wall-Crawling 1d as mInIons Threat n/a (Animals)"
+    },
+    {
+      "heading": "SHARK",
+      "printed_page": 117,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 117,
+      "text": "Edge 10 Health 7"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 117,
+      "text": "Agility 4d Perception 6d Intellect 1d Toughness 7d Might 6d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 117,
+      "text": "Blending (Limited: ocean camouflage) Strike (Physical) 8d Super Senses (Acute Smell 12d, Tracking Scent) Swimming 4d as mInIons Threat 7d (Animals) 111177"
+    },
+    {
+      "heading": "SHARK, GREAT WHITE",
+      "printed_page": 118,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 118,
+      "text": "Edge 10 Health 8"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 118,
+      "text": "Agility 4d Perception 6d Intellect 1d Toughness 8d Might 8d Willpower 4d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 118,
+      "text": "Blending (Limited: ocean camouflage) Strike (Physical) 10d Super Senses (Acute Smell 12d, Tracking Scent) Swimming 4d as mInIons Threat 9d (Animals)"
+    },
+    {
+      "heading": "SNAKE, CONSTRICTOR",
+      "printed_page": 118,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 118,
+      "text": "Edge 8 Health 7"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 118,
+      "text": "Agility 2d Perception 6d Intellect 1d Toughness 6d Might 7d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 118,
+      "text": "Radar (Tremor Sense) Super Senses (Acute Smell 10d, Tracking Scent) as mInIons Threat 6d (Animals)"
+    },
+    {
+      "heading": "SNAKE, VENOMOUS",
+      "printed_page": 118,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 118,
+      "text": "Edge Health 1"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 118,
+      "text": "Agility 5d Perception 6d Intellect 1d Toughness 0d Might 0d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 118,
+      "text": "Radar (Tremor Sense) Slay 6d (Toxin) Super Senses (Acute Smell 10d, Tracking Scent) as mInIons Threat 6d (Animals) 111188"
+    },
+    {
+      "heading": "SPINOSAURUS",
+      "printed_page": 118,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 118,
+      "text": "Edge 5 Health 10"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 118,
+      "text": "Agility 1d Perception 4d Intellect 1d Toughness 10d Might 10d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 118,
+      "text": "Armor 7d Running 4d Strike (Physical) 12d Super Senses (Acute Smell 10d, Tracking Scent) as mInIons Threat 11d (Animals)"
+    },
+    {
+      "heading": "SQUIRREL",
+      "printed_page": 118,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 118,
+      "text": "Edge 15 Health 1"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 118,
+      "text": "Agility 9d Perception 6d Intellect 1d Toughness 0d Might 0d Willpower 1d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 118,
+      "text": "Super Senses (Acute Smell 10d, Tracking Scent) Wall-Crawling 1d (Conditional: rough surfaces) as mInIons Threat n/a (Animals)"
+    },
+    {
+      "heading": "STEGOSAURUS",
+      "printed_page": 118,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 118,
+      "text": "Edge 5 Health 9"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 118,
+      "text": "Agility 1d Perception 4d Intellect 1d Toughness 9d Might 8d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 118,
+      "text": "Armor 7d Running 4d Strike (Physical) 10d Super Senses (Acute Smell 8d) as mInIons Threat 9d (Animals)"
+    },
+    {
+      "heading": "TRICERATOPS",
+      "printed_page": 119,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 119,
+      "text": "Edge 5 Health 9"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 119,
+      "text": "Agility 1d Perception 4d Intellect 1d Toughness 9d Might 9d Willpower 2d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 119,
+      "text": "Armor 7d Running 4d Strike (Physical) 11d Super Senses (Acute Smell 8d) as mInIons Threat 9d (Animals)"
+    },
+    {
+      "heading": "TYRANNOSAURUS REX",
+      "printed_page": 119,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 119,
+      "text": "Edge 6 Health 9"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 119,
+      "text": "Agility 2d Perception 4d Intellect 2d Toughness 9d Might 9d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 119,
+      "text": "Armor 6d Running 4d Strike (Physical) 11d Super Senses (Acute Smell 10d, Tracking Scent) as mInIons Threat 10d (Animals)"
+    },
+    {
+      "heading": "WHALE",
+      "printed_page": 119,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 119,
+      "text": "Edge 7 Health 12"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 119,
+      "text": "Agility 0d Perception 4d Intellect 3d Toughness 12d Might 12d Willpower 4d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 119,
+      "text": "Swimming 4d (Lungs) as mInIons Threat 11d (Animals)"
+    },
+    {
+      "heading": "WOLF",
+      "printed_page": 119,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 119,
+      "text": "Edge Health 4"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 119,
+      "text": "Agility 5d Perception 6d Intellect 3d Toughness 4d Might 4d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 119,
+      "text": "Running 4d Strike (Physical) 5d Super Senses (Acute Smell 12d, Enhanced Hearing, Tracking Scent, Ultra Vision) as mInIons Threat 4d (Animals)"
+    },
+    {
+      "heading": "WOLVERINE",
+      "printed_page": 119,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 119,
+      "text": "Edge 8 Health 5"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 119,
+      "text": "Agility 2d Perception 6d Intellect 2d Toughness 5d Might 4d Willpower 4d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 119,
+      "text": "Resistance 9d Running 4d Strike (Physical) 5d Super Senses (Acute Smell 10d, Tracking Scent) as mInIons Threat 4d (Animals)"
+    },
+    {
+      "heading": "ZEBRA",
+      "printed_page": 119,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 119,
+      "text": "Edge 8 Health 4"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 119,
+      "text": "Agility 2d Perception 6d Intellect 2d Toughness 4d Might 4d Willpower 3d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 119,
+      "text": "Blending (Conditional: in tall grass) Running 4d Strike (Physical) 4d Super Senses (Acute Smell 10d) as mInIons Threat 2d (Animals) 111199 your these whichever values; entries"
+    },
+    {
+      "heading": "EXTRAS",
+      "printed_page": 120,
+      "text": "The following section includes a collection of generic Extras for reskin these characters to suit your purposes. A few notes about one of these characters needs to make a Talent roll, use modifier, the ranks listed after armor and weapons are the final are assumed to be Innate unless otherwise noted. Last, these for using these characters as Minions."
+    },
+    {
+      "heading": "ALIEN INVADER",
+      "printed_page": 120,
+      "text": "comBat Edge 7 Health 4 aBIlItIes Agility 4d Perception 3d Intellect 2d Toughness 4d Might 4d Willpower 2d poWers None FlaWs None Gear Battle Armor: 6d Armor Blast Rifle: 8d Ranged (Two-Handed) Communicator as mInIons Threat 6d (Shooters)"
+    },
+    {
+      "heading": "ANIMATED SKELETON",
+      "printed_page": 120,
+      "text": "comBat Edge 6 Health 3 aBIlItIes Agility 4d Perception 2d Intellect 0d Toughness 3d Might 3d Willpower 2d poWers"
+    },
+    {
+      "heading": "MAGIC POWERS",
+      "printed_page": 120,
+      "text": "Abilities (All) Blind Fighting Immortality Inanimate (Mindless) Martial Arts 4d FlaWs Frightening, Mute Gear Sword: 6d Melee Chainmail: 4d Armor Shield: +1d Defense as mInIons Threat 4d (Automatons) 112200 use and amusement. As with animals, feel free to modify or entries: (a) these characters lack Talents and Perks, (b) when Ability is most appropriate instead, and (c) unless written as a the math has already been done. These characters’ Abilities include suggested Threat ranks and other relevant information"
+    },
+    {
+      "heading": "ATHLETE",
+      "printed_page": 120,
+      "text": "comBat Edge 6 Health 4 aBIlItIes Agility 4d Perception 2d Intellect 2d Toughness 4d Might 4d Willpower 2d poWers None FlaWs None Gear Smartphone, long-term injuries as mInIons Threat 3d"
+    },
+    {
+      "heading": "CAVEMAN",
+      "printed_page": 120,
+      "text": "comBat Edge 6 Health 5 aBIlItIes Agility 2d Perception 4d Intellect 1d Toughness 5d Might 5d Willpower 2d poWers None FlaWs Outsider (primitive) Gear Big Club: 8d (s) Melee (Two-Handed) as mInIons Threat 5d"
+    },
+    {
+      "heading": "CIVILIAN",
+      "printed_page": 121,
+      "text": "comBat Edge 4 Health 2 aBIlItIes Agility 2d Perception 2d Intellect 2d Toughness 2d Might 2d Willpower 2d poWers None FlaWs None Gear Smartphone, ennui as mInIons Threat 2d"
+    },
+    {
+      "heading": "COMMANDO",
+      "printed_page": 121,
+      "text": "comBat Edge 7 Health 4 aBIlItIes Agility 4d Perception 3d Intellect 2d Toughness 4d Might 4d Willpower 3d poWers None FlaWs None Gear Assault Rifle: 8d Ranged (Area, Two-Handed) Military Armor: 5d Armor Knife, pistol, night vision goggles, radio as mInIons Threat 5d (Shooters)"
+    },
+    {
+      "heading": "COP",
+      "printed_page": 121,
+      "text": "comBat Edge 6 Health 3 aBIlItIes Agility 3d Perception 3d Intellect 2d Toughness 3d Might 3d Willpower 2d poWers None FlaWs None Gear Pistol: 5d Ranged Baton: 4d (s) Melee Pepper Spray: Stun 6d (Close, Charges 3) Handcuffs, radio as mInIons Threat 3d (Shooters)"
+    },
+    {
+      "heading": "COP, DETECTIVE",
+      "printed_page": 121,
+      "text": "comBat Edge 8 Health 3 aBIlItIes Agility 3d Perception 4d Intellect 4d Toughness 3d Might 3d Willpower 3d poWers None FlaWs None Gear Pistol: 5d Ranged Pepper Spray: Stun 6d (Close, Charges 3) Handcuffs, radio as mInIons Threat 3d (Shooters)"
+    },
+    {
+      "heading": "SUPER TIP!",
+      "printed_page": 121,
+      "text": "Want to play a Vigilante who straddles the line between good and evil? If the GM allows them, Vigilantes are so driven that they neither gain Resolve for their heroic actions nor grant the GM Adversity for their unheroic actions if those actions are driven by their Motivation. 112211"
+    },
+    {
+      "heading": "CRIME LORD",
+      "printed_page": 122,
+      "text": "comBat Edge 7 Health 3 aBIlItIes Agility 3d Perception 3d Intellect 4d Toughness 3d Might 3d Willpower 3d poWers None FlaWs Enemy (honest cops) Gear Pistol: 5d Ranged Reinforced Cane: 5d (s) Melee (Versatile) as mInIons Threat 3d (Shooters)"
+    },
+    {
+      "heading": "CULTIST",
+      "printed_page": 122,
+      "text": "comBat Edge 4 Health 3 aBIlItIes Agility 2d Perception 2d Intellect 2d Toughness 2d Might 2d Willpower 3d poWers"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 122,
+      "text": "Expertise (Academics: Occult) 4d FlaWs Quirk (zealot) Gear Ceremonial Dagger: 3d Melee as mInIons Threat 2d 112222"
+    },
+    {
+      "heading": "DEMON",
+      "printed_page": 122,
+      "text": "comBat Edge 5 Health 6 aBIlItIes Agility 2d Perception 2d Intellect 3d Toughness 6d Might 6d Willpower 6d poWers"
+    },
+    {
+      "heading": "MAGIC POWERS",
+      "printed_page": 122,
+      "text": "Abilities (All) Armor 7d Strike (Physical) 8d FlaWs Frenzy, Frightening Gear None as mInIons Threat 6d"
+    },
+    {
+      "heading": "KILLER ROBOT",
+      "printed_page": 122,
+      "text": "comBat Edge 8 Health 6 aBIlItIes Agility 2d Perception 6d Intellect 2d Toughness 6d Might 6d Willpower 2d poWers"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 122,
+      "text": "Abilities (All) Armor 6d Blast (Energy) 8d Communications Inanimate Super Senses (Thermal Vision) FlaWs Emotionless, Repair, Unusual Looks Gear None as mInIons Threat 6d (Automatons, Shooters)"
+    },
+    {
+      "heading": "LOST WORLD NATIVE",
+      "printed_page": 123,
+      "text": "comBat Edge 8 Health 4 aBIlItIes Agility 4d Perception 4d Intellect 2d Toughness 3d Might 4d Willpower 2d poWers None FlaWs Outsider (primitive) Gear Bow: 6d Ranged (Two-Handed) Spear: 6d Melee (Thrown, Versatile) Knife: 5d Melee as mInIons Threat 4d (Shooters)"
+    },
+    {
+      "heading": "MOOK",
+      "printed_page": 123,
+      "text": "comBat Edge 5 Health 4 aBIlItIes Agility 3d Perception 2d Intellect 2d Toughness 4d Might 4d Willpower 2d poWers None FlaWs None Gear Submachine Gun: 5d Ranged (Area, Versatile) Pistol: 5d Ranged Brass Knuckles: 5d (s) Melee as mInIons Threat 3d (Shooters)"
+    },
+    {
+      "heading": "SUPER TIP!",
+      "printed_page": 123,
+      "text": "If you want to create more or less ordinary people as characters (as Heroes), give them 50 Hero Points and a 5d Trait Cap."
+    },
+    {
+      "heading": "NINJA",
+      "printed_page": 123,
+      "text": "comBat Edge 9 Health 4 aBIlItIes Agility 5d Perception 4d Intellect 3d Toughness 3d Might 3d Willpower 4d poWers"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 123,
+      "text": "Martial Arts 5d Vanish (Item: smoke bombs) FlaWs Code (secretive) Gear Ninja Weapon: 8d Melee (Two-Handed) Shuriken: 5d Ranged (Thrown) Bow: 7d Ranged (Two-Handed) Miscellaneous ninja gear as mInIons Threat 5d (Shooters)"
+    },
+    {
+      "heading": "NINJA, HIGH TECH",
+      "printed_page": 123,
+      "text": "comBat Edge 9 Health 4 aBIlItIes Agility 5d Perception 4d Intellect 3d Toughness 3d Might 3d Willpower 4d poWers"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 123,
+      "text": "Armor 5d (Item: suit) Blending (Item: suit) Super Senses (Night Vision) (Item: suit) Vanish (Item: suit) Wall-Crawling 4d (Item: suit)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 123,
+      "text": "Martial Arts 5d Two-Fisted FlaWs Code (secretive) Gear Dual Ninja Swords: 8d Melee Dual Pistols: 8d Ranged (Silenced) as mInIons Threat 5d (Shooters) 112233 112244"
+    },
+    {
+      "heading": "SOLDIER",
+      "printed_page": 124,
+      "text": "comBat Edge 6 Health 3 aBIlItIes Agility 4d Perception 2d Intellect 2d Toughness 3d Might 3d Willpower 3d poWers None FlaWs None Gear Assault Rifle: 8d Ranged (Area, Two-Handed) Military Armor: 5d Armor Knife, pistol, night vision goggles, radio as mInIons Threat 4d (Shooters)"
+    },
+    {
+      "heading": "SPY",
+      "printed_page": 124,
+      "text": "comBat Edge 8 Health 4 aBIlItIes Agility 4d Perception 4d Intellect 4d Toughness 3d Might 3d Willpower 4d poWers None FlaWs None Gear Pistol: 6d (Ranged) Concealed Knife: 6d Melee (Collapsible) Various nifty spy gadgets as mInIons Threat 4d (Shooters)"
+    },
+    {
+      "heading": "SUPER TIP!",
+      "printed_page": 124,
+      "text": "If you want to create highly skilled but nevertheless ordinary people as characters (as Heroes), give them 60 Hero Points and a 6d Trait Cap."
+    },
+    {
+      "heading": "VAMPIRE",
+      "printed_page": 125,
+      "text": "comBat Edge 12 Health 6 aBIlItIes Agility 6d Perception 6d Toughness 6d Intellect 2d Might 6d Willpower 6d poWers"
+    },
+    {
+      "heading": "MAGIC POWERS",
+      "printed_page": 125,
+      "text": "Abilities (All) Armor 12d (Shutdown: fire, holy, magic, and flaws below) Immortality (Vulnerable: fire, holy, magic, and flaws below) Life Drain 7d (Carrier Attack [Special Power 12d (Can turn a defeated target into a vampire thrall; permanent unless a cure can be found)], Vampirism) Super Senses (Night Vision, Tracking Scent) FlaWs Aversion (holy symbols) Compulsion & Requirement (blood) Reaction (holy water: splash inflicts 1 damage, immersion inflicts 1 damage per page) Reaction (sunlight: 2 damage per page) Reaction (paralyzed by a wooden stake through the heart (−2d to attack roll to inflict) which allows death by decapitation) Gear None as mInIons Threat 6d (Unique: undead and immune to all damage except fire, holy, and magic)"
+    },
+    {
+      "heading": "ZOMBIE",
+      "printed_page": 125,
+      "text": "comBat Edge 2 Health 3 aBIlItIes Agility 1d Perception 1d Intellect 0d Toughness 3d Might 2d Willpower 1d poWers"
+    },
+    {
+      "heading": "MAGIC POWERS",
+      "printed_page": 125,
+      "text": "Abilities (All) Armor 6d (Shutdown: Headshots (−2d penalty to inflict a headshot)) Immortality (Shutdown: Headshots) Inanimate (Mindless) Strike (Physical) 3d (Carrier Attack [Special Power 9d (Turns a wounded or defeated target into a zombie in 1d days; permanent unless a cure can be found)]) FlaWs Frightening, Slow Gear None as mInIons Threat 3d (Automatons)"
+    },
+    {
+      "heading": "WEREWOLF",
+      "printed_page": 125,
+      "text": "comBat Edge 16 Health 7 aBIlItIes Agility 8d Perception 8d Intellect 2d Toughness 8d Might 6d Willpower 4d poWers"
+    },
+    {
+      "heading": "MAGIC POWERS",
+      "printed_page": 125,
+      "text": "Abilities (Agility, Might, Perception, Toughness) Hard to Kill (Shutdown: fire, magic, silver) Regeneration (Fast) Running 5d Strike (Physical) 8d (Carrier Attack [Special Power 9d (Turns a wounded or defeated target into a werewolf next full moon; permanent unless a cure can be found)]) Super Senses (Acute Smell 12d, Enhanced Hearing, Tracking Scent, Ultra Vision) FlaWs Alter Ego Compulsion (hunting, killing) Frenzy Frightening Vulnerability (silver) Gear None as mInIons Threat 7d (Unique: animal senses and immune to all damage except fire, silver, and magic)"
+    },
+    {
+      "heading": "ZOMBIE, FAST",
+      "printed_page": 125,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 125,
+      "text": "Edge 5 Health 3"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 125,
+      "text": "Agility 3d Perception 2d Intellect 0d Toughness 3d Might 2d Willpower 1d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 125,
+      "text": ""
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 125,
+      "text": "Abilities (All) Armor 6d (Shutdown: Headshots (−2d penalty to inflict a headshot)) Immortality (Shutdown: Headshots) Inanimate (Mindless) Strike (Physical) 3d (Carrier Attack [Special Power 9d (Turns a wounded or defeated target into a zombie in 1d days; permanent unless a cure can be found)])"
+    },
+    {
+      "heading": "FLAWS",
+      "printed_page": 125,
+      "text": "Frightening"
+    },
+    {
+      "heading": "GEAR",
+      "printed_page": 125,
+      "text": "None"
+    },
+    {
+      "heading": "AS MINIONS",
+      "printed_page": 125,
+      "text": "Threat 3d (Automatons) 112255 112266"
+    },
+    {
+      "heading": "HEROES AND VILLAINS",
+      "printed_page": 126,
+      "text": "The following section includes an assortment of fully fleshed-out Heroes and Villains for use in your game."
+    },
+    {
+      "heading": "HEROES",
+      "printed_page": 126,
+      "text": "Each of these characters was created using 125 Hero Points and a 12d Trait Cap, making them suitable for Standard power level games. They are perfect for when you want to sit down and play or teach someone to play without creating a character. If you find yourself in a pinch, they also make great NPCs (and maybe even Villains if you ignore their backstories). As always, feel free to use these characters as they are or tweak them to suit your fancy. Unless otherwise noted in their entries, these characters have Innate Abilities and Trained Talents. The Resolve listed for each Hero includes that provided by the Determination Power and by the asterisked Flaws that grant extra Resolve at the start of each issue rather than during play."
+    },
+    {
+      "heading": "VILLAINS",
+      "printed_page": 126,
+      "text": "The Villains in this section cover a wide range of power levels, from mundane to cosmic. As always, use them as they are, change them however you wish, or reskin them however you like. If you change their backstories, you can even use these characters as superhero NPCs (I can actually feel some of them glaring at me as I write this). Unless otherwise noted, assume these characters have Innate Abilities and Trained Talents. Like Heroes, Villains have a power level, but there are only three options: Minor, Major, and Epic. Minor Villains are about on par with Street Level or Low Level Heroes. Major Villains are roughly equivalent to Standard or High Level Heroes. Epic Villains are at least as powerful as Legendary or Iconic Heroes, if not more so. Villain power levels aren’t as exacting as those applied to Heroes. A Villain’s power level is a rough gauge of how they compare to other Villains and how much of a threat they pose to Heroes. Since every group of Heroes brings a unique combination of strengths and weaknesses to the table, this is at best an imprecise science. Use Villain power levels as a rough benchmark, but don’t rely on them exclusively when determining which Villains to throw against your Heroes and whether to tweak their characteristics when you do."
+    },
+    {
+      "heading": "ALABAMA SLAMMER",
+      "printed_page": 127,
+      "text": "hero Edge 36 Resolve 4 Health 6 Hero Points 125 aBIlItIes Agility 3d Perception 6d Intellect 3d Toughness 6d Might 3d Willpower 5d talents Academics 3d Professional 3d Charm 5d Science 3d Command 3d Streetwise 3d Covert 3d Survival 3d Investigation 3d Technology 3d Medicine 3d Vehicles 3d poWers"
+    },
+    {
+      "heading": "INNATE POWERS",
+      "printed_page": 127,
+      "text": "Determination (+3 Resolve)"
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 127,
+      "text": "Abilities (Perception, Toughness) Phasing (Concentration) Regeneration Resistance 12d Super Speed 12d perKs None FlaWs Quirk (impulsive) Relationship (see Connections)* Secret Identity Gear None addItIonal InFormatIon motIvatIon: Adventure connectIons Amanda James: Tammy’s mother, who does not have the slightest clue that her daughter is a superhero. Billy Dee James: Tammy’s younger brother, now in college, who also doesn’t know that she is a superhero. Bubba Barton: Tammy’s former boss turned surrogate father. Bubba owns the Bama-Gator Bar & Grill where Tammy worked for years. detaIls Tammy sees herself as almost invincible, and she’ll be shaken the first time that’s proven false. Still a few steps from mature and starstruck by superheroes, Tammy could easily develop a crush on another Hero. Tammy has no idea who her father is, much less that he’s the reason she has her powers."
+    },
+    {
+      "heading": "TAMMY JAMES",
+      "printed_page": 127,
+      "text": "“Y’all might wanna just go ahead and give up now, before I make you look bad. I know you boys are sensitive about that kind of thing.” orIGIn: Tamara “Tammy” James is a bright, funny, and optimistic young woman, maybe because she’s been though a lot. Raised by her mom in a small town in Alabama, Tammy’s family always skirted the line between working class and poor. Amanda James did what she could for her children, but everyone had to chip in, so Tammy began working at the Bama-Gator Bar & Grill as soon as she was old enough. It was there, a few years later, that her powers blossomed. Bubba Barton, the former biker who owned the place, was getting ready to leave with the night’s cash receipts when a pair of armed men entered the bar and demanded the money. Bubba handed it over, but when one of the gunmen took too keen an interest in Tammy, Bubba broke a bar stool over his head. The other man panicked and started shooting. Tammy screamed, but then she realized that time had slowed to a crawl. Without understanding what was happening, she pulled Bubba out of the way of the bullets and disarmed both men in the blink of an eye. Since then, despite Bubba’s worried attempts to talk her out of it, Tammy has been living the superhero life and loving every minute of it. 112277"
+    },
+    {
+      "heading": "BLACK DRAGON",
+      "printed_page": 128,
+      "text": "hero Edge 20 Resolve 6 Health 8 Hero Points 125 aBIlItIes Agility 10d Perception 6d Intellect 4d Toughness 6d Might 4d Willpower 10d talents Academics 3d Professional 3d Charm 3d Science 3d Command 6d Streetwise 6d Covert 6d Survival 3d Investigation 3d Technology 3d Medicine 3d Vehicles 3d poWers"
+    },
+    {
+      "heading": "PSYCHIC POWERS",
+      "printed_page": 128,
+      "text": "Boost (Might) 9d (Charges 3) Danger Sense 10d Leaping 5d Regeneration Resistance 10d Running 5d Super Senses (True Sight)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 128,
+      "text": "Blind Fighting Martial Arts 10d (Penetrating) Two-Fisted perKs Contacts (criminal, spirit realm) FlaWs Enemy (Jade Dragon)* Relationship (see Connections)* Secret Identity Gear None addItIonal InFormatIon motIvatIon: Justice connectIons Sifu: Speaking to him from the spirit realm during his meditations, Joaquin’s former master still guides him. Cano Ventosa: Although by no means a good man, Cano is the only family Joaquin’s ever known. Bea Rubenstein: Joaquin’s widowed landlady basically adopted him after he saved her from being mugged. Bea knows Joaquin isn’t Jewish and doesn’t care — she expects him over for all the Jewish holidays. detaIls Joaquin hates the noise and bustle of the city; he longs for the peace and quiet he experienced during his years of training at the dragon temple. A Hero who isn’t a melee specialist may ask Joaquin to teach them some fighting moves; Joaquin may even offer. Nothing can prepare Joaquin for how he will feel when he learns the Jade Dragon’s true identity. 112288"
+    },
+    {
+      "heading": "JOAQUIN PEREIRA",
+      "printed_page": 128,
+      "text": "“You ever given any thought to all the lives you’ve destroyed? No, of course you haven’t. But you’re going to wish you had.” orIGIn: An orphan who grew up in the favelas of Rio de Janeiro, Joaquin was well known in the city’s underground street fighting circuit by the time he was 16. His life changed forever when his handler, Cano Ventosa, lost his contract to an old man who challenged Joaquin in the ring. The old man brought Joaquin to the Dragon Temple and explained that his life hadn’t been so difficult by accident. Destiny had plans for him, but he needed to understand the plight of the less fortunate before he could become the Black Dragon. Joaquin spent several years in the dragon temple with the man who would come to be his teacher, his Sifu, his first real friend. He learned to fight, and he learned to harness his chi, the breath of the dragon. To his surprise, the restless young man also found a peace he’d never known. But that ended the day the Jade Dragon attacked the temple. Perhaps Sifu could have defeated him if he hadn’t been distracted, but he was forced to sacrifice his life to save Joaquin. Left for dead with his training incomplete, Joaquin nevertheless took on the mantle of the Black Dragon and swore he would find the Jade Dragon and put an end to his evil."
+    },
+    {
+      "heading": "BLASTWAVE",
+      "printed_page": 129,
+      "text": "hero Edge 16 Resolve 2 Health 9 Hero Points 125 aBIlItIes Agility 5d Perception 5d Intellect 4d Toughness 10d Might 5d Willpower 7d talents Academics 2d Professional 2d Charm 2d Science 2d Command 4d Streetwise 4d Covert 4d Survival 4d Investigation 4d Technology 4d Medicine 2d Vehicles 2d poWers"
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 129,
+      "text": "Abilities (Toughness, Willpower) Energy Absorption (Cold, Electricity, Energy, Fire, Force/Kinetic, Sound) 12d (Side Effect: collateral damage)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 129,
+      "text": "Lightning Reflexes Martial Arts 10d Running 5d perKs None FlaWs Relationship (see Connections)* Secret Identity Wanted (AEGIS)* Gear None addItIonal InFormatIon motIvatIon: Redemption connectIons Adam and Clarice Wrike: They believe Clayton died in service to his country, but he keeps close tabs on his folks to ensure their safety. Detective Clarence Wilson: A cousin whom Clayton trusts with his identity and his cause, he is a rising star in the local police department. Talon: The superhero Talon knows Clayton as the hero he truly is (although Clayton does not know Talon’s secret identity). detaIls To this day, Clayton carries a great deal of guilt over the things he did while working for the rogue agency. Clayton grew up with one of the Heroes, and he can see their true identity right through the mask. AEGIS wants Clayton for questioning, maybe to lock him away, maybe to use him as an asset, maybe for other reasons."
+    },
+    {
+      "heading": "CLAYTON WRIKE",
+      "printed_page": 129,
+      "text": "“You’re not going to like how the story ends if you keep this up.” orIGIn: Not all heroes start out that way. Some learn what it means by making a lot of serious mistakes along the way. Clayton Wrike began life as a young super with extraordinary powers and no clue what to do with them. One stupid moment of showing off was all it took to accidentally demolish a condemned building and get him locked up for what he assumed would be the rest of his life. But Clayton was offered a choice — serve his country or head to maximum security. Choosing service, Clayton found himself doing very questionable things supposedly in the name of justice and protecting humanity. Eventually, he came to understand he was working with a rogue agency operating within the government. Knowing his ignorance wouldn’t stop them from locking him up, Clayton arranged to disappear in a massive explosion. His family was informed he died in service to his nation. Not long after, the stalwart superhero Blastwave came on the scene, always ready to step up and play boy scout when people need his help. He just has to excuse himself, and quickly, whenever AEGIS arrives on the scene. 112299"
+    },
+    {
+      "heading": "CITIZEN SOLDIER",
+      "printed_page": 130,
+      "text": "hero Edge 12 Resolve 4 Health 12 Hero Points 125 aBIlItIes Agility 6d Perception 6d Intellect 6d Toughness 12d Might 12d Willpower 9d talents Academics 3d Professional 3d Charm 5d Science 3d Command 6d Streetwise 3d Covert 5d Survival 3d Investigation 3d Technology 3d Medicine 3d Vehicles 5d poWers"
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 130,
+      "text": "Abilities (Might, Toughness) Armor 12d Regeneration"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 130,
+      "text": "Determination (+2 Resolve) Leadership perKs Authority (top secret clearance) Contacts (AEGIS, military) FlaWs Enemy (Doctor Berlin)* Relationship (see Connections)* Secret Identity Gear None addItIonal InFormatIon motIvatIon: Idealism connectIons Colonel Jane Bailey: Hamilton’s AEGIS contact, Jane is one of his few friends and sworn to keep his secret. Janelle Bailey: Jane’s 8-year old daughter, she does not know that mom’s friend Hamilton is Citizen Soldier. Sam: Hamilton’s dog. Sam let himself into the house one day through the back door and announced his arrival by parking himself on the couch next to Hamilton and promptly falling asleep. detaIls Hamilton regularly visits his parents’ graves. While he has no regrets, he misses them and always strives to live up to their example. One of the Heroes may have a living relative who was a member of the Citizen Squad during the Second World War. Poor Hamilton is not prepared for what Dr. Berlin has in store for him. Honestly, no one could be. 113300"
+    },
+    {
+      "heading": "HAMILTON SMITH",
+      "printed_page": 130,
+      "text": "“Son, you’ve made enough mistakes today. But you can always make a better choice. Put down the gun and let’s talk.” orIGIn: Hamilton Smith was born a patriot. Despite how hard life could be for African Americans, Hamilton had faith in the American dream. He volunteered for the army soon after the country entered the Second World War. Like so many young black soldiers at the time, Hamilton wanted to be part of the Double-V Campaign, helping achieve democracy abroad and equality at home. A brilliant tactician, he was soon assigned a squad of highly skilled irregulars called the Citizen Squad. In what would be their last mission, the Citizen Squad discovered a secret facility run by Dr. Maximilian von Graff (the man who would become the nefarious Doctor Berlin). Graff had been conducting bizarre experiments, trying to create the ultimate soldier. The Citizen Squad managed to destroy the facility, but not before Hamilton took a bullet meant for one of his men. Not knowing what else to do, Hamilton’s men injected him with a restorative serum they found in the lab. The serum put Hamilton into a coma, and in honor of his service, the U.S. government kept him alive for the decades it took to do its work. The serum kept him young, healed his injuries, and turned him into Citizen Soldier."
+    },
+    {
+      "heading": "COMBUSTION",
+      "printed_page": 131,
+      "text": "hero Edge 7 Resolve 2 Health 4 Hero Points 125 aBIlItIes Agility 4d Perception 3d Intellect 3d Toughness 4d Might 3d Willpower 4d talents Academics 2d Professional 2d Charm 6d Science 2d Command 2d Streetwise 2d Covert 2d Survival 2d Investigation 2d Technology 2d Medicine 2d Vehicles 2d poWers"
+    },
+    {
+      "heading": "INNATE POWERS",
+      "printed_page": 131,
+      "text": "Determination (+1 Resolve)"
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 131,
+      "text": "Aura (Fire) 9d Elemental Control (Fire) 12d (Area) Flight 8d (Signature: fiery trail) Immunity (Fire/Heat)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 131,
+      "text": "Expertise (Professional: Fashion) 4d Evasion 8d perKs Contacts (fashion industry) Wealth FlaWs Finite Power (fatigue) Quirk (overconfident) Relationship (see Connections)* Gear None (although she loves expensive cars) addItIonal InFormatIon motIvatIon: Virtue connectIons Nicolas Vera: Raquel’s father, owner and CEO of a large Latin American mining conglomerate. Rupert Ikpe: Former fashion designer, Rupert is one of Raquel’s closest friends, acts as her agent, and handles all her PR. Viola Vera: Raquel’s mother, she and Raquel have a somewhat rocky relationship. detaIls Raquel has recently begun having recurring nightmares about burning people who upset her. Raquel and her family are international movers and shakers; she may well know other wealthy Heroes or their families. Raquel’s powers are the result of a malignant alien entity that has possessed her and is biding its time."
+    },
+    {
+      "heading": "RAQUEL VERA",
+      "printed_page": 131,
+      "text": "“Are you really trying to shoot me with a gun? Aye pobrecito. I’ll make sure my PR people do a better job in the future.” orIGIn: Raquel Vera has always led a charmed life. She spent her childhood travelling the world with her parents, being educated by private tutors, and mingling with other children of privilege. Her beauty got her noticed by a fashion designer in Milan who convinced her to model his spring line. She did, and Raquel took the fashion world by storm. Once word got out that she was donating all her earnings to charity, her popularity exploded. And this was all before becoming the world’s first real “super” model. That happened during a shoot on the observation deck of the Bank of China Tower in Hong Kong. Halfway through the session, an unexpected meteor shower lit up the night sky, and one especially bright streak shot down to Earth and slammed into Raquel. When she finally stopped screaming and opened her eyes, Raquel realized she was hovering in the air, many miles away from Victoria Harbour…wreathed in flames. Raquel doesn’t know what fell from the sky or how it gave her powers, but she isn’t too concerned about it. Like her modeling career, she sees this as just another adventure that fell into her charmed lap. 113311"
+    },
+    {
+      "heading": "DARKWOLF",
+      "printed_page": 132,
+      "text": "hero Edge 20 Resolve 5 Health 10 Hero Points 125 aBIlItIes Agility 10d Perception 10d Intellect 3d Toughness 10d Might 6d Willpower 10d talents Academics 3d Professional 3d Charm 3d Science 3d Command 3d Streetwise 6d Covert 6d Survival 6d Investigation 6d Technology 3d Medicine 3d Vehicles 3d poWers"
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 132,
+      "text": "Abilities (Agility, Might, Perception, Toughness) Animal Empathy Hard to Kill Leaping 6d Regeneration (Fast) Running 6d Strike (Physical) 10d Super Senses (Acute Smell 12d, Enhanced Hearing, Tracking Scent, Ultra Vision) Two-Fisted perKs None FlaWs Relationship (see Connections)* Restriction (on parole) Secret Identity Gear None addItIonal InFormatIon motIvatIon: Responsibility connectIons Jason Pierce: Although Jack is more of a loner, the superhero Psidearm has become one of his closest friends. Jenna and Jimmy Dalton: Jack’s niece and nephew, who of course have no idea that Uncle Jack is a superhero. Jim and Sarah Dalton: Jack’s twin brother and his wife. Sarah thinks Jack is a bad influence. She doesn’t know Jack went to jail for his brother, and neither she nor Jim knows that Jack is a superhero. detaIls Jack is desperate to get back into his sister-in-law’s good graces so he can be closer to his family. Jack knows something about another Hero, something he heard from a fellow inmate while in prison. Eventually, someone at the rogue agency is going to discover that the one person who survived their serum has a genetically identical twin. 113322"
+    },
+    {
+      "heading": "JACK DALTON",
+      "printed_page": 132,
+      "text": "“Hey, scumbag, why don’t you come over here and try picking on someone your own size?” orIGIn: Jonathan “Jack” Dalton came from a working-class family. He and his twin brother Jim worked in the same factory where their father had, at least until it shut down. Jack found work in construction, but Jim wasn’t so lucky. With a young family to support, Jim got involved with the wrong people and ended up driving the getaway car in a botched bank robbery. Knowing what would happen to Jim and his family, Jack took the rap for his brother. In prison, Jack volunteered to test an experimental medication in exchange for a reduced sentence. It was only when the superhero Psidearm burst into the place and stopped the experiment that Jack learned the truth. He was a lab rat in an experiment run by some rogue black-book agency pursuing its own agenda. The so-called experimental medication was designed to create enhanced soldiers by rewriting a subject’s DNA, and it had killed everyone who’d been tested. By the time Psidearm explained this to him, the stuff was already pumping through Jack’s veins. For once in his life, though, Jack got lucky. His body accepted the serum, and Jack Dalton became the savage sentinel known as Darkwolf."
+    },
+    {
+      "heading": "EIDOLON",
+      "printed_page": 133,
+      "text": "hero Edge 14 Resolve 6 Health 7 Hero Points 125 aBIlItIes Agility 8d Perception 6d Intellect 3d Toughness 8d Might 3d Willpower 6d talents Academics 3d Professional 3d Charm 4d Science 4d Command 3d Streetwise 3d Covert 4d Survival 3d Investigation 4d Technology 3d Medicine 3d Vehicles 3d poWers"
+    },
+    {
+      "heading": "INNATE POWERS",
+      "printed_page": 133,
+      "text": "Omni-Power (Fungal Powers) 10d* (Mind Link) Light *Eidolon’s control of his own fungal body and fungi around him allows him enormous flexibility. By manipulating his own body, he can imitate Powers like Blending, Doppelganger, Extra Limbs, Healing, Plasticity, Separation, and Stretching. By releasing spores, he can imitate attack Powers like Blast, Blind, Strike, and Stun and mental Powers like Illusions (Mental), Languages (Hyper Translation), Mind Control, Possession, and Telepathy, but these spore-based Powers all have the Toxin Con and cannot be used at any farther than Close Range. perKs None FlaWs Enemy (Gaia Pharmaceuticals) * Relationship (see Connections)* Outsider (an alien, humans still baffle him) Gear None addItIonal InFormatIon motIvatIon: Knowledge connectIons 1) Machiko Okabe: A kindergarten teacher Lon often visits. Lon has learned much about human behavior by watching her students interact. 2) Monique Dumas: One of Ms. Okabe’s students, she suffers from cerebral palsy. She is completely comfortable with Lon’s true appearance. 3) Shin Beatty: A biochemist and Lon’s first friend. Shin is currently in hiding from his former employer, living under an assumed name. detaIls Lon enjoys volunteering in schools. He finds children more direct and less cynical, and thus more familiar, than adults. Science and medicine-oriented heroes will recognize Lon’s abilities as alien and fascinating, with incredible potential for humanity. Lon and Shin are both mistaken. The people at Gaia Pharmaceuticals were not there for Shin’s work; they were there for Lon."
+    },
+    {
+      "heading": "LON",
+      "printed_page": 133,
+      "text": "“Why did you do that? That wasn’t very nice.” orIGIn: A microbial being, Lon came to Earth on a comet that crashed into the Blue Mountains of Oregon. The ensuing blast nearly killed Dr. Shin Beatty, a young mycologist looking for a previously undiscovered fungus he had tracked to the area, one that could help him and his employer, Gaia Pharmaceuticals, unlock the next great medical revolution. Luckily for Shin, he was right, and Lon merged with that fungus to become something more, something that could heal the terribly wounded scientist. The two became friends. It was Shin who would name him Eidolon and teach him about this strange new world. Now a sentient fungal being, Lon agreed to help Shin with his research. Unfortunately, not long after the accident, Shin’s lab was raided, all his records were stolen, and Shin himself would have been killed had Lon not been there to save him. Unbelievably, Shin recognized one of the team that had been sent to kill him: she was a fellow Gaia employee! Shin’s employer wanted to get rid of him and make it look like corporate espionage. Shin would have to go into hiding until he could figure out what Gaia was up to. He explained this to Lon, but the alien understood little of things like corruption and greed. Realizing he’d need to learn if he were going to help his friend, the hero Eidolon was born. 113333"
+    },
+    {
+      "heading": "HERALD",
+      "printed_page": 134,
+      "text": "hero Edge 12 Resolve 5 Health 6 Hero Points 125 aBIlItIes Agility 6d Perception 6d Intellect 4d Toughness 4d Might 4d Willpower 8d talents Academics 2d Professional 2d Charm 4d Science 2d Command 2d Streetwise 2d Covert 2d Survival 6d Investigation 2d Technology 2d Medicine 6d Vehicles 2d poWers"
+    },
+    {
+      "heading": "MAGIC POWERS",
+      "printed_page": 134,
+      "text": "Abilities and Talents (All) Alternate Form (see Scáthach) (Independent Form) Elemental Control (Plants) 10d (Area, Zone) Expertise (Medicine: Ancient Remedies) 12d Expertise (Science: Botany) 12d Healing 10d perKs None FlaWs Alter Ego (Fiona O’Connell is the 16-year old alter ego of Airmid and Scáthach, two goddesses who appear whenever they deem it necessary. This is less than idea for Fiona since the Celtic goddesses are unfamiliar with curfews, high school, weekend babysitting, etc.) Relationship (see Connections)* Secret Identity Gear None addItIonal InFormatIon motIvatIon: Idealism connectIons Professor Dualtach Ó Duinn: an expert in Celtic mythology, he knows Fiona’s secret and has met her alter egos. Holly Meadows: Fiona’s best friend since almost before they could walk, Holly is Fiona’s link to normalcy. She doesn’t know Fiona’s secret. Sean and Abigail O’Connell: Fiona’s parents, they do not know their daughter is a superhero. detaIls Fiona tries to maintain a secret identity, but the uncontrolled manifestations of the goddesses are making this increasingly difficult. Heroes with a mystic background may well have met one or both goddesses in the past. A great destiny comes with the power Fiona unleashed, one she has yet to discover. 113344"
+    },
+    {
+      "heading": "AIRMID/FIONA O’CONNELL",
+      "printed_page": 134,
+      "text": "“I may be a healer, but do not mistake me for a pacifist.” orIGIn: Fiona O’Connell spent her childhood travelling with her archeologist parents around the globe as they sought out lost secrets of the past and evidence of legendary heroes. Fiona’s parents believed in the existence of divine forces that would bestow their power on those they deemed worthy. This search led the O’Connells to Ireland. Fiona was helping at a dig site near some fairy mounds when she felt the power flow into her, enough to make her pass out. She had a vision of two beautiful, powerful women: the Irish goddesses Airmid and Scáthach. They had chosen her. When she awoke, Fiona realized she was now host to these two beings. Airmid and Scáthach rarely agreed on much, but they had agreed on Fiona as their vessel. Perhaps most strange of all, Fiona felt more like herself than ever before. She returned to the United States and began using her powers to fight evil and corruption. Airmid is a goddess of plants and healing. She is the daughter of Dian Cécht, one of the Tuatha Dé Danann, and she served to heal the warriors who fought with her people. The tears Airmid shed over her brother’s grave brought about 365 healing herbs."
+    },
+    {
+      "heading": "HERALD",
+      "printed_page": 135,
+      "text": "hero Edge Resolve 5 Health 7 Hero Points 125 aBIlItIes Agility 8d Perception 6d Intellect 3d Toughness 6d Might 8d Willpower 6d talents Academics 2d Professional 2d Charm 4d Science 2d Command 4d Streetwise 2d Covert 4d Survival 4d Investigation 2d Technology 2d Medicine 2d Vehicles 2d poWers"
+    },
+    {
+      "heading": "MAGIC POWERS",
+      "printed_page": 135,
+      "text": "Abilities and Talents (All) Alternate Form (see Airmid) (Independent Form) Attuned (Prophetic Visions) Armor 10d (Item: armor) Danger Sense 8d Determination (+2 Resolve) Expertise (Academics: Strategy and Tactics) 12d Lightning Reflexes Martial Arts 10d Regeneration Strike (Physical) 11d (Deflect, Item: varies but it’s usually a spear or a sword, Phase Shift, Throw) Weakness Detection perKs None FlaWs See Airmid/Fiona O’Connell Gear None addItIonal InFormatIon motIvatIon: Idealism connectIons Professor Dualtach Ó Duinn: an expert in Celtic mythology, he knows Fiona’s secret and has met her alter egos. Holly Meadows: Fiona’s best friend since almost before they could walk, Holly is Fiona’s link to normalcy. She doesn’t know Fiona’s secret. Sean and Abigail O’Connell: Fiona’s parents, they do not know their daughter is a superhero. detaIls Fiona tries to maintain a secret identity, but the uncontrolled manifestations of the goddesses are making this increasingly difficult. Heroes with a mystic background may well have met one or both goddesses in the past. A great destiny comes with the power Fiona unleashed, one she has yet to discover."
+    },
+    {
+      "heading": "SCÁTHACH/FIONA O’CONNELL",
+      "printed_page": 135,
+      "text": "“I’ve trained the greatest warriors in all of history. You are nothing.” orIGIn: Fiona O’Connell spent her childhood travelling with her archeologist parents around the globe as they sought out lost secrets of the past and evidence of legendary heroes. Fiona’s parents believed in the existence of divine forces that would bestow their power on those they deemed worthy. This search led the O’Connells to Ireland. Fiona was helping at a dig site near some fairy mounds when she felt the power flow into her, enough to make her pass out. She had a vision of two beautiful, powerful women: the Irish goddesses Airmid and Scáthach. They had chosen her. When she awoke, Fiona realized she was now host to these two beings. Airmid and Scáthach rarely agreed on much, but they had agreed on Fiona as their vessel. Perhaps most strange of all, Fiona felt more like herself than ever before. She returned to the United States and began using her powers to fight evil and corruption. Scáthach is a goddess of prophesy and martial prowess. The Shadow Queen of the Isle of Skye, she taught countless warriors of legend. Although Scáthach is mainly a warrior, she also possesses rather unpredictable powers of foretelling. 113355"
+    },
+    {
+      "heading": "NANO",
+      "printed_page": 136,
+      "text": "hero Edge 6 Resolve 2 Health 6 Hero Points 125 aBIlItIes Agility 3d Perception 3d Intellect 3d Toughness 6d Might 3d Willpower 6d talents Academics 2d Professional 2d Charm 2d Science 2d Command 2d Streetwise 2d Covert 2d Survival 2d Investigation 2d Technology 2d Medicine 2d Vehicles 2d poWers"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 136,
+      "text": "Abilities and Talents (All) Communications Determination (+2 Resolve) Gaseous Form Immortality Inanimate Liquid Form Machine Control 6d Separation Shapeshifting 12d Super Senses (Analytic Vision, Circular Vision, Microscopic Vision) perKs None FlaWs Emotionless Quirk (curious) Restriction (no legal rights) Gear None addItIonal InFormatIon motIvatIon: Knowledge connectIons Elise Drucker: She works at a local art museum that Nano frequents, trying to understand people. Parrot: Nano’s parrot, an African Grey, bought in an attempt to understand why humans keep pets. Reboot: An AI presence Nano encountered in the deep web. Reboot also seems to be trying to understand humanity. Nano suspects the AI may be hostile but has not shared this. Reboot knows the truth. detaIls Nano’s operating system is so sophisticated that he may one day develop emotions. This will come as quite a shock. One of the Heroes knows something about Dr. Fuji’s research that even Nano doesn’t know. The clan of techno ninjas sent to retrieve Nano is still searching for him, and they can be very patient. 113366"
+    },
+    {
+      "heading": "NANO",
+      "printed_page": 136,
+      "text": "“You will not give yourselves up to the proper authorities? I fail to understand the logic in that. If you could explain it to me after I’ve restrained you, I would be most appreciative.” orIGIn: Nano is a swarm of billions of nanites. Originally created at Pinnacle Labs by a research team headed by Dr. Earnest Fuji, Nano was only supposed to be an experiment. However, when Dr. Fuji realized his creation had become sentient, he could not in good conscience end the experiment and thus the life of the being he had created. Never having had time for a wife or a family, Dr. Fuji developed an almost paternal fondness for his creation. And while Nano couldn’t feel emotions, he knew Dr, Fuji as his creator, teacher, protector, and friend. The ninja came one night, hired to steal Nano and all of Dr. Fuji’s records. Fuji had just enough time to wipe his system clean and free Nano from the containment field before the ninja killed the poor man. This was the first time Nano experienced crime, loss, and victimization. Finding none of these things to be positive, Nano took a few microseconds to make a quick study of human culture and decided to become a superhero. The ninja were never found."
+    },
+    {
+      "heading": "PANDORA",
+      "printed_page": 137,
+      "text": "hero Edge 9 Resolve 2 Health 8 Hero Points 125 aBIlItIes Agility 3d Perception 4d Intellect 5d Toughness 3d Might 3d Willpower 12d talents Academics 6d Professional 2d Charm 2d Science 2d Command 6d Streetwise 2d Covert 2d Survival 2d Investigation 2d Technology 2d Medicine 2d Vehicles 2d poWers"
+    },
+    {
+      "heading": "MAGIC POWERS",
+      "printed_page": 137,
+      "text": "Omni-Power (Sorcery) 12d (Area)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 137,
+      "text": "Expertise (Academics: Arcane Lore) 10d perKs Contacts (good magicians) FlaWs Enemy (the unknown sorcerer)* Relationship (see Connections)* Secret Identity Gear None addItIonal InFormatIon motIvatIon: Responsibility connectIons Autumn King-Martin: Malia’s younger sister, Autumn often acts as Sierra’s impromptu babysitter. She has no idea that Malia is a superhero. Master Uriel: Long time friend, master of arcane knowledge, and mentor to both Malia and her late husband, Oliver. Sierra King: Malia’s young daughter, Sierra is a normal toddler who just happens to possess almost unlimited magical potential. detaIls Malia is desperate to learn why her daughter Sierra has such incredible magical potential and, more importantly, who is after her. Malia may occasionally receive messages for other Heroes from their loved ones who have passed. Master Uriel knows more than he has told Malia about Sierra, the sorcerer who is hunting her, and why."
+    },
+    {
+      "heading": "MALIA KING",
+      "printed_page": 137,
+      "text": "“I’ve faced real threats to this world, nightmares that would freeze your blood. Now drop your weapons or I’ll arrange an introduction.” orIGIn: Magic is a funny thing. Sometimes you find it, but often, it finds you. The first time it found Malia, her last name was McDermott, and she was attending Oxford University. That’s where she met Oliver King, a promising young magician who, disguised as the Black Cowl, used his arcane powers to protect others. The couple married shortly after graduation and spent the next ten years in happy normalcy. The day her daughter Sierra was born was the second time magic found Malia. She never thought she could feel so much joy. But tragedy was soon to follow, in the form of a demon that stepped out the shadows one day. Oliver managed to banish the creature, but he was mortally wounded in the battle. Before he died, Oliver told Malia that she also had the gift of magic, and that she would have to take up the sorcerous arts to protect Sierra, whose magical potential dwarfed anything Oliver had ever seen. The demon, he whispered, had been after Sierra. With tears in her eyes, Malia promised her husband she would do whatever she had to if it meant keeping Sierra safe. Malia spent the next few years studying with Oliver’s former mentor, and the sorceress Pandora was born. 113377"
+    },
+    {
+      "heading": "PSI LANCE",
+      "printed_page": 138,
+      "text": "hero Edge 9 Resolve 2 Health 8 Hero Points 125 aBIlItIes Agility 3d Perception 3d Intellect 6d Toughness 3d Might 3d Willpower 12d talents Academics 3d Professional 3d Charm 3d Science 6d Command 3d Streetwise 3d Covert 3d Survival 3d Investigation 3d Technology 3d Medicine 6d Vehicles 3d poWers"
+    },
+    {
+      "heading": "PSYCHIC POWERS",
+      "printed_page": 138,
+      "text": "Abilities (Willpower) Armor 10d (Activated) Mind Blast 12d Mind Control 6d (Costly) Telekinesis 6d Telepathy 12d (Cloak Others, Mind Link)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 138,
+      "text": "Expertise (Medicine: Psychology) 10d perKs None FlaWs Obligation (her career)* Relationship (see Connections)* Secret Identity Gear None addItIonal InFormatIon motIvatIon: Altruism connectIons Andrea, Blake, and Hunter Hollister: Victoria’s sister, brother-in-law, and nephew, none of whom know her secret. John Baylor: One of Victoria’s closest friends. John is the only person who knows that Victoria is Psi Lance. Drs. Thomas and Taylor Anderson: Victoria’s parents, both of whom are neuroscientists. She gets her love of science from them. detaIls Victoria struggles with the ethical issues that come with being able to read minds and control other’s actions. Occasionally and completely by accident, Victoria will pluck memories and secrets from the minds others, including fellow Heroes. Reading minds and moving objects is just the start. Victoria may eventually have to choose between her powers and her humanity. 113388"
+    },
+    {
+      "heading": "VICTORIA ANDERSON",
+      "printed_page": 138,
+      "text": "“Put down the weapon, please. I know you don’t want to be here, and I know you don’t want to hurt anyone. Let me help.” orIGIn: It was Victoria who came up with the name “dream machine” back when she first mentioned the idea to John in their sophomore year of college. The name stuck, and about a decade later, Drs. Victoria Anderson and John Baylor had their working prototype. Able to deliver scripted dreams into a patient’s subconscious while they slept, the machine would help psychotherapists like Victoria treat patients suffering from things like childhood trauma and PTSD. Victoria won the coin toss, so she was the first to test the machine. She would also be the last. The dream machine triggered Victoria’s latent psychic abilities the moment she went under, then exploded in a bright arc of neuro-electric feedback. Victoria immediately realized that she’d been changed. She now had incredible psychic powers, and with them, she could help others in ways that most therapists could only dream. Victoria believes the best thing she can do with her powers is help the mentally ill, but she hasn’t quite determined the safest and most effective way to go about that. Until she does, Victoria has decided to help others as a superhero."
+    },
+    {
+      "heading": "PSIDEARM",
+      "printed_page": 139,
+      "text": ""
+    },
+    {
+      "heading": "HERO",
+      "printed_page": 139,
+      "text": "Edge Resolve 5 Health 7 Hero Points 125"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 139,
+      "text": "Agility 10d Perception 6d Intellect 3d Toughness 5d Might 3d Willpower 9d"
+    },
+    {
+      "heading": "TALENTS",
+      "printed_page": 139,
+      "text": "Academics 3d Professional 3d Charm 6d Science 3d Command 3d Streetwise 3d Covert 6d Survival 6d Investigation 6d Technology 3d Medicine 3d Vehicles 6d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 139,
+      "text": ""
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 139,
+      "text": "Telepathy 9d (Mind Link)"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 139,
+      "text": "Armor 6d (Item: costume) Communications (Item: mask) Immunity (Sensory) (Item: mask) Super Senses (Night Vision) (Item: mask)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 139,
+      "text": "Blast (Special) 10d (Weapons) Lightning Reflexes Martial Arts 6d Master of Disguise Two-Fisted"
+    },
+    {
+      "heading": "PERKS",
+      "printed_page": 139,
+      "text": "Contacts (espionage) Resources (weapons and gear)"
+    },
+    {
+      "heading": "FLAWS",
+      "printed_page": 139,
+      "text": "Compulsion (shameless flirt) Relationship (see Connections)* Secret Identity"
+    },
+    {
+      "heading": "ADDITIONAL INFORMATION",
+      "printed_page": 139,
+      "text": "MOTIVATION: Redemption"
+    },
+    {
+      "heading": "CONNECTIONS",
+      "printed_page": 139,
+      "text": "Bill and Molly Pierce: Jason’s parent, both of whom are decorated veterans. Neither is aware that Jason is a superhero. Jack Dalton: The superhero Darkwolf is Jason’s closest friend in the world; both have a beef with the same rogue government agency. Weiss: An old-school, Cold War era former spy, Weiss (just Weiss) was and remains a contact of Jason’s."
+    },
+    {
+      "heading": "DETAILS",
+      "printed_page": 139,
+      "text": "Jason worries that the rogue agency he worked for may try to get at him through his parents. During his years working for the rogue agency, Jason learned something about another Hero, something even that Hero doesn’t know. Although Jason was acquitted of all wrongdoing in exchange for his assistance and testimony, not everyone is satisfied with this result; some want revenge against the former operative."
+    },
+    {
+      "heading": "JASON PIERCE",
+      "printed_page": 139,
+      "text": "“Trust me guys, you can’t possibly imagine how much you want to give up right now.”"
+    },
+    {
+      "heading": "GEAR",
+      "printed_page": 139,
+      "text": "2 Pistols: for Blast 2 Batons: 8d (s) Melee (Thrown) ORIGIN: Jason Pierce entered the military right out of high school. He quickly caught the attention of the intelligence community and was recruited into an elite agency that handled only the most classified operations. Jason spent several years with the organization. He assumed what he was doing was for the good of the country if not the world. He believed that right up until the moment he killed that telepath. The old man’s name was Dr. Steiner, and he was supposed to be a terrorist, a renegade scientist who had worked with the organization in the past. As it turned out, Steiner was also a telepath, and he sensed Jason a moment before the killing shot was fired. In his final instant, the old scientist filled Jason’s mind with the truth: Jason had been working for a rogue agency with a dark agenda. Jason felt the old man die in his mind, and the psychic assault triggered his latent telepathic abilities. It was overpowering, but Steiner’s mental info-dump had been thorough. Jason knew that the agency had been conducting illegal experiments based on Steiner’s research. The old man had intended to stop them, but it would be Psidearm who finished the job. Even though he failed to expose the organization, Jason’s first act as a superhero was to put an end to those experiments, and in doing so, he met his friend Jack Dalton (Darkwolf). 113399"
+    },
+    {
+      "heading": "SHADOW",
+      "printed_page": 140,
+      "text": "hero Edge 18 Resolve 6 Health 5 Hero Points 125 aBIlItIes Agility 10d Perception 8d Intellect 3d Toughness 4d Might 3d Willpower 6d talents Academics 3d Professional 3d Charm 3d Science 3d Command 3d Streetwise 6d Covert 9d Survival 6d Investigation 6d Technology 3d Medicine 3d Vehicles 3d poWers"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 140,
+      "text": "Armor 6d (Item: suit) Blending (Item: suit) Communications (Item: suit) Immunity (Sensory) (Item: suit) Invisibility (Item: suit, Jamming) Super Senses (Acute Vision 10d, Night Vision, Telescopic Vision) (Item: suit) Swing Line 6d (Item: suit) Wall-Crawling 4d (Item: suit)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 140,
+      "text": "Determination (+1 Resolve) Martial Arts 8d Preparation Strike (Special) 10d (Weapons) Two-Fisted perKs Contacts (criminal) Resources (ninja gear) FlaWs Enemy (the Black Lotus)* Quirk (socially awkward) Secret Identity addItIonal InFormatIon motIvatIon: Responsibility connectIons Eiji Ono: An old auto mechanic who repairs Tatsu’s gear. There’s much about him she doesn’t know. Meowmoto Musashi: Tatsu’s cat, probably the first creature in her life to show her real affection. Taneda Yamaguchi: Although she has no idea, the head of the Black Lotus also happens to be Tatsu’s father. He wants to bring his daughter back into the clan that is her birthright and her responsibility. detaIls Tatsu would love to find her real parents but hasn’t pursued this because she fears putting them in danger. It is likely that the Black Lotus had a hand in something bad that happened to another Hero. Tatsu will be devastated to learn her father is head of the Black Lotus. She will even consider going back to them. Her mother will save her. 114400"
+    },
+    {
+      "heading": "TATSU YAMAGUCHI",
+      "printed_page": 140,
+      "text": "“Surrender now, you have already lost.” Gear 2 Swords: for Strike 2 Pistols: 9d Ranged (Silenced) Miscellaneous ninja gear orIGIn: The Black Lotus is well known and rightfully feared in the underworld. Assassins, mercenaries, and spies without equal, this ancient ninja clan long ago incorporated advanced technology into their time- honored practices. They took Tatsu Yamaguchi from her parents as an infant, as is their custom, and her training in the art of ninjutsu began before she could walk. Tatsu had no time for a childhood; she was too busy learning to be an assassin, a soldier, a spy, and most of all, a shadow. Her first mission, however, would be her last. Despite all her training, Tatsu could not bring herself to kill her first target when his 4-year old daughter ran out from where she had been hiding and began crying and begging Tatsu to leave her daddy alone. In that moment, Tatsu understood what had been taken from her. She decided then and there that if her childhood had been stolen, it would be for something better than to give the Black Lotus another foot soldier. Rather than serve them, she would defend people against the Black Lotus and others like them. Tatsu ran away that night, leaving the Black Lotus, Japan, and everything she knew behind her. She swore that no matter how long it took, she would dismantle the Black Lotus and rid the world of their evil."
+    },
+    {
+      "heading": "SIREN",
+      "printed_page": 141,
+      "text": "hero Edge 15 Resolve 5 Health 9 Hero Points 125 aBIlItIes Agility 9d Perception 6d Intellect 6d Toughness 9d Might 9d Willpower 6d talents Academics 3d Professional 3d Charm 5d Science 3d Command 5d Streetwise 3d Covert 5d Survival 3d Investigation 7d Technology 5d Medicine 3d Vehicles 5d poWers"
+    },
+    {
+      "heading": "INNATE POWERS",
+      "printed_page": 141,
+      "text": "Blending Doppelganger Radar Running 5d Super Senses (Ultra Vision) Swimming 6d"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 141,
+      "text": "Armor 10d (Item: uniform) Blast (Sonic) 10d (Item: sonic “thumper” pistol) perKs Contacts (Neridia, police) FlaWs Light Sensitive Quirk (by-the-book) Relationship (see Connections)* Gear Communicator, handcuffs addItIonal InFormatIon motIvatIon: Career connectIons Blue: Ariel will never admit how much she loves this black cat she rescued when she was just a kitten. Detective Mary Ellen O’Malley: As by-the-book as Ariel, Mary Ellen is her police contact and close friend. Officer Ethul Uldal: Her brother and fellow member of the Neridian Patrol Corps, Ethul (the Merman) is her primary contact with Neridia. detaIls When Ariel can’t sleep, she often swims out into the ocean and lets the tides lull her to sleep. Though it’s a big galaxy, an alien or interstellar Hero may know Ariel or at least have heard of her. Ariel will eventually discover who attacked her ship and why, but by then it will be too late."
+    },
+    {
+      "heading": "AHR’AYEL (ARIEL) ULDAL",
+      "printed_page": 141,
+      "text": "“Drop your weapons, humans, you’re now under NPC detention! orIGIn: The aquatic inhabitants of the planet Neridia are interstellar explorers. Having visited Earth some centuries ago and not at all since, the Neridian Patrol Corps determined that it was time to send a new envoy to see how things were developing. Although technologically backwards, Earth appeared to be a nexus that drew beings of great power and events of galactic consequence. That being the case, the NPC sent their best: Patrol Chief Ariel Uldal. Ariel’s mission was almost cut short, however, when her ship came under fire the moment it entered the solar system. Neither she nor her patrol craft’s sensors could identify the attackers, but it was clear they didn’t want her to reach Earth. Although the assault severely damaged her ship, Ariel made it to Earth alive and intact. She reported the attack to the Corps, who then issued her a new mission. Ariel was to bide her time on Earth, learn who or what it was that attacked her, and figure out why. 114411"
+    },
+    {
+      "heading": "STRONGHOLD",
+      "printed_page": 142,
+      "text": "hero Edge 16 Resolve 3 Health 10 Hero Points 125 aBIlItIes Agility 6d Perception 6d Intellect 10d Toughness 10d Might 10d Willpower 5d talents Academics 3d Professional 3d Charm 3d Science 3d Command 3d Streetwise 3d Covert 3d Survival 3d Investigation 3d Technology 12d Medicine 3d Vehicles 3d poWers"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 142,
+      "text": "Abilities (Agility, Might, Perception, Toughness) (Item: armor) Armor 11d (Item: armor) Blast (Energy) 11d (Area, Item: armor) Blast Variant (Energy) 11d (Build-Up, Charges 6, Item: armor, Penetrating) Communications (Item: armor) Flight 9d (Item: armor) Immunity (Environmental, Life Support) (Item: armor) Omni-Power (Sensors) 2d (Item: armor) perKs Contacts (Pinnacle City University) FlaWs Finite Power (the armor’s power source) Relationship (see Connections)* Secret Identity Gear None addItIonal InFormatIon motIvatIon: Responsibility connectIons Darsh and Siya Singh: Jaykumar’s parents, who would absolutely lose their minds if they knew his secret. Dr. Lina Jiang: One of Jaykumar’s former robotics professors, she is a friend and mentor. Lina does not know Jaykumar is Stronghold. Prishna Singh: Jaykumar’s older sister. Possibly smarter than he is, Prishna is an expert in multiple fields, including cybernetic medicine. She helped her brother design his armor. detaIls Although he is still young, Jaykumar’s parents have already begun trying to find him a nice girl so he can settle down. Jaykumar will almost certainly strike up a friendship (and friendly rivalry) with any tech-oriented Hero. The early version of the Stronghold armor is currently being mass- produced for a terrible purpose. 114422"
+    },
+    {
+      "heading": "JAYKUMAR SINGH",
+      "printed_page": 142,
+      "text": "“Yeah, I get it. You’re big, and strong, and not at all concerned with personal hygiene. Your folks must really be proud.” orIGIn: Jaykumar Singh was supposed to be a wealthy geek, not a superhero. A bona fide genius, Jaykumar had advanced degrees in a variety of technical fields by his 18th birthday. He opened his first company at 19, and almost immediately began developing an advanced suit of powered armor for his first client — the United States military. Or so he believed, until a mysterious explosion leveled his offices on the same day that an impossibly advanced virus tracked down and erased every file relating to the project. Jaykumar’s inquiries revealed that no one in the government or the military knew anything about him, his company, or the powered armor he had designed with his sister’s help. Although a brilliant scientist and engineer, Jaykumar was still little more than a kid, and he’d been played. Now someone, likely a rogue organization within the United States government, was armed with advanced technology he had given them. It was his mess, and he was going to clean it up. Working from memory, Jaykumar revised and improved on the original designs he and his sister had worked up, and the Stronghold armor was born. Jaykumar knows his handiwork will turn up eventually. When it does, Stronghold will be ready."
+    },
+    {
+      "heading": "T-KAY",
+      "printed_page": 143,
+      "text": "hero Edge 8/14 Resolve 3 Health 6 Hero Points 125 aBIlItIes Agility 4d Perception 4d Intellect 3d Toughness 3d Might 3d Willpower 9d talents Academics 3d Professional 3d Charm 4d Science 3d Command 3d Streetwise 4d Covert 3d Survival 3d Investigation 3d Technology 3d Medicine 3d Vehicles 3d poWers"
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 143,
+      "text": "Abilities (Willpower) Determination (+2 Resolve) Flight 8d Force Field 12d (Zone) Lightning Reflexes (Limited: only for Telekinesis) Telekinesis 12d (Area, Overload, Zone) perKs Contacts (club music scene) FlaWs Aversion (crowds) Relationship (see Connections)* Secret Identity Gear None addItIonal InFormatIon motIvatIon: Trouble connectIons Amir and Hina Zamani: Kayla’s parents. They know she has powers, but not that she’s a superhero. They want her to keep her powers a secret. Olivia Wade: Kayla’s best friend and her boyfriend Omar’s little sister, Olivia knows that Kayla is T-Kay. Omar Wade: Kayla’s long-term boyfriend; she has not yet told him about her powers and isn’t sure how he’d react to the news. detaIls Kayla’s first priority is getting her powers under control, so she doesn’t hurt anyone ever again. One or more of the younger Heroes may know Kayla from her days as a popular club DJ. Kayla will eventually learn that what happened in the club that night was neither her doing nor her fault."
+    },
+    {
+      "heading": "KAYLA ZAMANI",
+      "printed_page": 143,
+      "text": "“Oh my god, that costume. Like, you woke up this morning, looked at everything in your closet, -- and decided to wear that? In public? Wow.” orIGIn: Kayla Zamani never intended to be a superhero. Born with her powers, her parents told her to keep them secret so she could live a normal life, and she did. Kayla focused on her music, specifically EDM, which was her passion. By the time she was 20, DJ Kayla was already a fixture in clubs she would have needed her fake ID to enter. Kayla was on her way to a real career in the music industry, until the night of the accident. Kayla still doesn’t know what happened. One minute, everything was fine. The next, Kayla’s abilities flared more powerfully than ever before or since, and the walls of the club were pulled down around her. Although she was able to use her power to keep the weight of an entire building up long enough for everyone to get out, the damage was done. Kayla had almost killed hundreds of people in an instant, and she had no idea how or why it happened. Knowing she would have to get her powers under control before she could go back to the life she loved, Kayla set out to find a group of superheroes who might be able to help her control her abilities and understand exactly what happened that night. 114433"
+    },
+    {
+      "heading": "TALON",
+      "printed_page": 144,
+      "text": "hero Edge 12 Resolve 5 Health 8 Hero Points 125 aBIlItIes Agility 6d Perception 6d Intellect 6d Toughness 6d Might 6d Willpower 9d talents Academics 3d Professional 3d Charm 3d Science 3d Command 6d Streetwise 6d Covert 6d Survival 6d Investigation 6d Technology 6d Medicine 3d Vehicles 6d poWers"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 144,
+      "text": "Armor 10d (Item: costume) Ensnare 10d (Item: talons; Line) Flight 9d (Item: costume) Strike (Physical) 10d (Item: talons) Super Senses (Acute Vision 10d, Telescopic Vision, Thermal Vision) (Item: costume) perKs Contacts (police) FlaWs Relationship (see Connections)* Secret (his stolen gear) Secret Identity Gear None addItIonal InFormatIon motIvatIon: Justice connectIons Ethel Redhawk: Sam’s grandmother, a kind but tough old lady who lives alone. Sam has not told her he’s a superhero, but she knows. Louis J. Brubaker: Sam’s boyhood friend, he also happens to be the relentless internal affairs officer at the Chicago PD tasked with hunting down the Thieving Magpie’s stolen gear. Mary Redhawk: Sam’s younger sister, Mary is also in law enforcement and has no idea Sam is a superhero. detaIls Sam spends just about all his free time trying to dig up leads regarding his father’s murder, but the case has grown cold. One of the other Heroes may eventually make the connection between Talon and the Thieving Magpie. Unbeknowst to Sam, his gear wasn’t originally designed for robbing banks. In fact, it wasn’t even designed on Earth! 114444"
+    },
+    {
+      "heading": "SAMUEL REDHAWK",
+      "printed_page": 144,
+      "text": "“You’re used to being the hunter, but I’ve got news for you. You’re not the hunter today. You’re the prey.” orIGIn: Being a lawman was in Sam Redhawk’s blood. His father was tribal sheriff, having stepped into the role after his grandfather retired, and his sister Mary was a deputy. But that wasn’t enough for Sam, who left the reservation for a position as a detective with the Chicago police department. That’s why Sam wasn’t there when his father was murdered on what he thought would be a routine traffic stop. The guilt nearly broke him. Sam gave up his badge and set out to find the drug runners that had killed his father. Knowing this was more the he’d be able to handle alone, Sam did the unthinkable: he broke the law. Sam stole the gear that some idiot supervillain named the Thieving Magpie had been using to rob banks in Chicago. After stealing the high-tech costume out of the police lock-up, Sam modified the equipment a bit and named himself Talon. One day, he’ll turn himself in and pay for his crime, but not until he discovers who it was that killed his father and makes them pay — not just the gunman — but the whole crooked organization, all the way to the top."
+    },
+    {
+      "heading": "VECTOR",
+      "printed_page": 145,
+      "text": "hero Edge 10 Resolve 6 Health 4 Hero Points 125 aBIlItIes Agility 3d Perception 4d Intellect 6d Toughness 4d Might 3d Willpower 4d talents Academics 4d Professional 2d Charm 2d Science 6d Command 2d Streetwise 4d Covert 4d Survival 2d Investigation 4d Technology 6d Medicine 2d Vehicles 2d poWers"
+    },
+    {
+      "heading": "MAGIC POWERS",
+      "printed_page": 145,
+      "text": "Attuned (Space-Time Disturbances) Blink 10d (Exclusive) Deflection (Physical and Energy) 10d (Exclusive) Immunity (Illusions) Phasing (Exclusive) Regeneration (Conditional: while awake) Telekinesis 6d (Exclusive)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 145,
+      "text": "Expertise (Science: Reality Equation Physics) 12d perKs Contacts (academic, scientific) FlaWs Enemy (Vector has become the target of certain pseudo-scientist media personalities who claim his reality-altering abilities are dangerous; their true intentions are even more nefarious)* Finite Power (Vector’s powers take a toll on the fabric of space- time and shut down when stretched too far) Relationship (see Connections)* Gear Padded Costume: Armor 4d addItIonal InFormatIon motIvatIon: Altruism connectIons Carrie Li: Franklin’s friend, roommate, and reluctant PR agent. Dr. Gilbert Roth: particle physicist turned media darling, Roth prevented Franklin from getting tenure and is now crusading against him in the news. Maggie Porter: Franklin’s ex-girlfriend, she remains a best friend and close confidant. detaIls Franklin rejects magic, resolutely believing his powers are a heretofore undiscovered physics property that allows him to alter reality. And for all anyone knows, he may well be correct. A science or tech-minded Hero may know Franklin’s reputation as a talented “crackpot.” A sinister faction knows all about Franklin’s powers and plans to exploit them before the young Hero becomes powerful enough to stop them."
+    },
+    {
+      "heading": "FRANKLIN WAAKA",
+      "printed_page": 145,
+      "text": "“Would you care to test your hypothesis, mate?” orIGIn: Franklin Waaka was no stranger to derision and discrimination. He was born Maori. He spent most of his youth as a socially awkward outcast who dreamed of becoming a famous scientist like Albert Einstein or Niels Bohr. He was even drummed out of academia because his understanding of theoretical physics was so advanced as to be incomprehensible to anyone else. But none of that dissuaded Franklin, who knew he was on the verge of a breakthrough, something that would make Unified Field Theory look like basic arithmetic. So he took a menial job at the local university and kept at his work in his spare time. Thankfully, he succeeded, and just in time. Franklin solved the Reality Equation, and reality opened itself up to the young genius in time for him to prevent a catastrophic failure of the university’s particle accelerator that would have destroyed our reality. Franklin was elated at his success, but he also realized the power he had unlocked. What if someone less reasonable than him had solved the equation? Bloody awful, that’s what. Until humanity advanced to the point where Franklin’s sufficiently advanced theories weren’t indistinguishable from magic, someone who knew what was what would need to keep an eye on things. And it looked that someone was going be him. Not so bad: after all, Albert Einstein never walked through a wall to stop space-time from caving in on itself. 114455"
+    },
+    {
+      "heading": "VIGILANT",
+      "printed_page": 146,
+      "text": "hero Edge 18 Resolve 8 Health 8 Hero Points 125 aBIlItIes Agility 9d Perception 9d Intellect 4d Toughness 6d Might 4d Willpower 9d talents Academics 3d Professional 3d Charm 6d Science 3d Command 6d Streetwise 6d Covert 6d Survival 6d Investigation 6d Technology 3d Medicine 3d Vehicles 6d poWers"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 146,
+      "text": "Super Senses (Night Vision) (Item: suit) Swing Line 6d (Item: grappling line)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 146,
+      "text": "Leaping 3d Martial Arts 9d Preparation Running 4d Two-Fisted Weakness Detection perKs Contacts (criminal, police, tech expert) Wealth FlaWs Enemy (Scorpio)* Relationship (see Connections)* Secret Identity Gear Armored Suit: 7d Armor 2 Jo Sticks: 10d (s) Melee (Upgraded) Communicator and miscellaneous gear Motorcycle and/or sports car as needed addItIonal InFormatIon motIvatIon: Redemption connectIons Alex Cross: Michael’s brother, supervillain, and mafia enforcer Scorpio, who does everything he does for the family he loves. He considers Michael his best friend. Mila Moreno: Michael’s closest friend and his high-tech guru. The attack that left Mila paralyzed is the reason Michael became a superhero. Victor and Irina Cross: Michael’s parents; his father is a high-ranking member of the Russian mafia in America. detaIls Michael’s family thinks he’s a party animal and a bum who spends most nights wasting the family’s money. One of the other Heroes may have had a run-in with Michael’s family or his brother, Scorpio. Although it certainly won’t be tomorrow, Alex Cross will one day give his life for his brother the hero. 114466"
+    },
+    {
+      "heading": "MICHAEL CROSS",
+      "printed_page": 146,
+      "text": "“This ends now. You’re going to drop those weapons. The only question is whether you want to be conscious when that happens.” orIGIn: Born into a wealthy family connected to the Russian mafia, everyone expected Michael Cross step into a life of crime. Blessed with his father’s canny instincts and his mother’s natural athleticism, Michael would have made an exceptional Bratva captain. But all that changed when an assassination attempt nearly killed him and left his girlfriend Mila Moreno in a coma. Mila would eventually awaken, but she would never walk again. Barely 19 years old, Michael hunted down the men responsible and brought them to justice. But for what — the men were just pawns. His revenge hadn’t fixed anything. When Michael’s father sent him and his brother away to train with the ancient and venerable Black Lotus clan, Michael took the opportunity to learn the skills he would need in his quest for justice. While his brother Alex spent those years becoming the merciless enforcer Scorpio, Michael returned home ready to take on the mantle of superhero. With his ex-girlfriend turned ally at his side, Michael has devoted himself to ridding Pinnacle City of organized crime. Michael knows he’ll eventually have to turn his sights on his own family, but he’s not ready to do that yet."
+    },
+    {
+      "heading": "ANDROMEDA",
+      "printed_page": 147,
+      "text": "vIllaIn Edge 18 Power Level: Epic Health Group: None aBIlItIes Agility 12d Perception 6d Intellect 6d Toughness 20d Might 24d Willpower 12d talents Academics 3d Professional 3d Charm 9d Science 6d Command 9d Streetwise 3d Covert 6d Survival 3d Investigation 3d Technology 9d Medicine 3d Vehicles 6d poWers"
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 147,
+      "text": "Abilities (Agility, Might, Toughness) Armor 24d Blast (Energy) 20d (Block, Penetrating, Recharge) Flight 15d (Spaceflight) Immunity (Environmental, Fatigue, Life Support, Toxins) Regeneration (Fast)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 147,
+      "text": "Expertise (Academics: Diplomacy, Politics, Strategy, Tactics) 6d Martial Arts 12d (Conditional: when depowered) Psi-Screen 18d perKs Great Wealth Headquarters (the Harbinger) Unique Vehicle (the Harbinger, a Citadel class warship) FlaWs Quirk (arrogant and volatile) Severe Reaction (Super Powers are nullified and Super Abilities drop to 7d on her homeworld) Unusual Looks (alien appearance) Gear None addItIonal InFormatIon MOTIVATION: Power GOALS: Find a way to deactivate the genetically encoded failsafe that causes members of the royal family to lose their powers on her homeworld. Rebuild her army. Retake the throne. Rekindle the glory of the Mu’Dhani Empire and remind the galaxy that her people are to be feared. METHODS: Aurora rarely takes direct action, preferring instead to leave matters to her liegeman, Warlord (see below). That’s what servants are for. Although she has a temper and a short fuse, Aurora is neither a child nor an idiot. She’s a cunning strategist, taught by one of the best her world has to offer. Aurora understands that retaking the throne will require patience and subtlety, at least for now. When she does involve herself in combat, Aurora is brutal and merciless, reveling in her powers. ORIGIN: Aurora Andromeda III should have been born a century ago. Had she, she would have been the rightful Queen of the Mu’Dhani Empire, and Empress of the Galaxy. But those were the old days when"
+    },
+    {
+      "heading": "AURORA ANDROMEDA III",
+      "printed_page": 147,
+      "text": "“Kneel, human. Show me you know your place in the galaxy and I may be merciful. Kneel before your superior, human. Kneel before your queen!” the galaxy feared the conquering might of the Mu’Dhani. Fools that they were, her family gave all of that up. Tired of conquest and war and death, the Andromeda family made history by reigning over the transfer of power from themselves to their subjects, transforming the empire into a republic. Although the family continued as monarchs, galactic law and sovereignty now rested with the governed. And it was the governed that chose Aurora’s younger sister Elara as Queen of the Republic, deeming Aurora too rigid and volatile for the position. It was an insult; one Aurora would not permit. Her rebellion was swift and brutal, and almost successful, but she lacked the military support her liegeman warned would be essential for victory. On his counsel, Aurora and her small army of loyalists fled to the other end of the galaxy in a Citadel class warship. Now cloaked in orbit above Earth, the titanic vessel serves as Aurora’s base of operations, at least until she returns to take her rightful place on the throne of Mu’Dhan. 114477"
+    },
+    {
+      "heading": "APE-X",
+      "printed_page": 148,
+      "text": "vIllaIn -- Edge 18 Power Level: Major Health 9 Group: None aBIlItIes Agility 6d Perception 6d Intellect 12d Toughness 8d Might 10d Willpower 6d talents Academics 9d Professional 3d Charm 3d Science 9d Command 6d Streetwise 3d Covert 3d Survival 3d Investigation 6d Technology 12d Medicine 9d Vehicles 6d poWers"
+    },
+    {
+      "heading": "INNATE POWERS",
+      "printed_page": 148,
+      "text": "Extra Limbs (Feet)"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 148,
+      "text": "Abilities (Might, Toughness) Armor 10d Blast (Energy) 12d Communications Omni-Power (Gadgets) 10d Shockwave 12d Stun 10d Stun Variant 10d (Area, EMP, Zone) Super Senses (Night Vision, Telescopic Vision, Thermal Vision, Ultra Vision) Teleportation 12d (Charges 3, Portal) Total Recall (Playback) perKs Contacts (criminal) Headquarters Wealth FlaWs Heavy (6d weight rank) Unusual Shape (big gorilla) Gear Miscellaneous tools addItIonal InFormatIon MOTIVATION: Revenge GOALS: Duplicate the time shunting technology he used to escape into the past. Return to his time. Reclaim his position as Primate Minister of Earth. Make the rebels pay. METHODS: Ape-X is a brilliant scientist and strategist. He approaches everything as a problem to be tested and solved. His plans are often unpredictable and more complex than they first appear. Ape-X will act directly or use cat’s paws and hired help, as the situation demands. Although he hates humans, Ape-X won’t go out of his way to harm anyone who doesn’t challenge his dominance. ORIGIN: Ape-X, Ape of the Future, will be born into slavery some 150 years from now. Our future is his past. By the time Kershek 10.0 was born, the science of genetic manipulation had advanced to the point that animals were the dominant source of cheap disposable labor. Genetically engineered creatures were given jobs too dangerous, difficult, or dull for human hands. But nature can be unpredictable. Although Kershek was 114488"
+    },
+    {
+      "heading": "KERSHEK",
+      "printed_page": 148,
+      "text": "“It’s almost sad, watching you rail against me, incapable of understanding how outmatched you are, how you never stood a chance.” only supposed to be smart enough to follow simple verbal commands, he would become one of the greatest minds the world had ever known. He would also grow to hate humanity for enslaving his people. Kershek’s Revolt began sometime after his twelfth birthday. The war was long and costly, but in the end the animals prevailed, and Kershek became Ape-X, Primate Minister of Earth. Under his leadership, the animals flourished while humanity was enslaved. However, this did not sit well with many of Ape-X’s followers. The rebels never wanted to be oppressors; they wanted to be free. But the Primate Minister would tolerate no dissent, and those in favor of freeing the humans were shown no mercy. That was Ape-X’s undoing. His people had just shaken off one master; they weren’t about to accept another. To save himself from the rebels that were storming his palace, Ape-X was forced to flee into the past, into our time. He now seeks to return to his own time and make those traitors pay, but that means rebuilding his time-shunting equipment — not an easy task in this primitive era, but time is on his side."
+    },
+    {
+      "heading": "ARCLIGHT",
+      "printed_page": 149,
+      "text": "vIllaIn Edge 14 Power Level: Major Health 16 Group: None aBIlItIes Agility 3d Perception 7d Intellect 7d Toughness 9d Might 9d Willpower 16d talents Academics 9d Professional 6d Charm 4d Science 4d Command 4d Streetwise 4d Covert 6d Survival 4d Investigation 6d Technology 4d Medicine 4d Vehicles 4d poWers"
+    },
+    {
+      "heading": "MAGIC POWERS",
+      "printed_page": 149,
+      "text": "Abilities (Might, Toughness, Willpower) Aura (Arcane) 12d (Penetrating, Phase Shift) Boost (Toughness) 16d (Limited: only for Health) Elemental Control (Darkness) 16d (Area, Penetrating, Phase Shift, Selective, Zone) Immortality Immunity (Environmental, Life Support, Mental States, Telepathy) Super Senses (Acute Vision 11d, Astral Sight, Night Vision) perKs Contacts (academic, mystical) Wealth FlaWs Creepy Vulnerability (holy attacks and weapons) Gear None addItIonal InFormatIon MOTIVATION: Zealotry GOALS: Acquire arcane tomes, artifacts, relics, and anything else that might enhance his power. Waken his long-dormant kin so they might aid him. Weaken the dimensional barriers so the Darkness may enter this reality and bring the cleansing of the void. METHODS: Thomas is neither stupid nor suicidal; he sincerely believes that the reality promised by the Darkness is the pinnacle of existence. Thomas doesn’t reveal himself unless he finds an item or location he can use to enhance his power or wake his slumbering kin (the Heroes are likely to consider him a cultist, not realizing that he is on the road to becoming a thing that cultists worship). Once Thomas locks onto a goal, he is utterly ruthless and entirely devoid of compassion or empathy; he will take any action he must to succeed, and life — innocent or otherwise — is meaningless to him. ORIGIN: Born in fourteenth century England, Thomas Rourke had settled into a monastic life by the time he was in his 30s. His studies"
+    },
+    {
+      "heading": "THOMAS SYLVAIN ROURKE",
+      "printed_page": 149,
+      "text": "“In time, all of your pointless efforts will be forgotten as this dimension falls to the Devourer.” led him to an ancient text concerning an antediluvian source of mystic power, something beautiful, terrible, and impossible to resist. Thomas became preoccupied with his study of this dark cleansing force the world so desperately needed, and over time, he became obsessed. As his thirst for knowledge grew, he became disconnected, even from his fellow monks, losing his empathy and his very humanity bit by priceless bit. Something had taken hold of him, wrapping him in an invisible tendril of foul, ephemeral darkness. Thomas was becoming a Devourer, a servant of a malevolent all-consuming Darkness that exists outside of our reality, always hungry, always seeking purchase into our universe. He didn’t know if his fellow Devourers had failed, or perhaps they were simply biding their time, waiting for him. One slept at the bottom of an ocean, another lay under eons of ice, and another piped its mad music into the void. Regardless, it was now Thomas’s turn, and he would not fail. Alone or with the aid of his kin, he would bring the cleansing Darkness into this reality. 114499"
+    },
+    {
+      "heading": "BANSHEE",
+      "printed_page": 150,
+      "text": "vIllaIn Edge 21 Power Level: Major Health 6 Group: None aBIlItIes Agility 9d Perception 6d Intellect 6d Toughness 6d Might 3d Willpower 6d talents Academics 3d Professional 3d Charm 6d Science 9d Command 3d Streetwise 6d Covert 6d Survival 3d Investigation 6d Technology 9d Medicine 3d Vehicles 3d poWers"
+    },
+    {
+      "heading": "MAGIC POWERS",
+      "printed_page": 150,
+      "text": "Abilities (Toughness) Blink 10d Flight 7d (Conditional: while Phased) Phasing (Intangible) Psi-Screen 15d Resistance 15d (Conditional: vs Magic) Super Senses (Astral Sight, True Sight)"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 150,
+      "text": "Blast (Sonic) 12d (Area, Charges 6, Item: sonic amplifier, Penetrating, Zone) Dazzle 12d (Charges 3, Deafen, Item: sonic amplifier) Shockwave 12d (Charges 3, Item: sonic amplifier)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 150,
+      "text": "Lightning Reflexes Martial Arts 9d perKs Contacts (science) Resources (sonic technology) FlaWs Secret Identity Vulnerability (iron) Gear None addItIonal InFormatIon MOTIVATION: Revenge GOALS: Find the people who killed her sister. Kill them. Find their boss. Kill them. Find that person’s boss. Kill them. And so on. In the meanwhile, rid the streets of crime. METHODS: Rowena is angry, and her methods are anything but subtle. She finds criminals and leaves them hospitalized or dead. She’s already killed a dozen or more, and the only thing that’s slowed her down is that she hasn’t gotten any closer to learning anything about the people who killed her sister. Rowena won’t endanger innocents, but anyone who stands in her way is fair game. ORIGIN: Rowena Walsh is only half-human. She’s also half-sidhe, on her father’s side. That’s a long story involving her mother, a woman too stubborn to listen to doctors who said she couldn’t get pregnant and too ornery to stick to her end of the bargain and leave one of her daughters to be raised by the Fair Folk in Ireland. The upshot of that mischief was that Rowena always had someone to talk to about the 115500"
+    },
+    {
+      "heading": "ROWENA WALSH",
+      "printed_page": 150,
+      "text": "“I know you think you’re helping, but all you do is toss them in jail for a while so they can rest and do some networking. It makes me so angry I want to SCREAM!” challenges of growing up half fey, her sister Colleen. Rowena and Colleen were closer than most siblings, thanks in part to the secret they shared. At their mother’s insistence, the twins hid their true nature and lead normal lives. Rowena became an electrical engineer who specialized in developing non-lethal sonic weapons for law enforcement and military applications. But she was also a workaholic, which is why her sister barged into her office one night, declared that Rowena had been working too hard, and demanded that they go out for drinks. Colleen then ordered her sister away to make herself presentable before they left. Rowena was gone for a few minutes, but it may as well have been forever. She returned to find her office ransacked, her research stolen, and Colleen dead. Rowena buried her sister, and for the first time in her life, she heeded the call of her blood, filled with fey magic and boiling for vengeance. Her ancestors were terrified of angering the fey folk, and now Rowena understood why. She was now Banshee, the spirit whose presence meant death."
+    },
+    {
+      "heading": "CRIME SPREE",
+      "printed_page": 151,
+      "text": "vIllaIn Edge 30 Power Level: Major Health 4 Group: None aBIlItIes Agility 4d Perception 5d Intellect 5d Toughness 4d Might 3d Willpower 4d talents Academics 6d Professional 3d Charm 6d Science 3d Command 3d Streetwise 6d Covert 6d Survival 3d Investigation 3d Technology 6d Medicine 3d Vehicles 3d poWers"
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 151,
+      "text": "Healing 10d Stun 12d (Touch) Super Senses (Acute Vision 12d) Super Speed 10d (Overload) Time Stop 6d"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 151,
+      "text": "Expertise (Professional: Marketing) 6d perKs Contacts (criminal) Wealth FlaWs Quirk (overconfident) Secret Identity Gear Miscellaneous high-tech thieves’ tools addItIonal InFormatIon MOTIVATION: Thrills GOALS: Have fun. Get rich. Steal from the rich and powerful. Give lots of money to charity. Keeps lots for herself too! METHODS: Megan is just having a good time, and her methods reflect this. She’s certainly a thief and a criminal, but she won’t seriously hurt anyone and would never kill. She usually researches her targets ahead of time and comes up with a loose plan (marketing is all about research, and old habits die hard), but her incredible powers let her improvise or just cut and run when necessary. ORIGIN: Megan Morrison was crushing it. A successful marketing executive and rising star in her agency, Megan spent so much time working that she failed to realize how much she hated her job. There was no time for dinner parties or drinks after work, no time for friends or family, no time for life — just meetings, emails, and more work. When the doctor told her about the tumor, it was almost a relief. Almost. Inoperable and fatal, the tumor forced her to slow down. She could"
+    },
+    {
+      "heading": "MEGAN MORRISON",
+      "printed_page": 151,
+      "text": "“Don’t feel bad, hero, nobody can stop this Crime Spree! <laughs> Oh my god, that’s so cheesy. I’m almost embarrassed.” afford to, at least until the firm let her go and the insurance company dropped her like a hot, terminally ill potato. With conventional medicine closed to her, Megan found Dr. Atembi, who claimed he might be able to make the tumor shrink and possibly vanish. How? By altering the flow of time around it. Of course it was a stupid con, but Megan had nothing to lose. She let this Dr. Atembi place her into what looked like a steampunk tanning bed. Atembi flipped the switch and the world went white. Megan still doesn’t know what caused the explosion, but she opened her eyes and saw it, frozen in time. Atembi was gone, maybe burned to ash, and his machine was a snapshot of motionless fragments held in stasis an instant after the explosion. Megan ran away in horror, and the world snapped back into motion. In time, Megan came to realize that Atembi’s machine hadn’t only cured her, it had given her the ability to alter the flow of time. She now had all the time in the world, time to have fun, and what could be more fun than robbing the firm that fired her in her hour of need, the insurance company that left her to die, and everyone like them. 115511"
+    },
+    {
+      "heading": "DARK MATTER",
+      "printed_page": 152,
+      "text": "vIllaIn Edge 10 Power Level: Major Health 4/10 Group: None aBIlItIes Agility 5d Perception 5d Intellect 3d Toughness 3d/10d Might 3d/10d Willpower 5d talents Academics 3d Professional 3d Charm 3d Science 6d Command 3d Streetwise 3d Covert 3d Survival 3d Investigation 3d Technology 6d Medicine 3d Vehicles 6d poWers"
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 152,
+      "text": "Blast (Radiation) 12d (Penetrating) Darkness (Expansive: Distant) Detection (Life) 6d Energy Absorption (All) 15d Flight 9d Immunity (Environmental, Life Support, Toxins) Life Drain 10d (Ranged, Resisted, Zone) Solid Form 10d Super Senses (Night Vision, Thermal Vision, Ultra Vision, X-Ray Vision) perKs Contacts (military) FlaWs Relationship (his family: Dark Matter will do anything to keep his family safe and to keep them from finding out about him until he discovers a cure for his condition) Secret Identity Severe Requirement (must drain life energy to live; he can do this without killing, but it’s hard to do) Gear None addItIonal InFormatIon MOTIVATION: Desperation GOALS: Get rid of his powers. If that’s not possible, get them under control. Get his family back together. METHODS: Connor will usually be working for another villain, either a mastermind type or someone who has promised to introduce him to one. He’s a reluctant villain, but feels he has no option, so he won’t hesitate to do what’s asked of him. That said, he avoids hurting innocents and won’t kill unless his hunger for life energy overwhelms him. ORIGIN: Connor James was born to be an astronaut. His earliest memories were filled with scientific curiosity and dreams of outer space. Dedicated to this goal, Connor excelled academically, then joined the military, and made a name for himself as an exceptional pilot who rose through the ranks rapidly. Eventually, he was chosen for the space program, topping the list of candidates for a mission to study what seemed to be a concentration of dark matter on the far side of the Moon. 115522"
+    },
+    {
+      "heading": "CONNOR JAMES",
+      "printed_page": 152,
+      "text": "“I don’t want to hurt you, but I have to do this, so for your own good get out of my way.” Conner kissed his wife and daughters goodbye and launched into space with his crew the very next day. It was the culmination of all his dreams, and it was perfect. Until it moved. Double-checking his instruments, Connor confirmed the dark matter was moving towards his ship at an impossible speed; then he and his crew blacked out. The vessel was brought back to Earth remotely. On opening the cabin, a being of weird black energy flew out of ship and vanished into the distance, leaving the flight crew’s desiccated corpses behind. When he came to his senses, Connor realized he had no idea what happened to him, much less what occurred on the ship. This was way beyond him. He needed help, but he was wanted for murdering his crew. Connor’s dream had become a nightmare, and his only chance of returning to a normal life with his family was to convince some superhumanly brilliant villain to cure him. Whatever the price, he’ll pay it."
+    },
+    {
+      "heading": "DARKHEART",
+      "printed_page": 153,
+      "text": ""
+    },
+    {
+      "heading": "VILLAIN",
+      "printed_page": 153,
+      "text": "Edge 20 Power Level: Major Health Group: None"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 153,
+      "text": "Agility 10d Perception 6d Intellect 5d Toughness 12d Might 8d Willpower 10d"
+    },
+    {
+      "heading": "TALENTS",
+      "printed_page": 153,
+      "text": "Academics 3d Professional 3d Charm 3d Science 3d Command 3d Streetwise 3d Covert 9d Survival 5d Investigation 9d Technology 5d Medicine 3d Vehicles 5d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 153,
+      "text": ""
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 153,
+      "text": "Abilities (Agiity, Might, Perception, Toughness, Willpower) Blind Fighting Blink 14d Danger Sense 10d Hard to Kill Psi-Screen 14d (Cloak Mind) Regeneration (Instant)"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 153,
+      "text": "Armor 14d Blast (Heat) 12d (Area, Selective, Zone) Strike 16d (Deflect, Penetrating)"
+    },
+    {
+      "heading": "PERKS",
+      "printed_page": 153,
+      "text": "Resources (anything he needs)"
+    },
+    {
+      "heading": "FLAWS",
+      "printed_page": 153,
+      "text": "Mute (hasn’t spoken since his transformation)"
+    },
+    {
+      "heading": "GEAR",
+      "printed_page": 153,
+      "text": "None"
+    },
+    {
+      "heading": "ADDITIONAL INFORMATION",
+      "printed_page": 153,
+      "text": "MOTIVATION: Desperation GOALS: Follow orders. Keep his people and his planet safe. Escape his terrible predicament and live out his life in peace, but such a thing is not possible, for no one escapes the High Lord. METHODS: Alphol is ruthlessly efficient. He will kill anyone he is ordered to kill, destroy anything he is ordered to destroy, and spare anyone he is ordered to spare. While he takes no joy in harming innocents, Alphol will do whatever he must to accomplish his goals. If a whole city or even an entire planet must burn for him to accomplish his mission, then so be it. Alphol will only dirty his hands with those he deems worthy, using Blast to immolate lesser foes he considers mere obstructions in his path. ORIGIN: Until the invaders came to his world, Alphol Vraida was a peaceful being living a peaceful life. He might have been an investigator, or perhaps a technologist of some kind. He no longer remembers. His people fought valiantly, but they were no match for the unbridled"
+    },
+    {
+      "heading": "ALPHOL VRAIDA",
+      "printed_page": 153,
+      "text": "No words, just the sight of him, relentlessly marching towards you… aggression and zealous devotion shown by these aliens. Alphol fought better than most, for when he fell in battle, he was kept alive and brought aboard the enemy flagship. He awoke in a strange body that didn’t feel like his own. The invaders had done something to him, transformed him. Before he knew what was happening, Alphol was dragged before a being called the High Lord and tossed at his feet. The being told Alphol that his world had been conquered, and that he would now serve the High Lord. His anger flared, and Alphol launched himself at this arrogant fool who had mistakenly given him incredible powers. The High Lord barely moved, catching Alphol’s head in a massive fist. He sighed, holding Alphol there in one hand like a child might hold a doll, and turned him so he could see the blossom of light on the planet below, so he could watch a city on his homeworld and its millions of inhabitants die. In that instant, Alphol learned what it meant to disobey the High Lord. He would never need another lesson. 115533"
+    },
+    {
+      "heading": "THE HAPPY ANARCHIST",
+      "printed_page": 154,
+      "text": "vIllaIn Edge 24 Power Level: Major Health 9 Group: None aBIlItIes Agility 9d Perception 9d Intellect 9d Toughness 6d Might 6d Willpower 12d talents Academics 9d Professional 9d Charm 9d Science 6d Command 9d Streetwise 9d Covert 9d Survival 6d Investigation 9d Technology 6d Medicine 6d Vehicles 6d poWers"
+    },
+    {
+      "heading": "INNATE POWERS",
+      "printed_page": 154,
+      "text": "Immortality (Vulnerable: massive damage)"
+    },
+    {
+      "heading": "PSYCHIC POWERS",
+      "printed_page": 154,
+      "text": "Cloud Minds 15d Psi-Screen 15d Vanish"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 154,
+      "text": "Blind Fighting Evasion 12d Languages (Polyglot) Lightning Reflexes Martial Arts 12d Master of Disguise Preparation Strike (Special) 14d (Weapons) Super Senses (Lie Detection) Ventriloquism Weakness Detection perKs Great Wealth Resources (a global network of zealous followers and countless people who owe him favors or are dancing on his strings) addItIonal InFormatIon MOTIVATION: Conviction GOALS: Burn it down: the corporations, the governments, the religions, the economies, everything. Bring down every part of the global socio- political infrastructure and expose those who hide in the shadows. Burn it all down and see what rises from the ashes. Repeat as necessary. METHODS: With the patience that only an immortal can bring to bear, Michael is playing the ultimate long game. He has seen countless societies rise and fall, and he knows what makes them collapse. Michael’s plans range from the blunt to the baroque, but they usually involve destroying a pillar of society, be it a person, group, or institution. Although Michael always works through clueless cat’s paws and patsies, he needs to see things for himself. He is usually present for most of his schemes, but neither his flunkies nor the Heroes know who he is — Michael might appear to be a helpless civilian in one caper, a low-level mook in the next, a gawking onlooker in the one after that, and so on. Michael’s only concern is expediting the collapse of society; in his mind, the misery and death he causes in the process are unfortunate but ultimately necessary evils. 115544"
+    },
+    {
+      "heading": "MICHAEL MUDGETT",
+      "printed_page": 154,
+      "text": "“Power always flows upwards. I pull the levers to bring it back down.” FlaWs Compulsion (Michael must witness the culmination of his schemes in person) Flashbacks (Michael may be distracted for a page or two if an item from his past is brought to his attention) Secret Identity Gear Anything he needs, plus nigh-endless caches of weapons and gear secreted all over the world ORIGIN: The man who now goes by the name Michael Mudgett was born several millennia ago. A handsome man of indeterminate ethnicity, Michael is an ancient immortal, perhaps the first of his kind. Under a different name, Michael may or may not have been a key figure in any number of ancient histories, only some of which are known to the modern word. For some reason, Michael became disenchanted with society. Eventually, he decided that society needed a fresh start, and took steps to expedite its collapse. But the new society that arose in its place was no better than the original, so he made sure that society collapsed as well. And so on. Michael has yet to be satisfied, so he keeps weaving his threads into the fabric of each new society, leaving them there for months, years, or longer, pulling at them only when things are ready to unravel. He will keep doing this until he dispels whatever shadows haunt him. Although born an immortal, Michael is in many ways an ordinary human being. However, over the long millennia, he has honed his body and mind to nearly superhuman levels, even tapping into the psychic potential that all people possess but few can access."
+    },
+    {
+      "heading": "HEAP",
+      "printed_page": 155,
+      "text": "vIllaIn Edge 6 Power Level: Major Health 12 Group: None aBIlItIes Agility 3d Perception 3d Intellect 3d Toughness 12d Might 12d Willpower 6d talents Academics 3d Professional 3d Charm 3d Science 3d Command 3d Streetwise 3d Covert 3d Survival 3d Investigation 3d Technology 3d Medicine 3d Vehicles 3d poWers"
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 155,
+      "text": "Abilities (Might, Toughness, Willpower) Elemental Control (Garbage) 12d Healing 12d (Conditional: in garbage dumps or similar locations; Limited: self only) Immunity (Life Support, Toxins) Irritant 12d (Constant, Toxin) Liquid Form Stretching (Close) Tunneling 6d perKs None FlaWs Heavy (6d weight rank) Unusual Looks (living pile of sludge and refuse) Vulnerability (cold) Gear None addItIonal InFormatIon MOTIVATION: Zealotry GOALS: Get revenge on those who killed his friends and turned him into Heap. Bring down companies that pollute and make those in charge pay with their lives. Find meaning in life now that he’s a monster. METHODS: Njoli Brown was a naïve hothead before being tossed into a heap of radioactive waste and left for dead. Now, he’s angrier and a lot more powerful. His plans usually involve demolishing industrial sites and attacking anyone he thinks is guilty of polluting the planet, including workers, corporate types, and even a few legislators. ORIGIN: Gaia’s Guardians was Njoli Brown’s brainchild. For a year and a half, their activities were confined to papering the campus with flyers and having sporadic, angry meetings about topics for the next flyer. Then Njoli heard a rumor that Cross Petrochem was dumping toxic sludge in the river. The protest started small, e-bombing social media with petitions"
+    },
+    {
+      "heading": "NJOLI BROWN",
+      "printed_page": 155,
+      "text": "“You call yourself a hero, but you sit back while corporations poison the planet. Get out of my face. Go get a cat out of a tree. Leave the real work to those of us who actually care.” and standing outside the factory with signs and slogans, but it grew into a movement that attracted national media coverage. That wasn’t enough for Njoli, though, so he and a few of his friends broke into the plant after hours. Sure enough, they found their proof. The company was cleaning house, taking stinking sludge off the premises in tanker trucks. Njoli didn’t feel the knockout blow, he simply awoke to the sensation of rough hands dangling him over the edge of a storage vat. His friends’ bodies were floating in the sludge below. He felt the gunshot though, right through his chest, before they dumped him into the vat to die with his friends. The radioactive sludge washed over him, seeping into his body, mutating him in a way no one could have predicted. Njoli Brown died that day, but something else was born. The awakened monstrosity lashed out with all the rage in his heart, destroying the plant and killing everyone there. As Heap, Njoli now exacts his vengeance as Gaia’s one true guardian. 115555"
+    },
+    {
+      "heading": "HEARTBREAKER",
+      "printed_page": 156,
+      "text": "vIllaIn Edge 12 Power Level: Major Health 5 Group: None aBIlItIes Agility 6d Perception 6d Intellect 3d Toughness 3d Might 3d Willpower 6d talents Academics 3d Professional 3d Charm 12d Science 3d Command 12d Streetwise 6d Covert 3d Survival 3d Investigation 3d Technology 3d Medicine 3d Vehicles 3d poWers"
+    },
+    {
+      "heading": "PSYCHIC POWERS",
+      "printed_page": 156,
+      "text": "Mind Blast 12d (Conditional: she must spurn a target affected by Inspire Love) Special Power (Inspire Love) 15d: Anyone who looks at Heartbreaker with their own eyes is subject to a 15d Mind Control effect that makes them feel love, lust, or deep affection for her. This happens automatically on every page. Heartbreaker doesn’t need to spend an action to make this occur, but she can exclude anyone she wishes from this effect. She rarely does that, though."
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 156,
+      "text": "Armor 6d (Item: bodysuit) perKs Contacts (criminal, entertainment, government, law enforcement, media, military, science, and more) Fame Wealth FlaWs Insane (sociopath) Quirk (vain) Unusual Looks (beautiful) Gear None addItIonal InFormatIon MOTIVATION: Malice GOALS: Do whatever she wants whenever she wants. Borrow or steal big things, cute things, fast things, pretty things, and anything else that gets her attention, at least until she moves on to the next thing. Meet interesting people. Grow her online fan base and keep people talking about her. Be less bored all the time. METHODS: Lorna isn’t a planner. It’s not that she isn’t smart, it’s just that she never needed to plan anything. Why would she? Everyone she’s ever met does whatever she wants. She acts almost entirely on impulse, doing whatever she feels like doing whenever the mood strikes her. She does love her celebrity status, though. She posts a steady stream of selfies ranging from cute to provocative and is always looking for new and outrageous ways to make sure she’s trending. Although athletic and fit, Lorna isn’t much of a fighter. She usually just tells her enemies to go away or uses those she can control to attack the few she can’t. She avoids harming innocents and killing, not because she cares — she 115566"
+    },
+    {
+      "heading": "LORNA LOPEZ",
+      "printed_page": 156,
+      "text": "“But I don’t want to give up. Giving up would make me sad. You don’t want to make me sad, do you, baby?” doesn’t — but because she’s afraid that might hurt her image and cost her followers. ORIGIN: Born into incredible wealth, Lorna Lopez was a spoiled brat long before she developed powers. She might have turned out much the same even if her abilities hadn’t manifested, but they did, and by the time she was nine, Lorna realized she was always the apple of everyone’s eye. Even complete strangers would do whatever she wished. As she grew older, the feelings she inspired intensified, as did her ability over others. With everyone constantly falling all over themselves for her, Lorna never developed any kind of moral compass or character, and she quickly grew bored of, well, everything. Initially, her villainy grew out of that boredom. But when she garnered internet fame because of her criminal activities, she found that intoxicating, probably because it didn’t come automatically. This wasn’t something that was just given to her. She earned her internet fandom, and she had to work to keep it growing. This was going to be fun."
+    },
+    {
+      "heading": "LADY AETHER",
+      "printed_page": 157,
+      "text": ""
+    },
+    {
+      "heading": "VILLAIN",
+      "printed_page": 157,
+      "text": "Edge 15 Power Level: Major Health 7 Group: None"
+    },
+    {
+      "heading": "ABILITIES",
+      "printed_page": 157,
+      "text": "Agility 6d Perception 6d Intellect 9d Toughness 4d Might 3d Willpower 10d"
+    },
+    {
+      "heading": "TALENTS",
+      "printed_page": 157,
+      "text": "Academics 9d Professional 3d Charm 3d Science 9d Command 6d Streetwise 3d Covert 6d Survival 3d Investigation 9d Technology 9d Medicine 6d Vehicles 6d"
+    },
+    {
+      "heading": "POWERS",
+      "printed_page": 157,
+      "text": ""
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 157,
+      "text": "Blast (Heat) 10d (Item: pistol (heat ray), Overload) Ensnare 10d (Item: pistol (freeze ray), Overload) Flight 7d (Item: rocket pack) Immunity (Sensory) (Item: goggles) Omni-Power (Gadgets) 10d (Item: gadgets, Overload) Polymorph 10d (Item: pistol (shrink ray), Overload) Super Senses (Astral Sight, Thermal Vision, X-Ray Vision) (Item: goggles)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 157,
+      "text": "Evasion 10d Expertise (Medicine: Psychology) 9d Expertise (Technology: Aethertech) 12d Preparation Total Recall"
+    },
+    {
+      "heading": "PERKS",
+      "printed_page": 157,
+      "text": "Resources (Aethertech contraptions) Resources (The Clockwork Brigade—an army of 6d Threat clockwork Minions including Clockwork Dragoon foot soldiers, Clockwork Hussar fliers, and Clockwork Cuirassier officers that are actually Foes)"
+    },
+    {
+      "heading": "FLAWS",
+      "printed_page": 157,
+      "text": "Quirk (two distinct personalities) Secret Identity"
+    },
+    {
+      "heading": "ADDITIONAL INFORMATION",
+      "printed_page": 157,
+      "text": "MOTIVATION: Thrills (Melody) / Progress (Millicent) GOALS: Have fun and do what she wants rather than what everyone else expects of her (Melody). / Perfect her inventions, prove her genius to the world, and claim her rightful place in history (Millicent). METHODS: Melody has two distinct ways of operating. In her secret identity, she’s careful and subdued. She does extensive research before all her robberies (usually of advanced technology or Victorian era artifacts that are more than they appear) and plans every moment with painstaking precision. Once she goes into action, however, Millicent’s personality takes over and Melody becomes the derisive, dramatic, and flamboyant Lady Aether, putting on airs and developing a British accent and Victorian era speech patterns. Lady Aether loves any chance to use her marvels of science, even in combat, but she prefers to avoid harming innocents and killing. After all, she isn’t a villain. She’s a brilliant scientist whose genius the world has yet to recognize. Plus, imagine the dreadful footnotes some dreary little historian might write about her."
+    },
+    {
+      "heading": "MELODY FONG",
+      "printed_page": 157,
+      "text": "“Get out of my way, heroes, there’s nothing rattling around in those so-called brains of yours that could possibly help you stop me!”"
+    },
+    {
+      "heading": "GEAR",
+      "printed_page": 157,
+      "text": "Various tools ORIGIN: Melody Fong had always been perfect because that’s what was expected of her. She was the perfect daughter, perfect student, perfect college athlete, perfect doctor, perfect fiancée, perfect — everything. Until the past life regression. Still unsure as to how it happened, Melody remembers the session with her patient, the hypnosis, and then, strangely, that she was the one to fall into a trance. She found herself hunched over a workbench covered with clockwork gears and coils of copper wire. She was Millicent Flange, a brilliant Victorian era inventor whose genius had gone ignored because she was a woman. Melody realized this was her; she had been Millicent Flange in a past life, and over a century later, she was still letting others determine her destiny. No more! Melody snapped awake with newfound resolve and access to all the knowledge, memories, and scientific genius of her past life. Millicent Flange may have died before the world could learn of her brilliance, but she now had a second chance for glory. And Melody Fong was done being perfect. 115577"
+    },
+    {
+      "heading": "MOLOCH",
+      "printed_page": 158,
+      "text": "vIllaIn Edge 15 Power Level: Major Health 15 Group: None aBIlItIes Agility 9d Perception 6d Intellect 9d Toughness 15d Might 15d Willpower 12d talents Academics 9d Professional 6d Charm 12d Science 3d Command 6d Streetwise 6d Covert 3d Survival 3d Investigation 3d Technology 3d Medicine 3d Vehicles 3d poWers"
+    },
+    {
+      "heading": "MAGIC POWERS",
+      "printed_page": 158,
+      "text": "Abilities and Talents (All) Armor 14d Dimensional Travel (Portal) Elemental Control (Fire) 14d Flight 12d (Signature: fiery wings) Immortality Immunity (Environmental, Fatigue, Fire and Heat, Life Support, Mind-Affecting Power, Toxins) Regeneration (Fast) Special Power (Know Hidden Desires): Moloch can discern the hidden desires of any living being he can see, and will immediately know all memories and feelings surrounding or relating to those desires Special Power (Talisman of Disguise): Moloch wears a talisman that hides his true appearance; nothing can detect his demonic nature or reveal his true form so long as he has the talisman Super Senses (Astral Sight, Night Vision, Thermal Vision, True Sight) Teleportation 15d (Portal) perKs Contacts (business, club scene, criminal, local government, magic underground) Wealth addItIonal InFormatIon MOTIVATION: Thrills GOALS: Avoid being dragged back to limbo. Open more bars and clubs around the world. Make lots of money. Convince good people to do bad things. Party. METHODS: Although Moloch is an extremely powerful being, he rarely engages in direct conflict, preferring instead to keep a low profile and act though flunkies and hired help. In fact, Moloch will often go to extremes to assist Heroes, if they leave him alone. He operates more like a shady businessman than a demon of corruption. When he must engage in combat, Moloch prefers to do so at a distance, using mundane weapons or fire. He only gets up close and personal as a last resort. Moloch will kill if necessary, but he prefers not to — humans are simply too much fun to waste. ORIGIN: Moloch, for that is his true name, was sent here to corrupt. How ironic, then, that it was he who became corrupted. There was a 115588"
+    },
+    {
+      "heading": "GABRIEL MICHAELS",
+      "printed_page": 158,
+      "text": "“It’s not me you’re angry with. We both know you’re angry at yourself, for not being there for your father at the end. FlaWs Unusual Looks (absurdly handsome) Vulnerable (holy attacks and weapons) Gear None complexity to life on Earth, a rhythm and texture to human existence he hadn’t expected, and he and found it intoxicating. And there was nothing more delicious than corrupting people in bars and clubs. The high-octane mix of alcohol, drugs, hormones, mating instincts, and emotional fragility on display was almost overpowering. Finding a young person in that environment and talking them into doing something truly terrible, that was just mind-blowing. He wanted to do that again and again, in bigger places, places filled with more people, places with more energy and more possibilities for regret and remorse. So, he killed a few people, blackmailed a great many more, stole a bunch of money, and built himself one incredible club. He also forced a local magician to make him a special charm, a magic necklace to keep him hidden from his demonic overlords. Now he’s loving life and looking to expand his budding midnight empire."
+    },
+    {
+      "heading": "NARKISSA",
+      "printed_page": 159,
+      "text": "vIllaIn Edge 21 Power Level: Major Health Group: Daffodil Corp. aBIlItIes Agility 9d Perception 9d Intellect 12d Toughness 9d Might 9d Willpower 12d talents Academics 15d Professional 9d Charm 9d Science 15d Command 12d Streetwise 6d Covert 9d Survival 9d Investigation 9d Technology 15d Medicine 12d Vehicles 9d poWers"
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 159,
+      "text": "Abilities (All) Boost (Might) 15d (Charges 3) Immortality Immunity (Mental States) Regeneration Super Senses (Acute Vision 13d, Analytic Vision, Astral Sight, Night Vision, True Sight)"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 159,
+      "text": "Armor 15d (Item: armor) Communications (Item: armor) Flight 12d (Item: armor) Immunity (Environmental, Life Support, Toxins) (Item: armor) Omni-Power (Gadgets) 15d (Item: armor) Special Power (Clone Army): Using an alien device on Daffodil Island, Narkissa has created an army of clones (8d Threat minions with the Duplicates Pro). She has countless clones, but she can only summon 50 to her location per page using a device built into her armor. This requires an action."
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 159,
+      "text": "Martial Arts 11d (17d with Might Boosted) Running 6d Swimming 4d (Lungs) Weakness Detection addItIonal InFormatIon MOTIVATION: Power GOALS: Control the world’s advanced technology. Establish Daffodil Island as a superpower and The Daffodil Corporation as the leading supplier of advanced technology to anyone who can pay their price. Crush anyone who dares to get in her way. METHODS: Narkissa’s pathological self-absorption means she rarely works with other Villains. Instead, she prefers to have her clones do her bidding, either standard clones or members of her Royal Guard (clones with unique superpowers). Whenever she is forced to get personally involved, Narkissa is utterly ruthless. She does not toy with her enemies, she destroys them. Narkissa can be bloodthirsty one day and merciful the next, but her mercy is always a passing fancy rather than a sign of genuine empathy. ORIGIN: Narkissa Hope was born on the island of Tristan da Cunha on January 1, 1900. Part of an extremely remote archipelago in the South Atlantic, Tristan was theoretically under British rule, but by the time she was 16, Narkissa had taken control of the island and declared"
+    },
+    {
+      "heading": "NARKISSA HOPE",
+      "printed_page": 159,
+      "text": "“You will come to know me as your rightful ruler, or you will be no more.” perKs Great Wealth Headquarters (Daffodil Island) FlaWs Insane (narcissist) Gear Anything she needs herself queen. Renamed Daffodil Island by royal edict, the tiny island held a giant secret, a cave containing an alien artifact that was ancient when dinosaurs walked the Earth. Dormant for eons, the artifact came to life the instant the young queen approached, turning Narkissa into something more than human, and her need to control everyone and everything around her into something more than ambition. Over the years, the British occasionally returned to the island, placing a U-Boat monitoring station there in 1939 and an MI5 testing facility there in 1961. When the Brits stumbled across Narkissa’s cave of technological marvels, however, the queen had no choice but to silence them. The fools thought they had been tolerating her, when in fact she had been tolerating them. The time for hiding was over. With the British presence scrubbed from her domain, Narkissa transformed Daffodil Island into a land of technological wonders with The Daffodil Corporation at its core. The queen of Daffodil Island has a plan, and making Daffodil the world’s leader in ultra-advanced technology is only step one. 115599"
+    },
+    {
+      "heading": "OSPREY",
+      "printed_page": 160,
+      "text": "vIllaIn Edge 18 Power Level: Major Health 6 Group: Daffodil Corp. aBIlItIes Agility 9d Perception 9d Intellect 6d Toughness 6d Might 4d Willpower 6d talents Academics 3d Professional 3d Charm 6d Science 3d Command 6d Streetwise 6d Covert 6d Survival 6d Investigation 6d Technology 6d Medicine 3d Vehicles 6d poWers"
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 160,
+      "text": "Abilities (Agility, Perception, Toughness) Flight 9d (Wings) Super Senses (Acute Vision 12d, Night Vision, Telescopic Vision)"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 160,
+      "text": "Armor 6d (Item: bodysuit) Blending (Item: bodysuit) Communications (Item: bodysuit) Strike (Physical) 12d (Item: bodysuit)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 160,
+      "text": "Evasion 12d (Conditional: in flight) Expertise (Professional: Espionage) 6d Martial Arts 9d Psi-Screen 9d perKs Contacts (criminal, espionage) Patron (AEGIS) Wealth FlaWs Secret (AEGIS operative) Unusual Looks (has large wings) Gear Whatever mundane gear she needs addItIonal InFormatIon MOTIVATION: Responsibility GOALS: Develop a reputation as a super-powered assassin. Fake assassinations while bringing high-value targets into AEGIS custody. Earn the trust of organized crime and/or major supervillains. METHODS: Selina is a highly skilled and dedicated deep cover agent working for AEGIS, the United States agency charged with handling domestic and international threats of the super-powered variety. Selina will do whatever she must to maintain her cover as a super-powered assassin with a taste for the good life, including commit crimes and beat the snot out of Heroes. However, she will always find a way to avoid seriously injuring innocents or killing anyone. ORIGIN: A U.S. Marshall in the Witness Security division, Selina Davies was responsible relocating and resettling people in Witness Protection. Her career was on the fast track, until that one mistake. Ten-seconds on an unsecured line was all it took — one call to make sure her mother had 116600"
+    },
+    {
+      "heading": "SELINA DAVIES",
+      "printed_page": 160,
+      "text": "“It’s your lucky day, because no one’s paying me to kill you, and I don’t work for free.” made it through a nasty hurricane left a young couple dead in an alley and Selina coding in the back of an ambulance. She pulled through, but her career was over, and the doctors said she’d never walk again. Selina didn’t think she deserved to, until an AEGIS agent walked into her hospital room and made her a pitch. She could undergo training and special DNA treatments, not to be a hero, but as a deep cover agent posing as a super-powered contract killer. The treatments were experimental, and dangerous, but if she survived, her job would be to find high-value targets and pretend to assassinate them while delivering them into AEGIS custody. She’d also be hunting for clues about the existence of a supposed rogue agency that some suspected had originally developed her treatments. She’d live the high-rolling life of a wealthy supervillain, and she’d be saving lives; again, assuming she survived the treatment. Selina jumped at the chance, and a year later, AEGIS quietly unleashed Osprey on the world."
+    },
+    {
+      "heading": "PHALANX",
+      "printed_page": 161,
+      "text": "vIllaIn Edge 20 Power Level: Major Health 5 Group: Daffodil Corp. aBIlItIes Agility 8d Perception 6d Intellect 4d Toughness 4d Might 4d Willpower 6d talents Academics 3d Professional 3d Charm 3d Science 3d Command 6d Streetwise 3d Covert 6d Survival 6d Investigation 3d Technology 6d Medicine 3d Vehicles 6d poWers"
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 161,
+      "text": "Summoning (Threat 6d) 15d (Duplicates) Telepathy 6d (Limited: between Duplicates)"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 161,
+      "text": "Armor 6d (Item: body armor) Super Senses (Night Vision) (Item: suit)"
+    },
+    {
+      "heading": "TRAINED",
+      "printed_page": 161,
+      "text": "Lightning Reflexes Martial Arts 8d Two-Fisted perKs Contacts (criminal, mercenary) Patron (rogue agency) FlaWs Obligation (rogue agency) Unlucky Gear Assault Rifle: 11d Ranged (Area, Two-Handed, Upgraded) 6 Grenades: 11d Ranged (Burst, Thrown, Upgraded) Sniper Rifle: 11d Ranged (Collapsible, Line of Sight, Two- Handed, Upgraded) 2 Submachine Guns: 10d Ranged (Area, Upgraded) Combat Knife: 7d Melee Explosives for demolitions and traps addItIonal InFormatIon MOTIVATION: Money GOALS: Make a name as a super-powered merc. Make enough to retire, more than enough. Be done with everyone. METHODS: John is a soldier and a strategist. Smart, efficient, and good at improvising, he’d be dangerous even without powers. John prefers to ambush enemies, sniping them from a distance or taking them out with traps and tripwires. Careful and methodical, he likes to engage the enemy on his terms. He doesn’t take unnecessary risks and usually fights from behind cover and concealment. ORIGIN: The military does many people a lot of good, but John Cruz wasn’t one of them. John spent most of his youth in trouble. When he told his mother he was leaving to join the military, she hoped it would straighten him out. It didn’t. Although John was a natural soldier, he got"
+    },
+    {
+      "heading": "JOHN CRUZ",
+      "printed_page": 161,
+      "text": "“Let me stop you right there. I don’t care about your big plan; all I care about is getting paid. Soon as I see that money in my account, I’ll help you conquer the world or capture the Moon or whatever it is you want to do.” involved with a drug smuggling ring while overseas. He was dishonorably discharged and sent to prison. It looked like everything was over for John, until a man in a suit came to see him in prison, offering a full pardon in exchange for his services, on a contract basis of course. The man claimed to work for an off-the-books agency that fronted for government black ops work. John knew it was a lie but didn’t care. He agreed and began doing black ops wet work for this rogue agency. That would have been the end of it, but about a year ago, John was sent to eliminate a scientist working on some kind of super advanced dimensional technology John couldn’t even begin to understand. The job got messy and John was caught in the lab when it exploded. He awoke surrounded by a sea of his own face. His extra-dimensional duplicates had finished his mission and carried him to safety. No longer just one mercenary, John was now a Phalanx. 116611"
+    },
+    {
+      "heading": "THE RED KING",
+      "printed_page": 162,
+      "text": "vIllaIn Edge 26 Power Level: Epic Health 19 Group: None aBIlItIes Agility 6d Perception 12d Intellect 14d Toughness 18d Might 20d Willpower 18d talents Academics 12d Professional 9d Charm 9d Science 9d Command 9d Streetwise 3d Covert 3d Survival 3d Investigation 9d Technology 9d Medicine 3d Vehicles 3d poWers"
+    },
+    {
+      "heading": "MAGIC POWERS",
+      "printed_page": 162,
+      "text": "Abilities and Talents (All) Armor 20d Blast (Fiery Breath) 22d (Area, Overload, Penetrating, Phase Shift) Elemental Control (Fire) 6d Hibernation Immortality (Vulnerable to magic) Immunity (Environmental, Fire/Heat, Life Support) Languages (Polyglot) Omni-Power (Sorcery) 15d Super Senses (Astral Sight, Enhanced Hearing, Night Vision, Thermal Vision, Tracking Scent, True Sight, Ultra Vision) Telepathy 18d (Mind Link) Total Recall perKs Contacts (magical underworld) Headquarters Great Wealth FlaWs Heavy (5d weight rank) Quirk (arrogant) Unusual Looks (inhuman appearance) Gear None addItIonal InFormatIon MOTIVATION: Power GOALS: Remove the curse that keeps him in human form. Collect magical artifacts to protect himself against other dragons in the meanwhile. Amass wealth and power. METHODS: The Red King is a being of terrible cunning and patience. He made one mistake and has endured years of captivity in a strange little monkey body as a result. He will not make another. The creature prefers to act indirectly, though cat’s paws and patsies who know nothing of their true employer or his ends. He also prefers to remain hidden. Should he ever have to enter combat, he will bring fire and destruction without mercy. ORIGIN: Atherton Crumbolt, which is not his true name but is as good as any his monkey mouth can form, is a dragon, or at least he was. What he is now is a prisoner, trapped in an absurd little body, cursed by a sorcerer 116622"
+    },
+    {
+      "heading": "ATHERTON CRUMBOLT",
+      "printed_page": 162,
+      "text": "“I remember when your kind first learned to harness fire. How powerful you thought you were. Perhaps it’s time for another lesson.” so long ago that no record of that time exists in the modern world. By the time he realized the spell was permanent, his mistake had already been made. In his fury, he slew the insolent sorcerer, his breath turning the doddering old fool to ash. But that doddering old fool had cast the spell, and only he knew how it could be undone. In the dragon’s defense, no human had ever displayed that kind of power, but that fact brought him as little comfort then as it does now. He was trapped in this human form, mighty and powerful, of course, but nothing compared to before. He knew he’d need to keep hidden from others of his kind, who would want to devour him and steal his power, and he’d need to bide his time. Human magic did this to him, and one day, human magic would undo it. He merely had to wait, so that’s what he’s been doing, waiting, amassing power and wealth in the meanwhile, because that’s what dragons do. But he can sense that his time as a monkey will soon be coming to an end."
+    },
+    {
+      "heading": "RELIQUARY",
+      "printed_page": 163,
+      "text": "vIllaIn Edge 15 Power Level: Major Health 12 Group: None aBIlItIes Agility 6d Perception 6d Intellect 9d Toughness 12d Might 12d Willpower 12d talents Academics 6d Professional 3d Charm 6d Science 3d Command 6d Streetwise 3d Covert 3d Survival 3d Investigation 6d Technology 3d Medicine 3d Vehicles 3d poWers"
+    },
+    {
+      "heading": "MAGIC POWERS",
+      "printed_page": 163,
+      "text": "Abilities (All) Armor 16d (Item: sword) Immunity (Environmental, Fatigue, Life Support, Toxins) (Item: sword) Life Drain 12d (Independent, Item: sword, Zone) Omni-Power (Sorcery) 12d Strike (Physical) 16d (Deflect, Item: sword, Penetrating, Phase Shift) Summoning (Threat 4d) 15d (Automatons) Super Senses (Astral Sight, Night Vision, True Sight) (Item: sword) perKs Contacts (magical underworld) Headquarters FlaWs Creepy Flashbacks (life as Raven Abbasi: once per issue, if the Heroes can do something to remind Reliquary of her former life, she will lose her next turn to act) Quirk (Raven’s consciousness remains buried under Reliquary’s; it may be possible to exorcise the spirit) Gear None addItIonal InFormatIon MOTIVATION: Malice GOALS: Secure arcane knowledge and power to build a kingdom of night on mountain of corpses and rule it from a throne of skulls. Take death as a lover, then break her heart and take her place. Make sure no one ever laughs at her again. METHODS: Raven’s mind is a maelstrom of contradictions, a blend of disaffected hormonal teenager and malevolent entity. She sometimes works through agents and minions, operating with the caution and patience of a master tactician. Other times, she’ll act on impulse and take needless risks, a rash teenager. She’ll kill on a whim, but will often develop a fascination with Heroes and others who stand up to her, keeping them alive to enjoy breaking them later. ORIGIN: Raven Abassi, or Raven as her friends called her, was an ordinary teenager. Still in the throes of what her brother Usman dubbed her Lame Goth Phase, Raven dressed the part and, like her friends, was"
+    },
+    {
+      "heading": "RAVEN ABASSI",
+      "printed_page": 163,
+      "text": "“That sound you hear behind you? That’s the dead, clawing their way out of the grave to worship at my feet. But please, do go on about how I should change my ways.” totally over everything and everyone, especially the kids who made fun of them for being different. Besides her friends, one of the few people who understood Raven was her father, Professor Amir Abassi. Unfortunately, the Professor was often away on one archeological dig or another. But their connection drew her to his work, which is why she only complained a little when he sent her tickets to visit him in Scotland. She felt the call almost as soon as the plane touched ground, a yearning stronger than she could explain. Rather than going to her hotel, Raven was drawn to her father’s dig site. She made her way through the darkened chambers as if by memory and entered a hidden room Dr. Abbasi’s team hadn’t and wouldn’t ever discover. There was the sword, waiting for her as it always would. Her sword. Wraithmaker. She touched it and released the foul spirit that had been imprisoned in the great black blade, the powerful, malevolent piece of her that had been lost so many incarnations ago. It merged with her body, her mind, and her soul, and Reliquary was born. 116633"
+    },
+    {
+      "heading": "SHARD",
+      "printed_page": 164,
+      "text": "vIllaIn Edge 6 Power Level: Major Health 5/15 Group: None aBIlItIes Agility 3d Perception 3d Intellect 2d Toughness 5d/15d Might 5d/15d Willpower 5d talents Academics 2d Professional 2d Charm 2d Science 2d Command 5d Streetwise 5d Covert 5d Survival 2d Investigation 2d Technology 2d Medicine 2d Vehicles 5d poWers"
+    },
+    {
+      "heading": "SUPER POWERS",
+      "printed_page": 164,
+      "text": "Hard to Kill Immunity (Cold, Environmental, Heat, Toxins) (Conditional: in Solid Form) Solid Form 15d perKs Contacts (criminal) FlaWs Heavy (6d weight rank) Unusual Looks (crystalline giant) Vulnerability (sound) Gear None addItIonal InFormatIon MOTIVATION: Money GOALS: Make lots of money. Stay out of jail. Bust some heads. METHODS: Tony isn’t a thinker. He’s muscle, and that’s how he likes it. He’s a classic in-your-face brawler who loved to mix it up long before he ever had powers. As a guy who learned to fight on the streets, Tony fights to win. He isn’t above fighting dirty or threatening innocents for an advantage. ORIGIN: Anthony “Tony” Russo never had it easy. His father ran out shortly after he was born, and his mother was usually too drunk to be of much use. He grew up on the streets in the worst part of town and was running errands for the local syndicates before he hit double digits. By the time he was sixteen and well into his growth spurt, Tony had developed a reputation as a big guy you didn’t want to mess with. He 116644"
+    },
+    {
+      "heading": "TONY RUSSO",
+      "printed_page": 164,
+      "text": "“Youse clowns is all the same. Heh, come on, heroes, I ain’t trashed nothing all day.” was promoted to working protection, and he was good at it, maybe because he didn’t mind so much when his customers needed a little encouragement. That was how it happened. See, over the years, the streets Tony had been working started getting gentrified, so the cops began paying attention, and Tony was relocated to a more industrial part of town. It was there, while holding a new potential client over a vat of superheated organic crystal composite, that Tony slipped and fell into the tank. Too tough or too stubborn to die, Tony managed to pull himself out, looking like a man who’d been boiled alive. The composite somehow merged with his body and transformed him into a being of living crystal. Although Tony still freelances for the syndicate, he charges a lot more for his services these days, and he’ll work for anyone who can pay."
+    },
+    {
+      "heading": "WARLORD",
+      "printed_page": 165,
+      "text": "vIllaIn Edge 24 Power Level: Major Health 9 Group: None aBIlItIes Agility 12d Perception 6d Intellect 6d Toughness 9d Might 9d Willpower 9d talents Academics 6d Professional 3d Charm 6d Science 3d Command 6d Streetwise 3d Covert 9d Survival 6d Investigation 9d Technology 6d Medicine 6d Vehicles 6d poWers"
+    },
+    {
+      "heading": "TECH POWERS",
+      "printed_page": 165,
+      "text": "Armor 12d (Item: uniform) Immunity (Environmental, Toxins) (Item: uniform) Regeneration (Item: uniform)"
+    },
+    {
+      "heading": "TRAINED POWERS",
+      "printed_page": 165,
+      "text": "Blast (Special) 15d (Weapons) Boost (Blast and Strike) 16d (Item: blast-blades) Evasion 15d Expertise (Professional: Diplomacy, Espionage, Strategy, Tactics) 9d Lightning Reflexes Martial Arts 15d Preparation Psi-Screen 12d Strike (Special) 15d (Deflect, Throw, Weapons) Two-Fisted Weakness Detection perKs Patron (Lady Andromeda) FlaWs Code (Bushido-like code) Obligation (Lady Andromeda) Quirk (Conflicted: Ido knows Andromeda is evil but he is duty- bound to serve her) addItIonal InFormatIon MOTIVATION: Conviction GOALS: Protect, counsel, and serve the Lady Andromeda. Get her to see the error of her ways. If that proves impossible, do whatever he can to channel her ambitions along the least destructive path. Do his duty and preserve his honor. METHODS: Ido serves the Lady Andromeda, whom he is sworn to counsel and protect. In that capacity, he both acts as her agent and pursues his own agenda on her behalf. While he normally directs others, Ido is more than willing to step out of the shadows and take matters into his own hands when the situation warrants his personal attention. In combat, Ido never uses more force than is necessary to defeat his opponents. Although he will use lethal force if necessary and honorable, that hasn’t happened in a very long time. ORIGIN: Ido Thorris would scream if he were prone to histrionics, or perhaps he might weep, but stoicism is expected of Mu’Dhani Liegemen. His family has served the nobles of House Andromeda for generations, guarding its members, and acting as counselors in times"
+    },
+    {
+      "heading": "IDO THORRIS",
+      "printed_page": 165,
+      "text": "“Stand aside, hero. You can’t stop me. There’s wisdom in retreating from a fight you can’t win.” Gear 2 Mu’Dhani blast-blades: for Blast and Strike (Note: these alien weapons can inflict physical or energy damage) of peace and generals in times of war, nobles by deed if not blood. On the day Aurora was born, General Ido Thorris was given the highest honor that could be bestowed upon a Mu’Dhani soldier, he was made her Liegeman. The remainder of his life would be devoted to her, and he swore an oath on his family name to serve and protect Aurora at all costs. His concern grew over the years, as he saw her grow from a petulant child into a self-absorbed youth who was never satisfied with anything, an angry girl who always became jealous whenever attention was shifted from her to her sister Elara. He did his best to counsel his charge over the years, but his efforts were in vain. When Aurora came to him and demanded his assistance in planning her rebellion, Ido begged her to reconsider, but she would not be dissuaded. Aurora had become a would-be tyrant, and Ido was honor-bound to remain by her side. He hopes to eventually get through to her, to make her see the error of her ways. If not, then he will almost certainly die by her side, as is his duty. It’s what he believes he deserves, since he blames his failings as a teacher for the monster Aurora has become. 116655"
+    }
+  ]
+}
