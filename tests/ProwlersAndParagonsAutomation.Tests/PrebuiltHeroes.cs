@@ -269,7 +269,14 @@ public static class PrebuiltHeroes
             // gear: Ch.6 makes mundane gear free, so that earlier guess was wrong.
             ["Herald (Scathach)"] = ("hero_package", 1),        // Strike carries four Pros/Cons at once
             ["Shadow"]            = ("superhero_package", 1),   // unexplained
-            ["T-Kay"]             = ("superhero_package", -1),  // Limited grade is not stated
+            // Recorded at "significantly limited" on breadth: the +6 Edge applies to one Power
+            // out of five, and her sheet prints "Edge 8/14" to show it. Only the *mildest*
+            // grade closes her — measured: -1 gives 125, -2 gives 124, and -4 gives 124 too,
+            // because an unranked Power floors at 1 HP. She is 1 under, so every harsher
+            // reading moves away or not at all. Either the authors read it as barely limiting
+            // or their total is 1 out; the grade chosen here is the one with an argument
+            // behind it rather than the one that makes the number come out.
+            ["T-Kay"]             = ("superhero_package", -1),
             ["Vigilant"]          = ("superhero_package", -1),  // Jo Sticks are Upgraded, a custom feature not modelled
             ["Herald (Airmid)"]   = ("hero_package", 0)
         };
