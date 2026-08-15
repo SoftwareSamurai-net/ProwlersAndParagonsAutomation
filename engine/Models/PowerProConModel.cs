@@ -39,6 +39,18 @@ public record PowerProConModel
 
     public string Description { get; init; } = "";
 
+    /// <summary>
+    /// True when the rulebook says this option may be taken more than once on the same
+    /// Power, each copy charged again. Also X is the case: Energy Absorption's entry reads
+    /// "You can absorb one extra type of energy … each time you select this Pro" (Ch.2
+    /// p.28), and Blastwave (Ch.8 p.129) prints six energy types, so five copies.
+    ///
+    /// <para>Without it the validator's duplicate check reported that published Hero as
+    /// carrying four errors while the calculator charged all five copies and landed him on
+    /// his printed 125 — the two halves of the engine disagreeing about the same sheet.</para>
+    /// </summary>
+    public bool Repeatable { get; init; }
+
     /// <summary>True when picking this requires a variant key on the selection.</summary>
     public bool NeedsVariant =>
         CostType is "flat_variable" or "per_rank_variable";

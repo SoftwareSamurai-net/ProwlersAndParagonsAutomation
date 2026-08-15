@@ -225,8 +225,7 @@
       "3d": "Proficient",
       "4d": "Advanced (helicopters, aircraft)",
       "5d": "Expert",
-      "6d": "Master",
-      "7d+": "Esoteric/experimental vehicles"
+      "6d": "Master"
     }
   }
 ]

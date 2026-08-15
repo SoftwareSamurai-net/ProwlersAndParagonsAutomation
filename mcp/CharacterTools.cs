@@ -245,17 +245,45 @@ public sealed class CharacterTools
         return Write(report);
     }
 
+    /// <summary>
+    /// One generic option. <paramref name="power"/> is the Power it is being offered for, when
+    /// there is one — <c>list_options</c> has no Power and passes null.
+    ///
+    /// <para>It is needed for two things a Power changes about the answer, and without them
+    /// the document contradicted itself: Force Field is <c>"range": "self"</c> and legitimately
+    /// offers the Ranged Pro, whose <c>applies_to_ranges</c> reads touch and zone — which a
+    /// model reading its own tool output cannot tell from a bug. Now the row says the Power's
+    /// own text is what allows it, and quotes the sentence.</para>
+    /// </summary>
     private static JsonObject ProCon(
-        IGenericProCon option, int? costModifier, IReadOnlyDictionary<string, int>? range) =>
-        new()
+        IGenericProCon option, int? costModifier, IReadOnlyDictionary<string, int>? range,
+        PowerModel? power = null)
+    {
+        var allowance = power?.ProsAllowedByOwnText
+            .FirstOrDefault(a => option is ProModel &&
+                                 string.Equals(a.Id, option.Id, StringComparison.Ordinal));
+
+        // The grades this Power may actually pick, which is not always every grade printed:
+        // those of Zone/Nova and Ranged encode a Range, and a Power reaching them through its
+        // own text has one the rulebook does not price.
+        var grades = range is null
+            ? null
+            : range.Where(kv => ProConApplicability.GradesFor(option, power, range.Keys)
+                                                   .Contains(kv.Key, StringComparer.Ordinal))
+                   .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+        return new()
         {
             ["id"] = option.Id, ["name"] = option.Name,
             ["hero_points"] = costModifier,
-            ["grades"] = Numbers(range),
+            ["grades"] = Numbers(grades),
             ["applies_to_ranges"] = Strings(option.AppliesToRanges),
             ["applies_to_rank_types"] = Strings(option.AppliesToRankTypes),
+            ["repeatable"] = option.Repeatable,
+            ["allowed_by_this_power_text"] = allowance is null ? null : allowance.Reason,
             ["caveat"] = option.ApplicabilityCaveat
         };
+    }
 
     // ── Powers ────────────────────────────────────────────────────────────
 
@@ -419,13 +447,13 @@ public sealed class CharacterTools
             ["pros"] = new JsonObject
             {
                 ["generic"] = new JsonArray([.. _applicability.ProsFor(power)
-                    .Select(p => ProCon(p, p.CostModifier, p.CostModifierRange))]),
+                    .Select(p => ProCon(p, p.CostModifier, p.CostModifierRange, power))]),
                 ["own"] = new JsonArray([.. power.PowerPros.Select(OwnProCon)])
             },
             ["cons"] = new JsonObject
             {
                 ["generic"] = new JsonArray([.. _applicability.ConsFor(power)
-                    .Select(c => ProCon(c, c.CostModifier, c.CostModifierRange))]),
+                    .Select(c => ProCon(c, c.CostModifier, c.CostModifierRange, power))]),
                 ["own"] = new JsonArray([.. power.PowerCons.Select(OwnProCon)])
             }
         };
@@ -457,6 +485,11 @@ public sealed class CharacterTools
         ["grades"] = Numbers(option.CostModifierRange),
         ["rank_grades"] = Numbers(option.CostPerRankRange),
         ["needs_variant"] = option.NeedsVariant,
+        // Beside needs_variant for the same reason it is there: it is a fact about how to
+        // shape the selection, and a model that has to infer it from the English "per
+        // purchase" will either under-buy in silence or be refused for something the
+        // rulebook permits. Blastwave's six energy types are five copies of one Pro.
+        ["repeatable"] = option.Repeatable,
         ["description"] = option.Description
     };
 

@@ -19,7 +19,7 @@ All four run the *same* rules engine — the browser build compiles it to WebAss
 - **27 baseline-rank powers** (Armor = ½ Toughness, Evasion = Agility, Running = flat 3d, Strike = Might *or* Martial Arts, Boost/Expertise = a Trait you nominate)
 - **23 generic pros and 28 generic cons**, including variable-cost variants (Charges, Area/Burst) and Overkill/Weak's −1 HP per rank
 - **106 power-specific pros and cons** the rulebook attaches to one named power — unlike the generic ones, several change a power's cost *per rank* rather than its total
-- **Generic pro/con applicability derived from the rulebook**, not curated per power — each option states which Powers it applies to, so nothing legal is hidden from the player, and the constraints the book prints for every Power (its Range and rank type) are enforced on a submitted character as well as filtered in the pickers
+- **Generic pro/con applicability derived from the rulebook**, not curated per power — each option states which Powers it applies to, so nothing legal is hidden from the player, and the constraints the book prints for every Power (its Range and rank type) are enforced on a submitted character as well as filtered in the pickers. Where a Power's *own* printed text names a generic option its Range would otherwise forbid, that sentence is recorded and the option is offered: Force Field is Self and the rulebook tells you to apply the Zone Pro to it, which is how T-Kay is printed
 - **The six Sources**, with Powers grouped under Source headings on every sheet the way the published ones print them
 - **53 flaws and 13 perks**, wired into Resolve and the HP budget
 - **Validation engine** — errors for budget overruns, both Trait floors and the Trait Cap, flaw-count breaches, ranks bought on rankless powers, unresolved player choices, and every id or quantity a hand-written character can get wrong; warnings for anything still unverified. **Each finding carries the facts as well as the sentence** — which Trait, what it is, what it may be, and the values a fix must be chosen from — so a repair loop never has to parse English
@@ -400,7 +400,9 @@ Power descriptions are **original text written from the rulebook entry**, not ru
 
 They are held to the mechanics they sit beside: `PowerDescriptionTests` fails a rankless Power whose description claims anything scales per rank, which is how the original set went wrong on 44 of the 46 rankless Powers.
 
-Data coverage is everything character creation needs: chapters 1–2 (Basics and Characters) in full, plus Ch.6's twelve custom gear features and Ch.7's three toxin Pros and Cons. Chapters 3, 4, 5 and 7 are play rules, 8 is the pre-built characters — transcribed in the test suite, where they verify the engine — and Ch.9 builds Villains by the Hero rules, which is why the mode is presentation only. The one genuine gap is Ch.6's vehicles and headquarters; see [PROGRESS.md](PROGRESS.md).
+Data coverage is everything character creation needs: chapters 1–2 (Basics and Characters) in full, plus Ch.6's twelve custom gear features and Ch.7's three toxin Pros and Cons. Chapters 3, 4, 5 and the rest of 7 are play rules; Ch.9 builds Villains by the Hero rules, which is why the mode is presentation only. Ch.8 is broader than it looks — NPCs and animals from p.111, Extras from p.120, and the twenty pre-built Heroes and Villains from p.126, of which only the last are transcribed, in the test suite where they verify the engine. The one genuine gap is Ch.6's vehicles and headquarters.
+
+Which pages have actually been read, and which are deliberately skipped, is tracked page by page in [docs/RULEBOOK-COVERAGE.md](docs/RULEBOOK-COVERAGE.md); open work is in [PROGRESS.md](PROGRESS.md).
 
 ---
 
@@ -518,4 +520,8 @@ This project follows [Semantic Versioning](https://semver.org/) and [Conventiona
 
 **MIT** — see [LICENSE](LICENSE). It covers this repository's own code and text and nothing else. The tool is not sold, and any hosted instance is self-hosted.
 
-Prowlers & Paragons is © LakeSide Games, Inc. (2013–2021), by Leonard A. Pimentel and Sean Patrick Fannon. **No rulebook content is redistributed here.** What lives in `data/rules/` is structured metadata — names, costs, ranges, rank types — together with this project's own explanations of what each option does. Descriptions are written from scratch, not copied. The rulebook itself is required to play, and is not included in this repository.
+Prowlers & Paragons is © LakeSide Games, Inc. (2013–2021), by Leonard A. Pimentel and Sean Patrick Fannon. The rulebook itself is required to play and is not included in this repository.
+
+**What lives in `data/rules/` is structured metadata** — names, costs, ranges, rank types — together with this project's own explanations of what each option does. Those descriptions are written from scratch rather than copied, and that has not changed: `data/rules/` is what the deployed site serves.
+
+**`data/rulebook/` is different, and exists by the author's permission.** It holds the printed text of the book, extracted chapter by chapter, so a player at the owner's table can be shown what a rule actually says. It is **not** part of the browser payload — the web project copies `data/rules` and `data/transcripts` into `wwwroot` and nothing else — so the public site does not serve it. If you have forked this repository, that permission is not yours: it was given to this repository's owner for their table.

@@ -35,7 +35,7 @@ public sealed class ProConSelector
 
             var choices = specific
                 .Select(FormatPowerProCon)
-                .Concat(available.Select(FormatPro))
+                .Concat(available.Select(p => FormatPro(p, power)))
                 .Prepend("Done — no more pros")
                 .ToList();
 
@@ -53,15 +53,22 @@ public sealed class ProConSelector
                 continue;
             }
 
-            var proModel = available.First(p => FormatPro(p) == pick);
+            var proModel = available.First(p => FormatPro(p, power) == pick);
 
             if (proModel.CostModifierRange is not null)
             {
+                // Only the grades this Power may pick — a Power that reaches an option through
+                // its own printed text does not get every grade the option prices, because
+                // those grades encode a Range it does not have. Asked of the engine so the
+                // wizard cannot offer what the validator would refuse.
+                var grades = ProConApplicability.GradesFor(
+                    proModel, power, proModel.CostModifierRange.Keys);
+
                 var variantKey = AnsiConsole.Prompt(
                     new SelectionPrompt<string>()
                         .Title($"Select variant for [bold]{Markup.Escape(proModel.Name)}[/]:")
                         .UseConverter(k => $"{k}  (+{proModel.CostModifierRange[k]} HP)")
-                        .AddChoices(proModel.CostModifierRange.Keys));
+                        .AddChoices(grades));
 
                 selected.Add(new SelectedProCon(proModel.Id, variantKey));
             }
@@ -200,12 +207,21 @@ public sealed class ProConSelector
         return $"{e.Name}  ({cost})  ‹this Power›";
     }
 
-    private static string FormatPro(ProModel p)
+    /// <summary>
+    /// One Pro as a row in the list. <paramref name="power"/> narrows the grades quoted: a
+    /// Power that reaches an option through its own printed text does not get every grade the
+    /// option prices, and quoting all of them advertises one the prompt will not offer and the
+    /// validator would refuse.
+    /// </summary>
+    private static string FormatPro(ProModel p, PowerModel? power = null)
     {
         var cost = p.CostModifier.HasValue
             ? $"+{p.CostModifier} HP"
             : p.CostModifierRange is not null
-                ? "variable: " + string.Join(" / ", p.CostModifierRange.Select(kv => $"{kv.Key} +{kv.Value}"))
+                ? "variable: " + string.Join(" / ", p.CostModifierRange
+                    .Where(kv => ProConApplicability.GradesFor(p, power, p.CostModifierRange.Keys)
+                                                    .Contains(kv.Key, StringComparer.Ordinal))
+                    .Select(kv => $"{kv.Key} +{kv.Value}"))
                 : "special";
         return $"{p.Name}  ({cost}){Caveat(p)}";
     }

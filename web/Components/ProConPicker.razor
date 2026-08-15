@@ -179,7 +179,8 @@
 
             return Scope switch
             {
-                // Range and rank type, and nothing else — see ProConApplicability.
+                // Range and rank type, plus the one widening a Power's own printed text can
+                // make to the Range rule — see ProConApplicability.
                 Target.Power when Power is not null => IsPro
                     ? Session.Applicability.ProsFor(Power).Cast<IGenericProCon>().ToList()
                     : Session.Applicability.ConsFor(Power).Cast<IGenericProCon>().ToList(),
@@ -256,11 +257,21 @@
             return null;
         }
 
-        var range = IsPro
+        var option = IsPro ? (IGenericProCon?)Session.Rules.GetPro(id) : Session.Rules.GetCon(id);
+        var range  = IsPro
             ? Session.Rules.GetPro(id)?.CostModifierRange
             : Session.Rules.GetCon(id)?.CostModifierRange;
 
-        return range?.ToDictionary(kv => kv.Key, kv => $"{Signed(kv.Value)} HP");
+        if (range is null || option is null) return null;
+
+        // Not every printed grade, where the Power reached this option through its own text:
+        // Zone/Nova and Ranged price by the base Power's Range, and Force Field is Self, which
+        // the rulebook does not price. Asked of the engine so the picker cannot offer a grade
+        // the validator would then refuse.
+        var grades = ProConApplicability.GradesFor(option, Power, range.Keys);
+
+        return range.Where(kv => grades.Contains(kv.Key, StringComparer.Ordinal))
+                    .ToDictionary(kv => kv.Key, kv => $"{Signed(kv.Value)} HP");
     }
 
     private bool NeedsUnits(string id) => Own(id)?.CostType == "per_rank_per_unit";

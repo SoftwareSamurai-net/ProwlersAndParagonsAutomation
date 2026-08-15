@@ -660,6 +660,43 @@ public sealed class PrebuiltHeroTests
         Assert.Equal(0, PrebuiltHeroes.BuildByHero["Herald (Airmid)"].Residual);
     }
 
+
+    /// <summary>
+    /// Every published Hero is a legal character, and the only error the validator may
+    /// raise about one is the Hero Point budget of the four that do not reconcile.
+    ///
+    /// <para><b>Nothing asked this before, and two rules were wrong because of it.</b> The
+    /// other tests here ask what a Hero <em>costs</em> and what their derived stats come to;
+    /// none asked whether the character the authors printed is one this tool would accept.
+    /// Both faults it found made a Hero in the book unbuildable: Blastwave's six energy
+    /// types came back as four <c>DUPLICATE_PRO</c> errors while the calculator charged all
+    /// five copies and landed him exactly on 125, and T-Kay's printed
+    /// <c>Force Field 12d (Zone)</c> came back <c>PRO_NOT_APPLICABLE</c> because Force Field
+    /// is Self range — which the Power's own entry overrides in as many words.</para>
+    ///
+    /// <para>The budget exemption is deliberately narrow: it is keyed to the residual
+    /// recorded in <see cref="PrebuiltHeroes.BuildByHero"/>, so a Hero who starts costing
+    /// the wrong amount fails <see cref="HeroRebuildsToItsKnownResidual"/> rather than being
+    /// excused here.</para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(HeroNames))]
+    public void EveryPublishedHeroIsALegalCharacter(string name)
+    {
+        var hero  = PrebuiltHeroes.All.Single(h => h.Name == name);
+        var sheet = Build(hero);
+
+        var errors = _f.Validator.Validate(sheet).Issues
+            .Where(i => i.Severity == ValidationSeverity.Error)
+            .Where(i => !(i.Code == "HP_BUDGET_EXCEEDED"
+                          && PrebuiltHeroes.BuildByHero[hero.Name].Residual > 0))
+            .ToList();
+
+        Assert.True(errors.Count == 0,
+            $"{hero.Name} is printed in the rulebook and this tool refuses them: "
+            + string.Join(" | ", errors.Select(e => $"{e.Code}: {e.Message}")));
+    }
+
     [Fact]
     public void EveryHeroIsCitedInsideChapterEight()
     {

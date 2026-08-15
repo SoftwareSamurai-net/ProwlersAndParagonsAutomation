@@ -12,45 +12,76 @@ replay shipped, and this replaces it.)
 
 ## Where things stand
 
-Forty pull requests merged, the most recent being [#41](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/41). 3365 tests, zero warnings at CI strictness, a whole-tree Qodana scan at
+Forty-one pull requests merged, the most recent being [#42](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/42). 3419 tests, zero warnings at CI strictness, a whole-tree Qodana scan at
 zero, MIT in `LICENSE`, and the site live on Cloudflare Pages. The tool creates, prices,
 validates, prints and exports characters through **four** front ends — the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server somebody connects to their own
 Claude — and a visitor with no account can watch four real conversations build one at `/replay`.
 
-The last slice built that replay. Its entry in `PROGRESS.md` and the "The replay" section of
-`CLAUDE.md` carry the reasoning. The setup a stranger needs for the MCP server moved out of the
-README into [`MCP-SETUP.md`](MCP-SETUP.md), which is held to the code by
+The last slice worked `PROGRESS.md` item 1 to the end of its method. Its completed entry records
+what the per-element breakdown proved — that no element of the four unreconciled Heroes is
+mispriced — and the two published Heroes the tool turned out to refuse. The replay before it has
+its own entry, and the "The replay" section of `CLAUDE.md` carries that reasoning. The setup a
+stranger needs for the MCP server is in [`MCP-SETUP.md`](MCP-SETUP.md), held to the code by
 `McpSetupDocumentationTests`.
 
-**Nothing on the remaining list is a defect.** What follows is a judgement about which of them is
-worth a slice, not a queue of bugs.
+**Nothing on the remaining list is a defect.** What follows is the slice chosen next and why, and
+the two left open beside it — a judgement, not a queue of bugs.
 
 ---
 
-## The slice to build: pick one of these three
+## The slice to build: the visual redesign
 
-They are genuinely different kinds of work, and the right choice depends on what you want the
-project to be next. Read the full entry in `PROGRESS.md` before starting any of them.
+**Chosen deliberately, after looking at [pnpready.com](https://www.pnpready.com/)** — another
+unofficial companion app for this game, further along in scope (a VTT, a GM screen, a `Ctrl-K`
+rules search, vehicles, the Combined Updates Roles) and, more to the point, **better presented**.
+Its scope is not worth chasing. Its presentation is.
 
-### A. Close the last four Heroes — `PROGRESS.md` item 1
+What it does that this app does not, in rising order of cost:
 
-Sixteen of the twenty published Heroes rebuild to exactly 125 Hero Points. Four sit at ±1, each
-with a recorded reason. **The method that closed the other three is spent**: Vector, Talon and
-Airmid were transcription faults, and all four transcriptions have since been read line by line
-against the printed sheets and are faithful. So the remaining ±1 is in the **pricing model**, and
-finding it needs a per-element cost breakdown compared against a hand-computed expectation from
-the sheet — not another read of the page.
+1. **Two typefaces with distinct jobs.** A condensed uppercase display face for every heading, at
+   sizes this app does not go near and with leading tighter than solid, and a separate body face.
+   This app uses the system stack throughout and separates levels by size and weight alone. It is
+   the single biggest difference. Cost: two self-hosted files and `--font-display` /
+   `--font-body` tokens — no component changes, since a component may no more name a font than a
+   colour. Mind the CSP's `font-src` and the print block.
+2. **Small uppercase tracked labels carry the structure of a long form**, rather than borders
+   doing it. `SheetSection`'s centred heading in a bar is right on *paper*, because the published
+   sheet prints it that way; the editors on screen are a different problem.
+3. **Choices as a card grid, not a full-width list.** Six tiers as six cards, each with its
+   consequence on one line. That is CSS on `OptionList`, not new markup.
+4. **Every derived stat shows its formula** under the figure. `StatBlock` already takes a `Sub`.
+   Teaching the rule is the point of running the real engine in the browser, and this is nearly
+   free.
+5. **The rank descriptor beside the rank** — `1d Impaired`, `1d Clueless`. Ch.2 prints an
+   ABILITY RANKS table on printed p.17 (Impaired, Undeveloped, Developed, Noteworthy,
+   Exceptional, Peak) and a TALENT RANKS table on p.18 (Clueless, Unskilled, Proficient,
+   Advanced, Expert, Master), both stopping at 6d because above that is superhuman.
 
-**Do not tune an ambiguous variant to force a zero.** T-Kay closes exactly if `Limited: only for
-Telekinesis` is read as the milder grade, and the only thing recommending that reading is that it
-produces the answer. The rulebook prints no rule mapping the words onto a grade. That is the trap
-this item names, and it has been walked up to twice.
+   **This is presentation only, and an earlier draft of this file said otherwise.** Both tables
+   are already extracted, as `rank_guide` on every entry in `abilities.json` and `talents.json`,
+   and both are already read — `AbilityModel.RankGuide` and `TalentModel.RankGuide`. Nothing is
+   missing from the data. What is missing is that **no front end shows them**: the editors print
+   a bare `4d`, and the rulebook's word for a 4d Ability is "Noteworthy". So this is a rendering
+   change against data that has been sitting there the whole time. Do not go extracting it.
 
-This is the highest-value slice if you want the engine's arithmetic proved further, and it is the
-only one where a finding would change a number the tool reports.
+6. **The long lists need searching, and this is real user feedback rather than a guess.** The
+   report from the table is that scrolling the big lists is annoying — Pros, Cons, Perks, Flaws
+   and Powers are all pick-from-a-list surfaces, and Powers alone is 141 entries. `OptionList`
+   is one component, so a filter box belongs in it once rather than in five tabs. Treat this as
+   a requirement of the redesign, not a nice-to-have: it is the only item here that came from
+   somebody actually using the thing.
 
-### B. `search_powers` ranks ties alphabetically — `PROGRESS.md` item 4
+**The palette is in scope and it is the part that can go wrong quietly.** `theme.css`'s contrast
+figures are measured and commented, and the print block at the bottom restates *every* token —
+one left out keeps its screen value through the cascade, which is exactly how a Villain sheet
+once printed as a full-bleed ink dump. Re-measure rather than eyeball, and re-proof the PDF.
+
+**Look at it with the bUnit-plus-headless-Chrome harness, not a dev server**, and pass
+`--virtual-time-budget=3000` or you will photograph the panels mid-entry-animation and read
+washed-out styling as a palette fault. That has happened, and was half-fixed as one.
+
+### Also open, and not chosen: `search_powers` ranks ties alphabetically — `PROGRESS.md` item 4
 
 The Power search is a word match, and when several Powers score the same it puts them in name
 order under a caution calling them "the closest entries". **"Walks through walls" is the case to
@@ -69,7 +100,7 @@ concluded the rulebook had no Power for detecting a lie, from a search that had 
 were more matches than it had shown. A better ranking would have put the answer on the first
 page.
 
-### C. The browser payload — `PROGRESS.md` item 5
+### Also open, and not chosen: the browser payload — `PROGRESS.md` item 5
 
 27 MiB uncompressed, about a third of that over the wire, cached hard after the first visit.
 **The site works and this is not a fault.** It is large because IL trimming is disabled, because
@@ -84,11 +115,11 @@ verify any of it** — the ILLink task host crashes without the `wasm-tools` wor
 elevation. CI can. "It built" is not evidence, because the failure is a runtime silence: whatever
 is done needs a check that loads the published site and reads a rule out of it.
 
-Lowest value of the three, and the one most likely to eat a day for nothing.
+The lowest-value of the three, and the one most likely to eat a day for nothing.
 
 ---
 
-## Traps whichever you pick
+## Traps whatever you touch
 
 - **The rulebook PDFs are in `docs/` and a worktree cannot see them.** `*.pdf` is gitignored, so
   they live in the main working directory only. `ls docs/*.pdf` from a worktree reports nothing,
@@ -113,9 +144,20 @@ Lowest value of the three, and the one most likely to eat a day for nothing.
   `git checkout -- .`, which takes uncommitted work with it. That cost two rounds of rework in
   the replay slice, both times on work written minutes earlier — and the hazard was already
   recorded from [#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30) in
-  its single-file form, so knowing about it is demonstrably not enough. **Also verify a mutation
-  applied** (`git diff --numstat` non-empty) before believing a green result: a silently-failed
-  edit and a passing test look exactly the same.
+  its single-file form, so knowing about it is demonstrably not enough.
+- **`perl -pi` silently edits nothing on this machine.** It exits 0, prints nothing, and leaves
+  the file untouched — so a mutation "applied" that way looks exactly like a fix that holds, and
+  a green suite means nothing. Use `sed -i` or the editor, and check `git diff --numstat` every
+  time. This cost a wrong conclusion in the slice that recorded it.
+- **A guard test that reads the shipped data cannot tell you the mechanism reads it too.** Every
+  test of the Force Field exemption passed with the whole thing hard-coded to
+  `power.Id == "force_field"`, because they all asserted over the real rules files. To pin a
+  mechanism, drive it against a synthetic model that differs only in the field.
+- **Both halves of a two-branch lookup need their own test.** The repeatable check resolves a
+  Power's own entry first and a generic option second; only the first was exercised, so stubbing
+  the second to `false` left 3391 tests green.
+- **Verify a mutation applied** (`git diff --numstat` non-empty) before believing a green
+  result: a silently-failed edit and a passing test look exactly the same.
 
 ---
 

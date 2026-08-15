@@ -605,6 +605,38 @@ public sealed class SheetRenderTests
         Assert.Equal(expected, headings);
     }
 
+    /// <summary>
+    /// <b>A repeated option prints once with its count, on both browser surfaces.</b> Three
+    /// options in the rulebook are bought again rather than repeated by mistake, and
+    /// Blastwave's Energy Absorption carries five copies of Also X — which rendered as
+    /// "Also X, Also X, Also X, Also X, Also X".
+    ///
+    /// <para>The formatter has its own unit test and it is not enough: reverting all three
+    /// call sites to a plain join left that test green, because it exercises the function and
+    /// not the wiring. This renders the component.</para>
+    /// </summary>
+    [Fact]
+    public void ARepeatedProPrintsOnceWithItsCountOnBothSurfaces()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+
+        ctx.Session.Sheet.SelectedPowers.Add(new SelectedPower("energy_absorption", 6,
+            [new SelectedProCon("also_x"), new SelectedProCon("also_x"), new SelectedProCon("also_x")],
+            []) { SourceId = "super", CostVariantKey = "kinetic" });
+
+        foreach (var markup in new[]
+                 {
+                     ctx.Render<SheetView>().Markup,
+                     ctx.Render<PowersTab>().Markup
+                 })
+        {
+            var text = Collapse(Rendered(markup));
+
+            Assert.Contains("Also X ×3", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("Also X, Also X", text, StringComparison.Ordinal);
+        }
+    }
+
     private static string Id(RenderContext ctx, string traitName) =>
         ctx.Session.Rules.Abilities.FirstOrDefault(a => a.Name == traitName)?.Id
         ?? ctx.Session.Rules.Talents.First(t => t.Name == traitName).Id;

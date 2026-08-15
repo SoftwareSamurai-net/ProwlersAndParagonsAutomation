@@ -29,10 +29,16 @@ public record ConModel : IGenericProCon
     public IReadOnlyList<string> AppliesToRankTypes { get; init; } = [];
 
     /// <inheritdoc />
+    public bool Repeatable { get; init; }
+
+    /// <inheritdoc />
     public string? ApplicabilityCaveat { get; init; }
 
     public string Description { get; init; } = "";
     public string? NarrativeConstraint { get; init; }
+    /// <summary>Where the entry was verified from, e.g. "Ultimate Edition, Ch.2 Pros and Cons, pp.48-53".</summary>
+    public string? SourceRef { get; init; }
+
     public bool NeedsReview { get; init; }
     public string? Notes { get; init; }
 }

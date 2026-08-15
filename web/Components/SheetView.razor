@@ -164,11 +164,11 @@
                                        for the rest. *@
                                     @if (sp.Pros.Count > 0)
                                     {
-                                        <div class="statline">Pros: @string.Join(", ", sp.Pros.Select(c => Label(c, power)))</div>
+                                        <div class="statline">Pros: @PowerFormatter.ModifierLine(sp.Pros, c => Label(c, power))</div>
                                     }
                                     @if (sp.Cons.Count > 0)
                                     {
-                                        <div class="statline">Cons: @string.Join(", ", sp.Cons.Select(c => Label(c, power)))</div>
+                                        <div class="statline">Cons: @PowerFormatter.ModifierLine(sp.Cons, c => Label(c, power))</div>
                                     }
                                 </div>
                             }

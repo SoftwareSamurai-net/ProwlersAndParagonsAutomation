@@ -1238,6 +1238,7 @@
         "name": "Also X",
         "cost_type": "flat",
         "cost_modifier": 2,
+        "repeatable": true,
         "description": "Absorb one extra type of energy per purchase. It cannot be used to add kinetic energy after the fact."
       }
     ],
@@ -1472,6 +1473,22 @@
     "dice_per_rank": 1,
     "description": "A projected field that shields everyone inside it. Protected characters use your rank as a passive defence against physical and energy attacks, and are immune to any attack at or below half your rank.",
     "prerequisite": null,
+    "pros_allowed_by_own_text": [
+      {
+        "id": "zone_nova",
+        "grades": ["zone_ranged", "nova_ranged"],
+        "reason": "Ch.2 p.29, the Power's own text: 'Apply the Zone Pro to shield large areas.' Zone/Nova is priced by the base Power's Range and the rulebook prices only Ranged (+2/+1) and Touch (+4/+2); Force Field is Self, which it does not price, so the Ranged grades are the ones offered."
+      },
+      {
+        "id": "area_burst",
+        "reason": "Ch.2 p.29, the Power's own text: 'or the Area Pro to shield large areas at a distance.' Area and Burst are priced the same whatever the base Range, so both grades stand."
+      },
+      {
+        "id": "ranged",
+        "grades": ["from_close_range"],
+        "reason": "Ch.2 p.29, the Power's own text: 'the Ranged Pro to shield things at a distance.' Priced +2 from Close Range and +4 from Touch; Force Field is Self, so the +2 grade is the one offered."
+      }
+    ],
     "power_pros": [
       {
         "id": "inviolate",
@@ -1518,7 +1535,8 @@
       "description",
       "pros_cons"
     ],
-    "source_ref": "Ultimate Edition, Ch.2 Powers, p.29"
+    "source_ref": "Ultimate Edition, Ch.2 Powers, p.29",
+    "notes": "T-Kay (Ch.8 p.143) is printed with Force Field 12d (Zone), which is why pros_allowed_by_own_text exists; each entry there carries its own printed sentence."
   },
   {
     "id": "form_energy",
@@ -1538,6 +1556,7 @@
         "name": "Also X",
         "cost_type": "flat",
         "cost_modifier": 2,
+        "repeatable": true,
         "description": "One extra type of energy you can become, per purchase."
       }
     ],

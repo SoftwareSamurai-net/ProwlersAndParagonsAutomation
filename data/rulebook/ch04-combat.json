@@ -1,0 +1,347 @@
+{
+  "chapter": 4,
+  "title": "Combat",
+  "printed_pages": [
+    73,
+    82
+  ],
+  "source_ref": "Ultimate Edition, Ch.4 Combat, pp.73-82",
+  "extraction": "Text extracted from the publisher's PDF, two-column aware. Headings are detected by case and length, so a mis-detected heading is a structural error rather than a content one — the prose beneath it is verbatim.",
+  "sections": [
+    {
+      "heading": "(opening)",
+      "printed_page": 73,
+      "text": "that the explains chapter Chapter P&P should be played with a strong narrative focus. The story because super-powered slugfests are such an important part of crunchier. This chapter expands on the idea of challenge rolls and and other action scenes to life in your games. Although this anything they wish. This is your game, and as discussed in focus on the core concepts."
+    },
+    {
+      "heading": "EDGE",
+      "printed_page": 73,
+      "text": "Time is broken down into pages during combat. A page represents a few seconds of time in the game world. Every character involved in combat gets a turn to act on each page of the action. Characters act in order of their Edge, from highest to lowest. Your Edge equals your Perception plus Agility or your Perception plus Intellect — use whichever is greater. If you prefer random initiative, have characters make Edge rolls when combat begins and use their successes as their effective Edge for that battle. When characters have the same Edge, action order is as follows: Heroes, Villains, Foes, and Extras. If that doesn’t break the tie (such as when Heroes fight other Heroes), the characters act simultaneously, making it possible for them to knock each other out. Minions have no Edge, so they always act after everyone else. If it ever matters, Minion good guys and Minion bad guys act simultaneously. You can always hold your action in reserve, waiting to act in response to something that might happen later that page. If whatever you were waiting for doesn’t happen, you lose your turn to act on that page. If two or more characters hold their actions waiting for something to happen and it finally does, action order among those characters is determined by their Edge."
+    },
+    {
+      "heading": "SEIZING INITIATIVE",
+      "printed_page": 73,
+      "text": "You can spend 1 Resolve to jump ahead of everyone else in combat. From that point on, you act first on every page of the action. When two or more characters seize the initiative, they go before everyone else, but their Edge scores determine the order in which they act. Optionally, rather than allowing characters to automatically act first, GMs may instead have this double a character’s effective Edge, making it harder to seize the initiative when facing opponents with truly superhuman reflexes."
+    },
+    {
+      "heading": "CHAPTER 4",
+      "printed_page": 73,
+      "text": ""
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 73,
+      "text": "unfolds while playing the game is what matters most. However, superhero genre, combat is one place where the rules get a bit how to use them — and a few other rules — to bring combat includes some additional rules, GMs should feel free to ignore 1, it runs smoothly even if you ignore most of the rules and just"
+    },
+    {
+      "heading": "ACTIONS",
+      "printed_page": 73,
+      "text": "All characters get their turn to act on each page of combat. When it’s your turn to act, you can move and perform 1 or more actions. An action is a brief act that requires a bit of attention. Being that this is combat, attacks are the most common type of action, so attacks and actions are often synonymous. You can also defend yourself and perform as many free actions as the GM considers reasonable. Free actions are minor actions, things like drawing, sheathing, or dropping an item, opening or closing a door, or saying a few words to someone within Close Range. Once everyone has taken their turn to act (or chosen to skip their turn), the current page ends and a new one begins."
+    },
+    {
+      "heading": "MULTIPLE ACTIONS",
+      "printed_page": 73,
+      "text": "You can perform more than 1 action per page, but if you do, you suffer a −2d penalty to all challenge rolls per extra action taken. For example, if you perform 2 attacks on one page, you suffer a −2d penalty to each. If you perform 3 attacks on one page, you suffer a −4d penalty to each. And so on. You must declare your multiple actions before making any challenge rolls. This penalty applies only to your multiple actions; it doesn’t affect your defense rolls or other challenge rolls. Despite these rules, you can’t attack the same target more than once per page. Actions and movement are different things, so you can’t use multiple actions to move farther than normal."
+    },
+    {
+      "heading": "RANGE",
+      "printed_page": 73,
+      "text": "Range is handled abstractly in P&P. Rather than measure distances precisely, three range classes are used to approximate distances. Close Range covers anything from physical contact to within the distance an ordinary person can move in one page. Distant Range covers anything beyond Close Range but within range of most weapons and Powers. Extreme Range covers anything beyond Distant Range but close enough to see (within limits — the Moon is past Extreme Range). The GM always determines the initial range class between combatants. 7733 Most attacks are either close combat attacks or ranged attacks. Close combat attacks can only be used on targets that are adjacent to you. As long as you can move around, you can use a close combat attack on anyone within Close Range, but you have to move up to them if they aren’t already adjacent to you. Ranged attacks, on the other hand, can typically be used on targets within Close Range or Distant Range. There are some exceptions — for example, thrown weapons normally only work within Close Range, while sniper rifles can often reach Extreme Range — but not many."
+    },
+    {
+      "heading": "SUPER TIP!",
+      "printed_page": 74,
+      "text": "It may help to think of Close Range as within 50 feet, Distant Range as within 500 feet, and Extreme Range as within 5,000 feet, but these are just rough estimates."
+    },
+    {
+      "heading": "THROWING RANGE",
+      "printed_page": 74,
+      "text": "Ordinary people can accurately throw weapons and light objects as far as Close Range. Of course, characters with superhuman strength can often throw things much farther than that. If your Might is greater than 6d, use the Throwing table to determine how far you can accurately throw things. Your throwing rank equals your Might minus the object’s weight rank (minimum 0d)."
+    },
+    {
+      "heading": "THROWING",
+      "printed_page": 74,
+      "text": ""
+    },
+    {
+      "heading": "THROWING RANK THROWING RANGE",
+      "printed_page": 74,
+      "text": "3d to 6d Close Range 7d to 12d Distant Range 13d to 24d Extreme Range 25d or more Past Extreme Range"
+    },
+    {
+      "heading": "MOVEMENT",
+      "printed_page": 74,
+      "text": "Like range, movement is also handled abstractly. Moving up to or away from someone already within Close Range of you takes one page. Moving doesn’t prevent you from taking actions, so you can move up to someone within Close Range and take a swing at them on the same page. Moving one range class closer to or farther away from someone takes 2 pages, unless you have a power that lets you move faster than normal (a Travel Power) at rank 6d or greater, in which case you can cross one range class per page. This assumes you’re fighting in an ordinary environment with terrain that limits how fast characters with Travel Powers can move. If the terrain is wide open, the GM is free to let characters with Travel Powers at high ranks cross 2 or even 3 range classes in a single page. 7744 Powermad needs to smash a machinegun turret at Distant Range. He has no Travel Power, so it’ll take him 2 pages to run up to the thing, letting him strike on the second page of the action. His ally, Flicker, is also at Distant Range, but she has the Running Power at 9d, so she can move to within Close Range of the turret and smash it in 1 page. Whenever there’s a question about how far or how fast you can move in one page, or when you need to know who gets somewhere first, have all characters involved in the action make challenge rolls using their Agility or Travel Power to determine who gets to describe what happens. Characters on foot use half their Agility when rolling against characters using Travel Powers because Travel Powers let you move faster than normal."
+    },
+    {
+      "heading": "CHASES",
+      "printed_page": 74,
+      "text": "Chases through open terrain are usually won by whoever is faster, which is why they’re boring. Luckily, most chases occur in locations where maneuverability is just as important as speed, places like crowded city streets, dark sewer tunnels, or the cramped airspace between office buildings. Chases like these are handled as contests, but with an unlimited number of exchanges. Each exchange in a chase lasts one page. At the start of every page, characters involved in the chase make challenge rolls using their Agility or Travel Power (as usual, those on foot use only half their Agility when rolling against those using Travel Powers). This roll isn’t considered an action, so characters involved in a chase can still attack or perform other actions as usual. If you have multiple pursuers or quarries, each pursuer picks one quarry to chase (and roll against). As usual, winning an exchange grants you a +2d bonus on the next exchange. More importantly, scoring at least 3 net successes lets you close or expand the distance between you and your opponent by one range class. The chase ends if the parties move closer than Close Range or farther than Extreme Range. At closer than Close Range, the quarry gets cornered or outmaneuvered and can’t go any farther (although they can still fight). At farther than Extreme Range, the quarry escapes. Flicker is chasing a car full of bank robbers. The car is at Distant Range. Flicker, as you may recall, has 9d Running, which bodes well for her compared to the car’s 6d Speed. Flicker wins the first exchange with 3 net successes. She closes to within Close Range of the getaway car and gets a +2d bonus on her next roll. Next page, she wins the exchange but scores only 1 net success. That’s enough to secure the +2d bonus on her next roll, but not enough to close the distance any further. When the third page comes around, Flicker once again wins the exchange, this time scoring 4 net successes and ending the chase. She takes the opportunity to smash her way into the back seat of the car. If she’d wanted to be less flashy, Flicker could instead have ended the chase by having the car turn into a dead end or come to a halt after smashing into something."
+    },
+    {
+      "heading": "ATTACKS AND DEFENSES",
+      "printed_page": 75,
+      "text": "Attacks are handled like any other challenge roll. When attacking, you make an attack roll using the Trait that corresponds to your attack, and your target makes a defense roll using the Trait that corresponds to their defense to determine the threshold you have to beat. If you roll more successes than your target, the attack hits and inflicts damage or a special effect, as discussed below. If you don’t beat the threshold, the attack either misses or it hits the target but has no effect. The Attack and Defense table indicates the Traits used to perform common attacks and defenses. P&P doesn’t distinguish between accuracy and damage or defense and damage resistance. Attackers use one Trait that lumps accuracy and damage together for their attack rolls, and defenders use one Trait that represents either defense or damage resistance — whichever is better — for their defense rolls."
+    },
+    {
+      "heading": "ATTACK AND DEFENSE",
+      "printed_page": 75,
+      "text": ""
+    },
+    {
+      "heading": "ATTACK ATTACK DEFENSE",
+      "printed_page": 75,
+      "text": ""
+    },
+    {
+      "heading": "TYPE TRAIT TRAITS",
+      "printed_page": 75,
+      "text": "Unarmed Might Agility or Toughness or Power Melee Weapon Might Agility or ½ Toughness or Power Ranged Weapon Agility Agility or ½ Toughness or Power Physical Power Power Agility or ½ Toughness or Power Mental Power Power Willpower or Power"
+    },
+    {
+      "heading": "ACTIVE AND PASSIVE DEFENSES",
+      "printed_page": 75,
+      "text": "There are two kinds of defenses: active and passive. Active defenses represent attempts to block, dodge, or parry attacks, while passive defenses represent the ability to resist or withstand attacks. Agility is a common active defense, while Toughness, Willpower, and Powers like Armor and Force Field are common passive defenses. The only distinction between active and passive defenses is that you can’t use active defenses if you are immobilized, surprised, unconscious, or otherwise unable to actively defend yourself. As long as you can move, however, neither being in a cramped or awkward position nor losing your next turn to act prevents you from using active defenses. No matter how many defenses you have available to you, you always use only one defense against each attack, normally the one with the greatest rank. Of course, this is an abstraction. You aren’t really choosing between dodging and resisting attacks when you defend yourself. In the game world, you are probably trying to avoid getting hit, and if you do get hit, your passive defenses are there to protect you. As a result, you always use the best defense available to you when making defense rolls."
+    },
+    {
+      "heading": "LETHAL AND SUBDUAL ATTACKS",
+      "printed_page": 75,
+      "text": "Attacks inflict one of two types of damage: lethal or subdual. Most physical attacks, hazards, weapons, and Powers inflict lethal damage, the more dangerous of the two. Targets can use only half their Toughness as a passive defense against attacks that inflict lethal damage. However, there are a few attacks — notably unarmed attacks and those made with light clubbing weapons — that inflict subdual damage instead. Targets can use their full Toughness as a passive defense against attacks that inflict subdual damage. Unless otherwise noted, always assume physical damage is lethal. Psychic damage is neither lethal nor subdual and is resisted with Willpower in any case."
+    },
+    {
+      "heading": "MODIFIERS",
+      "printed_page": 75,
+      "text": "Although these rules are far from realistic, GMs may want account for basic factors like cover, size, and visibility to keep things at least somewhat grounded. Use the modifiers below to make combat scenes more interesting and tactical, but never let them bog the game down. Cover affects your attack rolls. You suffer a −1d penalty if your target has light cover, a −2d penalty if they have heavy cover, or a −3d penalty if they have almost full cover. You can’t hit a target completely hidden behind cover, but if your attack rank exceeds the cover’s Structure, you can attack through it. If you do, your target can use the cover’s Structure as a passive defense against your attack. Size affects your active defense rolls. You get a +1d bonus if your attacker is at least twice your size or a +2d bonus if they are at least 5 times your size. Conversely, you suffer a −1d penalty if your attacker is no more than half your size or a −2d penalty if they are no more than one-fifth your size. Visibility affects your attack rolls and your active defense rolls. You suffer a −1d penalty if the visibility is poor or a −3d penalty if you have no visibility. Poor visibility includes dim lighting, fog, smoke, etc. No visibility is usually due to blindness or darkness. You effectively have no visibility against an invisible opponent unless you have a Power that compensates for this, like Blind Fighting or Radar."
+    },
+    {
+      "heading": "DAMAGE",
+      "printed_page": 75,
+      "text": "Every net success rolled on a damaging attack inflicts 1 point of damage. Damage reduces a target’s Health. Once a target’s Health falls to 0, they are defeated and knocked out for the rest of the scene. Because this game emulates a four-color comic book style, you don’t have to worry about killing or being killed in combat unless using the optional Gritty Combat Rules."
+    },
+    {
+      "heading": "HEALTH",
+      "printed_page": 75,
+      "text": "A character’s Health determines how much punishment they can withstand. Your Health equals the average of your Toughness and Might or the average of your Toughness and Willpower — use whichever option gives you a greater value. Villains and Foes use the same formula to calculate their suggested Health, but as mentioned earlier, this total is halved for Foes (suggested because NPC Health is always determined by the GM, as discussed in Chapter 8). Minions don’t use Health, as discussed later in this chapter. 7755"
+    },
+    {
+      "heading": "HEALING",
+      "printed_page": 76,
+      "text": "Once a fight ends, you can make a Hard (2) Toughness roll to recover 1 point of Health for every net success rolled. You can also do this after every night of rest (or every day of rest if you happen to be living la vida nocturnal). If you spend a full 24 hours doing nothing but resting, the threshold for this roll drops to Average (1). Once defeated and carted off to the authorities or otherwise removed from the scene, NPCs recover from their injuries as quickly as the plot requires."
+    },
+    {
+      "heading": "SPECIAL EFFECTS",
+      "printed_page": 76,
+      "text": "Powers like Ensnare, Mind Control, and Stun inflict conditions and effects other than damage, called special effects. Special effects last a number of pages equal to half the net successes rolled on your attack and expire at the end of your turn to act on that page. You can stack a special effect’s duration by attacking the same target multiple times. If the duration of a special effect ever equals or exceeds the target’s current Health, they are defeated by the effect, which then lasts for the rest of the scene. Parthian smiles as he watches Citizen Soldier and Gatecrasher arm-wrestle at his charity fundraiser. A tap on the shoulder gets his attention, and he turns to look into the eyes of the Villain, Heartbreaker. Unable to avert his gaze, Parthian feels his will slowly drain away as she attempts to use Mind Control on him. Heartbreaker rolls 8 successes on her Mind Control attack roll, while Parthian rolls 3 successes on his Willpower defense roll, leaving the Villain with 5 net successes. Heartbreaker gains control of Parthian’s mind for 3 pages."
+    },
+    {
+      "heading": "BREAKING FREE",
+      "printed_page": 76,
+      "text": "If you are suffering from a special effect but have not been defeated by it, you can try to free yourself of the effect when your turn to act comes along. Make a challenge roll using the passive defense identified in the Power’s description (often Might, Toughness, or Willpower) against the Power’s rank. If successful, the special effect’s duration is reduced by half your net successes. If you reduce the duration to 0 or fewer pages, you break free of the effect and can act on that same page. On his turn to act, Parthian tries to break free of the Mind Control. The immortal archer’s Willpower isn’t nearly as well- developed as Heartbreaker’s mental abilities, but Parthian gets lucky. He manages to roll 7 successes against a terrible roll of 4 successes by Heartbreaker, earning him 3 net successes. This reduces the Mind Control duration by 2 pages, so our Hero should be free after Heartbreaker’s next turn to act. Sadly, Heartbreaker’s next turn to act doesn’t bode well for poor Parthian. 7766"
+    },
+    {
+      "heading": "KEEPING HOLD",
+      "printed_page": 76,
+      "text": "Whenever you defeat a target with a special effect, you can spend 1 Resolve to extend the effect’s duration so that it lasts until the end of the following scene. You can keep extending a special effect’s duration from one scene to the next as long as you keep spending Resolve."
+    },
+    {
+      "heading": "INSTANT RECOVERY",
+      "printed_page": 76,
+      "text": "Defeat doesn’t necessarily mean you’re out of the fight. If you get defeated by an attack that inflicts damage, you can spend 1 point of Resolve on your next turn to act to regain consciousness and recover 3 points of Health. Similarly, if you’re under the influence of a special effect Power, you can spend 1 point of Resolve on your next turn to act to break free of it (notice you don’t need to be defeated to use this option to free yourself of a special effect). Either way, you can then jump right back into the action. You can only use instant recovery once per scene."
+    },
+    {
+      "heading": "GRAPPLING",
+      "printed_page": 76,
+      "text": "Grappling is often just another way of inflicting damage in close combat. You don’t need special rules for that. The rules below apply when you try to perform a grab, hold, or escape. A grab is any attempt to take a weapon or other handheld item away from your opponent. A hold is any attempt to control or restrain your opponent. An escape is any attempt to break out of a hold. These moves all require a Might roll against your opponent’s Might. If you aren’t already grappling, your opponent can instead use an active defense against your roll. The possible outcomes are described on the Grappling table."
+    },
+    {
+      "heading": "GRAPPLING",
+      "printed_page": 76,
+      "text": ""
+    },
+    {
+      "heading": "NET GRAB HOLD ESCAPE",
+      "printed_page": 76,
+      "text": ""
+    },
+    {
+      "heading": "SUCCESSES RESULT RESULT RESULT",
+      "printed_page": 76,
+      "text": "0 or Less No Effect No Effect No Effect 1 to 2 Partial Grab Partial Hold Partial Escape 3 or More Full Grab Full Hold Full Escape"
+    },
+    {
+      "heading": "GRAB",
+      "printed_page": 76,
+      "text": "A partial grab means you and your opponent are fighting over an item (often a weapon). They can’t use it, but neither can you. As long as this continues, neither of you can perform active defenses against anyone else, and you each get to make opposed Might rolls on your turn to act to try gaining control. You can exit grappling combat at any time by letting go of the object. A full grab means you gain control of the object and can use it or toss it aside on that same page without suffering a multiple action penalty. In effect, a full grab is a free action."
+    },
+    {
+      "heading": "HOLD",
+      "printed_page": 76,
+      "text": "A partial hold means you and your opponent start wrestling. They can’t go anywhere or do anything else, but neither can you. You have each other tied up, and neither of you can perform active defenses against anyone else. The only physical action either of you can take on your turn to act is making an opposed Might roll against the other to try for a full hold or an escape. A full hold means you gain control over your opponent. From then on, the only physical action they can take is to try escaping, but you can attack them on subsequent pages. You can inflict damage on them by making a Might roll against the greater of their Might or Toughness, or you can inflict pain to make them give in, tap out, or surrender — if only for a moment — by making a Might roll against the greater of their Toughness or Willpower. The rules above don’t take Powers into account. Although unable to perform ordinary physical actions, characters in a partial hold or a full hold remain free to use any Power they could reasonably use despite being physically restrained. This varies greatly depending on what a particular Power represents, but a good general rule is that Powers that need to be aimed (including most attack Powers) or that require freedom of movement (including most Travel Powers) are probably not available while you are held. Beyond that, the GM will have to adjudicate these matters on a case-by-case basis."
+    },
+    {
+      "heading": "ESCAPE",
+      "printed_page": 77,
+      "text": "A partial escape allows you to slip out of a partial hold. If your opponent has you in a full hold, a partial escape turns the full hold into a partial hold. A full escape lets you slip out of any hold. Either way, if you slip out of a hold, you can also choose to exit grappling combat completely."
+    },
+    {
+      "heading": "COMBAT STUNTS",
+      "printed_page": 77,
+      "text": "A combat stunt is any attempt to outmaneuver, outsmart, or gain an advantage over an opponent without harming them. This makes them especially useful against enemies too tough to take on directly. Combat stunts work like ordinary attacks, but the Traits used to perform and resist them vary depending on what you’re doing; the GM always determines this. If successful, you describe the effect your combat stunt has on your opponent. Use the examples on the Combat Stunts table as a guide, depending on your net successes. The effect will last until the end of your next turn to act (you can’t make it last longer by delaying your next action). The penalties imposed by multiple combat stunts are cumulative."
+    },
+    {
+      "heading": "COMBAT STUNTS",
+      "printed_page": 77,
+      "text": ""
+    },
+    {
+      "heading": "NET SUCCESSES SAMPLE EFFECTS",
+      "printed_page": 77,
+      "text": "0 or Less no effect 1 to 2 −1d to challenge rolls • speed halved −2d to challenge rolls • drop 3 to 4 item or weapon • can’t move 5 or More −3d to challenge rolls • lose next turn to act Fancy Footwork: Outmaneuvering an opponent or getting them turned around, off balance, or exactly where you want them. Use Agility or a Travel Power against your opponent’s Agility or Travel Power. Flashy Move: Performing a fighting technique like disarming or tripping an opponent. Use a regular attack roll against your opponent’s active defense or one of their physical Abilities; the GM decides whether to use Agility, Might, or Toughness, depending on what you’re trying to do. Overpower: Knocking or shoving an opponent back, down, or aside. Use Might or a Power that affects physical objects (like Hyper Breath or Telekinesis) against your opponent’s Might or any active defense they prefer. Taunt: Angering, confusing, distracting, or unnerving an opponent with banter, jokes, threats, wisecracks, and so on. Use Charm or Command against your opponent’s Willpower."
+    },
+    {
+      "heading": "MINIONS IN COMBAT",
+      "printed_page": 77,
+      "text": "Minions are unique characters. As a reminder, Minions only have a Threat characteristic, and they act in groups rather than as individual characters in combat. The rules for this are provided in this section. For your convenience, the Threat Ranks table from Chapter 2 is reprinted here."
+    },
+    {
+      "heading": "THREAT RANKS",
+      "printed_page": 77,
+      "text": ""
+    },
+    {
+      "heading": "DESCRIPTION THREAT",
+      "printed_page": 77,
+      "text": "Civilians 2d Bruisers 3d Professionals 4d Elites 5d Enhanced 6d Super 7d or More"
+    },
+    {
+      "heading": "ATTACKING MINIONS",
+      "printed_page": 77,
+      "text": "Minions don’t have Health scores. Whenever you hit a group of Minions in combat, you defeat 1 Minion per net success rolled, or 2 Minions per net success rolled when using an area attack (up to the number of Minions in the area of effect or within reach). No attack can defeat more than 2 Minions per net success rolled regardless of the situation (in other words, you can’t stack effects that let you defeat 2 Minions per net success rolled). If the attack inflicts damage, defeated Minions are knocked out. If it inflicts a special effect, defeated Minions are subject to that effect for the rest of the scene."
+    },
+    {
+      "heading": "MINIONS ATTACKING",
+      "printed_page": 77,
+      "text": "As previously noted, Minions usually act in groups rather than as individuals. Although a group of Minions can break into two or more groups to attack multiple Heroes, each group acts like a single character. Each Minion group targets one enemy per page, making one attack roll opposed by one defense roll. Because that one roll often represents multiple attackers armed with weapons (natural or handheld) Minions always get a bonus to their attack rolls. The bonus varies depending on the number of Minions in the group (even if it’s just one poor sap) as shown on the Minion Group Attack table. Again, this bonus applies 7777 only to attack rolls; it does not apply when determining whether an attack can penetrate cover or harm characters using Powers like Armor or Force Field. Up to 6 Minions can gang up on one target in close combat, but up to 12 can attack the same target in ranged combat."
+    },
+    {
+      "heading": "MINION GROUP ATTACK",
+      "printed_page": 78,
+      "text": ""
+    },
+    {
+      "heading": "MINIONS BONUS",
+      "printed_page": 78,
+      "text": "1 to 2 +2d 3 to 5 +4d 6 to 8 +6d 9 to 12 +8d"
+    },
+    {
+      "heading": "SPECIAL CASES",
+      "printed_page": 78,
+      "text": "Comic book combat involves more than just smacking each other around. While it would be impossible to cover every possible option, the following section provides rules for some of the more common situations likely to arise in combat. Use these rules as a guide when adjudicating the antics, edge cases, and wild ideas that inevitably arise when supers throw down."
+    },
+    {
+      "heading": "AMBUSHES",
+      "printed_page": 78,
+      "text": "Ambushing someone requires a successful challenge roll using your Covert against your target’s Perception. When using deception or seduction to catch a target off guard in a different way, roll Charm instead of Covert. If you succeed, your target is surprised and can’t act or use active defenses on the first page of combat. Targets with embellishment rights can say they were only partially surprised, which lets them use their active defenses, but that’s about it. If you fail, your target isn’t surprised and can act normally. When you have multiple ambushers, they can make Covert rolls as a group, as discussed in Chapter 3, or you can have specific ambushers roll against their targets individually. Either way, each target should be allowed their own Perception roll (although Minions should roll in groups)."
+    },
+    {
+      "heading": "AREA ATTACKS",
+      "printed_page": 78,
+      "text": "Explosions, blasts of dragon fire, and other attacks that target an area of effect are area attacks. Area attacks target everyone and everything in their area of effect. When performing an area attack, you make a single attack roll and everyone in the area makes their own defense roll. Area attacks are hard to evade; a target using an active defense against an area attack must either halve their defense rank or forfeit their next turn to act diving out of the area or behind cover."
+    },
+    {
+      "heading": "CHARGE ATTACKS",
+      "printed_page": 78,
+      "text": "A charge attack is any attack in which you slam into your target. You can use any Trait you would normally use to make close combat attacks, but since weight and speed matter here, you can also use Density, Growth, or any Travel Power to make your attack roll (obviously, you can’t use Swimming unless you’re underwater). You get a +2d bonus to your attack roll, but your 7788 active defense ranks are halved until after your next turn to act. If your target uses a passive defense against the charge, you have to make your own passive defense roll against the attack to see if you suffer damage from the impact. On the bright side, the damage you suffer is reduced by the amount you inflict on your target."
+    },
+    {
+      "heading": "CLOBBERING ATTACKS",
+      "printed_page": 78,
+      "text": "A clobbering attack is when you use one enemy to hit another, often by knocking one opponent into another or by using some poor slob as a club or a thrown weapon. When performing a clobbering attack, you make a single attack roll at a −2d penalty, and each target makes their own defense roll. Clobbering attacks always have a primary target and a secondary target. The primary target is the one you’re pushing, throwing, or swinging into the other. If the primary target uses an active defense and suffers no damage, the clobbering attack never makes it to the secondary target."
+    },
+    {
+      "heading": "DEFENDING OTHERS",
+      "printed_page": 78,
+      "text": "You can forego your next turn to act to defend anyone within Close Range of you, usually by shoving them out of the way or interposing yourself between them and the attack. This lets you substitute your defense roll for theirs. You can use active or passive defenses when defending others. If you use an active defense and the attack inflicts damage, it harms the person you were trying to protect. Or at least it might, because the original target can still use a passive defense to resist the attack. On the other hand, if you use a passive defense and the attack inflicts damage, it harms you."
+    },
+    {
+      "heading": "GOING ALL-OUT",
+      "printed_page": 78,
+      "text": "When attacking or defending yourself is all that matters, you can go all-out. All-out attacking grants you a +2d bonus to your attack rolls but halves your defense ranks (both active and passive) until after your next turn to act. Despite this, opponents who can’t harm you because they can’t penetrate your Armor, Force Field, or other passive defense remain unable to do so when you all-out attack. All-out defending grants you a +2d bonus to your defense rolls until your next turn to act comes around but prevents you from attacking or performing other actions when it does. Although you can’t perform actions, you can still move and perform free actions while all-out defending. In fact, when performing an all-out defense, you can use your Travel Power or Speed to make active defense rolls."
+    },
+    {
+      "heading": "KNOCKBACK",
+      "printed_page": 78,
+      "text": "There are times you want to knock someone across the room, the street, or the city, if only to make a point. That’s what knockback is for. Any time you hit a target with an attack that inflicts subdual damage and inflicts at least 6 points of damage, you can spend 1 point of Resolve to inflict knockback on them. A target that suffers knockback flies backwards as if they were thrown by someone with a Might rank equal to your attack rank. They also fall prone, losing their next turn to act. If the target hits a solid object, they suffer half as much damage as the original attack inflicted, assuming the object they strike is tougher than they are (if the target’s passive defense exceeds the object’s Structure, they smash though unharmed)."
+    },
+    {
+      "heading": "LURING",
+      "printed_page": 79,
+      "text": "Luring an enemy involves having them attack you and then moving out of the way at the last possible instant so they strike what’s behind you. Whenever an enemy targets you with a physical or energy attack, you can declare you are luring them before they make their attack roll. You must use an active defense when luring. If your defense roll exceeds their attack roll by 3 or more, you can spend 1 Resolve to have the attack strike whatever lies directly behind you. You can lure an opponent into attacking someone else (rather than an inanimate object), but you have to forego you next turn to act to do so, and the new target is allowed to make their own defense roll against the attack."
+    },
+    {
+      "heading": "TEAM ATTACKS",
+      "printed_page": 79,
+      "text": "When characters coordinate their attacks against a single opponent, it’s called a team attack. This covers all classic team attack tropes like hitting an opponent from opposite sides, blasting the same spot on an opponent’s armor, or throwing your ally at an opponent like a fastball. When performing a team attack, you and your allies have to wait until the end of the page to take your actions, and you all have to target the same enemy. This grants you a +2d bonus to your attack rolls and lets you spend 1 Resolve to have your 6s explode. As mentioned earlier, that means you get to roll those dice again to try generating extra successes, and you can keep rerolling them as long as you keep rolling 6s. Team attacks are meant to be used sparingly, for dramatic effect. Unless the Heroes are clever about it or the GM rules otherwise, no character can be subject to more than one team attack per battle."
+    },
+    {
+      "heading": "GRITTY COMBAT RULES",
+      "printed_page": 79,
+      "text": "These combat rules are not even slightly realistic. They reflect how combat works in superhero cartoons and to a lesser extent in comics and movies. But that four-color feel doesn’t necessarily fit every type of superhero story. If you want a grittier game in which combat is serious business, use one or more of the following Gritty Combat Rules. A number of these rules will have a dramatic impact on the game; review them carefully before deciding which ones you want to use, and allow yourself a retcon or a do-over if you decide not to use a particular rule after testing it in play."
+    },
+    {
+      "heading": "ACTIVE DEFENSES",
+      "printed_page": 79,
+      "text": "Active defenses are minor actions. You suffer a cumulative −1d penalty to all active defense rolls after the first on the same page. For example, if you have to make 3 active defense rolls on the same page, you make the first roll at no penalty, the second roll at a −1d penalty, and the third roll at a −2d penalty. This rule does not affect your passive defenses in any way."
+    },
+    {
+      "heading": "CLOSE RANGE",
+      "printed_page": 79,
+      "text": "Ranged attacks are difficult to avoid up close. You suffer a −2d penalty to your active defense rolls against ranged attacks when you are within Close Range of your attacker. This applies only to attacks that can be used at Distant or Extreme Range. Ignore this rule when using active defenses against ordinary thrown weapons and other short-range attacks that can only be used at Close Range."
+    },
+    {
+      "heading": "THE DROP",
+      "printed_page": 79,
+      "text": "When a character has a weapon or Power aimed and ready to strike, they have the drop on everyone who doesn’t. For example, if some crook has a gun aimed at Siren while her sidearm is holstered, he has the drop on her. It’s the same if the crook is holding a knife to a hostage’s throat, again assuming Siren’s weapon is holstered. Similarly, a character armed with a ranged weapon or ranged attack Power has the drop on anyone moving up to them to engage them in close combat. When someone has the drop on you, their effective Edge is doubled against you. Determining whether anyone has the drop on anyone else is easy when dealing with ordinary people and mundane weapons, but things get trickier when dealing with Powers, so the GM always has the final say when deciding who has the drop on whom."
+    },
+    {
+      "heading": "FATAL DAMAGE",
+      "printed_page": 79,
+      "text": "Combat can be deadly, especially when lethal weapons are involved. Damage can reduce your Health past 0 and into negative numbers. If you ever reach the negative value of your full Health, you have been killed. You can always spend 1 Resolve to reduce the damage you suffer or inflict on someone else to 1 point below this fatal threshold. This also leaves you stabilized if necessary (see below). Clint Castle is a tough guy with 5 Health. Unfortunately for him, he’s down to 1 Health after fighting a band of ninja. A ninja master then stabs him for 6 points of damage, taking him down to −5 Health. Clint’s full Health is 5, so that’s just enough to kill him. Our hero spends 1 Resolve to prevent that from happening, leaving him at −4 Health. Clint will be out for a while, but at least he’s alive. As mentioned above, attacks that inflict lethal damage are even more dangerous. If an attack that inflicts lethal damage reduces you to −1 Health or less, you begin dying. You suffer 1 point of damage every page until you are either stabilized or dead. You can be stabilized with a Hard (2) Medicine roll or a Power like Healing. You can also spend 1 Resolve to immediately stabilize yourself or your target. You must be stable to use the Instant Recovery rule discussed earlier in this chapter. 7799"
+    },
+    {
+      "heading": "FRIENDLY FIRE",
+      "printed_page": 80,
+      "text": "Ranged attacks can sometimes hit unintended targets. You suffer a −4d penalty on your attack roll when firing a ranged attack at a target engaged in close combat or otherwise bunched up with other characters. If you score 0 or fewer net successes, you must make a second attack against another target involved in the melee, this time at no penalty. The GM selects this second target randomly."
+    },
+    {
+      "heading": "HARD TARGETS",
+      "printed_page": 80,
+      "text": "In the real world, hard targets like machines, vehicles, and thick, inanimate objects are sturdier than these rules suggest. To account for this, double a hard target’s passive defense rank, but let attackers target the vulnerable parts of a complex machine or vehicle by accepting a −4d penalty to their attack rolls, thereby negating this effect. When using this rule, large vehicle-scale weapons should have the Penetrating Pro, as should the physical attacks of powerful superhuman characters."
+    },
+    {
+      "heading": "RAISED GEAR LIMIT",
+      "printed_page": 80,
+      "text": "All games have a Gear Limit, which indicates the maximum effective Trait rank you can bring to bear when using mundane equipment. In most games, the Gear Limit is 6d. For example, 8800 a basic sword has a +2d Weapon Bonus, which means you roll Might +2d when using a sword to attack. In a game with a 6d Gear Limit, your maximum effective rank with a sword is 8d. Even if you have more than 6d Might, you can’t add more than 6d (the game’s Gear Limit) to the sword’s Weapon Bonus. While this imitates how things work in superhero comics, mundane gear is often more effective in grittier settings. In more realistic games, the Gear Limit can be raised to 9d, 12d, or more, making armor and weapons useful even to characters with superhuman Ability ranks. For more on Gear Limits, see Chapter 6."
+    },
+    {
+      "heading": "SLOW HEALING",
+      "printed_page": 80,
+      "text": "Natural healing takes time. You heal 1 point of damage per day if your Toughness is 6d or less, 2 points per day (1 every 12 hours) if your Toughness is 7d to 12d, 3 points per day (1 every 8 hours) if your Toughness is 13d to 24d, or 4 points per day (1 every 6 hours) if your Toughness is 25d or greater. You do not heal after each battle or when you regain consciousness after a defeat. As a result, you may be conscious while at 0 or negative Health (if using the Fatal Damage rules); you are defeated if you take even a single point of damage in this condition. Last, ordinary medical care is less effective. Although you can be stabilized as often as necessary, you can only be healed with the Medicine Talent once per week, and a successful Medicine roll heals only 1 point of damage per 2 net successes rolled. autographs 13 last. Gatecrasher. total Minions player up when be leaving grip. successes, monstrosity intimidate to so exposed, thinking which firing"
+    },
+    {
+      "heading": "TOUGH MINIONS",
+      "printed_page": 81,
+      "text": "The idea of enemies who can be dispatched too easily may not work in a gritty game. Accordingly, whenever you hit a group of Minions with an attack, you defeat 1 Minion for every 2 full net successes rolled (note that you are rounding down in this unique case). For example, if you roll 5 net successes when attacking a group of Minions, you will only defeat 2 of them. When performing an area attack or other attack that normally affects 2 Minions per net successes rolled, you instead affect only 1 Minion per net success rolled when using this rule. If this still seems like too much, you can do away with the idea of Minions entirely and use Foes in their place."
+    },
+    {
+      "heading": "EXAMPLE OF COMBAT",
+      "printed_page": 81,
+      "text": "Citizen Soldier and Gatecrasher are about to sign some into the charity exhibition, gunning for our Heroes. The mecha has Being Minions, the robots don’t have Edge scores. As a result, on acts second, Gatecrasher acts third, and the robotic Minions act On the first page of combat, the giant mecha tries to step on his 12d Armor to defend himself and rolls 6 successes. With a ground, inflicting 2 points of damage. Citizen Soldier acts next. Wasting no time, he leaps at the robot Threat. The Soldier rolls 8 successes on his attack, and the robots Hero could have defeated up to five of these robotic rogues, so the Not one to take this kind of thing lying down, Gatecrasher leaps rolls 9 successes. However, the mecha also gets 9 successes effect — that thing is tough! Now that everyone has acted, a new page begins. This time around, the mecha tries to grab Citizen Soldier. That’ll attack. The Soldier uses his 12d Might to resist the attack, but only With 3 net successes, the mecha places our Hero in a full hold, Citizen Soldier goes next and tries to break free of the mecha’s makes its own Might roll and also gets 6 successes. With no net at least for now. Gatecrasher has had enough! Knowing that this massive metal down, the player asks the GM if Gate can try using an attack to this idea, but rules that the pilot will use the mecha’s 15d Armor 15d Blast) at the mecha and rolls 8 successes. The mecha uses its success may not be much, but it’s enough for narrative control, carve a nice big hole in the mecha’s canopy, leaving the pilot “You know,” Gatecrasher calls up to the pilot, “If I were you, I’m But with only one net success, the GM gets an embellishment, under Heartbreaker’s mental control, who leaps onto the scene"
+    },
+    {
+      "heading": "WOUND PENALTIES",
+      "printed_page": 81,
+      "text": "Injuries impair your performance. Whenever you are down to half your full Health or less, you suffer a −2d penalty to all challenge rolls. Whenever you are down to 0 Health or less (which is possible when using the Fatal Damage rules) you suffer a −4d penalty to all challenge rolls. You can fight past your injuries by spending Resolve: every point spent allows you to ignore this penalty for 1 page. when a giant mecha and four robotic Minions smash their way Edge, Citizen Soldier has 12 Edge, and Gatecrasher has 9 Edge. every page of this fight, the giant mecha acts first, Citizen Soldier It rolls its 13d Might and gets 8 successes. Gate uses of 2 net successes, a giant mechanical foot stomps Gate into the using his 12d Might, and they defend themselves with their 6d roll 3 successes on their defense. Ouch! With 5 net successes, our describes how Citizen Soldier turns these four into scrap metal. and charges at the giant mecha. Using his own 12d Might, he it rolls its 15d Armor for defense. Gatecrasher’s attack has no a hold. Using its 13d Might, the mecha rolls 7 successes on its manages to score 4 successes (sometimes even patriots roll badly). him unable to take any physical actions until he breaks free. He makes a Might roll and gets 6 successes, but the mecha the Soldier remains trapped in those mighty metal mitts, can probably take a lot more punishment before going the pilot rather than damage the mecha. The GM likes resist this attempt. No sweat: Gatecrasher fires his eyebeams (a 15d Armor to make its defense roll and gets 7 successes. One net the player running Gatecrasher narrates that Gate’s eyebeams understandably nervous, and ready to get the heck out of there. giving up would start looking real good right about now.” in this case takes the form of Gate’s buddy Parthian, now securely a volley of explosive arrows at his friends…. 8811"
+    }
+  ]
+}

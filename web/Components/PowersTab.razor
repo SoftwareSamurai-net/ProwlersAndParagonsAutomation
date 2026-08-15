@@ -59,11 +59,11 @@ else
                                    they are on this page to answer. *@
                                 @if (sp.Pros.Count > 0)
                                 {
-                                    <div class="small muted">Pros: @string.Join(", ", sp.Pros.Select(c => Label(c, power)))</div>
+                                    <div class="small muted">Pros: @PowerFormatter.ModifierLine(sp.Pros, c => Label(c, power))</div>
                                 }
                                 @if (sp.Cons.Count > 0)
                                 {
-                                    <div class="small muted">Cons: @string.Join(", ", sp.Cons.Select(c => Label(c, power)))</div>
+                                    <div class="small muted">Cons: @PowerFormatter.ModifierLine(sp.Cons, c => Label(c, power))</div>
                                 }
                             </Body>
                             <Actions>

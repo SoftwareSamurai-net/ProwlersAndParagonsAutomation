@@ -252,8 +252,15 @@ Most of these are things the engine will tell you. They are here so the first pa
 
   **The constraints the rulebook does print are enforced, though.** An option's
   `applies_to_ranges` and `applies_to_rank_types` are checked on submit, so the Ranged Pro on a
-  Self-range Power comes back as `PRO_NOT_APPLICABLE` rather than passing. Read those two
-  fields when choosing an option and you will not meet it.
+  Self-range Power comes back as `PRO_NOT_APPLICABLE` rather than passing.
+
+  **Do not read those two fields as the whole answer, in either direction.** A Power's own
+  entry can name a generic option its Range would otherwise forbid, and then that option is
+  legal on it — Force Field is Self range and the rulebook says to apply the Zone Pro to it,
+  which is how T-Kay is printed. `power_detail` is the authority: it lists what a Power may
+  actually take, and a row allowed this way carries `allowed_by_this_power_text` quoting the
+  sentence, plus the grades that Power may pick. Reading `applies_to_ranges` off the generic
+  catalogue instead will make you drop a Pro the rulebook prints on a published Hero.
 
 - **Do not read the Iconic tier's warning as permission.** `ICONIC_TIER_OPEN_BUDGET` says its
   200 points are a minimum, and `HP_BUDGET_EXCEEDED` still errors above them. Going over is the

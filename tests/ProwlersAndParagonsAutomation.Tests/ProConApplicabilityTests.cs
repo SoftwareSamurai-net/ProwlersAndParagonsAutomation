@@ -206,6 +206,201 @@ public sealed class ProConApplicabilityTests
                         option.AppliesToRanges.Count > 0 || option.AppliesToRankTypes.Count > 0));
     }
 
+    /// <summary>
+    /// Force Field is Self range and its own entry names three generic Pros anyway:
+    /// "Apply the Zone Pro to shield large areas, the Ranged Pro to shield things at a
+    /// distance, or the Area Pro to shield large areas at a distance" (Ch.2 p.29). T-Kay
+    /// (Ch.8 p.143) is printed with Force Field 12d (Zone), so until this held, a Hero in
+    /// the rulebook was refused by both editors and by the validator.
+    /// </summary>
+    [Theory]
+    [InlineData("zone_nova")]
+    [InlineData("area_burst")]
+    [InlineData("ranged")]
+    public void ForceFieldOffersTheProsItsOwnEntryNames(string proId)
+    {
+        var forceField = Power("force_field");
+
+        Assert.Equal("self", forceField.Range);
+        Assert.Contains(_sut.ProsFor(forceField), p => p.Id == proId);
+    }
+
+    /// <summary>
+    /// <b>The mechanism, driven rather than observed.</b> Every other test here reads the
+    /// shipped data, so replacing the field with <c>power.Id == "force_field" &amp;&amp; …</c>
+    /// hard-coded left all of them green — the JSON field was behaviourally dead as far as the
+    /// suite could tell, and the second entry somebody adds later would have done nothing
+    /// while the tests said it was fine. These two Powers differ only in the field.
+    /// </summary>
+    [Fact]
+    public void TheExemptionIsReadFromTheDataAndNotFromAPowerId()
+    {
+        var zone = _f.Rules.Pros.Single(p => p.Id == "zone_nova");
+
+        var plain = new PowerModel { Id = "made_up", Range = "self", RankType = "power" };
+        var named = plain with
+        {
+            ProsAllowedByOwnText = [new ProAllowanceModel { Id = "zone_nova", Reason = "test" }]
+        };
+
+        Assert.False(ProConApplicability.IsApplicable(zone, plain));
+        Assert.True(ProConApplicability.IsApplicable(zone, named));
+    }
+
+    /// <summary>
+    /// It widens the Range rule and nothing else. The first version returned early above both
+    /// checks, so it exempted the rank-type rule too — and because the method takes the
+    /// interface, an id in a field named for Pros would have exempted a Con sharing it.
+    /// Neither was reachable with the data as it stands, which is why neither was noticed.
+    /// </summary>
+    [Fact]
+    public void TheExemptionWidensRangeAloneAndReachesNoCon()
+    {
+        // <b>A synthetic Pro, because the rulebook has no Pro with a rank-type constraint.</b>
+        // The first version of this test used Degrades, which is a Con — so it was refused by
+        // the Pros-only guard before ordering could matter, and hoisting the exemption back
+        // above both checks left all 3397 tests green. Two assertions that were really one.
+        var rankTypePro = new ProModel
+        {
+            Id = "made_up_pro", Name = "Made Up",
+            AppliesToRanges     = ["ranged"],
+            AppliesToRankTypes  = ["power"]
+        };
+
+        var ranklessButNamed = new PowerModel
+        {
+            Id = "made_up", Range = "self", RankType = "default",
+            ProsAllowedByOwnText = [new ProAllowanceModel { Id = "made_up_pro", Reason = "test" }]
+        };
+
+        // The Range it names is widened; the rank type it does not name is still refused.
+        Assert.False(ProConApplicability.IsApplicable(rankTypePro, ranklessButNamed));
+        Assert.True(ProConApplicability.IsApplicable(
+            rankTypePro, ranklessButNamed with { RankType = "power" }));
+
+        var degrades = _f.Rules.Cons.Single(c => c.Id == "degrades");
+        Assert.NotEmpty(degrades.AppliesToRankTypes);
+
+        // A Con sharing an exempted Pro's id is not carried along by it.
+        var conWithAProsId = new ConModel
+        {
+            Id = "zone_nova", Name = "Not the Pro", AppliesToRanges = ["ranged", "touch"]
+        };
+
+        var forceField = Power("force_field");
+        Assert.Equal("self", forceField.Range);
+        Assert.False(ProConApplicability.IsApplicable(conWithAProsId, forceField));
+    }
+
+    /// <summary>
+    /// Every id claimed by a Power's own text has to be a Pro the rulebook gives, and every
+    /// grade named has to be one that option prices. Neither was checked anywhere: a typo in
+    /// either was silently inert, which is the failure shape this repository guards hard
+    /// elsewhere. Each entry also has to carry the printed sentence behind it — the standard
+    /// for adding one — because a standard nothing checks is documentation.
+    /// </summary>
+    [Fact]
+    public void EveryOwnTextAllowanceResolvesAndCitesItsPrintedText()
+    {
+        var claimed = _f.Rules.Powers.SelectMany(p => p.ProsAllowedByOwnText.Select(a => (p, a))).ToList();
+
+        Assert.NotEmpty(claimed);
+
+        foreach (var (power, allowance) in claimed)
+        {
+            var pro = _f.Rules.Pros.SingleOrDefault(x => x.Id == allowance.Id);
+            Assert.True(pro is not null,
+                $"{power.Id} allows '{allowance.Id}', which is not a Pro the rulebook gives.");
+
+            Assert.False(string.IsNullOrWhiteSpace(allowance.Reason),
+                $"{power.Id}'s allowance of '{allowance.Id}' cites no printed text.");
+
+            foreach (var grade in allowance.Grades)
+                Assert.True(pro!.CostModifierRange?.ContainsKey(grade) == true,
+                    $"{power.Id} names grade '{grade}' for '{allowance.Id}', which does not price it.");
+        }
+    }
+
+    /// <summary>
+    /// The grades of Zone/Nova and Ranged encode a Range, and Force Field is Self — which the
+    /// rulebook does not price. Both grades were accepted, 2 Hero Points apart, so T-Kay's
+    /// printed character costed two ways depending on which key was typed. The decision is
+    /// now in the data and enforced; it was a comment the engine never read.
+    /// </summary>
+    [Theory]
+    [InlineData("zone_nova", "zone_ranged", "zone_touch")]
+    [InlineData("ranged", "from_close_range", "from_touch")]
+    public void ASelfPowerTakesTheRangedGradesAndNotTheTouchOnes(
+        string proId, string offered, string refused)
+    {
+        var pro   = _f.Rules.Pros.Single(p => p.Id == proId);
+        var power = Power("force_field");
+
+        var grades = ProConApplicability.GradesFor(pro, power, pro.CostModifierRange!.Keys);
+
+        Assert.Contains(offered, grades);
+        Assert.DoesNotContain(refused, grades);
+
+        // Unnarrowed elsewhere: a Power that reaches the option by its own Range still gets
+        // every grade, so this is a narrowing for the exempted Power alone.
+        var touchPower = _f.Rules.Powers.First(p => p.Range == "touch");
+        Assert.Equal(pro.CostModifierRange.Count,
+                     ProConApplicability.GradesFor(pro, touchPower, pro.CostModifierRange.Keys).Count);
+    }
+
+    /// <summary>
+    /// The exemption is a record of one Power's printed sentence, not a hole in the Range
+    /// rule. Every other Self-range Power is still refused all three, and nothing else in
+    /// the data claims the exemption.
+    /// </summary>
+    [Fact]
+    public void TheOwnTextExemptionReachesNoOtherPower()
+    {
+        var claimed = _f.Rules.Powers.Where(p => p.ProsAllowedByOwnText.Count > 0)
+                                     .Select(p => p.Id)
+                                     .ToList();
+
+        Assert.Equal(["force_field"], claimed);
+
+        // Named separately from the loop below so the failure says which Pro escaped.
+        foreach (var proId in new[] { "zone_nova", "area_burst", "ranged" })
+        {
+            var pro = _f.Rules.Pros.Single(p => p.Id == proId);
+
+            Assert.All(_f.Rules.Powers.Where(p => p.Range == "self" && p.Id != "force_field"),
+                p => Assert.False(ProConApplicability.IsApplicable(pro, p),
+                    $"{proId} escaped onto {p.Id}, which is Self range and says nothing about it."));
+        }
+    }
+
+    /// <summary>
+    /// Repeatability is the rulebook's word in three places and nowhere else. Also X is
+    /// "each time you select this Pro" on Energy Absorption (Ch.2 p.28) and "one additional
+    /// type of energy for every 2 extra Hero Points" on Energy Form (p.30); Affect Inanimate
+    /// is "You can apply this Pro multiple times" (p.48).
+    ///
+    /// <para>The other five Also X entries are deliberately absent: they are priced per
+    /// unit, so the extra Sources are a quantity on one selection and a second copy really
+    /// would charge the same thing twice.</para>
+    /// </summary>
+    [Fact]
+    public void OnlyTheOptionsTheRulebookRepeatsAreRepeatable()
+    {
+        Assert.Equal(["affect_inanimate"],
+            _f.Rules.Pros.Where(p => p.Repeatable).Select(p => p.Id).Order());
+
+        Assert.DoesNotContain(_f.Rules.Cons, c => c.Repeatable);
+
+        var powerSpecific = _f.Rules.Powers
+            .SelectMany(p => p.PowerPros.Concat(p.PowerCons)
+                              .Where(x => x.Repeatable)
+                              .Select(x => $"{p.Id}/{x.Id}"))
+            .Order()
+            .ToList();
+
+        Assert.Equal(["energy_absorption/also_x", "form_energy/also_x"], powerSpecific);
+    }
+
     [Fact]
     public void NoPowerCarriesAnInventedProOrConList()
     {

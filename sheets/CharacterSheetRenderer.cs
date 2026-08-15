@@ -143,17 +143,22 @@ public static class CharacterSheetRenderer
                     : $"    No rank  — {cost} HP");
 
                 if (sp.Pros.Count > 0)
-                    sb.AppendLine("    Pros: " + string.Join(", ",
-                        sp.Pros.Select(p => p.VariantKey is null ? p.Id : $"{p.Id}:{p.VariantKey}")));
+                    sb.AppendLine("    Pros: " + PowerFormatter.ModifierLine(sp.Pros, Keyed));
 
                 if (sp.Cons.Count > 0)
-                    sb.AppendLine("    Cons: " + string.Join(", ",
-                        sp.Cons.Select(c => c.VariantKey is null ? c.Id : $"{c.Id}:{c.VariantKey}")));
+                    sb.AppendLine("    Cons: " + PowerFormatter.ModifierLine(sp.Cons, Keyed));
             }
 
             sb.AppendLine();
         }
     }
+
+    /// <summary>
+    /// How the text export names one Pro or Con: its id, and its grade where it has one. Ids
+    /// rather than printed names, because this export is the machine-readable half.
+    /// </summary>
+    private static string Keyed(SelectedProCon choice) =>
+        choice.VariantKey is null ? choice.Id : $"{choice.Id}:{choice.VariantKey}";
 
     private static void WritePerks(StringBuilder sb, CharacterSheet sheet, RulesRepository rules, CostCalculator costs)
     {

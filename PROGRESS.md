@@ -17,16 +17,16 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3365 across two projects — 3242 on the engine, 123 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3419 across two projects — 3295 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
 | Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero |
-| Known-wrong data | None outstanding |
-| Licence | MIT, in `LICENSE`. Covers this repository only — the game system is © LakeSide Games and no rulebook text is here |
+| Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
+| Licence | MIT, in `LICENSE`, covering this repository's own code only. The game system is © LakeSide Games. `data/rules/` holds structured metadata and this project's own descriptions; `data/rulebook/` holds the book's text **by the author's permission to this repository's owner**, is not served by the public site, and does not travel with a fork |
 
-The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **16 of the 20 to exactly their 125 Hero Point budget**. The remaining four are all 1 HP out, each for a recorded reason — see [Close the last four Heroes](#1-close-the-last-four-heroes).
+The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built Heroes in Chapter 8, and rebuilds **16 of the 20 to exactly their 125 Hero Point budget**. The remaining four each rebuild 1 HP out, for a recorded reason — see [Close the last four Heroes](#1-close-the-last-four-heroes), where the bound is stated exactly: it holds of what is *modelled*, and Shadow's printed Gear box carries a custom feature that would put him at +2.
 
 ---
 
@@ -60,17 +60,21 @@ Two things established on the way, so nobody re-checks them:
 - **`super_senses_night_vision` at 3 HP flat is correct.** Ch.2's Super Senses entry prices Acute X at 1 HP per 2 ranks, Night Vision at **3**, Thermal Vision at 2, and Radio Hearing, Telescopic Vision, Analytic X and Astral Sight at 1 each. Night Vision being the odd one looks like a data error and is not. The same entry confirms the group's effective rank is "your Perception or your Acute X rank, whichever is greater".
 - **Vigilant's gear cannot close him.** His Gear box reads `Armored Suit: 7d Armor` and `2 Jo Sticks: 10d (s) Melee (Upgraded)`. The ratings are Ch.6 mundane armour and weapons, which are free; only *Upgraded* costs, at 2 HP once for the pair under Two-Fisted. He is 1 HP under, so transcribing it lands him on +1. It is left out rather than half-applied, and `PrebuiltHeroes` has no gear collection to put it in.
 
-The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for Telekinesis`) remain guesses that could be revisited, but do not tune them just to force a zero — that is fitting the model to the answer.
+The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for Telekinesis`) remain judgement calls that could be revisited, but do not tune them just to force a zero — that is fitting the model to the answer. `Limited` is less ambiguous than "guess" suggests: see below, where the floor turns it into a two-way choice and the grade recorded is the one with an argument behind it.
 
 **Revisited, and deliberately not closed.** The arithmetic was worked out and it is a trap:
 
-- **T-Kay closes exactly** if `Limited: only for Telekinesis` is read as *somewhat limited* (−1) rather than *significantly limited* (−2). It sits on Lightning Reflexes, a flat 3 HP Power, so the grade is worth 1 HP after the floor — precisely his −1. **That is the tuning this item forbids.** The sheet prints no grade; "only for Telekinesis" reads at least as much like the harsher grade as the milder one, and the only thing recommending the milder one is that it makes the number come out. Deciding it needs the Power's entry in the book, not this file.
+- **T-Kay closes exactly** if `Limited: only for Telekinesis` is read as *somewhat limited* (−1) rather than *significantly limited* (−2). It sits on Lightning Reflexes, a flat 3 HP Power, so the grade is worth 1 HP after the floor — precisely her −1. **That is the tuning this item forbids.** The sheet prints no grade; "only for Telekinesis" reads at least as much like the harsher grade as the milder one, and the only thing recommending the milder one is that it makes the number come out. Deciding it needs the Power's entry in the book, not this file.
+
+  **And it is a two-way choice, not a three-way one, because the floor collapses half of it.** Measured, by rebuilding her on each grade: −1 gives **125**, −2 gives 124, and −4 gives **124 as well** — an unranked Power floors at 1 HP, so 3 − 4 clamps to the same figure 3 − 2 produces. The two harsher readings are indistinguishable in her total.
+
+  **The direction is what makes this worth stating.** She is 1 HP *under* budget, so closing her means making her more expensive — every harsher reading of the Con moves away from 125 or, past the floor, does not move at all. The only grade that closes her is the mildest, which is the hardest to defend: the +6 Edge applies to one Power out of five, and her sheet prints `Edge 8/14` to show it. So this is not "we cannot tell which of three grades the authors used". It is: **either they read "only for Telekinesis" as barely limiting, or their total is 1 out.** This project takes the reading it can defend and lets the point stand, rather than treating 125 as something the authors cannot have got wrong.
 - **Vigilant cannot be closed by his gear.** His Jo Sticks are *Upgraded*, worth +2, and he is 1 HP under: transcribing the feature moves him to +1 rather than to 0. Adding it would make the transcription more faithful and the residual no smaller, so it is left recorded rather than half-applied.
 - **Herald (Scathach) at +1 and Shadow at +1** have no candidate in the data at all. (Airmid was at +2 when this was written and is closed — see below.) Scathach's Strike carrying four Pros and Cons at once remains the most likely place for a variant reading to be wrong.
 
 **The book was then opened, and it settled two of the three questions above.** `docs/` holds both PDFs — they are gitignored, so they are in the main working directory and **not in a worktree's `docs/`**, which is how they were missed at first.
 
-- **T-Kay's grade is a judgement call by the rulebook's own words.** The Limited entry (Ch.2) reads: −1 "if the Power is somewhat limited", −2 "if it's significantly limited", −4 "if it's severely limited", and then *"Use this Con as a catch-all when nothing else seems appropriate."* There is no rule mapping "only for Telekinesis" onto a grade, so the milder reading has nothing recommending it except that it produces a zero. **Left as recorded.**
+- **T-Kay's grade is a judgement call by the rulebook's own words.** The Limited entry (Ch.2) reads: −1 "if the Power is somewhat limited", −2 "if it's significantly limited", −4 "if it's severely limited", and then *"Use this Con as a catch-all when nothing else seems appropriate."* There is no rule mapping "only for Telekinesis" onto a grade, so the milder reading has nothing recommending it except that it produces a zero. **Left as recorded**, at −2, which is also the reading with an argument behind it: a flat +6 Edge that applies to one Power out of five is significantly limited by breadth. The counter-argument is practical — Telekinesis is her 12d signature Power and she uses it constantly, so the restriction rarely bites — and the rulebook is vague enough to hold both. What settles it in favour of leaving it alone is that the alternative is chosen *by its result*.
 - **Vigilant's Upgraded is confirmed printed** — his Gear box reads `2 Jo Sticks: 10d (s) Melee (Upgraded)`, and he has Two-Fisted, so the pair is customised for one price of 2 HP. He is 1 HP under, so transcribing it lands him on +1. It closes nothing and is left recorded rather than half-applied.
 - **Herald (Airmid) is closed.** The lead was her package: she was recorded on the Superhero Package while her sheet prints nine of twelve Talents at 2d, and a package's granted ranks are a floor. Following it found the actual fault — **her sheet prints two Expertise Powers, "Expertise (Medicine: Ancient Remedies) 12d" and "Expertise (Science: Botany) 12d", and only the first was transcribed.** Expertise costs half a Hero Point per rank and takes its baseline from the nominated Trait, so 12d over Science 2d is ten purchased ranks and **exactly 5 HP** — which is what the wrong package was absorbing. With the second Expertise transcribed and the package corrected to the one her printed Talents allow, she rebuilds to 125 to the point. Both halves are forced by the printed page.
 - **Scathach's transcription is verified faithful to the printed sheet** — every Ability, all twelve Talents, all eleven Powers, both her Edge/Health/Resolve and her Determination, and all four modifiers on Strike. The rulebook gives Strike two different deflection Pros, `Deflect` (+4, physical *and* energy) and `Deflect Missiles` (+2, physical only); her sheet prints the plain one and the data uses +4, which is right. So her +1 is in the pricing model, not in the data — which is a narrowing rather than an answer.
@@ -80,7 +84,22 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 
 **What reading the book did find is that every one of the twenty page citations was ten pages out.** Chapter 8 runs from printed 127 to 146 and the transcription recorded 137 to 156 — the offset applied twice. This is the error `CLAUDE.md` already warns about ("was ten pages out in the chapter it was offered for"); the note was corrected and the transcription was not, because nothing read those numbers. `PrebuiltHeroTests.EveryHeroIsCitedInsideChapterEight` now does.
 
-Four residuals inside a 1 HP bound, each with a recorded reason, remains a more honest state than four zeroes.
+**The per-element breakdown this item asked for has now been done, and it is a negative result.** Every cost element of all four was printed out beside its rulebook entry and checked against the page:
+
+| Hero | Rebuild | What the breakdown found |
+|---|---|---|
+| T-Kay | 124 | Flight 1 HP/rank, Force Field 1 HP/rank, Telekinesis 2 HP/rank, Area +2, Zone +2, Overload +2, Determination 5 HP per Resolve — **every element as printed**. The −1 is entirely the `Limited` grade |
+| Herald (Scathach) | 126 | Strike's four modifiers confirmed on the page: Deflect +4, Phase Shift +4, Reach/Throw +2, Item −1. Weakness Detection 3 HP flat. **No mispriced element** |
+| Shadow | 126 | Preparation 6 HP flat (Ch.2 p.38) and Swing Line 1 HP per 2 ranks (p.44) both confirmed printed |
+| Vigilant | 124 | the same two confirmed |
+
+**So the method this item prescribed is now spent as well.** The residual is not a mispriced element in any of the four — which is a real narrowing, because it was the last cheap explanation. What is left is an interaction: a floor, a baseline or a grouping applied where the authors did something else. Nothing points at which, and two examples would not be evidence if they did.
+
+**One thing the pages did add, and it widens rather than closes.** Shadow's Gear box prints `2 Pistols: 9d Ranged (Silenced)`. Silenced is a Ch.6 custom feature at 1 HP, and the pair is one price under his Two-Fisted — so transcribed, Shadow is **+2**, not +1. The "nothing more than 1 HP out" bound above holds only because gear features are not modelled on these transcriptions. Recorded rather than half-applied, exactly as Vigilant's Upgraded Jo Sticks are.
+
+**What the breakdown did find was two defects, and neither is a Hero Point.** Both made a character printed in the rulebook one this tool refuses — see the completed entry below. They were reachable only because nothing had ever asked the validator about the twenty; `EveryPublishedHeroIsALegalCharacter` now does.
+
+Four rebuilds 1 HP out, each with a recorded reason — and one of them, Shadow, 1 HP further out than that once his printed gear is counted — remains a more honest state than four zeroes.
 
 One thing genuinely cannot be modelled as things stand: Eidolon's `Omni-Power (Mind Link)` applies Telepathy's Pro to a *mimicked* Power. Pros are stored per Power, so there is nowhere for it to live. Eidolon reconciles anyway, so it costs nothing today.
 
@@ -108,6 +127,11 @@ Now `TRAIT_BELOW_MINIMUM`, with `TRAIT_BELOW_PACKAGE` beside it for the other fl
 
 ### 3. Remaining rulebook chapters — mostly not this tool's business
 
+**Which pages have actually been read is now tracked page by page in
+[`docs/RULEBOOK-COVERAGE.md`](docs/RULEBOOK-COVERAGE.md)**, with a resume marker, because this
+table is a judgement about chapters and that is a record of pages. The two answer different
+questions and the ledger is the one that can be resumed.
+
 **This item used to say chapters 3–9 were "not extracted" and rank them "by usefulness to the wizard", with Combat third. That was wrong, and it made a finished job look unfinished.** Read against the table of contents, everything a *character generator* needs is extracted:
 
 | Chapter | What is in it | Relevant to creating a character? |
@@ -117,7 +141,7 @@ Now `TRAIT_BELOW_MINIMUM`, with `TRAIT_BELOW_PACKAGE` beside it for the other fl
 | 5, Resolve and Adversity (p.83) | Earning and **spending** Resolve | No — play. The Resolve a character *starts with* is Ch.2 p.60, extracted and implemented |
 | 6, Equipment (p.87) | Gear limits, armour, weapons, **custom gear (p.92)**, gadgets, vehicles, headquarters | Custom gear features: **extracted**. Mundane gear is free and untracked. See below for the one gap |
 | 7, Environment (p.105) | Disasters, falling, lifting, **toxins (p.108)** | No — play. The three toxin Pros/Cons are extracted |
-| 8, Friends and Foes (p.111) | The pre-built Heroes and Villains | Transcribed in the test suite, where they verify the engine |
+| 8, Friends and Foes (p.111) | **Three things, not one**: NPC and animal stat blocks (p.111), Extras (p.120), and the twenty pre-built Heroes and Villains (p.126) | Only the last is transcribed, in the test suite where they verify the engine. The other two are GM material — characters the GM fields, not ones a player builds — so they are out of scope rather than missing. Recorded because "Ch.8 is the pre-built characters" was wrong about 15 of its 56 pages |
 | 9, Creating Villains (p.167) | Villain guidance, GM tips | No mechanics to extract — Ch.9 builds Villains by the Hero rules, which is why the mode is presentation only |
 
 **The one genuine gap is Ch.6's vehicles and headquarters (pp.94–104).** `unique_vehicle` and `headquarters` are Perks priced per unit — a Hero Point buys 25 Vehicle Points — and what those points buy is not modelled, so the perk is a cost and a free-text note. That is a sub-tool of its own (spend a vehicle's points on a vehicle), not a chapter to extract, and nothing else needs it.
@@ -175,6 +199,123 @@ Not urgent. The site works, and a returning visitor pays nothing.
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Two Heroes in the rulebook this tool refused, and the question nobody had asked
+
+Item 1 asked for a per-element cost breakdown of the four Heroes that do not reconcile. Doing
+it settled the residuals as far as they go — see that item, where the answer is that no element
+is mispriced — and turned up something the ±1 hunt was not looking for: **two published
+characters that this tool reports illegal.**
+
+**Nothing in the suite had ever validated the twenty.** The hero tests ask what a Hero costs
+and what their Edge, Health and Resolve come to. None asked whether the character the authors
+printed is one the validator accepts. Running that once found both faults immediately.
+
+- **Blastwave's six energy types came back as four `DUPLICATE_PRO` errors.** His Energy
+  Absorption prints six, so five copies of Also X, and the Pro says so in its own entry: "You
+  can absorb one extra type of energy … **each time you select this Pro**" (Ch.2 p.28); Energy
+  Form's copy prices it "for every 2 extra Hero Points" (p.30), and the generic Affect
+  Inanimate reads "You can apply this Pro multiple times" (p.48). `CostCalculator` has always
+  charged every copy — which is exactly what lands Blastwave on his printed 125 — so the two
+  halves of the engine were contradicting each other about the same sheet, one pricing it and
+  the other refusing it. Repeatability is now `repeatable` on the option rather than a list of
+  ids in the validator. **Only three entries carry it.** The other five Also X entries are
+  priced per unit, where the extra Sources are a quantity on one selection and a second copy
+  really would charge the same thing twice.
+- **T-Kay's printed `Force Field 12d (Zone)` came back `PRO_NOT_APPLICABLE`.** Force Field is
+  Self range and the Zone Pro applies to Ranged and Touch Powers, so the validator refused it
+  and neither editor would offer it — a Hero in the rulebook could not be built here at all.
+  The Power's own entry overrides the option in as many words: "Apply the **Zone** Pro to
+  shield large areas, the **Ranged** Pro to shield things at a distance, or the **Area** Pro to
+  shield large areas at a distance" (p.29). That is the same shape as Deflection covering both
+  attack types, which the book also states as prose rather than as a marked PRO.
+
+**`pros_allowed_by_own_text` is not the `available_pros` list coming back, and the distinction
+is the whole reason it is safe.** That list was this project's guess at which options suited a
+Power and it filtered *absolutely* — 68 Powers offered no generic Pro at all. This one records
+a sentence the rulebook prints inside a Power's entry, needs one behind every id, and can only
+ever widen. There is a test that no other Power claims it and that the three Pros reach no
+other Self-range Power. A sweep of Ch.2 for prose naming a generic Pro found exactly one other
+case — Illusions and the Zone Pro — and it is deliberately left alone: no printed character
+exercises it, and the rulebook prices Zone by the base Power's range and gives no figure for a
+Zone-range one. Force Field has the same gap and the Ranged price is charged, which is recorded
+in its entry rather than smoothed over; neither reading closes T-Kay, who is 124 at +2 and 126
+at +4.
+
+Both fixes were demonstrated by mutation: removing the `repeatable` flags fails on Blastwave,
+disabling the own-text exemption fails on T-Kay. The first attempt at both mutations **silently
+did not apply** — `perl -pi` edited nothing and the suite stayed green, which looks exactly
+like a fix that holds. `git diff --numstat` is what caught it, which is the check the handover
+already insisted on for the reason it gives.
+
+**Three adversarial reviews, by agents told nothing about the work, and none of them could make
+the change certify an illegal character.** All three verified every rulebook quotation and page
+citation in it, and one re-ran the Ch.2 sweep independently and got the same two hits. What they
+found instead was that the containment was looser than this entry's own first draft claimed:
+
+- **Two of the new paths were dead, proven by mutation rather than argued.** Stubbing the
+  *generic* half of the repeatable lookup to `return false` left the whole suite green — the
+  only repeat test used Also X, which resolves through the Power-specific branch, so Affect
+  Inanimate was covered by nothing. And replacing the data lookup with
+  `power.Id == "force_field" && …` hard-coded also left it green, so the JSON field was
+  behaviourally dead as far as the tests could tell and a second entry added later would have
+  done nothing while they said it was fine. A third mutation loosened the Power-specific branch
+  to "anything repeats" and stacked three of Flight's Levitation Con into a character 2 HP
+  cheaper with an empty error list — the "three Burnouts cancelled a 12d Ability" hole again,
+  one lookup over.
+- **The grade keys were the real defect, and a comment is not an enforcement.** Zone/Nova and
+  Ranged are priced by the base Power's Range; Force Field is Self, which the rulebook does not
+  price. `zone_ranged` (+2) and `zone_touch` (+4) were both accepted with no finding, so the
+  same printed character costed two ways depending on which key was typed, and the only reason
+  T-Kay came out at 124 was that the test fixture happened to pick one. The decision now lives
+  in the data as a per-allowance grade list, intersected with what the option actually prices,
+  and the validator and both editors read it through one seam.
+- **The widening overrode more than it claimed.** It returned early above the rank-type check as
+  well as the Range check, and because the applicability method takes the shared interface, an
+  id in a field named for Pros would have exempted a Con sharing it. Neither was reachable with
+  today's data; neither was prevented. Both are now, with tests that drive the mechanism against
+  a synthetic Power rather than observing the shipped data.
+- **The citation moved out of a free-text `notes` string** — which no code read and no test
+  asserted — into a modelled field a test requires to be present, alongside a check that every
+  id claimed resolves to a real Pro and every grade named is one that Pro prices. The standard
+  for adding an entry was documentation, and documentation is what drifted last time.
+- **The MCP server was serving a document that contradicted itself**: Force Field is
+  `"range": "self"` and its Ranged Pro row said `applies_to_ranges: ["touch","zone"]`, with
+  nothing to distinguish that from a bug. Rows now carry `allowed_by_this_power_text` with the
+  printed sentence, the narrowed grades, and `repeatable` beside `needs_variant` — which was
+  missing, so a model had no machine-readable signal that Also X may be listed five times.
+- **And the sheet printed `Also X, Also X, Also X, Also X, Also X`.** Legal, and useless. One
+  shared formatter now collapses a repeat to `Also X ×5` for the text export and both browser
+  surfaces, so it cannot read one way on the sheet and another on the tab.
+
+The reviews also found eleven things wrong with the written record, including two places where
+this file contradicted itself within five lines about the 1 HP bound, a claim in `SKILL.md` that
+would now teach a model to drop a legal Pro, and a `README.md` bullet still asserting the
+unqualified rule. All corrected here.
+
+**A fourth review was pointed at the fixes rather than the code, and three of the eight did not
+hold while two held halfway.** That is the same proportion this file records from each of the
+last three slices, and the same shape every time: a fix correct on inspection and pinned by
+nothing.
+
+- **The MCP fields were an untested claim.** Setting `repeatable` false in both serialisers and
+  the printed sentence to null left the whole suite green.
+- **The repeat collapse was too.** `PowerFormatter.ModifierLine` had no test, and reverting all
+  three call sites to a plain join was invisible. It now has both — unit tests for the function
+  and wiring tests for the text export and both browser surfaces, because a formatter test
+  exercises the function and not the wiring, which is exactly the distinction that let this
+  through.
+- **"One shared formatter" was untrue of the terminal**, where two surfaces still joined raw and
+  one dropped the variant key, so two grades of Charges read as one option listed twice.
+- **The Range-alone claim was pinned by nothing**: the test's rank-type half used Degrades,
+  which is a Con, so the Pros-only guard refused it before ordering could matter — two
+  assertions that were really one. The rulebook has no Pro carrying a rank-type constraint, so
+  the test now builds one.
+- **`GradesFor` was covered and none of its three consumers was.** The published Heroes exercise
+  the accept path only, since T-Kay is recorded with the grade that is allowed — so the refusal,
+  which is the entire point of the narrowing, was never run. The wizard is still the known CLI
+  gap; what changed there is that its option label no longer quotes a grade the prompt will not
+  offer.
 
 ### The other half: four recorded conversations, replayed with the engine run for real
 

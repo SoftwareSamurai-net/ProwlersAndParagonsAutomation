@@ -1,0 +1,107 @@
+{
+  "chapter": 1,
+  "title": "Basics",
+  "printed_pages": [
+    9,
+    12
+  ],
+  "source_ref": "Ultimate Edition, Ch.1 Basics, pp.9-12",
+  "extraction": "Text extracted from the publisher's PDF, two-column aware. Headings are detected by case and length, so a mis-detected heading is a structural error rather than a content one — the prose beneath it is verbatim.",
+  "sections": [
+    {
+      "heading": "(opening)",
+      "printed_page": 9,
+      "text": "We roleplaying book. some, are This chapter provides a summary of the game’s core mechanics. rules in later chapters. As mentioned before, P&P is a rules-light that you should be able to play without ever having to open the might need to run the best superhero game possible and then great game. When you get down to it, the rules in this chapter"
+    },
+    {
+      "heading": "CHARACTERS",
+      "printed_page": 9,
+      "text": "Characters are the beings who populate the game world. They include the Heroes run by the players and the non- player characters or NPCs run by the GM. NPCs fall into two categories: enemies and other characters. Enemies are your bad guys, classified as Villains, Foes, or Minions, depending on how powerful they are. All other GM characters are Extras."
+    },
+    {
+      "heading": "CHARACTERISTICS",
+      "printed_page": 9,
+      "text": "Putting descriptions and other narrative elements aside, characters are defined by a number of mechanical characteristics, namely Abilities, Talents, Powers, Perks, and Flaws. Abilities represent inherent physical and mental characteristics, and include Agility, Intellect, Might, Perception, Toughness and Willpower. Talents represent aptitudes and skills, and include Academics, Charm, Command, Covert, Investigation, Medicine, Professional, Science, Streetwise, Survival, Technology, and Vehicles. Powers represent unusual or truly superhuman abilities. Because they work similarly, Abilities, Talents, and Powers collectively are Traits. Perks are social or societal advantages like fame and wealth. Flaws are weaknesses; physical, mental, or social hindrances of some kind. Unlike most characters, Minions don’t have these characteristics. As lesser enemies who don’t merit that much detail, Minions have only a single characteristic, Threat, which they use for everything."
+    },
+    {
+      "heading": "TRAIT RANKS",
+      "printed_page": 9,
+      "text": "All Abilities, all Talents, and many Powers have a rank that indicates how developed they are or how they compare to other Traits. Although not technically a Trait, the Threat characteristic possessed by Minions also has a rank that works the same way. Trait ranks are measured in dice. The greater the rank, the more dice a character has in that Trait. For example, a character with 4d Might is stronger than one with 3d Might, who is stronger than one with 2d Might, and so on. Ordinary people have Ability and Talent ranks of 1d to 6d, but supers often have higher Trait ranks."
+    },
+    {
+      "heading": "CHAPTER 1",
+      "printed_page": 9,
+      "text": ""
+    },
+    {
+      "heading": "BASICS",
+      "printed_page": 9,
+      "text": "discuss everything below in greater detail and expand upon these game. The basic rules are simple and intuitive enough Although we packed this book with everything we thought you you can probably ignore much of this material and still run a all you really need."
+    },
+    {
+      "heading": "CHALLENGE ROLLS",
+      "printed_page": 9,
+      "text": "Any time you attempt to perform an action whose outcome is uncertain, you must make a challenge roll to see how well you do. Your challenge roll determines who earns narrative control and gets to describe what happens in the game world. Things work a little differently in combat, but when you aren’t in combat, challenge rolls generally determine who narrates the outcome of an action. When making a challenge roll, you roll a number of 6-sided dice equal to the Trait that applies to whatever your character is doing. You get one success for every 2 or 4 rolled and two successes for every 6 rolled. Total your successes and then subtract the action’s threshold from that number. When acting against an opponent, they first make their own challenge roll against you, and your threshold equals their successes. If you aren’t acting against an opponent, the GM assigns a threshold (see below). Once you subtract the action’s threshold from your successes, the result is your net successes. This value determines who describes what happens, as indicated on the Challenge Rolls table. As used on this table, the Actor is the person making the roll and the Opponent is the person resisting it. If the challenge roll is not being opposed by another player, the GM acts as the Opponent."
+    },
+    {
+      "heading": "CHALLENGE ROLLS",
+      "printed_page": 9,
+      "text": ""
+    },
+    {
+      "heading": "NET SUCCESSES NARRATIVE CONTROL",
+      "printed_page": 9,
+      "text": "−2 or less Opponent −1 to 0 Opponent with Embellishment 1 to 2 Actor with Embellishment 3 or more Actor"
+    },
+    {
+      "heading": "THRESHOLDS",
+      "printed_page": 10,
+      "text": "Whenever you perform an action opposed by another character, your opponent makes a challenge roll to resist your efforts and their successes become the threshold for your roll. If another character is not resisting your efforts, the GM assigns a threshold based on the difficulty of your action. The GM should consider both the difficulty of the action and the conditions under which you are operating when assigning a threshold, using the Thresholds table as a guide."
+    },
+    {
+      "heading": "THRESHOLDS",
+      "printed_page": 10,
+      "text": ""
+    },
+    {
+      "heading": "DIFFICULTY THRESHOLD",
+      "printed_page": 10,
+      "text": "Easy 0 Average 1 Hard 2 Daunting 3 Brutal 4 Inhuman 5 Superhuman 6 to 8 Legendary 9 to Godlike 12 or more 1100"
+    },
+    {
+      "heading": "EMBELLISHMENTS",
+      "printed_page": 10,
+      "text": "Whenever an embellishment is allowed, the party who doesn’t have narrative control can add to the other person’s narration in some small but meaningful way. An embellishment should be a clarification or additional detail that expands on the original narration without contradicting it. Embellishments can’t render the original narration untrue or true but effectively meaningless."
+    },
+    {
+      "heading": "COMPROMISES",
+      "printed_page": 10,
+      "text": "When someone else has the right to embellish your narration, you can offer a compromise. This means you agree to describe a less-than-perfect outcome for your action in exchange for them giving up their embellishment. Both sides must agree on the final narration to have a compromise."
+    },
+    {
+      "heading": "COMBAT",
+      "printed_page": 11,
+      "text": "In combat, time is broken down into pages. A page equals a few seconds of time passing in the game world. Every character involved in combat gets a turn to act on each page. Characters act in order of their Edge, which equals their Perception plus Agility or Perception plus Intellect — use whichever is greater. On their turn to act, characters can move and perform one or more actions. Being that this is combat, attacks are the most common type of action. Characters are also free to defend themselves and perform other minor actions, called free actions, as desired."
+    },
+    {
+      "heading": "RANGE AND MOVEMENT",
+      "printed_page": 11,
+      "text": "Range and movement are handled abstractly in P&P. Rather than measure distances precisely, three range classes are used to approximate distances. Close Range covers anything from physical contact to the distance an ordinary person can move in one page. Distant Range covers anything beyond Close Range but within range of most weapons and Powers. Extreme Range covers anything beyond Distant Range but close enough to see (within limits — the Moon, for example, is well beyond Extreme Range). Moving takes time but doesn’t count as an action or prevent you from taking actions. Moving up to or away from someone within Close Range can be done in 1 page. Moving one range class closer to or farther away from someone takes 2 pages, unless you have a Travel Power that lets you move faster than normal, in which case you can cross one range class per page. Chases are resolved with challenge rolls using Agility or Travel Powers. Characters on foot use half their Agility when rolling against characters using Travel Powers because Travel Powers let you move faster than normal."
+    },
+    {
+      "heading": "ATTACKS AND DEFENSES",
+      "printed_page": 11,
+      "text": "Attacks are resolved like any other challenge roll. You make a roll using one of your Traits to attack, and your target makes a roll using one of their Traits to defend themselves. The target’s roll determines the attack’s threshold. These rolls are called attack rolls and defense rolls to distinguish them from ordinary challenge rolls. Attack rolls are often made using Powers like Blast or Strike, unless you’re wielding a mundane weapon, in which case you use Attributes like Might or Agility plus a modifier called a Weapon Bonus that varies depending on the weapon. Your target can use an active defense like Agility to avoid your attack or a passive defense like Armor to resist your attack — always use the option that provides the best defense (the Trait with the highest rank). Some Powers inflict conditions or effects other than damage, called special effects. These Powers always specify the Traits used to resist them. Unlike ordinary challenge rolls, successful attack rolls have specific effects. Damaging attacks inflict 1 point of damage per net success rolled. Damage reduces the target’s Health, which usually equals the average of their Toughness and Might or the average of their Toughness and Willpower — use whichever option yields a greater value. Once a target’s Health has falls to 0, they’re defeated and out of the fight. Attacks that inflict special effects, on the other hand, last 1 page for every 2 net successes rolled (rounding up as usual). For example, if you roll 3 or 4 net successes when attacking a target with the Stun Power, your target is stunned for 2 pages. If the duration of a special effect ever equals or exceeds the target’s current Health, the target is “defeated” by the special effect, which then lasts for the rest of the scene. An arachnid-themed Hero, for example, might defeat criminals without hurting them by means of an ensnaring special effect that leaves them bound in sticky webbing. Minions are the exception to these rules. You ordinarily defeat 1 Minion per net success rolled on your attack, no matter what kind of attack you’re using."
+    },
+    {
+      "heading": "RESOLVE AND ADVERSITY",
+      "printed_page": 11,
+      "text": "Heroes begin every issue (game session) with a certain amount of Resolve. Generally, the more powerful you are, the less Resolve you have at the start of every issue. However, there are various ways to earn extra Resolve, most of which involve making heroic sacrifices or roleplaying some of the more superheroic elements of your character. You can also earn Resolve by letting your character’s Flaws get the better of you. Resolve is the game’s narrative currency. It can be spent to do things like add extra dice to challenge rolls or reroll them completely, buy lucky breaks, and recover from attacks. Although enemy NPCs don’t use Resolve, the GM has something called Adversity that works much the same way. GMs begin every issue with 1 point of Adversity per Hero, and like players, they can gain more over the course of the game, depending on the players’ actions and other factors."
+    },
+    {
+      "heading": "SUPER TIP!",
+      "printed_page": 11,
+      "text": "You’ll find Super Tips like this one scattered throughout this book. Super Tips are just that: advice, options, and suggestions to help make your games even better. 1111"
+    }
+  ]
+}

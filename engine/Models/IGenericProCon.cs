@@ -28,6 +28,14 @@ public interface IGenericProCon
     IReadOnlyList<string> AppliesToRankTypes { get; }
 
     /// <summary>
+    /// True when the option's own entry says it may be taken more than once on the same
+    /// Power, each copy charged again. Affect Inanimate is the generic case: "You can apply
+    /// this Pro multiple times to affect different types of inanimate beings" (Ch.2 p.48).
+    /// A repeat of anything else is a second discount for one thing and is refused.
+    /// </summary>
+    bool Repeatable { get; }
+
+    /// <summary>
     /// The constraint the entry states but which cannot be checked against the data —
     /// "Powers that inflict physical or energy damage", "Powers that can be activated and
     /// deactivated at will". Shown to the player as a caveat rather than enforced, because
