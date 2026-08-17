@@ -247,6 +247,38 @@ public sealed class ProConApplicabilityTests
         // transcribed with Ongoing's real printed sentence, which is a correct quotation of the
         // wrong entry.
         Assert.Contains(entry.PrintedConstraint, PrintedEntry(entry.Heading), StringComparison.Ordinal);
+
+        // <b>A substring of the right entry is not a constraint.</b> Containment accepts any
+        // fragment, so trimming this to the boilerplate "This Pro applies to" passed — a correct
+        // quotation that says nothing, which is the cheapest way for this record to stop being
+        // one. What has to survive is the part after the opener: the thing it applies to.
+        var subject = OpenerStripped(entry.PrintedConstraint);
+
+        Assert.True(subject.Length >= 2,
+            $"'{id}' records a printed constraint that names nothing it constrains: "
+            + $"\"{entry.PrintedConstraint}\"");
+    }
+
+    /// <summary>
+    /// The printed constraint with its boilerplate opening removed, leaving the words that say
+    /// what the option applies to. The four openers are the ones the book uses.
+    /// </summary>
+    private static string[] OpenerStripped(string constraint)
+    {
+        foreach (var opener in new[]
+        {
+            "This Pro applies to", "This Con applies to", "These Pros apply to",
+            "You cannot apply this Pro to"
+        })
+        {
+            if (constraint.StartsWith(opener, StringComparison.Ordinal))
+                return constraint[opener.Length..]
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        }
+
+        Assert.Fail($"\"{constraint}\" does not open the way the rulebook opens a constraint. "
+                    + "If the book has a fifth form, add it here rather than dropping the check.");
+        return [];
     }
 
     public static TheoryData<string> Caveats() => [.. CanonicalCaveats.All.Select(e => e.Id)];

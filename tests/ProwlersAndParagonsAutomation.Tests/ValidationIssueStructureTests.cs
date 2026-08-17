@@ -168,6 +168,36 @@ public sealed class ValidationIssueStructureTests
     }
 
     /// <summary>
+    /// <b>The other three Source findings, said outright rather than through a list.</b>
+    /// <see cref="MustOfferOptions"/> is a hand-maintained set, and deleting a code's
+    /// <c>Options</c> line <em>and</em> its entry in that set is a coordinated edit both halves
+    /// of the machinery miss — so nothing anywhere stated that <c>POWER_WITHOUT_SOURCE</c> must
+    /// offer the six Sources, which is the finding the whole option check was written for.
+    /// Naming them here does not depend on the list at all.
+    /// </summary>
+    [Fact]
+    public void EveryFindingAboutAMissingSourceOffersTheSixSources()
+    {
+        var sources = _f.Rules.Sources.Select(s => s.Id).Order().ToList();
+
+        var withoutSource = Legal();
+        withoutSource.SelectedPowers.Add(new SelectedPower("blast", 3));
+        Assert.Equal(sources, Issue(withoutSource, "POWER_WITHOUT_SOURCE").Options.Order());
+
+        var badOnAPower = Legal();
+        badOnAPower.SelectedPowers.Add(new SelectedPower("blast", 3) { SourceId = "cosmic" });
+        Assert.Equal(sources, Issue(badOnAPower, "UNKNOWN_SOURCE").Options.Order());
+
+        var badOnAnAbility = Legal();
+        badOnAnAbility.AbilitySources["might"] = "cosmic";
+        Assert.Equal(sources, Issue(badOnAnAbility, "UNKNOWN_SOURCE").Options.Order());
+
+        var badOnATalent = Legal();
+        badOnATalent.TalentSources["academics"] = "cosmic";
+        Assert.Equal(sources, Issue(badOnATalent, "UNKNOWN_SOURCE").Options.Order());
+    }
+
+    /// <summary>
     /// A tier has to be chosen before anything else can be checked, so the one finding a
     /// fresh character always produces carries the list of tiers to choose from.
     /// </summary>
@@ -1067,6 +1097,14 @@ public sealed class ValidationIssueStructureTests
                 sheet.AbilitySources["might"]     = "cosmic";
                 sheet.TalentSources["academics"]  = "cosmic";
                 sheet.AbilitySources["telepathy"] = "tech";
+
+                // <b>And the Talent half of the same finding, which nothing reached.</b>
+                // UNKNOWN_TRAIT_SOURCE was provoked on Abilities alone, and the guarantee here
+                // is per *code* rather than per construction site — so the Talent arm of its
+                // option list was dead, and could be made to offer perk ids with the whole suite
+                // green. That is the defect this file's option check exists for, alive on the
+                // branch no sheet visited.
+                sheet.TalentSources["telekinesis"] = "magic";
                 return sheet;
             }
 
@@ -1305,9 +1343,19 @@ public sealed class ValidationIssueStructureTests
     /// subject kind and no provoking case, with the whole suite green. Both are ordinary
     /// refactors and neither should be able to void a guarantee silently.
     /// </summary>
+    /// <remarks>
+    /// Build output is excluded. <c>AllDirectories</c> swept in six generated files from
+    /// <c>obj/</c>, which keyed three guarantees to whether the project had been built and in
+    /// which configuration — nothing broke, because none of them holds an all-capitals literal,
+    /// but a generated one would have been demanded to have a subject kind and a provoking case.
+    /// </remarks>
     private static string EngineSource { get; } = string.Join("\n",
         Directory.GetFiles(Path.Combine(RulesFixture.RepoRoot, "engine"), "*.cs",
                            SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
+                                    StringComparison.Ordinal)
+                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}",
+                                    StringComparison.Ordinal))
             .OrderBy(f => f, StringComparer.Ordinal)
             .Select(File.ReadAllText));
 
@@ -1379,6 +1427,34 @@ public sealed class ValidationIssueStructureTests
 
         // And the two scans agree, so neither can quietly stop seeing what the other does.
         Assert.Empty(written.Select(w => w.Literal).Except(DeclaredCodes(EngineSource), StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>The convention check reads two call shapes, so the shapes are enumerated rather than
+    /// assumed.</b> A third helper — <c>Finding(code, message)</c> returning a
+    /// <see cref="ValidationIssue"/> — is invisible to it, and a code written in a spelling
+    /// <see cref="DeclaredCodes"/> cannot see, passed through such a helper, is invisible to
+    /// everything here. That is the same escape one indirection further on, and it cannot be
+    /// closed by a better pattern: it is closed by noticing the helper exists.
+    ///
+    /// <para>So the set of methods that build a finding is pinned. Adding one fails here, with
+    /// the instruction to teach <c>CodeExpressions</c> about it — which is where the convention
+    /// is actually enforced.</para>
+    /// </summary>
+    [Fact]
+    public void OnlyTheKnownHelpersBuildAFinding()
+    {
+        var helpers = new Regex(
+            @"\bValidationIssue\s+(\w+)\s*\(", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Matches(EngineSource)
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.True(helpers.SetEquals(["Negative"]),
+            "A method other than Negative now builds a finding: "
+            + string.Join(", ", helpers.Except(["Negative"], StringComparer.Ordinal).Order(StringComparer.Ordinal))
+            + ". Every code reaching a caller through it is exempt from the spelling convention "
+            + "and from every structural rule here until CodeExpressions is taught the new shape.");
     }
 
     /// <summary>
@@ -1519,8 +1595,20 @@ public sealed class ValidationIssueStructureTests
     /// let the mutation through in the first place. So the id may resolve against the rules
     /// <em>or</em> against the part of the character the kind names: <c>strength</c> is an
     /// Ability problem because it is a key of <c>AbilityRanks</c>, whatever the rulebook thinks
-    /// of it, and it is still not a Talent problem. That covers every finding without excusing
-    /// one.</para>
+    /// of it, and it is still not a Talent problem.</para>
+    ///
+    /// <para><b><c>Character</c> is checked too, and skipping it was a hole of its own.</b> An
+    /// earlier version of this passed over it — and an earlier version of the account in
+    /// <c>PROGRESS.md</c> claimed that covered every finding, which it did not. Eleven codes are
+    /// Character-kinded by design, and two more may be Character <em>or</em> Power, so mutating
+    /// a subject kind <em>towards</em> Character walked through this test, through
+    /// <see cref="ASubjectThatIsNotTheWholeCharacterIsNamed"/>, and through the kind table, which
+    /// accepts any entry in the code's list. <c>PER_UNIT_WITHOUT_UNITS</c> could report a Power
+    /// id as a fault of "the character".</para>
+    ///
+    /// <para>What a Character-kinded finding may name is narrow: a Perk, a starting package, or a
+    /// Pro or Con — the three things that belong to the sheet rather than to a Trait. A Power id
+    /// is not one of them.</para>
     /// </summary>
     [Theory]
     [MemberData(nameof(Cases))]
@@ -1530,7 +1618,7 @@ public sealed class ValidationIssueStructureTests
 
         foreach (var issue in _f.Validator.Validate(sheet).Issues)
         {
-            if (issue.SubjectKind is ValidationSubject.None or ValidationSubject.Character) continue;
+            if (issue.SubjectKind is ValidationSubject.None) continue;
             if (issue.SubjectId is not { } id) continue;
 
             var resolves = issue.SubjectKind switch
@@ -1559,6 +1647,17 @@ public sealed class ValidationIssueStructureTests
                 // Gear has no id — its name is all it has — so it is looked up on the character.
                 ValidationSubject.Gear => sheet.Gear.Any(g => g.Name == id),
 
+                // The whole sheet: a Perk, a starting package, or a Pro or Con. Those are the
+                // three things that belong to the character rather than to one of its Traits.
+                ValidationSubject.Character =>
+                    _f.Rules.GetPerk(id) is not null
+                    || sheet.Perks.Any(p => p.PerkId == id)
+                    || _f.Rules.CreationRules.OptionalPackages.Any(p => p.Id == id)
+                    || sheet.SelectedPackageId == id
+                    || _f.Rules.GetPro(id) is not null
+                    || _f.Rules.GetCon(id) is not null
+                    || EveryChoiceOn(sheet).Any(c => c.Id == id),
+
                 _ => true
             };
 
@@ -1568,6 +1667,47 @@ public sealed class ValidationIssueStructureTests
                 + "writes into the wrong collection and gets the same finding back.");
         }
     }
+
+    /// <summary>
+    /// <b>The thing a Pro or Con sits on has to be findable, and nothing said so.</b>
+    /// <c>OwnerId</c> is the whole reason a caller told "this Pro is wrong" can go and change it,
+    /// and it was asserted in three spot tests — which left the two sites they do not cover free
+    /// to hold the printed <em>name</em> instead. That is not hypothetical: the validator's own
+    /// comment records it happening once already, when a caller told a Pro was wrong on
+    /// "Super Senses — Thermal Vision" got a display string and nothing it could look up.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Cases))]
+    public void AnOwnerIsNamedBySomethingTheCallerCanLookUp(string which)
+    {
+        var sheet = Build(which);
+
+        foreach (var issue in _f.Validator.Validate(sheet).Issues)
+        {
+            if (issue.OwnerId is not { } owner) continue;
+
+            // A Power by id, a piece of gear by name — gear has nothing else — or an Ability by
+            // id, which are the three things a Pro or Con can sit on.
+            var findable =
+                _f.Rules.GetPower(owner) is not null
+                || sheet.SelectedPowers.Any(p => p.PowerId == owner)
+                || sheet.Gear.Any(g => g.Name == owner)
+                || _f.Rules.GetAbility(owner) is not null
+                || sheet.AbilityModifiers.ContainsKey(owner);
+
+            Assert.True(findable,
+                $"{issue.Code} says its subject sits on '{owner}', which is not a Power, a piece "
+                + "of this character's gear, or an Ability. A printed name here is a display "
+                + "string the caller cannot look anything up by.");
+        }
+    }
+
+    /// <summary>Every Pro and Con on a character, wherever it sits.</summary>
+    private static IEnumerable<SelectedProCon> EveryChoiceOn(CharacterSheet sheet) =>
+        sheet.SelectedPowers.SelectMany(p => p.Pros.Concat(p.Cons))
+            .Concat(sheet.Gear.SelectMany(g => g.Pros.Concat(g.Cons)))
+            .Concat(sheet.AbilityModifiers.Values.SelectMany(m => m ?? []))
+            .Where(c => c is not null);
 
     /// <summary>
     /// <b>Value and limit the right way round.</b> Swapping them is the likeliest way this

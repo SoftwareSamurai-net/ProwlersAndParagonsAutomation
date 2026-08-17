@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3639 across two projects — 3515 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3668 across two projects — 3544 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -271,8 +271,11 @@ And the five specific ones:
   in the chapter, which a reviewer showed is a different thing: Carrier Attack transcribed with
   Ongoing's real printed sentence passed a whole-chapter search. A caveat must also *restrict* —
   every one opens "Only for" or "Not for" — which refuses the inversion even if the record is
-  edited to agree with it. What is left uncaught is a caveat that restricts the wrong thing,
-  changed in both places at once; the printed clause sits beside it so a reader can see.
+  edited to agree with it. And the recorded clause has to say what it constrains: containment
+  accepts any fragment, so trimming one to the boilerplate "This Pro applies to" was a correct
+  quotation of the right entry that says nothing, and passed. What is left uncaught is a caveat
+  that restricts the *wrong* thing, changed in both places at once; the printed clause sits
+  beside it so a reader can see.
 - **The pickers' documented "rules-file order" had no test**: `.Reverse()` on `ProsFor` was green.
   It is not cosmetic — Ch.2 prints Pros and Cons alphabetically and a player is looking one up by
   name. Asserted as a subsequence of the rules file, so which options a Power is offered stays
@@ -306,8 +309,15 @@ mutations as red first, so the fixes hold; what they found is what the fixes did
   **the id has to name a thing of the kind claimed.** Deliberately with no exemption list — half
   these findings report an id the rulebook does *not* have, so "resolves against the rules" alone
   would have to excuse them, and excusing them is what let it through. An id resolves against the
-  rules **or** against the part of the character the kind names, which covers every finding
-  without excusing one.
+  rules **or** against the part of the character the kind names.
+
+  **The first version of that rule skipped `Character`, and this entry claimed it "covers every
+  finding without excusing one", which was wrong** — a third review pass demonstrated it. Eleven
+  codes are Character-kinded by design and two more may be Character *or* Power, so mutating a
+  kind *towards* Character walked through the rule, through the "a subject is named" invariant,
+  and through the table, which accepts any entry in a code's list: `PER_UNIT_WITHOUT_UNITS` could
+  report a Power id as a fault of "the character". Character is checked now, against the three
+  things that belong to a sheet rather than a Trait — a Perk, a package, a Pro or Con.
 - **The code scan was still spelling-shaped**, one spelling further on: `"TooManyConnections"` was
   invisible to every guarantee built on it. Widening the pattern again would not have closed it —
   a pattern can always be out-spelled — so the case is now **enforced where a code is written**.
@@ -335,7 +345,28 @@ of the budget, and `pros.json` is **not** alphabetical (Zone/Nova sits between A
 Armor Piercing, following the printed pairing), which is what makes the Pro half of the order
 check real where the Con half cannot be.
 
-3446 tests to **3639** — 3515 on the engine, 124 in bUnit. Zero warnings at CI strictness.
+**A third pass then re-reviewed those fixes. All six held; it found five more**, and the pattern
+across all three rounds is worth stating plainly: *the escape is always one indirection past
+wherever the rule was written.*
+
+- The `Character` skip above — this file's own overclaim, now corrected.
+- **`OwnerId` had no invariant at all**, only three spot tests, so the two sites they miss could
+  hold the printed *name* instead of the id. That exact regression is recorded in the validator's
+  own comment as having happened once already.
+- **`UNKNOWN_TRAIT_SOURCE` was never provoked on the Talent side**, so the Talent arm of its
+  option list was dead and could be made to offer perk ids with the suite green — the round-one
+  defect alive on a branch no sheet visited. **The "every code is provoked" guarantee is per
+  code, not per construction site**, and that gap is now demonstrated rather than theoretical.
+  The case list reaches it.
+- The spelling convention reads two call shapes, so **a third helper is invisible to it** — the
+  same escape one indirection on, and not closable by a better pattern. The set of methods that
+  build a finding is pinned instead, so adding one fails until the convention is taught it.
+- `MustOfferOptions` catches a code added with `Options = []` but not one written with no
+  `Options` line at all and delisted in the same breath. That is a two-file coordinated edit, so
+  rather than chase it the four Source findings are now asserted outright — which is the one the
+  option check existed for.
+
+3446 tests to **3668** — 3544 on the engine, 124 in bUnit. Zero warnings at CI strictness.
 
 ### The rulebook corpus was materially wrong, and its tests could not see it
 
