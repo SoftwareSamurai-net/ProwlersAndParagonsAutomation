@@ -197,10 +197,12 @@ public sealed class McpStdioTests
             };
 
             var id = 3;
+            var driven = new List<string>();
 
             foreach (var (tool, arguments, marker) in EveryToolCall())
             {
                 wanted[id] = marker;
+                driven.Add(tool);
 
                 await Say(server, Request(id, "tools/call", new JsonObject
                 {
@@ -251,6 +253,18 @@ public sealed class McpStdioTests
 
             foreach (var (requestId, marker) in wanted)
                 Assert.Contains(marker, answered[requestId], StringComparison.Ordinal);
+
+            // <b>And every tool the server serves was one of them, taken from its own tool list
+            // rather than from a count here.</b> Without this the cover is whatever
+            // <see cref="EveryToolCall"/> happens to yield: dropping one leaves five tools driven
+            // and a green test, and a seventh tool added later would never be called at all —
+            // which is the same shape of hole as sending no tool call in the first place.
+            var served = JsonNode.Parse(answered[2])!["result"]!["tools"]!.AsArray()
+                .Select(t => t!["name"]!.GetValue<string>())
+                .ToList();
+
+            Assert.NotEmpty(served);
+            Assert.Equal(served.Order(), driven.Order());
         }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
         {
