@@ -312,6 +312,80 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// Every self-hosted face resolves to a file that is actually there, and carries the
+    /// licence that lets it be redistributed.
+    ///
+    /// <para><b>A missing font file fails silently and looks like a design decision.</b> The
+    /// stacks name system fallbacks after each self-hosted family — deliberately, so a failed
+    /// load still leaves a readable page — which means renaming a file, or dropping it from
+    /// the publish, degrades the whole app to the system stack with every other test in this
+    /// file green. Nothing but the bytes on disk can catch that.</para>
+    ///
+    /// <para><b>The licence is asserted beside the font because shipping it is a condition of
+    /// the SIL Open Font License, not a courtesy.</b> These files are redistributed by every
+    /// deploy and by every fork of this repository.</para>
+    /// </summary>
+    [Fact]
+    public void EverySelfHostedFaceIsPresentAndCarriesItsLicence()
+    {
+        var references = Rx(@"url\(""\.\./fonts/([^""]+)""\)").Matches(WithoutCssComments(ThemeCss));
+
+        Assert.NotEmpty(references);
+
+        var fonts = Path.Combine(WebRoot, "wwwroot", "fonts");
+
+        foreach (Match reference in references)
+        {
+            var file = Path.Combine(fonts, reference.Groups[1].Value);
+
+            Assert.True(File.Exists(file),
+                $"theme.css asks for {reference.Groups[1].Value}, which is not in wwwroot/fonts. "
+                + "The page falls back to the system stack and nothing else notices.");
+
+            // A file that exists and is empty loads as a broken font, which fails the same way.
+            Assert.True(new FileInfo(file).Length > 1024, $"{reference.Groups[1].Value} is empty.");
+        }
+
+        // One licence per family, not one licence in the folder: two families ship here and a
+        // single OFL.txt would cover whichever of them somebody assumed.
+        var families = Rx(@"@font-face\s*\{[^}]*?font-family:\s*""([^""]+)""", RegexOptions.Singleline)
+            .Matches(WithoutCssComments(ThemeCss))
+            .Select(m => m.Groups[1].Value.Replace(" ", "", StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.NotEmpty(families);
+
+        foreach (var family in families)
+            Assert.True(File.Exists(Path.Combine(fonts, $"{family}-OFL.txt")),
+                $"{family} ships without the Open Font License text that permits redistributing it.");
+    }
+
+    /// <summary>
+    /// The self-hosted family leads each stack. A file that is downloaded, served and then
+    /// listed behind the system face is paid for on every visit and never seen.
+    /// </summary>
+    [Theory]
+    [InlineData("--font-display")]
+    [InlineData("--font-body")]
+    public void TheSelfHostedFaceIsTheFirstOneAskedFor(string token)
+    {
+        var theme = WithoutCssComments(ThemeCss);
+
+        var declared = Rx($@"{token}\s*:\s*([^;]+);").Match(theme);
+        Assert.True(declared.Success, $"theme.css declares no {token}.");
+
+        var first = Normalise(declared.Groups[1].Value).Split(',')[0].Trim('"');
+
+        var hosted = Rx(@"@font-face\s*\{[^}]*?font-family:\s*""([^""]+)""", RegexOptions.Singleline)
+            .Matches(theme)
+            .Select(m => Normalise(m.Groups[1].Value))
+            .ToList();
+
+        Assert.Contains(first, hosted, StringComparer.Ordinal);
+    }
+
+    /// <summary>
     /// The rulebook's word for a rank is set behind the rank it glosses, not level with it.
     /// The number is the fact a player rolls; the word is Ch.2's name for it, and in the same
     /// size and ink the two compete. Nothing in the markup can carry this — the element is

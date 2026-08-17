@@ -102,30 +102,69 @@
    the house style is an edit here and the two palettes cannot drift apart on it.
    There is a test.
 
-   **These are stacks of faces already on the reader's machine, not self-hosted
-   files, and that is a compromise rather than the design.** The intended shape is
-   two woff2 files under wwwroot/fonts/ and an @font-face block here; the CSP
-   already allows them (`font-src 'self'`) and nothing else would have to change,
-   because every rule in the app points at the tokens rather than at a family. Drop
-   the files in, add the @font-face rules, and put the family first in the stack
-   below — that is the whole change.
+   **Both are self-hosted, and both are under the SIL Open Font License**, whose
+   text travels with them in wwwroot/fonts/ — that is a condition of redistributing
+   them and not a courtesy. Served from this origin, so the Content-Security-Policy
+   needs nothing beyond the `font-src 'self'` it already carries; a hosted font
+   service would have needed a policy change and would have made the site depend on
+   somebody else's uptime.
 
-   The display stack is ordered by what is actually installed where: Bahnschrift
-   ships with Windows 10 and later, Avenir Next Condensed and HelveticaNeue with
-   macOS and iOS, Liberation Sans Narrow and DejaVu Sans Condensed with most Linux
-   distributions. Every entry is a condensed grotesque, so the face changes between
-   platforms but the *job* it does does not — and the last resort is the UI stack
-   rather than a serif, so a machine with none of them degrades to today's design
-   instead of to something worse.
+   **Oswald for display**: a condensed grotesque drawn for headings rather than a
+   text face squeezed narrow, which is what makes it hold up at the sizes below and
+   at tracking this wide. It has no italic and needs none — everything set in it is
+   uppercase.
+
+   **Public Sans for body**, over Source Sans 3, on payload: the variable Public
+   Sans is 103 KB against Source Sans 3's 642 KB for the same job, and the browser
+   payload is already the largest open item on this project. Its italic is a second
+   file because the sheet means it — the quote and the Trait Source line are set
+   that way, and a browser told to fake an oblique slants the roman instead.
+
+   Both are **variable** fonts, so one file covers every weight the app asks for
+   rather than four; the ranges below are what each family actually ships.
+
+   They are `.ttf` rather than `.woff2`, which would be roughly 40% smaller. That
+   is not a preference — there is no converter on this machine and no network to
+   fetch one. Converting them is a worthwhile follow-up and changes one line each.
+
+   The stacks still name system fallbacks after the self-hosted family, because a
+   font file can fail to load and the page still has to be readable when it does.
    ───────────────────────────────────────────────────────────────────────────── */
 
-:root {
-    --font-body: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+@font-face {
+    font-family: "Oswald";
+    src: url("../fonts/Oswald-Variable.ttf") format("truetype-variations");
+    font-weight: 200 700;
+    font-style: normal;
+    /* Show the fallback immediately and swap when the file lands, rather than
+       holding the text invisible while it loads. A character sheet that is briefly
+       set in the wrong face is better than one that is briefly blank. */
+    font-display: swap;
+}
 
-    --font-display: "Bahnschrift", "Archivo Narrow", "Avenir Next Condensed",
-                    "HelveticaNeue-CondensedBold", "Liberation Sans Narrow",
-                    "DejaVu Sans Condensed", "Franklin Gothic Medium",
-                    system-ui, sans-serif;
+@font-face {
+    font-family: "Public Sans";
+    src: url("../fonts/PublicSans-Variable.ttf") format("truetype-variations");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Public Sans";
+    src: url("../fonts/PublicSans-Italic-Variable.ttf") format("truetype-variations");
+    font-weight: 100 900;
+    font-style: italic;
+    font-display: swap;
+}
+
+:root {
+    --font-body: "Public Sans", "Segoe UI", system-ui, -apple-system,
+                 "Helvetica Neue", sans-serif;
+
+    --font-display: "Oswald", "Bahnschrift", "Archivo Narrow",
+                    "Avenir Next Condensed", "Liberation Sans Narrow",
+                    "DejaVu Sans Condensed", system-ui, sans-serif;
 
     /* A condensed face is narrower per character, so it takes more tracking to
        read as deliberate and less leading to read as set rather than stacked.
