@@ -506,9 +506,12 @@ public sealed class ReplayRenderTests
     /// a parameter. Every read of <c>Session.Sheet</c> that should have been a read of the
     /// parameter is a difference between the two, whatever field it is in.</para>
     ///
-    /// <para>The pairs are chosen so the two characters differ in the things a sheet prints.
-    /// One deliberately crosses tiers — only one recorded character is not Standard, and the
-    /// tier is what the masthead, the colophon and the budget sub-line are drawn from.</para>
+    /// <para>The pairs are chosen so the two characters differ in the things a sheet prints,
+    /// and <b>the visitor's tier is moved so that every pair crosses tiers</b>. Left as they
+    /// come, only the rows involving Vera Nunn did — every other recorded character and both
+    /// samples are Standard — so the tier, the Trait Cap and the budget sub-line were covered
+    /// by one row out of four, and would have stopped being covered at all the day she became
+    /// a Standard character, with nothing failing to say so.</para>
     /// </summary>
     [Theory]
     [InlineData(Cheap, OurHero)]
@@ -531,8 +534,15 @@ public sealed class ReplayRenderTests
         }
 
         using var ctx = new RenderContext();
+        var rules = ctx.Services.GetRequiredService<RulesRepository>();
         var subject = Character(ctx, printed);
         var mine = Character(ctx, visitors);
+
+        // Whatever tier the visitor came with, they are moved off the subject's — so the
+        // masthead, the colophon and the budget sub-line can bite on every row rather than on
+        // the one row that happens to involve the only non-Standard recording.
+        mine.SelectedTierId = rules.Tiers.First(t => t.Id != subject.SelectedTierId).Id;
+        Assert.NotEqual(subject.SelectedTierId, mine.SelectedTierId);
 
         var expected = AsTheirOwn(ctx, subject);
 

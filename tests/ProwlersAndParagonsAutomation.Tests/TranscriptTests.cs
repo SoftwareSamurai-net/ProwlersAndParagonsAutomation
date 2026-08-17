@@ -238,10 +238,22 @@ public sealed class TranscriptTests
     /// opposite. A demand phrased as an instruction costs the person exactly what a question
     /// costs them, so it is counted as one.</para>
     ///
-    /// <para><b>And the detector is a heuristic, which is worth saying plainly</b>: it knows
-    /// the phrasings a request is normally written in and cannot know one nobody has thought
-    /// of. <see cref="ARecordingNeverMakesThePersonAnswerMoreThanThreeTimes"/> is the half
-    /// that no wording can defeat.</para>
+    /// <para><b>The detector is a heuristic and cannot be anything else, which is worth saying
+    /// plainly and was once said too strongly here.</b> It knows the phrasings a request is
+    /// normally written in; "Settle the tier before I go on. Work out whether she is one Power
+    /// or several. Have a look at what she is ordinary at." is three demands and scores zero,
+    /// because those verbs are not on the list and no list closes that. An earlier version of
+    /// this note called
+    /// <see cref="ARecordingNeverMakesThePersonAnswerMoreThanThreeTimes"/> "the half no
+    /// wording can defeat", and that is not true either: it counts <em>replies</em>, so seven
+    /// demands bundled into one turn cost one reply and pass. Bundling defeats it, not wording.
+    /// </para>
+    ///
+    /// <para>The two together catch a questionnaire written the ordinary way and neither is a
+    /// proof. There are four recordings, they are hand-written, and they change rarely — so
+    /// the real guarantee is the one <c>CLAUDE.md</c> already states for the prose: <b>read a
+    /// changed transcript</b>. These tests are here to catch drift, not to classify English.
+    /// </para>
     /// </summary>
     [Fact]
     public void NoRecordedConversationAsksMoreThanThreeQuestions() =>
@@ -307,7 +319,8 @@ public sealed class TranscriptTests
         [
             "tell", "say", "give", "name", "describe", "choose", "pick", "decide", "confirm",
             "specify", "list", "explain", "answer", "state", "provide", "share", "send",
-            "supply", "settle", "pin", "set", "select"
+            "supply", "settle", "pin", "set", "select", "work", "think", "consider", "have",
+            "go", "bring", "look", "check", "point", "sort"
         ];
 
         string[] phrases =
@@ -514,6 +527,12 @@ public sealed class TranscriptTests
     /// numerals outright. It is the rule <c>CLAUDE.md</c> states: <b>if a transcript ever holds
     /// a Hero Point total, that is the bug.</b></para>
     ///
+    /// <para><b>Spelled out as well as in digits.</b> "over by a full nineteen" is the same
+    /// quoted figure as "over by 19", and it slipped past the vocabulary rule too — that rule
+    /// gives its positional words a one-word window, so three words of padding walk through
+    /// it, and "overspent" does not contain the word "over" at all. Neither dodge survives
+    /// asking what the number actually is, in either spelling.</para>
+    ///
     /// <para><b>Two deliberate limits.</b> Figures under ten are left to the vocabulary rule:
     /// below that a digit on a page is as likely to be a count of Powers, a rank or a year, and
     /// the small figures are exactly the ones written with a word beside them — "three to
@@ -555,14 +574,78 @@ public sealed class TranscriptTests
 
             foreach (var figure in figures.Where(f => f >= smallest))
             {
-                var quoted = Rx($@"\b{figure}\b");
+                var spellings = InWords(figure)
+                    .Select(System.Text.RegularExpressions.Regex.Escape)
+                    .Prepend(figure.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+                var quoted = Rx($@"\b({string.Join('|', spellings)})\b", RegexOptions.IgnoreCase);
 
                 foreach (var (where, text) in EveryProseIn(transcript))
-                    Assert.False(quoted.IsMatch(text),
-                        $"{transcript.Id} {where} writes {figure}, which is a figure the engine "
-                        + "works out for the character this recording carries. It has to come "
-                        + "back from the browser, not out of the recording.");
+                {
+                    var match = quoted.Match(text);
+
+                    Assert.False(match.Success,
+                        $"{transcript.Id} {where} says \"{match.Value}\", which is {figure} — a "
+                        + "figure the engine works out for the character this recording carries. "
+                        + "It has to come back from the browser, not out of the recording.");
+                }
             }
+        }
+    }
+
+    /// <summary>
+    /// A whole number written the way somebody would write it, in every spelling worth
+    /// guarding: <c>seventy-five</c> and <c>seventy five</c>, <c>one hundred and five</c> and
+    /// <c>one hundred five</c>. Only reached for figures of ten and over, so the single-word
+    /// forms below twenty are here to be composed with rather than used alone.
+    /// </summary>
+    private static IEnumerable<string> InWords(int n)
+    {
+        string[] ones =
+        [
+            "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+            "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+            "seventeen", "eighteen", "nineteen"
+        ];
+
+        string[] tens =
+        [
+            "", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"
+        ];
+
+        if (n < 0 || n > 999) yield break;
+
+        if (n < 20)
+        {
+            yield return ones[n];
+            yield break;
+        }
+
+        if (n < 100)
+        {
+            if (n % 10 == 0)
+            {
+                yield return tens[n / 10];
+                yield break;
+            }
+
+            yield return $"{tens[n / 10]}-{ones[n % 10]}";
+            yield return $"{tens[n / 10]} {ones[n % 10]}";
+            yield break;
+        }
+
+        var hundreds = $"{ones[n / 100]} hundred";
+
+        if (n % 100 == 0)
+        {
+            yield return hundreds;
+            yield break;
+        }
+
+        foreach (var rest in InWords(n % 100))
+        {
+            yield return $"{hundreds} {rest}";
+            yield return $"{hundreds} and {rest}";
         }
     }
 

@@ -521,6 +521,13 @@ public sealed class WebPresentationTests
                 double.Parse(points.Groups[1].Value, CultureInfo.InvariantCulture) >= 7,
                 $"{s.Text} is too small to read on paper.");
         });
+
+        // **And no `font` shorthand**, which sets a size without ever writing `font-size` —
+        // `font: 400 4pt/1.1 inherit` on the stat tables puts the densest block of the sheet at
+        // 4pt and every check above still passes. Refused outright rather than parsed: the
+        // shorthand also silently resets four other properties, so a print block that sets
+        // sizes one property at a time is the right rule anyway.
+        Assert.DoesNotMatch(Rx(@"(?<![\w-])font:"), Normalise(OnlyPrintBlockOf(AppCss)));
     }
 
     /// <summary>
@@ -631,30 +638,29 @@ public sealed class WebPresentationTests
         var size = Rx(@"font-size:([0-9.]+)rem").Match(declarations);
         Assert.True(size.Success, "The .hp rule sets no font size in rem.");
 
+        // Every declaration of each property in every one of those rules, not the first found.
+        // Two `font-size` declarations in one block is the same shadowing trick at a smaller
+        // scale, and the later one wins.
+        static IEnumerable<string> Values(string rule, string pattern) =>
+            Rx(pattern).Matches(rule).Select(m => m.Groups[1].Value);
+
         Assert.All(rules, rule =>
         {
             // A step behind the body size, not a shout. Set in small caps, so it reads smaller
             // than its figure — the lower bound is what stops that becoming a texture. A size
             // in points belongs to the print block and is held by the 7pt floor instead.
-            var rem = Rx(@"font-size:([0-9.]+)rem").Match(rule);
-            if (rem.Success)
-                Assert.InRange(double.Parse(rem.Groups[1].Value, CultureInfo.InvariantCulture), 0.6, 0.95);
+            Assert.All(Values(rule, @"font-size:([0-9.]+)rem"),
+                v => Assert.InRange(double.Parse(v, CultureInfo.InvariantCulture), 0.6, 0.95));
 
             // Never emphasised. A cost is bookkeeping; bolding it puts it in front of the rank,
             // whatever the size and the ink are doing.
-            var heavier = Rx(@"font-weight:(\d+)").Match(rule);
-            if (heavier.Success)
-                Assert.InRange(int.Parse(heavier.Groups[1].Value, CultureInfo.InvariantCulture), 100, 500);
+            Assert.All(Values(rule, @"font-weight:(\d+)"),
+                v => Assert.InRange(int.Parse(v, CultureInfo.InvariantCulture), 100, 500));
 
             // And never brought back into the body ink or out of small caps, which are the
             // other two halves of the separation.
-            var ink = Rx(@"(?<!-)color:([^;]+)").Match(rule);
-            if (ink.Success)
-                Assert.Equal("var(--muted)", ink.Groups[1].Value);
-
-            var caps = Rx(@"text-transform:([^;]+)").Match(rule);
-            if (caps.Success)
-                Assert.Equal("uppercase", caps.Groups[1].Value);
+            Assert.All(Values(rule, @"(?<!-)color:([^;]+)"), v => Assert.Equal("var(--muted)", v));
+            Assert.All(Values(rule, @"text-transform:([^;]+)"), v => Assert.Equal("uppercase", v));
         });
     }
 
@@ -813,10 +819,15 @@ public sealed class WebPresentationTests
 
         Assert.True(served.Success, "ReplayLibrary does not say where the recordings are served from.");
 
-        var csproj = File.ReadAllText(Path.Combine(WebRoot, "ProwlersAndParagons.Web.csproj"));
-        var staged = served.Groups[1].Value.Replace('/', '\\');
+        // The folders the build actually stages into, read whole. `Contains` is wrong here and
+        // was: `wwwroot\data\transcript` is a substring of `wwwroot\data\transcripts`, so
+        // dropping the "s" — the exact one-character mistake this test exists to catch — passed.
+        var staged = Rx(@"DestinationFolder=""[^""]*\\wwwroot\\([^""]+)""")
+            .Matches(File.ReadAllText(Path.Combine(WebRoot, "ProwlersAndParagons.Web.csproj")))
+            .Select(m => m.Groups[1].Value)
+            .ToList();
 
-        Assert.Contains($@"wwwroot\{staged}", csproj, StringComparison.Ordinal);
+        Assert.Contains(served.Groups[1].Value.Replace('/', '\\'), staged, StringComparer.Ordinal);
     }
 
     /// <summary>Widows and orphans, so a paragraph never leaves one line behind.</summary>
