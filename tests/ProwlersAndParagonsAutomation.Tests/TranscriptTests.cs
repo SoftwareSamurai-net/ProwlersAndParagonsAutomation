@@ -293,13 +293,21 @@ public sealed class TranscriptTests
     /// <para><c>let</c> is deliberately not an opener — "Let me build her" announces what the
     /// assistant is about to do, which is the thing this design wants more of. "Let me know"
     /// is a request and is caught as a phrase.</para>
+    ///
+    /// <para><b>A politeness wrapper is stripped before the opener is read.</b> Matching the
+    /// first word alone missed every request phrased the way people actually phrase them:
+    /// "Could you settle the tier for me. Could you say whether she is one Power or several.
+    /// Please supply her Source." — five demands counted as none, because each opens with
+    /// "could" or "please". A modal plus the second person <em>is</em> the request; the verb
+    /// after it is the same verb.</para>
     /// </summary>
     private static bool IsARequest(string sentence)
     {
         string[] openers =
         [
             "tell", "say", "give", "name", "describe", "choose", "pick", "decide", "confirm",
-            "specify", "list", "explain", "answer", "state", "provide", "share", "send"
+            "specify", "list", "explain", "answer", "state", "provide", "share", "send",
+            "supply", "settle", "pin", "set", "select"
         ];
 
         string[] phrases =
@@ -312,7 +320,14 @@ public sealed class TranscriptTests
 
         if (phrases.Any(p => lower.Contains(p, StringComparison.Ordinal))) return true;
 
-        var first = Rx(@"^[^a-z]*([a-z']+)").Match(lower);
+        // "Could you …", "Would you mind …", "Please …" — a request whatever follows, so this
+        // returns true on the wrapper rather than stripping it and hoping the verb is listed.
+        if (Rx(@"^\W*(please\b|(could|would|can|will|might)\s+you\b)").IsMatch(lower)) return true;
+
+        // And the wrapper again, this time stripped, so "First, could you please name her
+        // Source" is read as "name her Source".
+        var stripped = Rx(@"^\W*((please|kindly|first|then|now|also)\b\W*)*").Replace(lower, "");
+        var first = Rx(@"^[^a-z]*([a-z']+)").Match(stripped);
 
         return first.Success && openers.Contains(first.Groups[1].Value, StringComparer.Ordinal);
     }
@@ -483,6 +498,70 @@ public sealed class TranscriptTests
                 Assert.False(match.Success,
                     $"{transcript.Id} {where} says \"{match.Value}\". Every such figure has to "
                     + "come back from the engine in the browser, not out of the recording.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// <b>And no recorded line may carry a number the engine works out for the character
+    /// beside it — whatever words are around it, or none.</b>
+    ///
+    /// <para>The rule above is a vocabulary, and a vocabulary can always be walked round. An
+    /// adversarial pass wrote "She lands on 75 exactly, and the tier hands her 75 to spend"
+    /// into a recorded line — her exact spend and her exact budget, twice in one sentence —
+    /// and it matched nothing, because "lands on" and "hands her" are not on any list and
+    /// never could be. So this asks the engine what the figures actually are and refuses those
+    /// numerals outright. It is the rule <c>CLAUDE.md</c> states: <b>if a transcript ever holds
+    /// a Hero Point total, that is the bug.</b></para>
+    ///
+    /// <para><b>Two deliberate limits.</b> Figures under ten are left to the vocabulary rule:
+    /// below that a digit on a page is as likely to be a count of Powers, a rank or a year, and
+    /// the small figures are exactly the ones written with a word beside them — "three to
+    /// spare" — which the rule above already catches. And the <b>Trait Cap is not in the set</b>,
+    /// because it is a rank: ranks are inputs the transcript already carries and are allowed to
+    /// be quoted. A rank written the way the rulebook writes one, <c>12d</c>, is not matched by
+    /// a word-bounded <c>12</c> in any case.</para>
+    /// </summary>
+    [Fact]
+    public void NoRecordedLineCarriesANumberTheEngineWorksOutForItsOwnCharacter()
+    {
+        const int smallest = 10;
+
+        foreach (var transcript in All())
+        {
+            var figures = new SortedSet<int>();
+
+            foreach (var x in EveryCharacter().Where(c => c.Transcript.Id == transcript.Id))
+            {
+                var tier = _f.Rules.GetTier(x.Character.SelectedTierId!)!;
+                var spent = _f.Costs.TotalCost(x.Character);
+
+                figures.UnionWith(
+                [
+                    spent,
+                    tier.HeroPoints,
+                    Math.Abs(tier.HeroPoints - spent),
+                    _f.Derived.CalculateEdge(x.Character),
+                    _f.Derived.CalculateHealth(x.Character),
+                    _f.Derived.CalculateResolve(x.Character),
+                    _f.Costs.PackageCost(x.Character),
+                    _f.Costs.AbilityCost(x.Character),
+                    _f.Costs.TalentCost(x.Character),
+                    _f.Costs.TotalPowersCost(x.Character),
+                    _f.Costs.TotalPerksCost(x.Character),
+                    _f.Costs.TotalGearCost(x.Character)
+                ]);
+            }
+
+            foreach (var figure in figures.Where(f => f >= smallest))
+            {
+                var quoted = Rx($@"\b{figure}\b");
+
+                foreach (var (where, text) in EveryProseIn(transcript))
+                    Assert.False(quoted.IsMatch(text),
+                        $"{transcript.Id} {where} writes {figure}, which is a figure the engine "
+                        + "works out for the character this recording carries. It has to come "
+                        + "back from the browser, not out of the recording.");
             }
         }
     }

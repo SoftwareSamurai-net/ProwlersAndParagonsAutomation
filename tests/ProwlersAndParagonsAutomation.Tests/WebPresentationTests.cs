@@ -547,6 +547,44 @@ public sealed class WebPresentationTests
         Assert.Contains("background:var(--accent-soft)", declarations, StringComparison.Ordinal);
         Assert.Contains("print-color-adjust:exact", declarations, StringComparison.Ordinal);
         Assert.Contains("-webkit-print-color-adjust:exact", declarations, StringComparison.Ordinal);
+
+        // **And nothing later in the block may take it back.** Reading one rule by its exact
+        // selector is defeated by a second, more specific one — `.sheet .sheet-section h3 {
+        // background: none; print-color-adjust: economy }` prints every bar white and this
+        // test never sees it, because `PrintRuleFor` matches the selector string it was given.
+        // So: no value of the property other than `exact`, anywhere on paper.
+        var print = OnlyPrintBlockOf(AppCss);
+
+        Assert.All(
+            Rx(@"print-color-adjust:\s*([^;}]+)").Matches(print).Select(m => m.Groups[1].Value.Trim()),
+            value => Assert.Equal("exact", value));
+
+        // And no heading rule on paper may drop the tint it is asking to have printed.
+        Assert.All(
+            Rx(@"([^{}]+)\{([^{}]*)\}").Matches(print)
+                .Where(r => r.Groups[1].Value.Contains("h3", StringComparison.Ordinal))
+                .Select(r => Normalise(r.Groups[2].Value)),
+            r => Assert.DoesNotMatch(Rx(@"background(-color)?:(none|transparent|#fff|white)"), r));
+    }
+
+    /// <summary>
+    /// Nothing on paper scales the sheet as a whole. The 7pt floor reads declared sizes, and a
+    /// declared size is only what comes out of the printer if nothing shrinks the page under
+    /// it — <c>zoom: 0.55</c> on the printed sheet leaves every declaration at or above 7pt
+    /// while the 7.5pt stat lines arrive at about 4pt.
+    ///
+    /// <para>"Make it fit on one page" is the most likely reason anybody edits this block, and
+    /// the sheet being one page is a stated goal, so this is a change somebody would make in
+    /// good faith. The one-page property is held by the <c>fill</c> boxes absorbing the
+    /// difference, not by shrinking the type.</para>
+    /// </summary>
+    [Fact]
+    public void ThePrintedSheetIsNotScaledDownUnderItsOwnTypeSizes()
+    {
+        var print = Normalise(OnlyPrintBlockOf(AppCss));
+
+        Assert.DoesNotContain("zoom:", print, StringComparison.Ordinal);
+        Assert.DoesNotMatch(Rx(@"transform:[^;}]*scale\("), print);
     }
 
     /// <summary>
@@ -561,30 +599,63 @@ public sealed class WebPresentationTests
     /// neighbouring <see cref="ATraitSourceLineIsSetApartFromThePowersBelowIt"/> was hardened
     /// against and this one was not.</para>
     /// </summary>
+    /// <para><b>Every rule that targets <c>.hp</c>, not the first one found.</b> Reading only
+    /// the first is defeated without touching it: a more specific rule six lines below —
+    /// <c>.power-entry .head .hp</c>, which is already in the file — wins the cascade and was
+    /// never read, so every Hero Point cost on the Powers stack could go to 2.4rem at weight
+    /// 800 in heading ink with the suite green. <c>CLAUDE.md</c> records this trap twice, on
+    /// <c>.ruled</c> and on gear alignment; it applies to a test as much as to a stylesheet.
+    /// </para>
+    /// </summary>
     [Fact]
     public void AHeroPointCostIsSetApartFromTheNumbersAPlayerRolls()
     {
-        var rule = Rx(@"(?<![\w.-])\.hp\s*\{([^{}]*)\}").Match(WithoutCssComments(AppCss));
+        var rules = RulesTargeting(".hp");
 
-        Assert.True(rule.Success, "app.css has no .hp rule, so costs are set like everything else.");
+        Assert.NotEmpty(rules);
 
-        var declarations = Normalise(rule.Groups[1].Value);
+        // The base rule carries the intent; the rest may not undo it.
+        var declarations = Normalise(
+            Rx(@"(?<![\w.-])\.hp\s*\{([^{}]*)\}").Match(WithoutCssComments(AppCss)) is { Success: true } m
+                ? m.Groups[1].Value
+                : throw new InvalidOperationException(
+                    "app.css has no .hp rule, so costs are set like everything else."));
 
         Assert.Contains("letter-spacing:", declarations, StringComparison.Ordinal);
         Assert.Contains("color:var(--muted)", declarations, StringComparison.Ordinal);
         Assert.Contains("text-transform:uppercase", declarations, StringComparison.Ordinal);
 
-        // A step behind the body size, not a shout. Set in small caps, so it reads smaller
-        // than its figure — the lower bound is what stops that becoming a texture.
-        var size = Rx(@"font-size:([0-9.]+)rem").Match(declarations);
-        Assert.True(size.Success, "The .hp rule sets no font size in rem.");
-        Assert.InRange(double.Parse(size.Groups[1].Value, CultureInfo.InvariantCulture), 0.6, 0.95);
-
-        // And never emphasised. A cost is bookkeeping; bolding it puts it in front of the
-        // rank, whatever the size and the ink are doing.
         var weight = Rx(@"font-weight:(\d+)").Match(declarations);
         Assert.True(weight.Success, "The .hp rule sets no font weight.");
-        Assert.InRange(int.Parse(weight.Groups[1].Value, CultureInfo.InvariantCulture), 100, 500);
+
+        var size = Rx(@"font-size:([0-9.]+)rem").Match(declarations);
+        Assert.True(size.Success, "The .hp rule sets no font size in rem.");
+
+        Assert.All(rules, rule =>
+        {
+            // A step behind the body size, not a shout. Set in small caps, so it reads smaller
+            // than its figure — the lower bound is what stops that becoming a texture. A size
+            // in points belongs to the print block and is held by the 7pt floor instead.
+            var rem = Rx(@"font-size:([0-9.]+)rem").Match(rule);
+            if (rem.Success)
+                Assert.InRange(double.Parse(rem.Groups[1].Value, CultureInfo.InvariantCulture), 0.6, 0.95);
+
+            // Never emphasised. A cost is bookkeeping; bolding it puts it in front of the rank,
+            // whatever the size and the ink are doing.
+            var heavier = Rx(@"font-weight:(\d+)").Match(rule);
+            if (heavier.Success)
+                Assert.InRange(int.Parse(heavier.Groups[1].Value, CultureInfo.InvariantCulture), 100, 500);
+
+            // And never brought back into the body ink or out of small caps, which are the
+            // other two halves of the separation.
+            var ink = Rx(@"(?<!-)color:([^;]+)").Match(rule);
+            if (ink.Success)
+                Assert.Equal("var(--muted)", ink.Groups[1].Value);
+
+            var caps = Rx(@"text-transform:([^;]+)").Match(rule);
+            if (caps.Success)
+                Assert.Equal("uppercase", caps.Groups[1].Value);
+        });
     }
 
     /// <summary>
@@ -710,11 +781,42 @@ public sealed class WebPresentationTests
     {
         var program = File.ReadAllText(Path.Combine(WebRoot, "Program.cs"));
 
-        Assert.Contains("ReplayLibrary.LoadAsync", program, StringComparison.Ordinal);
+        Assert.Contains("ReplayLibrary.LoadAsync(http)", program, StringComparison.Ordinal);
 
         // And nowhere else builds one. Constructing it here is how the guard gets bypassed
         // without anything looking wrong.
         Assert.DoesNotContain("new ReplayLibrary(", program, StringComparison.Ordinal);
+
+        // **Nor may it do the fetching itself.** Calling the guarded loader is not the same as
+        // being guarded: an adversarial pass fetched every transcript here, in a bare loop,
+        // and handed the loader a delegate that only read the resulting dictionary. The
+        // throwing call was back outside the try, one 404 took the app to a blank page, and
+        // both this test and every behavioural test stayed green. So the path lives on
+        // ReplayLibrary and this file may not name it.
+        Assert.DoesNotContain("transcripts", program, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The address the app asks for and the folder the build stages the recordings into are
+    /// the same, and they are written down in two files that nothing else connects.
+    ///
+    /// <para>The behavioural half — that the loader really requests that path — is
+    /// <c>ReplayLoadingTests.TheLibraryAsksForEachRecordingWhereTheBuildPutsIt</c>. This is the
+    /// other end: that the path it agrees on is where the csproj puts the files. Either alone
+    /// is satisfied by a consistent, wrong answer.</para>
+    /// </summary>
+    [Fact]
+    public void TheRecordingsAreAskedForFromTheFolderTheBuildStagesThemInto()
+    {
+        var served = Rx(@"ServedFrom\s*=\s*""([^""]+)""")
+            .Match(File.ReadAllText(Path.Combine(WebRoot, "Services", "ReplayLibrary.cs")));
+
+        Assert.True(served.Success, "ReplayLibrary does not say where the recordings are served from.");
+
+        var csproj = File.ReadAllText(Path.Combine(WebRoot, "ProwlersAndParagons.Web.csproj"));
+        var staged = served.Groups[1].Value.Replace('/', '\\');
+
+        Assert.Contains($@"wwwroot\{staged}", csproj, StringComparison.Ordinal);
     }
 
     /// <summary>Widows and orphans, so a paragraph never leaves one line behind.</summary>
@@ -798,6 +900,21 @@ public sealed class WebPresentationTests
     /// selector is mentioned" and "this declaration appears somewhere" are both satisfied by
     /// a stylesheet that does the opposite of what is intended.
     /// </summary>
+    /// <summary>
+    /// The normalised declarations of every rule in the whole stylesheet whose selector ends
+    /// in <paramref name="target"/> — so a more specific rule further down, which is what
+    /// actually wins the cascade, is read too. Asserting on "the first rule with this class in
+    /// it" is defeated by adding a second one and never touching the first.
+    /// </summary>
+    private static List<string> RulesTargeting(string target) =>
+        [.. Rx(@"([^{}]+)\{([^{}]*)\}")
+            .Matches(WithoutCssComments(AppCss))
+            .Where(rule => rule.Groups[1].Value
+                .Split(',')
+                .Select(Normalise)
+                .Any(s => s.EndsWith(target, StringComparison.Ordinal)))
+            .Select(rule => Normalise(rule.Groups[2].Value))];
+
     private static string? PrintRuleFor(string selector)
     {
         // Every rule that names the selector, not the first. A second rule setting something

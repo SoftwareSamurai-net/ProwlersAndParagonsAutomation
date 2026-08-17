@@ -40,6 +40,56 @@ public sealed class ReplayLoadingTests
     }
 
     /// <summary>
+    /// <b>And it asks for them where the build actually puts them.</b>
+    ///
+    /// <para>Nothing pinned the URL. Misspelling it — <c>data/transcript/</c> — is one
+    /// character, and it takes the whole replay out of the deployed site while every test
+    /// passes, because every test supplies its own fetch. The app goes through the
+    /// <see cref="HttpClient"/> overload, so this drives that one and reads back what was
+    /// requested.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheLibraryAsksForEachRecordingWhereTheBuildPutsIt()
+    {
+        var asked = new List<string>();
+
+        using var handler = new Recorder(asked);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.invalid/") };
+
+        var library = await ReplayLibrary.LoadAsync(http);
+
+        // It loaded, which is what makes the paths below meaningful rather than a record of
+        // where a failing request went.
+        Assert.Null(library.Problem);
+        Assert.Equal(TranscriptLibrary.FileNames.Count, library.Conversations.Count);
+
+        Assert.Equal(
+            TranscriptLibrary.FileNames.Select(n => $"/{ReplayLibrary.ServedFrom}/{n}").ToList(),
+            asked);
+    }
+
+    /// <summary>Answers each request from the repository, and records what was asked for.</summary>
+    private sealed class Recorder : HttpMessageHandler
+    {
+        private readonly List<string> _asked;
+
+        public Recorder(List<string> asked) => _asked = asked;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            _asked.Add(path);
+
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    File.ReadAllText(Path.Combine(TranscriptsDirectory, path.Split('/')[^1])))
+            });
+        }
+    }
+
+    /// <summary>
     /// A fetch that throws — a 404, a network that went away, a deploy that shipped the app
     /// without the recordings.
     /// </summary>

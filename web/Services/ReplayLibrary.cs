@@ -34,10 +34,24 @@ public sealed class ReplayLibrary
     public string? Problem { get; }
 
     /// <summary>
+    /// Where the recordings are served from. Here rather than in <c>Program.cs</c> so the
+    /// path and the guard cannot be separated — and so a test can assert it against the
+    /// folder the csproj stages them into, which is the only other place it is written down.
+    /// </summary>
+    public const string ServedFrom = "data/transcripts";
+
+    /// <summary>
     /// Fetches every recording and reads it, or answers with an empty library carrying the
     /// reason it could not.
     ///
-    /// <para><b>This is a method rather than a block in <c>Program.cs</c> because that is
+    /// <para><b>This takes the client rather than a fetch, and that is the whole point.</b>
+    /// With a <c>Func&lt;string, Task&lt;string&gt;&gt;</c> parameter, <c>Program.cs</c> could
+    /// fetch every file itself and hand this one a delegate that only reads a dictionary — the
+    /// guard still called, the throwing fetch back outside it, and every test green. An
+    /// adversarial pass did exactly that. The overload below still exists for the tests, which
+    /// need a fetch that fails; nothing else may use it.</para>
+    ///
+    /// <para><b>And it is a method rather than a block in <c>Program.cs</c> because that is
     /// where nothing could reach it.</b> The guarantee it makes — a failed fetch means no
     /// recordings and never no app — was written as a <c>try</c> around a loop in top-level
     /// statements, and deleting the <c>try</c> left the whole suite green while one 404 took
@@ -49,8 +63,19 @@ public sealed class ReplayLibrary
     /// deployment and an app that answers every question wrongly; missing recordings are a
     /// missing demonstration. Only the second is worth starting without.</para>
     /// </summary>
+    public static Task<ReplayLibrary> LoadAsync(HttpClient http)
+    {
+        ArgumentNullException.ThrowIfNull(http);
+
+        return LoadAsync(name => http.GetStringAsync($"{ServedFrom}/{name}"));
+    }
+
+    /// <summary>
+    /// The same, with the fetch injected. <b>For tests only</b> — see the remarks above on why
+    /// the app must go through the <see cref="HttpClient"/> overload.
+    /// </summary>
     /// <param name="fetch">Asked for one file by name, and may throw.</param>
-    public static async Task<ReplayLibrary> LoadAsync(Func<string, Task<string>> fetch)
+    internal static async Task<ReplayLibrary> LoadAsync(Func<string, Task<string>> fetch)
     {
         ArgumentNullException.ThrowIfNull(fetch);
 
