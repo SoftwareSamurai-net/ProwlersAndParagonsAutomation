@@ -10,7 +10,12 @@ else
     <Panel Title="Powers on this character" Cost="@PowersCost()">
         @if (Session.Sheet.SelectedPowers.Count == 0)
         {
-            <p class="small muted">None yet.</p>
+            @* An empty state names the next action. "None yet." is a full stop: it reports a
+               fact the reader can already see and leaves them to work out what to do about it. *@
+            <EmptyState>
+                No Powers yet. Pick one from <b>Add a Power</b> below — the list shows each
+                one's range, rank type and cost before you choose it.
+            </EmptyState>
         }
         else
         {

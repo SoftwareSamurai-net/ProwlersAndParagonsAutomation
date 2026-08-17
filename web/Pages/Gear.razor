@@ -14,7 +14,10 @@
 <Panel Title="Carried" Cost="@($"{Session.Costs.TotalGearCost(Session.Sheet)} HP")">
     @if (Session.Sheet.Gear.Count == 0)
     {
-        <p class="small muted">Nothing yet.</p>
+        <EmptyState>
+            Nothing yet. Add whatever the character carries below — ordinary gear is free, so
+            the only thing here that spends Hero Points is a custom feature on an item.
+        </EmptyState>
     }
     else
     {
