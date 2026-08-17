@@ -55,25 +55,6 @@ h1::after {
 h2 { font-size: 1.4rem; }
 h3 { font-size: 1.05rem; }
 
-/* ── The label that carries structure ────────────────────────────────────── */
-
-/* Item 2 of the redesign. A long form is legible either because rules and boxes
-   divide it or because its labels do, and the second is quieter: the editors were
-   a stack of bordered panels whose headings were the same size as the prose
-   inside them, so the structure was carried entirely by the boxes.
-
-   This is the screen answer only. `SheetSection`'s centred heading in a bar is
-   right on *paper*, because the published Hero Sheet prints it that way, and it
-   is left alone below. */
-.label-line {
-    font-family: var(--font-display);
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: var(--label-track);
-    color: var(--muted);
-    line-height: var(--display-leading);
-}
-
 p { margin: 0 0 0.75rem; }
 
 a { color: var(--heading); }
@@ -400,7 +381,25 @@ input[type="text"]:hover, input[type="number"]:hover, input[type="search"]:hover
 select:hover, textarea:hover { border-color: var(--heading); }
 textarea { width: 100%; resize: vertical; }
 input[type="number"] { width: 5.5rem; }
-label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.2rem; }
+/* Item 2 of the redesign, and the place it actually earns its keep. A long form is
+   legible either because boxes divide it or because its labels do, and the second
+   is quieter — the Sources editor is eighteen fields in a column, and eighteen
+   labels set in the body face at 0.85rem read as eighteen more lines of prose
+   rather than as the spine of the form.
+
+   This is the screen answer only. `SheetSection`'s centred heading in a bar is
+   right on *paper* — the published Hero Sheet prints it that way — and is left
+   alone in the print block below. */
+label {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    line-height: var(--display-leading);
+    color: var(--muted);
+    margin-bottom: 0.25rem;
+}
 
 .field { margin-bottom: 0.9rem; }
 .inline { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
@@ -598,12 +597,16 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .options.cards .option .name { font-size: 1.05rem; }
 /* The consequence of choosing this card, set as the line under the name rather
    than squeezed against the right edge the way a price is in a list. */
+/* Not uppercased, unlike every other label in this app, and the exception is a
+   rules one rather than a taste one: this line carries a rank, and the rulebook
+   writes a rank as `12d`. `TRAIT CAP 12D` is a different notation from the one
+   the book uses and the one every other surface here prints. Anything that sets
+   a line carrying a rank in caps has the same problem. */
 .options.cards .option .cost {
     order: 3;
     font-family: var(--font-display);
-    text-transform: uppercase;
     letter-spacing: var(--label-track);
-    font-size: 0.76rem;
+    font-size: 0.82rem;
     color: var(--heading);
     padding-top: 0.35rem;
     border-top: 1px solid var(--rule);

@@ -58,14 +58,39 @@
     [CascadingParameter] private OptionFilter? Filter { get; set; }
 
     /// <summary>
-    /// <b>Evaluated once per render and stored, not written as a property the markup calls.</b>
-    /// Asking the filter is what counts the row, so a property read twice — once by the
-    /// <c>@@if</c> and once by anything else — would count it twice and report more rows than
-    /// the list holds.
+    /// <b>Evaluated once per render pass and stored, not written as a property the markup
+    /// calls.</b> Asking the filter is what counts the row, so a property read twice would
+    /// count it twice and report more rows than the list holds.
     /// </summary>
     private bool Admitted { get; set; } = true;
 
-    protected override void OnParametersSet() =>
-        Admitted = Filter is null
-                   || Filter.Admits([Name, Caveat, .. Keywords ?? []]);
+    /// <summary>
+    /// The pass this row last counted itself for.
+    ///
+    /// <para><b>Blazor sets a row's parameters twice per pass and the count was double.</b> A
+    /// row inside a <c>CascadingValue</c> is reached from both directions when the value
+    /// changes — once because the parent re-rendered the fragment holding it, and once because
+    /// the cascading value notified its subscribers — so <c>OnParametersSet</c> runs twice and
+    /// the naive version counted 282 of 282 Powers where the rulebook has 141. It read as a
+    /// plausible number beside a list nobody counts.</para>
+    ///
+    /// <para>So the row counts itself <b>once per pass, however many times it is asked</b>,
+    /// rather than the list assuming how often Blazor will ask. That is the invariant the
+    /// count depends on, stated where it can hold.</para>
+    /// </summary>
+    private int _countedPass = -1;
+
+    protected override void OnParametersSet()
+    {
+        if (Filter is null)
+        {
+            Admitted = true;
+            return;
+        }
+
+        if (Filter.Pass == _countedPass) return;
+
+        _countedPass = Filter.Pass;
+        Admitted = Filter.Admits([Name, Caveat, .. Keywords ?? []]);
+    }
 }
