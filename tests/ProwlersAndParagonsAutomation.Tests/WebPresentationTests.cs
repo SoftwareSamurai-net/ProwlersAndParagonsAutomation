@@ -490,17 +490,63 @@ public sealed class WebPresentationTests
     /// <para>This is measured rather than eyeballed because the one place it went wrong was a
     /// deliberate choice: Hero Point costs were set at 6.8pt to push them behind the ranks,
     /// which the case and the ink already do.</para>
+    ///
+    /// <para><b>Every size on paper is read, not only the ones already in points.</b> The
+    /// pattern was <c>font-size:\s*([\d.]+)pt</c>, which does not match a size in any other
+    /// unit — so setting the two densest blocks on the sheet, the stat tables and the Power
+    /// stat lines, to <c>0.3rem</c> and <c>4px</c> left this green, because the sizes it did
+    /// find were all still above the floor and <c>Assert.NotEmpty</c> was satisfied by them.
+    /// A print size in <c>rem</c> is also wrong on its own terms: it is relative to a root
+    /// size the print block resets, so it says nothing about what comes out of the printer.
+    /// </para>
     /// </summary>
     [Fact]
     public void NothingOnPaperIsSetBelowSevenPoint()
     {
-        var sizes = Rx(@"font-size:\s*([\d.]+)pt")
+        var sizes = Rx(@"font-size:\s*([^;}]+)")
             .Matches(OnlyPrintBlockOf(AppCss))
-            .Select(m => (Text: m.Value, Points: double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)))
+            .Select(m => (Text: Normalise(m.Value), Value: m.Groups[1].Value.Trim()))
             .ToList();
 
         Assert.NotEmpty(sizes);
-        Assert.All(sizes, s => Assert.True(s.Points >= 7, $"{s.Text} is too small to read on paper."));
+
+        Assert.All(sizes, s =>
+        {
+            var points = Rx(@"^([\d.]+)pt$").Match(s.Value);
+
+            Assert.True(points.Success,
+                $"{s.Text} is not set in points, so nothing here can say how big it prints.");
+
+            Assert.True(
+                double.Parse(points.Groups[1].Value, CultureInfo.InvariantCulture) >= 7,
+                $"{s.Text} is too small to read on paper.");
+        });
+    }
+
+    /// <summary>
+    /// The heading bars are the sheet's one run of colour on paper, and a browser drops print
+    /// backgrounds unless a page asks for them. Without the ask, every bar prints white and
+    /// the sheet comes out looking half-styled — which is the failure the rule's own comment
+    /// describes, and which nothing asserted: <c>exact</c> could be changed to <c>economy</c>
+    /// with the suite green.
+    ///
+    /// <para>Both spellings, because the unprefixed property is not what Chrome reads.</para>
+    /// </summary>
+    [Fact]
+    public void TheHeadingBarsAskToBePrintedRatherThanDroppedAsBackgrounds()
+    {
+        var rule = PrintRuleFor(".sheet-section > h3");
+
+        Assert.True(rule is not null, "The print block does not style the heading bars at all.");
+
+        var declarations = Normalise(rule!);
+
+        // The tint is what there is to print. Asserted here rather than left implied: a rule
+        // that asks for its background to be printed and then has none is a no-op that reads
+        // like a guarantee.
+        Assert.Contains("background:var(--accent-soft)", declarations, StringComparison.Ordinal);
+        Assert.Contains("print-color-adjust:exact", declarations, StringComparison.Ordinal);
+        Assert.Contains("-webkit-print-color-adjust:exact", declarations, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -508,6 +554,12 @@ public sealed class WebPresentationTests
     /// — so it is entirely in the stylesheet, where no test that reads rendered markup can
     /// see it. Emptying this rule leaves costs in the same size, weight and ink as the numbers
     /// a player rolls, and the sheet goes back to reading as a receipt.
+    ///
+    /// <para><b>The values, not the properties.</b> <c>Contains("font-size:")</c> is satisfied
+    /// by <c>2.4rem</c> at weight 800 — a cost set three times the size of the rank it sits
+    /// beside, which is the opposite of what this rule is for and exactly the weakness the
+    /// neighbouring <see cref="ATraitSourceLineIsSetApartFromThePowersBelowIt"/> was hardened
+    /// against and this one was not.</para>
     /// </summary>
     [Fact]
     public void AHeroPointCostIsSetApartFromTheNumbersAPlayerRolls()
@@ -518,10 +570,21 @@ public sealed class WebPresentationTests
 
         var declarations = Normalise(rule.Groups[1].Value);
 
-        Assert.Contains("font-size:", declarations, StringComparison.Ordinal);
         Assert.Contains("letter-spacing:", declarations, StringComparison.Ordinal);
         Assert.Contains("color:var(--muted)", declarations, StringComparison.Ordinal);
         Assert.Contains("text-transform:uppercase", declarations, StringComparison.Ordinal);
+
+        // A step behind the body size, not a shout. Set in small caps, so it reads smaller
+        // than its figure — the lower bound is what stops that becoming a texture.
+        var size = Rx(@"font-size:([0-9.]+)rem").Match(declarations);
+        Assert.True(size.Success, "The .hp rule sets no font size in rem.");
+        Assert.InRange(double.Parse(size.Groups[1].Value, CultureInfo.InvariantCulture), 0.6, 0.95);
+
+        // And never emphasised. A cost is bookkeeping; bolding it puts it in front of the
+        // rank, whatever the size and the ink are doing.
+        var weight = Rx(@"font-weight:(\d+)").Match(declarations);
+        Assert.True(weight.Success, "The .hp rule sets no font weight.");
+        Assert.InRange(int.Parse(weight.Groups[1].Value, CultureInfo.InvariantCulture), 100, 500);
     }
 
     /// <summary>
@@ -629,6 +692,29 @@ public sealed class WebPresentationTests
         Assert.True(app < 0 || name < app,
             "Review.razor's title puts the app name first, so a truncated print header "
             + "identifies the tool rather than the character.");
+    }
+
+    /// <summary>
+    /// The browser builds its replay library through the loader that promises a failed fetch
+    /// leaves the app running, rather than open-coding the fetch again.
+    ///
+    /// <para>This is the source half of a guarantee whose behaviour is tested in
+    /// <c>ProwlersAndParagons.Web.Tests.ReplayLoadingTests</c>. Both are needed and neither is
+    /// enough: a guarded loader nobody calls guarantees nothing, and it lived here as a
+    /// <c>try</c>/<c>catch</c> in top-level statements that no test could reach — deleting the
+    /// <c>try</c> was green, and one 404 then took the character generator to a blank page.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TheBrowserBuildsItsReplayLibraryThroughTheGuardedLoader()
+    {
+        var program = File.ReadAllText(Path.Combine(WebRoot, "Program.cs"));
+
+        Assert.Contains("ReplayLibrary.LoadAsync", program, StringComparison.Ordinal);
+
+        // And nowhere else builds one. Constructing it here is how the guard gets bypassed
+        // without anything looking wrong.
+        Assert.DoesNotContain("new ReplayLibrary(", program, StringComparison.Ordinal);
     }
 
     /// <summary>Widows and orphans, so a paragraph never leaves one line behind.</summary>

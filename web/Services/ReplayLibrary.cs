@@ -33,6 +33,47 @@ public sealed class ReplayLibrary
     /// </summary>
     public string? Problem { get; }
 
+    /// <summary>
+    /// Fetches every recording and reads it, or answers with an empty library carrying the
+    /// reason it could not.
+    ///
+    /// <para><b>This is a method rather than a block in <c>Program.cs</c> because that is
+    /// where nothing could reach it.</b> The guarantee it makes — a failed fetch means no
+    /// recordings and never no app — was written as a <c>try</c> around a loop in top-level
+    /// statements, and deleting the <c>try</c> left the whole suite green while one 404 took
+    /// the character generator to a blank page. A browser cannot glob a directory it has no
+    /// filesystem for, so <see cref="TranscriptLibrary.FileNames"/> is the contract, exactly
+    /// as <c>RulesRepository.DataFileNames</c> is for the rules.</para>
+    ///
+    /// <para><b>The rules are deliberately not loaded this way.</b> Missing rules are a broken
+    /// deployment and an app that answers every question wrongly; missing recordings are a
+    /// missing demonstration. Only the second is worth starting without.</para>
+    /// </summary>
+    /// <param name="fetch">Asked for one file by name, and may throw.</param>
+    public static async Task<ReplayLibrary> LoadAsync(Func<string, Task<string>> fetch)
+    {
+        ArgumentNullException.ThrowIfNull(fetch);
+
+#pragma warning disable CA1031 // any failure here means "no recordings", never "no app"
+        try
+        {
+            var files = new Dictionary<string, string>(StringComparer.Ordinal);
+
+            foreach (var name in TranscriptLibrary.FileNames)
+                files[name] = await fetch(name).ConfigureAwait(false);
+
+            return new ReplayLibrary(TranscriptLibrary.ReadAll(files));
+        }
+        catch (Exception e)
+        {
+            // The message travels with the library rather than being logged and lost: the
+            // replay pages print it, because an empty list with no explanation looks
+            // deliberate and sends somebody following a good link away thinking they mistyped.
+            return new ReplayLibrary([], e.Message);
+        }
+#pragma warning restore CA1031
+    }
+
     /// <summary>One recording by the id in the address, or null.</summary>
     public Transcript? Find(string? id) =>
         Conversations.FirstOrDefault(c => string.Equals(c.Id, id, StringComparison.OrdinalIgnoreCase));
