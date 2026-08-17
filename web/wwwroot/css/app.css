@@ -392,13 +392,23 @@ hr {
                 transform var(--step) var(--ease),
                 filter var(--swap) var(--ease);
 }
-.btn:hover:not(:disabled) { background: var(--accent-soft); }
+/* **--panel-sunk, not --accent-soft, and this is the same measured fault as the
+   tier card's.** `.btn` sets its text in --heading, and Villain --heading on
+   Villain --accent-soft is **4.08:1** — under the 4.5:1 text needs, and WCAG
+   1.4.3 applies to a hover state. On --panel-sunk the pair is 5.62:1. There are
+   far more buttons than tier cards, so this was the worse of the two instances
+   and it survived the fix that named it. Re-measure; do not eyeball. */
+.btn:hover:not(:disabled) { background: var(--panel-sunk); }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 600; }
 .btn.primary:hover:not(:disabled) { filter: brightness(1.12); background: var(--primary); }
 .btn.danger { border-color: var(--danger); color: var(--danger); }
-.btn.danger:hover:not(:disabled) { background: var(--danger-soft); }
+/* Same again, and this pair was the worst on the page: --danger text on
+   --danger-soft measures **3.94:1** in Villain and only 4.55:1 in Hero, which is
+   passing by 0.05. The destructive buttons are the last place to accept a
+   marginal reading. --panel-sunk keeps both modes well clear. */
+.btn.danger:hover:not(:disabled) { background: var(--panel-sunk); }
 .btn.small { padding: 0.15rem 0.5rem; font-size: 0.8rem; }
 
 /* An <a> standing in for a disabled button. Without href it is not focusable, but it still
@@ -1077,6 +1087,16 @@ label {
 
 @media (max-width: 620px) {
     .shell { padding: 1rem 0.75rem 2rem; }
+
+    /* **The bleed has to follow the shell's padding or it overflows the page.**
+       `.budget` and its rail are pulled out by a fixed -1.25rem so the strip runs
+       edge to edge; when this query cuts the padding to 0.75rem, that fixed pull
+       is 8px wider than the container on both sides — measured at a 375px
+       viewport as scrollWidth 368 against clientWidth 360, with the strip poking
+       past the content column. Any change to `.shell`'s padding has to be made
+       in both places or this comes back. */
+    .budget { margin-left: -0.75rem; margin-right: -0.75rem; padding-left: 0.75rem; padding-right: 0.75rem; }
+    .budget-rail { margin-left: -0.75rem; margin-right: -0.75rem; }
 
     /* The pips go and the word stays. The pips restate the stepper's own number; the
        word is the only thing on the row a reader cannot work out from the figure. */

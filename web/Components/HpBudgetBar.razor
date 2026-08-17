@@ -53,9 +53,15 @@
 
                 <span class="spacer"></span>
 
+                @* aria-controls only while the thing it names exists. Blazor renders the
+                   breakdown inside an @if, so pointing at it unconditionally leaves a dangling
+                   IDREF whenever it is closed — which assistive technology may report as a
+                   broken relationship rather than a closed one. aria-expanded is what carries
+                   the state, and it is written as a string for the reason recorded in
+                   CLAUDE.md: a bool renders as aria-expanded="" and announces the opposite. *@
                 <button type="button" class="budget-toggle"
                         aria-expanded="@(_open ? "true" : "false")"
-                        aria-controls="budget-breakdown"
+                        aria-controls="@(_open ? "budget-breakdown" : null)"
                         @onclick="() => _open = !_open">
                     @(_open ? "Hide the breakdown" : "What it went on")
                 </button>
@@ -65,8 +71,20 @@
                pixels instead of a bordered ten, and it reads as part of the furniture. The
                width is the one inline style left in this app, and the sole reason the
                Content-Security-Policy carries style-src 'unsafe-inline'. *@
+            @* **aria-valuenow is clamped to the maximum, and aria-valuetext carries the truth.**
+               An over-budget character spends more than the budget, and a progressbar reporting
+               valuenow=132 against valuemax=125 is out of range and invalid — the bar itself was
+               already clamped to 100% in the same block while the announced value was not, so
+               the two disagreed. The text is what a screen reader actually reads out, so nothing
+               is lost by clamping the number.
+
+               It also carries its own name: aria-label on the enclosing <section> names the
+               section, not the progressbar inside it, which was left anonymous. *@
             <div class="budget-rail" role="progressbar"
-                 aria-valuenow="@spent.Value" aria-valuemin="0" aria-valuemax="@budget">
+                 aria-label="Hero Points spent"
+                 aria-valuenow="@Math.Min(spent.Value, budget)"
+                 aria-valuemin="0" aria-valuemax="@budget"
+                 aria-valuetext="@($"{spent.Value} of {budget} Hero Points spent")">
                 <div class="budget-fill @(over ? "over" : "")" style="width:@(pct)%"></div>
             </div>
         }

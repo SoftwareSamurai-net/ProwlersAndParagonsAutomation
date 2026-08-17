@@ -46,6 +46,22 @@ public sealed class WebPresentationTests
     /// </summary>
     private static string IndexHtml => File.ReadAllText(Path.Combine(WebRoot, "wwwroot", "index.html"));
 
+    /// <summary>
+    /// The app's own scripts — the third route into the payload, and the one that bypasses CSS
+    /// entirely.
+    ///
+    /// <para><b>A CSSOM write is not subject to the Content-Security-Policy and no stylesheet
+    /// scan can see it.</b> Three lines added to the existing <c>ppSetMode</c> —
+    /// <c>documentElement.style.setProperty("--font-body", …)</c> and the same for
+    /// <c>--font-display</c> and <c>--heading</c> — override both typefaces and a text colour
+    /// at runtime with every presentation test green. That file already touches
+    /// <c>documentElement</c> to set the palette mode, so it is the plausible place for it to
+    /// happen rather than a contrived one.</para>
+    /// </summary>
+    private static IEnumerable<(string Name, string Text)> Scripts =>
+        SourceFiles(Path.Combine(WebRoot, "wwwroot"), "*.js")
+            .Select(f => (Path.GetFileName(f), File.ReadAllText(f)));
+
     private static List<string> SourceFiles(string root, string pattern) =>
         Directory.GetFiles(root, pattern, SearchOption.AllDirectories)
             .Where(p => !p.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
@@ -322,6 +338,36 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// No script sets a theme token either.
+    ///
+    /// <para>The colour and typeface rules read stylesheets, and a stylesheet is not the only
+    /// way a token gets a value: <c>documentElement.style.setProperty("--heading", …)</c> wins
+    /// over every rule in theme.css, is invisible to both scans, and is not something the
+    /// Content-Security-Policy has any opinion about. The one thing the app's scripts may do to
+    /// the document element is set <c>data-mode</c>, which is the palette switch.</para>
+    /// </summary>
+    [Fact]
+    public void NoScriptSetsAThemeTokenOrNamesAFace()
+    {
+        var token = Rx(@"setProperty\s*\(\s*[""']--", RegexOptions.IgnoreCase);
+        var face = Rx(@"font-family|--font-", RegexOptions.IgnoreCase);
+        var colour = Rx(@"#[0-9A-Fa-f]{3,8}\b|\b(rgba?|hsla?|oklch)\s*\(", RegexOptions.IgnoreCase);
+
+        Assert.NotEmpty(Scripts);
+
+        foreach (var (name, text) in Scripts)
+        {
+            var body = Rx(@"//[^\n]*|/\*.*?\*/", RegexOptions.Singleline).Replace(text, " ");
+
+            Assert.False(token.IsMatch(body),
+                $"{name} sets a custom property directly, which beats every rule in theme.css "
+                + "and no stylesheet scan can see. Set data-mode and let the cascade do it.");
+            Assert.False(face.IsMatch(body), $"{name} names a typeface.");
+            Assert.False(colour.IsMatch(body), $"{name} names a colour.");
+        }
+    }
+
+    /// <summary>
     /// Two faces, and they have to be two. A condensed display face for every heading, label
     /// and figure, and a separate face for running prose — which is the single biggest visual
     /// difference between this app and the one it was measured against, where levels were
@@ -409,6 +455,18 @@ public sealed class WebPresentationTests
             Assert.Contains("Copyright", text, StringComparison.OrdinalIgnoreCase);
             Assert.Contains(family, text.Replace(" ", "", StringComparison.Ordinal),
                 StringComparison.OrdinalIgnoreCase);
+
+            // **The operative parts, not the header.** All three assertions above appear in the
+            // first nine lines of an OFL file, so `head -9` — 383 bytes, with the permission
+            // grant, all five conditions and the warranty disclaimer deleted — satisfied them.
+            // What makes this file a licence rather than a title page is what follows.
+            Assert.Contains("PERMISSION IS HEREBY GRANTED", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("WITHOUT WARRANTY", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("CONDITIONS", text, StringComparison.OrdinalIgnoreCase);
+
+            Assert.True(new FileInfo(licence).Length > 3000,
+                $"{family}'s licence is {new FileInfo(licence).Length} bytes; the OFL is ~4.5 KB. "
+                + "A truncated licence is not the licence.");
         }
     }
 
@@ -426,27 +484,72 @@ public sealed class WebPresentationTests
     [Fact]
     public void EachFamilyIsServedItsOwnFile()
     {
-        Assert.NotEmpty(FontFaces());
+        var faces = FontFaces();
 
-        foreach (var (family, file) in FontFaces())
+        Assert.NotEmpty(faces);
+
+        foreach (var (family, file) in faces)
+        {
+            // The name, which catches pointing one family's rule at the other's file...
             Assert.StartsWith(family, file, StringComparison.OrdinalIgnoreCase);
+
+            // ...and the bytes, which catch the same regression done by overwriting the file
+            // instead of by renaming it. A name check correlates a string; nothing in it reads
+            // the font. A TrueType `name` table stores its family in UTF-16BE, so the family
+            // appears in the file with a null byte between every character — a cheap proxy for
+            // parsing the table, and enough to tell Oswald's bytes from Public Sans'.
+            var utf16 = string.Concat(family.Select(c => $"\0{c}"));
+            var bytes = File.ReadAllText(Path.Combine(WebRoot, "wwwroot", "fonts", file),
+                System.Text.Encoding.Latin1);
+
+            Assert.True(bytes.Contains(utf16, StringComparison.Ordinal),
+                $"{file} does not name itself {family} internally, so the file serving this "
+                + "family is some other font under its name.");
+        }
     }
 
     /// <summary>
     /// Every <c>@font-face</c> in theme.css as (family with spaces stripped, file name). The
     /// family is stripped because a file name cannot carry a space: "Public Sans" ships as
     /// <c>PublicSans-Variable.ttf</c>.
+    ///
+    /// <para><b>A face whose <c>src</c> this cannot read is a failure, not a face to skip.</b>
+    /// An earlier version filtered those out — so writing <c>url("/fonts/PublicSans-Variable.ttf")</c>
+    /// with an absolute path dropped the Oswald face from this list *and* from the licence
+    /// guard, while <c>&lt;base href="/"&gt;</c> made the path perfectly live. The app served
+    /// Public Sans for every heading with both guards green. The filter meant to make this
+    /// robust widened the hole it was closing.</para>
     /// </summary>
-    private static List<(string Family, string File)> FontFaces() =>
-        Rx(@"@font-face\s*\{(?<body>[^}]*)\}", RegexOptions.Singleline)
-            .Matches(WithoutCssComments(ThemeCss))
-            .Select(m => (
-                Family: Rx(@"font-family:\s*""([^""]+)""").Match(m.Groups["body"].Value)
-                    .Groups[1].Value.Replace(" ", "", StringComparison.Ordinal),
-                File: Rx(@"url\(""\.\./fonts/([^""]+)""\)").Match(m.Groups["body"].Value)
-                    .Groups[1].Value))
-            .Where(f => f.Family.Length > 0 && f.File.Length > 0)
-            .ToList();
+    private static List<(string Family, string File)> FontFaces()
+    {
+        var faces = new List<(string, string)>();
+
+        foreach (Match face in Rx(@"@font-face\s*\{(?<body>[^}]*)\}", RegexOptions.Singleline)
+                     .Matches(WithoutCssComments(ThemeCss)))
+        {
+            var body = face.Groups["body"].Value;
+
+            var family = Rx(@"font-family:\s*""([^""]+)""").Match(body);
+            Assert.True(family.Success, $"An @font-face names no family: {Normalise(body)}");
+
+            var url = Rx(@"url\(""([^""]+)""\)").Match(body);
+            Assert.True(url.Success, $"An @font-face has no url(): {Normalise(body)}");
+
+            // Relative to the stylesheet, and only from the one folder that ships fonts. An
+            // absolute path or a second location is how a face escapes every check below.
+            var reference = Rx(@"^\.\./fonts/(?<file>[^/]+)$").Match(url.Groups[1].Value);
+            Assert.True(reference.Success,
+                $"An @font-face loads from '{url.Groups[1].Value}'. Fonts are served from "
+                + "../fonts/ so that every one of them is checked; a path this test cannot read "
+                + "is a face that silently escapes it.");
+
+            faces.Add((
+                family.Groups[1].Value.Replace(" ", "", StringComparison.Ordinal),
+                reference.Groups["file"].Value));
+        }
+
+        return faces;
+    }
 
     /// <summary>
     /// The self-hosted family leads each stack. A file that is downloaded, served and then
@@ -500,13 +603,28 @@ public sealed class WebPresentationTests
         Assert.InRange(double.Parse(size.Groups[1].Value, CultureInfo.InvariantCulture), 0.6, 0.9);
 
         // **And it is shown at all.** Everything above is satisfied by an element that is
-        // present and hidden — `display: none` on the class passed every assertion here and
-        // every rendering test in the bUnit project, because a hidden element still has its
-        // class and still has its text. The rulebook's word for a rank simply stopped
-        // appearing. Checked over every rule that targets the class, not the base one, since a
-        // more specific rule further down wins the cascade.
+        // present and hidden — a hidden element still has its class and still has its text, so
+        // every rendering test in the bUnit project passes while the rulebook's word simply
+        // stops appearing. Checked over every rule that targets the class, not the base one,
+        // since a more specific rule further down wins the cascade.
+        //
+        // **Every spelling of hidden, not one.** Banning `display: none` alone left
+        // `visibility: hidden`, `color: transparent` and `font-size: 0` — three ways to the
+        // identical result, all green.
+        // Matched as whole declarations, not as substrings: `font-size:0` is a prefix of the
+        // rule's own `font-size:0.72rem`, and `opacity:0` of `opacity:0.8`. A ban that fires on
+        // the thing it is protecting is worse than no ban, because the fix is to weaken it.
+        string[] hidden =
+        [
+            @"display:none", @"visibility:hidden", @"visibility:collapse",
+            @"color:transparent", @"font-size:0(?![.\d])", @"opacity:0(?![.\d])",
+            @"content-visibility:hidden"
+        ];
+
         Assert.All(RulesTargeting(".rank-word"), rule =>
-            Assert.DoesNotContain("display:none", Normalise(rule), StringComparison.Ordinal));
+            Assert.All(hidden, way =>
+                Assert.False(Rx(way).IsMatch(Normalise(rule)),
+                    $"A rule targeting .rank-word hides it with '{way}': {Normalise(rule)}")));
     }
 
     // ── The UI is written for players ───────────────────────────────────────────

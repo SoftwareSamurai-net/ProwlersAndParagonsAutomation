@@ -82,15 +82,30 @@ public sealed class UppercasedTextTests
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
 
+        // The Hero sample costs about 105, so putting it on the 75-point tier drives the budget
+        // strip's over-budget branch — which carries `.over-text`, and which nothing else here
+        // renders. A branch that only appears when something is wrong is exactly the branch a
+        // test set built from the happy path never reaches.
+        using var over = new RenderContext().With(SheetMode.Hero);
+        over.Session.Sheet.SelectedTierId = "street_level";
+
         var pages = new List<IRenderedComponent<Microsoft.AspNetCore.Components.IComponent>>
         {
+            over.Render<HpBudgetBar>(),
             ctx.Render<ChooseTier>(),
             ctx.Render<AbilitiesTab>(),
             ctx.Render<TalentsTab>(),
             ctx.Render<PowersTab>(),
+            ctx.Render<PerksTab>(),
+            ctx.Render<FlawsTab>(),
             ctx.Render<Derived>(),
             ctx.Render<Gear>(),
-            ctx.Render<SheetView>()
+            ctx.Render<Finishing>(),
+            ctx.Render<Review>(),
+            ctx.Render<Characteristics>(),
+            ctx.Render<SheetView>(),
+            ctx.Render<HpBudgetBar>(),
+            ctx.Render<StepNav>()
         };
 
         var seen = 0;
@@ -114,10 +129,34 @@ public sealed class UppercasedTextTests
             }
         }
 
-        // Not asserted as non-zero: several uppercased selectors are genuinely unreachable from
-        // these pages (the boot screen, the error bar). What matters is that the ones that ARE
-        // reachable were looked at, and this records how many that was.
-        Assert.True(seen >= 0);
+        // **The selector has to have been found somewhere, or this theory asserted nothing.**
+        // The first version closed with `Assert.True(seen >= 0)` — a tautology — and **13 of the
+        // 25 uppercased selectors matched nothing on any rendered page**, including `.verdict`,
+        // `.steps a`, `.tabs button` and all three the budget strip had just added. Setting
+        // `.verdict` to "Legal, Trait Cap 12d (Ch.9, p.150)" rendered LEGAL, TRAIT CAP 12D
+        // (CH.9, P.150) with the whole suite green — precisely the bug class this file exists
+        // for. A guard that grows subjects without growing coverage is worth less each time.
+        //
+        // Anything genuinely unreachable is named here with the reason, so the exemption is a
+        // decision rather than a silence.
+        string[] unreachable =
+        [
+            ".boot-title",   // index.html's pre-WebAssembly screen; no component renders it.
+            ".banner-title", // MainLayout, which needs a Body fragment and a router.
+            ".banner-link",  // ditto.
+            ".mode-switch button", // ditto.
+            ".replay-who",   // a recorded turn; ReplayRenderTests covers that surface.
+            ".sheet-footer", // print-only; `display: none` on screen.
+            ".panel.replay-label b:first-child", // the replay notice; same surface as above.
+            "h4"             // in the shared heading rule; no component renders one today.
+        ];
+
+        if (unreachable.Contains(selector, StringComparer.Ordinal)) return;
+
+        Assert.True(seen > 0,
+            $"'{selector}' is set in capitals and this test found it on no page, so it asserted "
+            + "nothing about it. Render a page that shows it, or name it in `unreachable` with "
+            + "a reason.");
     }
 
     /// <summary>

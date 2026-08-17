@@ -198,25 +198,43 @@ public sealed class OptionFilterTests
     /// <b>tag</b>. Dropping <c>Caveat</c> from what the filter reads left both green and made
     /// those four placeholders lie.</para>
     /// </summary>
-    [Fact]
-    public void AWordOnlyInTheDescriptionFindsTheRow()
+    /// <param name="which">
+    /// <b>Every list that promises it, not one of them.</b> Covering Flaws alone left the Perks
+    /// tab free to stop passing its description to the row while its own placeholder still read
+    /// "Filter Perks by name or description" — green, and the promise false. Gear features and
+    /// the Pro/Con picker were equally unguarded.
+    /// </param>
+    [Theory]
+    [InlineData("flaws")]
+    [InlineData("perks")]
+    [InlineData("gear")]
+    public void AWordOnlyInTheDescriptionFindsTheRow(string which)
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
 
         var rules = ctx.Services.GetRequiredService<RulesRepository>();
 
-        // Chosen from the data: a word in some Flaw's description that is in no Flaw's name, so
-        // a match can only have come from the description.
-        var word = rules.Flaws
-            .SelectMany(f => (f.Description ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        // Chosen from the data: a word in some row's description that is in no row's name, so a
+        // match can only have come from the description.
+        var (names, descriptions) = which switch
+        {
+            "flaws" => (rules.Flaws.Select(f => f.Name).ToList(),
+                        rules.Flaws.Select(f => f.Description ?? "").ToList()),
+            "perks" => (rules.Perks.Select(p => p.Name).ToList(),
+                        rules.Perks.Select(p => p.Description ?? "").ToList()),
+            _ => (rules.GearFeatures.Select(g => g.Name).ToList(),
+                  rules.GearFeatures.Select(g => g.Description ?? "").ToList())
+        };
+
+        var word = descriptions
+            .SelectMany(d => d.Split(' ', StringSplitOptions.RemoveEmptyEntries))
             .Select(w => w.Trim('.', ',', '(', ')', ';', ':', '"'))
             .Where(w => w.Length > 6)
-            .FirstOrDefault(w => !rules.Flaws.Any(f =>
-                f.Name.Contains(w, StringComparison.OrdinalIgnoreCase)));
+            .FirstOrDefault(w => !names.Any(n => n.Contains(w, StringComparison.OrdinalIgnoreCase)));
 
         Assert.NotNull(word);
 
-        var page = ctx.Render<FlawsTab>();
+        var page = Page(ctx, which);
         page.Find(".options-filter input").Input(word);
 
         var rows = page.FindAll(".options .option");
@@ -224,6 +242,21 @@ public sealed class OptionFilterTests
         Assert.NotEmpty(rows);
         Assert.All(rows, row =>
             Assert.Contains(word, row.TextContent, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>The tab holding one of the filtered lists, driven to where the list exists.</summary>
+    private static IRenderedComponent<Microsoft.AspNetCore.Components.IComponent> Page(
+        RenderContext ctx, string which)
+    {
+        if (which == "flaws") return ctx.Render<FlawsTab>();
+        if (which == "perks") return ctx.Render<PerksTab>();
+
+        var gear = ctx.Render<Gear>();
+        gear.FindAll(".chosen button")
+            .First(b => b.TextContent.Contains("Customise", StringComparison.Ordinal))
+            .Click();
+
+        return gear;
     }
 
     /// <summary>
