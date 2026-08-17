@@ -14,17 +14,24 @@ body {
     margin: 0;
     background: var(--surface);
     color: var(--ink);
-    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+    font-family: var(--font-body);
     font-size: 15.5px;
     line-height: 1.55;
     text-underline-offset: 0.15em;
 }
 
+/* Every heading is the display face, uppercase, tracked and set tighter than
+   solid. That is the whole of item 1 of the redesign: the app used to separate
+   levels by size and weight in one face, which reads as a document rather than
+   as a designed page. --heading-track is still added on top per palette, because
+   the Villain theme tightens its headings and the Hero one opens them. */
 h1, h2, h3, h4 {
     color: var(--heading);
-    letter-spacing: var(--heading-track);
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: calc(var(--display-track) + var(--heading-track));
     margin: 0 0 0.5rem;
-    line-height: 1.2;
+    line-height: var(--display-leading);
     text-wrap: balance;
 }
 
@@ -32,9 +39,7 @@ h1, h2, h3, h4 {
    masthead mark, not a divider. It is decorative, so it is a pseudo-element and screen
    readers never meet it. */
 h1 {
-    font-size: 1.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.045em;
+    font-size: 2.15rem;
     margin-bottom: 0.75rem;
 }
 h1::after {
@@ -47,8 +52,27 @@ h1::after {
     background: var(--accent);
 }
 
-h2 { font-size: 1.2rem; }
-h3 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.07em; }
+h2 { font-size: 1.4rem; }
+h3 { font-size: 1.05rem; }
+
+/* ── The label that carries structure ────────────────────────────────────── */
+
+/* Item 2 of the redesign. A long form is legible either because rules and boxes
+   divide it or because its labels do, and the second is quieter: the editors were
+   a stack of bordered panels whose headings were the same size as the prose
+   inside them, so the structure was carried entirely by the boxes.
+
+   This is the screen answer only. `SheetSection`'s centred heading in a bar is
+   right on *paper*, because the published Hero Sheet prints it that way, and it
+   is left alone below. */
+.label-line {
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    color: var(--muted);
+    line-height: var(--display-leading);
+}
 
 p { margin: 0 0 0.75rem; }
 
@@ -69,8 +93,9 @@ hr {
     text-align: center;
 }
 .boot-title {
-    font-size: 1.6rem;
+    font-size: 1.9rem;
     color: var(--heading);
+    font-family: var(--font-display);
     letter-spacing: var(--banner-track);
     text-transform: uppercase;
     margin-bottom: 0.25rem;
@@ -125,16 +150,20 @@ hr {
     box-shadow: var(--shadow);
 }
 .banner-title {
+    font-family: var(--font-display);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: var(--banner-track);
-    font-size: 1.05rem;
+    font-size: 1.3rem;
+    line-height: var(--display-leading);
     margin-right: auto;
 }
 .banner-title small {
     display: block;
+    font-family: var(--font-body);
     font-weight: 400;
     font-size: 0.7rem;
+    text-transform: none;
     opacity: 0.8;
     letter-spacing: 0.03em;
 }
@@ -164,9 +193,10 @@ hr {
     border: none;
     padding: 0.3rem 0.85rem;
     font: inherit;
-    font-size: 0.8rem;
+    font-family: var(--font-display);
+    font-size: 0.82rem;
     cursor: pointer;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--label-track);
     text-transform: uppercase;
     transition: background-color var(--swap) var(--ease), color var(--swap) var(--ease);
 }
@@ -197,7 +227,10 @@ hr {
     border-radius: var(--radius-small);
     text-decoration: none;
     color: var(--muted);
+    font-family: var(--font-display);
     font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
     background: var(--panel);
     transition: color var(--swap) var(--ease),
                 border-color var(--swap) var(--ease),
@@ -223,7 +256,12 @@ hr {
     box-shadow: var(--shadow);
 }
 .budget-line { display: flex; gap: 1rem; align-items: baseline; flex-wrap: wrap; }
-.budget-line strong { font-variant-numeric: tabular-nums; font-size: 1.15rem; }
+.budget-line strong {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    font-size: 1.35rem;
+    letter-spacing: var(--display-track);
+}
 .budget-line .spacer { margin-left: auto; }
 .budget-track {
     height: 10px;
@@ -383,7 +421,10 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1.1rem; }
 .tabs button {
     font: inherit;
-    font-size: 0.88rem;
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
     padding: 0.35rem 0.8rem;
     background: var(--panel);
     color: var(--muted);
@@ -405,9 +446,13 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 
 /* ── Rank stepper and pips ───────────────────────────────────────────────── */
 
+/* Name, pips, stepper, and the rulebook's word for the rank. The word gets a column
+   of its own with a floor under its width so the words form a column rather than
+   ragging off the end of each stepper — and so the cell for a 7d Trait, which the
+   rulebook gives no word, is empty space rather than a jump in the layout. */
 .rank-row {
     display: grid;
-    grid-template-columns: minmax(7rem, 1fr) auto auto;
+    grid-template-columns: minmax(7rem, 1fr) auto auto minmax(5.5rem, auto);
     align-items: center;
     gap: 0.6rem;
     padding: 0.35rem 0;
@@ -436,7 +481,15 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .stepper button:hover:not(:disabled) { border-color: var(--heading); color: var(--heading); }
 .stepper button:active:not(:disabled) { transform: translateY(1px); }
 .stepper button:disabled { opacity: 0.35; cursor: not-allowed; }
-.stepper .value { min-width: 2.4rem; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; }
+.stepper .value {
+    min-width: 2.4rem;
+    text-align: center;
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: var(--display-track);
+    font-weight: 700;
+}
 
 .pips { display: flex; gap: 2px; }
 .pip {
@@ -465,9 +518,10 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 
 .tag {
     display: inline-block;
+    font-family: var(--font-display);
     font-size: 0.72rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: var(--label-track);
     padding: 0.05rem 0.4rem;
     border: 1px solid var(--rule);
     border-radius: var(--radius-small);
@@ -480,11 +534,89 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 
 /* ── Option rows (pros, cons, powers, perks, flaws to pick from) ─────────── */
 
+/* The filter box and its count, above every list of options. Item 6 of the
+   redesign, and the only one that came from somebody actually using the thing:
+   scrolling these lists is annoying and Powers alone is 141 entries. */
+.options-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.4rem;
+}
+.options-filter input[type="search"] { flex: 1 1 auto; min-width: 0; }
+.options-count {
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.options-empty {
+    margin: 0.5rem 0 0;
+    font-size: 0.82rem;
+    color: var(--muted);
+}
+
 .options {
     max-height: 22rem;
     overflow-y: auto;
     border: 1px solid var(--rule);
     border-radius: var(--radius-small);
+}
+
+/* Item 3: the same options as a card grid rather than a full-width scrolling
+   list. A long list is right for picking one of 141 Powers by name, and wrong
+   for six tiers a reader is meant to *compare* — set full width, each one is a
+   line of text and the choice reads as a form field rather than as a decision.
+
+   This is a modifier on the same component and the same markup: `.option` is
+   already a full-width button with a name, a second line and a right-hand
+   figure, which is a card as soon as it stops being a row. So the grid drops the
+   scroller and the shared border, and each button becomes the ruled box. */
+.options.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+    gap: 0.75rem;
+    max-height: none;
+    overflow: visible;
+    border: none;
+    border-radius: 0;
+}
+.options.cards .option {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+    height: 100%;
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--rule);
+    border-left: 3px solid transparent;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+.options.cards .option .name { font-size: 1.05rem; }
+/* The consequence of choosing this card, set as the line under the name rather
+   than squeezed against the right edge the way a price is in a list. */
+.options.cards .option .cost {
+    order: 3;
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    font-size: 0.76rem;
+    color: var(--heading);
+    padding-top: 0.35rem;
+    border-top: 1px solid var(--rule);
+    white-space: normal;
+}
+.options.cards .option:hover { border-left-color: var(--accent); }
+
+/* The choice already made. A ring, never a fill — --accent is 1.8:1 on --surface
+   in the Hero palette and unreadable behind text — and never the only marking:
+   the caller puts a word beside the name as well, because a ring is a colour. */
+.option.selected {
+    border-color: var(--accent);
+    box-shadow: var(--shadow), inset 0 0 0 1px var(--accent);
 }
 .option {
     display: flex;
@@ -522,7 +654,12 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .issues li.error { border-left-color: var(--danger); background: var(--danger-soft); }
 .issues li.warning { border-left-color: var(--accent); background: var(--accent-soft); }
 
-.verdict { font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.verdict {
+    font-family: var(--font-display);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+}
 .verdict.invalid { color: var(--danger); }
 
 /* ── The replay ──────────────────────────────────────────────────────────── */
@@ -594,9 +731,10 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .replay-turn.said-by-it { margin-left: auto; }
 
 .replay-who {
-    font-size: 0.7rem;
+    font-family: var(--font-display);
+    font-size: 0.72rem;
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: var(--label-track);
     color: var(--muted);
     margin-bottom: 0.2rem;
 }
@@ -653,11 +791,12 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .sheet-section.fill > .ruled { flex: 1 1 auto; justify-content: space-between; gap: 0; min-height: 6rem; }
 
 .identity .ident-name {
-    font-size: 1.5rem;
+    font-family: var(--font-display);
+    font-size: 1.75rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: var(--banner-track);
-    line-height: 1.15;
+    line-height: var(--display-leading);
     color: var(--heading);
     margin-bottom: 0.4rem;
 }
@@ -667,9 +806,11 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 
 .title-block { text-align: center; }
 .title-main {
+    font-family: var(--font-display);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: var(--banner-track);
+    line-height: var(--display-leading);
     color: var(--heading);
 }
 .title-sub, .title-meta { font-size: 0.78rem; color: var(--muted); }
@@ -702,8 +843,8 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     margin: 0;
     padding: 0.3rem 0.6rem;
     text-align: center;
-    font-size: 0.78rem;
-    letter-spacing: 0.12em;
+    font-size: 0.82rem;
+    letter-spacing: var(--label-track);
     border-bottom: var(--rule-weight) solid var(--rule);
     background: var(--panel-sunk);
 }
@@ -714,7 +855,27 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .sheet-section > table { width: calc(100% - 1.2rem); }
 
 .trait-table td { font-size: 0.86rem; }
-.trait-table td:first-child { text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; }
+.trait-table td:first-child {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: var(--display-track);
+    font-weight: 600;
+}
+
+/* The rulebook's word for a rank — item 5 of the redesign. Ch.2 prints an ABILITY
+   RANKS table on p.17 and a TALENT RANKS table on p.18, and this app knew both and
+   showed neither: the editors printed a bare `4d` where the book says "Noteworthy".
+   Set behind the rank rather than beside it, because the number is the fact and the
+   word is the gloss on it. Both tables stop at 6d — above that is superhuman and the
+   book gives no word — so this is simply absent on a 7d Ability rather than guessed. */
+.rank-word {
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    color: var(--muted);
+    white-space: nowrap;
+}
 
 .stat-blocks { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .stat-blocks.quad { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
@@ -726,9 +887,51 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     min-width: 5.75rem;
     background: var(--panel-sunk);
 }
-.stat-block .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-.stat-block .value { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.stat-block .sub { font-size: 0.68rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stat-block .label {
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    color: var(--muted);
+}
+.stat-block .value {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: var(--display-track);
+    line-height: var(--display-leading);
+}
+
+/* The rule under the figure — item 4 of the redesign. Teaching the rule is the
+   point of running the real engine in the browser rather than reimplementing it,
+   and a figure with no derivation beside it teaches nothing. It is set in the
+   body face on purpose: it is a sentence about arithmetic, not a label, and the
+   display face at this size is harder to read than it is handsome. */
+.stat-block .sub {
+    font-size: 0.68rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.3;
+    display: block;
+    margin-top: 0.15rem;
+}
+
+/* The rule under the figure. Set to the left rather than centred like the number
+   above it: it is a sentence, and centred sentences of three lines read as a
+   plaque. The boxes widen to hold one, which is why this is a modifier on the row
+   rather than something every stat block carries. */
+.stat-blocks.with-formulas .stat-block { min-width: 14rem; flex: 1 1 14rem; }
+.stat-block .formula {
+    margin-top: 0.4rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid var(--rule);
+    font-size: 0.72rem;
+    line-height: 1.35;
+    color: var(--muted);
+    text-align: left;
+    text-wrap: pretty;
+}
 
 .stat-table { width: 100%; border-collapse: collapse; }
 .stat-table td { padding: 0.22rem 0.4rem; border-bottom: 1px solid var(--rule); }
@@ -750,9 +953,10 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
    lighter, letter-spaced and set in the muted ink, which puts it a clear step behind the
    numbers a player actually uses at the table. */
 .hp {
+    font-family: var(--font-display);
     font-size: 0.72rem;
     font-weight: 400;
-    letter-spacing: 0.08em;
+    letter-spacing: var(--label-track);
     text-transform: uppercase;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
@@ -781,8 +985,12 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 
 @media (max-width: 620px) {
     .shell { padding: 1rem 0.75rem 2rem; }
-    .rank-row { grid-template-columns: 1fr auto; }
+
+    /* The pips go and the word stays. The pips restate the stepper's own number; the
+       word is the only thing on the row a reader cannot work out from the figure. */
+    .rank-row { grid-template-columns: 1fr auto auto; }
     .rank-row .pips { display: none; }
+    .rank-word { min-width: 0; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -809,6 +1017,14 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     .banner-link,
     .replay,
     .no-print,
+    /* A search box is a control, and a count of what it let through is a fact about
+       a screen. Neither means anything on paper, and both would print as an empty
+       ruled box above the list. */
+    .options-filter,
+    /* The rule a figure came out of. The sheet does not ask for these — see
+       DerivedStatBlocks — but printing any other page should not put three lines of
+       small print under each of four boxes either. */
+    .stat-block .formula,
     #blazor-error-ui {
         display: none !important;
     }
@@ -967,8 +1183,9 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
         margin-top: 2mm;
         padding-top: 1.5mm;
         border-top: 1px solid var(--rule);
+        font-family: var(--font-display);
         font-size: 7.5pt;
-        letter-spacing: 0.06em;
+        letter-spacing: var(--label-track);
         text-transform: uppercase;
         color: var(--muted);
         break-inside: avoid;

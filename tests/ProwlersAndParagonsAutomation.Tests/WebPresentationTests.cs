@@ -227,6 +227,118 @@ public sealed class WebPresentationTests
             + "--enter so prefers-reduced-motion can switch it off.");
     }
 
+    // ── No component names a typeface ───────────────────────────────────────────
+
+    /// <summary>
+    /// The same rule as colour, radius and duration, for the same reason: theme.css is the one
+    /// file allowed to name a face, and everything else asks it for one by token. That is what
+    /// makes changing the house style an edit in one place — and it is what will make dropping
+    /// in two self-hosted files a change to two token values rather than to forty rules.
+    ///
+    /// <para><b>Both spellings are checked.</b> <c>font-family</c> is the obvious one;
+    /// <c>font</c> is the shorthand, and it carries a family too. <c>font: inherit</c> is all
+    /// over app.css and is not naming anything — what a shorthand may not do is carry a quoted
+    /// family or a generic family keyword.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("app.css")]
+    [InlineData("razor")]
+    public void NoComponentNamesATypeface(string what)
+    {
+        var sources = what == "app.css"
+            ? [("app.css", WithoutCssComments(AppCss))]
+            : RazorFiles.Select(f => (Path.GetFileName(f), Scannable(File.ReadAllText(f), css: false))).ToList();
+
+        var family = Rx(@"font-family\s*:\s*([^;}]+)");
+        var shorthand = Rx(@"(?<![\w-])font\s*:\s*([^;}]+)");
+        var token = Rx(@"^var\(--font-[a-z-]+\)$");
+        var generic = Rx(@"\b(serif|sans-serif|monospace|cursive|fantasy|system-ui|ui-[a-z-]+)\b",
+            RegexOptions.IgnoreCase);
+
+        foreach (var (name, text) in sources)
+        {
+            foreach (Match declaration in family.Matches(text))
+            {
+                var value = declaration.Groups[1].Value.Trim();
+                Assert.True(token.IsMatch(value),
+                    $"{name} sets font-family to '{value}'. Ask theme.css for --font-display or "
+                    + "--font-body instead.");
+            }
+
+            foreach (Match declaration in shorthand.Matches(text))
+            {
+                var value = declaration.Groups[1].Value.Trim();
+                Assert.True(
+                    !value.Contains('"') && !value.Contains('\'') && !generic.IsMatch(value),
+                    $"{name} names a typeface in a font shorthand: '{value}'.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Two faces, and they have to be two. A condensed display face for every heading, label
+    /// and figure, and a separate face for running prose — which is the single biggest visual
+    /// difference between this app and the one it was measured against, where levels were
+    /// separated by size and weight in one face and read as a document rather than a page.
+    ///
+    /// <para><b>Both halves are asserted, and the first without the second is theatre.</b> Two
+    /// tokens declared to the same stack satisfy any check that they exist and are used, and
+    /// leave the app looking exactly as it did; and a display token nothing asks for is a
+    /// token, not a typeface.</para>
+    /// </summary>
+    [Fact]
+    public void TheTwoFacesAreTokensAndDoDifferentJobs()
+    {
+        var theme = WithoutCssComments(ThemeCss);
+
+        var body = Rx(@"--font-body\s*:\s*([^;]+);").Match(theme);
+        var display = Rx(@"--font-display\s*:\s*([^;]+);").Match(theme);
+
+        Assert.True(body.Success, "theme.css declares no --font-body.");
+        Assert.True(display.Success, "theme.css declares no --font-display.");
+        Assert.NotEqual(Normalise(body.Groups[1].Value), Normalise(display.Groups[1].Value));
+
+        var css = WithoutCssComments(AppCss);
+        Assert.Contains("var(--font-display)", css, StringComparison.Ordinal);
+        Assert.Contains("var(--font-body)", css, StringComparison.Ordinal);
+
+        // The headings are the job the display face exists for, and they are set together in
+        // one rule. If that rule stops asking for the face, every heading in the app silently
+        // goes back to the body stack while both tokens are still declared and still used.
+        var headings = Rx(@"h1,\s*h2,\s*h3,\s*h4\s*\{([^{}]*)\}").Match(css);
+        Assert.True(headings.Success, "app.css no longer sets h1–h4 together.");
+        Assert.Contains("font-family:var(--font-display)", Normalise(headings.Groups[1].Value),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The rulebook's word for a rank is set behind the rank it glosses, not level with it.
+    /// The number is the fact a player rolls; the word is Ch.2's name for it, and in the same
+    /// size and ink the two compete. Nothing in the markup can carry this — the element is
+    /// there either way — which is why it is asserted against the rule.
+    /// </summary>
+    [Fact]
+    public void TheRankWordIsSetBehindTheRankItGlosses()
+    {
+        var rule = Rx(@"(?<![\w.-])\.rank-word\s*\{([^{}]*)\}").Match(WithoutCssComments(AppCss));
+
+        Assert.True(rule.Success,
+            "app.css has no .rank-word rule, so the rulebook's word is set like the rank.");
+
+        var declarations = Normalise(rule.Groups[1].Value);
+
+        Assert.Contains("color:var(--muted)", declarations, StringComparison.Ordinal);
+        Assert.Contains("text-transform:uppercase", declarations, StringComparison.Ordinal);
+        Assert.Contains("font-family:var(--font-display)", declarations, StringComparison.Ordinal);
+
+        // A step behind the rank beside it, which is set at 1.1rem. The band, not the presence
+        // of a size: `Contains("font-size:")` is satisfied by 2rem, which would put the gloss
+        // in front of the figure.
+        var size = Rx(@"font-size:([0-9.]+)rem").Match(declarations);
+        Assert.True(size.Success, "The .rank-word rule sets no font size in rem.");
+        Assert.InRange(double.Parse(size.Groups[1].Value, CultureInfo.InvariantCulture), 0.6, 0.9);
+    }
+
     // ── The UI is written for players ───────────────────────────────────────────
 
     /// <summary>
@@ -734,6 +846,11 @@ public sealed class WebPresentationTests
     [InlineData(".banner-link")]
     [InlineData(".replay")]
     [InlineData(".no-print")]
+    // A filter box is a control and the count beside it is a fact about a screen.
+    [InlineData(".options-filter")]
+    // The rule a figure came out of. The sheet does not ask for one, but printing any other
+    // page should not put three lines of small print under each of four boxes either.
+    [InlineData(".stat-block .formula")]
     [InlineData("h1")]
     public void ThePrintedSheetLeavesOutTheToolAroundIt(string selector)
     {

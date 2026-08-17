@@ -77,9 +77,12 @@ else
         }
     </Panel>
 
-    <Panel Title="Add a Power" Aside="@($"{Matches.Count} of {Session.Rules.Powers.Count}")">
+    <Panel Title="Add a Power">
+        @* The category is a facet and stays here; the text search is not, and moved into
+           OptionList so that every other list of options got one too. Tags are passed
+           through as keywords because they are searchable and never printed — the box used
+           to read them and a filter that could only see the row would have narrowed it. *@
         <Field Class="inline">
-            <input type="search" placeholder="Search by name or tag" @bind="_query" @bind:event="oninput" aria-label="Search Powers" />
             <select @bind="_category" aria-label="Category">
                 <option value="">Every category</option>
                 @foreach (var c in Categories)
@@ -89,12 +92,13 @@ else
             </select>
         </Field>
 
-        <OptionList>
+        <OptionList Placeholder="Filter Powers by name or tag">
             @foreach (var power in Matches)
             {
                 <OptionRow Name="@power.Name"
                            Caveat="@PowerFormatter.StatLine(power)"
                            Cost="@power.Category"
+                           Keywords="@power.Tags"
                            OnSelect="() => Add(power)">
                     <NameExtra>
                         @if (Session.Sheet.HasPower(power.Id))
@@ -112,18 +116,19 @@ else
     private sealed record Editing(PowerModel Power, SelectedPower? Existing);
 
     private Editing? _editing;
-    private string _query = "";
     private string _category = "";
 
     private IEnumerable<string> Categories =>
         Session.Rules.Powers.Select(p => p.Category).Distinct().Order();
 
+    /// <summary>
+    /// Every Power in the chosen category. The text filter is <see cref="OptionList"/>'s and
+    /// is deliberately not repeated here — the whole point of moving it was that this tab
+    /// stops being the only one of the five with a search box.
+    /// </summary>
     private List<PowerModel> Matches =>
         Session.Rules.Powers
             .Where(p => _category.Length == 0 || p.Category == _category)
-            .Where(p => _query.Length == 0
-                        || p.Name.Contains(_query, StringComparison.OrdinalIgnoreCase)
-                        || p.Tags.Any(t => t.Contains(_query, StringComparison.OrdinalIgnoreCase)))
             .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 

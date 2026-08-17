@@ -13,6 +13,7 @@
                  Floor="1"
                  PackageFloor="@PackageAbilityRank"
                  Max="@Session.TraitCap"
+                 RankGuide="@ability.RankGuide"
                  RankChanged="rank => SetAbility(id, rank)" />
 
         @if (Modifiers(id) is { Count: > 0 } mods)

@@ -65,35 +65,28 @@
     </p>
 </Panel>
 
-<div class="grid two">
+@* Six cards rather than six full-width rows. These are the one set of choices on the
+   whole app a reader is meant to compare against each other rather than search through,
+   which is why this list alone turns its filter box off — and why each card carries its
+   consequence, the budget and the cap, as a line of its own under the description. *@
+<OptionList Class="cards" Filterable="false">
     @foreach (var tier in Session.Rules.Tiers)
     {
-        var selected = Session.Sheet.SelectedTierId == tier.Id;
-        <Panel Title="@tier.Name" Class="@(selected ? "selected" : null)">
-            <Head>
-                @if (selected)
+        var tierId = tier.Id;
+        <OptionRow Name="@tier.Name"
+                   Caveat="@Consequence(tier)"
+                   Cost="@($"{tier.HeroPoints} Hero Points · Trait Cap {tier.TraitCapRank}d")"
+                   Selected="@(Session.Sheet.SelectedTierId == tierId)"
+                   OnSelect="() => SelectTier(tierId)">
+            <NameExtra>
+                @if (Session.Sheet.SelectedTierId == tierId)
                 {
                     <span class="tag own">Selected</span>
                 }
-            </Head>
-            <ChildContent>
-                <p class="small">@tier.Description</p>
-                <p class="small num">
-                    <b>@tier.HeroPoints</b> Hero Points · Trait Cap <b>@tier.TraitCapRank</b>d
-                </p>
-                @if (tier.Notes is not null)
-                {
-                    <p class="small muted">@tier.Notes</p>
-                }
-                <button type="button" class="btn @(selected ? "" : "primary")"
-                        disabled="@selected"
-                        @onclick="() => SelectTier(tier.Id)">
-                    @(selected ? "Current tier" : "Choose " + tier.Name)
-                </button>
-            </ChildContent>
-        </Panel>
+            </NameExtra>
+        </OptionRow>
     }
-</div>
+</OptionList>
 
 <Panel Title="Starting package" Aside="Optional">
     <p class="small muted">
@@ -204,6 +197,15 @@
         || Session.Sheet.AbilityRanks.Count > 0
         || Session.Sheet.TalentRanks.Count > 0
         || !string.IsNullOrWhiteSpace(Session.Sheet.Name);
+
+    /// <summary>
+    /// What choosing this tier means, in one line. The Iconic tier is the reason the note is
+    /// folded in here rather than dropped: its "200+" is explicitly a bare minimum left to
+    /// the GM, and a card that showed the figure without that sentence would be stating a
+    /// budget the rulebook does not state.
+    /// </summary>
+    private static string Consequence(TierModel tier) =>
+        tier.Notes is null ? tier.Description : $"{tier.Description} {tier.Notes}";
 
     private void SelectTier(string id)
     {

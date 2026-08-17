@@ -71,7 +71,7 @@
                 </ChosenList>
             }
 
-            <OptionList>
+            <OptionList Placeholder="Filter these gear features">
                 @foreach (var feature in AvailableFeatures(target))
                 {
                     <OptionRow Name="@feature.Name" Caveat="@feature.Description"

@@ -53,7 +53,7 @@
 
     @if (_adding && _pending is null)
     {
-        <OptionList Class="spaced">
+        <OptionList Class="spaced" Placeholder="Filter these Pros and Cons">
             @foreach (var own in OwnEntries)
             {
                 <OptionRow Name="@own.Name" Caveat="@own.Description" Cost="@PowerProConCost(own)"

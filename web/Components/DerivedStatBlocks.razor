@@ -3,17 +3,21 @@
 @* Edge, Health and Resolve as ruled boxes. The derived-stats step and the sheet itself
    both show them, and they must never disagree, so they ask once from here. *@
 
-<StatBlockRow Class="@Class">
-    <StatBlock Label="Edge" Value="@Session.Derived.CalculateEdge(Sheet).ToString()" />
-    <StatBlock Label="Health" Value="@Session.Derived.CalculateHealth(Sheet).ToString()" />
-    <StatBlock Label="Resolve" Value="@Session.Derived.CalculateResolve(Sheet).ToString()" />
+<StatBlockRow Class="@RowClass">
+    <StatBlock Label="Edge" Value="@Session.Derived.CalculateEdge(Sheet).ToString()"
+               Formula="@(WithFormulas ? EdgeRule : null)" />
+    <StatBlock Label="Health" Value="@Session.Derived.CalculateHealth(Sheet).ToString()"
+               Formula="@(WithFormulas ? HealthRule : null)" />
+    <StatBlock Label="Resolve" Value="@Session.Derived.CalculateResolve(Sheet).ToString()"
+               Formula="@(WithFormulas ? ResolveRule : null)" />
     @if (WithPoints)
     {
         @* The published sheet sets Hero Points beside the other three, and on paper that is
            right: it is the one figure a GM checks a character against. A Villain has no
            budget to check against (Ch.9), so the box carries what they cost instead. *@
         <StatBlock Label="@(Budgeted ? "Hero Points" : "Points Spent")"
-                   Value="@Points" Sub="@Budget" />
+                   Value="@Points" Sub="@Budget"
+                   Formula="@(WithFormulas ? PointsRule : null)" />
     }
 </StatBlockRow>
 
@@ -39,7 +43,43 @@
     /// </summary>
     [Parameter] public bool? ShowBudget { get; set; }
 
+    /// <summary>
+    /// Whether to print the rule each figure came out of under it.
+    ///
+    /// <para><b>On for the step that works them out, off for the sheet.</b> Teaching the rule
+    /// is the point of running the real engine in the browser rather than reimplementing it —
+    /// but the published Hero Sheet prints no formulas, and the sheet is one page by a margin
+    /// that four extra blocks of small print would spend.</para>
+    /// </summary>
+    [Parameter] public bool WithFormulas { get; set; }
+
+    private string RowClass =>
+        WithFormulas ? $"{Class} with-formulas".TrimStart() : Class ?? "";
+
     private CharacterSheet Sheet => Character ?? Session.Sheet;
+
+    // The rules as Ch.2 states them, in words. Not a working: the engine answers what the
+    // figures *are*, and rebuilding the sum here would be arithmetic in the browser.
+    //
+    // Each names the exceptions rather than the common case alone, because the exceptions are
+    // where a player disagrees with the tool. All three of these were bugs in the engine at
+    // some point: Danger Sense replaces Perception rather than adding to it, Lightning
+    // Reflexes is a flat 6 with no rank, and Super Speed is missing from most summaries.
+    private const string EdgeRule =
+        "Perception plus the better of Agility or Intellect. Danger Sense replaces Perception, "
+        + "Lightning Reflexes adds 6, and Super Speed sets a floor of its rank times 3.";
+
+    private const string HealthRule =
+        "Toughness with Might, or Toughness with Willpower — whichever pair is higher, halved "
+        + "and rounded up.";
+
+    private const string ResolveRule =
+        "Trait Cap less the character's highest relevant rank, doubled. Determination adds 1 "
+        + "for every 5 Hero Points spent on it, and each Condition or Plot Hook adds 1.";
+
+    private const string PointsRule =
+        "Every rank, Power, Perk and gear feature bought, less what the Flaws and the starting "
+        + "package give back.";
 
     private bool Budgeted => ShowBudget ?? Session.ShowBudget;
 

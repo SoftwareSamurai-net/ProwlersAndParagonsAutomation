@@ -88,6 +88,59 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Type.
+
+   Two faces with distinct jobs, which is the single biggest visual difference
+   between this app and the companion app it was measured against. A condensed
+   face carries every heading, label and figure — the structural furniture — and
+   a separate face carries running prose. Separating levels by size and weight
+   alone, which is what the system stack did here on its own, reads as a document
+   with no design in it.
+
+   **The same rule applies as to colour: nothing outside this file names a face.**
+   app.css and every component ask for --font-display or --font-body, so changing
+   the house style is an edit here and the two palettes cannot drift apart on it.
+   There is a test.
+
+   **These are stacks of faces already on the reader's machine, not self-hosted
+   files, and that is a compromise rather than the design.** The intended shape is
+   two woff2 files under wwwroot/fonts/ and an @font-face block here; the CSP
+   already allows them (`font-src 'self'`) and nothing else would have to change,
+   because every rule in the app points at the tokens rather than at a family. Drop
+   the files in, add the @font-face rules, and put the family first in the stack
+   below — that is the whole change.
+
+   The display stack is ordered by what is actually installed where: Bahnschrift
+   ships with Windows 10 and later, Avenir Next Condensed and HelveticaNeue with
+   macOS and iOS, Liberation Sans Narrow and DejaVu Sans Condensed with most Linux
+   distributions. Every entry is a condensed grotesque, so the face changes between
+   platforms but the *job* it does does not — and the last resort is the UI stack
+   rather than a serif, so a machine with none of them degrades to today's design
+   instead of to something worse.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+    --font-body: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+
+    --font-display: "Bahnschrift", "Archivo Narrow", "Avenir Next Condensed",
+                    "HelveticaNeue-CondensedBold", "Liberation Sans Narrow",
+                    "DejaVu Sans Condensed", "Franklin Gothic Medium",
+                    system-ui, sans-serif;
+
+    /* A condensed face is narrower per character, so it takes more tracking to
+       read as deliberate and less leading to read as set rather than stacked.
+       Both are tokens because the print block wants different values: tracking
+       that looks right on a screen closes up on paper at 8pt. */
+    --display-track: 0.06em;
+    --display-leading: 1.08;
+
+    /* The small uppercase tracked label that carries the structure of a long form
+       on screen. Separate from --display-track because a 0.7rem label needs
+       noticeably more of it than a 1.7rem heading does. */
+    --label-track: 0.11em;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Shape and motion. Not colours, but the same argument applies: a component that
    hard-codes a radius or a duration is a component the two palettes can drift
    apart on, and one more place to edit when the house style changes.
@@ -156,6 +209,16 @@
         --radius:       0;         /* rounded corners are a screen affordance   */
         --radius-small: 0;
         --radius-pill:  0;
+
+        /* The two faces stay as they are — a printed sheet wants a display face
+           for its section bars as much as the screen does, and the published
+           sheet sets its own headings that way. What changes is the fitting.
+           Tracking that reads as deliberate at 1.7rem on a screen opens a 8pt
+           bar into loose letters on paper, and a condensed face at that size can
+           take tighter leading than a screen needs. */
+        --display-track: 0.04em;
+        --display-leading: 1.05;
+        --label-track: 0.09em;
     }
 
     /* Hero — the same navy and gold as the screen, at printable strength. */

@@ -68,7 +68,7 @@
 else
 {
     <Panel Title="Add a perk" Level="3">
-        <OptionList>
+        <OptionList Placeholder="Filter Perks by name or description">
             @foreach (var option in Available)
             {
                 <OptionRow Name="@option.Name"

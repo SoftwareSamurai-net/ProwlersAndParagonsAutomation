@@ -1,13 +1,90 @@
-@* The scrolling list of things that can be picked — Powers, Perks, Flaws, gear features,
-   Pros and Cons. Holds <OptionRow> children. *@
+@* The list of things that can be picked — Powers, Perks, Flaws, gear features, Pros and
+   Cons. Holds <OptionRow> children, and owns the box that filters them.
 
-<div class="@ClassName">
-    @ChildContent
+   The filter lives here rather than in the five tabs that use this component, which is the
+   point: it is one surface with one behaviour, and a sixth list of options gets a working
+   filter by being a list of options. See OptionFilter for why the cascading value is
+   replaced on every pass rather than mutated. *@
+
+@{
+    // A new tally and a new pass for every render, so the rows below re-run their decision
+    // and cannot report last render's answer. The counts drawn above come from the pass
+    // before this one — see OnAfterRender.
+    _pass++;
+    var tally = new OptionTally();
+    var filter = new OptionFilter(_query, tally, _pass);
+    _tally = tally;
+}
+
+<div class="options-wrap">
+    @if (Filterable)
+    {
+        <div class="options-filter">
+            <input type="search" value="@_query" @oninput="Typed"
+                   placeholder="@Placeholder" aria-label="@Placeholder" />
+            <span class="options-count">@_shown of @_total</span>
+        </div>
+    }
+
+    <CascadingValue Value="filter">
+        <div class="@ClassName">
+            @ChildContent
+        </div>
+    </CascadingValue>
+
+    @* Only when a filter is the reason it is empty. A list that is empty because there is
+       genuinely nothing to pick is the caller's business and it says so in its own words —
+       "None yet.", "every Pro is already on this Power". Printing "nothing matches" over
+       that would answer a question the reader did not ask. *@
+    @if (Filterable && _total > 0 && _shown == 0)
+    {
+        <p class="options-empty">Nothing in this list matches what you typed.</p>
+    }
 </div>
 
 @code {
     [Parameter] public string? Class { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
+    /// <summary>
+    /// Whether to draw the filter box. On by default, because every list this component was
+    /// written for is long enough to want one. The tier cards are the exception: six choices
+    /// a reader is meant to compare, not search.
+    /// </summary>
+    [Parameter] public bool Filterable { get; set; } = true;
+
+    /// <summary>
+    /// The box's placeholder, which is also its accessible name. Each list says what it holds
+    /// rather than all of them saying "Search", so a screen reader on the Pros picker is told
+    /// it is filtering Pros and Cons.
+    /// </summary>
+    [Parameter] public string Placeholder { get; set; } = "Filter this list";
+
+    private string _query = "";
+    private int _pass;
+    private OptionTally? _tally;
+
+    // What the counts said when this render was built. The rows fill the tally afterwards,
+    // so these lag by one pass and OnAfterRender is what catches them up.
+    private int _shown;
+    private int _total;
+
     private string ClassName => string.IsNullOrEmpty(Class) ? "options" : $"options {Class}";
+
+    private void Typed(ChangeEventArgs e) => _query = e.Value?.ToString() ?? "";
+
+    /// <summary>
+    /// The rows have now reported. If what they reported differs from what was drawn above
+    /// them, draw once more — and only then, or this is an endless loop rather than a count.
+    /// The second pass produces the same tally, finds it equal, and stops.
+    /// </summary>
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (_tally is not { } tally) return;
+        if (tally.Shown == _shown && tally.Total == _total) return;
+
+        _shown = tally.Shown;
+        _total = tally.Total;
+        StateHasChanged();
+    }
 }

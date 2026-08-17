@@ -67,7 +67,7 @@
 else
 {
     <Panel Title="Add a flaw" Level="3">
-        <OptionList>
+        <OptionList Placeholder="Filter Flaws by name or description">
             @foreach (var option in Available)
             {
                 <OptionRow Name="@option.Name"
