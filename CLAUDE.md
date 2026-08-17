@@ -141,8 +141,23 @@ exactly as the rules are, and fetched by `Program.cs` from `TranscriptLibrary.Fi
   library is read once at startup and shared by every visit; handing the instance over lets the
   first edit rewrite the recording.
 - **A failed transcript fetch must not stop the app.** Missing rules are a broken deployment;
-  missing recordings are a missing demonstration. `Program.cs` catches, registers an empty
-  library and carries the reason so the page can print it.
+  missing recordings are a missing demonstration. `ReplayLibrary.LoadAsync` catches, returns an
+  empty library and carries the reason so the page can print it — and **it is a method rather
+  than a block in `Program.cs` because that is where nothing could reach it.** It was a
+  `try`/`catch` in top-level statements; deleting the `try` left the whole suite green while
+  one 404 took the character generator to a blank page. One file short leaves *no* recordings
+  rather than most of them, which is deliberate: a library holding three of four looks like a
+  decision and answers the fourth address with "no such recording".
+- **Nothing on a replayed sheet may come from the visitor's own character**, and that is
+  asserted by rendering the same character twice — once held by the session, once passed as a
+  parameter over a *different* session character — and requiring the two pages to be identical.
+  Naming the fields does not work: seven of them were free at once. Anything that legitimately
+  comes from outside the character, which is `ShowBudget` and only `ShowBudget`, has to be
+  passed explicitly in both renderings or it hides every illegitimate difference behind itself.
+- **`ReplayLibrary.Find` is `OrdinalIgnoreCase` on purpose.** Blazor's route matching is
+  case-insensitive, so `/Replay/The-Conductor` reaches the page and only the lookup can refuse
+  it — which is a confident lie about a link that is fine. Same rule as `MainLayout`'s
+  first-path-segment check, and both now have tests.
 - **The Villain recording shows its budget finding rather than hiding it.** The GM review step
   hides `HP_BUDGET_EXCEEDED` in Villain mode; here it is shown with Ch.9 beside it, because one
   recording is about exactly that difference. **That branch claims no verdict at all** — not
@@ -342,6 +357,8 @@ Rasterising the result needs a PDF library (there is no `pdftoppm` or Python on 
 **The split is the point.** A source-reading test cannot see a bug in rendered output, and one duly shipped: Razor swallowed the space in `@name` + `<text> @(rank)d</text>` and the sheet printed **"Armor8d"**. It was fixed on the sheet and the same bug in a second spelling survived on the Powers tab for another whole slice, because no source file looks wrong. Anything about what a component *produces* belongs in the bUnit project; anything about how the source is *written* belongs in the other.
 
 **Assert on `TextContent`, never on markup with the tags stripped out.** Stripping a tag leaves a separator where it was, so `<b>Armor</b><span>8d</span>` reads as "Armor 8d" to any test that does it — which is how the Powers tab kept the Armor8d bug through a test written to catch it. It cuts the other way too, and worse: a `DoesNotContain("Communications 0d")` over stripped markup is satisfied by printing exactly that with the two halves in different elements. An adversarial pass did it, visibly, with the suite green. The browser concatenates text nodes; so must the test.
+
+**And the trap was inside the helper the render tests use to catch it.** `SheetRenderTests.Rendered` replaced every tag with a newline and one test then collapsed all whitespace, so `<b>Armor</b><span>8d</span>` read as "Armor 8d" — the exact string the assertions look for, produced by the exact bug they exist to find. It concatenates text nodes now. A test-side helper is as capable of being the bug as the component is; read the helper before trusting the assertion.
 
 **A typographic rule lives in the stylesheet, where no rendering test can see it.** Emptying `.hp` puts Hero Point costs back in the same size, weight and ink as ranks and every bUnit test still passes, because the class is still on the element. Anything whose whole substance is CSS — the `.hp` treatment, print font sizes, the break rules — is asserted in `WebPresentationTests` against the parsed rule, not inferred from markup.
 

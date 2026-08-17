@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3446 across two projects — 3322 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3464 across two projects — 3325 on the engine, 139 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -199,6 +199,66 @@ Not urgent. The site works, and a returning visitor pays nothing.
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Thirteen guards on the browser and the replay that were not guarding anything
+
+The audit backlog in `docs/HANDOVER.md` listed 38 surviving mutations across the whole tree,
+grouped by subsystem. This closes the browser-and-replay group — **all thirteen, each
+demonstrated by re-applying the mutation, confirming red, reverting and confirming green.**
+
+**The first five are one bug class, and it is the one `ReplayRenderTests` was written for.** The
+four `.stat-block` figures and the Power ranks were genuinely pinned to the recorded character;
+nothing else on the page was. The tier in the masthead and the colophon, the budget sub-line, the
+Quote, the Motivation, the Description, the Connections and a rankless Power's stand-in rank could
+all be moved from the printed character to the visitor's own with the suite green — so a replay
+would print Vera Nunn's name over somebody else's tier, budget, words and connections.
+
+Five more named assertions would have moved the boundary rather than closed it: the eighth field
+somebody adds is unguarded again the day it is added. So the test compares **two renderings of the
+same character** — one where the session holds it, one where the session holds somebody else
+entirely and it arrives as a parameter — and asserts they are the same page. Every read of
+`Session.Sheet` that should have been a read of the parameter is a difference between them,
+whatever field it lives in. Three cases it cannot reach have their own tests: the stand-in rank
+(no recorded character has a rankless Power, so it is built from the Hero sample), the budget flag
+the replay passes for a Villain, and a capitalised address, which Blazor routes happily and
+`ReplayLibrary.Find` then refused.
+
+**The transcript honesty rules were narrower than they read.** The figure scan read `Title`,
+`Blurb` and the recorded lines — never the character, which is what the sheet at the end is
+printed from, so a Hero Point total in a Motivation, a Quote, a Description, a Connection or a
+Flaw's narrative detail passed. It walks the character by reflection rather than naming six
+fields, because a list of field names is exactly what goes stale here. Its word set was the
+engine's vocabulary and not the page's: `ReplayVerdict` labels the gap `Over by` and `Left`, and
+"nineteen over … three to spare" matched none of `HP|hero points|points|edge|health|resolve|
+budget`. Those positional words now count, at a **one-word window** rather than three — at three,
+Vera Nunn's "an apron over a cardigan" is a quoted figure.
+
+And questions were counted by `'?'`, so seven imperative demands asked nothing at all — a
+questionnaire, in the one file whose job is to demonstrate the opposite. The counter recognises a
+demand now, and is honest in its own doc comment about being a heuristic; a second test counts the
+**person's replies**, which no phrasing can get round.
+
+**Three CSS rules were asserted by presence rather than by value**, which is the same mistake in
+three places: `print-color-adjust: exact` could become `economy` (every heading bar prints white —
+the failure the rule's own comment describes), `.hp` could be set at 2.4rem/800 (a Hero Point cost
+three times the size of the rank beside it), and the 7pt print floor matched only sizes already
+written in `pt`, so the two densest blocks on the sheet could go to `0.3rem` and `4px` unseen. The
+floor now requires every printed size to be in points, which it has to be to mean anything: `rem`
+is relative to a root size the print block resets.
+
+**"A failed transcript fetch must not stop the app" had no test**, because the guarantee was a
+`try`/`catch` in top-level statements that nothing can reach. Deleting it was green, and one 404
+then took the whole character generator to a blank page. It is `ReplayLibrary.LoadAsync` now,
+which takes the fetch as an argument and can therefore be handed one that fails — four tests,
+including that one file short leaves **no** recordings rather than most of them, plus a source
+test that `Program.cs` actually goes through it. Both halves are needed: a guarded loader nobody
+calls guarantees nothing.
+
+**And the strip-tags trap was in the helper `SheetRenderTests` uses to catch it.** `Rendered`
+replaced every tag with a newline and one test then collapsed all whitespace, so
+`<b>Armor</b><span>8d</span>` read as "Armor 8d" — the string the assertions look for, produced by
+the bug they exist to find. Demonstrated both ways: splitting a Pros line into per-word elements
+is red against the concatenated text nodes and green against the old helper.
 
 ### The rulebook corpus was materially wrong, and its tests could not see it
 
