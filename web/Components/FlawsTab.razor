@@ -13,10 +13,11 @@
 
     @if (Session.Sheet.Flaws.Count == 0)
     {
-        @* The next action, and the reason it is not optional. The Resolve rule is already
-           stated above, so repeating it here would be the duplication the derived step just
-           lost; what this adds is the count the rules require, read from the same place the
-           heading reads it rather than written out again. *@
+        @* The next action, and the reason it is not optional. The Resolve rule is stated in the
+           paragraph above, so it is not repeated here; the creation minimum is, because the
+           heading gives it as one end of a range ("1–3 at creation") among four other figures,
+           and an empty list wants the one number that applies to it now. Read from the rules
+           rather than written out, so it cannot drift from the range beside it. *@
         <EmptyState>
             No Flaws yet, and the rules ask for at least @Rules.MinAtCreation at creation.
             Add one below.

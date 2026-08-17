@@ -75,6 +75,26 @@ public sealed class WebPresentationTests
     /// <summary>The projects whose type names must never reach the page.</summary>
     private static readonly string[] ProjectsWithTypes = ["engine", "sheets"];
 
+    /// <summary>
+    /// Every way to make an element invisible while leaving its class and its text in place.
+    ///
+    /// <para><b>Shared, because the second copy of it was weaker than the first.</b> Banning
+    /// <c>display: none</c> alone leaves <c>visibility: hidden</c>, <c>color: transparent</c> and
+    /// <c>font-size: 0</c> — several ways to one result, all green. And they are matched as whole
+    /// declarations: <c>font-size:0</c> is a prefix of a rule's own <c>font-size:0.72rem</c> and
+    /// <c>opacity:0</c> of <c>opacity:0.8</c>, so a naive spelling fires on the thing it is
+    /// protecting, and the obvious fix for that is to weaken the ban.</para>
+    ///
+    /// <para>A guard added later for the empty state wrote its own four-entry version without the
+    /// prefix guards. Two lists is one list going stale, so there is one.</para>
+    /// </summary>
+    private static readonly string[] EverySpellingOfHidden =
+    [
+        @"display:none", @"visibility:hidden", @"visibility:collapse",
+        @"color:transparent", @"font-size:0(?![.\d])", @"opacity:0(?![.\d])",
+        @"content-visibility:hidden"
+    ];
+
     // ── No component names a colour ─────────────────────────────────────────────
 
     /// <summary>
@@ -462,6 +482,12 @@ public sealed class WebPresentationTests
     [
         (".budget-toggle", "padding:0 0 1px", "border-bottom", ".budget-toggle"),
         (".banner-link", "padding-bottom:1px", "border-bottom", ".banner-link"),
+        // The standard clip-to-nothing pattern for text that is read out and never drawn. The
+        // -1px is part of the recipe rather than spacing anybody chose: the element is a 1px box
+        // pulled back over itself so it occupies no layout at all, and rounding it to a spacing
+        // rung would give it size. `clip-path` is the precondition — with the clip gone this is
+        // just an element positioned 1px off, which scrolls into view and is a different bug.
+        (".sr-only", "margin:-1px", "clip-path", ".sr-only"),
         // The negative em pulls back the letter-spacing added after the final character, so the
         // thing it depends on is the letter-spacing, not a border — and it comes from the base
         // `.hp` rule, which is why the selector it is required on is not the one it is exempt on.
@@ -759,8 +785,16 @@ public sealed class WebPresentationTests
     {
         var css = ScreenHalfOfAppCss;
 
-        // The shell, and the inner column of each band that is not inside it.
-        string[] columns = [".shell", ".steps-list", ".budget-strip", ".breakdown"];
+        // The shell, and the inner column of every band outside it — **including the banner's**,
+        // which the first version of this left out while the layout's own comment offered the
+        // banner as the example the others follow. It was the only band not on the column.
+        string[] columns = [".shell", ".banner-inner", ".steps-list", ".budget-strip", ".breakdown"];
+
+        // The band elements themselves. A band is a full-width fill and may not pad its own
+        // contents: padding here shifts the column inside it and nothing else, so
+        // `.budget { padding: … var(--space-6) … }` moved the spend figure 24px off the heading
+        // and stopped the rail running edge to edge, with the column checks all still passing.
+        string[] bands = [".banner", ".steps", ".budget"];
 
         var scopes = new List<(string Where, string Css)> { ("the base rules", TopLevelOf(css)) };
 
@@ -772,11 +806,27 @@ public sealed class WebPresentationTests
             "Only one scope pads .shell was found. The narrow-viewport query does, so the query "
             + "scan is not reading the stylesheet.");
 
-        // Every band is capped on the same token, in the base rules. A band that is not capped
-        // runs the width of the window and its contents stop lining up with everything else.
+        // Every column is capped on the same token, and **centred**, and neither was fully
+        // checked. `max-width` was read in the base rules only, so a new breakpoint widening
+        // `.shell` alone passed while the doc claimed queries were discovered rather than listed;
+        // and centring was not read at all, so `.budget-strip { margin: 0 }` put the spend figure
+        // flush against the window edge while the labels above and the heading below stayed on the
+        // column — the exact failure this test's summary names.
         foreach (var column in columns)
-            Assert.Equal("var(--column)",
-                EffectiveValue(TopLevelOf(css), column, "max-width"));
+        {
+            Assert.Equal("var(--column)", EffectiveValue(css, column, "max-width"));
+
+            var margin = EffectiveValue(css, column, "margin");
+            Assert.True(margin is not null && margin.Contains("auto", StringComparison.Ordinal),
+                $"{column} is capped on --column but not centred (margin: {margin ?? "unset"}), so "
+                + "it sits at the left edge of a band that runs the whole window.");
+        }
+
+        // And no band pads its own contents.
+        foreach (var band in bands)
+            Assert.True(HorizontalPaddingTokenOf(css, band) is null,
+                $"{band} sets horizontal padding. A band is a full-width fill; the padding "
+                + "belongs to the column inside it, or the two stop agreeing.");
 
         // And every band reserves the same padding around it, in each scope that sets any of
         // them. A scope that re-pads the shell and forgets a band is the failure the old bleed
@@ -792,8 +842,8 @@ public sealed class WebPresentationTests
 
             Assert.True(reserved.Count == columns.Length,
                 $"{where} pads {string.Join(", ", reserved.Select(r => r.Column))} but not "
-                + $"{string.Join(", ", columns.Except(reserved.Select(r => r.Column)))}. All four "
-                + "columns narrow together or they stop sharing a left edge.");
+                + $"{string.Join(", ", columns.Except(reserved.Select(r => r.Column)))}. All "
+                + $"{columns.Length} columns narrow together or they stop sharing a left edge.");
 
             Assert.True(reserved.Select(r => r.Padding).Distinct(StringComparer.Ordinal).Count() == 1,
                 $"{where} reserves different padding per band: "
@@ -904,6 +954,52 @@ public sealed class WebPresentationTests
         Rx(@"^var\(\s*(--space-[a-z0-9-]+)\s*\)$").Match(Normalise(value)) is { Success: true } m
             ? m.Groups[1].Value
             : null;
+
+    /// <summary>
+    /// An empty state is marked out as guidance, and the marking is entirely typographic — so it
+    /// is entirely in the stylesheet, where no rendering test can see it.
+    ///
+    /// <para><b>Deleting the whole <c>.empty-state</c> rule left every one of the eight
+    /// <c>EmptyStateTests</c> green, and both class-ownership tests too.</b> The class is still on
+    /// the element and every one of those assertions reads markup, so the leading edge and the
+    /// padding — the entire mechanism that stops the sentence reading as the first row of the list
+    /// it stands in for — could go without a word. That is the <c>.hp</c> trap this file already
+    /// records verbatim, reproduced by the change that cites it as a lesson.</para>
+    ///
+    /// <para>Checked over every rule targeting the class rather than the base one, because a more
+    /// specific rule further down wins the cascade — the same reason the <c>.hp</c> guard does it.</para>
+    /// </summary>
+    [Fact]
+    public void AnEmptyStateIsMarkedOutAsGuidance()
+    {
+        var rules = RulesTargeting(".empty-state");
+
+        Assert.NotEmpty(rules);
+
+        var edge = EffectiveValue(ScreenHalfOfAppCss, ".empty-state", "border-left");
+
+        Assert.True(edge is not null,
+            "The empty state has no leading edge, so it reads as the first row of the list it is "
+            + "standing in for rather than as guidance about it.");
+
+        // A hairline in the rule colour, not the accent: this is an instruction, not a warning and
+        // not a selection. Asserted as the value, because `border-left: none` satisfies presence.
+        Assert.Contains("var(--rule)", edge!, StringComparison.Ordinal);
+        Assert.DoesNotContain("none", edge!, StringComparison.Ordinal);
+
+        // And set in from that edge, or the rule sits against the text.
+        Assert.True(Rx(@"padding[^;}]*:[^;}]*var\(--space-").IsMatch(string.Join(';', rules)),
+            "The empty state sets no padding, so its leading edge touches the sentence.");
+
+        // Never hidden. Everything above is satisfied by an element that is present and invisible,
+        // and every rendering test passes on one too — a hidden element keeps its class and its
+        // text. The shared list, not a fresh one: the first version written here had four entries
+        // and none of the prefix guards, so it would have fired on `opacity: 0.8`.
+        Assert.All(rules, rule =>
+            Assert.All(EverySpellingOfHidden, way =>
+                Assert.False(Rx(way).IsMatch(Normalise(rule)),
+                    $"A rule targeting .empty-state hides it with '{way}': {Normalise(rule)}")));
+    }
 
     /// <summary>
     /// The smallest type rung is exactly the size <c>--muted</c> was measured against.
@@ -1494,15 +1590,8 @@ public sealed class WebPresentationTests
         // Matched as whole declarations, not as substrings: `font-size:0` is a prefix of the
         // rule's own `font-size:0.72rem`, and `opacity:0` of `opacity:0.8`. A ban that fires on
         // the thing it is protecting is worse than no ban, because the fix is to weaken it.
-        string[] hidden =
-        [
-            @"display:none", @"visibility:hidden", @"visibility:collapse",
-            @"color:transparent", @"font-size:0(?![.\d])", @"opacity:0(?![.\d])",
-            @"content-visibility:hidden"
-        ];
-
         Assert.All(RulesTargeting(".rank-word"), rule =>
-            Assert.All(hidden, way =>
+            Assert.All(EverySpellingOfHidden, way =>
                 Assert.False(Rx(way).IsMatch(Normalise(rule)),
                     $"A rule targeting .rank-word hides it with '{way}': {Normalise(rule)}")));
     }

@@ -29,7 +29,17 @@ else
             <button type="button"
                     aria-current="@(_tab == tab.Key ? "true" : "false")"
                     @onclick="() => _tab = tab.Key">
-                @tab.Label <span class="tab-count @(tab.Untouched() ? "untouched" : "")">@tab.Count()</span>
+                @* The ring is a shape rather than a colour, so it survives a reader who cannot
+                   see the colour — but a shape is not available to a screen reader either, and
+                   the count alone ("Powers 0") leaves the reader to infer it. So the word is
+                   there too, off-screen, for the sections that carry the marking. *@
+                @tab.Label
+                <span class="tab-count@(tab.Untouched() ? " untouched" : "")">
+                    @tab.Count()@if (tab.Untouched())
+                    {
+                        <span class="sr-only"> — nothing here yet</span>
+                    }
+                </span>
             </button>
         }
     </div>
@@ -61,20 +71,29 @@ else
     /// Whether this section has nothing in it yet, so the strip can say which sections are
     /// still to do rather than leaving a reader to notice a zero among four other numbers.
     ///
-    /// <para><b>Only the three collections can answer it, and that is a rules matter rather
-    /// than a convenience.</b> Ch.2 puts a floor of 1d under every Ability and every Talent —
-    /// a character has all eighteen and cannot be without them — so those two sections are
-    /// never empty and "untouched" is not a state they have. Their figure is a cost, and a
-    /// cost of 0 HP means a package covered it, not that nobody has been here. Powers, Perks
-    /// and Flaws are genuinely collections, and an empty one is genuinely untouched.</para>
+    /// <para><b>Every section can answer it, and the first version of this wrongly said two of
+    /// them could not.</b> The argument was that Ch.2 floors every Ability and Talent at 1d, so a
+    /// character has all eighteen and cannot be without them — true of a <em>finished</em>
+    /// character, and exactly why a fresh one needs telling. It went on to claim that 0 HP there
+    /// "means a package covered it, not that nobody has been here", and that is false on the
+    /// default path: <c>AbilityCost</c> walks <c>AbilityRanks</c>, which is empty on a new sheet,
+    /// so <b>no package also costs 0 HP</b>. The two sections that most needed marking were the
+    /// two forbidden from ever saying so, on a character the validator reports eighteen
+    /// <c>TRAIT_BELOW_MINIMUM</c> errors deep.</para>
+    ///
+    /// <para><b>So the question is whether a rank is recorded, not what the section costs</b> —
+    /// which tells the two cases apart properly, because choosing a package writes its granted
+    /// ranks straight into <c>AbilityRanks</c> and <c>TalentRanks</c> (see
+    /// <c>ChooseTier.SelectPackage</c>). A packaged character reads as touched at 0 HP; a fresh
+    /// one reads as untouched.</para>
     /// </param>
     private sealed record Tab(string Key, string Label, Func<string> Count, Func<bool> Untouched);
 
-    private static Func<bool> Never => static () => false;
-
     private Tab[] Tabs => [
-        new("abilities", "Abilities", () => $"{Session.Costs.AbilityCost(Session.Sheet)} HP", Never),
-        new("talents",   "Talents",   () => $"{Session.Costs.TalentCost(Session.Sheet)} HP", Never),
+        new("abilities", "Abilities", () => $"{Session.Costs.AbilityCost(Session.Sheet)} HP",
+                                      () => Session.Sheet.AbilityRanks.Count == 0),
+        new("talents",   "Talents",   () => $"{Session.Costs.TalentCost(Session.Sheet)} HP",
+                                      () => Session.Sheet.TalentRanks.Count == 0),
         new("powers",    "Powers",    () => $"{Session.Sheet.SelectedPowers.Count}",
                                       () => Session.Sheet.SelectedPowers.Count == 0),
         new("perks",     "Perks",     () => $"{Session.Sheet.Perks.Count}",

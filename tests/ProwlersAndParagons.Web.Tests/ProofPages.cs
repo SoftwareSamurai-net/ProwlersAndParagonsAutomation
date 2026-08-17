@@ -160,9 +160,58 @@ public sealed class ProofPages
     private static void WriteRaw(string file, string mode, string body) =>
         WritePage(file, mode, body);
 
+    /// <summary>
+    /// Everything a proof page must contain to be proofing what it claims to, keyed by file.
+    ///
+    /// <para><b>These harnesses have no assertions and cannot have many, and that is the honest
+    /// limit of them: they are proof generators, gated on <c>PP_PROOF</c>, so with it unset they
+    /// are no-ops and nothing about them is testable.</b> A reviewer demonstrated the consequence
+    /// — commenting out five of the six sections of the empty-editor proof, including the tab strip
+    /// it exists to show, left the suite at its full count; and swapping <c>WriteRaw</c> for
+    /// <c>Write</c> puts the banner inside a 1100px column, defeating the shell proof's whole
+    /// purpose, with `WriteRaw` becoming an unreferenced method and no warning.</para>
+    ///
+    /// <para>What can be checked is the one thing that matters: <b>a page that is written contains
+    /// the markers it was written to show.</b> That is not coverage, and it does not make these
+    /// tests. It does mean a proof cannot silently become a picture of something else — which is
+    /// the dangerous shape, because a proof read as evidence is worse than no proof at all.</para>
+    /// </summary>
+    private static readonly Dictionary<string, string[]> MustShow = new(StringComparer.Ordinal)
+    {
+        // The shell's three bands, and the banner outside the shell rather than in it.
+        ["proof-shell-hero.html"] = ["class=\"banner\"", "class=\"steps\"", "class=\"budget\"", "class=\"shell\""],
+        ["proof-shell-villain.html"] = ["class=\"banner\"", "class=\"steps\"", "class=\"shell\""],
+        // The empty editors: the tab strip with a marker, and an empty state from each editor.
+        ["proof-empty.html"] = ["tab-count untouched", "empty-state"],
+    };
+
+    /// <summary>
+    /// What a proof page must <b>not</b> contain — and this half is what catches the mutation the
+    /// positive markers cannot.
+    ///
+    /// <para>Swapping <c>WriteRaw</c> for <c>Write</c> on a shell proof wraps the layout in
+    /// <c>&lt;div class="shell"&gt;</c>, putting the one band that must run the full width of the
+    /// window inside a 1100px column. Every positive marker survives that, because the layout emits
+    /// its own <c>&lt;main class="shell"&gt;</c> either way — so the thing to refuse is the
+    /// <em>wrapper</em>, which only <c>Write</c> produces.</para>
+    /// </summary>
+    private static readonly Dictionary<string, string[]> MustNotShow = new(StringComparer.Ordinal)
+    {
+        ["proof-shell-hero.html"] = ["<div class=\"shell\">"],
+        ["proof-shell-villain.html"] = ["<div class=\"shell\">"],
+    };
+
     private static void WritePage(string file, string mode, string body)
     {
         var wwwroot = Path.Combine(RepoRoot(), "web", "wwwroot");
+
+        if (MustShow.TryGetValue(file, out var markers))
+            foreach (var marker in markers)
+                Assert.Contains(marker, body, StringComparison.Ordinal);
+
+        if (MustNotShow.TryGetValue(file, out var banned))
+            foreach (var marker in banned)
+                Assert.DoesNotContain(marker, body, StringComparison.Ordinal);
 
         var page = $"""
             <!doctype html>

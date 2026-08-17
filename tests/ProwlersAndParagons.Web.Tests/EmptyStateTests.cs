@@ -1,4 +1,5 @@
 using Bunit;
+using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Pages;
@@ -33,6 +34,9 @@ public sealed class EmptyStateTests
     /// beside it — a statement of what the thing would do to the character.
     /// </summary>
     private static readonly string[] ActionWords = ["Add", "Pick", "Choose", "widens", "narrows"];
+
+    /// <summary>The five sections of the characteristics step, in the order the strip shows them.</summary>
+    private static readonly string[] Sections = ["Abilities", "Talents", "Powers", "Perks", "Flaws"];
 
     /// <summary>
     /// Every editor that can hold nothing, rendered holding nothing.
@@ -70,91 +74,143 @@ public sealed class EmptyStateTests
         AssertSubstantive(Empty().Render<Finishing>().Markup, "Finishing");
 
     /// <summary>
-    /// The Pros and Cons picker, which serves Powers and Abilities both — so its empty state is
-    /// worded for either and may not name one of them.
+    /// The Pros and Cons picker's empty state is worded for <b>any</b> subject, and may name none
+    /// of the three it renders under.
     ///
-    /// <para><b>Driven at both settings of <c>IsPro</c>, and the first version was not.</b> It
-    /// rendered <c>AbilitiesTab</c>, which is where the app puts this picker — and that tab passes
-    /// <c>IsPro="false"</c> and nothing else, so the Pro half of the wording was never rendered
-    /// and a mutation putting "this Power does" into it passed. A driven test covers the arguments
-    /// it sends; this project has the same finding recorded against the MCP server's refusal
-    /// branches, which every tool had and none of them drove.</para>
+    /// <para><b>Driven at every scope and both settings of <c>IsPro</c>, and two earlier versions
+    /// were not.</b> The first rendered <c>AbilitiesTab</c>, which is where the app puts this
+    /// picker — and that tab passes <c>IsPro="false"</c> and nothing else, so the Pro half of the
+    /// wording was never rendered and putting "this Power does" into it passed. The second drove
+    /// both halves and still banned only the word <c>Power</c>, on a component whose
+    /// <c>Target</c> has three members: naming the <em>Ability</em> passed, and is false under a
+    /// Power and under a piece of Gear. A driven test covers the arguments it sends, and a ban
+    /// covers the words it lists.</para>
     /// </summary>
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void ThePickerSaysWhatAProAndAConDoWithNoneChosen(bool isPro)
+    [InlineData(ProConPicker.Target.Power, true)]
+    [InlineData(ProConPicker.Target.Power, false)]
+    [InlineData(ProConPicker.Target.Ability, true)]
+    [InlineData(ProConPicker.Target.Ability, false)]
+    [InlineData(ProConPicker.Target.Gear, true)]
+    [InlineData(ProConPicker.Target.Gear, false)]
+    public void ThePickerSaysWhatAProAndAConDoWithNoneChosen(ProConPicker.Target scope, bool isPro)
     {
         using var ctx = Empty();
 
         var markup = ctx.Render<ProConPicker>(p => p
-            .Add(c => c.Scope, ProConPicker.Target.Ability)
+            .Add(c => c.Scope, scope)
             .Add(c => c.IsPro, isPro)
             .Add(c => c.Selected, [])).Markup;
 
-        AssertSubstantive(markup, $"ProConPicker(IsPro: {isPro})");
+        AssertSubstantive(markup, $"ProConPicker({scope}, IsPro: {isPro})");
 
-        // The subject is not named, because it varies: the same component renders under a Power
-        // and under an Ability, and "the Power" is false half the time it is shown.
+        // **No subject named, and every subject checked.** The sentence renders under all three,
+        // so naming any one of them is false under the other two — and the enum is read rather
+        // than a list retyped here, so a fourth scope is covered the day it is added.
         foreach (var state in States(markup))
-            Assert.DoesNotContain("Power", state, StringComparison.Ordinal);
+            foreach (var target in Enum.GetNames<ProConPicker.Target>())
+                Assert.DoesNotContain(target, state, StringComparison.OrdinalIgnoreCase);
 
         // And the two halves genuinely differ — one sentence used for both would pass everything
-        // above while telling a reader a Con adds to the cost.
+        // above while telling a reader that a Con adds to the cost.
         Assert.Contains(isPro ? "widens" : "narrows", States(markup)[0], StringComparison.Ordinal);
         Assert.DoesNotContain(isPro ? "narrows" : "widens", States(markup)[0], StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// The tab strip marks the sections that have nothing in them, and marks only the three that
-    /// can be empty.
+    /// The Flaws tab's empty state quotes the creation minimum, and quotes it <b>from the rules</b>.
     ///
-    /// <para><b>This shipped with no guard and a mutation deleting the marker passed.</b> Which is
-    /// the pattern this project keeps recording — a new surface added and reviewed by nothing —
-    /// so it is here rather than waiting for a reviewer to find it.</para>
+    /// <para><b>It is the one empty state that asserts a rules figure, and nothing checked the
+    /// figure.</b> Swapping <c>MinAtCreation</c> for <c>MaxAtCreation</c> rendered "the rules ask
+    /// for at least 3 at creation" — a false statement about the rulebook, told to the player, with
+    /// the whole suite green: <c>AssertSubstantive</c> counts words and looks for a verb, and
+    /// neither notices which number is in the sentence.</para>
     ///
-    /// <para>The negative half is the load-bearing one. Ch.2 floors every Ability and Talent at
-    /// 1d, so a character has all eighteen and those sections are never untouched; their figure is
-    /// a cost, and 0 HP means a package covered it. Marking them would tell a reader that eighteen
-    /// Traits they cannot be without are missing.</para>
+    /// <para>Read from <c>creation_rules.json</c> through the repository rather than typed here, so
+    /// this cannot drift from the data — and the *minimum* is asserted against the maximum as well,
+    /// because on this rulebook they are 1 and 3, and a test that only looked for "1" would pass a
+    /// sentence that had quoted the wrong end of a range that happened to start there.</para>
     /// </summary>
     [Fact]
-    public void TheTabStripMarksOnlyTheSectionsThatCanBeEmpty()
+    public void TheFlawsEmptyStateQuotesTheCreationMinimumFromTheRules()
     {
         using var ctx = Empty();
 
-        var tabs = ctx.Render<Characteristics>().FindAll(".tabs button");
+        var flawRules = ctx.Services
+            .GetRequiredService<RulesRepository>()
+            .CreationRules.FlawRules;
 
-        Assert.Equal(5, tabs.Count);
+        var state = States(ctx.Render<FlawsTab>().Markup).Single();
 
-        foreach (var tab in tabs)
-        {
-            var label = tab.TextContent;
-            var count = tab.QuerySelector(".tab-count");
-
-            Assert.True(count is not null, $"The {label} tab shows no count.");
-
-            var marked = count!.ClassList.Contains("untouched");
-            var isCollection = label.Contains("Powers", StringComparison.Ordinal)
-                               || label.Contains("Perks", StringComparison.Ordinal)
-                               || label.Contains("Flaws", StringComparison.Ordinal);
-
-            Assert.True(marked == isCollection,
-                isCollection
-                    ? $"{label.Trim()} is empty on a fresh character and is not marked untouched."
-                    : $"{label.Trim()} is marked untouched, but Ch.2 floors every Ability and "
-                      + "Talent at 1d — that section cannot be empty, and its figure is a cost.");
-        }
-
-        // And the marker goes when the section fills, or it is decoration rather than a state.
-        ctx.Session.Sheet.Perks.Add(new SelectedPerk("contacts", 1, "A precinct dispatcher"));
-
-        var perks = ctx.Render<Characteristics>()
-            .FindAll(".tabs button")
-            .Single(b => b.TextContent.Contains("Perks", StringComparison.Ordinal));
-
-        Assert.DoesNotContain("untouched", perks.QuerySelector(".tab-count")!.ClassList);
+        Assert.Contains($"at least {flawRules.MinAtCreation}", state, StringComparison.Ordinal);
+        Assert.NotEqual(flawRules.MinAtCreation, flawRules.MaxAtCreation);
+        Assert.DoesNotContain($"at least {flawRules.MaxAtCreation}", state, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// On a fresh character <b>every</b> section is marked untouched, and each marker clears when
+    /// its own section is filled.
+    ///
+    /// <para><b>The first version of this pinned the wrong rule, and an adversarial pass caught
+    /// it.</b> It asserted that Abilities and Talents may <em>never</em> be marked, on the argument
+    /// that Ch.2 floors every Trait at 1d so those sections are never empty, and that 0 HP there
+    /// means a package covered the cost. The first half is true of a finished character and is
+    /// exactly why a fresh one needs telling; the second is simply false — <c>AbilityCost</c> walks
+    /// <c>AbilityRanks</c>, which is empty on a new sheet, so no package also costs 0 HP. The two
+    /// sections that most needed marking were the two this test forbade from saying so, on a
+    /// character the engine reports eighteen <c>TRAIT_BELOW_MINIMUM</c> errors deep.</para>
+    ///
+    /// <para><b>Each marker is now cleared independently, which the first version also did not
+    /// do.</b> It filled Perks alone, so a mutation pinning Powers or Flaws to permanently
+    /// untouched passed with fifteen entries on the sheet. Five sections, five fills.</para>
+    /// </summary>
+    [Fact]
+    public void EverySectionIsMarkedUntouchedUntilItIsFilled()
+    {
+        using var ctx = Empty();
+
+        var fresh = Marked(ctx);
+
+        Assert.Equal(5, fresh.Count);
+        Assert.All(fresh, m => Assert.True(m.Value,
+            $"{m.Key} is empty on a fresh character and is not marked untouched."));
+
+        // Each section filled on its own, and only its own marker may clear. A test that fills
+        // one and checks one cannot tell an independent marker from a hard-coded true.
+        var fills = new (string Section, Action Fill)[]
+        {
+            ("Abilities", () => ctx.Session.Sheet.AbilityRanks["might"] = 3),
+            ("Talents",   () => ctx.Session.Sheet.TalentRanks["covert"] = 3),
+            ("Powers",    () => ctx.Session.Sheet.SelectedPowers.Add(new SelectedPower("armor", 3))),
+            ("Perks",     () => ctx.Session.Sheet.Perks.Add(new SelectedPerk("contacts", 1, "A dispatcher"))),
+            ("Flaws",     () => ctx.Session.Sheet.Flaws.Add(new SelectedFlaw("enemy", "An old partner"))),
+        };
+
+        var filled = new List<string>();
+
+        foreach (var (section, fill) in fills)
+        {
+            fill();
+            filled.Add(section);
+
+            foreach (var (name, marked) in Marked(ctx))
+                Assert.True(marked != filled.Contains(name),
+                    marked
+                        ? $"{name} is still marked untouched after being filled — the marker is "
+                          + "decoration rather than a state."
+                        : $"{name} lost its marker when {section} was filled, and it is still "
+                          + "empty. The markers are not independent of each other.");
+        }
+    }
+
+    /// <summary>Each tab's section name, and whether its count is marked untouched.</summary>
+    private static Dictionary<string, bool> Marked(RenderContext ctx) =>
+        ctx.Render<Characteristics>()
+            .FindAll(".tabs button")
+            .ToDictionary(
+                b => Sections.First(n => b.TextContent.Contains(n, StringComparison.Ordinal)),
+                b => b.QuerySelector(".tab-count") is { } c && c.ClassList.Contains("untouched"),
+                StringComparer.Ordinal);
 
     /// <summary>
     /// Every empty state in some markup, as its text with tags removed.

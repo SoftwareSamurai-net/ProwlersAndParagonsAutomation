@@ -4,7 +4,12 @@
 @inject IJSRuntime Js
 @inject NavigationManager Nav
 
+@* The fill runs the full width of the window; the contents sit on --column, like the two bands
+   below it and the shell below them. That is one element rather than a `calc()` on the padding
+   because it makes the banner structurally the same as the others, so one guard covers all four
+   — see the comment on `.banner-inner` in app.css. *@
 <header class="banner">
+  <div class="banner-inner">
     <div class="banner-title">
         Prowlers &amp; Paragons
         <small>Character creation — @(Session.Mode == SheetMode.Hero ? "Hero" : "Villain")</small>
@@ -27,6 +32,7 @@
                 aria-pressed="@Pressed(SheetMode.Villain)"
                 @onclick="() => SetMode(SheetMode.Villain)">Villain</button>
     </div>
+  </div>
 </header>
 
 @* **The chrome is outside the shell, and that is what makes it one band rather than three.**
@@ -36,7 +42,11 @@
    215px of furniture before the page heading, on every step, reading as four stacked pieces.
 
    Out here they are full-window-width bands like the banner, contiguous, each centring its own
-   contents on --column so the three agree. The strip's negative-margin bleed is gone with them:
+   contents on --column so that all of them agree — **including the banner, which this note
+   originally claimed was already doing so and was not.** It had a flat side padding, so the
+   wordmark sat 24px from the window edge while the step labels below it sat on the column: the
+   one band described as the example was the only one out of step. The strip's negative-margin
+   bleed is gone with them:
    it existed only to escape the shell's padding, and an element that is not inside the shell
    has nothing to escape. So has the pair of narrow-viewport rules that had to be kept in step
    with it, and the 8px overflow they caused at 375px is now unreachable rather than guarded.
