@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3867 tests** — 3660 engine, 207 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3874 tests** — 3662 engine, 212 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
@@ -93,7 +93,7 @@ Each one has cost this project real time when skipped.
    ```bash
    dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
    ```
-   It must report **3660 + 207 = 3867** and zero warnings. **Warnings are errors only under that
+   It must report **3662 + 212 = 3874** and zero warnings. **Warnings are errors only under that
    flag**, so a plain `dotnet test` passes over things CI fails on.
 
    **Take the number from the run, not from a document, and update the document from the run.**
@@ -168,13 +168,22 @@ Not preferences — this is what the last few slices cost when they were skipped
    cascade genuinely resolved the right way and the mutation never reached the state being tested
    for. Insert after the rule you are overriding, and check the numstat **and** the marker after
    the run as well as before — a concurrent revert mid-run reads exactly like a guard holding.
-6. **Look at the thing, do not only test it.** Every visual bug in slice B — a count reading
-   282 of 141, a rank printed as `12D`, a citation as `CH.6` — was found by looking at a rendered
-   page, and none was visible to any test.
-7. **A guard that grows subjects without growing coverage is worth less each time.** Adding three
+6. **Look at the thing, do not only test it — and *generating* a proof is not looking at it.**
+   Every visual bug in slice B — a count reading 282 of 141, a rank printed as `12D`, a citation
+   as `CH.6` — was found by looking at a rendered page, and none was visible to any test. Phase 1
+   then added a proof of the shell in both palettes, screenshotted the Hero one, wrote "verified by
+   looking… both palettes", and shipped a chrome band with **no bottom edge at all** in Villain
+   mode, on the tier page before a tier is chosen, and on every replay route. The Villain proof
+   showed it. **If you generate a page per palette, open every one of them.**
+
+7. **Fix the class of defect, not the defect.** The same round produced six guards that caught only
+   the mutation shown to them, and then — after all six were fixed on exactly that principle — the
+   most severe finding of the lot was repaired with no guard at all, and a mutation put it straight
+   back. Fixing a defect and not guarding it is the same failure one level up.
+8. **A guard that grows subjects without growing coverage is worth less each time.** Adding three
    uppercased classes to the budget strip added three selectors the guard could not reach. If a
    test enumerates things, make it refuse a subject it never found.
-8. **Check a rulebook citation before repeating it.** A comment cited "Elasticity", which is not
+9. **Check a rulebook citation before repeating it.** A comment cited "Elasticity", which is not
    a Power in this rulebook; `CLAUDE.md` already recorded that exact slip being made once before.
 
 ---

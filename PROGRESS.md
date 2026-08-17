@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3867 across two projects — 3660 on the engine, 207 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3874 across two projects — 3662 on the engine, 212 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -319,7 +319,65 @@ a design decision Phase 1 has no business making as a side effect. So the half t
 was done (the Sources grid) and the half that needs Phase 4 waits for it. **Item 4 is not
 finished; it is split, and the remaining half is listed under Phase 4 in the plan.**
 
-3854 tests to **3867**. Zero warnings at CI strictness. **Payload: unchanged** — one new component
+**An adversarial reviewer then found five real defects and demonstrated that six of six of the new
+guards held nothing.** The worst of the five was visible in a proof page this change added, and
+which I generated and never opened.
+
+- **The chrome had no bottom edge at all on three whole classes of screen.** `.steps` lost its
+  bottom rule on the argument that the budget strip beneath carries the edge for both — and the
+  strip renders nothing in **Villain mode** (Ch.9 gives Villains no budget), on **the tier page
+  before a tier is chosen**, which is the first screen a new visitor sees, and on **every
+  `/replay` route**. On all three the step chips sat on the page ground with the heading following
+  on the shell's padding alone. `proof-shell-villain.html` showed it plainly; I screenshotted the
+  Hero one and wrote "verified by looking… both palettes". **Generating a proof is not looking at
+  it.**
+- **"Untouched" was inverted for the default path, and my test pinned the mistake.** The claim was
+  that Abilities and Talents can never be marked, because Ch.2 floors every Trait at 1d and 0 HP
+  there means a package covered the cost. The first half is true of a *finished* character and is
+  exactly why a fresh one needs telling; the second is false, because `AbilityCost` walks
+  `AbilityRanks`, which is empty on a new sheet — **so no package also costs 0 HP.** The two
+  sections that most needed marking were the two forbidden from saying so, on a character the
+  engine reports eighteen `TRAIT_BELOW_MINIMUM` errors deep. The predicate is now whether a rank
+  is *recorded*, which tells the cases apart properly: choosing a package writes its granted ranks
+  into the sheet, so a packaged character reads as touched at 0 HP.
+- **The banner was the one band not on `--column`**, while the note in `MainLayout` offered it as
+  the example the others follow. Fixed with an inner column rather than a `padding-inline: max(…
+  calc((100% − …) / 2))`: the percentage is a raw length the stylesheet's own rule refuses, and the
+  wrapper makes the banner structurally identical to the other three bands, so **one guard covers
+  four instead of three plus a special case.** The guard then immediately caught that the
+  narrow-viewport rule had not been told about it — 24px against 16px, the same figure as the
+  bleed bug.
+- `.field`'s own margin **doubled the row gap** in the new Sources grid, 32px against 16px; and
+  `.options` lost the bottom rule that **marks where 141 Powers are clipped**, so a row cut through
+  its own stat line read as a rendering fault rather than as a scroller.
+
+**The six guard survivors, each fixed as a property rather than as a case.** A new breakpoint
+widening `.shell` alone passed, because `max-width` was read in the base rules only while the doc
+claimed queries were discovered. Centring was not read at all, so a strip with `margin: 0` sat
+flush against the window edge with the labels above and the heading below still on the column. The
+band elements were outside the guard entirely, so padding on `.budget` shifted the column inside it
+and stopped the rail running edge to edge. **Deleting the whole `.empty-state` rule left all eight
+`EmptyStateTests` green plus both ownership tests** — the class is still on the element and every
+assertion reads markup, which is the `.hp` trap this file records verbatim, reproduced by the change
+that cites it. Pinning Powers to permanently untouched passed, because the test filled Perks alone.
+Naming the *Ability* in the picker passed, because the ban listed one of three subjects. And
+**misstating the creation minimum to the player passed** — the one empty state that quotes a rules
+figure had nothing checking the figure.
+
+**Then one more, of my own making and worse than any of them: I fixed the missing edge and wrote no
+guard, so a mutation put it straight back.** That is the same failure as the six, one level up —
+fixing the defect rather than the class of defect — on the most severe finding of the round. It is
+guarded now, together with the three conditions that are the *reason* for it, because a guard whose
+premise has quietly gone is worse than none.
+
+**The two proof harnesses genuinely cannot be guarded much, and that is stated rather than papered
+over**: they are generators gated on `PP_PROOF`, so with it unset they are no-ops and a reviewer
+duly commented out five of six sections with the suite at full count. What is checkable is that a
+page which *is* written shows what it claims to — including a negative that catches the dangerous
+shape, since wrapping the shell proof in a column defeats its whole purpose and every positive
+marker survives it.
+
+3854 tests to **3874**. Zero warnings at CI strictness. **Payload: unchanged** — one new component
 file, no new asset.
 
 ### Phase 0 of the front-end plan: the scales nothing after them can be consistent without
