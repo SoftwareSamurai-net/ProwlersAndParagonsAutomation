@@ -458,13 +458,14 @@ public sealed class WebPresentationTests
     /// <c>"border-bottom:"</c> it produced a pattern demanding two colons, matched nothing, and
     /// reported every exemption's reason as missing.
     /// </remarks>
-    private static readonly (string Selector, string Declaration, string AlsoRequires)[] ExemptLengths =
+    private static readonly (string Selector, string Declaration, string AlsoRequires, string RequiredOn)[] ExemptLengths =
     [
-        (".budget-toggle", "padding:0 0 1px", "border-bottom"),
-        (".banner-link", "padding-bottom:1px", "border-bottom"),
+        (".budget-toggle", "padding:0 0 1px", "border-bottom", ".budget-toggle"),
+        (".banner-link", "padding-bottom:1px", "border-bottom", ".banner-link"),
         // The negative em pulls back the letter-spacing added after the final character, so the
-        // thing it depends on is the letter-spacing, not a border.
-        (".power-entry .head .hp", "margin-right:-0.08em", "letter-spacing"),
+        // thing it depends on is the letter-spacing, not a border — and it comes from the base
+        // `.hp` rule, which is why the selector it is required on is not the one it is exempt on.
+        (".power-entry .head .hp", "margin-right:-0.08em", "letter-spacing", ".hp"),
     ];
 
     /// <summary>
@@ -482,7 +483,7 @@ public sealed class WebPresentationTests
     {
         var rules = RulesOf(ScreenHalfOfAppCss);
 
-        foreach (var (selector, declaration, alsoRequires) in ExemptLengths)
+        foreach (var (selector, declaration, alsoRequires, requiredOn) in ExemptLengths)
         {
             var rule = rules.Where(r => r.Selector == selector).ToList();
 
@@ -498,24 +499,25 @@ public sealed class WebPresentationTests
             // the declaration survives as dead decoration while the justification for exempting
             // it has gone — the stale case that actually costs something.
             //
-            // Read across every rule targeting the same element, because
-            // `.power-entry .head .hp` inherits its letter-spacing from the base `.hp` rule, and
-            // read as a **value** rather than as the presence of the property name: asking whether
-            // `border-bottom:` appeared was defeated by `border-bottom: none`, which reaches the
-            // identical end state — no hairline, 1px of dead padding, stated reason false — and is
-            // the same weakness this check was written to replace, one level down.
-            var element = selector.Split(' ')[^1];
-            var effective = EffectiveValue(ScreenHalfOfAppCss, element, alsoRequires);
+            // Read as a **value**, on the **named** selector. Two routes reached the same end
+            // state past weaker versions of this: `border-bottom: none` instead of deleting the
+            // line, which a check for the property name accepted; and — once the value was read —
+            // `.sheet .budget-toggle { border-bottom: … }`, a selector matching nothing in this
+            // app, supplying the reason while the real rule lost it. A source-reading test cannot
+            // know which selectors match real elements, so the exemption names the one that has to
+            // carry its reason. For `.hp` that is the base rule rather than the exempt selector,
+            // because the letter-spacing is inherited.
+            var effective = EffectiveValue(ScreenHalfOfAppCss, requiredOn, alsoRequires, exact: true);
 
             Assert.True(effective is not null,
-                $"Nothing targeting `{element}` declares `{alsoRequires}`, which is the whole "
-                + $"reason `{declaration}` on `{selector}` is exempt. The literal is now "
-                + "unjustified rather than exempt.");
+                $"`{requiredOn}` does not declare `{alsoRequires}`, which is the whole reason "
+                + $"`{declaration}` on `{selector}` is exempt. The literal is now unjustified "
+                + "rather than exempt.");
 
             Assert.True(effective is not ("none" or "normal" or "0" or "unset" or "initial"),
-                $"`{alsoRequires}` resolves to `{effective}` on `{element}`, which is the same as "
-                + $"not having it — so `{declaration}` is dead decoration and its stated reason is "
-                + "false. Remove both, or remove the exemption.");
+                $"`{alsoRequires}` resolves to `{effective}` on `{requiredOn}`, which is the same "
+                + $"as not having it — so `{declaration}` is dead decoration and its stated reason "
+                + "is false. Remove both, or remove the exemption.");
         }
     }
 
@@ -1092,13 +1094,26 @@ public sealed class WebPresentationTests
     /// wins. It does not resolve specificity, and that is deliberately the safe direction — every
     /// one of those three mutations was a later override, which is what this does model.</para>
     /// </summary>
-    private static string? EffectiveValue(string css, string selector, string property)
+    /// <param name="exact">
+    /// When true, only a rule whose selector <b>is</b> <paramref name="selector"/> counts, rather
+    /// than any selector ending in it.
+    ///
+    /// <para>Suffix matching is right for asking "what applies to this element", and wrong for
+    /// asking "does this rule still say this". A fix-audit used the difference: with the real
+    /// <c>.budget-toggle</c> rule stripped of its <c>border-bottom</c>, adding
+    /// <c>.sheet .budget-toggle { border-bottom: … }</c> — a selector that matches nothing in this
+    /// app, since no budget strip renders inside a sheet — supplied the precondition and the guard
+    /// passed. A source-reading test cannot tell which selectors match real elements, so the
+    /// exemption records which selector has to carry its reason instead of accepting any that
+    /// mentions it.</para>
+    /// </param>
+    private static string? EffectiveValue(string css, string selector, string property, bool exact = false)
     {
         var wanted = Normalise(selector);
 
         var values = RulesOf(css)
             .Where(r => r.Selector.Split(',').Select(Normalise)
-                         .Any(s => s == wanted || s.EndsWith(wanted, StringComparison.Ordinal)))
+                         .Any(s => s == wanted || (!exact && s.EndsWith(wanted, StringComparison.Ordinal))))
             .SelectMany(r => Rx($@"(?<![\w-]){Regex.Escape(property)}\s*:\s*([^;}}]+)")
                                  .Matches(r.Declarations)
                                  .Select(m => Normalise(m.Groups[1].Value)))
