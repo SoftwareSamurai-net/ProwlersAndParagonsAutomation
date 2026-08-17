@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3772 across two projects — 3629 on the engine, 143 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3791 across two projects — 3638 on the engine, 153 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -218,6 +218,85 @@ grip does not.
 ---
 
 ## Completed work
+
+### The visual redesign: two faces, and the filter box somebody actually asked for
+
+All six items of Slice B, chosen after looking at [pnpready.com](https://www.pnpready.com/) —
+a companion app for this game whose scope is not worth chasing and whose presentation is.
+
+**1. Two typefaces with distinct jobs**, which was the single biggest difference. **Oswald** for
+display and **Public Sans** for body, both self-hosted under `web/wwwroot/fonts/`, both SIL Open
+Font License with the licence text shipped beside them — a condition of redistributing them, not
+a courtesy, and this repository redistributes them on every deploy and every fork. Public Sans
+over Source Sans 3 on payload: 103 KB variable against 642 KB for the same job. Both variable, so
+one file covers every weight.
+
+**The tokens are the point, not the faces.** `--font-display` and `--font-body` live in
+`theme.css` and nothing else names a face, which is the same discipline already holding for
+colour, radius and duration — so the house style is one edit and no component can drift.
+`NoComponentNamesATypeface` checks both spellings, because `font:` shorthand carries a family
+too and `font: inherit` is all over `app.css`.
+
+**Two guards, both demonstrated by mutation.** A font file that goes missing degrades the whole
+app to the system fallbacks *silently* — the stacks name fallbacks deliberately, so a failed load
+still leaves a readable page, which means nothing but the bytes on disk can catch a renamed file.
+And a family may not ship without its licence.
+
+**2. Labels carry the structure of the long forms** on screen, rather than borders alone. Written
+first as a `.label-line` class that was applied to nothing — dead CSS, found by looking at the
+rendered page — and now on `label` itself, which is where a long form needs it: the Sources
+editor is eighteen fields in a column. `SheetSection`'s centred bar heading is untouched, because
+it is right on *paper* and the published Hero Sheet prints it that way.
+
+**3. The tier choice is a card grid**, six cards each carrying its consequence on a line of its
+own, built as a `cards` modifier on `OptionList` rather than as new markup — which also deleted
+the hand-rolled Panel grid the page used to carry.
+
+**4. Every derived figure shows the rule it came out of.** **A statement of the rule and never a
+working of it**: the engine returns a number, not the terms it added up, and reconstructing them
+in the browser would be the one thing this front end exists not to do. Off on the sheet, because
+the published sheet prints no formulas and one page is a margin four blocks of small print would
+spend. **It overlaps the "Where they come from" panel on that page and was left overlapping** —
+the panel's value is the live working with the character's own numbers, which the rule under the
+figure cannot be; if one of the two goes, it is the panel's rule paragraphs and not the workings.
+
+**5. The rulebook's word beside each rank** — `4d Noteworthy`, `4d Proficient`. Presentation only:
+`rank_guide` has been on every entry in `abilities.json` and `talents.json` the whole time, read
+into the models the whole time, and shown by nothing. **Both tables stop at 6d and above that
+there is deliberately no word**, so a 7d Trait shows an empty cell rather than the nearest one,
+which would be this program inventing a rung the book does not have.
+
+**6. One filter box, in the component all five pickable lists share.** The only item here that
+came from somebody using the thing: scrolling 141 Powers. **The Powers tab had the only search
+box in the app** and it now has none of its own — the box moved into `OptionList`, so Pros, Cons,
+Perks, Flaws and gear features got one by being lists of options. It reads a row's tags as well as
+its text, because the Powers box did and tags are never printed, so moving it would otherwise
+have quietly narrowed the one list that already worked.
+
+**Two bugs found by looking at the rendered page, neither of which any test would have caught:**
+
+- **The count read `282 of 282` where the rulebook has 141 Powers.** A row inside a
+  `CascadingValue` is reached from *both* directions when the value changes — the parent
+  re-renders the fragment holding it, and the cascading value notifies its subscribers — so
+  `OnParametersSet` runs twice per pass and every row counted itself twice. **It read as a
+  plausible number beside a list nobody counts.** The row now counts itself once per pass however
+  often it is asked, rather than the list assuming how often Blazor will ask; the test asserts the
+  count against the rows underneath it rather than against a figure from the rules.
+- **A tier card printed `TRAIT CAP 12D`.** Every label in this redesign is uppercased and that
+  line carries a *rank*, which the rulebook writes `12d`. The card is now the one label that is
+  not uppercased, for a rules reason rather than a taste one.
+
+**The printed sheet was re-proofed on paper, not on screen**, through the bUnit-plus-headless-
+Chrome route with `--print-to-pdf` and `--no-pdf-header-footer`, and rasterised with Docnet plus
+ImageSharp pinned below 4.0. **Three sheets print as three pages in both palettes** — the new
+metrics did not cost the one-page property — white paper, navy or crimson ink, heading bars still
+a tint. That harness is now `ProofPages`, which writes nothing unless `PP_PROOF` is set.
+
+**What this did not close.** The fonts ship as `.ttf` and would be roughly 40% smaller as
+`.woff2`; there is no converter and no network on this machine, and it is a one-line change per
+face when there is. It also adds ~372 KB to a payload item 5 already calls large.
+
+3772 tests to **3791** — 3638 on the engine, 153 in bUnit. Zero warnings at CI strictness.
 
 ### A1, A2 and A3 reconciled onto one branch, and the arithmetic that says nothing was dropped
 

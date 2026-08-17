@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3772 tests** — 3629 engine, 143 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3791 tests** — 3638 engine, 153 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
@@ -27,7 +27,18 @@ this file claimed to be "the last session" and counted only its own closures —
 superseded by the reconciled ones below, and the merge changed no test and no source file, only
 the four documents the three branches all wrote to.
 
-**So the audit backlog is finished, and what is left is Slice B below.**
+**Slice B, the visual redesign, is done too, and its section has been deleted from this file
+on the instruction that opened it.** All six items shipped — two self-hosted faces, labels
+carrying the structure of the long forms, the tier choice as a card grid, the rule under each
+derived figure, the rulebook's word beside each rank, and one filter box in the component all
+five pickable lists share. `PROGRESS.md` has the entry, including the two things it did not
+close.
+
+**So both slices this file was written for are finished.** What remains is `PROGRESS.md` items
+4 and 5 — the Power search's tie ordering and the browser payload — neither of which is a
+defect, and both of which have a spent approach recorded against them. Read that file before
+picking either. **This file has served its purpose; delete it when you pick up the next slice
+rather than adding to it.**
 
 ---
 
@@ -148,44 +159,6 @@ went red under every mutation aimed at them. **The two tests that build syntheti
 was applied to one mechanism and nothing else.
 
 ---
-
-## Slice B: the visual redesign
-
-Unchanged from the previous handover and still not started. **Chosen after looking at
-[pnpready.com](https://www.pnpready.com/)** — another unofficial companion app for this game,
-further along in scope and, more to the point, better presented. Its scope is not worth chasing;
-its presentation is.
-
-In rising order of cost:
-
-1. **Two typefaces with distinct jobs.** A condensed uppercase display face for headings and a
-   separate body face. This app uses the system stack throughout. Biggest single difference. Cost:
-   two self-hosted files and `--font-display` / `--font-body` tokens — no component changes, since
-   a component may no more name a font than a colour. Mind the CSP's `font-src` and the print block.
-2. **Small uppercase tracked labels carry the structure of a long form**, rather than borders doing
-   it. `SheetSection`'s centred heading in a bar is right on *paper*; the editors on screen are a
-   different problem.
-3. **Choices as a card grid, not a full-width list.** Six tiers as six cards, each with its
-   consequence on one line. CSS on `OptionList`, not new markup.
-4. **Every derived stat shows its formula** under the figure. `StatBlock` already takes a `Sub`.
-   Teaching the rule is the point of running the real engine in the browser.
-5. **The rank descriptor beside the rank** — `1d Impaired`, `1d Clueless`. **The data already
-   exists**: `rank_guide` on every entry in `abilities.json` and `talents.json`, already read into
-   `AbilityModel.RankGuide` / `TalentModel.RankGuide` and locked by
-   `RulesFileCoverageTests.ThePrintedRankTablesAreWhatTheRulebookPrints`. No front end shows them.
-   **Do not go extracting it.**
-6. **A filter box on `OptionList`.** The only item here that came from somebody actually using the
-   thing: scrolling the long lists is annoying, and Powers alone is 141 entries. `OptionList` is
-   one component, so this belongs in it once rather than in five tabs. Treat it as a requirement,
-   not a nice-to-have.
-
-**The palette is in scope and it is the part that fails quietly.** `theme.css`'s contrast figures
-are measured and commented, and the print block at the bottom restates *every* token — one left out
-keeps its screen value through the cascade, which is exactly how a Villain sheet once printed as a
-full-bleed ink dump. Re-measure rather than eyeball, and re-proof the PDF.
-
----
-
 ## Traps whatever you touch
 
 - **The rulebook PDFs are in `docs/` and a worktree cannot see them.** `*.pdf` is gitignored, so
