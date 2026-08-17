@@ -278,7 +278,22 @@ public sealed class McpSetupDocumentationTests
 
             // And it is the binary rather than a directory or the project, which is the mistake
             // that produces a server Desktop reports as "failed to start" and nothing else.
-            Assert.Matches($@"{Regex.Escape(assemblyName)}(\.exe)?$", command);
+            //
+            // <b>The extension follows the platform the path is written for.</b> `(\.exe)?$` on
+            // its own accepts `.exe` on the macOS block, which contradicts the guide's own prose
+            // two paragraphs above it.
+            var windows = command.StartsWith("C:", StringComparison.OrdinalIgnoreCase);
+
+            Assert.Matches($@"{Regex.Escape(assemblyName)}{(windows ? @"\.exe" : "")}$", command);
+
+            // <b>And the directory is one step 1 actually publishes to.</b> This checked JSON,
+            // the server key, absoluteness and the file name, and never the directory — so both
+            // blocks could point at somewhere no publish command produces and pass, which is the
+            // "follows the guide and gets nothing" failure this test exists for. It is the pairing
+            // EveryShellPublishesToThePathItThenRegisters does for Claude Code, whose absence here
+            // was the whole finding.
+            Assert.Contains(PublishTargets(),
+                target => Slashes(command).Contains(target, StringComparison.OrdinalIgnoreCase));
         }
 
         // The Windows one has its backslashes doubled and the other has none, which is the
@@ -287,6 +302,33 @@ public sealed class McpSetupDocumentationTests
         Assert.Contains(blocks, b => b.Contains("\\\\", StringComparison.Ordinal));
         Assert.Contains(blocks, b => !b.Contains('\\', StringComparison.Ordinal));
     }
+
+    /// <summary>
+    /// Where step 1 publishes to, with the leading shell variable dropped and the separators
+    /// normalised — the part of the path a Desktop configuration writing it out in full has to
+    /// contain. <c>$env:LOCALAPPDATA\ProwlersAndParagons\mcp-server</c> and
+    /// <c>C:\Users\you\AppData\Local\ProwlersAndParagons\mcp-server\…</c> are the same directory
+    /// spelt two ways, and the shared tail is what says so.
+    /// </summary>
+    private static List<string> PublishTargets()
+    {
+        var targets = Rx(@"dotnet publish[^\r\n]*-o ""([^""]+)""").Matches(Guide)
+            .Select(m => Slashes(m.Groups[1].Value))
+            .Select(path => Rx(@"^\$(env:)?[A-Za-z_]+/").Replace(path, ""))
+            .Where(path => path.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        Assert.NotEmpty(targets);
+
+        // A target that is still just a variable would match everything, which would make the
+        // assertion above it worthless rather than wrong.
+        Assert.DoesNotContain(targets, t => t.Contains('$', StringComparison.Ordinal));
+
+        return targets;
+    }
+
+    private static string Slashes(string path) => path.Replace('\\', '/');
 
     /// <summary>
     /// Every relative link in the guide resolves. It moved out of the README, and a link that

@@ -340,6 +340,114 @@ public sealed class McpQuestionPolicyTests
     }
 
     /// <summary>
+    /// <b>And each shape it writes out is a shape one thing actually has.</b>
+    ///
+    /// <para>The test above asks whether every name is <em>a</em> field somewhere, which cannot
+    /// tell a field from a different real field. Swapping the two the document exists to keep
+    /// apart — writing a gear feature as <c>{ "FeatureId", "VariantKey" }</c> and a Pro as
+    /// <c>{ "Id", "GradeKey" }</c> — left it green, and left the comment whose whole job is
+    /// preventing that confusion teaching it instead. Both names are real; neither belongs where
+    /// it was put. Reading is strict, so a proposer following the document gets an unreadable
+    /// character with no hint which spelling was wanted.</para>
+    ///
+    /// <para>So every brace group written on one line with two or more field names in it has to
+    /// be a subset of the properties of <em>some single</em> type in the character's graph. That
+    /// covers the prose sentence, the comment, and the short rows inside the fenced block, and it
+    /// needs no list here of which shape is which.</para>
+    /// </summary>
+    [Fact]
+    public void EveryShapeTheDocumentWritesOutBelongsToOneThing()
+    {
+        var shapes = CharacterShapes();
+        var checked_ = 0;
+
+        foreach (var group in BraceGroups(Text))
+        {
+            var names = new Regex("\"([A-Z][A-Za-z]*)\"", RegexOptions.None, TimeSpan.FromSeconds(5))
+                .Matches(group)
+                .Select(m => m.Groups[1].Value)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
+            // One name says nothing about which shape is meant, and a group with none is not a
+            // shape at all — an id map, or the problem envelope.
+            if (names.Count < 2) continue;
+
+            checked_++;
+
+            Assert.True(
+                shapes.Any(shape => names.TrueForAll(shape.Fields.Contains)),
+                $"The guide writes the shape {{ {string.Join(", ", names)} }}, and no part of a "
+                + "character has all of those fields. Every name in it is real, so the mistake is "
+                + "which shape they were put in — which is the confusion the document's own "
+                + "comment about a gear feature exists to prevent.");
+        }
+
+        // Enough groups to be reading the schema. Nothing is asserted by a regex that stops
+        // matching, and this document's shapes are the whole reason the test exists.
+        Assert.True(checked_ >= 4, $"Only {checked_} shapes were found in the guide to check.");
+    }
+
+    /// <summary>
+    /// Brace groups that open and close on one line. Deliberately not a JSON parser: the two
+    /// places this document states a shape outside the fenced block are a sentence and a
+    /// comment, and neither is JSON.
+    /// </summary>
+    private static IEnumerable<string> BraceGroups(string text)
+    {
+        foreach (var line in text.Split('\n'))
+        {
+            for (var i = 0; i < line.Length; i++)
+            {
+                if (line[i] != '{') continue;
+
+                var depth = 0;
+
+                for (var j = i; j < line.Length; j++)
+                {
+                    if (line[j] == '{') depth++;
+                    else if (line[j] == '}' && --depth == 0)
+                    {
+                        yield return line[i..(j + 1)];
+                        i = j;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Each type in a character's graph with the set of field names it has, so a shape can be
+    /// matched against the thing it describes rather than against the union of everything.
+    /// </summary>
+    private static List<(Type Type, HashSet<string> Fields)> CharacterShapes()
+    {
+        var shapes = new List<(Type, HashSet<string>)>();
+        var seen = new HashSet<Type>();
+
+        Walk(typeof(CharacterSheet));
+
+        return shapes;
+
+        void Walk(Type type)
+        {
+            if (!seen.Add(type)) return;
+
+            var properties = type.GetProperties();
+
+            shapes.Add((type, [.. properties.Select(p => p.Name)]));
+
+            foreach (var property in properties)
+                foreach (var candidate in property.PropertyType.IsGenericType
+                             ? [property.PropertyType, .. property.PropertyType.GetGenericArguments()]
+                             : new[] { property.PropertyType })
+                    if (candidate.Namespace?.StartsWith("ProwlersAndParagonsAutomation", StringComparison.Ordinal) == true)
+                        Walk(candidate);
+        }
+    }
+
+    /// <summary>
     /// Every property name in a character's object graph — <see cref="CharacterSheet"/> and the
     /// records hanging off it, which is where <c>Id</c>, <c>VariantKey</c> and <c>GradeKey</c>
     /// live rather than on the sheet itself.

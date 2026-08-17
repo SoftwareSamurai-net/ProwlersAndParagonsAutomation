@@ -190,20 +190,35 @@ public sealed class McpServerTests
             Assert.Contains("Hero Point", said, StringComparison.Ordinal);
             Assert.Contains("legal", said, StringComparison.Ordinal);
 
-            // Prose rather than a keyword list: several sentences, and long enough to have said
-            // why. A word count catches the shape a floor alone would not — "check_character
-            // creation_guide the engine decides never state a Hero Point cost legal" is every
-            // substring above and no instruction at all.
+            // <b>The reasoning, clause by clause, because a floor is padding away from useless.</b>
+            // A length floor plus a full-stop count was the first attempt, and keyword bait
+            // padded out with the ten catalogue names and a few full stops cleared both while
+            // every sentence explaining *why* was gone. What a model needs is not the words
+            // "the engine decides" but the reason it must not do the arithmetic itself, so the
+            // reason is what is asserted.
+            foreach (var clause in InstructionClauses)
+                Assert.Contains(clause, said, StringComparison.Ordinal);
+
             Assert.True(said.Length > 250,
                 $"The server instructions are {said.Length} characters, which is a keyword list "
                 + "rather than the guidance a model reads before its first tool call.");
 
-            Assert.True(said.Count(c => c == '.') >= 3,
-                "The server instructions are not written as sentences.");
-
             return Task.CompletedTask;
         });
     }
+
+    /// <summary>
+    /// The reasoning in the server instructions, clause by clause. Not the keywords: those
+    /// survive being padded into a word list, and the reason a model must not do the arithmetic
+    /// itself is the whole of what the instructions are for.
+    /// </summary>
+    private static readonly string[] InstructionClauses =
+    [
+        "Call creation_guide first",
+        "You propose; the engine decides",
+        "the arithmetic is not guessable",
+        "a plausible number is worse than none"
+    ];
 
     /// <summary>
     /// A whole character, across the transport, priced and judged. This is the end-to-end
@@ -1520,12 +1535,22 @@ public sealed class McpServerTests
     ///
     /// <para>Both halves, so this cannot be satisfied by a search that has stopped working: the
     /// Power is absent for the fragment and present for its own name.</para>
+    ///
+    /// <para><b>The rows span the length of the word on purpose.</b> The first four were 3 to 7
+    /// letters, and a substring search reintroduced <em>for long words only</em> — "a long word is
+    /// distinctive enough to find wherever it occurs" — passed all of them: "poor visibility in
+    /// fog" came back with Invisibility and "the next generation of soldiers" with Regeneration.
+    /// A rule about matching that is only tested at one word length is only tested at one word
+    /// length.</para>
     /// </summary>
     [Theory]
+    [InlineData("art", "martial_arts")]
     [InlineData("city", "plasticity")]
     [InlineData("ration", "regeneration")]
-    [InlineData("art", "martial_arts")]
     [InlineData("kinesis", "telekinesis")]
+    [InlineData("formation", "transformation_shapeshifting")]
+    [InlineData("generation", "regeneration")]
+    [InlineData("visibility", "invisibility")]
     public void AWordThatOnlyOccursInsideALongerWordIsNotAMatch(string fragment, string powerId)
     {
         var found = Parse(Tools().SearchPowers(fragment, 25))["matches"]!.AsArray()
@@ -1609,15 +1634,33 @@ public sealed class McpServerTests
                 Assert.Equal(prerequisite.Powers,
                     baseline["powers"]!.AsArray().Select(p => p!.GetValue<string>()).ToList());
 
-                Assert.False(string.IsNullOrWhiteSpace(baseline["note"]?.GetValue<string>()));
+                // <b>The note is the one thing in this payload that is not the engine's answer,
+                // and asserting it non-blank let it be inverted.</b> "Purchased ranks *replace*
+                // this baseline, and the Trait Cap applies only to the ranks you buy" passed —
+                // the exact opposite of the rule, served to a model across all 27 baseline
+                // Powers, and it is the rule the guide lists as a first-draft trip-up.
+                var note = baseline["note"]!.GetValue<string>();
 
-                Assert.Empty(baseline.Select(kv => kv.Key)
-                    .Except(BaselineFields, StringComparer.Ordinal));
+                Assert.Contains("stack on top", note, StringComparison.OrdinalIgnoreCase);
+                Assert.Contains("Trait Cap", note, StringComparison.Ordinal);
+                Assert.Contains("the total", note, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("replace", note, StringComparison.OrdinalIgnoreCase);
+
+                Assert.Equal(BaselineFields.Order(), baseline.Select(kv => kv.Key).Order());
             }
             else
             {
                 Assert.Null(report["baseline"]);
             }
+
+            // <b>The counts first, because Zip truncates in silence.</b> Served an empty array,
+            // every loop below runs zero times and every key-set check inside it never fires —
+            // so "a new field fails this test until it is read" would have been true of the
+            // top-level fields only.
+            Assert.Equal(applicability.ProsFor(power).Count, report["pros"]!["generic"]!.AsArray().Count);
+            Assert.Equal(applicability.ConsFor(power).Count, report["cons"]!["generic"]!.AsArray().Count);
+            Assert.Equal(power.PowerPros.Count, report["pros"]!["own"]!.AsArray().Count);
+            Assert.Equal(power.PowerCons.Count, report["cons"]!["own"]!.AsArray().Count);
 
             // The generic rows carry the option's own numbers and constraints, which is what an
             // assistant reads before proposing one.
@@ -1629,9 +1672,58 @@ public sealed class McpServerTests
                          .Zip(applicability.ConsFor(power)))
                 AssertProConRow(row!.AsObject(), option, option.CostModifier, option.CostModifierRange);
 
-            Assert.Empty(report.Select(kv => kv.Key).Except(PowerDetailFields, StringComparer.Ordinal));
+            // <b>And the Power's own rows, which nothing read whole.</b> Their prices have a test
+            // of their own; their other five fields did not, so `unit`, `grades` and `rank_grades`
+            // could each be replaced with a constant and a field invented outright, with the suite
+            // green. `needs_variant` was asserted all along — so a graded option could tell a
+            // caller a variant key was required while offering no keys to choose from, which is
+            // the dead end this whole surface exists to prevent.
+            foreach (var (row, option) in report["pros"]!["own"]!.AsArray().Zip(power.PowerPros)
+                         .Concat(report["cons"]!["own"]!.AsArray().Zip(power.PowerCons)))
+                AssertOwnProConRow(row!.AsObject(), option);
+
+            // The two halves of each, so a third key cannot appear beside them unread.
+            foreach (var half in new[] { "pros", "cons" })
+                Assert.Equal(["generic", "own"],
+                    report[half]!.AsObject().Select(kv => kv.Key).Order());
+
+            // Exact both ways, not merely "nothing unexpected": a field always null across all
+            // 141 could otherwise be dropped without any value assertion noticing.
+            Assert.Equal(
+                PowerDetailFields.Where(f => f != "baseline" || power.Prerequisite is not null).Order(),
+                report.Select(kv => kv.Key).Order());
         }
     }
+
+    /// <summary>
+    /// One Pro or Con printed in a Power's own entry. Eleven of the 106 change the Power's rate
+    /// rather than its total, so the per-rank fields are separate from the flat one and reporting
+    /// the wrong one is wrong by a factor of the Power's rank.
+    /// </summary>
+    private static void AssertOwnProConRow(JsonObject row, PowerProConModel option)
+    {
+        Assert.Equal(option.Id, row["id"]!.GetValue<string>());
+        Assert.Equal(option.Name, row["name"]!.GetValue<string>());
+        Assert.Equal(option.CostType, row["cost_type"]!.GetValue<string>());
+        Assert.Equal(option.CostModifier, row["hero_points"]?.GetValue<int>());
+        Assert.Equal(option.CostPerRank, row["hero_points_per_rank"]?.GetValue<double>());
+        Assert.Equal(option.CostPerUnit, row["hero_points_per_unit"]?.GetValue<int>());
+        Assert.Equal(option.CostUnitLabel, row["unit"]?.GetValue<string>());
+        Assert.Equal(option.NeedsVariant, row["needs_variant"]!.GetValue<bool>());
+        Assert.Equal(option.Repeatable, row["repeatable"]!.GetValue<bool>());
+        Assert.Equal(option.Description, row["description"]?.GetValue<string>());
+
+        AssertNumbers(option.CostModifierRange, row["grades"], $"{option.Id} grades");
+        AssertNumbers(option.CostPerRankRange, row["rank_grades"], $"{option.Id} rank_grades");
+
+        Assert.Equal(OwnProConRowFields.Order(), row.Select(kv => kv.Key).Order());
+    }
+
+    private static readonly string[] OwnProConRowFields =
+    [
+        "id", "name", "cost_type", "hero_points", "hero_points_per_rank", "hero_points_per_unit",
+        "unit", "grades", "rank_grades", "needs_variant", "repeatable", "description"
+    ];
 
     private static readonly string[] PowerDetailFields =
     [
@@ -1655,12 +1747,18 @@ public sealed class McpServerTests
     /// One generic Pro or Con row, wherever it is served — <c>list_options</c> and
     /// <c>power_detail</c> build it with the same helper, so it is asserted with one here.
     ///
-    /// <para><b><c>grades</c> is the field that mattered.</b> Nulling it passed, and it is what
-    /// carries the accepted keys for the options priced by grade — Charges, Area/Burst, Limited
-    /// — which the guide tells a proposer are required. <c>power_detail</c> narrows the set for a
-    /// Power that reaches the option through its own text, so what is asserted is that every key
-    /// offered is one the rulebook prints and that the field is there at all whenever the option
-    /// has a range.</para>
+    /// <para><b><c>grades</c> is the field that mattered, and checking it loosely was not
+    /// enough.</b> Nulling it passed once; then a version of this method that asserted only that
+    /// every key offered is one the rulebook prints let the set be <em>narrowed</em> — dropping
+    /// Charges' <c>1_per_scene</c> and Limited's <c>severely_limited</c>, the −4 grades of the two
+    /// Cons the guide tells a proposer are mandatory, with the whole suite green. A missing key is
+    /// the same failure as a missing field: this is the only place a caller learns the accepted
+    /// keys, and one it supplies unoffered is refused by <c>check_character</c>.</para>
+    ///
+    /// <para>So the key set is asserted <b>exactly</b>. <c>power_detail</c> legitimately narrows
+    /// it for a Power that reaches the option through its own printed text, and only for those —
+    /// which the row declares in <c>allowed_by_this_power_text</c>, so that is the one case
+    /// allowed to be a strict subset, and it still has to be non-empty.</para>
     /// </summary>
     private static void AssertProConRow(
         JsonObject row, IGenericProCon option, int? cost, IReadOnlyDictionary<string, int>? range)
@@ -1683,17 +1781,22 @@ public sealed class McpServerTests
         else
         {
             var grades = row["grades"]!.AsObject();
+            var offered = grades.Select(kv => kv.Key).ToList();
 
-            Assert.NotEmpty(grades);
+            Assert.NotEmpty(offered);
+
+            // Every printed grade, unless this Power reaches the option through its own text —
+            // in which case the rulebook prices only some of them and the row says so.
+            if (row["allowed_by_this_power_text"] is null)
+                Assert.Equal(range.Keys.Order(), offered.Order());
+            else
+                Assert.Empty(offered.Except(range.Keys, StringComparer.Ordinal));
 
             foreach (var (key, value) in grades)
-            {
-                Assert.Contains(key, range.Keys);
                 Assert.Equal(range[key], (int)value!.GetValue<double>());
-            }
         }
 
-        Assert.Empty(row.Select(kv => kv.Key).Except(ProConRowFields, StringComparer.Ordinal));
+        Assert.Equal(ProConRowFields.Order(), row.Select(kv => kv.Key).Order());
     }
 
     /// <summary>A dictionary of numbers as <c>Numbers</c> serialises one, or null for null.</summary>
@@ -1898,8 +2001,12 @@ public sealed class McpServerTests
 
         // Every entry read whole, and the count, so a catalogue serving fewer entries than the
         // rules hold cannot pass by having its first few agree.
+        //
+        // <b>Exact both ways.</b> Asserting only that nothing unexpected is present catches an
+        // added field and not a removed one — and a field whose value is null for every entry in
+        // its catalogue has no value assertion that would notice it going missing.
         Assert.All(entries, entry =>
-            Assert.Empty(entry!.AsObject().Select(kv => kv.Key).Except(fields, StringComparer.Ordinal)));
+            Assert.Equal(fields.Order(), entry!.AsObject().Select(kv => kv.Key).Order()));
 
         Assert.Equal(EntryCount(category), entries.Count);
 
@@ -2022,6 +2129,10 @@ public sealed class McpServerTests
         Assert.Contains(issues, i => i.Value is not null);
         Assert.Contains(issues, i => i.Limit is not null);
         Assert.Contains(issues, i => i.SubjectId is not null);
+
+        // The sixth, which this test's own summary claimed and did not check. Coverage was fine
+        // in fact — but "all six" asserted over five is the shape that has been wrong here before.
+        Assert.Contains(issues, i => i.SubjectKind != ValidationSubject.None);
         Assert.Contains(issues, i => i.Severity == ValidationSeverity.Warning);
         Assert.Contains(issues, i => i.Severity == ValidationSeverity.Error);
     }

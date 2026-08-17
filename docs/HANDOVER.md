@@ -12,7 +12,7 @@ sessions, not documentation.
 ## Where things stand
 
 Head is **`078b69d`**, on top of [#43](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/43).
-**3497 tests** — 3373 engine, 124 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3512 tests** — 3388 engine, 124 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
@@ -33,7 +33,8 @@ it is the reason this file exists.
 **Where these came from.** Three agents, each told nothing about the work, were asked for every
 guard test to name a plausible bug it claims to cover but would not catch, **and to demonstrate it
 by mutation rather than argue it**. They ran 64 mutations; **38 survived**. Five of those were in
-the rulebook corpus and are now fixed. The remaining 33 are below.
+the rulebook corpus and are now fixed, and the twelve of A1 are now fixed. The remaining **21** are
+below.
 
 **Read this before starting.** These are *not* bugs in the product — every one is a **test that
 does not hold what it claims to hold**. The mutation is the evidence. Each entry names the test,
@@ -51,16 +52,31 @@ it did **not** close, and the two documents whose claims were wrong rather than 
 (`CLAUDE.md` on the stdout guards being complementary, and both `CLAUDE.md` and `Mentions`' own
 summary naming a Power the rulebook does not have).
 
-**Three things worth carrying into A2 and A3.**
+**The two reviews then found fourteen more, nine of them inside the fixes.** All closed. Do not
+skip that step on A2 or A3 — it was worth more than the original slice, and the "audit the fixes,
+not the code" reviewer again found something the general one did not.
+
+**Six things worth carrying into A2 and A3.**
 
 1. **A guard that names its fields will be missing the next one.** Nine of the twelve were "a JSON
    field no test reads", and the fix that worked was one assertion over the whole payload *with
-   the key set asserted*, so an unread field fails until somebody reads it. Prefer that to
-   another list.
+   the key set asserted exactly, both ways*. Asserting only that nothing unexpected is present
+   catches an added field and never a removed one.
 2. **A runtime test is only worth the paths it drives.** The stdout pair looked complementary and
-   was not, because one half never entered a tool body. Ask of any end-to-end test which code it
-   actually reaches.
-3. **Reuse the case list, do not copy it.** `ValidationIssueStructureTests.CaseNames` and `Build`
+   was not, because one half never entered a tool body — and after that was fixed, it still only
+   drove the *happy path*, so every refusal branch stayed invisible. Ask of any end-to-end test
+   which arguments it actually sends.
+3. **A marker that proves a path ran must be unproducible by any other path.** `character_sheet`'s
+   was the character's name, which the test itself sends and the judge echoes — so serving the
+   judge under the sheet's name passed. A2's replay tests are full of this shape: the sheet prints
+   figures that *could* come from either character.
+4. **A source-reading guard is worth what its instrument can see.** A token check was defeated by a
+   comment mentioning the token, and by `ListOptions(Categories[0])` keeping the word `Categories`.
+   Where a runtime property exists, drive it — a theory over `RulesRepository.DataFileNames` replaced
+   the grep and is a real statement about behaviour. A2 has several CSS guards of exactly this kind.
+5. **`Zip` truncates in silence.** An emptied array runs every loop zero times and fires no
+   assertion inside it. Assert the count first.
+6. **Reuse the case list, do not copy it.** `ValidationIssueStructureTests.CaseNames` and `Build`
    are `internal` now precisely so the second consumer cannot go stale independently. A3's first
    finding is about that same table skipping what it omits.
 
