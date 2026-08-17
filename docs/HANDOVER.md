@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3610 tests** — 3486 engine, 124 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3639 tests** — 3515 engine, 124 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 

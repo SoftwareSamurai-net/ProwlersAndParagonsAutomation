@@ -23,15 +23,20 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// correspondence: searching all of Ch.2 accepted Carrier Attack transcribed with Ongoing's real
 /// printed sentence, and would accept a constraint shortened to "This Pro applies to".</para>
 ///
-/// <para><b>What none of that reaches is the caveat itself</b>, which is checked only against the
-/// record here — so the inversion this file exists to prevent still passes if it is made in both
-/// places at once. That is the intended friction rather than a closed door: it makes changing a
-/// player-facing constraint a two-file edit with the page named beside it. A word-overlap anchor
-/// was considered and is not sound — Constant's caveat says "switched on and off" for the book's
-/// "activated and deactivated" and shares one distinctive word with it, which is the same
-/// re-wording that defeated every similarity framing tried against the Power descriptions. What
-/// is checked mechanically is that a caveat <em>restricts</em>: every one opens "Only for" or
-/// "Not for", which is what the inversion failed to do.</para>
+/// <para><b>The caveat itself has no anchor in the book</b>, and cannot be given one. A
+/// word-overlap anchor was measured and is not sound: Constant's caveat says "switched on and off"
+/// for the book's "activated and deactivated" and shares one distinctive word with it, which is
+/// the same faithful re-wording that defeated every similarity framing tried against the Power
+/// descriptions. So it is held to the record here, which makes changing a player-facing
+/// constraint a two-file edit with the page named beside it.</para>
+///
+/// <para>What <em>is</em> checked mechanically is that a caveat <b>restricts</b>: every one opens
+/// "Only for" or "Not for". That is not a formality — the inversion this file exists to prevent
+/// was a caveat announcing there is no condition, which is the one thing the field cannot mean,
+/// and it is refused now even if the record is edited to agree with it. The residue is a caveat
+/// that restricts and restricts the <em>wrong</em> thing, changed in both places at once. Nothing
+/// here catches that; the printed clause is recorded beside it so a reader can see in one glance
+/// whether the two say the same thing.</para>
 ///
 /// <para>Two things worth knowing before editing. Area/Burst and Zone/Nova are printed under one
 /// AREA OF EFFECT heading and share its opening clause, which is why they share a constraint

@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3610 across two projects — 3486 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3639 across two projects — 3515 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -266,9 +266,13 @@ And the five specific ones:
   would elsewhere: **the design is that a caveat is shown to the player instead of being enforced**,
   so its wording is the entire deliverable and there is no mechanism behind it to be right when
   the sentence is wrong. The fifteen are now transcribed in `CanonicalCaveats` with the printed
-  clause behind each, **and the clause is asserted to appear verbatim in
-  `data/rulebook/ch02-characters.json`** — which is what stops the record being a second copy of
-  the data, editable into agreement about something the book never said.
+  clause behind each, **and the clause is asserted to appear verbatim under that option's own
+  heading in `data/rulebook/ch02-characters.json`** — under its own heading rather than anywhere
+  in the chapter, which a reviewer showed is a different thing: Carrier Attack transcribed with
+  Ongoing's real printed sentence passed a whole-chapter search. A caveat must also *restrict* —
+  every one opens "Only for" or "Not for" — which refuses the inversion even if the record is
+  edited to agree with it. What is left uncaught is a caveat that restricts the wrong thing,
+  changed in both places at once; the printed clause sits beside it so a reader can see.
 - **The pickers' documented "rules-file order" had no test**: `.Reverse()` on `ProsFor` was green.
   It is not cosmetic — Ch.2 prints Pros and Cons alphabetically and a player is looking one up by
   name. Asserted as a subsequence of the rules file, so which options a Power is offered stays
@@ -291,7 +295,47 @@ cannot tell you the mechanism reads it too. Three of the fixes here are driven a
 input for exactly that reason — the code scan, the `GradesFor` allowance, and the caveat record's
 anchor in the corpus.
 
-3446 tests to **3610** — 3486 on the engine, 124 in bUnit. Zero warnings at CI strictness.
+**Then two adversarial passes — one told nothing about the work, one pointed at the fixes — found
+six more, and three of them were the same defect one table over.** Both reproduced all nine
+mutations as red first, so the fixes hold; what they found is what the fixes did not reach.
+
+- **A kind table keyed by code cannot see a swap *within* a code's list**, and seven codes serve
+  more than one kind. Changing `CheckTraitSources`' Ability argument to Talent reported
+  `UNKNOWN_SOURCE` on `toughness` as a Talent problem with the suite green — the same
+  never-terminating repair loop the slice was about. Closed by the rule the table cannot state:
+  **the id has to name a thing of the kind claimed.** Deliberately with no exemption list — half
+  these findings report an id the rulebook does *not* have, so "resolves against the rules" alone
+  would have to excuse them, and excusing them is what let it through. An id resolves against the
+  rules **or** against the part of the character the kind names, which covers every finding
+  without excusing one.
+- **The code scan was still spelling-shaped**, one spelling further on: `"TooManyConnections"` was
+  invisible to every guarantee built on it. Widening the pattern again would not have closed it —
+  a pattern can always be out-spelled — so the case is now **enforced where a code is written**.
+- **And it read one file**, so moving the codes to a constants class or making the validator
+  partial voided all three guarantees silently. Both are ordinary refactors. It reads the engine
+  now.
+- **`MustOfferOptions` had no exhaustiveness check** — the identical hole to `ExpectedKinds`, left
+  open on its sibling. A new code with `Options = []` omitted from the list passed both it and the
+  option check, the first by not listing it and the second by having nothing to walk. Read off the
+  source now, because a code that offers options only *sometimes* is what a behavioural check
+  cannot see.
+- **The sample budget floor could not see the Powers at all.** A Standard-tier package plus
+  eighteen Traits clears half the budget alone, so a Hero with **no Powers whatsoever** passed it
+  — and this file's own account of the fix said otherwise. Corrected, with the Powers costed
+  separately.
+- **The "every shape" test read `powers.json` rather than the sample**, so `Prerequisite` and
+  `CostPerRank` stayed true while the preview stopped showing any of it: zeroing Armor, Danger
+  Sense and Resistance left every shape "present" and Armor printing its bare baseline instead of
+  4 free ranks and 4 bought reaching 8. It asserts on the selections now.
+- The picker-order narrowing covered Pros only, so `ConsFor` reduced to `.Take(1)` passed it.
+
+**Two of the round-two assertions were wrong when first written, and measuring corrected them** —
+worth recording, because both were plausible: the Hero's Powers cost **20 HP of 125**, not a fifth
+of the budget, and `pros.json` is **not** alphabetical (Zone/Nova sits between Area/Burst and
+Armor Piercing, following the printed pairing), which is what makes the Pro half of the order
+check real where the Con half cannot be.
+
+3446 tests to **3639** — 3515 on the engine, 124 in bUnit. Zero warnings at CI strictness.
 
 ### The rulebook corpus was materially wrong, and its tests could not see it
 
