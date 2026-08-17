@@ -202,16 +202,34 @@ full-bleed ink dump. Re-measure rather than eyeball, and re-proof the PDF.
   not cover it. Run
   `dotnet build --configuration Release -p:ContinuousIntegrationBuild=true` before pushing.
 - **Commit before letting anything mutate files.** A mutation pass reverts with
-  `git checkout -- .`, which takes uncommitted work with it. That has cost rework twice.
-- **`perl -pi` silently edits nothing on this machine.** It exits 0, prints nothing, and leaves the
-  file untouched — so a mutation "applied" that way looks exactly like a fix that holds. Use
-  `sed -i` or the editor, and check `git diff --numstat` every time.
+  `git checkout -- .`, which takes uncommitted work with it. That cost two rounds of rework in
+  the replay slice, both times on work written minutes earlier — and the hazard was already
+  recorded from [#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30) in
+  its single-file form, so knowing about it is demonstrably not enough.
+- **`perl -pi` silently edits nothing on this machine.** It exits 0, prints nothing, and leaves
+  the file untouched — so a mutation "applied" that way looks exactly like a fix that holds, and
+  a green suite means nothing. Use `sed -i` or the editor, and check `git diff --numstat` every
+  time. This cost a wrong conclusion in the slice that recorded it.
 - **`sed` mangles Windows paths**: `\c` becomes a backspace and `\r` a carriage return, silently.
   Use the editor for anything containing a path.
-- **A check that never ran looks exactly like one that passed.** Do not pipe a verification through
-  `grep` and read empty output as green; assert on the positive. A nested `$_` in a PowerShell
-  `Where-Object` shadows the outer loop variable and will report everything missing.
-- **A guard test that reads the shipped data cannot tell you the mechanism reads it too.** To pin a
+- **A check that never ran looks exactly like a check that passed, and piping it through `grep`
+  is what hides the difference.** The Docker CI-strict command above was run as
+  `docker … | grep -E "Passed!|Failed!"` while Docker Desktop happened to be stopped: the daemon
+  connection error went to the filtered-out lines, the pipeline exited **0**, and the result was
+  an empty output that a hurried reader takes for green. It was caught only because *nothing*
+  printed rather than something wrong. **Assert on the positive** — require the `Passed!` line to
+  be there — and when a run reports success with no output, treat that as a failure to
+  investigate rather than a quiet win. The same shape as the `perl` trap above: both are
+  successes that never happened. **It has now happened twice**: the A1–A3 reconciliation hit the
+  identical thing on the identical command, one slice after it was written down, which is the
+  clearest evidence available that reading this file is not the same as being protected by it.
+  A nested `$_` in a PowerShell `Where-Object` shadows the outer loop variable and will report
+  everything missing, for the same reason: it fails by looking successful.
+- **The authority on CI is CI.** `gh pr checks <n> --watch` runs the same strict flags on Linux
+  and needs no local daemon. Prefer it to the Docker route when a branch is already pushed.
+- **A guard test that reads the shipped data cannot tell you the mechanism reads it too.** Every
+  test of the Force Field exemption passed with the whole thing hard-coded to
+  `power.Id == "force_field"`, because they all asserted over the real rules files. To pin a
   mechanism, drive it against a synthetic model that differs only in the field.
 
 ---
