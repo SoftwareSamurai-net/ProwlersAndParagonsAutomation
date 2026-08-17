@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
 
@@ -16,8 +17,11 @@ namespace ProwlersAndParagons.Web.Tests;
 /// slice, because every test this repository had reads source files and no source file
 /// looks wrong.</para>
 ///
-/// <para>So these assert on rendered markup, and nothing here would pass if the separator
-/// went away again.</para>
+/// <para>So these assert on what the page <em>reads as</em>, and nothing here would pass if
+/// the separator went away again. Which means <b>never on markup with the tags taken out</b>:
+/// that puts a separator wherever a tag was, so the very bug this file exists to catch
+/// produces the very string it asserts. The helper at the foot did exactly that until an
+/// audit pointed at it; see <see cref="Rendered{T}"/>.</para>
 /// </summary>
 public sealed class SheetRenderTests
 {
@@ -175,7 +179,7 @@ public sealed class SheetRenderTests
     public void ARanklessPowerPrintsTheRankThatStandsInForIt()
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
-        var sheet = Rendered(ctx.Render<SheetView>().Markup);
+        var sheet = Rendered(ctx.Render<SheetView>());
 
         // Communications is rankless, Tech-Sourced, and Tech reads Toughness — 8d here.
         Assert.Contains("Against other Powers: Toughness 8d", sheet, StringComparison.Ordinal);
@@ -190,7 +194,7 @@ public sealed class SheetRenderTests
     public void ABaselinePowerNamesTheTraitItDerivesFrom()
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
-        var sheet = Rendered(ctx.Render<SheetView>().Markup);
+        var sheet = Rendered(ctx.Render<SheetView>());
 
         Assert.Contains("Baseline Rank (½ Toughness)", sheet, StringComparison.Ordinal);
         Assert.Contains("Baseline Rank (Perception)", sheet, StringComparison.Ordinal);
@@ -397,13 +401,13 @@ public sealed class SheetRenderTests
         using var ctx = new RenderContext().With(mode);
         var snake = new Regex(@"\b[a-z]+(_[a-z]+)+\b", RegexOptions.None, TimeSpan.FromSeconds(5));
 
-        foreach (var (name, markup) in new[]
+        foreach (var (name, text) in new[]
                  {
-                     ("SheetView", ctx.Render<SheetView>().Markup),
-                     ("PowersTab", ctx.Render<PowersTab>().Markup)
+                     ("SheetView", Rendered(ctx.Render<SheetView>())),
+                     ("PowersTab", Rendered(ctx.Render<PowersTab>()))
                  })
         {
-            var leak = snake.Match(Rendered(markup));
+            var leak = snake.Match(text);
             Assert.False(leak.Success, $"{name} renders the id '{leak.Value}' at the player.");
         }
     }
@@ -624,13 +628,13 @@ public sealed class SheetRenderTests
             [new SelectedProCon("also_x"), new SelectedProCon("also_x"), new SelectedProCon("also_x")],
             []) { SourceId = "super", CostVariantKey = "kinetic" });
 
-        foreach (var markup in new[]
+        foreach (var rendered in new[]
                  {
-                     ctx.Render<SheetView>().Markup,
-                     ctx.Render<PowersTab>().Markup
+                     Rendered(ctx.Render<SheetView>()),
+                     Rendered(ctx.Render<PowersTab>())
                  })
         {
-            var text = Collapse(Rendered(markup));
+            var text = Collapse(rendered);
 
             Assert.Contains("Also X ×3", text, StringComparison.Ordinal);
             Assert.DoesNotContain("Also X, Also X", text, StringComparison.Ordinal);
@@ -642,15 +646,20 @@ public sealed class SheetRenderTests
         ?? ctx.Session.Rules.Talents.First(t => t.Name == traitName).Id;
 
     /// <summary>
-    /// Text as a reader sees it: tags removed, entities resolved, runs of whitespace
-    /// collapsed — but <b>not</b> collapsed away, because a missing space is the whole point.
+    /// Everything the page reads as text, the way a browser concatenates it.
+    ///
+    /// <para><b>This replaced the markup with its tags taken out, which is the trap this whole
+    /// file exists to catch, in the helper the file uses to catch it.</b> Stripping a tag
+    /// leaves a separator where it was, so <c>&lt;b&gt;Armor&lt;/b&gt;&lt;span&gt;8d&lt;/span&gt;</c>
+    /// read as "Armor 8d" — the exact string these tests assert is present, produced by the
+    /// exact bug they exist to find. It cut the other way too: <c>DoesNotContain</c> over that
+    /// text was satisfied by printing the forbidden words in two adjacent elements.</para>
+    ///
+    /// <para>Concatenating the text nodes is what the browser does, so a separator that is
+    /// only a tag boundary is not there — and one that is really in the text still is.</para>
     /// </summary>
-    private static string Rendered(string markup)
-    {
-        var text = new Regex("<[^>]*>", RegexOptions.None, TimeSpan.FromSeconds(5)).Replace(markup, "\n");
-        text = System.Net.WebUtility.HtmlDecode(text);
-        return new Regex(@"[ \t]+", RegexOptions.None, TimeSpan.FromSeconds(5)).Replace(text, " ");
-    }
+    private static string Rendered<T>(IRenderedComponent<T> page) where T : IComponent =>
+        string.Concat(page.Nodes.Select(n => n.TextContent));
 
     /// <summary>
     /// One element's text as a reader sees it. Runs of whitespace collapse to a single space
