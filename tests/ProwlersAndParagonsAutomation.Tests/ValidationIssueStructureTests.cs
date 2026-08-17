@@ -1061,7 +1061,14 @@ public sealed class ValidationIssueStructureTests
     /// </summary>
     public static TheoryData<string> Cases() => [.. CaseNames];
 
-    private static readonly string[] CaseNames =
+    /// <summary>
+    /// <b>Internal rather than private, because it is the one list in the suite that is held to
+    /// the validator's own source.</b> <see cref="McpServerTests"/> reads every field of every
+    /// issue the MCP report serialises and needs the same sheets: a second list would be the one
+    /// that goes stale when a code is added, which is the failure
+    /// <see cref="EveryCodeTheValidatorCanReportIsProvokedBySomeCase"/> exists to record.
+    /// </summary>
+    internal static readonly string[] CaseNames =
     [
         "no tier", "over budget", "above cap", "no flaws", "too many flaws",
         "unknown ids", "gear", "ranks on a rankless power", "unresolved selections",
@@ -1072,7 +1079,8 @@ public sealed class ValidationIssueStructureTests
         "power-specific ungraded", "sample villain"
     ];
 
-    private CharacterSheet Build(string which)
+    /// <summary>The sheet for one case name. Internal for the reason <see cref="CaseNames"/> is.</summary>
+    internal CharacterSheet Build(string which)
     {
         switch (which)
         {

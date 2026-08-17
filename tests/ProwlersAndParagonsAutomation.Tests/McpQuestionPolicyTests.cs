@@ -295,6 +295,217 @@ public sealed class McpQuestionPolicyTests
     }
 
     /// <summary>
+    /// <b>Every field name the document quotes anywhere is a field a character has</b> — in the
+    /// prose and in the comments, not only inside the fenced block.
+    ///
+    /// <para>Only the block goes through the strict reader, and it goes through it with its
+    /// comments stripped, because comments are what make it worth reading and are not JSON. So
+    /// two of the three places this document names a field were unchecked: the sentence under the
+    /// block saying a Pro or Con is <c>{ "Id", "VariantKey", "Units" }</c>, and the comment
+    /// telling a proposer that a gear feature is <c>{ "FeatureId", "GradeKey" }</c> and
+    /// <em>not</em> the shape a Pro takes. Rewriting them to <c>ProId</c>, <c>GradeKey</c> and
+    /// <c>Count</c> left the suite green — and reading is strict, so a proposer following the
+    /// prose gets an unreadable character with no hint which spelling was wanted. That comment
+    /// exists precisely because the confusion is the likely one.</para>
+    ///
+    /// <para>Checked against the character's own object graph by reflection rather than against a
+    /// list here, so a renamed field fails this without anybody remembering to update it.</para>
+    /// </summary>
+    [Fact]
+    public void EveryFieldNameTheDocumentQuotesIsOneACharacterHas()
+    {
+        var real = CharacterFieldNames();
+
+        // Quoted and PascalCase, which is how this document writes a field name and is not how it
+        // writes anything else: an id is lower case, a report field is snake_case, and a value
+        // like "Chrono Jab" has a space in it.
+        var quoted = new Regex("\"([A-Z][A-Za-z]*)\"", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Matches(Text)
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        // Enough of them to be reading the schema rather than one stray word.
+        Assert.True(quoted.Count > 20,
+            $"The guide quotes only {quoted.Count} field names; it used to describe the whole shape.");
+
+        Assert.All(quoted, name => Assert.True(real.Contains(name),
+            $"The guide names a field \"{name}\", which no part of a character has. Reading is "
+            + "strict, so a proposer following that gets an unreadable character."));
+
+        // And the other direction for the fields that carry a purchase, because those are the
+        // ones a proposer cannot infer and the document is the only place they are written down.
+        foreach (var required in new[] { "PowerId", "PurchasedRanks", "PerkId", "FlawId", "FeatureId", "GradeKey", "VariantKey", "Units", "Id" })
+            Assert.Contains(required, quoted);
+    }
+
+    /// <summary>
+    /// <b>And each shape it writes out is a shape one thing actually has.</b>
+    ///
+    /// <para>The test above asks whether every name is <em>a</em> field somewhere, which cannot
+    /// tell a field from a different real field. Swapping the two the document exists to keep
+    /// apart — writing a gear feature as <c>{ "FeatureId", "VariantKey" }</c> and a Pro as
+    /// <c>{ "Id", "GradeKey" }</c> — left it green, and left the comment whose whole job is
+    /// preventing that confusion teaching it instead. Both names are real; neither belongs where
+    /// it was put. Reading is strict, so a proposer following the document gets an unreadable
+    /// character with no hint which spelling was wanted.</para>
+    ///
+    /// <para>So every brace group written on one line with two or more field names in it has to
+    /// be a subset of the properties of <em>some single</em> type in the character's graph. That
+    /// covers the prose sentence, the comment, and the short rows inside the fenced block, and it
+    /// needs no list here of which shape is which.</para>
+    /// </summary>
+    [Fact]
+    public void EveryShapeTheDocumentWritesOutBelongsToOneThing()
+    {
+        var shapes = CharacterShapes();
+        var checked_ = 0;
+
+        foreach (var group in BraceGroups(Text))
+        {
+            var names = new Regex("\"([A-Z][A-Za-z]*)\"", RegexOptions.None, TimeSpan.FromSeconds(5))
+                .Matches(group)
+                .Select(m => m.Groups[1].Value)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
+            // One name says nothing about which shape is meant, and a group with none is not a
+            // shape at all — an id map, or the problem envelope.
+            if (names.Count < 2) continue;
+
+            checked_++;
+
+            Assert.True(
+                shapes.Any(shape => names.TrueForAll(shape.Fields.Contains)),
+                $"The guide writes the shape {{ {string.Join(", ", names)} }}, and no part of a "
+                + "character has all of those fields. Every name in it is real, so the mistake is "
+                + "which shape they were put in — which is the confusion the document's own "
+                + "comment about a gear feature exists to prevent.");
+        }
+
+        // Enough groups to be reading the schema. Nothing is asserted by a regex that stops
+        // matching, and this document's shapes are the whole reason the test exists.
+        Assert.True(checked_ >= 4, $"Only {checked_} shapes were found in the guide to check.");
+    }
+
+    /// <summary>
+    /// <b>And the two statements that tell the two confusable shapes apart are pinned word for
+    /// word, because no structural rule can check which thing a sentence attaches a shape to.</b>
+    ///
+    /// <para>The test above matches each brace group against the types that have those fields.
+    /// Swapping the two groups <em>whole</em> — so the comment reads "a gear feature is
+    /// <c>{ "Id", "VariantKey" }</c>, NOT the <c>{ "FeatureId", "GradeKey" }</c> a Pro takes" —
+    /// leaves both sets individually valid and passes. Every field name is real; only the English
+    /// joining them is inverted, and that inversion is the exact confusion the comment was written
+    /// to prevent. Reading is strict, so a proposer who believes it gets an unreadable character.
+    /// </para>
+    ///
+    /// <para>This is the same conclusion the server instructions and the baseline note reached:
+    /// where the content of a sentence <em>is</em> the deliverable, the sentence is the assertion.
+    /// A reflowed line fails this and should — somebody has to look at it and confirm the two
+    /// shapes are still the right way round.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("{ \"FeatureId\": …, \"GradeKey\": … } — NOT the { \"Id\": …, \"VariantKey\": … } a Pro takes.")]
+    [InlineData("A Pro or Con is `{ \"Id\": \"...\", \"VariantKey\": null, \"Units\": null }`.")]
+    public void TheStatementsTellingTheTwoConfusableShapesApartAreExact(string statement)
+    {
+        Assert.Contains(statement, Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Brace groups that open and close on one line. Deliberately not a JSON parser: the two
+    /// places this document states a shape outside the fenced block are a sentence and a
+    /// comment, and neither is JSON.
+    /// </summary>
+    private static IEnumerable<string> BraceGroups(string text)
+    {
+        foreach (var line in text.Split('\n'))
+        {
+            for (var i = 0; i < line.Length; i++)
+            {
+                if (line[i] != '{') continue;
+
+                var depth = 0;
+
+                for (var j = i; j < line.Length; j++)
+                {
+                    if (line[j] == '{') depth++;
+                    else if (line[j] == '}' && --depth == 0)
+                    {
+                        yield return line[i..(j + 1)];
+                        i = j;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Each type in a character's graph with the set of field names it has, so a shape can be
+    /// matched against the thing it describes rather than against the union of everything.
+    /// </summary>
+    private static List<(Type Type, HashSet<string> Fields)> CharacterShapes()
+    {
+        var shapes = new List<(Type, HashSet<string>)>();
+        var seen = new HashSet<Type>();
+
+        Walk(typeof(CharacterSheet));
+
+        return shapes;
+
+        void Walk(Type type)
+        {
+            if (!seen.Add(type)) return;
+
+            var properties = type.GetProperties();
+
+            shapes.Add((type, [.. properties.Select(p => p.Name)]));
+
+            foreach (var property in properties)
+                foreach (var candidate in property.PropertyType.IsGenericType
+                             ? [property.PropertyType, .. property.PropertyType.GetGenericArguments()]
+                             : new[] { property.PropertyType })
+                    if (candidate.Namespace?.StartsWith("ProwlersAndParagonsAutomation", StringComparison.Ordinal) == true)
+                        Walk(candidate);
+        }
+    }
+
+    /// <summary>
+    /// Every property name in a character's object graph — <see cref="CharacterSheet"/> and the
+    /// records hanging off it, which is where <c>Id</c>, <c>VariantKey</c> and <c>GradeKey</c>
+    /// live rather than on the sheet itself.
+    /// </summary>
+    private static HashSet<string> CharacterFieldNames()
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        var seen = new HashSet<Type>();
+
+        Walk(typeof(CharacterSheet));
+
+        return names;
+
+        void Walk(Type type)
+        {
+            if (!seen.Add(type)) return;
+
+            foreach (var property in type.GetProperties())
+            {
+                names.Add(property.Name);
+
+                foreach (var candidate in Related(property.PropertyType))
+                    if (candidate.Namespace?.StartsWith("ProwlersAndParagonsAutomation", StringComparison.Ordinal) == true)
+                        Walk(candidate);
+            }
+        }
+
+        // The property's own type, plus what a list or dictionary of them holds.
+        static IEnumerable<Type> Related(Type type) =>
+            type.IsGenericType ? [type, .. type.GetGenericArguments()] : [type];
+    }
+
+    /// <summary>
     /// The example writes out all eighteen Traits, because that is the trap the document warns
     /// about two paragraphs later — and an example that broke its own rule would teach the
     /// mistake more loudly than the paragraph corrects it.

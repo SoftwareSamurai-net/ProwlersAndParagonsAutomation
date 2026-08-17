@@ -44,17 +44,27 @@ public sealed class CharacterTools
     private readonly ProConApplicability _applicability;
     private readonly Judgement _judgement;
     private readonly Func<DateTime> _now;
+    private readonly Func<string> _guide;
 
     /// <summary>
-    /// The engine, and a clock. <c>now</c> is the time a printed sheet is stamped with, and it
-    /// is injectable so a test can assert on a whole sheet without matching a clock.
+    /// The engine, a clock, and the guide. <c>now</c> is the time a printed sheet is stamped
+    /// with, and it is injectable so a test can assert on a whole sheet without matching a clock.
+    ///
+    /// <para><c>guide</c> is injectable for the same kind of reason and a sharper one: the
+    /// question policy is an <em>embedded resource</em>, so the way it goes missing is a csproj
+    /// edit, and there is no way to un-embed it from an assembly that is already loaded. Reading
+    /// it in <see cref="ReadEverything"/> is what makes that a refusal at startup rather than a
+    /// conversation opening with an empty document — and with the read hard-wired, the only test
+    /// available for that was a grep of this method's own source, which a <c>nameof</c> or a
+    /// comment satisfies without reading anything. Handed in, the claim can be driven.</para>
     /// </summary>
     public CharacterTools(
         RulesRepository rules,
         CostCalculator costs,
         DerivedStatsCalculator derived,
         CharacterValidator validator,
-        Func<DateTime>? now = null)
+        Func<DateTime>? now = null,
+        Func<string>? guide = null)
     {
         _rules         = rules;
         _costs         = costs;
@@ -63,6 +73,7 @@ public sealed class CharacterTools
         _applicability = new ProConApplicability(rules);
         _judgement     = new Judgement(rules, costs, derived, validator);
         _now           = now ?? (() => DateTime.Now);
+        _guide         = guide ?? (() => QuestionPolicy.Text);
     }
 
     /// <summary>
@@ -84,7 +95,7 @@ public sealed class CharacterTools
 
         _ = _rules.Powers.Count;
         _ = _rules.CreationRules.TraitRankLimits.Minimum;
-        _ = QuestionPolicy.Text.Length;
+        _ = _guide().Length;
     }
 
     // ── The guide ─────────────────────────────────────────────────────────
@@ -98,7 +109,7 @@ public sealed class CharacterTools
         "How to build a character from somebody's description: which two or three questions "
         + "are worth asking, what to decide silently, how to report back, and the JSON shape "
         + "the other tools take. Read this before proposing a character.")]
-    public string CreationGuide() => QuestionPolicy.Text;
+    public string CreationGuide() => _guide();
 
     // ── The catalogues ────────────────────────────────────────────────────
 
@@ -716,9 +727,17 @@ public sealed class CharacterTools
     /// description that says "you can fly".
     ///
     /// <para><b>Word by word rather than by substring</b>, which is not a refinement: a
-    /// substring search matched "she bakes bread in the city" to <em>Elasticity</em>, and a
+    /// substring search matched "she bakes bread in the city" to <em>Plasticity</em>, and a
     /// match like that is worse than no match, because it arrives looking exactly like a real
-    /// one and there is nothing in it a reader can see is wrong.</para>
+    /// one and there is nothing in it a reader can see is wrong. (This said <em>Elasticity</em>,
+    /// which is not a Power in this rulebook.)</para>
+    ///
+    /// <para><b>One line puts the substring search back, and nothing stopped it for a whole
+    /// slice.</b> Every search test was a positive assertion or a negative on a query whose
+    /// words happen not to be substrings of anything, so this method's whole reason for existing
+    /// was unasserted. It is pinned now by fragments that occur inside a Power's name and nowhere
+    /// in the rules files as a word; the baker's sentence above is one of them and has to stay at
+    /// <c>found: 0</c>.</para>
     /// </summary>
     private static bool Mentions(string text, string term)
     {
