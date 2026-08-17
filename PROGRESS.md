@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3791 across two projects — 3638 on the engine, 153 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3814 across two projects — 3638 on the engine, 176 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -286,6 +286,25 @@ have quietly narrowed the one list that already worked.
   line carries a *rank*, which the rulebook writes `12d`. The card is now the one label that is
   not uppercased, for a rules reason rather than a taste one.
 
+**And then the same bug a second time, which is what turned it into a guard.** Uppercasing every
+form `label` made "Custom features (Ch.6, p.93)" read `CH.6, P.93` — a rulebook citation in a
+notation the rulebook does not use. Several labels are whole sentences besides: a Pro's narrative
+constraint reads "Player must define the specific condition when purchasing." So `label` keeps
+the face, the tracking and the muted ink, and drops the capitals.
+
+**`UppercasedTextTests` guards the class, in two halves, and one half is not enough.**
+
+- The **rendered** half takes its selectors from whatever `app.css` actually uppercases today —
+  never a list somebody remembered to update — and asserts that no such element on a rendered
+  page carries a rank or a citation. Reinstating the capitals on the tier card's cost line fails
+  it, quoting `Trait Cap 8d`.
+- The **source** half exists because the rendered half **could not see the case that caused it**.
+  The gear labels live several interactions deep, and rendering that page with a character
+  loaded produces *zero* labels — so the mutation left the rendered theory green. That is exactly
+  "a runtime test is only worth the paths it drives", found by mutating rather than by trusting a
+  new test because it was new. It is conditional on the stylesheet, so the constraint lifts if
+  the capitals ever go.
+
 **The printed sheet was re-proofed on paper, not on screen**, through the bUnit-plus-headless-
 Chrome route with `--print-to-pdf` and `--no-pdf-header-footer`, and rasterised with Docnet plus
 ImageSharp pinned below 4.0. **Three sheets print as three pages in both palettes** — the new
@@ -296,7 +315,11 @@ a tint. That harness is now `ProofPages`, which writes nothing unless `PP_PROOF`
 `.woff2`; there is no converter and no network on this machine, and it is a one-line change per
 face when there is. It also adds ~372 KB to a payload item 5 already calls large.
 
-3772 tests to **3791** — 3638 on the engine, 153 in bUnit. Zero warnings at CI strictness.
+**The fonts were verified as far as the published output**, not merely the build: `.NET` static
+web assets do not copy into `bin/wwwroot`, so a build tells you nothing about what ships. A
+`dotnet publish` puts all three faces and both licences in `wwwroot/fonts/`.
+
+3772 tests to **3814** — 3638 on the engine, 176 in bUnit. Zero warnings at CI strictness.
 
 ### A1, A2 and A3 reconciled onto one branch, and the arithmetic that says nothing was dropped
 
