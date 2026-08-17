@@ -285,6 +285,441 @@ public sealed class WebPresentationTests
             + "--enter so prefers-reduced-motion can switch it off.");
     }
 
+    // ── No rule names a raw length ──────────────────────────────────────────────
+
+    /// <summary>
+    /// The screen half of the stylesheet asks the spacing and type scales for every padding,
+    /// margin, gap and font size. It may not name one itself.
+    ///
+    /// <para>This is the same rule as colour, typeface, radius and duration, for the same
+    /// reason, and it was the last of the five missing. Before the scales existed the screen
+    /// half spent <b>twenty-seven</b> distinct lengths on padding, margin and gap and
+    /// <b>twenty</b> on font size, ten of the latter crowded between 0.68rem and 0.9rem where
+    /// no reader can tell one from the next. That is not a design, it is a history of
+    /// individual decisions — and nothing could have told you so, because every one of them
+    /// was locally reasonable.</para>
+    ///
+    /// <para><b>Both spellings are refused, which is the point.</b> Checking only <c>rem</c>
+    /// leaves <c>padding: 13px</c> as an open door, and px is what somebody reaching for a
+    /// value rather than a rung would most naturally write.</para>
+    ///
+    /// <para><b>The print block is deliberately out of scope.</b> It is mm and pt — a
+    /// different medium with its own scale, where 2.5mm is a measurement of paper and not a
+    /// rung on a screen rhythm. Its sizes have their own tests further down this file
+    /// (<c>NothingOnPaperIsSetBelowSevenPoint</c> and the break rules).</para>
+    ///
+    /// <para><c>index.html</c> is scanned too. It is the other file in the payload that can
+    /// carry CSS, and both the colour and typeface rules once missed it. <b>Its expected reach
+    /// is zero and that is stated rather than hidden</b>: it carries no CSS at all today, so
+    /// this half of the theory is a prohibition on a file that could gain some — the CSP allows
+    /// an inline <c>&lt;style&gt;</c> block there — and not a check on any rule that exists.
+    /// Only the app.css half proves the scan can see anything.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("app.css", 100)]
+    [InlineData("index.html", 0)]
+    public void NoScreenRuleNamesARawSpacingOrTypeLength(string what, int leastExpected)
+    {
+        var css = what == "app.css" ? ScreenHalfOfAppCss : Scannable(IndexHtml, css: true);
+        var scanned = 0;
+
+        foreach (var (selector, declarations) in RulesOf(css))
+        {
+            foreach (Match declaration in Rx(@"(?<prop>(?:padding|margin|gap|font-size)[a-z-]*)\s*:\s*(?<value>[^;}]+)")
+                         .Matches(declarations))
+            {
+                var property = declaration.Groups["prop"].Value;
+                var value = declaration.Groups["value"].Value.Trim();
+                scanned++;
+
+                // Normalised on both sides. Comparing a normalised declaration against a
+                // hand-written exemption matched nothing, so every exemption was dead and the
+                // rule fired on all three of them — which is the failure mode this whole test
+                // is about, arriving first inside the test itself.
+                if (ExemptLengths.Any(e => e.Selector == selector
+                                           && Normalise(e.Declaration) == Normalise($"{property}:{value}")))
+                    continue;
+
+                // Every var(…) reference removed, then anything still carrying a digit and a
+                // unit is a literal. `0`, `auto` and a bare ratio survive this and should.
+                var residue = Rx(@"var\(\s*--[a-z0-9-]+\s*\)").Replace(value, " ");
+                var literal = Rx(@"\d*\.?\d+(px|rem|em|ch|vh|vw|%)").Match(residue);
+
+                Assert.False(literal.Success,
+                    $"{what}: `{selector} {{ {property}: {value} }}` names the length "
+                    + $"'{literal.Value}' outright. Use a --space-* or --text-* token from "
+                    + "theme.css, or add it to ExemptLengths with a reason.");
+            }
+        }
+
+        // A scan that matched nothing passes every assertion in it. That has happened in this
+        // file before — thirteen of one guard's twenty-five selectors matched no rendered page
+        // at all — so the instrument reports its own reach.
+        Assert.True(scanned >= leastExpected,
+            $"{what}: only {scanned} spacing or type declarations were found, expected at least "
+            + $"{leastExpected}. The scan is not reading the stylesheet it is supposed to read.");
+    }
+
+    /// <summary>
+    /// The three literals the rule above allows, each with the selector it belongs to.
+    ///
+    /// <para>All three are <b>optical</b> rather than rhythmic, which is the distinction that
+    /// makes them exemptions rather than holes: a spacing token says how far apart two things
+    /// sit, and these three adjust one thing against itself. The pair of 1px paddings are the
+    /// gap between a word and the border-bottom standing in for its underline — a hairline, and
+    /// on the scale it would be 2px, which is a visibly detached underline. The negative em
+    /// pulls back the letter-spacing added after the final character of a Hero Point cost so
+    /// the column of them lines up on the right edge; it is in em because it is a fraction of
+    /// the tracking, and a spacing token in rem cannot express that.</para>
+    ///
+    /// <para>Each is asserted to still exist, by the test below. A stale exemption is a hole
+    /// somebody can walk through later, so the list is not allowed to outlive its subjects.</para>
+    /// </summary>
+    private static readonly (string Selector, string Declaration)[] ExemptLengths =
+    [
+        (".budget-toggle", "padding:0 0 1px"),
+        (".banner-link", "padding-bottom:1px"),
+        (".power-entry .head .hp", "margin-right:-0.08em"),
+    ];
+
+    /// <summary>
+    /// Every exemption above still names a rule that exists and still carries that declaration.
+    ///
+    /// <para><b>A guard that enumerates subjects has to refuse a subject it never found.</b>
+    /// That lesson is recorded twice in this project already: an uppercased-text guard shipped
+    /// with 13 of its 25 selectors matching nothing, and a font check filtered out the very
+    /// face it existed to correlate. An exemption whose selector has been renamed away is
+    /// worse than a missing one — it silently permits that declaration on any selector, because
+    /// the tuple can never match again and nothing says so.</para>
+    /// </summary>
+    [Fact]
+    public void EveryExemptedLengthStillExists()
+    {
+        var rules = RulesOf(ScreenHalfOfAppCss);
+
+        foreach (var (selector, declaration) in ExemptLengths)
+        {
+            var rule = rules.Where(r => r.Selector == selector).ToList();
+
+            Assert.True(rule.Count > 0,
+                $"ExemptLengths names `{selector}`, which no screen rule in app.css declares. "
+                + "Remove the exemption or fix the selector — a tuple that can never match "
+                + "permits its declaration everywhere.");
+
+            Assert.True(rule.Any(r => Normalise(r.Declarations).Contains(Normalise(declaration), StringComparison.Ordinal)),
+                $"`{selector}` no longer carries `{declaration}`. The exemption is stale.");
+        }
+    }
+
+    /// <summary>
+    /// The scales are declared in theme.css and every rung of them is asked for by app.css.
+    ///
+    /// <para><b>Both directions, and the second is the one that matters.</b> A token declared
+    /// and used by nothing is dead weight that reads as a decision — this app shipped a
+    /// <c>.label-line</c> class applied to nothing for exactly that reason, and it was found by
+    /// looking at a rendered page rather than by any test. A token used and not declared is a
+    /// rule that silently does nothing, because an unresolvable <c>var()</c> makes the whole
+    /// declaration invalid: the browser drops it, the layout falls back to the initial value,
+    /// and no error appears anywhere.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("--space-", 0, 8)]
+    [InlineData("--text-", 0, 0)]
+    [InlineData("--shadow-", 1, 3)]
+    public void EveryRungOfEveryScaleIsDeclaredAndAskedFor(string prefix, int from, int to)
+    {
+        var names = prefix == "--text-"
+            ? new[] { "--text-xs", "--text-sm", "--text-base", "--text-lg", "--text-xl", "--text-2xl", "--text-3xl" }
+            : [.. Enumerable.Range(from, to - from + 1).Select(n => $"{prefix}{n}")];
+
+        var theme = Normalise(WithoutCssComments(ThemeCss));
+        var app = WithoutCssComments(AppCss);
+
+        foreach (var name in names)
+        {
+            Assert.Contains($"{name}:", theme, StringComparison.Ordinal);
+            Assert.Contains($"var({name})", app, StringComparison.Ordinal);
+        }
+
+        // And no rung outside the declared range, which is how a scale goes back to being an
+        // accumulation: one --space-9 at a time, each locally reasonable.
+        var declared = Rx($@"({Regex.Escape(prefix)}[a-z0-9-]+)\s*:")
+            .Matches(WithoutCssComments(ThemeCss))
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.Equal(names.Order(StringComparer.Ordinal), declared.Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// Elevation is a hierarchy, and <c>--shadow-3</c> is claimed by one element.
+    ///
+    /// <para>The sticky budget strip is the only thing in the app that moves independently of
+    /// the document, and so the only thing that should read as floating over it. One
+    /// <c>--shadow</c> used to carry the banner, every panel, the sheet, the tier cards and the
+    /// strip — five heights spelled one way, which is the same as no height at all. Spreading
+    /// the top step back across the page would undo the distinction without changing a single
+    /// value, which is why this is asserted by count rather than by the token existing.</para>
+    /// </summary>
+    [Fact]
+    public void OnlyTheStickyStripReadsAsFloating()
+    {
+        var floating = RulesOf(ScreenHalfOfAppCss)
+            .Where(r => r.Declarations.Contains("var(--shadow-3)", StringComparison.Ordinal))
+            .Select(r => r.Selector)
+            .ToList();
+
+        Assert.Equal([".budget"], floating);
+
+        // The strip is sticky, which is the property that earns it the top step. Asserted here
+        // rather than left implied: if it stops being sticky it stops being the exception.
+        //
+        // Every rule targeting `.budget`, not one of them — there are two, the base rule and
+        // the narrow-viewport rule that re-states the bleed, and `Single` threw on the pair.
+        var budget = RulesOf(ScreenHalfOfAppCss)
+            .Where(r => r.Selector == ".budget")
+            .Select(r => Normalise(r.Declarations))
+            .ToList();
+
+        Assert.NotEmpty(budget);
+        Assert.Contains(budget, d => d.Contains("position:sticky", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The budget strip's negative-margin bleed cancels exactly the padding the shell applies,
+    /// at every breakpoint — so the strip runs to the shell's edges and no further.
+    ///
+    /// <para><b>This was a comment asking to be remembered, and it is a test because the scales
+    /// made it one.</b> The bleed was a fixed <c>-1.25rem</c> and the shell's padding was
+    /// written separately; the narrow-viewport query cut the padding to 0.75rem and left the
+    /// pull at 1.25rem, so the strip was 8px wider than its container on both sides —
+    /// scrollWidth 368 against clientWidth 360 at a 375px viewport. Nothing could check it,
+    /// because two unrelated literals have no relationship to assert. Two references to the
+    /// same token do.</para>
+    ///
+    /// <para>It is the pairing that is asserted, not either value: the shell may be re-padded
+    /// to any rung, and the strip has to follow it to that rung. And the query is discovered
+    /// rather than listed — a third breakpoint added later is covered the day it is added,
+    /// which is the opposite of how the second one behaved.</para>
+    /// </summary>
+    [Fact]
+    public void TheBudgetStripsBleedMatchesTheShellsPadding()
+    {
+        var css = ScreenHalfOfAppCss;
+
+        // Each block the stylesheet sets `.shell`'s padding in: the base cascade first, then
+        // the body of every media query that re-pads it.
+        var scopes = new List<(string Where, string Css)> { ("the base rules", TopLevelOf(css)) };
+
+        foreach (Match query in Rx(@"@media\s*([^{]+)\{(.*?)\n\}", RegexOptions.Singleline).Matches(css))
+            if (query.Groups[2].Value.Contains(".shell", StringComparison.Ordinal))
+                scopes.Add(($"@media {query.Groups[1].Value.Trim()}", query.Groups[2].Value));
+
+        Assert.True(scopes.Count >= 2,
+            "Only one scope re-pads .shell was found. The narrow-viewport query does, so the "
+            + "query scan is not reading the stylesheet.");
+
+        foreach (var (where, scope) in scopes)
+        {
+            var padding = HorizontalPaddingTokenOf(scope, ".shell");
+            var bleed = BleedTokenOf(scope, ".budget");
+
+            Assert.True(padding is not null, $"{where}: .shell sets no horizontal padding token.");
+            Assert.True(bleed is not null, $"{where}: .budget sets no horizontal bleed token.");
+
+            Assert.Equal(padding, bleed);
+
+            // The rail bleeds too, and by the same amount. It is a separate element outside
+            // the strip's padding box, so it needs its own pull — and it had one, written as a
+            // third copy of the same literal.
+            Assert.Equal(padding, BleedTokenOf(scope, ".budget-rail"));
+        }
+    }
+
+    /// <summary>The stylesheet with every <c>@media</c> block's contents removed.</summary>
+    private static string TopLevelOf(string css) =>
+        Rx(@"@media\s*[^{]+\{.*?\n\}", RegexOptions.Singleline).Replace(css, " ");
+
+    /// <summary>
+    /// The single <c>--space-*</c> token a selector's horizontal padding resolves to, or null if
+    /// it sets none or sets the two sides differently. Reads both the shorthand and the
+    /// longhands, and reads every rule for the selector rather than the first — the narrow
+    /// query writes longhands and the base rule writes a shorthand.
+    /// </summary>
+    private static string? HorizontalPaddingTokenOf(string css, string selector)
+    {
+        string? left = null, right = null;
+
+        foreach (var declarations in RulesOf(css).Where(r => r.Selector == selector).Select(r => r.Declarations))
+        {
+            if (Rx(@"padding:\s*([^;}]+)").Match(declarations) is { Success: true } shorthand)
+            {
+                // padding: A B [C [D]] — the horizontal sides are B, or A when there is one part.
+                var parts = shorthand.Groups[1].Value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var horizontal = parts.Length == 1 ? parts[0] : parts[1];
+                left = right = TokenIn(horizontal);
+            }
+
+            if (Rx(@"padding-left:\s*([^;}]+)").Match(declarations) is { Success: true } l) left = TokenIn(l.Groups[1].Value);
+            if (Rx(@"padding-right:\s*([^;}]+)").Match(declarations) is { Success: true } r) right = TokenIn(r.Groups[1].Value);
+        }
+
+        return left is not null && left == right ? left : null;
+    }
+
+    /// <summary>
+    /// The single <c>--space-*</c> token a selector's horizontal <b>negative</b> margin resolves
+    /// to, or null. A positive margin is not a bleed and returns null rather than being counted
+    /// as one — otherwise dropping the minus sign would satisfy the pairing while un-bleeding
+    /// the strip, which is the same shape as the `-var()` mistake that invalidates it outright.
+    /// </summary>
+    private static string? BleedTokenOf(string css, string selector)
+    {
+        string? left = null, right = null;
+
+        foreach (var declarations in RulesOf(css).Where(r => r.Selector == selector).Select(r => r.Declarations))
+        {
+            if (Rx(@"margin:\s*([^;}]+)").Match(declarations) is { Success: true } shorthand)
+            {
+                var parts = shorthand.Groups[1].Value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                // Split on spaces breaks `calc(-1 * var(…))` apart, so recombine and re-read.
+                var joined = string.Join(' ', parts);
+                var negatives = Rx(@"calc\(\s*-1\s*\*\s*var\(\s*(--space-[a-z0-9-]+)\s*\)\s*\)").Matches(joined);
+                if (negatives.Count > 0) left = right = negatives[0].Groups[1].Value;
+            }
+
+            if (Rx(@"margin-left:\s*([^;}]+)").Match(declarations) is { Success: true } l) left = NegativeTokenIn(l.Groups[1].Value);
+            if (Rx(@"margin-right:\s*([^;}]+)").Match(declarations) is { Success: true } r) right = NegativeTokenIn(r.Groups[1].Value);
+        }
+
+        return left is not null && left == right ? left : null;
+    }
+
+    private static string? TokenIn(string value) =>
+        Rx(@"var\(\s*(--space-[a-z0-9-]+)\s*\)").Match(value) is { Success: true } m ? m.Groups[1].Value : null;
+
+    private static string? NegativeTokenIn(string value) =>
+        Rx(@"calc\(\s*-1\s*\*\s*var\(\s*(--space-[a-z0-9-]+)\s*\)\s*\)").Match(value) is { Success: true } m
+            ? m.Groups[1].Value
+            : null;
+
+    /// <summary>
+    /// The smallest type rung is exactly the size <c>--muted</c> was measured against.
+    ///
+    /// <para>theme.css holds <c>--muted</c> to a 4.5:1 contrast floor rather than 3:1, and says
+    /// why: it carries the explanatory prose at this size. That measurement is a statement
+    /// about a number, and rounding the bottom rung of the type scale down to fit a ratio would
+    /// invalidate it silently — the colour would still pass its own test, at a size nobody
+    /// checked. <b>The floor is the anchor the scale is built from, not a value the scale
+    /// happens to produce.</b></para>
+    /// </summary>
+    [Fact]
+    public void TheSmallestTypeRungIsTheSizeTheMutedInkWasMeasuredAt()
+    {
+        var xs = Rx(@"--text-xs:\s*([0-9.]+)rem").Match(WithoutCssComments(ThemeCss));
+
+        Assert.True(xs.Success, "theme.css does not declare --text-xs in rem.");
+        Assert.Equal(0.72, double.Parse(xs.Groups[1].Value, CultureInfo.InvariantCulture), 3);
+    }
+
+    /// <summary>
+    /// The type scale as theme.css declares it: token name to size in rem.
+    /// </summary>
+    private static Dictionary<string, double> TypeScale =>
+        Rx(@"(--text-[a-z0-9-]+):\s*([0-9.]+)rem")
+            .Matches(WithoutCssComments(ThemeCss))
+            .ToDictionary(
+                m => m.Groups[1].Value,
+                m => double.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture),
+                StringComparer.Ordinal);
+
+    /// <summary>
+    /// Every font size a declaration block sets, in rem, <b>with the type scale resolved</b>.
+    ///
+    /// <para>The three typographic guards in this file — the Hero Point cost, the rank word and
+    /// the trait Source line — assert that a size falls in a band, because the relationship
+    /// between two sizes is the whole substance of each rule and <c>Contains("font-size:")</c>
+    /// is satisfied by a cost set three times the size of the rank beside it. Each read the
+    /// number out of the declaration with a regex, which stopped working the moment the sizes
+    /// became tokens.</para>
+    ///
+    /// <para><b>Resolving is the fix, and loosening the band would have been the bug.</b> The
+    /// obvious repair — accept a <c>var()</c> and skip the range check — turns three measured
+    /// assertions into three assertions that a property is present, which is the exact weakness
+    /// every one of their doc comments records being hardened against. Resolved, they are
+    /// stronger than before: they now also catch a scale rung moved to a wrong value, which no
+    /// literal read could see.</para>
+    ///
+    /// <para>An unresolvable token <b>throws</b> rather than being skipped. A <c>var()</c>
+    /// naming a token that does not exist makes the whole declaration invalid, so the browser
+    /// drops it and the element falls back to inherited size — a real failure that looks like
+    /// nothing. Sizes in <c>pt</c> are skipped by design: they belong to the print block, which
+    /// has its own floor test, and this reads rem.</para>
+    /// </summary>
+    private static List<double> FontSizesInRem(string declarations)
+    {
+        var sizes = new List<double>();
+
+        foreach (Match declaration in Rx(@"font-size:\s*([^;}]+)").Matches(declarations))
+        {
+            var value = declaration.Groups[1].Value.Trim();
+
+            if (Rx(@"var\(\s*(--[a-z0-9-]+)\s*\)").Match(value) is { Success: true } token)
+            {
+                var name = token.Groups[1].Value;
+
+                if (!TypeScale.TryGetValue(name, out var rem))
+                    throw new InvalidOperationException(
+                        $"`font-size: {value}` asks for {name}, which theme.css does not declare "
+                        + "as a rem size. An unresolvable var() invalidates the whole "
+                        + "declaration and the browser drops it.");
+
+                sizes.Add(rem);
+                continue;
+            }
+
+            if (Rx(@"^([0-9.]+)rem$").Match(value) is { Success: true } literal)
+            {
+                sizes.Add(double.Parse(literal.Groups[1].Value, CultureInfo.InvariantCulture));
+                continue;
+            }
+
+            // Paper, or a keyword like `inherit`. Anything else carrying a number is a unit
+            // this helper does not understand, and silently skipping it would make the band
+            // assertions above vacuous.
+            if (!value.EndsWith("pt", StringComparison.Ordinal) && Rx(@"\d").IsMatch(value))
+                throw new InvalidOperationException(
+                    $"`font-size: {value}` is a length this helper cannot resolve, so no band "
+                    + "assertion can be made about it. Use a --text-* token.");
+        }
+
+        return sizes;
+    }
+
+    /// <summary>The stylesheet up to its print block. Comments stripped.</summary>
+    private static string ScreenHalfOfAppCss
+    {
+        get
+        {
+            var css = WithoutCssComments(AppCss);
+            var print = css.IndexOf("@media print", StringComparison.Ordinal);
+            Assert.True(print > 0, "app.css has no @media print block, so the screen half cannot be bounded.");
+            return css[..print];
+        }
+    }
+
+    /// <summary>
+    /// Every <c>selector { declarations }</c> pair in a stylesheet, flattened — a rule inside an
+    /// <c>@media</c> query is returned as itself, which is what makes the mobile query's own
+    /// paddings visible to the scan above. Comments must already be stripped.
+    /// </summary>
+    private static List<(string Selector, string Declarations)> RulesOf(string css) =>
+        [.. Rx(@"([^{}]+)\{([^{}]*)\}")
+            .Matches(css)
+            .Select(m => (Selector: Rx(@"\s+").Replace(m.Groups[1].Value.Trim(), " "),
+                          Declarations: m.Groups[2].Value))];
+
     // ── No component names a typeface ───────────────────────────────────────────
 
     /// <summary>
@@ -595,12 +1030,13 @@ public sealed class WebPresentationTests
         Assert.Contains("text-transform:uppercase", declarations, StringComparison.Ordinal);
         Assert.Contains("font-family:var(--font-display)", declarations, StringComparison.Ordinal);
 
-        // A step behind the rank beside it, which is set at 1.1rem. The band, not the presence
-        // of a size: `Contains("font-size:")` is satisfied by 2rem, which would put the gloss
-        // in front of the figure.
-        var size = Rx(@"font-size:([0-9.]+)rem").Match(declarations);
-        Assert.True(size.Success, "The .rank-word rule sets no font size in rem.");
-        Assert.InRange(double.Parse(size.Groups[1].Value, CultureInfo.InvariantCulture), 0.6, 0.9);
+        // A step behind the rank beside it, which is a rung up the same scale. The band, not
+        // the presence of a size: `Contains("font-size:")` is satisfied by 2rem, which would
+        // put the gloss in front of the figure. The scale is resolved, so a rung moved to a
+        // wrong value fails here as well as a literal would.
+        var sizes = FontSizesInRem(declarations);
+        Assert.NotEmpty(sizes);
+        Assert.All(sizes, rem => Assert.InRange(rem, 0.6, 0.9));
 
         // **And it is shown at all.** Everything above is satisfied by an element that is
         // present and hidden — a hidden element still has its class and still has its text, so
@@ -1035,8 +1471,7 @@ public sealed class WebPresentationTests
         var weight = Rx(@"font-weight:(\d+)").Match(declarations);
         Assert.True(weight.Success, "The .hp rule sets no font weight.");
 
-        var size = Rx(@"font-size:([0-9.]+)rem").Match(declarations);
-        Assert.True(size.Success, "The .hp rule sets no font size in rem.");
+        Assert.NotEmpty(FontSizesInRem(declarations));
 
         // Every declaration of each property in every one of those rules, not the first found.
         // Two `font-size` declarations in one block is the same shadowing trick at a smaller
@@ -1049,8 +1484,7 @@ public sealed class WebPresentationTests
             // A step behind the body size, not a shout. Set in small caps, so it reads smaller
             // than its figure — the lower bound is what stops that becoming a texture. A size
             // in points belongs to the print block and is held by the 7pt floor instead.
-            Assert.All(Values(rule, @"font-size:([0-9.]+)rem"),
-                v => Assert.InRange(double.Parse(v, CultureInfo.InvariantCulture), 0.6, 0.95));
+            Assert.All(FontSizesInRem(rule), rem => Assert.InRange(rem, 0.6, 0.95));
 
             // Never emphasised. A cost is bookkeeping; bolding it puts it in front of the rank,
             // whatever the size and the ink are doing.
@@ -1089,9 +1523,9 @@ public sealed class WebPresentationTests
         // The value, not just the property. `Contains("font-size:")` passed at 3rem — three
         // times the body size — which is the same weakness this test's print half already
         // had. Set apart means a step down from the entries it sits above, not a shout.
-        var screen = Rx(@"font-size:\s*([0-9.]+)rem").Match(declarations);
-        Assert.True(screen.Success, "The screen rule sets no font size in rem.");
-        Assert.InRange(double.Parse(screen.Groups[1].Value, CultureInfo.InvariantCulture), 0.7, 1.0);
+        var screen = FontSizesInRem(declarations);
+        Assert.NotEmpty(screen);
+        Assert.All(screen, rem => Assert.InRange(rem, 0.7, 1.0));
 
         var printed = PrintRuleFor(".power-entry.trait-sources");
         Assert.True(printed is not null,
