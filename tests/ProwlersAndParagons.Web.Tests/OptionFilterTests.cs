@@ -135,6 +135,98 @@ public sealed class OptionFilterTests
     }
 
     /// <summary>
+    /// Every list of options actually has a box.
+    ///
+    /// <para><b>This is the claim the whole change rests on and nothing asserted it.</b> The
+    /// Powers tab had the only search box in the app; the point of moving it into
+    /// <c>OptionList</c> was that Perks, Flaws, gear features and the Pro/Con picker got one by
+    /// being lists of options. Adding <c>Filterable="false"</c> to any of those four takes the
+    /// box away again with the suite green — and the one test that touched the Flaws tab
+    /// asserted the <i>absence</i> of an empty-state line, which passes with no filter at
+    /// all.</para>
+    /// </summary>
+    [Fact]
+    public void EveryListOfOptionsCarriesAFilterBox()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+
+        // The gear features are two clicks in — the list only exists once a piece of gear is
+        // being customised. **That has to be driven rather than assumed**: rendering the gear
+        // page and looking is what made an earlier version of this test pass on a page with no
+        // options on it at all, which would have proved nothing about the very list it names.
+        var gear = ctx.Render<Gear>();
+        gear.FindAll(".chosen button")
+            .First(b => b.TextContent.Contains("Customise", StringComparison.Ordinal))
+            .Click();
+
+        // Same again: the Pro/Con list is behind an "Add a Pro" toggle.
+        var prosAndCons = ctx.Render<ProConPicker>(p => p
+            .Add(c => c.Power, ctx.Services.GetRequiredService<RulesRepository>().GetPower("armor"))
+            .Add(c => c.Selected, [])
+            .Add(c => c.IsPro, true));
+        prosAndCons.FindAll("button")
+            .First(b => b.TextContent.Contains("Add a Pro", StringComparison.Ordinal))
+            .Click();
+
+        var lists = new (string Where, IRenderedComponent<Microsoft.AspNetCore.Components.IComponent> Page)[]
+        {
+            ("Powers", ctx.Render<PowersTab>()),
+            ("Perks", ctx.Render<PerksTab>()),
+            ("Flaws", ctx.Render<FlawsTab>()),
+            ("Gear features", gear),
+            ("Pros and Cons", prosAndCons)
+        };
+
+        foreach (var (where, page) in lists)
+        {
+            // A list that renders no options at all cannot be evidence either way, so it has to
+            // have something in it before the box means anything.
+            Assert.True(page.FindAll(".options .option").Count > 0,
+                $"The {where} list rendered no options, so this test proves nothing about it.");
+
+            Assert.True(page.FindAll(".options-filter input").Count > 0,
+                $"The {where} list has no filter box. Moving the box into OptionList was the "
+                + "whole point of the change; this list has opted out of it.");
+        }
+    }
+
+    /// <summary>
+    /// A word that appears only in a row's description finds it.
+    ///
+    /// <para>Four of the five placeholders promise this in as many words — "Filter Perks by
+    /// name or description" — and the two tests above match on a <b>name</b> and on a
+    /// <b>tag</b>. Dropping <c>Caveat</c> from what the filter reads left both green and made
+    /// those four placeholders lie.</para>
+    /// </summary>
+    [Fact]
+    public void AWordOnlyInTheDescriptionFindsTheRow()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+
+        var rules = ctx.Services.GetRequiredService<RulesRepository>();
+
+        // Chosen from the data: a word in some Flaw's description that is in no Flaw's name, so
+        // a match can only have come from the description.
+        var word = rules.Flaws
+            .SelectMany(f => (f.Description ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .Select(w => w.Trim('.', ',', '(', ')', ';', ':', '"'))
+            .Where(w => w.Length > 6)
+            .FirstOrDefault(w => !rules.Flaws.Any(f =>
+                f.Name.Contains(w, StringComparison.OrdinalIgnoreCase)));
+
+        Assert.NotNull(word);
+
+        var page = ctx.Render<FlawsTab>();
+        page.Find(".options-filter input").Input(word);
+
+        var rows = page.FindAll(".options .option");
+
+        Assert.NotEmpty(rows);
+        Assert.All(rows, row =>
+            Assert.Contains(word, row.TextContent, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
     /// The tier cards turn the box off. Six choices meant to be compared are not a list to be
     /// searched, and a filter over them would be furniture.
     /// </summary>

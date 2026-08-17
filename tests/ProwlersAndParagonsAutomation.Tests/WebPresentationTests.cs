@@ -34,6 +34,18 @@ public sealed class WebPresentationTests
     private static string AppCss => File.ReadAllText(Path.Combine(WebRoot, "wwwroot", "css", "app.css"));
     private static string ThemeCss => File.ReadAllText(Path.Combine(WebRoot, "wwwroot", "css", "theme.css"));
 
+    /// <summary>
+    /// The page the app boots into.
+    ///
+    /// <para><b>It is the other file in the payload that can carry CSS, and the colour and
+    /// typeface rules did not read it.</b> A <c>&lt;style&gt;</c> block dropped in here setting
+    /// everything in Comic Sans applied — the CSP carries <c>style-src 'unsafe-inline'</c> for
+    /// the budget bar's live width, so an inline block is not blocked at runtime either — and
+    /// every presentation test stayed green. It also holds the boot screen, whose markup no
+    /// component owns.</para>
+    /// </summary>
+    private static string IndexHtml => File.ReadAllText(Path.Combine(WebRoot, "wwwroot", "index.html"));
+
     private static List<string> SourceFiles(string root, string pattern) =>
         Directory.GetFiles(root, pattern, SearchOption.AllDirectories)
             .Where(p => !p.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
@@ -63,15 +75,19 @@ public sealed class WebPresentationTests
     [Theory]
     [InlineData("app.css")]
     [InlineData("razor")]
+    [InlineData("index.html")]
     public void NoComponentNamesAColour(string what)
     {
         var hex = Rx(@"#[0-9A-Fa-f]{3,8}\b");
         var keyword = Rx(@":\s*(red|blue|green|white|black|grey|gray|yellow|orange|purple)\b", RegexOptions.IgnoreCase);
         var channels = Rx(@"\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch)\s*\(", RegexOptions.IgnoreCase);
 
-        var sources = what == "app.css"
-            ? [("app.css", Scannable(AppCss, css: true))]
-            : RazorFiles.Select(f => (Path.GetFileName(f), Scannable(File.ReadAllText(f), css: false))).ToList();
+        List<(string, string)> sources = what switch
+        {
+            "app.css" => [("app.css", Scannable(AppCss, css: true))],
+            "index.html" => [("index.html", Scannable(Scannable(IndexHtml, css: true), css: false))],
+            _ => RazorFiles.Select(f => (Path.GetFileName(f), Scannable(File.ReadAllText(f), css: false))).ToList()
+        };
 
         foreach (var (name, text) in sources)
         {
@@ -243,11 +259,15 @@ public sealed class WebPresentationTests
     [Theory]
     [InlineData("app.css")]
     [InlineData("razor")]
+    [InlineData("index.html")]
     public void NoComponentNamesATypeface(string what)
     {
-        var sources = what == "app.css"
-            ? [("app.css", WithoutCssComments(AppCss))]
-            : RazorFiles.Select(f => (Path.GetFileName(f), Scannable(File.ReadAllText(f), css: false))).ToList();
+        List<(string, string)> sources = what switch
+        {
+            "app.css" => [("app.css", WithoutCssComments(AppCss))],
+            "index.html" => [("index.html", WithoutCssComments(IndexHtml))],
+            _ => RazorFiles.Select(f => (Path.GetFileName(f), Scannable(File.ReadAllText(f), css: false))).ToList()
+        };
 
         var family = Rx(@"font-family\s*:\s*([^;}]+)");
         var shorthand = Rx(@"(?<![\w-])font\s*:\s*([^;}]+)");
@@ -328,38 +348,79 @@ public sealed class WebPresentationTests
     [Fact]
     public void EverySelfHostedFaceIsPresentAndCarriesItsLicence()
     {
-        var references = Rx(@"url\(""\.\./fonts/([^""]+)""\)").Matches(WithoutCssComments(ThemeCss));
-
-        Assert.NotEmpty(references);
-
         var fonts = Path.Combine(WebRoot, "wwwroot", "fonts");
 
-        foreach (Match reference in references)
-        {
-            var file = Path.Combine(fonts, reference.Groups[1].Value);
+        Assert.NotEmpty(FontFaces());
 
-            Assert.True(File.Exists(file),
-                $"theme.css asks for {reference.Groups[1].Value}, which is not in wwwroot/fonts. "
-                + "The page falls back to the system stack and nothing else notices.");
+        foreach (var (family, file) in FontFaces())
+        {
+            var path = Path.Combine(fonts, file);
+
+            Assert.True(File.Exists(path),
+                $"theme.css asks for {file}, which is not in wwwroot/fonts. The page falls back "
+                + "to the system stack and nothing else notices.");
 
             // A file that exists and is empty loads as a broken font, which fails the same way.
-            Assert.True(new FileInfo(file).Length > 1024, $"{reference.Groups[1].Value} is empty.");
+            Assert.True(new FileInfo(path).Length > 1024, $"{file} is empty.");
         }
 
         // One licence per family, not one licence in the folder: two families ship here and a
         // single OFL.txt would cover whichever of them somebody assumed.
-        var families = Rx(@"@font-face\s*\{[^}]*?font-family:\s*""([^""]+)""", RegexOptions.Singleline)
-            .Matches(WithoutCssComments(ThemeCss))
-            .Select(m => m.Groups[1].Value.Replace(" ", "", StringComparison.Ordinal))
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+        foreach (var family in FontFaces().Select(f => f.Family).Distinct(StringComparer.Ordinal))
+        {
+            var licence = Path.Combine(fonts, $"{family}-OFL.txt");
 
-        Assert.NotEmpty(families);
-
-        foreach (var family in families)
-            Assert.True(File.Exists(Path.Combine(fonts, $"{family}-OFL.txt")),
+            Assert.True(File.Exists(licence),
                 $"{family} ships without the Open Font License text that permits redistributing it.");
+
+            // **The text, not the file.** This is the one guard here whose green carries a legal
+            // claim — these files are redistributed by every deploy and every fork — and a
+            // 23-byte stub saying "Oswald is a nice font." satisfied `File.Exists`. The reserved
+            // font name is asserted too, so a licence cannot be copied from the other family.
+            var text = File.ReadAllText(licence);
+
+            Assert.Contains("SIL OPEN FONT LICENSE", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Copyright", text, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(family, text.Replace(" ", "", StringComparison.Ordinal),
+                StringComparison.OrdinalIgnoreCase);
+        }
     }
+
+    /// <summary>
+    /// A family may only be served the file that carries it.
+    ///
+    /// <para><b>Nothing else correlates the two, and without this the redesign's headline item
+    /// silently reverts.</b> Pointing Oswald's <c>src</c> at the Public Sans file leaves every
+    /// heading, label, figure and section bar rendering in the body face — with the two tokens
+    /// still declared, still different, still both asked for, and every file still present and
+    /// licensed. Four font guards stay green while the app looks exactly as it did before the
+    /// slice. Swapping the two <c>src</c> lines is the same hole and sets the prose in a
+    /// condensed display face.</para>
+    /// </summary>
+    [Fact]
+    public void EachFamilyIsServedItsOwnFile()
+    {
+        Assert.NotEmpty(FontFaces());
+
+        foreach (var (family, file) in FontFaces())
+            Assert.StartsWith(family, file, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Every <c>@font-face</c> in theme.css as (family with spaces stripped, file name). The
+    /// family is stripped because a file name cannot carry a space: "Public Sans" ships as
+    /// <c>PublicSans-Variable.ttf</c>.
+    /// </summary>
+    private static List<(string Family, string File)> FontFaces() =>
+        Rx(@"@font-face\s*\{(?<body>[^}]*)\}", RegexOptions.Singleline)
+            .Matches(WithoutCssComments(ThemeCss))
+            .Select(m => (
+                Family: Rx(@"font-family:\s*""([^""]+)""").Match(m.Groups["body"].Value)
+                    .Groups[1].Value.Replace(" ", "", StringComparison.Ordinal),
+                File: Rx(@"url\(""\.\./fonts/([^""]+)""\)").Match(m.Groups["body"].Value)
+                    .Groups[1].Value))
+            .Where(f => f.Family.Length > 0 && f.File.Length > 0)
+            .ToList();
 
     /// <summary>
     /// The self-hosted family leads each stack. A file that is downloaded, served and then
@@ -411,6 +472,15 @@ public sealed class WebPresentationTests
         var size = Rx(@"font-size:([0-9.]+)rem").Match(declarations);
         Assert.True(size.Success, "The .rank-word rule sets no font size in rem.");
         Assert.InRange(double.Parse(size.Groups[1].Value, CultureInfo.InvariantCulture), 0.6, 0.9);
+
+        // **And it is shown at all.** Everything above is satisfied by an element that is
+        // present and hidden — `display: none` on the class passed every assertion here and
+        // every rendering test in the bUnit project, because a hidden element still has its
+        // class and still has its text. The rulebook's word for a rank simply stopped
+        // appearing. Checked over every rule that targets the class, not the base one, since a
+        // more specific rule further down wins the cascade.
+        Assert.All(RulesTargeting(".rank-word"), rule =>
+            Assert.DoesNotContain("display:none", Normalise(rule), StringComparison.Ordinal));
     }
 
     // ── The UI is written for players ───────────────────────────────────────────
@@ -932,6 +1002,23 @@ public sealed class WebPresentationTests
 
         Assert.True(rule is not null, $"Nothing in the print block hides {selector}.");
         Assert.Contains("display:none", Normalise(rule!), StringComparison.Ordinal);
+
+        // **And the thing being hidden still exists to be hidden.** A class renamed in the
+        // components leaves this rule hiding nothing at all — it passes here, and passes every
+        // rendering test, while the element it was written for prints. So the class has to be
+        // written by some component or styled for the screen somewhere; a print rule for a
+        // selector nothing produces is a rule that has quietly stopped working.
+        var name = selector.Split(' ').Last().TrimStart('.');
+
+        if (!selector.StartsWith('.') && !selector.Contains(" .", StringComparison.Ordinal)) return;
+
+        var written = RazorFiles.Any(f => File.ReadAllText(f).Contains(name, StringComparison.Ordinal))
+                      || WithoutCssComments(AppCss)
+                          .Contains($".{name}", StringComparison.Ordinal);
+
+        Assert.True(written,
+            $"The print block hides '{selector}', but nothing writes \"{name}\" any more. The "
+            + "rule is hiding an element that no longer exists under that name.");
     }
 
     /// <summary>

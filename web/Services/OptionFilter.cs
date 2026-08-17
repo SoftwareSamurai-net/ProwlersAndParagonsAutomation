@@ -31,9 +31,9 @@ public sealed record OptionFilter(string Query, OptionTally Tally, int Pass)
     /// regression on the one list that already had a search box.</para>
     ///
     /// <para>Matching is <c>Contains</c>, deliberately, and not the word-and-prefix rule the
-    /// MCP server's Power search uses. That rule exists because a model acts on its answer
-    /// and a bad match there is worse than none; here a person is watching a list shorten as
-    /// they type, and "ele" ought to reach Elasticity.</para>
+    /// MCP server's Power search uses. That rule exists because a model acts on its answer and
+    /// a bad match there is worse than none; here a person is watching a list shorten as they
+    /// type, and "plast" ought to reach Plasticity while they are still typing it.</para>
     /// </summary>
     public bool Admits(params string?[] text)
     {
