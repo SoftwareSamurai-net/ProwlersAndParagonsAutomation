@@ -57,6 +57,92 @@ public sealed class TranscriptTests
         return TranscriptLibrary.ReadAll(files);
     }
 
+    /// <summary>
+    /// <b>Everything a transcript puts in front of a visitor, wherever it keeps it.</b>
+    ///
+    /// <para>The honesty scan read <c>Title</c>, <c>Blurb</c> and the recorded lines, and that
+    /// is not what the replay shows: the character travels with the conversation, and
+    /// <c>SheetView</c> prints its Name, Motivation, Quote, Description, Connections and the
+    /// narrative detail on every Flaw and Perk. A figure written into any of those sat on the
+    /// printed sheet unguarded.</para>
+    ///
+    /// <para>The character is walked by reflection rather than by naming those fields.
+    /// <b>A list of field names is exactly the thing that went stale here once already</b> —
+    /// it would be right until somebody adds a seventh free-text field, and wrong silently
+    /// from then on. Ids come back too and are harmless: an id is one word, and every rule
+    /// below needs a number beside a word about money.</para>
+    /// </summary>
+    private static IEnumerable<(string Where, string Text)> EveryProseIn(Transcript t)
+    {
+        yield return ("title", t.Title);
+        yield return ("blurb", t.Blurb);
+
+        for (var i = 0; i < t.Turns.Count; i++)
+        {
+            yield return ($"turn {i + 1}", t.Turns[i].Text);
+
+            if (t.Turns[i].Character is not { } character)
+                continue;
+
+            foreach (var (path, text) in StringsIn(character, "character", []))
+                yield return ($"turn {i + 1} {path}", text);
+        }
+    }
+
+    /// <summary>
+    /// Every string reachable from an object, with the path it was found at. Depth is bounded
+    /// by the object graph a character is — there are no cycles in it — and a visited set
+    /// guards the assumption rather than trusting it.
+    /// </summary>
+    private static IEnumerable<(string Path, string Text)> StringsIn(
+        object? node, string path, HashSet<object> seen)
+    {
+        switch (node)
+        {
+            case null:
+                yield break;
+
+            case string text:
+                yield return (path, text);
+                yield break;
+
+            case System.Collections.IDictionary map:
+                foreach (var key in map.Keys)
+                {
+                    if (key is string name) yield return ($"{path} key", name);
+                    foreach (var found in StringsIn(map[key], $"{path}[{key}]", seen))
+                        yield return found;
+                }
+
+                yield break;
+
+            case System.Collections.IEnumerable list:
+            {
+                var i = 0;
+                foreach (var item in list)
+                {
+                    foreach (var found in StringsIn(item, $"{path}[{i}]", seen))
+                        yield return found;
+                    i++;
+                }
+
+                yield break;
+            }
+        }
+
+        // A value type with no strings in it — an int rank, a bool — and the recursion stops.
+        if (node.GetType().IsPrimitive || node is Enum || !seen.Add(node))
+            yield break;
+
+        foreach (var property in node.GetType().GetProperties())
+        {
+            if (property.GetIndexParameters().Length > 0) continue;
+
+            foreach (var found in StringsIn(property.GetValue(node), $"{path}.{property.Name}", seen))
+                yield return found;
+        }
+    }
+
     private static IEnumerable<(Transcript Transcript, int Turn, CharacterSheet Character)> EveryCharacter() =>
         All().SelectMany(t => t.Turns
             .Select((turn, i) => (Transcript: t, Turn: i + 1, turn.Character))
@@ -139,6 +225,18 @@ public sealed class TranscriptTests
     /// <para>Counted over the whole conversation rather than per turn, because the cost to
     /// the person is the number of things they have to answer and not how they were grouped.
     /// </para>
+    ///
+    /// <para><b>A question mark is not what makes something a question.</b> This counted
+    /// <c>'?'</c> characters and nothing else, so seven imperative demands — "Tell me the
+    /// tier. Tell me whether she is one Power or several. …" — were a conversation that asked
+    /// nothing. That is a questionnaire, in the one file whose job is to demonstrate the
+    /// opposite. A demand phrased as an instruction costs the person exactly what a question
+    /// costs them, so it is counted as one.</para>
+    ///
+    /// <para><b>And the detector is a heuristic, which is worth saying plainly</b>: it knows
+    /// the phrasings a request is normally written in and cannot know one nobody has thought
+    /// of. <see cref="ARecordingNeverMakesThePersonAnswerMoreThanThreeTimes"/> is the half
+    /// that no wording can defeat.</para>
     /// </summary>
     [Fact]
     public void NoRecordedConversationAsksMoreThanThreeQuestions() =>
@@ -146,10 +244,73 @@ public sealed class TranscriptTests
         {
             var asked = t.Turns
                 .Where(turn => turn.Speaker == TranscriptSpeaker.Assistant)
-                .Sum(turn => turn.Text.Count(c => c == '?'));
+                .Sum(turn =>
+                    turn.Text.Count(c => c == '?')
+                    + Sentences(turn.Text).Count(s =>
+                        !s.Contains('?', StringComparison.Ordinal) && IsARequest(s)));
 
-            Assert.True(asked <= 3, $"{t.Id} asks {asked} questions. The policy allows three.");
+            Assert.True(asked <= 3,
+                $"{t.Id} asks {asked} things of the person. The policy allows three.");
         });
+
+    /// <summary>
+    /// The same rule measured a way no phrasing can get round: <b>how many times the person
+    /// had to reply.</b>
+    ///
+    /// <para>Counting the shape of the assistant's sentences will always be a matter of
+    /// recognising how a request is written. Counting the person's turns is not — whatever
+    /// they were asked and however it was worded, a conversation where they speak five times
+    /// made them supply five things, and that is the cost the question policy is about.</para>
+    ///
+    /// <para>Their opening description is not an answer to anything, so it does not count.</para>
+    /// </summary>
+    [Fact]
+    public void ARecordingNeverMakesThePersonAnswerMoreThanThreeTimes() =>
+        Assert.All(All(), t =>
+        {
+            var answers = t.Turns.Skip(1).Count(turn => turn.Speaker == TranscriptSpeaker.Person);
+
+            Assert.True(answers <= 3,
+                $"{t.Id} makes the person answer {answers} times. The policy allows three.");
+        });
+
+    /// <summary>Roughly, sentences — enough to ask what each one opens with.</summary>
+    private static IEnumerable<string> Sentences(string text) =>
+        Rx(@"[^.!?]+[.!?]*").Matches(text)
+            .Select(m => m.Value.Trim())
+            .Where(s => s.Length > 0);
+
+    /// <summary>
+    /// Whether a sentence asks the person for something without a question mark on it. Either
+    /// it opens with a verb that demands an answer, or it carries one of the phrases a request
+    /// is normally wrapped in.
+    ///
+    /// <para><c>let</c> is deliberately not an opener — "Let me build her" announces what the
+    /// assistant is about to do, which is the thing this design wants more of. "Let me know"
+    /// is a request and is caught as a phrase.</para>
+    /// </summary>
+    private static bool IsARequest(string sentence)
+    {
+        string[] openers =
+        [
+            "tell", "say", "give", "name", "describe", "choose", "pick", "decide", "confirm",
+            "specify", "list", "explain", "answer", "state", "provide", "share", "send"
+        ];
+
+        string[] phrases =
+        [
+            "tell me", "let me know", "i need to know", "i need you to", "i'll need you to",
+            "i need from you", "your answer", "answer me"
+        ];
+
+        var lower = sentence.ToLowerInvariant();
+
+        if (phrases.Any(p => lower.Contains(p, StringComparison.Ordinal))) return true;
+
+        var first = Rx(@"^[^a-z]*([a-z']+)").Match(lower);
+
+        return first.Success && openers.Contains(first.Groups[1].Value, StringComparer.Ordinal);
+    }
 
     // ── The rot guard ───────────────────────────────────────────────────────────
 
@@ -257,6 +418,20 @@ public sealed class TranscriptTests
     /// printed on the list of recordings — was unguarded. It matched digits only, so "works
     /// out to nine" walked past. And its second direction listed the verbs it would accept
     /// (<c>of|is|at|:</c>), which is a closed set masquerading as a rule.</para>
+    ///
+    /// <para><b>And two more a later one found.</b> It never read the <em>character</em>,
+    /// though the character is what the replay prints a sheet from — so a figure in a
+    /// Motivation, a Quote, a Description, a Connection or a Flaw's narrative detail passed.
+    /// See <see cref="EveryProseIn"/>. And the word set was the engine's vocabulary rather
+    /// than the page's: <c>ReplayVerdict</c> labels the gap <c>Over by</c> and <c>Left</c>,
+    /// and "nineteen over … with three to spare" — which is how anybody would write it —
+    /// matched none of <c>HP|hero points|points|edge|health|resolve|budget</c>.</para>
+    ///
+    /// <para>Those positional words take a <b>tighter window</b> than the rest, and have to.
+    /// "over" and "left" are ordinary English: at the three-word window the others use,
+    /// Vera Nunn's "Seventy-one, an apron over a cardigan" is a quoted Hero Point total. A
+    /// quoted figure puts them next to the number — "nineteen over", "over by nineteen",
+    /// "three to spare" — and a description does not.</para>
     /// </summary>
     [Fact]
     public void NoRecordedLineQuotesAFigureTheEngineIsSupposedToAnswer()
@@ -276,21 +451,22 @@ public sealed class TranscriptTests
         // much of it there was.
         const string figure = "(HP|hero points?|points?|edge|health|resolve|budget)";
 
+        // The words the page itself uses for the gap: "Over by 19", "Left 3". They are also
+        // ordinary English, so they only count next to the number — see the remarks.
+        const string gap = "(over|under|left|remaining|spare|short)";
+
         // Both directions, with a short window either way rather than a list of verbs.
         var quoted = Rx(
-            $@"\b{number}\W+(\w+\W+){{0,3}}{figure}\b|\b{figure}\W+(\w+\W+){{0,3}}{number}\b",
+            $@"\b{number}\W+(\w+\W+){{0,3}}{figure}\b|\b{figure}\W+(\w+\W+){{0,3}}{number}\b"
+            + $@"|\b{number}\W+(\w+\W+){{0,1}}{gap}\b|\b{gap}\W+(\w+\W+){{0,1}}{number}\b",
             RegexOptions.IgnoreCase);
 
         foreach (var transcript in All())
         {
-            // Title and Blurb are prose the visitor reads before choosing a recording, so they
-            // are held to the same rule as a line inside one.
-            var prose = transcript.Turns
-                .Select((t, i) => ($"turn {i + 1}", t.Text))
-                .Prepend(("blurb", transcript.Blurb))
-                .Prepend(("title", transcript.Title));
-
-            foreach (var (where, text) in prose)
+            // Title and Blurb are prose the visitor reads before choosing a recording, and the
+            // character is what the sheet at the end is printed from. All of it is held to the
+            // same rule as a line inside the conversation.
+            foreach (var (where, text) in EveryProseIn(transcript))
             {
                 var match = quoted.Match(text);
 
