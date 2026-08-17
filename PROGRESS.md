@@ -218,6 +218,13 @@ grip does not.
 
 ### The MCP server's twelve guards that held nothing — slice A1 of the mutation audit
 
+**Verified on Linux at CI strictness as well as on Windows**, from a `git archive` export of the
+commit rather than in place: 3401 + 124 green, zero warnings. That step is not ceremony here — one
+of the fixes in this slice *was* a Windows-shaped assertion that passed locally and would have
+failed the container (`Path.IsPathRooted(@"C:\Users\…")` is `false` on Linux, because a backslash
+is not a separator there and `C:` is not a root). It was caught by reading rather than by running,
+and the run is what confirms nothing else of the shape is left.
+
 Twelve tests claimed to pin behaviour and did not. Each is recorded with the mutation that
 defeated it, because the mutation is the evidence and an argument is not. Every one was confirmed
 to survive the suite *before* being fixed, and confirmed to fail it after — with the production

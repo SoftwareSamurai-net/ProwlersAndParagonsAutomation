@@ -11,7 +11,8 @@ sessions, not documentation.
 
 ## Where things stand
 
-Head is **`078b69d`**, on top of [#43](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/43).
+Head is **`9fd8bc3`** on `claude/prowlers-paragons-a1-tests-0d8806`, which is slice A1 on top of
+`5867340` and `078b69d` and thence [#43](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/43).
 **3525 tests** — 3401 engine, 124 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
