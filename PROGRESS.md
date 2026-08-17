@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3854 across two projects — 3658 on the engine, 196 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3867 across two projects — 3660 on the engine, 207 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -218,6 +218,109 @@ grip does not.
 ---
 
 ## Completed work
+
+### Phase 1 of the front-end plan: density and hierarchy, which was mostly deletion
+
+Three of the plan's four items in full, the fourth split — see the end of this entry, which says
+what was left and why.
+
+**One chrome band, in place of three.** The banner ran full width, then a step list with its own
+bottom rule inside the 1100px column, then the budget as a shadowed white card inset from the
+window: **about 215px of furniture before the page heading, on every step**, reading as four
+stacked pieces. It is **163px** now and reads as one — banner, steps, strip, rail, contiguous and
+all full width.
+
+- **The step list and the strip are siblings of `main` rather than children of it**, and that is
+  load-bearing twice over. Full width without a bleed: the negative-margin hack that pulled the
+  strip out of the shell's padding is gone from three sites, along with the pair of
+  narrow-viewport rules that had to be kept in step with it — **so the 8px overflow they caused
+  at 375px is now unreachable rather than guarded.** An invariant is better deleted than guarded
+  when the thing it constrains can be removed.
+- **And a wrapper around both rows would have broken the sticky strip.** `position: sticky` is
+  bounded by its parent, so a short chrome `div` holding both would unstick it the moment the band
+  scrolled past — the whole span it exists to survive. Measured through an iframe: the strip sits
+  at 116 before a scroll and at **0** after scrolling 600, with the step list at −484. Joined the
+  band and scrolled away, which is what the plan asked for.
+- What replaces the deleted guard is a real requirement in the direction that cannot overflow: the
+  shell and all three chrome columns cap on `--column` and reserve the same padding, **discovered
+  per media query rather than listed**. It failed on its first run and was right to — the
+  narrow-viewport rule pads the three bands in one grouped rule, and the padding reader filtered
+  on the whole selector string being equal, which is the **same comma-list weakness a fix-audit
+  had found in the sticky-strip guard two commits earlier.**
+
+**Two boxes that were drawn around boxes.** The options scroller carried its own border inside a
+panel that is already a ruled box with a heading strip, so a list of rows with their own
+separators sat three nested edges deep; only the top rule survives, which does a different job —
+separating the list from the filter box, which is a control and not a row. And the derived step
+wrapped four ruled figures in a bare untitled panel, a box round four boxes separating nothing.
+
+**Six empty states that said nothing.** "None yet.", "None.", "Nothing yet." — a full stop
+restating a fact the reader can already see, on the one screen where a tool is least useful and
+best placed to help. Each now names the next action, and where a rule stands behind it, the rule:
+the Flaws tab says the rules ask for a minimum at creation and **reads the figure from the same
+place its own heading reads it**, and the Gear step says ordinary gear is free so the only thing
+that spends Hero Points is a custom feature. They are an `EmptyState` component rather than a
+class applied six times — one owner per repeated class, and the guard gets one element to find
+rather than an enumeration that goes stale.
+
+**The tab strip marks what is untouched, and only three sections can be marked.** That is a rules
+matter rather than a convenience: Ch.2 floors every Ability and Talent at 1d, so a character has
+all eighteen and **cannot be without them** — those sections are never empty, and their 0 HP means
+a package covered the cost rather than that nobody has been there. Powers, Perks and Flaws are
+genuinely collections. The marker is a ring rather than a colour.
+
+**The Sources editor becomes a grid.** Eighteen fields between the two pickers, each a short label
+over a 200px control, stacked one per row — the right-hand two thirds of the panel spent on
+nothing, and the Talents picker taller than a laptop viewport. Six rows become two, twelve become
+three. The rank rows on the tabs are deliberately left alone: those are a table read down.
+
+**Two guards were written after a mutation showed they were needed, not before.** The picker test
+rendered `AbilitiesTab`, which is where the app puts the component — and that tab passes
+`IsPro="false"` and nothing else, so **the Pro half of the wording was never rendered** and putting
+"this Power does" into it passed. And the untouched marker **shipped with no guard at all**; the
+negative half of the test that now covers it is the load-bearing one, since marking a Trait section
+would report eighteen Traits a character cannot be without as missing.
+
+**Two process failures of mine, both traps this repository had already written down.**
+
+- **The mutation harness reverts with `git checkout -- <file>`, which restores the last
+  *committed* state** — and the empty-state edits were not committed when I mutated those two
+  files, so the revert discarded them. `docs/HANDOVER.md` says "Commit before letting anything
+  mutate files… That has cost rework twice." It is three times now, by somebody who had just
+  finished reading it.
+- **And I committed the damage, because the command was `dotnet test | grep … && git commit`** —
+  which gates the commit on grep finding lines, not on the tests passing. What caught it was the
+  new guard **refusing to pass when it could find no `.empty-state` element at all**, rather than
+  asserting nothing over an empty set: the "refuse a subject you never found" rule doing its job
+  one commit after being written. Every run since captures the output and asserts on the absence
+  of `Failed!` before committing.
+- A third, smaller: `git diff --numstat` is **blind to an untracked file**, so mutating a
+  brand-new component read as "never applied" *and* could not be reverted — the mutation was
+  silently left in the working tree, which is worse than either failure alone. Both harnesses
+  refuse an untracked target now.
+
+**Verified by looking as well as by testing**, since every visual bug in this project's history was
+found that way: both palettes at 1400px, the chrome band and the empty editors read on a rendered
+page, 375px measured at `overflow 0px` with the bands correctly edge-to-edge, the sheet still
+**three pages in both palettes**, and every one of 75 section children still inset symmetrically.
+
+**A proof of the shell, and a proof of the editors holding nothing** — the two states no page this
+harness wrote had ever shown. Every other proof renders components into a bare `.shell` div, so
+the three chrome bands never appeared together and "how much does the chrome cost" had no answer;
+and every other proof loads a sample, so an empty list was invisible. Part of why six empty states
+stayed full stops for so long is that nobody could see them.
+
+**What was left, and why.** The plan's fourth item is "a real grid on wide screens", and it names
+**Phase 4** in its own text: above ~1400px the editors and *a live sheet preview* sit side by side.
+The preview is Phase 4's, and without it a second column has nothing in it — while at today's
+1100px column two editor panels would be ~530px each, too narrow for a Power list with a stat line
+under every name. Widening `--column` globally would also widen the sheet and the replay, which is
+a design decision Phase 1 has no business making as a side effect. So the half that stands alone
+was done (the Sources grid) and the half that needs Phase 4 waits for it. **Item 4 is not
+finished; it is split, and the remaining half is listed under Phase 4 in the plan.**
+
+3854 tests to **3867**. Zero warnings at CI strictness. **Payload: unchanged** — one new component
+file, no new asset.
 
 ### Phase 0 of the front-end plan: the scales nothing after them can be consistent without
 

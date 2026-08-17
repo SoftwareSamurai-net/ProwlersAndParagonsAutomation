@@ -66,23 +66,31 @@ without looking broken.**
 
 ---
 
-## Phase 1 — density and hierarchy
+## Phase 1 — density and hierarchy — **done, except the half that needs Phase 4**
 
-The largest perceived improvement per hour, and mostly deletion.
+The largest perceived improvement per hour, and mostly deletion. `PROGRESS.md` has the account.
 
-- **De-nest the panels.** The editors are bordered boxes inside bordered boxes; now that
-  headings carry structure typographically, most inner borders are redundant. This is the half
-  of slice B item 2 that was reached for and only half-delivered.
-- **One chrome band.** Banner, step list and budget strip are three stacked horizontal bands.
-  The budget is now ~40px of sticky chrome; the step list can join it and scroll away, or
-  become a slim progress indicator that stays.
-- **Empty states that say what to do.** "None yet." is a full stop. Each list's empty state
-  should name the next action, and the tabs should show which sections are untouched.
-- **A real grid on wide screens.** The shell is capped at 1100px and everything is one column;
-  above ~1400px the editors and a live sheet preview fit side by side (see Phase 4).
+- **De-nest the panels** — done. Two real cases: the options scroller's own border inside a
+  panel that is already a ruled box, and a bare untitled panel around four ruled figures.
+- **One chrome band** — done, and it took the shape this plan's second option describes. The
+  step list and the strip moved **out of the shell** to become full-width siblings of `main`;
+  the steps scroll away and the strip stays. 215px of chrome down to 163px. **A wrapper `div`
+  around both rows does not work** — `position: sticky` is bounded by its parent, so a short
+  band unsticks the strip the moment it scrolls past.
+- **Empty states that say what to do** — done, six of them, as an `EmptyState` component. The
+  tab strip marks untouched sections, and **only the three that can be empty**: Ch.2 floors
+  every Ability and Talent at 1d, so those sections are never untouched.
+- **A real grid on wide screens** — **half done, and the other half is Phase 4's.** The Sources
+  editor's eighteen stacked fields are a grid now. The editors-beside-a-live-preview half was
+  deliberately not attempted: this item's own text names Phase 4 for the preview, and without
+  it a second column holds nothing — while at the current `--column` two editor panels would be
+  ~530px each, too narrow for a Power list. Widening `--column` globally would widen the sheet
+  and the replay too, which is a decision Phase 1 should not make as a side effect. **Do it in
+  Phase 4, where the second column has something to put in it.**
 
-**Cost: one slice. Risk: medium — this touches every page, and the print stylesheet corrects
-screen rules by specificity, which has broken three times. Re-proof the PDF.**
+**Cost: as estimated. Risk: medium was right, but not where expected — the print stylesheet came
+through untouched (three pages, both palettes), and the two things that actually went wrong were
+a comma-list weakness in a guard and two process slips recorded in `PROGRESS.md`.**
 
 ---
 
@@ -141,6 +149,13 @@ surfaces and need real keyboard and screen-reader testing, not just bUnit.**
 ---
 
 ## Phase 4 — the sheet as the reward, not the exit
+
+**Phase 1's fourth item ends up here**, because the two are one job: the wide-screen grid and the
+thing to put in its second column. Doing it means widening `--column` above some breakpoint, which
+every band follows automatically — the shell and the three chrome columns all cap on that one
+token and a test holds them together — but it also widens the sheet and the replay, so decide
+that deliberately rather than as a side effect.
+
 
 The printed sheet is the deliverable and it appears only at the end, behind six steps. On a
 wide screen it should be visible *while* building — a live preview column that updates as the

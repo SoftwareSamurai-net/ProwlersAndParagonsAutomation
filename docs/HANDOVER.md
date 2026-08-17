@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3854 tests** — 3658 engine, 196 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3867 tests** — 3660 engine, 207 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
@@ -50,13 +50,22 @@ a value rather than choosing one.** `PROGRESS.md` has the account; the plan carr
 things a later phase needs to know, including two rungs that are pinned to measured values and
 must not be tidied onto a ratio.
 
-**Next is Phase 1 — density and hierarchy**, which is mostly deletion: the editors are bordered
-boxes inside bordered boxes, and now that headings carry structure typographically most inner
-borders are redundant. It is the half of slice B item 2 that was reached for and half-delivered.
-Two warnings specific to it, both already recorded: it touches every page, and **the print
-stylesheet corrects screen rules by specificity, which has broken three times** — so re-proof
-the PDF rather than the screen. Phase 0 did not touch the print block at all, which is why the
-sheet came out unchanged; Phase 1 will not have that luxury.
+**Phase 1 is done too**, except for one half deliberately moved to Phase 4 — see the plan, which
+says which half and why. The chrome is one band instead of three, six empty states name the next
+action, and the print block came through untouched (three pages, both palettes).
+
+**Next is Phase 2 — motion that carries meaning**, and its own note is the one to read first: the
+principle before the list, because this is where "slick" becomes "noisy". Two things Phase 0 and 1
+left ready for it. **`--ease-out` exists and is used; `--ease-emphasised` deliberately does not** —
+add it in the phase that has something to overshoot, which the plan says is a row arriving in a
+list. And the **View Transitions** item wants the shared elements to persist across a route change:
+the step list and the budget strip are now full-width siblings of `main` rather than children of
+it, which is the shape that makes them persistable rather than re-rendered.
+
+**The one thing Phase 2 must not break is the sticky strip.** It stays put because its containing
+block is the document; anything that wraps it, or gives an ancestor a transform or a filter, ends
+that silently. There is a measured check — `proof-sticky.html` scrolls the shell in an iframe and
+reports the strip's top, which must be 0 after a scroll.
 
 **The one decision already made: there is no animation library.** `element.animate()` does
 everything on the list in ten lines; the payload is already this project's largest open item and
@@ -84,7 +93,7 @@ Each one has cost this project real time when skipped.
    ```bash
    dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
    ```
-   It must report **3658 + 196 = 3854** and zero warnings. **Warnings are errors only under that
+   It must report **3660 + 207 = 3867** and zero warnings. **Warnings are errors only under that
    flag**, so a plain `dotnet test` passes over things CI fails on.
 
    **Take the number from the run, not from a document, and update the document from the run.**
