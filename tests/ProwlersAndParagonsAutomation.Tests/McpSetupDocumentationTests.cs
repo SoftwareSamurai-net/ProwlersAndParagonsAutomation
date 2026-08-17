@@ -265,8 +265,12 @@ public sealed class McpSetupDocumentationTests
 
             var command = entry.Value!["command"]!.GetValue<string>();
 
-            Assert.True(System.IO.Path.IsPathRooted(command.Replace("\\\\", "\\", StringComparison.Ordinal))
-                        || command.StartsWith('/'),
+            // <b>Absolute by the shape the document writes, not by the running host's rules.</b>
+            // Path.IsPathRooted(@"C:\Users\…") is false on Linux — a backslash is not a separator
+            // there and "C:" is not a root — so asking the framework would fail this test in CI
+            // on the Windows block while passing locally. That is the mistake McpStdioTests
+            // records having made once already, in the other direction.
+            Assert.True(Rx(@"^([A-Za-z]:[\\/]|/)").IsMatch(command),
                 $"The Desktop configuration points at '{command}', which is not an absolute path. "
                 + "A client starts the program from a working directory of its own choosing.");
 
