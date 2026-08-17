@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3814 across two projects — 3638 on the engine, 176 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3826 across two projects — 3641 on the engine, 185 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -319,7 +319,42 @@ face when there is. It also adds ~372 KB to a payload item 5 already calls large
 web assets do not copy into `bin/wwwroot`, so a build tells you nothing about what ships. A
 `dotnet publish` puts all three faces and both licences in `wwwroot/fonts/`.
 
-3772 tests to **3814** — 3638 on the engine, 176 in bUnit. Zero warnings at CI strictness.
+**An adversarial review then found eight holes, one of which reverted the slice.** Every one was
+demonstrated by mutation there and re-demonstrated here after the fix.
+
+- **Both `@font-face` families could be pointed at the same file.** Every heading, label, figure
+  and section bar rendered in the body face — with both tokens declared, both different, both
+  asked for, every file present and licensed, and four font guards green. **Nothing correlated a
+  family to its own file**, so the headline item of this slice silently reverted and the app
+  looked exactly as it had before. `EachFamilyIsServedItsOwnFile` is three lines in a test that
+  already computed both halves.
+- **The rank word had no rendering coverage at all** — its only guard was the CSS rule check,
+  which passes while the word is wrong, invented or hidden. Three mutations went through: reading
+  the 6d word for every rank above it (*the exact failure the component's own comment says is
+  prevented*), an off-by-one printing the 5d word beside a 4d Trait, and `display: none` on the
+  class. `RankWordTests` renders it against the rules' own guide with two anchors from the printed
+  tables, and the CSS half now refuses `display: none` over every rule targeting the class.
+- **The licence guard was `File.Exists`**, so a 23-byte stub reading "Oswald is a nice font."
+  satisfied it. **This is the one green in the slice that carries a legal claim.** It reads the
+  licence text and the reserved font name now, so one family's licence cannot stand in for the
+  other's.
+- **Four of the five lists could drop their filter box silently**, and matching by *description*
+  was untested while four placeholders promise it. Both were one test each — and **both had to
+  drive the page rather than render it**: the gear features are two clicks in and the Pro/Con list
+  is behind a toggle, so the first version of that test passed against a page with no options on
+  it at all, which is the same blind spot in a new coat.
+- **`index.html` was scanned by neither the colour nor the typeface rule**, and it is the other
+  file in the payload that can carry CSS — `style-src 'unsafe-inline'` means an inline block there
+  applies rather than being blocked.
+- And a comment cited **Elasticity**, which is not a Power in this rulebook. `CLAUDE.md` records
+  that exact slip being made once before from a stale note; this is the second time.
+
+**One finding was about method rather than code, and it is in the traps list now.** A crashed test
+process still prints `Passed!  -  Failed: 0`: the endless render loop this component's guard
+prevents ends in a stack overflow, 31 of 153 tests never run, and the summary line reads as green.
+The exit code is 1 so CI catches it — a person grepping for `Passed!` does not.
+
+3772 tests to **3826** — 3641 on the engine, 185 in bUnit. Zero warnings at CI strictness.
 
 ### A1, A2 and A3 reconciled onto one branch, and the arithmetic that says nothing was dropped
 

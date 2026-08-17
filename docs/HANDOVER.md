@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3814 tests** — 3638 engine, 176 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3826 tests** — 3641 engine, 185 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
@@ -184,6 +184,13 @@ was applied to one mechanism and nothing else.
 - **A check that never ran looks exactly like one that passed.** Do not pipe a verification through
   `grep` and read empty output as green; assert on the positive. A nested `$_` in a PowerShell
   `Where-Object` shadows the outer loop variable and will report everything missing.
+- **A crashed test process still prints `Passed!  -  Failed: 0`.** Removing the equality guard in
+  `OptionList.OnAfterRender` produces the endless render loop its own comment describes. The run
+  ends in `Catastrophic failure: Test process crashed with exit code -1073741571` — `0xC00000FD`,
+  stack overflow — **31 of 153 tests never run, and the summary line still reads `Passed!` with
+  `Failed: 0`.** The exit code is 1, so CI catches it; a person tailing the log for `Passed!`
+  does not, and a reviewer's first pass did exactly that before catching itself. **Grep for
+  `Catastrophic` and check the test total moved, never the word `Passed!` alone.**
 - **A guard test that reads the shipped data cannot tell you the mechanism reads it too.** To pin a
   mechanism, drive it against a synthetic model that differs only in the field.
 
