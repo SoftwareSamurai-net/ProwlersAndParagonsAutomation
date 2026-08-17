@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**RECONCILE_TEST_COUNT tests** — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3772 tests** — 3629 engine, 143 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
@@ -27,9 +27,7 @@ this file claimed to be "the last session" and counted only its own closures —
 superseded by the reconciled ones below, and the merge changed no test and no source file, only
 the four documents the three branches all wrote to.
 
-
-**What is not done is the rest of what that audit turned up.** That is the backlog below, and it
-is the reason this file exists.
+**So the audit backlog is finished, and what is left is Slice B below.**
 
 ---
 
@@ -42,13 +40,10 @@ the rulebook corpus and were fixed then. The other 33 split into A1 (12), A2 (13
 **all three are now closed** — the sections below record what each one cost rather than what is
 left to do.
 
-**Read this before starting.** These are *not* bugs in the product — every one is a **test that
-does not hold what it claims to hold**. The mutation is the evidence. Each entry names the test,
-the mutation, and why it passed. Every mutation below was confirmed applied with
-`git diff --numstat` non-empty before the suite was run, and the suite stayed green at 3304 (the
-count before the corpus work).
-
-**Line numbers are as the agents reported them and predate `078b69d`. Verify before trusting.**
+**Kept as a record, not a queue.** None of the 33 was a bug in the product — every one was a
+**test that did not hold what it claimed to hold**, and the mutation was the evidence. What is
+worth carrying out of it is the shape of the mistakes, which is what the three sections below
+are for.
 
 ### A1 — MCP server: closed, all twelve
 
@@ -59,12 +54,13 @@ it did **not** close, and the two documents whose claims were wrong rather than 
 summary naming a Power the rulebook does not have).
 
 **Three rounds of adversarial review then found twenty more, most of them inside the fixes.** All
-closed. **Do not skip that step on A2 or A3, and do not stop at one round** — the third review, run
+closed. **Do not skip that step, and do not stop at one round** — the third review, run
 on the fixes for the second review's findings, still found six, two of them the same defect in a new
 spelling. It was worth more than the original slice every time, and the "audit the fixes, not the
 code" framing found things the general reviewer did not.
 
-**Seven things worth carrying into A2 and A3.**
+**Seven things worth carrying forward** — written for A2 and A3 while they were still open, and
+kept because they generalise past this backlog.
 
 1. **A guard that names its fields will be missing the next one.** Nine of the twelve were "a JSON
    field no test reads", and the fix that worked was one assertion over the whole payload *with

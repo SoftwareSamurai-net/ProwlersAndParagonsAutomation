@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | RECONCILE_TEST_COUNT across two projects — run in CI at the same strictness as the build |
+| Tests | 3772 across two projects — 3629 on the engine, 143 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -218,6 +218,31 @@ grip does not.
 ---
 
 ## Completed work
+
+### A1, A2 and A3 reconciled onto one branch, and the arithmetic that says nothing was dropped
+
+The three sub-slices of the mutation audit were worked **concurrently, one branch each**, all
+three forked from `5867340`. That is why the three entries below each read as though they were
+the last session: none of them could see the other two.
+
+**They collide on four files and nothing else** — `PROGRESS.md`, `CLAUDE.md`, `docs/HANDOVER.md`
+and `ValidationIssueStructureTests.cs`. The first three are documents and were resolved by hand;
+each branch had rewritten the same counts and the same "the last session did X" paragraph, so the
+conflict was real but its resolution is prose. **The fourth resolved itself and was checked rather
+than trusted**: A1 made `CaseNames` and `Build` `internal` so `McpServerTests` could drive the same
+sheets, A3 added 592 lines of new tests elsewhere in the file, and the two never touch the same
+declaration — so the clean auto-merge is clean for the right reason, not by luck. No test and no
+source file was resolved by hand.
+
+**The check that the merge lost nothing is the test count, and it reconciles exactly.** Base
+`5867340` was 3322 engine + 124 bUnit = 3446. A1 added 79 engine, A2 6 engine and 19 bUnit, A3 222
+engine. Predicted 3629 + 143; measured **3629 + 143 = 3772**, zero warnings, at
+`ContinuousIntegrationBuild=true`. A merge that silently dropped a test file would land under that
+number, and a merge that duplicated one would land over it.
+
+**Each entry below still quotes the count measured on its own branch**, deliberately — rewriting
+them to the reconciled figure would make three true statements into three false ones. The figure
+for this tree is the one in the table at the top of this file.
 
 ### The MCP server's twelve guards that held nothing — slice A1 of the mutation audit
 
