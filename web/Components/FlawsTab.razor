@@ -13,7 +13,14 @@
 
     @if (Session.Sheet.Flaws.Count == 0)
     {
-        <p class="small muted">None yet.</p>
+        @* The next action, and the reason it is not optional. The Resolve rule is already
+           stated above, so repeating it here would be the duplication the derived step just
+           lost; what this adds is the count the rules require, read from the same place the
+           heading reads it rather than written out again. *@
+        <EmptyState>
+            No Flaws yet, and the rules ask for at least @Rules.MinAtCreation at creation.
+            Add one below.
+        </EmptyState>
     }
     else
     {

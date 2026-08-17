@@ -1614,6 +1614,11 @@ public sealed class WebPresentationTests
         ("options", "OptionList.razor"),
         ("option", "OptionRow.razor"),
 
+        // What a list says when it holds nothing. Owned for the usual reason and one of its
+        // own: six copies of this treatment is six chances for an empty state to go back to
+        // being a full stop, and the guard that refuses that needs one element to find.
+        ("empty-state", "EmptyState.razor"),
+
         // The blank ruled lines. SheetView hand-wrote three of these — two in the masthead
         // and one inside a MarkupString that also hand-rolled its own HtmlEncode, which is a
         // raw-HTML sink in the file whose whole argument is that markup lives in components.

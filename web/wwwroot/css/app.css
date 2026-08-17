@@ -538,6 +538,16 @@ label {
 }
 .tabs .tab-count { color: var(--muted); font-weight: 400; }
 
+/* A section with nothing in it. The count says so already, but a 0 among four other numbers
+   is something a reader has to notice rather than something the strip tells them — so the
+   figure is ringed, which reads as a marker at a glance and still reads as a number up close.
+   Not a colour alone: --muted stays, and the ring is a shape. */
+.tabs .tab-count.untouched {
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-pill);
+    padding: 0 var(--space-2);
+}
+
 /* ── Rank stepper and pips ───────────────────────────────────────────────── */
 
 /* Name, pips, stepper, and the rulebook's word for the rank. The word gets a column
@@ -651,6 +661,17 @@ label {
     margin: var(--space-3) 0 0;
     font-size: var(--text-sm);
     color: var(--muted);
+}
+
+/* What a list says when it holds nothing. Guidance rather than content, and marked as such by a
+   hairline on its leading edge rather than by a box: an empty list is the one moment a tool can
+   most usefully say what happens next, and the sentence should not look like the first row of
+   the list it is standing in for. `--rule`, not `--accent` — this is an instruction, not a
+   warning and not a selection. */
+.empty-state {
+    margin: 0;
+    padding: var(--space-2) 0 var(--space-2) var(--space-4);
+    border-left: 2px solid var(--rule);
 }
 
 /* **No border of its own.** Every one of these lists is inside a panel that is already a

@@ -13,7 +13,18 @@
 <Field Label="@(IsPro ? "Pros" : "Cons")">
     @if (Selected.Count == 0)
     {
-        <p class="small muted">None.</p>
+        @* Worded for either subject. This picker serves Powers and Abilities both, so
+           "the Power" would be wrong half the time it is shown. *@
+        <EmptyState>
+            @if (IsPro)
+            {
+                <text>None yet. A Pro widens what this does, and adds to what it costs.</text>
+            }
+            else
+            {
+                <text>None yet. A Con narrows what this does, and discounts it.</text>
+            }
+        </EmptyState>
     }
     else
     {

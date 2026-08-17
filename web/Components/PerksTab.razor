@@ -6,7 +6,10 @@
 
     @if (Session.Sheet.Perks.Count == 0)
     {
-        <p class="small muted">None. Perks are optional.</p>
+        <EmptyState>
+            No Perks yet, and they are optional. Add one below if the character has an
+            advantage the world gives them rather than one they carry or can do.
+        </EmptyState>
     }
     else
     {

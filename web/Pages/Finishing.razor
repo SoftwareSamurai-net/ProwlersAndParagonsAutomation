@@ -31,7 +31,10 @@
 <Panel Title="Connections" Aside="People and places that tie the character to the world">
     @if (Session.Sheet.Connections.Count == 0)
     {
-        <p class="small muted">None yet.</p>
+        <EmptyState>
+            None yet. Add a person or a place below — each one prints on the sheet in a box
+            of its own, which is where a GM goes looking for something to pull on.
+        </EmptyState>
     }
     else
     {

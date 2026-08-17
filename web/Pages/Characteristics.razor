@@ -29,7 +29,7 @@ else
             <button type="button"
                     aria-current="@(_tab == tab.Key ? "true" : "false")"
                     @onclick="() => _tab = tab.Key">
-                @tab.Label <span class="tab-count">@tab.Count()</span>
+                @tab.Label <span class="tab-count @(tab.Untouched() ? "untouched" : "")">@tab.Count()</span>
             </button>
         }
     </div>
@@ -57,13 +57,29 @@ else
 
     public void Dispose() => Session.Changed -= StateHasChanged;
 
-    private sealed record Tab(string Key, string Label, Func<string> Count);
+    /// <param name="Untouched">
+    /// Whether this section has nothing in it yet, so the strip can say which sections are
+    /// still to do rather than leaving a reader to notice a zero among four other numbers.
+    ///
+    /// <para><b>Only the three collections can answer it, and that is a rules matter rather
+    /// than a convenience.</b> Ch.2 puts a floor of 1d under every Ability and every Talent —
+    /// a character has all eighteen and cannot be without them — so those two sections are
+    /// never empty and "untouched" is not a state they have. Their figure is a cost, and a
+    /// cost of 0 HP means a package covered it, not that nobody has been here. Powers, Perks
+    /// and Flaws are genuinely collections, and an empty one is genuinely untouched.</para>
+    /// </param>
+    private sealed record Tab(string Key, string Label, Func<string> Count, Func<bool> Untouched);
+
+    private static Func<bool> Never => static () => false;
 
     private Tab[] Tabs => [
-        new("abilities", "Abilities", () => $"{Session.Costs.AbilityCost(Session.Sheet)} HP"),
-        new("talents",   "Talents",   () => $"{Session.Costs.TalentCost(Session.Sheet)} HP"),
-        new("powers",    "Powers",    () => $"{Session.Sheet.SelectedPowers.Count}"),
-        new("perks",     "Perks",     () => $"{Session.Sheet.Perks.Count}"),
-        new("flaws",     "Flaws",     () => $"{Session.Sheet.Flaws.Count}"),
+        new("abilities", "Abilities", () => $"{Session.Costs.AbilityCost(Session.Sheet)} HP", Never),
+        new("talents",   "Talents",   () => $"{Session.Costs.TalentCost(Session.Sheet)} HP", Never),
+        new("powers",    "Powers",    () => $"{Session.Sheet.SelectedPowers.Count}",
+                                      () => Session.Sheet.SelectedPowers.Count == 0),
+        new("perks",     "Perks",     () => $"{Session.Sheet.Perks.Count}",
+                                      () => Session.Sheet.Perks.Count == 0),
+        new("flaws",     "Flaws",     () => $"{Session.Sheet.Flaws.Count}",
+                                      () => Session.Sheet.Flaws.Count == 0),
     ];
 }
