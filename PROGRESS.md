@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3419 across two projects — 3295 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3446 across two projects — 3322 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -199,6 +199,126 @@ Not urgent. The site works, and a returning visitor pays nothing.
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### The rulebook corpus was materially wrong, and its tests could not see it
+
+`data/rulebook/` shipped in [#43](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/43)
+described as the book's text, verbatim beneath each heading. It was not, and the way it was wrong
+is the dangerous way: **the damaged prose still reads as English.**
+
+**The extractor split every page at a fixed midpoint and emitted the left half, then the right.**
+That is right for the two-column body and destroys anything set full width — it cuts each line in
+two and files the halves in different blocks. **Every chapter opening in the book is set full
+width.** Chapter 2's read:
+
+> "run game more Characters include all beings in the game world, from the Heroes the GM. They
+> include not only sentient beings but also animals, and so on."
+
+against a page that prints "…from the Heroes **run by the players to the Villains, Foes, Minions,
+and Extras run by** the GM. They include not only sentient beings but also animals, **monsters,
+mindless undead, unthinking robots, career politicians,** and so on." Two runs gone, the orphans
+parked at the front, and nothing about the result looks broken.
+
+Four more defects, all of which the suite passed:
+
+- **135 of 1303 sections had no text at all.** Chapter 9 ended with eighteen sections scraped off
+  the blank Hero Sheet form on printed p.189, under headings like `EEDDIITTIIOONN`.
+- **83 sections carried a doubled page number mid-sentence** — "…per extra force field. 2299 PRO
+  Inviolate…". The display faces are faked bold by drawing the text twice a fraction of a point
+  apart, so the two passes interleave.
+- **The rotated marginalia was read as prose**, giving `retpahc` — "chapter" reversed — as a
+  section heading.
+- **Two facing entries on printed p.52 were one section**, headed `OVERKILL PHASE SHIFT`. That is
+  the two-column interleave `CLAUDE.md` already warned about, in the shipped data.
+
+**Measured rather than asserted.** A word-adjacency check against the PDF, calibrated so the two
+entries the old test vouched for score 2–6%, put **114 of 1095 sections at 10% or more fabricated
+adjacencies**. The damage concentrated in chapter openings, tables and Ch.8's stat blocks; the
+narrative Power entries were sound throughout, and Force Field's load-bearing sentence was
+verbatim correct.
+
+**The extractor no longer exists as a scratch project.** It was one, and by the time the output
+was found to be wrong it was gone — so the corpus could be neither audited nor regenerated. It is
+now `tools/RulebookExtractor/`, in the solution so it cannot rot:
+
+```bash
+dotnet run --project tools/RulebookExtractor -- <rulebook.pdf> data/rulebook
+```
+
+It finds the gutter **per page** and decides a line crosses it by whether a **word actually sits
+astride it** — not by whether the line's outermost words fall either side, which is equally true
+of two facing headings sharing a baseline, and is exactly how p.52 merged. Full-width lines then
+break the page into bands, and the columns are read within a band. Furniture goes by rule rather
+than by string: the running foot by position, the purchaser watermark **by font** (6pt Helvetica,
+780 words — four per page across 195 pages, and nothing else in the book), the vertical chapter
+title by text orientation. Doubled glyphs are removed by testing that two glyphs are the same
+character *and physically on top of each other*, which "2299" is and a legitimate "aa" is not.
+
+**Words are split on the page's own space glyphs.** Guessing from letter gaps turned "FORCE FIELD"
+into "FORCEFIELD" — in the condensed display face a word space is barely wider than the gap
+between two letters. A gap break is kept alongside, because two facing headings have no space
+glyph between them at all.
+
+**`RulebookCorpusTests` was almost pure shape-checking and now asserts content, every guard
+demonstrated by mutation.** All the defect shapes were re-injected and every one goes red:
+blanking a section's text, the given name of the watermark, a doubled page number, `retpahc`,
+collapsing a chapter's citations onto one page, overlapping two chapters' ranges, stripping the
+character names from Ch.8, and **the original scramble itself, pasted back verbatim.**
+
+**Three tests do the heavy lifting, and each exists because a reviewer defeated what was there
+before.** An adversarial pass rotated all 1,492 section bodies onto the wrong headings and the
+suite stayed green; it deleted 90% of the book and the suite stayed green; it blanked all 33
+sections of Chapter 5 and the suite stayed green.
+
+- `TheCorpusStillHoldsTheWholeBook` — a floor on total prose. A null check cannot see truncation.
+- `EveryPowerEntryOpensWithItsOwnPrintedStatLine` — **the one that ties a body to its own
+  heading**, across 116 entries rather than four spot checks, by cross-checking the Range against
+  `data/rules`. It is also the sharpest reading-order check there is: Ch.2 sets one Power after
+  another down two columns, so any column mistake shows up at once as an entry opening with its
+  neighbour's tail.
+- `EveryPublishedCharacterIsNamedInChapterEight` — the names come from `PrebuiltHeroes`, which is
+  held to the printed sheets, so it cannot be satisfied by whatever the extractor produced.
+
+**And `ColumnLayout` is now unit-tested against synthetic pages**, because nothing in CI ran a
+line of the extractor: the committed corpus can only show you layouts the book happens to
+contain, and every failure here has been layout-shaped. Disabling either gutter detector fails
+those tests.
+
+**An adversarial review found the first attempt at this was not sound, and the headline defect was
+still in the data by a new route.** That reviewer is the reason this entry describes a working
+extractor rather than a plausible one, and what it caught is worth recording:
+
+- **Sixteen pages were still column-scrambled**, 10% of the corpus, because the gutter search took
+  the strict emptiest point and then measured the run at exactly that count. On printed p.83 the
+  minimum sits on a **1pt spur** where two lines happen to end, while the real 20pt gutter beside
+  it is crossed by seven — so the spur failed the width test, the page was called single-column,
+  and both columns were emitted interleaved. The same defect this change exists to fix, reached
+  from the other direction, on the very page used to demonstrate the fix.
+- **108 headings the old corpus had were gone**, including every named character in Ch.8 — see
+  above; a name is followed straight by its "hero"/"villain" label, so it never got a body and was
+  discarded as empty.
+- **The tests were close to theatre**, which is what the three content tests above now answer.
+- **A claim in every chapter file was false.** The embedded note said the doubled glyphs were
+  collapsed; the de-duplicator written for that job turned out to change **not one byte** of the
+  output, because every element that doubles lives in the running foot and is dropped by position.
+  It is gone, and the note now says what actually happens.
+
+**And fixing the gutter took four attempts, each of which broke something the last one had fixed.**
+Worth stating plainly, because the lesson is that this is not one rule: raising the tolerance fixed
+p.83 and left the band too wide, so every line on p.81 read as full-width; switching to per-line
+gaps fixed p.81 and broke **26 of Chapter 2's Power entries**, because on an ordinary two-column
+page almost every line sits in one column and contains no gap at all. **The old extractor, for all
+its faults, got all 116 of those right** — measured, not assumed, and that measurement is what
+stopped a regression shipping as a fix. The answer is two detectors with a test each.
+
+**Known limits, stated rather than tuned away.** Chapter 8 sets its stat-block headings in small
+capitals, which arrive as `aBIlItIes` and `FlaWs`; two rules were tried — point size, then ascender
+height — and the second was worse than the disease, uppercasing "Points" to "POINTS" while leaving
+the real cases untouched. A table of three or more columns is read across rather than down. Both
+are recorded in the extraction note in every chapter file. Tuning a heuristic until it looks right
+on the two examples to hand is the thing this repository forbids everywhere else.
+
+Chapter 9 now ends at printed 188. Printed 189 is the blank Hero Sheet form — a form, not prose.
 
 ### Two Heroes in the rulebook this tool refused, and the question nobody had asked
 
