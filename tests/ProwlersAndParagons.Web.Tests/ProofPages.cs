@@ -92,6 +92,35 @@ public sealed class ProofPages
         WriteRaw($"proof-shell-{Name(mode)}.html", Name(mode), layout.Markup);
     }
 
+    /// <summary>
+    /// The editors holding nothing — the state a first-time visitor actually meets.
+    ///
+    /// <para><b>Every other proof loads a sample, so none of them has ever shown this.</b>
+    /// <c>RenderContext.With</c> fills every section, which is right for proofing a sheet and
+    /// exactly wrong for proofing an empty list: the six empty states were invisible to every
+    /// page this harness wrote, which is part of why they stayed full stops for so long.</para>
+    /// </summary>
+    [Fact]
+    public void TheEmptyEditors()
+    {
+        if (!Asked) return;
+
+        // No `.With(mode)`: a fresh character, with only the tier a step needs to render at all.
+        using var ctx = new RenderContext();
+        ctx.Session.Sheet.SelectedTierId = "standard";
+
+        var body = new StringBuilder();
+
+        Section(body, "The tab strip — untouched sections ringed",
+            ctx.Render<Characteristics>().Markup);
+        Section(body, "Powers, holding nothing", ctx.Render<PowersTab>().Markup);
+        Section(body, "Perks, holding nothing", ctx.Render<PerksTab>().Markup);
+        Section(body, "Flaws, holding nothing", ctx.Render<FlawsTab>().Markup);
+        Section(body, "Gear, holding nothing", ctx.Render<Gear>().Markup);
+
+        Write("proof-empty.html", "hero", body.ToString());
+    }
+
     /// <summary>The sheet, which is the deliverable and is judged on paper.</summary>
     [Theory]
     [InlineData(SheetMode.Hero)]

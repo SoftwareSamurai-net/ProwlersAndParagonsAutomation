@@ -24,21 +24,31 @@
         record it.
     </p>
 
-    @foreach (var trait in Traits)
-    {
-        var id = trait.Id;
-        <Field Label="@trait.Name" For="@($"{Scope}-src-{id}")">
-            <select id="@($"{Scope}-src-{id}")"
-                    value="@Sources.GetValueOrDefault(id, "")"
-                    @onchange="e => Set(id, e.Value as string)">
-                <option value="">@DefaultName (default)</option>
-                @foreach (var source in Session.Rules.Sources.Where(s => s.Id != DefaultSourceId))
-                {
-                    <option value="@source.Id">@source.Name</option>
-                }
-            </select>
-        </Field>
-    }
+    @* **A grid, not a column.** This is eighteen fields between the two pickers — six
+       Abilities and twelve Talents — and each one is a short label over a control about 200px
+       wide, so a single column spent the whole right-hand two thirds of the panel on nothing
+       and made the Talents picker taller than a laptop viewport. `grid three` auto-fits, so it
+       is four or five across on a desktop and one on a phone without a second rule.
+
+       The rows here are genuinely independent of each other, which is what makes a grid right
+       for them and wrong for the rank rows on the tabs above: those are a table, read down. *@
+    <div class="grid three">
+        @foreach (var trait in Traits)
+        {
+            var id = trait.Id;
+            <Field Label="@trait.Name" For="@($"{Scope}-src-{id}")">
+                <select id="@($"{Scope}-src-{id}")"
+                        value="@Sources.GetValueOrDefault(id, "")"
+                        @onchange="e => Set(id, e.Value as string)">
+                    <option value="">@DefaultName (default)</option>
+                    @foreach (var source in Session.Rules.Sources.Where(s => s.Id != DefaultSourceId))
+                    {
+                        <option value="@source.Id">@source.Name</option>
+                    }
+                </select>
+            </Field>
+        }
+    </div>
 </Panel>
 
 @code {
