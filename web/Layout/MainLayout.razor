@@ -29,19 +29,39 @@
     </div>
 </header>
 
+@* **The chrome is outside the shell, and that is what makes it one band rather than three.**
+   The banner, the step list and the budget strip used to be three separately-framed
+   horizontal things — the banner full width, then a step list with its own bottom rule inside
+   the 1100px column, then the budget as a shadowed white card inset from the window. About
+   215px of furniture before the page heading, on every step, reading as four stacked pieces.
+
+   Out here they are full-window-width bands like the banner, contiguous, each centring its own
+   contents on --column so the three agree. The strip's negative-margin bleed is gone with them:
+   it existed only to escape the shell's padding, and an element that is not inside the shell
+   has nothing to escape. So has the pair of narrow-viewport rules that had to be kept in step
+   with it, and the 8px overflow they caused at 375px is now unreachable rather than guarded.
+
+   **The budget has to be a sibling of `main` rather than a child of a wrapper around the two
+   bands.** `position: sticky` is bounded by its parent, so a short `.chrome` div holding both
+   rows would unstick the strip the moment the band scrolled past — which is the whole span it
+   exists to survive. Out here its containing block is the document, and it stays for the page.
+
+   The nav also stops being inside `<main>`, which it should never have been. *@
+<StepNav />
+
+@* The budget bar is the character being built, and it does not belong above a recording
+   of somebody else's. Both are six labelled figures in the same format — Package, Abilities,
+   Talents, Powers, Perks, Gear — so a visitor part-way through their own character met
+   "105 of 125 spent, 20 remaining" directly above a recorded character costed at 136, with
+   nothing on the page saying whose was whose. Worse on the Villain recording, which
+   deliberately shows no budget of its own: the only budget on the screen belonged to a
+   different character entirely. *@
+@if (!ShowingARecording)
+{
+    <HpBudgetBar />
+}
+
 <main class="shell">
-    <StepNav />
-    @* The budget bar is the character being built, and it does not belong above a recording
-       of somebody else's. Both are six labelled figures in the same format — Package,
-       Abilities, Talents, Powers, Perks, Gear — so a visitor part-way through their own
-       character met "105 of 125 spent, 20 remaining" directly above a recorded character
-       costed at 136, with nothing on the page saying whose was whose. Worse on the Villain
-       recording, which deliberately shows no budget of its own: the only budget on the screen
-       belonged to a different character entirely. *@
-    @if (!ShowingARecording)
-    {
-        <HpBudgetBar />
-    }
     @Body
 </main>
 

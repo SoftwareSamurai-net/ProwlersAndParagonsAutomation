@@ -2,8 +2,12 @@
    reachable at any time — the terminal wizard has back-navigation for the same reason,
    and a browser that only moved forwards would be a step backwards from it. *@
 
-<nav aria-label="Creation steps">
-    <ul class="steps">
+@* `.steps` is on the <nav>, which is the band, and the list inside it is the centred
+   column. The class stayed on the outer element on purpose: the print block hides
+   `.steps`, and moving it to the list would have left the band's rule and ground printing
+   with nothing in them. *@
+<nav class="steps" aria-label="Creation steps">
+    <ul class="steps-list">
         @for (var i = 0; i < Steps.Length; i++)
         {
             var step = Steps[i];

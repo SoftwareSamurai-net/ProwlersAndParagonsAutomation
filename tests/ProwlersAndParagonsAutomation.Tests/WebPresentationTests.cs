@@ -733,29 +733,35 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
-    /// The budget strip's negative-margin bleed cancels exactly the padding the shell applies,
-    /// at every breakpoint — so the strip runs to the shell's edges and no further.
+    /// The chrome bands centre their contents on the same column as the shell, and reserve the
+    /// same padding around it, at every breakpoint — so the step labels, the spend figure and
+    /// the page heading share a left edge.
     ///
-    /// <para><b>This was a comment asking to be remembered, and it is a test because the scales
-    /// made it one.</b> The bleed was a fixed <c>-1.25rem</c> and the shell's padding was
-    /// written separately; the narrow-viewport query cut the padding to 0.75rem and left the
-    /// pull at 1.25rem, so the strip was 8px wider than its container on both sides —
-    /// scrollWidth 368 against clientWidth 360 at a 375px viewport. Nothing could check it,
-    /// because two unrelated literals have no relationship to assert. Two references to the
-    /// same token do.</para>
+    /// <para><b>This replaces a guard on a mechanism that no longer exists, which is the better
+    /// outcome of the two.</b> The step list and the budget strip used to live inside the shell
+    /// and escape its padding with a negative margin; that bleed had to cancel the shell's
+    /// padding exactly, and when the narrow-viewport query cut the padding and left the pull
+    /// alone the band ran 8px past the page on both sides — scrollWidth 368 against clientWidth
+    /// 360 at a 375px viewport. The bands are siblings of <c>main</c> now and are already the
+    /// width of the window, so there is nothing to escape and no negative margin anywhere in the
+    /// file. <b>An invariant is better deleted than guarded when the thing it constrains can be
+    /// removed.</b></para>
     ///
-    /// <para>It is the pairing that is asserted, not either value: the shell may be re-padded
-    /// to any rung, and the strip has to follow it to that rung. And the query is discovered
-    /// rather than listed — a third breakpoint added later is covered the day it is added,
-    /// which is the opposite of how the second one behaved.</para>
+    /// <para>What remains is a real requirement in the direction that cannot overflow: three
+    /// bands agreeing on one column. It is the agreement that is asserted rather than any value,
+    /// so the column may be re-padded to any rung as long as all three follow — and the media
+    /// queries are discovered rather than listed, so a third breakpoint is covered the day it is
+    /// added rather than the day somebody remembers it. That is the half the old bleed rules got
+    /// wrong.</para>
     /// </summary>
     [Fact]
-    public void TheBudgetStripsBleedMatchesTheShellsPadding()
+    public void TheChromeBandsShareTheShellsColumn()
     {
         var css = ScreenHalfOfAppCss;
 
-        // Each block the stylesheet sets `.shell`'s padding in: the base cascade first, then
-        // the body of every media query that re-pads it.
+        // The shell, and the inner column of each band that is not inside it.
+        string[] columns = [".shell", ".steps-list", ".budget-strip", ".breakdown"];
+
         var scopes = new List<(string Where, string Css)> { ("the base rules", TopLevelOf(css)) };
 
         foreach (Match query in Rx(@"@media\s*([^{]+)\{(.*?)\n\}", RegexOptions.Singleline).Matches(css))
@@ -763,23 +769,35 @@ public sealed class WebPresentationTests
                 scopes.Add(($"@media {query.Groups[1].Value.Trim()}", query.Groups[2].Value));
 
         Assert.True(scopes.Count >= 2,
-            "Only one scope re-pads .shell was found. The narrow-viewport query does, so the "
-            + "query scan is not reading the stylesheet.");
+            "Only one scope pads .shell was found. The narrow-viewport query does, so the query "
+            + "scan is not reading the stylesheet.");
 
+        // Every band is capped on the same token, in the base rules. A band that is not capped
+        // runs the width of the window and its contents stop lining up with everything else.
+        foreach (var column in columns)
+            Assert.Equal("var(--column)",
+                EffectiveValue(TopLevelOf(css), column, "max-width"));
+
+        // And every band reserves the same padding around it, in each scope that sets any of
+        // them. A scope that re-pads the shell and forgets a band is the failure the old bleed
+        // rules had, arriving from the other side.
         foreach (var (where, scope) in scopes)
         {
-            var padding = HorizontalPaddingTokenOf(scope, ".shell");
-            var bleed = BleedTokenOf(scope, ".budget");
+            var reserved = columns
+                .Select(c => (Column: c, Padding: HorizontalPaddingTokenOf(scope, c)))
+                .Where(p => p.Padding is not null)
+                .ToList();
 
-            Assert.True(padding is not null, $"{where}: .shell sets no horizontal padding token.");
-            Assert.True(bleed is not null, $"{where}: .budget sets no horizontal bleed token.");
+            if (reserved.Count == 0) continue;
 
-            Assert.Equal(padding, bleed);
+            Assert.True(reserved.Count == columns.Length,
+                $"{where} pads {string.Join(", ", reserved.Select(r => r.Column))} but not "
+                + $"{string.Join(", ", columns.Except(reserved.Select(r => r.Column)))}. All four "
+                + "columns narrow together or they stop sharing a left edge.");
 
-            // The rail bleeds too, and by the same amount. It is a separate element outside
-            // the strip's padding box, so it needs its own pull — and it had one, written as a
-            // third copy of the same literal.
-            Assert.Equal(padding, BleedTokenOf(scope, ".budget-rail"));
+            Assert.True(reserved.Select(r => r.Padding).Distinct(StringComparer.Ordinal).Count() == 1,
+                $"{where} reserves different padding per band: "
+                + string.Join(", ", reserved.Select(r => $"{r.Column} {r.Padding}")));
         }
     }
 
@@ -797,7 +815,15 @@ public sealed class WebPresentationTests
     {
         string? left = null, right = null;
 
-        foreach (var declarations in RulesOf(css).Where(r => r.Selector == selector).Select(r => r.Declarations))
+        // **Comma lists split.** This filtered on the whole selector string being equal, which
+        // is the same weakness a fix-audit found in the sticky-strip guard — and it bit
+        // immediately: the narrow-viewport rule pads the three chrome columns in one grouped
+        // rule, so `.steps-list, .budget-strip, .breakdown` matched none of them and the padding
+        // read as absent. Exact per-selector match, not a suffix: this asks "does this rule pad
+        // this band", and a descendant selector padding something else is not an answer.
+        foreach (var declarations in RulesOf(css)
+                     .Where(r => r.Selector.Split(',').Select(Normalise).Contains(Normalise(selector), StringComparer.Ordinal))
+                     .Select(r => r.Declarations))
         {
             if (Rx(@"padding:\s*([^;}]+)").Match(declarations) is { Success: true } shorthand)
             {
@@ -814,42 +840,6 @@ public sealed class WebPresentationTests
 
             if (Rx(@"padding-left:\s*([^;}]+)").Match(declarations) is { Success: true } l) left = TokenIn(l.Groups[1].Value);
             if (Rx(@"padding-right:\s*([^;}]+)").Match(declarations) is { Success: true } r) right = TokenIn(r.Groups[1].Value);
-        }
-
-        return left is not null && left == right ? left : null;
-    }
-
-    /// <summary>
-    /// The single <c>--space-*</c> token a selector's horizontal <b>negative</b> margin resolves
-    /// to, or null. A positive margin is not a bleed and returns null rather than being counted
-    /// as one — otherwise dropping the minus sign would satisfy the pairing while un-bleeding
-    /// the strip, which is the same shape as the `-var()` mistake that invalidates it outright.
-    /// </summary>
-    private static string? BleedTokenOf(string css, string selector)
-    {
-        string? left = null, right = null;
-
-        foreach (var declarations in RulesOf(css).Where(r => r.Selector == selector).Select(r => r.Declarations))
-        {
-            if (Rx(@"margin:\s*([^;}]+)").Match(declarations) is { Success: true } shorthand)
-            {
-                // **Split into the four sides properly, and read only the horizontal pair.**
-                // This used to take the first negative token found anywhere in the shorthand
-                // and assign it to both sides, so it could not tell a horizontal bleed from a
-                // vertical one: `margin: calc(-1 * var(--space-6)) var(--space-6) var(--space-6)`
-                // satisfied the pairing while pulling the strip 24px *up* over the step nav and
-                // giving it positive 24px side margins — indented rather than bled — with the
-                // rail still at -24px and so 48px wider than the strip it belongs to.
-                var sides = MarginSides(shorthand.Groups[1].Value);
-                if (sides is not null)
-                {
-                    right = NegativeTokenIn(sides[1]);
-                    left = NegativeTokenIn(sides[3]);
-                }
-            }
-
-            if (Rx(@"margin-left:\s*([^;}]+)").Match(declarations) is { Success: true } l) left = NegativeTokenIn(l.Groups[1].Value);
-            if (Rx(@"margin-right:\s*([^;}]+)").Match(declarations) is { Success: true } r) right = NegativeTokenIn(r.Groups[1].Value);
         }
 
         return left is not null && left == right ? left : null;
@@ -897,26 +887,21 @@ public sealed class WebPresentationTests
     /// The rung a single box side is set to, or null — and <b>anchored</b>, so the side has to be
     /// exactly that token and nothing else.
     ///
-    /// <para><b>Both of these took the first token they found anywhere inside the side, which is
-    /// the same first-match weakness the four-side parser was written to remove, surviving one
-    /// level down.</b> A fix-audit got through twice: <c>calc(-1 * calc(-1 * var(--space-6)))</c>
-    /// computes to <em>plus</em> 24px and was read as a −24px bleed, indenting the strip while the
-    /// rail still bled — the "rail 48px wider than the strip" end state — and
-    /// <c>calc(var(--space-6) * 3)</c> is 72px of padding reported as matching a 24px bleed.</para>
+    /// <para><b>This took the first token it found anywhere inside the side, which is the same
+    /// first-match weakness the four-side parser was written to remove, surviving one level
+    /// down.</b> A fix-audit got through with <c>calc(var(--space-6) * 3)</c> — 72px of padding
+    /// reported as matching a 24px bleed. Anchoring means anything more complicated than a bare
+    /// token returns null and the caller reports "sets no horizontal padding token", which fails.
+    /// That is the right direction: this exists to compare two rungs, and a side doing arithmetic
+    /// is not a rung.</para>
     ///
-    /// <para>Anchoring means anything more complicated than a bare token returns null and the
-    /// caller reports "sets no horizontal padding/bleed token", which fails. That is the right
-    /// direction: this pair exists to compare two rungs, and a side doing arithmetic is not a
-    /// rung. If a side ever legitimately needs to compute, it needs a comparison written for it
-    /// rather than a reader that guesses.</para>
+    /// <para>Its negative twin, <c>NegativeTokenIn</c>, went with the bleed it read — the chrome
+    /// bands are siblings of <c>main</c> now and there is no negative margin left in the
+    /// stylesheet for it to parse. A test helper kept past its subject is the same dead weight as
+    /// a CSS class applied to nothing.</para>
     /// </summary>
     private static string? TokenIn(string value) =>
         Rx(@"^var\(\s*(--space-[a-z0-9-]+)\s*\)$").Match(Normalise(value)) is { Success: true } m
-            ? m.Groups[1].Value
-            : null;
-
-    private static string? NegativeTokenIn(string value) =>
-        Rx(@"^calc\(-1\*var\(\s*(--space-[a-z0-9-]+)\s*\)\)$").Match(Normalise(value)) is { Success: true } m
             ? m.Groups[1].Value
             : null;
 

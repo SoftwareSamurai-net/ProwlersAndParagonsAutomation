@@ -219,6 +219,15 @@
    thing is. The test that holds this rule says so, and names them.
    ───────────────────────────────────────────────────────────────────────────── */
 
+/* The width of the content column, and the one length that is neither spacing nor
+   type. It is a token because **three separate bands have to agree on it**: the
+   shell, the step list and the budget strip are laid out full-window-width and
+   centre their contents on this figure, so a reader sees one column rather than
+   three that nearly line up. Before the chrome moved out of the shell there was
+   one copy of it and a pair of negative margins keeping the strip in step; there
+   are three references now and no negative margins at all. */
+:root { --column: 1100px; }
+
 :root {
     --space-0:  0.125rem;  /*  2px — hairline: tag padding, pip gaps          */
     --space-1:  0.25rem;   /*  4px                                           */

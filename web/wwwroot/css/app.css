@@ -150,7 +150,7 @@ hr {
 }
 
 .shell {
-    max-width: 1100px;
+    max-width: var(--column);
     margin: 0 auto;
     padding: var(--space-6) var(--space-6) var(--space-8);
 }
@@ -192,14 +192,22 @@ hr {
 
 /* ── Step navigation ─────────────────────────────────────────────────────── */
 
-.steps {
+/* The band, on the <nav>. Full window width like the banner above it, with no rule of its
+   own: the budget strip directly beneath it carries the one edge the pair needs, so the two
+   read as one piece of chrome rather than as two things that happen to be adjacent. */
+.steps { padding-top: var(--space-4); }
+
+/* …and the centred column inside it, on --column, which is the figure the shell and the
+   budget strip also centre on. Three bands agreeing on one token is what makes the step
+   labels, the spend figure and the page heading share a left edge. */
+.steps-list {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
     list-style: none;
-    margin: 0 0 var(--space-6);
-    padding: 0 0 var(--space-4);
-    border-bottom: var(--rule-weight) solid var(--rule);
+    max-width: var(--column);
+    margin: 0 auto;
+    padding: 0 var(--space-6) var(--space-4);
 }
 .steps a {
     display: block;
@@ -235,19 +243,19 @@ hr {
 
    The z-index sits above the page and below Blazor's error bar (1000), which has
    to cover everything. */
+/* **No negative margins.** The strip used to be pulled out of the shell's padding by
+   `calc(-1 * var(--space-6))` in three places, with a matching pair in the narrow-viewport
+   query that had to be kept in step or the band ran 8px past the page — measured once as
+   scrollWidth 368 against clientWidth 360. It is a sibling of `main` now, so it is already
+   the width of the window and there is nothing to escape. The mechanism is gone rather than
+   guarded, and the guard that watched it went with it. */
 .budget {
     position: sticky;
     top: 0;
     z-index: 20;
     background: var(--panel);
     border-bottom: var(--rule-weight) solid var(--rule);
-    /* `calc(-1 * var(…))`, not `-var(…)`, which is not valid CSS. A minus sign in
-       front of a `var()` makes the whole declaration invalid and the browser drops
-       it — so the strip would quietly stop bleeding to the shell's edges and the
-       margin-bottom on this same line would go with it. Nothing about the page
-       would look broken; it would just look like the bleed had never been written. */
-    margin: 0 calc(-1 * var(--space-6)) var(--space-6);
-    padding: var(--space-3) var(--space-6) 0;
+    padding-top: var(--space-3);
     box-shadow: var(--shadow-3);
 }
 
@@ -256,7 +264,9 @@ hr {
     gap: var(--space-5);
     align-items: baseline;
     flex-wrap: wrap;
-    padding-bottom: var(--space-3);
+    max-width: var(--column);
+    margin: 0 auto;
+    padding: 0 var(--space-6) var(--space-3);
 }
 .budget-strip .spacer { margin-left: auto; }
 
@@ -282,11 +292,12 @@ hr {
     color: var(--muted);
 }
 
-/* Three pixels along the strip's own bottom edge, bled to the full width of the
-   shell — a rail rather than a bordered track sitting inside a panel. */
+/* Three pixels along the strip's own bottom edge — a rail rather than a bordered track
+   sitting inside a panel. It runs the whole width of the window rather than stopping with
+   the column above it, which is deliberate: the other bands centre their *contents* on
+   --column, and a progress rail is not content. It is the band's edge. */
 .budget-rail {
     height: 3px;
-    margin: 0 calc(-1 * var(--space-6));
     background: var(--panel-sunk);
     overflow: hidden;
 }
@@ -327,7 +338,9 @@ hr {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-3) var(--space-5);
-    padding: var(--space-3) 0 var(--space-4);
+    max-width: var(--column);
+    margin: 0 auto;
+    padding: var(--space-3) var(--space-6) var(--space-4);
     font-size: var(--text-sm);
     color: var(--muted);
     animation: rise var(--enter) var(--ease-out) both;
@@ -640,11 +653,18 @@ label {
     color: var(--muted);
 }
 
+/* **No border of its own.** Every one of these lists is inside a panel that is already a
+   ruled box with a heading in a strip above it, so the border here drew a second box around
+   the first one's contents — a bordered scroller inside a bordered card, three nested edges
+   deep once the rows' own separators are counted. The rows are separated from each other and
+   the panel frames the group; nothing was left for this edge to say.
+
+   The scroll stays, and so does the top rule, which is doing a different job: it separates
+   the list from the filter box above it, which is a control rather than a row. */
 .options {
     max-height: 22rem;
     overflow-y: auto;
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-small);
+    border-top: 1px solid var(--rule);
 }
 
 /* Item 3: the same options as a card grid rather than a full-width scrolling
@@ -662,8 +682,10 @@ label {
     gap: var(--space-4);
     max-height: none;
     overflow: visible;
-    border: none;
-    border-radius: 0;
+    /* `border-top`, not `border`: the base rule keeps only its top edge now, and resetting a
+       property the base rule no longer sets is a declaration that does nothing. Cards are a
+       grid of separate boxes, so they want no separator above them at all. */
+    border-top: none;
 }
 .options.cards .option {
     flex-direction: column;
@@ -1038,6 +1060,12 @@ label {
    plaque. The boxes widen to hold one, which is why this is a modifier on the row
    rather than something every stat block carries. */
 .stat-blocks.with-formulas .stat-block { min-width: 14rem; flex: 1 1 14rem; }
+/* The derived step's row is no longer inside a panel — four ruled boxes did not need a fifth
+   box drawn round them — so it carries the gap the panel used to give it. `with-formulas` is
+   that step and nothing else; the sheet never asks for formulas. Reset in the print block,
+   because a screen margin on a (0,2,0) selector would otherwise survive onto paper if the
+   modifier ever reached the sheet, which is the specificity trap this file records three times. */
+.stat-blocks.with-formulas { margin-bottom: var(--space-5); }
 .stat-block .formula {
     margin-top: var(--space-2);
     padding-top: var(--space-2);
@@ -1102,19 +1130,17 @@ label {
 @media (max-width: 620px) {
     .shell { padding: var(--space-5) var(--space-4) var(--space-7); }
 
-    /* **The bleed has to follow the shell's padding or it overflows the page.**
-       `.budget` and its rail are pulled out so the strip runs edge to edge; when
-       the pull is wider than the padding it is cancelling, the strip is wider than
-       its container on both sides — measured at a 375px viewport as scrollWidth
-       368 against clientWidth 360, with the strip poking past the content column.
-
-       That used to be a fixed -1.25rem against a padding written separately, and
-       this comment asked whoever changed one to remember the other. **Both are the
-       same token now, so the invariant is a thing a test can read** rather than a
-       thing a comment can request: see `TheBudgetStripsBleedMatchesTheShellsPadding`.
-       Keep them the same token, at both breakpoints. */
-    .budget { margin-left: calc(-1 * var(--space-4)); margin-right: calc(-1 * var(--space-4)); padding-left: var(--space-4); padding-right: var(--space-4); }
-    .budget-rail { margin-left: calc(-1 * var(--space-4)); margin-right: calc(-1 * var(--space-4)); }
+    /* **The three bands narrow together, and that is the invariant that replaced the
+       bleed.** The chrome used to be pulled out of the shell's padding by a negative
+       margin, and this query had to cancel the same amount or the band ran 8px past
+       the page on both sides — measured once at a 375px viewport as scrollWidth 368
+       against clientWidth 360. The bands are siblings of `main` now, so there is no
+       bleed to keep in step; what has to agree instead is the padding each of them
+       reserves around its own column, which is the same requirement stated in the
+       direction that cannot overflow. `TheChromeBandsShareTheShellsColumn` reads it. */
+    .steps-list,
+    .budget-strip,
+    .breakdown { padding-left: var(--space-4); padding-right: var(--space-4); }
 
     /* The pips go and the word stays. The pips restate the stepper's own number; the
        word is the only thing on the row a reader cannot work out from the figure. */
@@ -1289,6 +1315,7 @@ label {
        safe by an accident of markup rather than by this stylesheet — which is exactly the
        state the other two were in before they broke. */
     .stat-blocks.with-formulas .stat-block { min-width: 0; flex: 0 1 auto; }
+    .stat-blocks.with-formulas { margin-bottom: 0; }
     .stat-block .label { font-size: 7pt; }
     .stat-block .value { font-size: 19pt; }
     .stat-block .sub { font-size: 7pt; }

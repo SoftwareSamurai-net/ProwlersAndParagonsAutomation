@@ -3,6 +3,7 @@ using Bunit;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Pages;
+using ProwlersAndParagonsAutomation.Web.Layout;
 
 namespace ProwlersAndParagons.Web.Tests;
 
@@ -61,6 +62,36 @@ public sealed class ProofPages
         Write($"proof-{Name(mode)}.html", Name(mode), body.ToString());
     }
 
+    /// <summary>
+    /// The shell — the chrome that sits above every step, rendered through the real layout.
+    ///
+    /// <para><b>The other proofs cannot show this and it is the thing Phase 1 is about.</b> They
+    /// render components into a bare <c>.shell</c> div, so the banner, the step list and the
+    /// budget strip never appear together and the question "how much vertical space does the
+    /// chrome cost before any content" has no answer on the page. Judging a band you cannot see
+    /// is how a design decision becomes a guess.</para>
+    ///
+    /// <para><c>MainLayout</c> renders here rather than being reproduced, so the bands proofed are
+    /// the bands shipped. A copy of the banner markup in this file would drift from the real one
+    /// and would proof itself.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void TheShell(SheetMode mode)
+    {
+        if (!Asked) return;
+
+        using var ctx = new RenderContext().With(mode);
+
+        // Enough body to scroll against, so the sticky band can be seen doing its job rather
+        // than merely existing.
+        var tier = ctx.Render<ChooseTier>().Markup;
+        var layout = ctx.Render<MainLayout>(p => p.Add(l => l.Body, tier));
+
+        WriteRaw($"proof-shell-{Name(mode)}.html", Name(mode), layout.Markup);
+    }
+
     /// <summary>The sheet, which is the deliverable and is judged on paper.</summary>
     [Theory]
     [InlineData(SheetMode.Hero)]
@@ -89,7 +120,18 @@ public sealed class ProofPages
     /// for its fonts at <c>../fonts/</c> relative to itself and the sheet is meant to be
     /// proofed with the faces it actually ships with.
     /// </summary>
-    private static void Write(string file, string mode, string body)
+    private static void Write(string file, string mode, string body) =>
+        WritePage(file, mode, $"<div class=\"shell\">{body}</div>");
+
+    /// <summary>
+    /// The same page without the <c>.shell</c> wrapper, for markup that brings its own — the
+    /// layout's banner sits <em>outside</em> the shell, and wrapping it would put the one band
+    /// that is supposed to run the full width of the window inside a 1100px column.
+    /// </summary>
+    private static void WriteRaw(string file, string mode, string body) =>
+        WritePage(file, mode, body);
+
+    private static void WritePage(string file, string mode, string body)
     {
         var wwwroot = Path.Combine(RepoRoot(), "web", "wwwroot");
 
@@ -104,7 +146,7 @@ public sealed class ProofPages
               <link rel="stylesheet" href="css/app.css">
             </head>
             <body>
-              <div class="shell">{body}</div>
+            {body}
             </body>
             </html>
             """;
