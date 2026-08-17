@@ -71,20 +71,89 @@ public sealed class EmptyStateTests
 
     /// <summary>
     /// The Pros and Cons picker, which serves Powers and Abilities both — so its empty state is
-    /// worded for either and may not name one of them. Reached through the Abilities tab, which
-    /// is the shape the app actually renders it in.
+    /// worded for either and may not name one of them.
+    ///
+    /// <para><b>Driven at both settings of <c>IsPro</c>, and the first version was not.</b> It
+    /// rendered <c>AbilitiesTab</c>, which is where the app puts this picker — and that tab passes
+    /// <c>IsPro="false"</c> and nothing else, so the Pro half of the wording was never rendered
+    /// and a mutation putting "this Power does" into it passed. A driven test covers the arguments
+    /// it sends; this project has the same finding recorded against the MCP server's refusal
+    /// branches, which every tool had and none of them drove.</para>
     /// </summary>
-    [Fact]
-    public void ThePickerSaysWhatAProAndAConDoWithNoneChosen()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ThePickerSaysWhatAProAndAConDoWithNoneChosen(bool isPro)
     {
-        var markup = Empty().Render<AbilitiesTab>().Markup;
+        using var ctx = Empty();
 
-        AssertSubstantive(markup, "AbilitiesTab");
+        var markup = ctx.Render<ProConPicker>(p => p
+            .Add(c => c.Scope, ProConPicker.Target.Ability)
+            .Add(c => c.IsPro, isPro)
+            .Add(c => c.Selected, [])).Markup;
 
-        // Both halves of the wording, and neither may claim the subject is a Power: the same
-        // component renders under an Ability, where "the Power" would simply be false.
+        AssertSubstantive(markup, $"ProConPicker(IsPro: {isPro})");
+
+        // The subject is not named, because it varies: the same component renders under a Power
+        // and under an Ability, and "the Power" is false half the time it is shown.
         foreach (var state in States(markup))
             Assert.DoesNotContain("Power", state, StringComparison.Ordinal);
+
+        // And the two halves genuinely differ — one sentence used for both would pass everything
+        // above while telling a reader a Con adds to the cost.
+        Assert.Contains(isPro ? "widens" : "narrows", States(markup)[0], StringComparison.Ordinal);
+        Assert.DoesNotContain(isPro ? "narrows" : "widens", States(markup)[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The tab strip marks the sections that have nothing in them, and marks only the three that
+    /// can be empty.
+    ///
+    /// <para><b>This shipped with no guard and a mutation deleting the marker passed.</b> Which is
+    /// the pattern this project keeps recording — a new surface added and reviewed by nothing —
+    /// so it is here rather than waiting for a reviewer to find it.</para>
+    ///
+    /// <para>The negative half is the load-bearing one. Ch.2 floors every Ability and Talent at
+    /// 1d, so a character has all eighteen and those sections are never untouched; their figure is
+    /// a cost, and 0 HP means a package covered it. Marking them would tell a reader that eighteen
+    /// Traits they cannot be without are missing.</para>
+    /// </summary>
+    [Fact]
+    public void TheTabStripMarksOnlyTheSectionsThatCanBeEmpty()
+    {
+        using var ctx = Empty();
+
+        var tabs = ctx.Render<Characteristics>().FindAll(".tabs button");
+
+        Assert.Equal(5, tabs.Count);
+
+        foreach (var tab in tabs)
+        {
+            var label = tab.TextContent;
+            var count = tab.QuerySelector(".tab-count");
+
+            Assert.True(count is not null, $"The {label} tab shows no count.");
+
+            var marked = count!.ClassList.Contains("untouched");
+            var isCollection = label.Contains("Powers", StringComparison.Ordinal)
+                               || label.Contains("Perks", StringComparison.Ordinal)
+                               || label.Contains("Flaws", StringComparison.Ordinal);
+
+            Assert.True(marked == isCollection,
+                isCollection
+                    ? $"{label.Trim()} is empty on a fresh character and is not marked untouched."
+                    : $"{label.Trim()} is marked untouched, but Ch.2 floors every Ability and "
+                      + "Talent at 1d — that section cannot be empty, and its figure is a cost.");
+        }
+
+        // And the marker goes when the section fills, or it is decoration rather than a state.
+        ctx.Session.Sheet.Perks.Add(new SelectedPerk("contacts", 1, "A precinct dispatcher"));
+
+        var perks = ctx.Render<Characteristics>()
+            .FindAll(".tabs button")
+            .Single(b => b.TextContent.Contains("Perks", StringComparison.Ordinal));
+
+        Assert.DoesNotContain("untouched", perks.QuerySelector(".tab-count")!.ClassList);
     }
 
     /// <summary>
