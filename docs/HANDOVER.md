@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3852 tests** — 3656 engine, 196 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3854 tests** — 3658 engine, 196 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
@@ -84,7 +84,7 @@ Each one has cost this project real time when skipped.
    ```bash
    dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
    ```
-   It must report **3656 + 196 = 3852** and zero warnings. **Warnings are errors only under that
+   It must report **3658 + 196 = 3854** and zero warnings. **Warnings are errors only under that
    flag**, so a plain `dotnet test` passes over things CI fails on.
 
    **Take the number from the run, not from a document, and update the document from the run.**
@@ -143,14 +143,29 @@ Not preferences — this is what the last few slices cost when they were skipped
    **and to demonstrate it by mutation rather than argue it.**
 3. **Then ask a reviewer to audit the fixes, not the code.** This has been the most valuable
    reviewer four sessions running, and on this one it found that three fixes did not hold and
-   that a brand-new component had three defects and no coverage at all.
-4. **Look at the thing, do not only test it.** Every visual bug in slice B — a count reading
+   that a brand-new component had three defects and no coverage at all. On Phase 0 it found that
+   **nine of eleven fixes caught only the mutation demonstrated to them** — ask it for a *variant*
+   that reaches the same end state, not a re-run of the original.
+
+4. **A later declaration of the same thing beats a `Contains`, and that one root cause has now
+   defeated five guards in `WebPresentationTests`.** `Contains("position:sticky")` is satisfied by
+   a declaration overridden on the next line; a pinned `--space-4: 0.75rem` is satisfied while a
+   duplicate lower down wins the cascade; `border-bottom:` is satisfied by `border-bottom: none`.
+   The instrument is `EffectiveValue` — comma lists split, suffix-matched, last declaration wins —
+   and `RulesTargeting` beside it. **Do not write a new guard in this file with `Contains`.**
+
+5. **Placement in the cascade is part of aiming a mutation.** Twice this slice a mutation inserted
+   *earlier* in the file than the rule it was meant to override reported as a survivor, because the
+   cascade genuinely resolved the right way and the mutation never reached the state being tested
+   for. Insert after the rule you are overriding, and check the numstat **and** the marker after
+   the run as well as before — a concurrent revert mid-run reads exactly like a guard holding.
+6. **Look at the thing, do not only test it.** Every visual bug in slice B — a count reading
    282 of 141, a rank printed as `12D`, a citation as `CH.6` — was found by looking at a rendered
    page, and none was visible to any test.
-5. **A guard that grows subjects without growing coverage is worth less each time.** Adding three
+7. **A guard that grows subjects without growing coverage is worth less each time.** Adding three
    uppercased classes to the budget strip added three selectors the guard could not reach. If a
    test enumerates things, make it refuse a subject it never found.
-6. **Check a rulebook citation before repeating it.** A comment cited "Elasticity", which is not
+8. **Check a rulebook citation before repeating it.** A comment cited "Elasticity", which is not
    a Power in this rulebook; `CLAUDE.md` already recorded that exact slip being made once before.
 
 ---

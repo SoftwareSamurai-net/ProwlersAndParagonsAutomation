@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3852 across two projects — 3656 on the engine, 196 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3854 across two projects — 3658 on the engine, 196 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -359,7 +359,79 @@ The headline count also read 3849 against a tree of 3850 for one commit, copied 
 before the last test was added. Both reviewers spent a finding on it, which is a waste of a
 reviewer: **take the number from the run.**
 
-3841 tests to **3852**. Zero warnings at CI strictness. **Payload: unchanged** — no file added,
+**Then a fix-audit — a reviewer pointed at the fixes rather than at the code — and it found that
+nine of the eleven caught only the mutation demonstrated to them.** That is the fourth session
+running this reviewer has been worth more than the passes before it, and the second time it has
+found most of a round of fixes to be narrower than claimed. Both figures it re-measured from the
+documents checked out (75 of 75 children symmetric, `overflow 0px`, 3852 tests), which is the
+other half of its job.
+
+**Its central finding is one root cause behind three of the nine, and the correct pattern was
+already in this file twice: a later declaration of the same thing beats a `Contains`.** Each of
+the three reached the bad end state by declaring the thing *again* rather than by editing what the
+guard was reading — a duplicate `--space-4: 4rem` under `--space-8` (workhorse rung at 64px, full
+suite green), `.budget, .breakdown { position: static }` later in the file (strip un-stuck, top
+elevation step kept), and `border-bottom: none` instead of deleting the line. It is fixed once, as
+`EffectiveValue`: comma lists split, suffix-matched, last declaration wins.
+
+**Two doors needed no scale token at all, and that is the more useful lesson.**
+`--table-inset: 1.2rem` beside `width: calc(100% - var(--table-inset))` restored the table
+misalignment byte for byte — 3.20px on all fifteen tables — and `--pad-lg: 4rem` re-padded an
+element with a raw length under a name no rule about the scales could match. **Narrowing the
+earlier check to `--space-*` and `--text-*` defended the names of the scales rather than the
+property that makes a scale mean anything**, which is that there is one place lengths are decided.
+`app.css` may now declare no custom property at all — free, because it declares none.
+
+**And the unit list was the wrong shape twice, the second time knowingly.** The fix's own doc
+comment said "an allow-list of units is the wrong shape for a ban" and then shipped a longer
+allow-list, which `9dvmin`, `3svb`, `2lvi` and `4PX` walked through — twelve viewport units
+missing and the match case-sensitive besides. It is inverted now: a digit followed by letters or a
+percent is a length, whatever the letters are, so a unit from a future specification is caught the
+day it ships.
+
+Three more where the fix asserted more than it checked, which is the shape this project keeps
+being bitten by:
+
+- **`ScreenHalfOfAppCss` strips every `@page` block while `ThePageIsA4WithMargins` read only the
+  first** — and the stripping cited that test as the compensating check. A second `@page` after
+  the A4 block printed the sheet A5 landscape at margin 0, seen by nothing.
+  `ThereIsExactlyOnePrintBlockInEachStylesheet` exists for this failure one at-rule over; the page
+  box now has its equivalent, pseudo-pages included.
+- **`TokenIn`/`NegativeTokenIn` still took the first token found anywhere inside a side**, which is
+  the first-match weakness the four-side parser was written to remove, surviving one level down.
+  `calc(-1 * calc(-1 * var(--space-6)))` computes to **plus** 24px and read as a bleed;
+  `calc(var(--space-6) * 3)` is 72px of padding read as matching a 24px bleed. Both anchored to
+  the whole side, so a side doing arithmetic fails safe rather than being guessed at.
+- **The rank-word guard named `.trait-table td` as "the rank it glosses", and the two never render
+  on the same surface** — `.rank-word` comes from `RankRow.razor` and `.trait-table` from
+  `SheetView.razor`. The claim was about a pair nobody can see together, and it passed only by
+  being accidentally conservative. Shrinking `.stepper .value`, the figure it actually sits beside,
+  put the gloss exactly level with it, green. Compared against that now, with an assertion that
+  the two really do render together.
+
+**One route needed a second round.** Reading the exemption's precondition as a *value* closed
+`border-bottom: none` and did not close `.sheet .budget-toggle { border-bottom: … }` — a selector
+matching nothing in this app, supplying the reason while the real rule lost its border. **Suffix
+matching is right for "what applies to this element" and wrong for "does this rule still say
+this",** and a source-reading test cannot know which selectors match real elements. So each
+exemption records the selector that must carry its reason, matched exactly — which for `.hp` is
+the base rule rather than the exempt selector, because the letter-spacing is inherited.
+
+**Two of the fixes were mine to break again in the same sitting**, both caught by running rather
+than by reading: the inverted unit regex allowed whitespace between number and unit, so
+`margin: 0 auto` read as the length "0 auto"; and the precondition field carried a trailing colon
+into a pattern that appends its own, demanding two and matching nothing, which reported every
+exemption's reason as missing. And `CA1875` — an analyzer error **only the
+`ContinuousIntegrationBuild` flag reports**, which a plain `dotnet test` was green over.
+
+**One of my own re-runs was a misaimed mutation reported as a survivor, for the second time this
+slice.** The comma-list rule was inserted at `.boot-sub`, line 84, which is *earlier* in the file
+than `.budget` at 239 — so the cascade genuinely resolved to sticky and the mutation never reached
+the state it was testing for. Re-aimed after the rule it had to override, both it and a
+more-specific-selector variant are caught. **Placement in the cascade is part of aiming a
+mutation, not a detail of it.**
+
+3841 tests to **3854**. Zero warnings at CI strictness. **Payload: unchanged** — no file added,
 no byte of CSS beyond the token declarations.
 
 ### The visual redesign: two faces, and the filter box somebody actually asked for
