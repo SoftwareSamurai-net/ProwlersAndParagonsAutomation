@@ -235,9 +235,18 @@ public sealed class ProConApplicabilityTests
             + $"wording with the page before changing either. It now reads: "
             + $"\"{option.ApplicabilityCaveat}\"");
 
-        // And the record is held to the book rather than to itself, so a caveat and a
-        // transcription cannot be edited into agreement about something never printed.
-        Assert.Contains(entry.PrintedConstraint, PowersChapterText, StringComparison.Ordinal);
+        // A caveat restricts. The inversion this test exists for — "Applies to absolutely any
+        // Power at all, no conditions." — is a caveat that says there is no condition, which is
+        // the one thing the field cannot mean.
+        Assert.True(entry.Caveat.StartsWith("Only for", StringComparison.Ordinal)
+                    || entry.Caveat.StartsWith("Not for", StringComparison.Ordinal),
+            $"'{id}' carries a caveat that does not restrict anything: \"{entry.Caveat}\"");
+
+        // And the record is held to the book rather than to itself — under this option's own
+        // heading, not anywhere in the chapter. Searching all of Ch.2 accepted Carrier Attack
+        // transcribed with Ongoing's real printed sentence, which is a correct quotation of the
+        // wrong entry.
+        Assert.Contains(entry.PrintedConstraint, PrintedEntry(entry.Heading), StringComparison.Ordinal);
     }
 
     public static TheoryData<string> Caveats() => [.. CanonicalCaveats.All.Select(e => e.Id)];
@@ -271,7 +280,22 @@ public sealed class ProConApplicabilityTests
         new() { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower };
 
     /// <summary>
-    /// Chapter 2's printed text, which is where every Pro and Con in the game is defined
+    /// The printed text under one heading of Chapter 2. Scoped to the entry rather than to the
+    /// chapter, because a sentence the book contains somewhere is not the sentence the book
+    /// prints <em>here</em>.
+    /// </summary>
+    private static string PrintedEntry(string heading)
+    {
+        var sections = PowersChapter.Where(s => s.Heading == heading).ToList();
+
+        Assert.True(sections.Count > 0,
+            $"data/rulebook/ch02-characters.json has no section headed '{heading}'.");
+
+        return string.Join("\n", sections.Select(s => s.Text));
+    }
+
+    /// <summary>
+    /// Chapter 2's printed sections, which is where every Pro and Con in the game is defined
     /// (pp.48-53). Read through the deserializer rather than off the raw file, so the JSON
     /// escapes the extractor writes — <c>+</c> among them — are the characters the book prints.
     /// </summary>
@@ -282,9 +306,9 @@ public sealed class ProConApplicabilityTests
     /// the naming policy and hands back a chapter with no sections. Every caveat then failed on
     /// a sentence the book does contain.
     /// </remarks>
-    private static string PowersChapterText { get; } = ReadPowersChapter();
+    private static Section[] PowersChapter { get; } = ReadPowersChapter();
 
-    private static string ReadPowersChapter()
+    private static Section[] ReadPowersChapter()
     {
         var path = Path.Combine(RulesFixture.RepoRoot, "data", "rulebook", "ch02-characters.json");
 
@@ -297,7 +321,7 @@ public sealed class ProConApplicabilityTests
         if (chapter.Sections is not { Length: > 0 })
             throw new InvalidOperationException($"{path} read back with no sections at all.");
 
-        return string.Join("\n", chapter.Sections.Select(s => s.Text));
+        return chapter.Sections;
     }
 
     private sealed record Chapter(Section[] Sections);
@@ -525,9 +549,19 @@ public sealed class ProConApplicabilityTests
             Assert.Equal(cons.Where(offeredCons.Contains), offeredCons);
         }
 
-        // Narrow: a file order that happened to be the same as some other order would make the
-        // check above vacuous, so at least one Power is offered enough options to tell them apart.
+        // Narrow, on both halves. A collapsed list is trivially a subsequence of anything, so
+        // `ConsFor` reduced to `.Take(1)` passed the loop above — caught only by other tests,
+        // which is the same accident this file is full of fixing.
         Assert.True(_sut.ProsFor(Power("blast")).Count > 2);
+        Assert.True(_sut.ConsFor(Power("blast")).Count > 2);
+
+        // <b>And that the Pro half can tell rules-file order from an alphabetical sort.</b>
+        // pros.json is not in id order — Zone/Nova sits between Area/Burst and Armor Piercing,
+        // because the file follows the printed pairing rather than the alphabet — so a sort by
+        // id fails the loop above. cons.json happens to be in id order, so the Con half cannot
+        // distinguish the two; that is a limit of the data, and reordering a rules file to suit
+        // a test would be the wrong way round.
+        Assert.NotEqual(pros, [.. pros.Order(StringComparer.Ordinal)]);
     }
 
     /// <summary>

@@ -721,7 +721,7 @@ public sealed class ValidationIssueStructureTests
     [Fact]
     public void TheKindOfEveryCodeIsWrittenDown()
     {
-        var missing = DeclaredCodes(ValidatorSource).Except(ExpectedKinds.Keys, StringComparer.Ordinal)
+        var missing = DeclaredCodes(EngineSource).Except(ExpectedKinds.Keys, StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToList();
 
@@ -731,7 +731,7 @@ public sealed class ValidationIssueStructureTests
 
         // And the other way, so a code that has been removed does not leave a line here claiming
         // to guard something.
-        var stale = ExpectedKinds.Keys.Except(DeclaredCodes(ValidatorSource), StringComparer.Ordinal)
+        var stale = ExpectedKinds.Keys.Except(DeclaredCodes(EngineSource), StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToList();
 
@@ -833,6 +833,58 @@ public sealed class ValidationIssueStructureTests
         "PRO_VARIANT_NOT_CHOSEN", "CON_VARIANT_NOT_CHOSEN", "RANKLESS_POWER_WITHOUT_SOURCE",
         "POWER_WITHOUT_SOURCE", "MODIFIER_ON_UNBOUGHT_ABILITY", "FLAW_MIN_NOT_MET"
     };
+
+    /// <summary>
+    /// <b>The same guarantee for the list above, which was the identical hole one table over.</b>
+    /// <see cref="MustOfferOptions"/> is hand-maintained, and nothing held it to the validator: a
+    /// new code whose fix is a choice could be added with <c>Options = []</c> and left out of the
+    /// list, and both this and <see cref="EveryOptionOfferedIsOneTheRulesAccept"/> would pass —
+    /// the first by not listing it, the second by having nothing to walk.
+    ///
+    /// <para>Read off the source rather than off a run, because a code that offers options
+    /// <em>sometimes</em> is the case a behavioural check cannot see: the finding with the empty
+    /// list is exactly the one that needs catching.</para>
+    /// </summary>
+    [Fact]
+    public void EveryCodeThatOffersOptionsSaysSoInTheList()
+    {
+        // The source is cut at each finding rather than matched as a block: a finding written
+        // without an object initialiser has no closing brace to stop at, so a block pattern runs
+        // on into the next one and inherits its Options. Each finding therefore owns the text
+        // from its own code to where the next one starts.
+        var positions = new Regex(
+            @"ValidationSeverity\.(?:Error|Warning),\s*([^,]*),",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5))
+            .Matches(EngineSource);
+
+        var literals = new Regex(@"""([A-Z][A-Z0-9_]*)""", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        // `Options` with its assignment, not the bare word: one finding carries the comment
+        // "No Options here, deliberately", which is a statement that it has none.
+        var assigned = new Regex(@"\bOptions\s*=", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        var offering = new HashSet<string>(StringComparer.Ordinal);
+
+        for (var i = 0; i < positions.Count; i++)
+        {
+            var start = positions[i].Index;
+            var end   = i + 1 < positions.Count ? positions[i + 1].Index : EngineSource.Length;
+
+            if (!assigned.IsMatch(EngineSource[start..end])) continue;
+
+            foreach (Match code in literals.Matches(positions[i].Groups[1].Value))
+                offering.Add(code.Groups[1].Value);
+        }
+
+        Assert.NotEmpty(offering);
+
+        Assert.True(offering.SetEquals(MustOfferOptions),
+            "MustOfferOptions and the validator disagree about which findings carry a choice. "
+            + "Only in the validator: "
+            + string.Join(", ", offering.Except(MustOfferOptions, StringComparer.Ordinal).Order(StringComparer.Ordinal))
+            + ". Only in the list: "
+            + string.Join(", ", MustOfferOptions.Except(offering, StringComparer.Ordinal).Order(StringComparer.Ordinal)));
+    }
 
     /// <summary>
     /// Severity is what decides whether a character is legal, and several tests asserted a code
@@ -1246,8 +1298,25 @@ public sealed class ValidationIssueStructureTests
     private static readonly string[] UnprovokableCodes =
         ["POWER_MECHANICS_UNVERIFIED", "POWER_DESCRIPTION_UNVERIFIED", "CHARACTER_NOT_PRICEABLE"];
 
-    private static string ValidatorSource { get; } = File.ReadAllText(
-        Path.Combine(RulesFixture.RepoRoot, "engine", "CharacterValidator.cs"));
+    /// <summary>
+    /// <b>Every source file in the engine, not just the validator.</b> Reading
+    /// <c>CharacterValidator.cs</c> alone scoped all three guarantees to one file: moving the
+    /// codes to a constants class, or making the validator partial, left a code with no recorded
+    /// subject kind and no provoking case, with the whole suite green. Both are ordinary
+    /// refactors and neither should be able to void a guarantee silently.
+    /// </summary>
+    private static string EngineSource { get; } = string.Join("\n",
+        Directory.GetFiles(Path.Combine(RulesFixture.RepoRoot, "engine"), "*.cs",
+                           SearchOption.AllDirectories)
+            .OrderBy(f => f, StringComparer.Ordinal)
+            .Select(File.ReadAllText));
+
+    /// <summary>
+    /// The one all-capitals literal in the engine that is not a validation code: the heading a
+    /// sheet prints over Powers with no Source (<c>SourceGrouping</c>). Named rather than matched
+    /// by shape, so a code that happens to look like it is not swept up with it.
+    /// </summary>
+    private static readonly string[] NotCodes = ["POWERS"];
 
     /// <summary>
     /// <b>Every code-shaped literal in the validator, found by its case rather than by its
@@ -1267,11 +1336,71 @@ public sealed class ValidationIssueStructureTests
     /// source rather than the real one — because a scan that reads only the shipped file cannot
     /// tell you what it would miss in a file that is not there yet.</para>
     /// </summary>
-    private static HashSet<string> DeclaredCodes(string source) =>
-        new Regex(@"""([A-Z][A-Z0-9_]*)""", RegexOptions.None, TimeSpan.FromSeconds(5))
+    private static HashSet<string> DeclaredCodes(string source)
+    {
+        var found = new Regex(@"""([A-Z][A-Z0-9_]*)""", RegexOptions.None, TimeSpan.FromSeconds(5))
             .Matches(source)
             .Select(m => m.Groups[1].Value)
             .ToHashSet(StringComparer.Ordinal);
+
+        found.ExceptWith(NotCodes);
+        return found;
+    }
+
+    /// <summary>
+    /// <b>The scan above is by case, so the case is enforced rather than assumed.</b> That is the
+    /// half that was missing: spelling a code <c>"TooManyConnections"</c> made it invisible to
+    /// every guarantee built on the scan, with the suite green — the same escape as
+    /// <c>TOOMANYCONNECTIONS</c> one spelling further on, and the reason widening the pattern
+    /// again would not have closed it. A pattern can always be out-spelled; a convention checked
+    /// at the point the code is written cannot.
+    ///
+    /// <para>Both places a code is written are read: the second argument of the issue
+    /// constructor, and the first of the <c>Negative</c> helper. The capture stops at the next
+    /// comma, which is why the <c>isPro ? "UNKNOWN_PRO" : "UNKNOWN_CON"</c> ternaries come
+    /// through whole — they contain no comma — and both arms are checked.</para>
+    /// </summary>
+    [Fact]
+    public void EveryCodeIsWrittenInTheOneSpellingTheScanCanSee()
+    {
+        var written = CodeExpressions(EngineSource);
+
+        // A pattern that matched nothing would pass this test in silence, which is the failure
+        // this whole area keeps having.
+        Assert.True(written.Count >= 40,
+            $"Only {written.Count} places construct a finding, which means this scan has stopped "
+            + "finding them rather than that the validator has shrunk.");
+
+        foreach (var (expression, literal) in written)
+            Assert.True(Regex.IsMatch(literal, "^[A-Z][A-Z0-9_]*$", RegexOptions.None, TimeSpan.FromSeconds(5)),
+                $"The code '{literal}' is written in a spelling DeclaredCodes cannot see, so it "
+                + "would be exempt from every structural rule here. Codes are ALL CAPITALS. "
+                + $"Written as: {expression.Trim()}");
+
+        // And the two scans agree, so neither can quietly stop seeing what the other does.
+        Assert.Empty(written.Select(w => w.Literal).Except(DeclaredCodes(EngineSource), StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// Every literal written where a code goes, with the expression it came from for the failure
+    /// message.
+    /// </summary>
+    private static List<(string Expression, string Literal)> CodeExpressions(string source)
+    {
+        var positions = new Regex(
+            @"ValidationSeverity\.(?:Error|Warning),\s*([^,]*),|Negative\(\s*([^,]*),",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        var literals = new Regex(@"""([^""]*)""", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        return
+        [
+            .. positions.Matches(source)
+                .Select(m => m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value)
+                .SelectMany(expression => literals.Matches(expression)
+                    .Select(l => (Expression: expression, Literal: l.Groups[1].Value)))
+        ];
+    }
 
     /// <summary>
     /// The scan above, driven against source it has never seen. Reading the real validator
@@ -1308,7 +1437,7 @@ public sealed class ValidationIssueStructureTests
     [Fact]
     public void EveryCodeTheValidatorCanReportIsProvokedBySomeCase()
     {
-        var declared = DeclaredCodes(ValidatorSource);
+        var declared = DeclaredCodes(EngineSource);
 
         Assert.NotEmpty(declared);
 
@@ -1368,6 +1497,75 @@ public sealed class ValidationIssueStructureTests
 
             Assert.False(string.IsNullOrWhiteSpace(issue.SubjectId),
                 $"{issue.Code} says it is about a {issue.SubjectKind} and does not say which.");
+        }
+    }
+
+    /// <summary>
+    /// <b>And the id it names has to be a thing of the kind it claims.</b> This is the rule
+    /// <see cref="EachCodeReportsTheKindOfThingItIsAbout"/> cannot state: that table is keyed by
+    /// code, and seven codes legitimately serve more than one kind — <c>TRAIT_ABOVE_CAP</c> is
+    /// about an Ability, a Talent or a Power depending on which loop raised it. So a swap
+    /// <em>within</em> a code's list was invisible to it. Changing <c>CheckTraitSources</c>'s
+    /// Ability argument to Talent reported <c>UNKNOWN_SOURCE</c> on <c>toughness</c> as a Talent
+    /// problem with the whole suite green, and a repair loop following that writes into
+    /// <c>TalentSources</c> and never terminates.
+    ///
+    /// <para>Asserting the id against the kind removes the need for the table to be precise about
+    /// which of several kinds a given finding took, and catches the swap in both directions.</para>
+    ///
+    /// <para><b>Deliberately no exemption list.</b> Half the codes here report an id the rulebook
+    /// does <em>not</em> have — that is the whole of what <c>UNKNOWN_ABILITY</c> says — so
+    /// "resolves against the rules" alone would have to excuse them, and excusing them was what
+    /// let the mutation through in the first place. So the id may resolve against the rules
+    /// <em>or</em> against the part of the character the kind names: <c>strength</c> is an
+    /// Ability problem because it is a key of <c>AbilityRanks</c>, whatever the rulebook thinks
+    /// of it, and it is still not a Talent problem. That covers every finding without excusing
+    /// one.</para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Cases))]
+    public void ASubjectIdNamesSomethingOfTheKindTheIssueClaims(string which)
+    {
+        var sheet = Build(which);
+
+        foreach (var issue in _f.Validator.Validate(sheet).Issues)
+        {
+            if (issue.SubjectKind is ValidationSubject.None or ValidationSubject.Character) continue;
+            if (issue.SubjectId is not { } id) continue;
+
+            var resolves = issue.SubjectKind switch
+            {
+                ValidationSubject.Ability => _f.Rules.GetAbility(id) is not null
+                    || sheet.AbilityRanks.ContainsKey(id)
+                    || sheet.AbilitySources.ContainsKey(id)
+                    || sheet.AbilityModifiers.ContainsKey(id),
+
+                ValidationSubject.Talent => _f.Rules.GetTalent(id) is not null
+                    || sheet.TalentRanks.ContainsKey(id)
+                    || sheet.TalentSources.ContainsKey(id),
+
+                ValidationSubject.Power => _f.Rules.GetPower(id) is not null
+                    || sheet.SelectedPowers.Any(p => p.PowerId == id),
+
+                ValidationSubject.Flaw => _f.Rules.GetFlaw(id) is not null
+                    || sheet.Flaws.Any(f => f.FlawId == id),
+
+                ValidationSubject.Tier => _f.Rules.GetTier(id) is not null
+                    || sheet.SelectedTierId == id,
+
+                ValidationSubject.GearFeature => _f.Rules.GetGearFeature(id) is not null
+                    || sheet.Gear.Any(g => g.Features.Any(f => f?.FeatureId == id)),
+
+                // Gear has no id — its name is all it has — so it is looked up on the character.
+                ValidationSubject.Gear => sheet.Gear.Any(g => g.Name == id),
+
+                _ => true
+            };
+
+            Assert.True(resolves,
+                $"{issue.Code} says it is about the {issue.SubjectKind} '{id}', which is not a "
+                + $"{issue.SubjectKind} in the rules or on this character. A caller repairing it "
+                + "writes into the wrong collection and gets the same finding back.");
         }
     }
 

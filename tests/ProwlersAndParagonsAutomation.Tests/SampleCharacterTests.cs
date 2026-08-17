@@ -58,14 +58,15 @@ public sealed class SampleCharacterTests : IClassFixture<RulesFixture>
 
     /// <summary>
     /// <b>Both ends of the budget, because only one of them was ever checked.</b> A sample that
-    /// cannot be afforded teaches the wrong thing about the budget bar — and so does one that
-    /// spends a third of it, which is what the one-sided comparison allowed: deleting
-    /// <c>stun</c> outright from the Hero left this green, and every other test with it, since
-    /// "fills every section" only asks whether a section is non-empty.
+    /// cannot be afforded teaches the wrong thing about the budget bar, and so does one that
+    /// spends a third of it.
     ///
-    /// <para>The floor is half the budget rather than a figure close to what they spend now, so
-    /// it bounds the failure it is for without being a number to re-tune every time a sample is
-    /// edited. As they stand the Hero spends 105 of 125 and the Villain 119.</para>
+    /// <para><b>The floor is not what catches a Power being deleted, and an earlier version of
+    /// this comment said it was.</b> A Standard-tier character's package, six Abilities and
+    /// twelve Talents clear half the budget on their own, so <c>spent * 2 &gt;= budget</c> is
+    /// satisfied by a Hero with <em>no Powers at all</em> — which was measured, not assumed. It
+    /// is a coarse bound on the whole character; the Powers are held by
+    /// <see cref="TheSamplesCarryThePowersTheyWereBuiltWith"/> and by the spend below.</para>
     /// </summary>
     [Theory]
     [MemberData(nameof(SampleNames))]
@@ -82,6 +83,16 @@ public sealed class SampleCharacterTests : IClassFixture<RulesFixture>
         Assert.True(spent * 2 >= budget,
             $"The {which} sample spends only {spent} of {budget} HP. A preview built to show " +
             "what a finished sheet looks like has had something taken out of it.");
+
+        // The Powers separately, since the figure above cannot see them: deleting all seven of
+        // the Hero's left it green. A coarse backstop for the no-Powers-at-all case rather than
+        // a measure — most of a Standard-tier budget goes on Traits, and the Hero's Powers come
+        // to 20 HP of 125 against the Villain's 33.
+        var powers = _costs.TotalPowersCost(sheet);
+
+        Assert.True(powers * 10 >= budget,
+            $"The {which} sample's Powers cost {powers} HP against a {budget} HP budget, which is "
+            + "not a character anybody would look at a sheet to understand.");
     }
 
     /// <summary>
@@ -113,16 +124,40 @@ public sealed class SampleCharacterTests : IClassFixture<RulesFixture>
     /// below 1 HP per rank, a Power with no rank at all, the one Power the rulebook costs as a
     /// group, and a Power carrying a Con. Naming the ids above catches a deletion; this catches
     /// a replacement that quietly costs the preview the thing it was previewing.
+    ///
+    /// <para><b>Asserted on the selections, not on the rules entries.</b> The first version read
+    /// <c>Prerequisite.Relationship</c> and <c>CostPerRank</c> off <c>powers.json</c>, which are
+    /// facts about the rulebook and true whatever the sample does with them — so setting Armor,
+    /// Danger Sense and Resistance to 0 purchased ranks left every shape here "present" while the
+    /// sheet stopped showing any of them. Armor's whole point is 4 free ranks and 4 bought
+    /// reaching 8; at 0 bought it prints its bare baseline.</para>
     /// </summary>
     [Fact]
     public void TheSamplesShowEveryShapeAPrintedSheetHas()
     {
         var hero = SampleCharacters.Hero();
-        var powers = hero.SelectedPowers.Select(p => _rules.GetPower(p.PowerId)!).ToList();
 
-        Assert.Contains(powers, p => p.Prerequisite?.Relationship == "baseline_half");
-        Assert.Contains(powers, p => p.Prerequisite?.Relationship == "baseline_equal");
-        Assert.Contains(powers, p => p.CostPerRank is > 0 and < 1);
+        // Paired with the selection, so a shape counts only if the sample actually exercises it.
+        var chosen = hero.SelectedPowers
+            .Select(sp => (Selected: sp, Model: _rules.GetPower(sp.PowerId)!))
+            .ToList();
+
+        var powers = chosen.Select(c => c.Model).ToList();
+
+        // Both baselines, and both with ranks bought on top: a baseline alone is the rulebook's
+        // fact about the Power, and what the sheet is for is showing them stack.
+        Assert.Contains(chosen, c => c.Model.Prerequisite?.Relationship == "baseline_half"
+                                     && c.Selected.PurchasedRanks > 0
+                                     && _derived.GetEffectiveRank(c.Selected, hero) > c.Selected.PurchasedRanks);
+
+        Assert.Contains(chosen, c => c.Model.Prerequisite?.Relationship == "baseline_equal"
+                                     && c.Selected.PurchasedRanks > 0
+                                     && _derived.GetEffectiveRank(c.Selected, hero) > c.Selected.PurchasedRanks);
+
+        // The half-rate line rounding up, which only shows once ranks are bought at that rate.
+        Assert.Contains(chosen, c => c.Model.CostPerRank is > 0 and < 1 && c.Selected.PurchasedRanks > 0);
+
+        // And a Power with no rank at all, beside them.
         Assert.Contains(powers, p => p.RankType is "default" or "special");
 
         // Super Senses is costed as one Power however many options are taken (Ch.2), which only
