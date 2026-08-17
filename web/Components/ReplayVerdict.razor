@@ -32,7 +32,7 @@
             <span>Trait Cap <b class="num">@(Tier?.TraitCapRank.ToString() ?? "—")<span class="muted">d</span></b></span>
         </div>
 
-        <div class="replay-figures spent-on">
+        <div class="replay-figures">
             <span>Package <b class="num">@Figure(() => Session.Costs.PackageCost(Character))</b></span>
             <span>Abilities <b class="num">@Figure(() => Session.Costs.AbilityCost(Character))</b></span>
             <span>Talents <b class="num">@Figure(() => Session.Costs.TalentCost(Character))</b></span>

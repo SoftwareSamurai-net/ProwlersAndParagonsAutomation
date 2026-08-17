@@ -858,7 +858,6 @@ label {
     margin-bottom: var(--space-3);
 }
 .replay-figures b { color: var(--ink); font-variant-numeric: tabular-nums; }
-.replay-figures.spent-on { font-size: var(--text-sm); }
 
 /* ── The character sheet itself ──────────────────────────────────────────── */
 
@@ -959,7 +958,17 @@ label {
 .sheet-section > :not(h3) { margin-left: var(--space-3); margin-right: var(--space-3); }
 .sheet-section > :nth-child(2) { margin-top: var(--space-3); }
 .sheet-section > :last-child { margin-bottom: var(--space-3); }
-.sheet-section > table { width: calc(100% - 1.2rem); }
+/* **Derived from the same token the margins above use, not from a literal that matched it
+   once.** This read `calc(100% - 1.2rem)` while the inset beside it was 0.6rem — a matched
+   pair of literals. Phase 0 moved the inset onto the scale and left the width behind, so the
+   table's right edge fell 3.2px short of every sibling in the box and of the heading bar
+   above it: measured at 8.00px of inset on the left and 11.20px on the right, against
+   8.00/8.00 for every non-table child. Five boxes a sheet, both palettes.
+
+   `width` is not one of the four properties the raw-length guard scans, which is how a
+   change written to abolish paired literals left one standing a property name outside its
+   own scope. `NoScreenCalcNamesARawLength` closes that class. */
+.sheet-section > table { width: calc(100% - 2 * var(--space-3)); }
 
 .trait-table td { font-size: var(--text-sm); }
 .trait-table td:first-child {

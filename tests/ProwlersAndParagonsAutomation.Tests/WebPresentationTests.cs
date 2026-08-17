@@ -338,12 +338,12 @@ public sealed class WebPresentationTests
                 // is about, arriving first inside the test itself.
                 if (ExemptLengths.Any(e => e.Selector == selector
                                            && Normalise(e.Declaration) == Normalise($"{property}:{value}")))
-                    continue;
+                    continue;   // and the reason is checked by EveryExemptedLengthStillExists
 
                 // Every var(…) reference removed, then anything still carrying a digit and a
                 // unit is a literal. `0`, `auto` and a bare ratio survive this and should.
                 var residue = Rx(@"var\(\s*--[a-z0-9-]+\s*\)").Replace(value, " ");
-                var literal = Rx(@"\d*\.?\d+(px|rem|em|ch|vh|vw|%)").Match(residue);
+                var literal = Rx($@"\d*\.?\d+({CssLengthUnits})").Match(residue);
 
                 Assert.False(literal.Success,
                     $"{what}: `{selector} {{ {property}: {value} }}` names the length "
@@ -361,6 +361,26 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// Every CSS length unit, not the handful somebody thought of.
+    ///
+    /// <para><b>The first version listed <c>px|rem|em|ch|vh|vw|%</c> and everything else walked
+    /// through.</b> A mutation setting <c>margin-top: 9pt</c> passed, and so would <c>mm</c>,
+    /// <c>cm</c>, <c>in</c>, <c>pc</c>, <c>ex</c>, <c>cap</c>, <c>lh</c>, <c>vmin</c>,
+    /// <c>vmax</c>, <c>dvh</c>, <c>svh</c>, <c>lvh</c> and the container units. An allow-list of
+    /// units is the wrong shape for a ban — the ban is on stating a length at all, and a unit
+    /// nobody listed is a unit nobody refused.</para>
+    ///
+    /// <para><c>mm</c> mattering here is not hypothetical: <c>@page</c> sits <em>above</em> the
+    /// print block and was inside the scanned region, so a live print declaration was being
+    /// saved only by the gap. It is excluded by name now — see <see cref="ScreenHalfOfAppCss"/>.
+    /// Longest-first, so <c>vmin</c> is not matched as <c>vm</c> + junk.</para>
+    /// </summary>
+    private const string CssLengthUnits =
+        "dvh|dvw|lvh|lvw|svh|svw|vmin|vmax|cqw|cqh|cqi|cqb|cqmin|cqmax|"
+        + "rem|rlh|rcap|rch|rex|ric|"
+        + "px|em|ex|ch|ic|lh|cap|vh|vw|vi|vb|mm|cm|in|pt|pc|q|%";
+
+    /// <summary>
     /// The three literals the rule above allows, each with the selector it belongs to.
     ///
     /// <para>All three are <b>optical</b> rather than rhythmic, which is the distinction that
@@ -375,11 +395,22 @@ public sealed class WebPresentationTests
     /// <para>Each is asserted to still exist, by the test below. A stale exemption is a hole
     /// somebody can walk through later, so the list is not allowed to outlive its subjects.</para>
     /// </summary>
-    private static readonly (string Selector, string Declaration)[] ExemptLengths =
+    /// <remarks>
+    /// <c>AlsoRequires</c> is the exemption's own <em>reason</em>, asserted. The two 1px paddings
+    /// are justified entirely by the <c>border-bottom</c> they sit against — that is what makes
+    /// them an optical hairline rather than spacing — and a guard that checked only that the
+    /// declaration still existed passed after the border was replaced with
+    /// <c>text-decoration: underline</c>, leaving 1px of dead padding and a stated reason that
+    /// was no longer true. The doc below calls a stale exemption "worse than a missing one"; that
+    /// is the stale case that matters, and checking the string alone could not see it.
+    /// </remarks>
+    private static readonly (string Selector, string Declaration, string AlsoRequires)[] ExemptLengths =
     [
-        (".budget-toggle", "padding:0 0 1px"),
-        (".banner-link", "padding-bottom:1px"),
-        (".power-entry .head .hp", "margin-right:-0.08em"),
+        (".budget-toggle", "padding:0 0 1px", "border-bottom:"),
+        (".banner-link", "padding-bottom:1px", "border-bottom:"),
+        // The negative em pulls back the letter-spacing added after the final character, so the
+        // thing it depends on is the letter-spacing, not a border.
+        (".power-entry .head .hp", "margin-right:-0.08em", "letter-spacing:"),
     ];
 
     /// <summary>
@@ -397,7 +428,7 @@ public sealed class WebPresentationTests
     {
         var rules = RulesOf(ScreenHalfOfAppCss);
 
-        foreach (var (selector, declaration) in ExemptLengths)
+        foreach (var (selector, declaration, alsoRequires) in ExemptLengths)
         {
             var rule = rules.Where(r => r.Selector == selector).ToList();
 
@@ -408,48 +439,143 @@ public sealed class WebPresentationTests
 
             Assert.True(rule.Any(r => Normalise(r.Declarations).Contains(Normalise(declaration), StringComparison.Ordinal)),
                 $"`{selector}` no longer carries `{declaration}`. The exemption is stale.");
+
+            // And the thing the exemption's reason rests on is still there. Without this the
+            // declaration can survive as dead decoration while the justification for exempting
+            // it has gone — which is the stale case that actually costs something.
+            //
+            // Looked for across every rule targeting the same element, not only the rule the
+            // literal is in: `.power-entry .head .hp` inherits its letter-spacing from the base
+            // `.hp` rule, so requiring the precondition in the same block asserted something
+            // that was never true.
+            var element = selector.Split(' ')[^1];
+            var supplying = RulesTargeting(element);
+
+            Assert.True(supplying.Any(r => r.Contains(Normalise(alsoRequires), StringComparison.Ordinal)),
+                $"Nothing targeting `{element}` declares `{alsoRequires}`, which is the whole "
+                + $"reason `{declaration}` on `{selector}` is exempt. The literal is now "
+                + "unjustified rather than exempt.");
         }
     }
 
     /// <summary>
-    /// The scales are declared in theme.css and every rung of them is asked for by app.css.
+    /// The spacing and type scales, rung by rung, <b>with their values</b>.
     ///
-    /// <para><b>Both directions, and the second is the one that matters.</b> A token declared
+    /// <para><b>The literals are duplicated here on purpose, and the duplication is the whole
+    /// point.</b> The first version of this guard asserted that each token <em>name</em> was
+    /// declared in theme.css and referenced by app.css, and never read a value — so
+    /// <c>--space-4: 4rem</c> passed, re-padding most boxes in the app, the narrow-viewport
+    /// shell and the strip's bleed from 12px to 64px with the whole suite green. Nothing else
+    /// in the suite pinned any <c>--space-*</c> at all.</para>
+    ///
+    /// <para>This is the pattern <c>PROGRESS.md</c> records for the server instructions and the
+    /// baseline note: where the value <em>is</em> the deliverable, the value is the assertion,
+    /// and what the duplicated literal buys is that changing it has to be deliberate and visible
+    /// in a diff. A design scale is exactly that kind of subject — the point of it is that the
+    /// rungs stop moving.</para>
+    /// </summary>
+    private static readonly (string Name, double Rem)[] SpaceScale =
+    [
+        ("--space-0", 0.125), ("--space-1", 0.25), ("--space-2", 0.375), ("--space-3", 0.5),
+        ("--space-4", 0.75),  ("--space-5", 1.0),  ("--space-6", 1.5),   ("--space-7", 2.0),
+        ("--space-8", 3.0),
+    ];
+
+    private static readonly (string Name, double Rem)[] TextScale =
+    [
+        ("--text-xs", 0.72), ("--text-sm", 0.82), ("--text-base", 0.97), ("--text-lg", 1.15),
+        ("--text-xl", 1.4),  ("--text-2xl", 1.7), ("--text-3xl", 2.15),
+    ];
+
+    /// <summary>
+    /// Every rung of a scale is declared in theme.css at the value recorded above, is asked for
+    /// by app.css, and is the only rung of that scale in existence.
+    ///
+    /// <para><b>Four things, and the first version had only two of them.</b> A token declared
     /// and used by nothing is dead weight that reads as a decision — this app shipped a
     /// <c>.label-line</c> class applied to nothing for exactly that reason, and it was found by
     /// looking at a rendered page rather than by any test. A token used and not declared is a
-    /// rule that silently does nothing, because an unresolvable <c>var()</c> makes the whole
-    /// declaration invalid: the browser drops it, the layout falls back to the initial value,
-    /// and no error appears anywhere.</para>
+    /// rule that silently does nothing, because an unresolvable <c>var()</c> invalidates the
+    /// whole declaration: the browser drops it and no error appears anywhere. The value is
+    /// checked because a name-only check pins nothing. And the rungs must be strictly
+    /// increasing, because a scale whose steps are not ordered is a list.</para>
+    ///
+    /// <para><b>The set is read from every stylesheet in the payload, not from theme.css.</b>
+    /// The range check's own comment said it stopped "one <c>--space-9</c> at a time, each
+    /// locally reasonable" — and it computed the declared set from theme.css alone, so a rung
+    /// declared inside a <c>:root</c> block in <em>app.css</em> joined the scale invisibly and
+    /// the raw-length scan waved through every <c>var()</c> that used it. That is precisely the
+    /// accumulation this rule exists to prevent, entering by the one door nobody watched.</para>
     /// </summary>
     [Theory]
-    [InlineData("--space-", 0, 8)]
-    [InlineData("--text-", 0, 0)]
-    [InlineData("--shadow-", 1, 3)]
-    public void EveryRungOfEveryScaleIsDeclaredAndAskedFor(string prefix, int from, int to)
+    [InlineData("space")]
+    [InlineData("text")]
+    public void EveryRungOfAScaleIsDeclaredOnceAtItsRecordedValue(string which)
     {
-        var names = prefix == "--text-"
-            ? new[] { "--text-xs", "--text-sm", "--text-base", "--text-lg", "--text-xl", "--text-2xl", "--text-3xl" }
-            : [.. Enumerable.Range(from, to - from + 1).Select(n => $"{prefix}{n}")];
+        var scale = which == "space" ? SpaceScale : TextScale;
+        var prefix = which == "space" ? "--space-" : "--text-";
 
         var theme = Normalise(WithoutCssComments(ThemeCss));
         var app = WithoutCssComments(AppCss);
 
-        foreach (var name in names)
+        foreach (var (name, rem) in scale)
         {
-            Assert.Contains($"{name}:", theme, StringComparison.Ordinal);
+            Assert.Contains($"{name}:{rem.ToString(CultureInfo.InvariantCulture)}rem;", theme, StringComparison.Ordinal);
             Assert.Contains($"var({name})", app, StringComparison.Ordinal);
         }
 
-        // And no rung outside the declared range, which is how a scale goes back to being an
-        // accumulation: one --space-9 at a time, each locally reasonable.
+        // Strictly increasing, in the order recorded. A scale is an ordering before it is a set
+        // of values, and two rungs that cross make every "a step down from" comment a lie.
+        var values = scale.Select(s => s.Rem).ToList();
+        Assert.Equal(values.Order(), values);
+        Assert.Equal(values.Distinct().Count(), values.Count);
+
+        // No rung of this scale declared anywhere but theme.css, and none there beyond the set
+        // above. Both stylesheets and index.html are read: theme.css is the only file allowed
+        // to declare one, so a :root block elsewhere is the interesting case.
+        foreach (var (where, css) in new[] { ("app.css", AppCss), ("index.html", IndexHtml) })
+            Assert.DoesNotMatch(Rx($@"{Regex.Escape(prefix)}[a-z0-9-]+\s*:"), WithoutCssComments(css));
+
         var declared = Rx($@"({Regex.Escape(prefix)}[a-z0-9-]+)\s*:")
             .Matches(WithoutCssComments(ThemeCss))
             .Select(m => m.Groups[1].Value)
             .Distinct(StringComparer.Ordinal)
-            .ToList();
+            .Order(StringComparer.Ordinal);
 
-        Assert.Equal(names.Order(StringComparer.Ordinal), declared.Order(StringComparer.Ordinal));
+        Assert.Equal(scale.Select(s => s.Name).Order(StringComparer.Ordinal), declared);
+    }
+
+    /// <summary>
+    /// The three elevation steps are declared for both palettes, all three are used, and no two
+    /// of them are the same shadow.
+    ///
+    /// <para>Three tokens holding one value is the state this scale replaced, spelled three ways
+    /// — and a name-only check cannot tell the difference. The <em>values</em> differ per palette,
+    /// which is why they are declared with the colours; what is asserted here is that within a
+    /// palette the three steps are three steps.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("hero")]
+    [InlineData("villain")]
+    public void TheThreeElevationStepsAreThreeDifferentShadows(string mode)
+    {
+        var screen = ThemeCss[..ThemeCss.IndexOf("@media print", StringComparison.Ordinal)];
+
+        // The mode's own palette block. Hero is the unqualified :root as well as [data-mode=hero].
+        var block = Rx($@"data-mode=""{mode}""\s*\]\s*\{{([^}}]*)\}}", RegexOptions.Singleline)
+            .Match(WithoutCssComments(screen));
+
+        Assert.True(block.Success, $"theme.css has no {mode} palette block.");
+
+        var shadows = Rx(@"(--shadow-[123])\s*:\s*([^;]+);")
+            .Matches(block.Groups[1].Value)
+            .ToDictionary(m => m.Groups[1].Value, m => Normalise(m.Groups[2].Value), StringComparer.Ordinal);
+
+        Assert.Equal(3, shadows.Count);
+        Assert.Equal(3, shadows.Values.Distinct(StringComparer.Ordinal).Count());
+
+        foreach (var name in new[] { "--shadow-1", "--shadow-2", "--shadow-3" })
+            Assert.Contains($"var({name})", WithoutCssComments(AppCss), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -477,13 +603,65 @@ public sealed class WebPresentationTests
         //
         // Every rule targeting `.budget`, not one of them — there are two, the base rule and
         // the narrow-viewport rule that re-states the bleed, and `Single` threw on the pair.
-        var budget = RulesOf(ScreenHalfOfAppCss)
+        //
+        // **The LAST `position` declaration, not any of them.** `Contains("position:sticky")`
+        // is satisfied by a declaration that a later one in the same block overrides, so adding
+        // `position: static` one line down un-stuck the strip and left it holding the top
+        // elevation step, with this guard green — while its own comment claimed that if it
+        // stopped being sticky it would stop being the exception. This is the identical
+        // shadowing trick the `.hp` guard in this file is already hardened against; the new
+        // guard did not inherit the fix, and now does.
+        var positions = RulesOf(ScreenHalfOfAppCss)
             .Where(r => r.Selector == ".budget")
-            .Select(r => Normalise(r.Declarations))
+            .SelectMany(r => Rx(@"position:\s*([a-z-]+)").Matches(Normalise(r.Declarations))
+                                                         .Select(m => m.Groups[1].Value))
             .ToList();
 
-        Assert.NotEmpty(budget);
-        Assert.Contains(budget, d => d.Contains("position:sticky", StringComparison.Ordinal));
+        Assert.NotEmpty(positions);
+        Assert.Equal("sticky", positions[^1]);
+    }
+
+    /// <summary>
+    /// No <c>calc()</c> on the screen side names a raw length. If a value is derived from a
+    /// spacing rung, it derives from the <b>token</b>.
+    ///
+    /// <para><b>This is the class of bug the four-property scan let through, one property name
+    /// outside its own scope.</b> <c>.sheet-section &gt; table</c> read
+    /// <c>width: calc(100% - 1.2rem)</c> and was a matched pair with the 0.6rem inset on its
+    /// siblings. Phase 0 moved the inset onto the scale and left the width behind, so a table's
+    /// right edge fell 3.2px short of every other child of the box and of the heading bar above
+    /// it — 8.00px of inset on the left against 11.20px on the right, on five boxes a sheet, in
+    /// both palettes. Two reviewers found it independently by measuring a rendered sheet; no test
+    /// could, because <c>width</c> is not padding, margin, gap or font-size.</para>
+    ///
+    /// <para>Banning the literal inside the <c>calc()</c> is the general fix, and it is a better
+    /// rule than adding <c>width</c> to the property list would have been: what makes the bug
+    /// possible is not the property, it is a number that has to agree with a token and has no
+    /// way of doing so. <c>calc(100% - 2 * var(--space-3))</c> cannot fall out of step.</para>
+    ///
+    /// <para>Percentages and unitless factors are fine — <c>100%</c> is the container and
+    /// <c>-1</c> and <c>2</c> are multipliers, not lengths.</para>
+    /// </summary>
+    [Fact]
+    public void NoScreenCalcNamesARawLength()
+    {
+        var calls = Rx(@"calc\(([^()]*(?:\([^()]*\)[^()]*)*)\)").Matches(ScreenHalfOfAppCss);
+
+        Assert.NotEmpty(calls);
+
+        var absolute = Rx($@"\d*\.?\d+({CssLengthUnits})");
+
+        foreach (Match call in calls)
+        {
+            // The percentage is a share of the container, not a length somebody chose.
+            var body = Rx(@"\d*\.?\d+%").Replace(call.Groups[1].Value, " ");
+            var literal = absolute.Match(body);
+
+            Assert.False(literal.Success,
+                $"`calc({call.Groups[1].Value})` names the length '{literal.Value}'. If it is "
+                + "derived from a spacing rung, derive it from the token: a literal that agrees "
+                + "with a token today has no way of still agreeing tomorrow.");
+        }
     }
 
     /// <summary>
@@ -555,10 +733,15 @@ public sealed class WebPresentationTests
         {
             if (Rx(@"padding:\s*([^;}]+)").Match(declarations) is { Success: true } shorthand)
             {
-                // padding: A B [C [D]] — the horizontal sides are B, or A when there is one part.
-                var parts = shorthand.Groups[1].Value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                var horizontal = parts.Length == 1 ? parts[0] : parts[1];
-                left = right = TokenIn(horizontal);
+                // The same four-side reader the bleed uses, rather than a second splitter that
+                // happens to work on the shorthands in the file today. This one split on plain
+                // whitespace, which is correct only while no padding contains a `calc()`.
+                var sides = MarginSides(shorthand.Groups[1].Value);
+                if (sides is not null)
+                {
+                    right = TokenIn(sides[1]);
+                    left = TokenIn(sides[3]);
+                }
             }
 
             if (Rx(@"padding-left:\s*([^;}]+)").Match(declarations) is { Success: true } l) left = TokenIn(l.Groups[1].Value);
@@ -582,11 +765,19 @@ public sealed class WebPresentationTests
         {
             if (Rx(@"margin:\s*([^;}]+)").Match(declarations) is { Success: true } shorthand)
             {
-                var parts = shorthand.Groups[1].Value.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                // Split on spaces breaks `calc(-1 * var(…))` apart, so recombine and re-read.
-                var joined = string.Join(' ', parts);
-                var negatives = Rx(@"calc\(\s*-1\s*\*\s*var\(\s*(--space-[a-z0-9-]+)\s*\)\s*\)").Matches(joined);
-                if (negatives.Count > 0) left = right = negatives[0].Groups[1].Value;
+                // **Split into the four sides properly, and read only the horizontal pair.**
+                // This used to take the first negative token found anywhere in the shorthand
+                // and assign it to both sides, so it could not tell a horizontal bleed from a
+                // vertical one: `margin: calc(-1 * var(--space-6)) var(--space-6) var(--space-6)`
+                // satisfied the pairing while pulling the strip 24px *up* over the step nav and
+                // giving it positive 24px side margins — indented rather than bled — with the
+                // rail still at -24px and so 48px wider than the strip it belongs to.
+                var sides = MarginSides(shorthand.Groups[1].Value);
+                if (sides is not null)
+                {
+                    right = NegativeTokenIn(sides[1]);
+                    left = NegativeTokenIn(sides[3]);
+                }
             }
 
             if (Rx(@"margin-left:\s*([^;}]+)").Match(declarations) is { Success: true } l) left = NegativeTokenIn(l.Groups[1].Value);
@@ -594,6 +785,44 @@ public sealed class WebPresentationTests
         }
 
         return left is not null && left == right ? left : null;
+    }
+
+    /// <summary>
+    /// A <c>margin</c> shorthand as its four sides, top-right-bottom-left, or null if it cannot
+    /// be read. Splitting on whitespace does not work: <c>calc(-1 * var(--space-6))</c> contains
+    /// three spaces and would arrive as four parts, which is how the caller above came to be
+    /// unable to tell one edge from another.
+    /// </summary>
+    private static string[]? MarginSides(string value)
+    {
+        var parts = new List<string>();
+        var depth = 0;
+        var current = new System.Text.StringBuilder();
+
+        foreach (var c in value.Trim())
+        {
+            if (c == '(') depth++;
+            if (c == ')') depth--;
+
+            if (char.IsWhiteSpace(c) && depth == 0)
+            {
+                if (current.Length > 0) { parts.Add(current.ToString()); current.Clear(); }
+                continue;
+            }
+
+            current.Append(c);
+        }
+
+        if (current.Length > 0) parts.Add(current.ToString());
+
+        return parts.Count switch
+        {
+            1 => [parts[0], parts[0], parts[0], parts[0]],
+            2 => [parts[0], parts[1], parts[0], parts[1]],
+            3 => [parts[0], parts[1], parts[2], parts[1]],
+            4 => [.. parts],
+            _ => null,
+        };
     }
 
     private static string? TokenIn(string value) =>
@@ -697,7 +926,17 @@ public sealed class WebPresentationTests
         return sizes;
     }
 
-    /// <summary>The stylesheet up to its print block. Comments stripped.</summary>
+    /// <summary>
+    /// The stylesheet up to its print block, with the <c>@page</c> box removed. Comments stripped.
+    ///
+    /// <para><b><c>@page</c> is paper and it is not inside <c>@media print</c>.</b> It sits just
+    /// above it, so cutting at the first <c>@media print</c> left <c>@page { margin: 14mm 13mm }</c>
+    /// in the region this file calls "the screen half" — and the raw-length guard's own doc claim
+    /// that the print rules are out of scope was false for it. It passed only because <c>mm</c>
+    /// was missing from the unit list, so closing that gap would have turned a legitimate print
+    /// declaration red. Excluded by name, which is the honest fix: the page box is a paper rule
+    /// wherever it is written, and it has its own test in <c>ThePageIsA4WithMargins</c>.</para>
+    /// </summary>
     private static string ScreenHalfOfAppCss
     {
         get
@@ -705,7 +944,14 @@ public sealed class WebPresentationTests
             var css = WithoutCssComments(AppCss);
             var print = css.IndexOf("@media print", StringComparison.Ordinal);
             Assert.True(print > 0, "app.css has no @media print block, so the screen half cannot be bounded.");
-            return css[..print];
+
+            var screen = css[..print];
+
+            // Assert it was there before removing it: an @page block that has moved or been
+            // renamed would otherwise be silently un-excluded, which is the stale-exemption
+            // shape this file has been caught by twice.
+            Assert.Contains("@page", screen, StringComparison.Ordinal);
+            return Rx(@"@page\s*\{[^{}]*\}").Replace(screen, " ");
         }
     }
 
@@ -1030,13 +1276,29 @@ public sealed class WebPresentationTests
         Assert.Contains("text-transform:uppercase", declarations, StringComparison.Ordinal);
         Assert.Contains("font-family:var(--font-display)", declarations, StringComparison.Ordinal);
 
-        // A step behind the rank beside it, which is a rung up the same scale. The band, not
-        // the presence of a size: `Contains("font-size:")` is satisfied by 2rem, which would
-        // put the gloss in front of the figure. The scale is resolved, so a rung moved to a
-        // wrong value fails here as well as a literal would.
+        // A step behind the rank beside it. The band, not the presence of a size:
+        // `Contains("font-size:")` is satisfied by 2rem, which would put the gloss in front of
+        // the figure. The scale is resolved, so a rung moved to a wrong value fails here too.
         var sizes = FontSizesInRem(declarations);
         Assert.NotEmpty(sizes);
         Assert.All(sizes, rem => Assert.InRange(rem, 0.6, 0.9));
+
+        // **And strictly smaller than the rank it glosses, which is the actual claim.** The
+        // band above is absolute, and the rank on the sheet (`.trait-table td`) is a rung of the
+        // same scale — so setting the gloss to that same rung left it exactly the size of the
+        // figure it is meant to sit behind, with the band still satisfied and this test green.
+        // Before Phase 0 the two were unrelated literals in two rules and the relationship could
+        // not be expressed; now both resolve, so it is asserted rather than described.
+        var rank = RulesOf(ScreenHalfOfAppCss)
+            .Where(r => r.Selector == ".trait-table td")
+            .SelectMany(r => FontSizesInRem(Normalise(r.Declarations)))
+            .ToList();
+
+        Assert.NotEmpty(rank);
+        Assert.True(sizes.Max() < rank.Min(),
+            $"The rank word is set at {sizes.Max()}rem and the rank it glosses at {rank.Min()}rem. "
+            + "The word is a gloss on the number and has to read as a step behind it, not level "
+            + "with it.");
 
         // **And it is shown at all.** Everything above is satisfied by an element that is
         // present and hidden — a hidden element still has its class and still has its text, so

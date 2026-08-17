@@ -237,7 +237,7 @@
    The same problem and the same fix: **twenty** distinct font sizes on the screen
    side, nineteen in rem plus the body's own 15.5px, ten of them crowded between
    0.68rem and 0.9rem where no reader can tell one from the next. Seven rungs
-   replace them, stepping by roughly 1.2 above the base.
+   replace them, stepping by roughly 1.2 in the middle of the scale.
 
    **Two rungs are anchored to existing values rather than to the ratio, and both
    for a reason that is not taste.** `--text-xs` is exactly 0.72rem because that
@@ -246,6 +246,14 @@
    size, and a scale that rounded the smallest rung down to 0.67rem would quietly
    invalidate that measurement. `--text-3xl` is exactly 2.15rem because it is the
    masthead and there is nothing above it for the ratio to answer to.
+
+   **Both anchors have a test, and the second one did not.** This block said
+   "exactly 2.15rem … not to be tidied onto a ratio" while the declaration below
+   read 2.1rem — the ratio-derived value — so the rung the note singles out as
+   unpinnable was the one already off its stated anchor, in four documents at once,
+   with nothing reporting it. The consequence of the anchor is that the top step is
+   1.26 rather than ~1.2; that is what "anchored, not derived" costs, and it is
+   stated here rather than being tidied away next time somebody notices.
 
    The base is 0.97rem, which is the 15.5px the body has always been set at, so
    running prose does not reflow for the sake of a round number.
@@ -258,7 +266,8 @@
     --text-lg:   1.15rem;  /* 18.4px — h3, a stepper's value, a card's name      */
     --text-xl:   1.4rem;   /* 22.4px — h2, the banner title                     */
     --text-2xl:  1.7rem;   /* 27.2px — the character's name on the sheet        */
-    --text-3xl:  2.1rem;   /* 33.6px — h1, and the four figures                 */
+    --text-3xl:  2.15rem;  /* 34.4px — h1, and the four figures. Anchored: see  */
+                           /*          the note above, and the test that pins it */
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
