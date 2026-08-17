@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3464 across two projects — 3325 on the engine, 139 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3471 across two projects — 3328 on the engine, 143 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -259,6 +259,50 @@ replaced every tag with a newline and one test then collapsed all whitespace, so
 `<b>Armor</b><span>8d</span>` read as "Armor 8d" — the string the assertions look for, produced by
 the bug they exist to find. Demonstrated both ways: splitting a Pros line into per-word elements
 is red against the concatenated text nodes and green against the old helper.
+
+**Then two reviewers found fourteen ways round the fixes, and thirteen are closed.** That is the
+most useful number in this entry: the first pass at closing a finding is roughly half right, and
+the review that goes looking for the *hole in the fix* has now been the most valuable one three
+sessions running.
+
+**Nine were one shape wearing different clothes: a check that reads one place while the thing it
+guards is decided somewhere else.** Three CSS guards read the first matching rule, or one rule by
+its exact selector, while the cascade reads the last — so a second `.hp` rule further down, or a
+second `font-size` inside the same block, or `print-color-adjust: economy` written after `exact`,
+all did what the guard forbade with the suite green. They read every declaration of every rule
+that targets the class now. The 7pt floor read `font-size` and never the `font` shorthand, which
+sets a size without writing the property; and it reads declared sizes, so `zoom: 0.55` on the
+printed sheet left every declaration legal and printed the stat lines at about 4pt. The shorthand
+and page-scaling are both refused outright. The source check on `Program.cs` asserted the guarded
+loader was *called*, which stays true if the fetch is hoisted back outside it — so `LoadAsync`
+takes the `HttpClient` and there is nothing left to hoist. And the path it fetches from was
+pinned by a `Contains`, which `data/transcript` satisfies against `data/transcripts`: the
+one-character mistake the test existed to catch, passing it.
+
+**Two were preconditions that had quietly stopped being true.** The sheet-equality pool crossed
+tiers on one row of four, because Vera Nunn is the only recorded character who is not Standard —
+so the masthead, the Trait Cap and the budget sub-line would have stopped being covered the day
+she changed, with nothing failing to say so. And the verdict panel's Perks and Gear rows were
+asserted against the engine while every character in play had zero of both, which cannot tell two
+characters apart; that panel now gets the same two-visitors treatment the sheet does. The
+Villain's budget finding was asserted to be *not called illegal* and never asserted to be
+**shown**, though showing it is what that recording is about.
+
+**One was not closeable by vocabulary, and needed a different kind of rule.** "She lands on 75
+exactly, and the tier hands her 75 to spend" quotes her spend and her budget in one sentence and
+matches no word list anybody could write. So a second rule asks the engine what the figures are
+and refuses those numerals outright, in digits and spelled out — which is what `CLAUDE.md` says
+the rule is. It sits beside the vocabulary rule rather than replacing it: the vocabulary rule is
+about *shape*, and "over by a full nineteen" is a quoted figure whether or not nineteen is the
+right answer.
+
+**The one still open is recorded rather than fixed**, because it cannot be fixed by a test.
+`IsARequest` recognises the phrasings a demand is normally written in; an unlisted verb —
+"Settle the tier. Work out whether she is one Power or several." — scores zero. Its companion
+counts the person's *replies*, so seven demands bundled into one turn cost one reply. An earlier
+version of that note called the reply count "the half no wording can defeat", which was wrong and
+now says so. Four hand-written recordings that change rarely have one real guarantee, and
+`CLAUDE.md` already states it for the prose: **read a changed transcript.**
 
 ### The rulebook corpus was materially wrong, and its tests could not see it
 

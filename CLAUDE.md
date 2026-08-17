@@ -119,7 +119,17 @@ exactly as the rules are, and fetched by `Program.cs` from `TranscriptLibrary.Fi
   **If a transcript ever holds a Hero Point total, that is the bug**: the number would sit there
   looking identical while being wrong. `TranscriptTests` refuses a recorded line that quotes a
   Hero Point figure, an Edge, a Health or a Resolve. Ranks are allowed and should be — a rank is
-  an input the transcript already carries.
+  an input the transcript already carries. **Two rules do that, and both are needed**: one bans
+  the *shape* — a number next to a word about money, in one clause — and one asks the engine
+  what the figures actually are and bans those numerals, in digits and spelled out. The second
+  exists because "She lands on 75 exactly, and the tier hands her 75 to spend" matches no
+  vocabulary anybody could write; the first because "over by a full nineteen" is a quoted figure
+  whether or not nineteen is the right answer. The scan reads the **character** as well as the
+  prose, by reflection rather than by naming its free-text fields.
+- **The question-count tests catch drift, not a questionnaire written to evade them.** A demand
+  phrased with an unlisted verb scores zero, and the companion test counts the person's
+  *replies*, so demands bundled into one turn cost one reply. That is recorded in the tests
+  themselves; the real guarantee is the same one the prose has — read a changed transcript.
 - **What the tests do not cover is whether a recorded sentence about the rules is true**, and
   that gap is not closeable by a regular expression. The characters are held to the engine and
   figures are banned from the prose, but a line saying "the Trait Cap is a limit on Abilities

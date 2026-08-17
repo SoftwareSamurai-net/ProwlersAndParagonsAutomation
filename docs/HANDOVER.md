@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3464 tests** — 3325 engine, 139 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3471 tests** — 3328 engine, 143 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
@@ -21,7 +21,10 @@ and described in `PROGRESS.md`; the corpus now regenerates byte-identical from
 `tools/RulebookExtractor/`.
 
 The last session took **A2** of the backlog below — the browser and the replay — and closed all
-thirteen, each by mutation. `PROGRESS.md` carries the reasoning.
+thirteen, each by mutation. Two reviewers then found **fourteen ways round those fixes**, thirteen
+of which are now closed too; `PROGRESS.md` carries the reasoning and names the one left open.
+**Expect the same when closing A1 or A3**: the first pass at a finding has been about half right
+every time, and the review aimed at the *fix* rather than the code has been the one that found it.
 
 **What is not done is the rest of what that audit turned up.** That is the backlog below, and it
 is the reason this file exists.
@@ -132,7 +135,18 @@ forward:
   both renderings, or it hides every illegitimate difference behind a legitimate one.
 - **`ReplayLibrary.LoadAsync` exists because a `try`/`catch` in top-level statements is
   unreachable.** If anything else in `Program.cs` ever acquires a guarantee, move it out the same
-  way rather than testing the source for a `try`.
+  way rather than testing the source for a `try`. It takes the `HttpClient` rather than a fetch
+  for a reason: with a fetch parameter, `Program.cs` can do the fetching itself and hand the
+  guard a delegate that cannot fail, which passes every test and restores the bug exactly.
+- **A CSS guard must read every declaration that targets the class, not the first rule it
+  finds.** Three of these were defeated the same way — a more specific rule further down, or a
+  second declaration in the same block, both of which win the cascade while the first is what
+  the test read. `WebPresentationTests.RulesTargeting` is the shape to copy.
+- **A guard's precondition rots silently.** Two here had stopped being able to bite: a pool that
+  crossed tiers on one row of four because only one recorded character is not Standard, and an
+  assertion comparing two characters that both had zero Perks and zero gear. Neither failed;
+  they just stopped meaning anything. When writing a guard, assert that the thing it compares
+  actually differs.
 ### A3 — engine and validator (8 open)
 
 1. **A validation issue can name the wrong kind of thing.** `CharacterValidator`,
