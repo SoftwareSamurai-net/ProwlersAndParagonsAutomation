@@ -88,10 +88,16 @@ public sealed class WebPresentationTests
     /// <para>A guard added later for the empty state wrote its own four-entry version without the
     /// prefix guards. Two lists is one list going stale, so there is one.</para>
     /// </summary>
+    /// <remarks>
+    /// <c>color</c> is anchored with <c>(?&lt;![\w-])</c> because it is a suffix of
+    /// <c>border-left-color</c>, <c>border-bottom-color</c> and the rest — so an entirely legitimate
+    /// transparent border on a guarded class was reported as hiding the element. A ban that fires
+    /// on something innocent is worse than no ban, because the natural fix is to weaken it.
+    /// </remarks>
     private static readonly string[] EverySpellingOfHidden =
     [
         @"display:none", @"visibility:hidden", @"visibility:collapse",
-        @"color:transparent", @"font-size:0(?![.\d])", @"opacity:0(?![.\d])",
+        @"(?<![\w-])color:transparent", @"font-size:0(?![.\d])", @"opacity:0(?![.\d])",
         @"content-visibility:hidden"
     ];
 
@@ -798,13 +804,18 @@ public sealed class WebPresentationTests
 
         var scopes = new List<(string Where, string Css)> { ("the base rules", TopLevelOf(css)) };
 
+        // **Every media query touching any of the columns, not just the ones that mention
+        // `.shell`.** Gating on `.shell` meant a breakpoint re-padding only the chrome bands was
+        // not a scope at all, so between two breakpoints the step labels sat 8px in while the
+        // heading sat 24px in — the exact "stop sharing a left edge" failure this test is for,
+        // arriving in a query the scan declined to look at.
         foreach (Match query in Rx(@"@media\s*([^{]+)\{(.*?)\n\}", RegexOptions.Singleline).Matches(css))
-            if (query.Groups[2].Value.Contains(".shell", StringComparison.Ordinal))
+            if (columns.Any(c => query.Groups[2].Value.Contains(c, StringComparison.Ordinal)))
                 scopes.Add(($"@media {query.Groups[1].Value.Trim()}", query.Groups[2].Value));
 
         Assert.True(scopes.Count >= 2,
-            "Only one scope pads .shell was found. The narrow-viewport query does, so the query "
-            + "scan is not reading the stylesheet.");
+            "Only one scope touching a column was found. The narrow-viewport query pads all five, "
+            + "so the query scan is not reading the stylesheet.");
 
         // Every column is capped on the same token, and **centred**, and neither was fully
         // checked. `max-width` was read in the base rules only, so a new breakpoint widening
@@ -822,11 +833,15 @@ public sealed class WebPresentationTests
                 + "it sits at the left edge of a band that runs the whole window.");
         }
 
-        // And no band pads its own contents.
+        // And no band pads its own contents, **by any spelling**. Asked through
+        // `HorizontalPaddingTokenOf` this passed for `padding-inline: var(--space-6)`, because that
+        // reader returned null for "no padding" and for "a spelling I do not read" alike — so the
+        // question is put to the one that only asks whether the property is set at all.
         foreach (var band in bands)
-            Assert.True(HorizontalPaddingTokenOf(css, band) is null,
-                $"{band} sets horizontal padding. A band is a full-width fill; the padding "
-                + "belongs to the column inside it, or the two stop agreeing.");
+            Assert.False(SetsAnyHorizontalPadding(css, band),
+                $"{band} sets horizontal padding. A band is a full-width fill; the padding belongs "
+                + "to the column inside it, or the two stop agreeing and the rail stops running "
+                + "edge to edge.");
 
         // And every band reserves the same padding around it, in each scope that sets any of
         // them. A scope that re-pads the shell and forgets a band is the failure the old bleed
@@ -888,12 +903,45 @@ public sealed class WebPresentationTests
                 }
             }
 
+            // `padding-inline` sets the same two sides under a name sharing no prefix with them,
+            // and this reader knew only the physical pair — so `padding-inline: var(--space-6)` on
+            // a band read as "no padding at all" and walked past the guard. Read as one of the
+            // spellings rather than refused, because it is the modern way to write exactly this
+            // and the file may reasonably use it.
+            if (Rx(@"padding-inline:\s*([^;}]+)").Match(declarations) is { Success: true } inline)
+            {
+                var sides = MarginSides(inline.Groups[1].Value);
+                if (sides is not null) { right = TokenIn(sides[1]); left = TokenIn(sides[3]); }
+            }
+
             if (Rx(@"padding-left:\s*([^;}]+)").Match(declarations) is { Success: true } l) left = TokenIn(l.Groups[1].Value);
             if (Rx(@"padding-right:\s*([^;}]+)").Match(declarations) is { Success: true } r) right = TokenIn(r.Groups[1].Value);
+            if (Rx(@"padding-inline-start:\s*([^;}]+)").Match(declarations) is { Success: true } s) left = TokenIn(s.Groups[1].Value);
+            if (Rx(@"padding-inline-end:\s*([^;}]+)").Match(declarations) is { Success: true } e) right = TokenIn(e.Groups[1].Value);
         }
 
         return left is not null && left == right ? left : null;
     }
+
+    /// <summary>
+    /// Every spelling that sets horizontal padding, so a caller asking "does this element pad its
+    /// contents" can be sure a null means none rather than a name the reader above skipped.
+    /// </summary>
+    private static readonly string[] HorizontalPaddingSpellings =
+    [
+        "padding", "padding-left", "padding-right",
+        "padding-inline", "padding-inline-start", "padding-inline-end",
+    ];
+
+    /// <summary>
+    /// Whether a selector sets horizontal padding by <b>any</b> spelling — the question
+    /// <see cref="HorizontalPaddingTokenOf"/> cannot answer, because it returns null both for "no
+    /// padding" and for "padding this reader could not resolve to a rung".
+    /// </summary>
+    private static bool SetsAnyHorizontalPadding(string css, string selector) =>
+        RulesFor(css, selector, exact: true)
+            .Any(r => HorizontalPaddingSpellings.Any(p =>
+                Rx($@"(?<![\w-]){Regex.Escape(p)}\s*:").IsMatch(r)));
 
     /// <summary>
     /// A <c>margin</c> shorthand as its four sides, top-right-bottom-left, or null if it cannot
@@ -975,15 +1023,19 @@ public sealed class WebPresentationTests
     [Fact]
     public void TheChromeAlwaysEndsInAVisibleEdge()
     {
-        var edge = EffectiveValue(ScreenHalfOfAppCss, ".steps", "border-bottom");
+        // `exact: true`, because the question is "does the step band still declare this" rather
+        // than "what applies to a step band somewhere". Without it a `.sheet .steps` rule —
+        // matching no element in this app, since no step nav renders inside a sheet — supplied the
+        // value while the real rule had none. That is verbatim the defeat recorded on the `exact`
+        // parameter itself from an earlier audit, reached again by a guard that did not pass it.
+        var edge = EffectiveValue(ScreenHalfOfAppCss, ".steps", "border-bottom", exact: true);
 
         Assert.True(edge is not null,
             "The step band sets no bottom edge. The budget strip below it does not render in "
             + "Villain mode, before a tier is chosen, or on a replay route — so on those screens "
             + "nothing closes the chrome and the step chips sit on the page ground.");
 
-        Assert.DoesNotContain("none", edge!, StringComparison.Ordinal);
-        Assert.Contains("var(--rule)", edge!, StringComparison.Ordinal);
+        AssertIsAVisibleEdge(".steps", "border-bottom", edge!);
 
         // The premise. Each of these is what makes the strip conditional; together they are why
         // the edge cannot be left to it.
@@ -993,6 +1045,53 @@ public sealed class WebPresentationTests
         Assert.Contains("Session.ShowBudget", strip, StringComparison.Ordinal);
         Assert.Contains("SelectedTierId is not null", strip, StringComparison.Ordinal);
         Assert.Contains("!ShowingARecording", layout, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Three treatments that were <b>fixed and left unguarded</b>, so each of their defects reverted
+    /// green when a fix-audit deleted the one line that repairs it.
+    ///
+    /// <para>Each is a single declaration whose whole substance is in the stylesheet, so no
+    /// rendering test can see any of them — the class stays on the element and the markup is
+    /// identical either way. Together they are the same lesson three more times: a repair without a
+    /// guard is a repair that lasts until somebody tidies the file.</para>
+    ///
+    /// <list type="bullet">
+    ///   <item><c>.options</c>'s bottom rule marks where a 22rem scroller <em>clips</em> 141 Powers.
+    ///     Without it a row cut through the middle of its own stat line reads as a rendering fault
+    ///     against the panel's white, with only the scrollbar thumb saying otherwise.</item>
+    ///   <item><c>.grid &gt; .field</c>'s reset. A field carries its own bottom margin and a grid row
+    ///     already supplies one, so without it the Sources editor's rows sit 32px apart and its
+    ///     columns 16px.</item>
+    ///   <item>The untouched ring on the tab strip. Deleting the rule leaves the class on the
+    ///     element, every assertion in <c>EmptyStateTests</c> reading <c>ClassList</c>, and no
+    ///     marking on the page — the <c>.hp</c> trap yet again, on the sibling of the feature the
+    ///     change had just closed it for.</item>
+    /// </list>
+    /// </summary>
+    [Fact]
+    public void TheTreatmentsThatOnlyExistInTheStylesheetAreStillThere()
+    {
+        var css = ScreenHalfOfAppCss;
+
+        // The scroller is clipped, and says so.
+        var clip = EffectiveValue(css, ".options", "border-bottom", exact: true);
+        Assert.True(clip is not null,
+            "`.options` has no bottom rule, so nothing marks where the list is clipped and a "
+            + "half-row against the panel's own ground reads as a rendering fault.");
+        AssertIsAVisibleEdge(".options", "border-bottom", clip!);
+
+        // A grid cell does not add to the gap the grid already supplies.
+        Assert.Equal("0", EffectiveValue(css, ".grid > .field", "margin-bottom", exact: true));
+
+        // And the untouched marker is drawn.
+        var ring = RulesFor(css, ".tab-count.untouched", exact: false);
+        Assert.NotEmpty(ring);
+        Assert.Contains(ring, r => Rx(@"border\s*:").IsMatch(r));
+        Assert.All(ring, r =>
+            Assert.All(EverySpellingOfHidden, way =>
+                Assert.False(Rx(way).IsMatch(Normalise(r)),
+                    $"A rule targeting .tab-count.untouched hides it with '{way}'.")));
     }
 
     /// <summary>
@@ -1016,16 +1115,13 @@ public sealed class WebPresentationTests
 
         Assert.NotEmpty(rules);
 
-        var edge = EffectiveValue(ScreenHalfOfAppCss, ".empty-state", "border-left");
+        var edge = EffectiveValue(ScreenHalfOfAppCss, ".empty-state", "border-left", exact: true);
 
         Assert.True(edge is not null,
             "The empty state has no leading edge, so it reads as the first row of the list it is "
             + "standing in for rather than as guidance about it.");
 
-        // A hairline in the rule colour, not the accent: this is an instruction, not a warning and
-        // not a selection. Asserted as the value, because `border-left: none` satisfies presence.
-        Assert.Contains("var(--rule)", edge!, StringComparison.Ordinal);
-        Assert.DoesNotContain("none", edge!, StringComparison.Ordinal);
+        AssertIsAVisibleEdge(".empty-state", "border-left", edge!);
 
         // And set in from that edge, or the rule sits against the text.
         Assert.True(Rx(@"padding[^;}]*:[^;}]*var\(--space-").IsMatch(string.Join(';', rules)),
@@ -1230,17 +1326,119 @@ public sealed class WebPresentationTests
     /// </param>
     private static string? EffectiveValue(string css, string selector, string property, bool exact = false)
     {
-        var wanted = Normalise(selector);
+        var rules = RulesFor(css, selector, exact);
 
-        var values = RulesOf(css)
-            .Where(r => r.Selector.Split(',').Select(Normalise)
-                         .Any(s => s == wanted || (!exact && s.EndsWith(wanted, StringComparison.Ordinal))))
-            .SelectMany(r => Rx($@"(?<![\w-]){Regex.Escape(property)}\s*:\s*([^;}}]+)")
-                                 .Matches(r.Declarations)
-                                 .Select(m => Normalise(m.Groups[1].Value)))
+        // **Anything that could change this property but is spelled differently makes the answer
+        // unavailable, rather than silently not counting.** This read one spelling per property, and
+        // a fix-audit defeated four separate guards through the gap in exactly the same way:
+        // `border-bottom-color: transparent` beat a `border-bottom` check, `border-left-width: 0`
+        // beat a `border-left` check, `margin-left: 0` beat a `margin` check, and
+        // `padding-inline: …` beat a padding check. Every one of them left the guard reading the
+        // shorthand it knew and reporting the value it wanted.
+        //
+        // Modelling the cascade across longhands and logical properties properly is a bigger job
+        // than any of these guards needs, so this fails instead — an unreadable answer is a red
+        // test, and a red test is the safe direction. If a stylesheet ever legitimately needs one
+        // of these spellings, the guard for it gets written then rather than guessed at now.
+        // Every declaration that decides this property, in source order — the property itself and
+        // any spelling that can override it.
+        var deciding = rules
+            .SelectMany(r => Rx(@"(?<![\w-])([a-z-]+)\s*:\s*([^;}]+)").Matches(r)
+                                 .Select(m => (Property: m.Groups[1].Value, Value: Normalise(m.Groups[2].Value))))
+            .Where(d => d.Property == property || CouldOverride(property, d.Property))
             .ToList();
 
-        return values.Count == 0 ? null : values[^1];
+        if (deciding.Count == 0) return null;
+
+        // **Order is what makes this correct rather than merely strict.** `.budget-toggle` writes
+        // `border: none` and then `border-bottom: …`, which the cascade resolves the way the author
+        // meant — so a check that simply refused any related spelling would fail on correct CSS.
+        // What is not readable is a *later* spelling this helper does not model, which is exactly
+        // how a fix-audit beat four guards: `border-bottom-color: transparent` after a
+        // `border-bottom`, `border-left-width: 0` after a `border-left`, `margin-left: 0` after a
+        // `margin`, `padding-inline` instead of the pair. Each left the guard reading a declaration
+        // the cascade no longer decides.
+        var last = deciding[^1];
+
+        Assert.True(last.Property == property,
+            $"A rule targeting `{selector}` sets `{last.Property}: {last.Value}` after the last "
+            + $"`{property}`, so it — not `{property}` — is what the cascade resolves. This reader "
+            + $"does not model that spelling. Write the intent as `{property}`, or teach "
+            + "CouldOverride and this helper to read the other one.");
+
+        return last.Value;
+    }
+
+    /// <summary>
+    /// A border shorthand actually draws something: a non-zero width, a style that is not
+    /// <c>none</c>, and an ink that is not transparent.
+    ///
+    /// <para><b>Checking for the absence of the word <c>none</c> is not enough, and a fix-audit got
+    /// through both edge guards on that.</b> <c>border-left: 0 solid var(--rule)</c> contains no
+    /// <c>none</c>, contains the right token, and draws nothing at all — so the empty state lost
+    /// its leading edge and the step band could have lost the edge that closes the chrome, with
+    /// both guards green. "It mentions a colour" is not "it is visible".</para>
+    /// </summary>
+    private static void AssertIsAVisibleEdge(string selector, string property, string value)
+    {
+        Assert.DoesNotContain("none", value, StringComparison.Ordinal);
+        Assert.DoesNotContain("transparent", value, StringComparison.Ordinal);
+
+        // A zero width, in any unit or none. `0`, `0px` and `0rem` all draw nothing.
+        Assert.False(Rx($@"(?<![.\d])0({CssZeroUnits})?(?![.\d])").IsMatch(value),
+            $"`{selector} {{ {property}: {value} }}` has a zero width, so it draws nothing — the "
+            + "value names an ink and an edge that is not there.");
+
+        // And it is the hairline token rather than a length chosen here, which is the same rule the
+        // rest of the file lives by.
+        Assert.Contains("var(--rule", value, StringComparison.Ordinal);
+    }
+
+    /// <summary>Units a zero width might carry. A bare <c>0</c> is matched by the optional group.</summary>
+    private const string CssZeroUnits = "px|rem|em|pt|mm|cm|in|ex|ch";
+
+    /// <summary>The declaration blocks of every rule targeting a selector, in source order.</summary>
+    private static List<string> RulesFor(string css, string selector, bool exact)
+    {
+        var wanted = Normalise(selector);
+
+        return [.. RulesOf(css)
+            .Where(r => r.Selector.Split(',').Select(Normalise)
+                         .Any(s => s == wanted || (!exact && s.EndsWith(wanted, StringComparison.Ordinal))))
+            .Select(r => r.Declarations)];
+    }
+
+    /// <summary>
+    /// Whether <paramref name="other"/> can change what <paramref name="property"/> resolves to —
+    /// a longhand of it, or its logical-property equivalent.
+    ///
+    /// <para>The logical family is the half that is easy to forget, and a fix-audit used it twice:
+    /// <c>padding-inline</c> and <c>margin-inline</c> set the same two sides as the
+    /// <c>-left</c>/<c>-right</c> pair every reader here was written against, under names that share
+    /// no prefix with them.</para>
+    /// </summary>
+    private static bool CouldOverride(string property, string other)
+    {
+        // A longhand: `border-bottom` is changed by `border-bottom-color`, `padding` by
+        // `padding-left`. Also the other way round, since a shorthand resets a longhand.
+        if (other.StartsWith($"{property}-", StringComparison.Ordinal)) return true;
+        if (property.StartsWith($"{other}-", StringComparison.Ordinal)) return true;
+
+        var logical = new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["margin"] = ["margin-inline", "margin-block"],
+            ["margin-left"] = ["margin-inline", "margin-inline-start", "margin-inline-end"],
+            ["margin-right"] = ["margin-inline", "margin-inline-start", "margin-inline-end"],
+            ["padding"] = ["padding-inline", "padding-block"],
+            ["padding-left"] = ["padding-inline", "padding-inline-start", "padding-inline-end"],
+            ["padding-right"] = ["padding-inline", "padding-inline-start", "padding-inline-end"],
+            ["border-bottom"] = ["border-block-end", "border-block", "border"],
+            ["border-left"] = ["border-inline-start", "border-inline", "border"],
+            ["max-width"] = ["max-inline-size", "inline-size", "width"],
+        };
+
+        return logical.TryGetValue(property, out var aliases)
+               && aliases.Any(a => a == other || other.StartsWith($"{a}-", StringComparison.Ordinal));
     }
 
     private static string ScreenHalfOfAppCss

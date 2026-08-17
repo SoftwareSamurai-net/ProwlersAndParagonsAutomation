@@ -84,12 +84,18 @@ public sealed class ProofPages
 
         using var ctx = new RenderContext().With(mode);
 
-        // Enough body to scroll against, so the sticky band can be seen doing its job rather
-        // than merely existing.
-        var tier = ctx.Render<ChooseTier>().Markup;
-        var layout = ctx.Render<MainLayout>(p => p.Add(l => l.Body, tier));
+        WriteRaw($"proof-shell-{Name(mode)}.html", Name(mode), ShellBody(ctx));
+    }
 
-        WriteRaw($"proof-shell-{Name(mode)}.html", Name(mode), layout.Markup);
+    /// <summary>
+    /// The shell, with enough body to scroll against so the sticky band can be seen doing its job
+    /// rather than merely existing. Shared with <see cref="EveryProofPageShowsWhatItIsFor"/>, so the
+    /// markers are asserted against the markup that is actually written.
+    /// </summary>
+    private static string ShellBody(RenderContext ctx)
+    {
+        var tier = ctx.Render<ChooseTier>().Markup;
+        return ctx.Render<MainLayout>(p => p.Add(l => l.Body, tier)).Markup;
     }
 
     /// <summary>
@@ -109,6 +115,12 @@ public sealed class ProofPages
         using var ctx = new RenderContext();
         ctx.Session.Sheet.SelectedTierId = "standard";
 
+        Write("proof-empty.html", "hero", EmptyBody(ctx));
+    }
+
+    /// <summary>The five editors holding nothing. Shared with the marker test, for the same reason.</summary>
+    private static string EmptyBody(RenderContext ctx)
+    {
         var body = new StringBuilder();
 
         Section(body, "The tab strip — untouched sections ringed",
@@ -118,7 +130,7 @@ public sealed class ProofPages
         Section(body, "Flaws, holding nothing", ctx.Render<FlawsTab>().Markup);
         Section(body, "Gear, holding nothing", ctx.Render<Gear>().Markup);
 
-        Write("proof-empty.html", "hero", body.ToString());
+        return body.ToString();
     }
 
     /// <summary>The sheet, which is the deliverable and is judged on paper.</summary>
@@ -150,7 +162,7 @@ public sealed class ProofPages
     /// proofed with the faces it actually ships with.
     /// </summary>
     private static void Write(string file, string mode, string body) =>
-        WritePage(file, mode, $"<div class=\"shell\">{body}</div>");
+        WritePage(file, mode, Page(file, mode, body, wrap: true));
 
     /// <summary>
     /// The same page without the <c>.shell</c> wrapper, for markup that brings its own — the
@@ -158,23 +170,17 @@ public sealed class ProofPages
     /// that is supposed to run the full width of the window inside a 1100px column.
     /// </summary>
     private static void WriteRaw(string file, string mode, string body) =>
-        WritePage(file, mode, body);
+        WritePage(file, mode, Page(file, mode, body, wrap: false));
 
     /// <summary>
     /// Everything a proof page must contain to be proofing what it claims to, keyed by file.
     ///
-    /// <para><b>These harnesses have no assertions and cannot have many, and that is the honest
-    /// limit of them: they are proof generators, gated on <c>PP_PROOF</c>, so with it unset they
-    /// are no-ops and nothing about them is testable.</b> A reviewer demonstrated the consequence
-    /// — commenting out five of the six sections of the empty-editor proof, including the tab strip
-    /// it exists to show, left the suite at its full count; and swapping <c>WriteRaw</c> for
-    /// <c>Write</c> puts the banner inside a 1100px column, defeating the shell proof's whole
-    /// purpose, with `WriteRaw` becoming an unreferenced method and no warning.</para>
-    ///
-    /// <para>What can be checked is the one thing that matters: <b>a page that is written contains
-    /// the markers it was written to show.</b> That is not coverage, and it does not make these
-    /// tests. It does mean a proof cannot silently become a picture of something else — which is
-    /// the dangerous shape, because a proof read as evidence is worse than no proof at all.</para>
+    /// <para>These are generators rather than tests: with <c>PP_PROOF</c> unset they write nothing,
+    /// so nothing about the <em>writing</em> is testable. What is testable — and is tested on every
+    /// run by <see cref="EveryProofPageShowsWhatItIsFor"/> — is that the page each builder produces
+    /// shows what it claims to. <b>That is not coverage of the design; it means a proof cannot
+    /// silently become a picture of something else</b>, which is the dangerous shape, because a
+    /// proof read as evidence is worse than no proof at all.</para>
     /// </summary>
     private static readonly Dictionary<string, string[]> MustShow = new(StringComparer.Ordinal)
     {
@@ -182,8 +188,62 @@ public sealed class ProofPages
         ["proof-shell-hero.html"] = ["class=\"banner\"", "class=\"steps\"", "class=\"budget\"", "class=\"shell\""],
         ["proof-shell-villain.html"] = ["class=\"banner\"", "class=\"steps\"", "class=\"shell\""],
         // The empty editors: the tab strip with a marker, and an empty state from each editor.
-        ["proof-empty.html"] = ["tab-count untouched", "empty-state"],
+        // One marker per section, or the page can lose four of its five and still pass: the tab
+        // strip alone carries both an `empty-state` and a ring, so a two-marker list only forbade
+        // dropping the strip. These are the panel headings, which are what each section is for.
+        ["proof-empty.html"] =
+        [
+            "tab-count untouched", "empty-state",
+            "Powers on this character", "Perks", "Flaws", "Carried",
+        ],
     };
+
+    /// <summary>
+    /// Builds every proof page and asserts its markers — <b>as an ordinary test, which runs whether
+    /// or not <c>PP_PROOF</c> is set.</b>
+    ///
+    /// <para><b>Putting the marker checks inside the writer was close to theatre and a fix-audit said
+    /// so.</b> They sat after <c>if (!Asked) return</c>, so the one mutation the negative half exists
+    /// for — wrapping the shell proof in a column, which defeats its whole purpose — was invisible to
+    /// CI and to every normal run, including the run whose count the commit message quoted. A guard
+    /// that only fires under an environment variable nobody sets in CI is not a guard.</para>
+    ///
+    /// <para>This drives the same builders and asserts on what they produce, so the markers are
+    /// checked on every run. It still writes nothing: proofing is what <c>PP_PROOF</c> is for.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void EveryProofPageShowsWhatItIsFor(SheetMode mode)
+    {
+        using var ctx = new RenderContext().With(mode);
+
+        var shell = Page($"proof-shell-{Name(mode)}.html", Name(mode), ShellBody(ctx), wrap: false);
+        AssertMarkers($"proof-shell-{Name(mode)}.html", shell);
+
+        // The mode reaches the page. `WriteRaw(file, Name(mode), …)` could be passed a constant and
+        // the villain proof would come out a copy of the hero one — on the very file whose
+        // non-inspection caused this phase's worst defect.
+        Assert.Contains($"data-mode=\"{Name(mode)}\"", shell, StringComparison.Ordinal);
+
+        using var fresh = new RenderContext();
+        fresh.Session.Sheet.SelectedTierId = "standard";
+
+        var empty = Page("proof-empty.html", "hero", EmptyBody(fresh), wrap: true);
+        AssertMarkers("proof-empty.html", empty);
+    }
+
+    private static void AssertMarkers(string file, string page)
+    {
+        Assert.True(MustShow.ContainsKey(file), $"No markers are recorded for {file}.");
+
+        foreach (var marker in MustShow[file])
+            Assert.Contains(marker, page, StringComparison.Ordinal);
+
+        if (MustNotShow.TryGetValue(file, out var banned))
+            foreach (var marker in banned)
+                Assert.DoesNotContain(marker, page, StringComparison.Ordinal);
+    }
 
     /// <summary>
     /// What a proof page must <b>not</b> contain — and this half is what catches the mutation the
@@ -201,19 +261,17 @@ public sealed class ProofPages
         ["proof-shell-villain.html"] = ["<div class=\"shell\">"],
     };
 
-    private static void WritePage(string file, string mode, string body)
+    /// <summary>
+    /// The whole page, as a string. Separate from writing it so the marker test can assert on
+    /// exactly what would be written without writing anything.
+    /// </summary>
+    private static string Page(string file, string mode, string body, bool wrap)
     {
-        var wwwroot = Path.Combine(RepoRoot(), "web", "wwwroot");
+        _ = file;   // kept in the signature so a caller cannot pass a body for the wrong page
 
-        if (MustShow.TryGetValue(file, out var markers))
-            foreach (var marker in markers)
-                Assert.Contains(marker, body, StringComparison.Ordinal);
+        var inner = wrap ? $"<div class=\"shell\">{body}</div>" : body;
 
-        if (MustNotShow.TryGetValue(file, out var banned))
-            foreach (var marker in banned)
-                Assert.DoesNotContain(marker, body, StringComparison.Ordinal);
-
-        var page = $"""
+        return $"""
             <!doctype html>
             <html lang="en" data-mode="{mode}">
             <head>
@@ -224,12 +282,16 @@ public sealed class ProofPages
               <link rel="stylesheet" href="css/app.css">
             </head>
             <body>
-            {body}
+            {inner}
             </body>
             </html>
             """;
+    }
 
-        File.WriteAllText(Path.Combine(wwwroot, file), page);
+    private static void WritePage(string file, string mode, string page)
+    {
+        _ = mode;
+        File.WriteAllText(Path.Combine(RepoRoot(), "web", "wwwroot", file), page);
     }
 
     private static string RepoRoot()

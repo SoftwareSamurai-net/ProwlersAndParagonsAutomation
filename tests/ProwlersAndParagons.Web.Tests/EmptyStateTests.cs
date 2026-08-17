@@ -104,12 +104,16 @@ public sealed class EmptyStateTests
 
         AssertSubstantive(markup, $"ProConPicker({scope}, IsPro: {isPro})");
 
-        // **No subject named, and every subject checked.** The sentence renders under all three,
-        // so naming any one of them is false under the other two — and the enum is read rather
-        // than a list retyped here, so a fourth scope is covered the day it is added.
+        // **No subject named, by any of the words that name one.** The enum's own members are read
+        // so a fourth scope is covered the day it is added — but the property wanted is "names no
+        // subject", not "names no enum member", and a fix-audit used the difference: "what this
+        // Trait does" contains no member name and is false of a piece of Gear. The nouns this
+        // rulebook uses for the three subjects are listed beside them.
+        string[] subjects = [.. Enum.GetNames<ProConPicker.Target>(), "Trait", "item", "equipment"];
+
         foreach (var state in States(markup))
-            foreach (var target in Enum.GetNames<ProConPicker.Target>())
-                Assert.DoesNotContain(target, state, StringComparison.OrdinalIgnoreCase);
+            foreach (var subject in subjects)
+                Assert.DoesNotContain(subject, state, StringComparison.OrdinalIgnoreCase);
 
         // And the two halves genuinely differ — one sentence used for both would pass everything
         // above while telling a reader that a Con adds to the cost.
@@ -142,9 +146,21 @@ public sealed class EmptyStateTests
 
         var state = States(ctx.Render<FlawsTab>().Markup).Single();
 
-        Assert.Contains($"at least {flawRules.MinAtCreation}", state, StringComparison.Ordinal);
+        // **The whole clause, not the number in it.** Reading only "at least {min}" left the number
+        // right and the claim false: "the rules make them optional, though at least 1 buys extra
+        // Resolve" passed, and the rules require 1–3 at creation. Where the content of a sentence is
+        // the deliverable, the sentence is the assertion — the same reason this project pins the MCP
+        // server's baseline note verbatim. The duplicated literal buys the one thing that matters:
+        // changing it has to be deliberate and visible in a diff.
+        Assert.Contains(
+            $"the rules ask for at least {flawRules.MinAtCreation} at creation",
+            state, StringComparison.Ordinal);
+
         Assert.NotEqual(flawRules.MinAtCreation, flawRules.MaxAtCreation);
         Assert.DoesNotContain($"at least {flawRules.MaxAtCreation}", state, StringComparison.Ordinal);
+
+        // And it does not simultaneously call them optional, which is the shape that got through.
+        Assert.DoesNotContain("optional", state, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -185,6 +201,16 @@ public sealed class EmptyStateTests
             ("Perks",     () => ctx.Session.Sheet.Perks.Add(new SelectedPerk("contacts", 1, "A dispatcher"))),
             ("Flaws",     () => ctx.Session.Sheet.Flaws.Add(new SelectedFlaw("enemy", "An old partner"))),
         };
+
+        // **The marking is announced, not only drawn.** The ring is a shape, which survives a reader
+        // who cannot see colour and reaches a screen reader not at all — so the word is there too,
+        // off-screen. Replacing that span with an empty one passed everything else in this file,
+        // because every other assertion reads the class list.
+        var announced = ctx.Render<Characteristics>().FindAll(".tabs .sr-only");
+
+        Assert.Equal(5, announced.Count);
+        Assert.All(announced, s => Assert.False(string.IsNullOrWhiteSpace(s.TextContent),
+            "An untouched section is ringed but says nothing a screen reader can read."));
 
         var filled = new List<string>();
 
