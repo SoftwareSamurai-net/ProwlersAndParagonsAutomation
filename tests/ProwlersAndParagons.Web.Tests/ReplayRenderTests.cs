@@ -471,7 +471,11 @@ public sealed class ReplayRenderTests
         Assert.NotEqual(expected, AsTheirOwn(ctx, mine));
 
         // And now the visitor's character is the one in the session, with the subject passed
-        // in — which is exactly what the replay does.
+        // in — which is exactly what the replay does. Asserted rather than left to the order
+        // of the two calls above: with the subject still in the session this whole comparison
+        // would pass by rendering the same thing twice.
+        Assert.Same(mine, ctx.Session.Sheet);
+
         var actual = ctx.Render<SheetView>(p => p
                 .Add(s => s.Character, subject)
                 .Add(s => s.ShowBudget, true))

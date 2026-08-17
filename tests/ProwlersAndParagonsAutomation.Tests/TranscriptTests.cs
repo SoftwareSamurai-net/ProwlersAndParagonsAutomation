@@ -84,7 +84,12 @@ public sealed class TranscriptTests
             if (t.Turns[i].Character is not { } character)
                 continue;
 
-            foreach (var (path, text) in StringsIn(character, "character", []))
+            // Reference equality, not the default. SelectedProCon and friends compare by value,
+            // and a character legitimately carries two equal ones — Also X three times. A
+            // value-equality visited set would walk the first and skip the rest.
+            var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+
+            foreach (var (path, text) in StringsIn(character, "character", seen))
                 yield return ($"turn {i + 1} {path}", text);
         }
     }
@@ -426,6 +431,11 @@ public sealed class TranscriptTests
     /// than the page's: <c>ReplayVerdict</c> labels the gap <c>Over by</c> and <c>Left</c>,
     /// and "nineteen over … with three to spare" — which is how anybody would write it —
     /// matched none of <c>HP|hero points|points|edge|health|resolve|budget</c>.</para>
+    ///
+    /// <para>The positional words will occasionally catch a sentence that meant nothing of the
+    /// kind — "she left with two bags" is a match. That is the right way round for a guard
+    /// whose failure mode is a wrong number on a page nobody can tell is wrong, and the
+    /// message quotes what it matched, so rewording is a minute's work.</para>
     ///
     /// <para>Those positional words take a <b>tighter window</b> than the rest, and have to.
     /// "over" and "left" are ordinary English: at the three-word window the others use,
