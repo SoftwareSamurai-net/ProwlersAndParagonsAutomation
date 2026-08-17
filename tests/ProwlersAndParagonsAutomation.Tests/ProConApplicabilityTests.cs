@@ -250,20 +250,27 @@ public sealed class ProConApplicabilityTests
 
         // <b>A substring of the right entry is not a constraint.</b> Containment accepts any
         // fragment, so trimming this to the boilerplate "This Pro applies to" passed — a correct
-        // quotation that says nothing, which is the cheapest way for this record to stop being
-        // one. What has to survive is the part after the opener: the thing it applies to.
-        var subject = OpenerStripped(entry.PrintedConstraint);
-
-        Assert.True(subject.Length >= 2,
-            $"'{id}' records a printed constraint that names nothing it constrains: "
-            + $"\"{entry.PrintedConstraint}\"");
+        // quotation of the right entry that says nothing, which is the cheapest way for this
+        // record to stop being one.
+        //
+        // Counting words after the opener was the first fix and was not enough: "This Pro applies
+        // to Powers that" cleared it, and twelve of the fifteen entries open "Powers that…" after
+        // their boilerplate, so nearly all of them could be trimmed to the same empty phrase. It
+        // is the *content* word that has to survive — the thing the option applies to.
+        Assert.NotEmpty(ContentWordsOf(entry.PrintedConstraint));
     }
 
     /// <summary>
-    /// The printed constraint with its boilerplate opening removed, leaving the words that say
-    /// what the option applies to. The four openers are the ones the book uses.
+    /// The words of a printed constraint that carry its meaning: the boilerplate opening removed
+    /// if it is there, then the grammar dropped. What is left of "This Pro applies to Powers that
+    /// inflict damage." is "inflict damage" — and of "This Pro applies to Powers that", nothing.
+    ///
+    /// <para><b>The opener is optional rather than required.</b> Demanding one refused a record
+    /// holding the substantive clause alone — strictly more informative, still verbatim, still
+    /// under the right heading — and told the reader to go and look for a fifth opener in a book
+    /// where neither the record nor the book was wrong.</para>
     /// </summary>
-    private static string[] OpenerStripped(string constraint)
+    private static string[] ContentWordsOf(string constraint)
     {
         foreach (var opener in new[]
         {
@@ -272,14 +279,27 @@ public sealed class ProConApplicabilityTests
         })
         {
             if (constraint.StartsWith(opener, StringComparison.Ordinal))
-                return constraint[opener.Length..]
-                    .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            {
+                constraint = constraint[opener.Length..];
+                break;
+            }
         }
 
-        Assert.Fail($"\"{constraint}\" does not open the way the rulebook opens a constraint. "
-                    + "If the book has a fifth form, add it here rather than dropping the check.");
-        return [];
+        return
+        [
+            .. constraint
+                .Split([' ', ',', '.', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(w => !Grammar.Contains(w, StringComparer.OrdinalIgnoreCase))
+        ];
     }
+
+    /// <summary>
+    /// The words a constraint is built out of rather than the ones it is about. Kept short and
+    /// literal: every entry keeps at least one word past it — Carrier Attack's is "attack",
+    /// which is the whole of what it constrains.
+    /// </summary>
+    private static readonly string[] Grammar =
+        ["Power", "Powers", "that", "which", "the", "a", "an", "to", "and", "or", "of", "this", "these"];
 
     public static TheoryData<string> Caveats() => [.. CanonicalCaveats.All.Select(e => e.Id)];
 

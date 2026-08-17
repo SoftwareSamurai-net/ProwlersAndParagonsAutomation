@@ -359,12 +359,37 @@ wherever the rule was written.*
   code, not per construction site**, and that gap is now demonstrated rather than theoretical.
   The case list reaches it.
 - The spelling convention reads two call shapes, so **a third helper is invisible to it** — the
-  same escape one indirection on, and not closable by a better pattern. The set of methods that
-  build a finding is pinned instead, so adding one fails until the convention is taught it.
+  same escape one indirection on.
 - `MustOfferOptions` catches a code added with `Options = []` but not one written with no
   `Options` line at all and delisted in the same breath. That is a two-file coordinated edit, so
-  rather than chase it the four Source findings are now asserted outright — which is the one the
+  rather than chase it the Source findings are now asserted outright — which is the case the
   option check existed for.
+
+**A fourth pass re-reviewed those. All five held; it found four more, and two of them were this
+file overclaiming again.** Both are recorded rather than quietly corrected, because the shape of
+the mistake is the useful part: *a fix that enumerates one spelling of a thing gets out-spelled,
+including when the thing being enumerated is the fix.*
+
+- **The helper pin was the same mistake one spelling on.** It matched methods *returning* a
+  `ValidationIssue`, so `AddFinding(List<ValidationIssue> into, string code, …)` slipped past on
+  the angle bracket — and appending to a passed-in list is this validator's house idiom, not an
+  exotic shape. A generic `Finding<T>` got past it too. This entry claimed "the set of methods
+  that build a finding is pinned"; it was not. **Construction sites are counted now** — the thing
+  that actually makes a finding, which cannot be hidden behind a signature — and the rule is that
+  exactly one of them takes its code from a variable.
+- **There are five places that offer the six Sources, not four.** This entry said four, and the
+  test did too: it counted a line shared by the Ability and Talent arms twice and missed the
+  fifth entirely. The one missed was the **blank** Source — a Trait that names a Source and then
+  names none, which has its own sentence because printed through the other one it read "names a
+  Source, '', that is not one of the six". Its options could be made perk ids with the suite
+  green: the same dead-branch defect as the Talent arm, in the same method, one round later.
+- **Requiring words after the boilerplate opener was not enough.** "This Pro applies to Powers
+  that" cleared it, and twelve of the fifteen entries open "Powers that…" after their opener, so
+  nearly all of them could be trimmed to the same empty phrase. It is the *content* word that has
+  to survive.
+- And that check refused a record holding the substantive clause **alone** — verbatim, under the
+  right heading, strictly more informative — telling the reader to go and find a fifth opener in
+  a book where nothing was wrong. The opener is optional now.
 
 3446 tests to **3668** — 3544 on the engine, 124 in bUnit. Zero warnings at CI strictness.
 

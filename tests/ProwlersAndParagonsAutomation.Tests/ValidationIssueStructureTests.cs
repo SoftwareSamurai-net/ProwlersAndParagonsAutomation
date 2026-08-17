@@ -168,12 +168,21 @@ public sealed class ValidationIssueStructureTests
     }
 
     /// <summary>
-    /// <b>The other three Source findings, said outright rather than through a list.</b>
+    /// <b>Every Source finding, said outright rather than through a list.</b>
     /// <see cref="MustOfferOptions"/> is a hand-maintained set, and deleting a code's
     /// <c>Options</c> line <em>and</em> its entry in that set is a coordinated edit both halves
     /// of the machinery miss — so nothing anywhere stated that <c>POWER_WITHOUT_SOURCE</c> must
     /// offer the six Sources, which is the finding the whole option check was written for.
     /// Naming them here does not depend on the list at all.
+    ///
+    /// <para><b>There are five places that offer the Sources, not four</b>, and an earlier
+    /// version of this test and of the account in <c>PROGRESS.md</c> both said four — counting a
+    /// line shared by the Ability and Talent arms twice, and missing the fifth entirely. The one
+    /// missed was the <em>blank</em> Source, which has its own sentence because printed through
+    /// the other one it read "names a Source, '', that is not one of the six": a Trait that names
+    /// a Source and then names none. It is reachable from exactly the hand-written or stale saved
+    /// character this validator exists for, and its options could be made perk ids with the whole
+    /// suite green — the same dead-branch defect as the Talent arm, in the same method.</para>
     /// </summary>
     [Fact]
     public void EveryFindingAboutAMissingSourceOffersTheSixSources()
@@ -183,6 +192,10 @@ public sealed class ValidationIssueStructureTests
         var withoutSource = Legal();
         withoutSource.SelectedPowers.Add(new SelectedPower("blast", 3));
         Assert.Equal(sources, Issue(withoutSource, "POWER_WITHOUT_SOURCE").Options.Order());
+
+        var ranklessWithoutSource = Legal();
+        ranklessWithoutSource.SelectedPowers.Add(new SelectedPower("communications", 0));
+        Assert.Equal(sources, Issue(ranklessWithoutSource, "RANKLESS_POWER_WITHOUT_SOURCE").Options.Order());
 
         var badOnAPower = Legal();
         badOnAPower.SelectedPowers.Add(new SelectedPower("blast", 3) { SourceId = "cosmic" });
@@ -195,6 +208,11 @@ public sealed class ValidationIssueStructureTests
         var badOnATalent = Legal();
         badOnATalent.TalentSources["academics"] = "cosmic";
         Assert.Equal(sources, Issue(badOnATalent, "UNKNOWN_SOURCE").Options.Order());
+
+        // The fifth: a Source recorded with no value, which is its own arm and its own sentence.
+        var blankOnAnAbility = Legal();
+        blankOnAnAbility.AbilitySources["might"] = "";
+        Assert.Equal(sources, Issue(blankOnAnAbility, "UNKNOWN_SOURCE").Options.Order());
     }
 
     /// <summary>
@@ -1105,6 +1123,10 @@ public sealed class ValidationIssueStructureTests
                 // green. That is the defect this file's option check exists for, alive on the
                 // branch no sheet visited.
                 sheet.TalentSources["telekinesis"] = "magic";
+
+                // And the blank Source, which is a third arm of the same method with its own
+                // sentence and its own option list, reached by no other case here.
+                sheet.TalentSources["covert"] = "";
                 return sheet;
             }
 
@@ -1430,31 +1452,47 @@ public sealed class ValidationIssueStructureTests
     }
 
     /// <summary>
-    /// <b>The convention check reads two call shapes, so the shapes are enumerated rather than
-    /// assumed.</b> A third helper — <c>Finding(code, message)</c> returning a
-    /// <see cref="ValidationIssue"/> — is invisible to it, and a code written in a spelling
-    /// <see cref="DeclaredCodes"/> cannot see, passed through such a helper, is invisible to
-    /// everything here. That is the same escape one indirection further on, and it cannot be
-    /// closed by a better pattern: it is closed by noticing the helper exists.
+    /// <b>Exactly one place builds a finding from a code it was handed rather than one written
+    /// there, and that is what makes the spelling convention reach everything.</b>
     ///
-    /// <para>So the set of methods that build a finding is pinned. Adding one fails here, with
-    /// the instruction to teach <c>CodeExpressions</c> about it — which is where the convention
-    /// is actually enforced.</para>
+    /// <para><c>CodeExpressions</c> reads two call shapes, so a third — a helper taking the code
+    /// as a parameter — hides both the helper's own construction site (its code is an identifier,
+    /// not a literal) and its call sites (an unrecognised shape). A code spelled
+    /// <c>"TooManyConnections"</c> and passed through one is then exempt from the convention, the
+    /// kind table, the provoking-case guarantee and the option check together.</para>
+    ///
+    /// <para><b>An earlier version pinned the <em>methods</em> that return a
+    /// <see cref="ValidationIssue"/>, and that was the same mistake one spelling on</b> — it
+    /// matched on the return type, so <c>AddFinding(List&lt;ValidationIssue&gt; into, string code,
+    /// …)</c> slipped past on the angle bracket, and appending to a passed-in list is this
+    /// validator's house idiom rather than an exotic shape. A generic <c>Finding&lt;T&gt;</c> got
+    /// past it too. So this counts <em>construction sites</em> instead, which is the thing that
+    /// actually makes a finding and cannot be hidden behind a signature.</para>
     /// </summary>
     [Fact]
-    public void OnlyTheKnownHelpersBuildAFinding()
+    public void OnlyOneIndirectionBuildsAFindingFromACodeItWasHanded()
     {
-        var helpers = new Regex(
-            @"\bValidationIssue\s+(\w+)\s*\(", RegexOptions.None, TimeSpan.FromSeconds(5))
-            .Matches(EngineSource)
-            .Select(m => m.Groups[1].Value)
-            .ToHashSet(StringComparer.Ordinal);
+        var sites = new Regex(
+            @"new(?:\s+ValidationIssue)?\(\s*ValidationSeverity\.(?:Error|Warning),\s*([^,]*),",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5))
+            .Matches(EngineSource);
 
-        Assert.True(helpers.SetEquals(["Negative"]),
-            "A method other than Negative now builds a finding: "
-            + string.Join(", ", helpers.Except(["Negative"], StringComparer.Ordinal).Order(StringComparer.Ordinal))
-            + ". Every code reaching a caller through it is exempt from the spelling convention "
-            + "and from every structural rule here until CodeExpressions is taught the new shape.");
+        Assert.True(sites.Count >= 40,
+            $"Only {sites.Count} findings are constructed in the engine, which means this scan has "
+            + "stopped finding them rather than that the validator has shrunk.");
+
+        var literal = new Regex(@"""[^""]*""", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        var indirect = sites.Select(m => m.Groups[1].Value)
+            .Where(expression => !literal.IsMatch(expression))
+            .ToList();
+
+        Assert.True(indirect.Count == 1,
+            $"{indirect.Count} places build a finding from a code they were handed — "
+            + string.Join(", ", indirect.Select(e => $"'{e.Trim()}'"))
+            + ". There must be exactly one, Negative, because CodeExpressions knows that call "
+            + "shape and scans its arguments. Any other indirection puts its codes beyond the "
+            + "spelling convention and so beyond every structural rule here.");
     }
 
     /// <summary>
