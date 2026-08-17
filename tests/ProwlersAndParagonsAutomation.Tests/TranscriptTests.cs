@@ -465,11 +465,17 @@ public sealed class TranscriptTests
     /// whose failure mode is a wrong number on a page nobody can tell is wrong, and the
     /// message quotes what it matched, so rewording is a minute's work.</para>
     ///
-    /// <para>Those positional words take a <b>tighter window</b> than the rest, and have to.
-    /// "over" and "left" are ordinary English: at the three-word window the others use,
-    /// Vera Nunn's "Seventy-one, an apron over a cardigan" is a quoted Hero Point total. A
-    /// quoted figure puts them next to the number — "nineteen over", "over by nineteen",
-    /// "three to spare" — and a description does not.</para>
+    /// <para>What separates them from ordinary English is <b>punctuation, not distance</b>.
+    /// "over" and "left" are common words, and the first attempt at this gave them a one-word
+    /// window to keep Vera Nunn's "Seventy-one, an apron over a cardigan" out — which duly let
+    /// "over by a full nineteen" through, three words being all it takes. A quoted figure and
+    /// its label are in one clause; a description is not. So the window is three words as
+    /// everywhere else, and what may sit between them is words and spaces.</para>
+    ///
+    /// <para><b>This rule is about shape and the one below is about value</b>, and both are
+    /// needed. A recording saying "over by a full nineteen" is quoting a figure whether or not
+    /// nineteen is the right answer — arguably worse if it is not — so it cannot be left to a
+    /// check that compares against what the engine says.</para>
     /// </summary>
     [Fact]
     public void NoRecordedLineQuotesAFigureTheEngineIsSupposedToAnswer()
@@ -490,13 +496,21 @@ public sealed class TranscriptTests
         const string figure = "(HP|hero points?|points?|edge|health|resolve|budget)";
 
         // The words the page itself uses for the gap: "Over by 19", "Left 3". They are also
-        // ordinary English, so they only count next to the number — see the remarks.
-        const string gap = "(over|under|left|remaining|spare|short)";
+        // ordinary English, so they are constrained differently — see the remarks.
+        const string gap = "(over|overspent|overspend|under|left|remaining|spare|short)";
 
         // Both directions, with a short window either way rather than a list of verbs.
+        //
+        // The gap words take the same three-word window as the rest, but the words between
+        // them and the number must be **words and spaces only**. That is what tells a quoted
+        // figure from ordinary prose, and it is a better rule than the narrow window it
+        // replaces: a figure and its label sit in one clause — "over by a full nineteen",
+        // "three to spare" — while Vera Nunn's "Seventy-one, an apron over a cardigan" has a
+        // hyphen and a comma in the way. A one-word window kept that description out and let
+        // "over by a full nineteen" straight through.
         var quoted = Rx(
             $@"\b{number}\W+(\w+\W+){{0,3}}{figure}\b|\b{figure}\W+(\w+\W+){{0,3}}{number}\b"
-            + $@"|\b{number}\W+(\w+\W+){{0,1}}{gap}\b|\b{gap}\W+(\w+\W+){{0,1}}{number}\b",
+            + $@"|\b{number}\s+(\w+\s+){{0,3}}{gap}\b|\b{gap}\s+(\w+\s+){{0,3}}{number}\b",
             RegexOptions.IgnoreCase);
 
         foreach (var transcript in All())
