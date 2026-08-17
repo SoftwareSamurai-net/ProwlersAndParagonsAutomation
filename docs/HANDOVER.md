@@ -149,6 +149,17 @@ The lowest-value of the three, and the one most likely to eat a day for nothing.
   the file untouched — so a mutation "applied" that way looks exactly like a fix that holds, and
   a green suite means nothing. Use `sed -i` or the editor, and check `git diff --numstat` every
   time. This cost a wrong conclusion in the slice that recorded it.
+- **A check that never ran looks exactly like a check that passed, and piping it through `grep`
+  is what hides the difference.** The Docker CI-strict command above was run as
+  `docker … | grep -E "Passed!|Failed!"` while Docker Desktop happened to be stopped: the daemon
+  connection error went to the filtered-out lines, the pipeline exited **0**, and the result was
+  an empty output that a hurried reader takes for green. It was caught only because *nothing*
+  printed rather than something wrong. **Assert on the positive** — require the `Passed!` line to
+  be there — and when a run reports success with no output, treat that as a failure to
+  investigate rather than a quiet win. The same shape as the `perl` trap above: both are
+  successes that never happened.
+- **The authority on CI is CI.** `gh pr checks <n> --watch` runs the same strict flags on Linux
+  and needs no local daemon. Prefer it to the Docker route when a branch is already pushed.
 - **A guard test that reads the shipped data cannot tell you the mechanism reads it too.** Every
   test of the Force Field exemption passed with the whole thing hard-coded to
   `power.Id == "force_field"`, because they all asserted over the real rules files. To pin a
