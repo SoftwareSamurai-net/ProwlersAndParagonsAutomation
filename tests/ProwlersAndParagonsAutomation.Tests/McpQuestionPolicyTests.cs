@@ -389,6 +389,31 @@ public sealed class McpQuestionPolicyTests
     }
 
     /// <summary>
+    /// <b>And the two statements that tell the two confusable shapes apart are pinned word for
+    /// word, because no structural rule can check which thing a sentence attaches a shape to.</b>
+    ///
+    /// <para>The test above matches each brace group against the types that have those fields.
+    /// Swapping the two groups <em>whole</em> — so the comment reads "a gear feature is
+    /// <c>{ "Id", "VariantKey" }</c>, NOT the <c>{ "FeatureId", "GradeKey" }</c> a Pro takes" —
+    /// leaves both sets individually valid and passes. Every field name is real; only the English
+    /// joining them is inverted, and that inversion is the exact confusion the comment was written
+    /// to prevent. Reading is strict, so a proposer who believes it gets an unreadable character.
+    /// </para>
+    ///
+    /// <para>This is the same conclusion the server instructions and the baseline note reached:
+    /// where the content of a sentence <em>is</em> the deliverable, the sentence is the assertion.
+    /// A reflowed line fails this and should — somebody has to look at it and confirm the two
+    /// shapes are still the right way round.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("{ \"FeatureId\": …, \"GradeKey\": … } — NOT the { \"Id\": …, \"VariantKey\": … } a Pro takes.")]
+    [InlineData("A Pro or Con is `{ \"Id\": \"...\", \"VariantKey\": null, \"Units\": null }`.")]
+    public void TheStatementsTellingTheTwoConfusableShapesApartAreExact(string statement)
+    {
+        Assert.Contains(statement, Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// Brace groups that open and close on one line. Deliberately not a JSON parser: the two
     /// places this document states a shape outside the fenced block are a sentence and a
     /// comment, and neither is JSON.

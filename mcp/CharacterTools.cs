@@ -44,17 +44,27 @@ public sealed class CharacterTools
     private readonly ProConApplicability _applicability;
     private readonly Judgement _judgement;
     private readonly Func<DateTime> _now;
+    private readonly Func<string> _guide;
 
     /// <summary>
-    /// The engine, and a clock. <c>now</c> is the time a printed sheet is stamped with, and it
-    /// is injectable so a test can assert on a whole sheet without matching a clock.
+    /// The engine, a clock, and the guide. <c>now</c> is the time a printed sheet is stamped
+    /// with, and it is injectable so a test can assert on a whole sheet without matching a clock.
+    ///
+    /// <para><c>guide</c> is injectable for the same kind of reason and a sharper one: the
+    /// question policy is an <em>embedded resource</em>, so the way it goes missing is a csproj
+    /// edit, and there is no way to un-embed it from an assembly that is already loaded. Reading
+    /// it in <see cref="ReadEverything"/> is what makes that a refusal at startup rather than a
+    /// conversation opening with an empty document — and with the read hard-wired, the only test
+    /// available for that was a grep of this method's own source, which a <c>nameof</c> or a
+    /// comment satisfies without reading anything. Handed in, the claim can be driven.</para>
     /// </summary>
     public CharacterTools(
         RulesRepository rules,
         CostCalculator costs,
         DerivedStatsCalculator derived,
         CharacterValidator validator,
-        Func<DateTime>? now = null)
+        Func<DateTime>? now = null,
+        Func<string>? guide = null)
     {
         _rules         = rules;
         _costs         = costs;
@@ -63,6 +73,7 @@ public sealed class CharacterTools
         _applicability = new ProConApplicability(rules);
         _judgement     = new Judgement(rules, costs, derived, validator);
         _now           = now ?? (() => DateTime.Now);
+        _guide         = guide ?? (() => QuestionPolicy.Text);
     }
 
     /// <summary>
@@ -84,7 +95,7 @@ public sealed class CharacterTools
 
         _ = _rules.Powers.Count;
         _ = _rules.CreationRules.TraitRankLimits.Minimum;
-        _ = QuestionPolicy.Text.Length;
+        _ = _guide().Length;
     }
 
     // ── The guide ─────────────────────────────────────────────────────────
@@ -98,7 +109,7 @@ public sealed class CharacterTools
         "How to build a character from somebody's description: which two or three questions "
         + "are worth asking, what to decide silently, how to report back, and the JSON shape "
         + "the other tools take. Read this before proposing a character.")]
-    public string CreationGuide() => QuestionPolicy.Text;
+    public string CreationGuide() => _guide();
 
     // ── The catalogues ────────────────────────────────────────────────────
 

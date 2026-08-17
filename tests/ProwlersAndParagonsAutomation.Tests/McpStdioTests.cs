@@ -20,6 +20,10 @@ namespace ProwlersAndParagonsAutomation.Tests;
 [Collection(SharedRules.Name)]
 public sealed class McpStdioTests
 {
+    private readonly RulesFixture _f;
+
+    public McpStdioTests(RulesFixture f) => _f = f;
+
     private static string McpDirectory => Path.Combine(RulesFixture.RepoRoot, "mcp");
 
     /// <summary>
@@ -344,6 +348,14 @@ public sealed class McpStdioTests
             new JsonObject { ["character"] = hero.DeepClone() }, "verdict");
         yield return (CharacterServer.CheckCharacterTool,
             new JsonObject { ["character"] = new JsonObject { ["Nam"] = 1 } }, "CHARACTER_UNREADABLE");
+
+        // <b>The same character through the judge, which is where the guarded engine calls
+        // are.</b> Sent only to character_sheet, it never entered <c>Judgement</c> at all — so a
+        // stray write inside <c>Answer</c>'s catch, reached by any character the engine cannot
+        // price, was invisible again. This drives that catch, <c>Spending</c>, <c>Named</c>,
+        // <c>Looked</c> and the null-figure branch of the report.
+        yield return (CharacterServer.CheckCharacterTool,
+            new JsonObject { ["character"] = unpriceable.DeepClone() }, "UNKNOWN_POWER");
 
         // The masthead the text renderer writes, which the judge's JSON report cannot contain.
         yield return (CharacterServer.CharacterSheetTool,
@@ -705,41 +717,36 @@ public sealed class McpStdioTests
     /// rather than a conversation that opens with an empty document. Deleting the one line that
     /// makes it true left the suite green.
     ///
-    /// <para><b>Read from the source, and that is a limitation rather than a preference.</b> A
-    /// resource cannot be un-embedded from an assembly that is already loaded, so there is no
-    /// runtime arrangement in which the guide is absent for this to observe — the nearest thing
-    /// available is the line that reads it. <see cref="McpQuestionPolicyTests"/> covers the
-    /// other half, that the resource is there and is this document; what has no runtime test,
-    /// and cannot have one from here, is which of the two failures a missing resource produces.
-    /// </para>
+    /// <para><b>Driven, after two source-reading versions of this were each defeated in one
+    /// line.</b> A grep of the method's body for the token <c>QuestionPolicy</c> passed with the
+    /// read deleted and a <em>comment</em> mentioning it left behind — which is what somebody
+    /// removing that line would actually write. Stripping comments closed that spelling and left
+    /// <c>_ = nameof(QuestionPolicy);</c>, a string literal and a <c>using</c> all open, because a
+    /// token is not a read and no amount of text-matching makes it one.</para>
     ///
-    /// <para><b>Comments are stripped first, and the version that did not strip them was worth
-    /// almost nothing.</b> Deleting the read and leaving <c>// QuestionPolicy.Text is read by
-    /// CreationGuide on the first call, so there is no need to touch it here</c> passed — and
-    /// that is not a contrived mutation, it is what somebody removing the line would actually
-    /// write. A weak instrument is a reason to sharpen it, not an excuse for the first version
-    /// of it.</para>
+    /// <para>So the guide is handed to <see cref="CharacterTools"/> the way its clock already is,
+    /// and this hands it one that throws. A resource genuinely cannot be un-embedded from a loaded
+    /// assembly — that part of the old caveat was true — but the claim was never about the
+    /// resource: it is that <see cref="CharacterTools.ReadEverything"/> <em>reads</em> the guide,
+    /// so a csproj edit is a refusal at startup instead of a conversation that opens with an empty
+    /// document. That is now a statement about behaviour, and deleting the read fails it.</para>
     /// </summary>
     [Fact]
-    public void TheStartupCheckReadsTheEmbeddedGuideAndNotOnlyTheRules()
+    public void TheStartupCheckReadsTheGuideAndNotOnlyTheRules()
     {
-        var source = File.ReadAllText(Path.Combine(McpDirectory, "CharacterTools.cs"));
+        var missing = new CharacterTools(
+            _f.Rules, _f.Costs, _f.Derived, _f.Validator,
+            guide: () => throw new InvalidOperationException(
+                "The question policy is not embedded in this assembly."));
 
-        var start = source.IndexOf("public void ReadEverything()", StringComparison.Ordinal);
-        Assert.True(start >= 0, "CharacterTools no longer has a ReadEverything method.");
+        var refusal = Assert.ThrowsAny<Exception>(missing.ReadEverything);
 
-        // To the end of the method, which at this indentation is the first line that is a
-        // closing brace in the first column of the class body.
-        var end = source.IndexOf("\n    }", start, StringComparison.Ordinal);
-        Assert.True(end > start, "ReadEverything's body could not be found.");
+        Assert.Contains("not embedded", refusal.Message, StringComparison.Ordinal);
 
-        // Code only. A comment naming the thing is not a read of it, and every assertion below
-        // is satisfied by prose otherwise.
-        var body = string.Join('\n', source[start..end]
-            .Split('\n')
-            .Select(line => line.TrimStart().StartsWith("//", StringComparison.Ordinal) ? "" : line));
-
-        Assert.Contains(nameof(QuestionPolicy), body, StringComparison.Ordinal);
+        // And a guide that is there is not a refusal, so the test above is about the guide rather
+        // than about this constructor.
+        new CharacterTools(_f.Rules, _f.Costs, _f.Derived, _f.Validator, guide: () => "a guide")
+            .ReadEverything();
     }
 
     /// <summary>
@@ -762,15 +769,36 @@ public sealed class McpStdioTests
 
     [Theory]
     [MemberData(nameof(EveryRulesFile))]
-    public void ARulesDirectoryMissingAnyOneFileIsRefusedAtStartup(string missing)
+    public void ARulesDirectoryMissingAnyOneFileIsRefusedAtStartup(string missing) =>
+        AssertStartupRefuses(missing, corrupt: false);
+
+    /// <summary>
+    /// <b>And a file that is there and is not JSON, which was covered nowhere.</b>
+    /// <c>Program.cs</c> carries <c>JsonException</c> in its catch list specifically for this, and
+    /// only missing files and a missing directory were ever tested — so the half-written or
+    /// half-downloaded rules file, which is the likelier accident than a deleted one, went to the
+    /// same place a working server does.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryRulesFile))]
+    public void ARulesDirectoryHoldingOneFileThatIsNotJsonIsRefusedAtStartup(string corrupted) =>
+        AssertStartupRefuses(corrupted, corrupt: true);
+
+    private static void AssertStartupRefuses(string file, bool corrupt)
     {
         var scratch = Path.Combine(Path.GetTempPath(), "pp-mcp-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(scratch);
 
         try
         {
-            foreach (var file in RulesRepository.DataFileNames.Where(f => f != missing))
-                File.Copy(Path.Combine(RulesFixture.DataPath, file), Path.Combine(scratch, file));
+            foreach (var name in RulesRepository.DataFileNames.Where(n => n != file))
+                File.Copy(Path.Combine(RulesFixture.DataPath, name), Path.Combine(scratch, name));
+
+            // Truncated rather than nonsense: half a JSON document is what an interrupted write
+            // or a bad merge leaves behind, and it is the shape most likely to parse partly.
+            if (corrupt)
+                File.WriteAllText(Path.Combine(scratch, file),
+                    File.ReadAllText(Path.Combine(RulesFixture.DataPath, file))[..40]);
 
             var tools = CharacterServer.ToolsFor(scratch);
 

@@ -279,10 +279,12 @@ public sealed class McpSetupDocumentationTests
             // And it is the binary rather than a directory or the project, which is the mistake
             // that produces a server Desktop reports as "failed to start" and nothing else.
             //
-            // <b>The extension follows the platform the path is written for.</b> `(\.exe)?$` on
-            // its own accepts `.exe` on the macOS block, which contradicts the guide's own prose
-            // two paragraphs above it.
-            var windows = command.StartsWith("C:", StringComparison.OrdinalIgnoreCase);
+            // <b>The extension follows whether the path is written for Windows — any drive
+            // letter, not the letter C.</b> `(\.exe)?$` on its own accepts `.exe` on the macOS
+            // block, contradicting the guide's own prose two paragraphs above it; and a version
+            // of this that asked `StartsWith("C:")` let a `D:` path drop the extension, which
+            // sends a Windows Desktop user to a file that does not exist.
+            var windows = Rx(@"^[A-Za-z]:").IsMatch(command);
 
             Assert.Matches($@"{Regex.Escape(assemblyName)}{(windows ? @"\.exe" : "")}$", command);
 

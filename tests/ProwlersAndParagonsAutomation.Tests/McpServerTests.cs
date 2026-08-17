@@ -190,18 +190,31 @@ public sealed class McpServerTests
             Assert.Contains("Hero Point", said, StringComparison.Ordinal);
             Assert.Contains("legal", said, StringComparison.Ordinal);
 
-            // <b>The reasoning, clause by clause, because a floor is padding away from useless.</b>
-            // A length floor plus a full-stop count was the first attempt, and keyword bait
-            // padded out with the ten catalogue names and a few full stops cleared both while
-            // every sentence explaining *why* was gone. What a model needs is not the words
-            // "the engine decides" but the reason it must not do the arithmetic itself, so the
-            // reason is what is asserted.
+            // <b>Word for word, because every weaker form was defeated.</b> Three substrings were
+            // satisfied by keyword bait; a length floor plus a full-stop count was satisfied by
+            // padding the bait with the ten catalogue names; and the four reasoning clauses were
+            // satisfied by **negating** each one in place — "Call creation_guide first if you have
+            // time; it is optional", "It is a myth that the arithmetic is not guessable", "a
+            // plausible number is worse than none only in edge cases". Each of those contains the
+            // clause it inverts, and together they tell a model to do exactly what this surface
+            // exists to stop.
+            //
+            // <para>A phrase test cannot survive a "not" in front of the phrase, so the assertion
+            // is the text. The duplicated literal is the price of pinning prose whose content is
+            // the whole deliverable — these are the only words a model reads before it picks a
+            // tool — and it buys the one thing that matters: changing them has to be deliberate.
+            // The clauses below are kept as the diff a reader should look at first.</para>
+            Assert.Equal(
+                "Builds Prowlers & Paragons Ultimate Edition characters from a description. "
+                + "Call creation_guide first: it holds the two or three questions worth asking and "
+                + "the JSON shape a character takes. You propose; the engine decides. Never state a "
+                + "Hero Point cost, a derived stat or that a character is legal unless "
+                + "check_character said so — the arithmetic is not guessable, and a plausible number "
+                + "is worse than none.",
+                said);
+
             foreach (var clause in InstructionClauses)
                 Assert.Contains(clause, said, StringComparison.Ordinal);
-
-            Assert.True(said.Length > 250,
-                $"The server instructions are {said.Length} characters, which is a keyword list "
-                + "rather than the guidance a model reads before its first tool call.");
 
             return Task.CompletedTask;
         });
@@ -1510,6 +1523,24 @@ public sealed class McpServerTests
         Assert.Equal(["nova_ranged", "zone_ranged"],
                      zone["grades"]!.AsObject().Select(kv => kv.Key).Order());
 
+        // <b>All three of its own-text allowances, by their keys.</b> An own-text row is the one
+        // case AssertProConRow accepts as a subset rather than the whole printed set — it has to,
+        // because narrowing is the point — so the actual keys have to be pinned here or nowhere.
+        // They were pinned for zone_nova alone, and giving area_burst a `"grades": ["area"]` in
+        // powers.json silently dropped `burst` from the only place a caller learns it, with the
+        // whole suite green. area_burst keeps both: its own reason says Area and Burst are priced
+        // the same whatever the base Range.
+        Assert.Equal(["area", "burst"],
+            Row(forceField, "pros", "generic", "area_burst")["grades"]!
+                .AsObject().Select(kv => kv.Key).Order());
+
+        Assert.Equal(["from_close_range"],
+            Row(forceField, "pros", "generic", "ranged")["grades"]!
+                .AsObject().Select(kv => kv.Key).Order());
+
+        // And nothing else on this Power claims one, so the three above are the whole exemption.
+        Assert.Equal(3, _f.Rules.GetPower("force_field")!.ProsAllowedByOwnText.Count);
+
         // A Power that reaches the option by its own Range is untouched by any of this.
         var telekinesis = Parse(Tools().PowerDetail("telekinesis"));
         var itsZone     = Row(telekinesis, "pros", "generic", "zone_nova");
@@ -1635,16 +1666,21 @@ public sealed class McpServerTests
                     baseline["powers"]!.AsArray().Select(p => p!.GetValue<string>()).ToList());
 
                 // <b>The note is the one thing in this payload that is not the engine's answer,
-                // and asserting it non-blank let it be inverted.</b> "Purchased ranks *replace*
-                // this baseline, and the Trait Cap applies only to the ranks you buy" passed —
-                // the exact opposite of the rule, served to a model across all 27 baseline
-                // Powers, and it is the rule the guide lists as a first-draft trip-up.
-                var note = baseline["note"]!.GetValue<string>();
-
-                Assert.Contains("stack on top", note, StringComparison.OrdinalIgnoreCase);
-                Assert.Contains("Trait Cap", note, StringComparison.Ordinal);
-                Assert.Contains("the total", note, StringComparison.OrdinalIgnoreCase);
-                Assert.DoesNotContain("replace", note, StringComparison.OrdinalIgnoreCase);
+                // so it is pinned word for word.</b> Asserting it non-blank let it be inverted to
+                // "purchased ranks *replace* this baseline"; asserting the phrases in it —
+                // "stack on top", "Trait Cap", "the total", and not "replace" — let it be
+                // inverted again by **negation**, as "do not stack on top … the total, which is
+                // the baseline alone", which contains every required phrase and none of the
+                // forbidden one. No phrase test survives a "not" in front of the phrase.
+                //
+                // <para>So the assertion is the sentence. A second copy of a literal is the price
+                // of pinning prose, and it is the right price here: this is a rule served to a
+                // model across all 27 baseline Powers, and changing it should have to be
+                // deliberate and visible in a diff.</para>
+                Assert.Equal(
+                    "Purchased ranks stack on top of this baseline, and the Trait Cap applies "
+                    + "to the total.",
+                    baseline["note"]!.GetValue<string>());
 
                 Assert.Equal(BaselineFields.Order(), baseline.Select(kv => kv.Key).Order());
             }
