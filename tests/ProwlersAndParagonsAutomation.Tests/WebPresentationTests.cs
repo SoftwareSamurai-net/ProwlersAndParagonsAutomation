@@ -956,6 +956,46 @@ public sealed class WebPresentationTests
             : null;
 
     /// <summary>
+    /// The chrome always ends in a visible edge, on the one band that always renders.
+    ///
+    /// <para><b>This is the most severe defect of the phase, and it was fixed without a guard
+    /// until a mutation put it straight back.</b> <c>.steps</c> lost its bottom rule on the
+    /// argument that the budget strip directly beneath carries the edge for both — and the strip
+    /// is absent on three whole classes of screen: <b>every page in Villain mode</b>, since Ch.9
+    /// gives Villains no budget and the component renders nothing at all; <b>the tier page before
+    /// a tier is chosen</b>, which is the first screen a new visitor sees; and <b>every
+    /// <c>/replay</c> route</b>, where the layout hides it deliberately. On all three the step
+    /// chips sat on the page ground with nothing under them.</para>
+    ///
+    /// <para>So the requirement is on the band that is always there. The three conditions are
+    /// asserted as well as the edge, because they are the *reason* for it: if the strip ever
+    /// became unconditional the argument for a rule here would change, and a guard whose premise
+    /// has quietly gone is worse than none.</para>
+    /// </summary>
+    [Fact]
+    public void TheChromeAlwaysEndsInAVisibleEdge()
+    {
+        var edge = EffectiveValue(ScreenHalfOfAppCss, ".steps", "border-bottom");
+
+        Assert.True(edge is not null,
+            "The step band sets no bottom edge. The budget strip below it does not render in "
+            + "Villain mode, before a tier is chosen, or on a replay route — so on those screens "
+            + "nothing closes the chrome and the step chips sit on the page ground.");
+
+        Assert.DoesNotContain("none", edge!, StringComparison.Ordinal);
+        Assert.Contains("var(--rule)", edge!, StringComparison.Ordinal);
+
+        // The premise. Each of these is what makes the strip conditional; together they are why
+        // the edge cannot be left to it.
+        var strip = File.ReadAllText(Path.Combine(WebRoot, "Components", "HpBudgetBar.razor"));
+        var layout = File.ReadAllText(Path.Combine(WebRoot, "Layout", "MainLayout.razor"));
+
+        Assert.Contains("Session.ShowBudget", strip, StringComparison.Ordinal);
+        Assert.Contains("SelectedTierId is not null", strip, StringComparison.Ordinal);
+        Assert.Contains("!ShowingARecording", layout, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// An empty state is marked out as guidance, and the marking is entirely typographic — so it
     /// is entirely in the stylesheet, where no rendering test can see it.
     ///
