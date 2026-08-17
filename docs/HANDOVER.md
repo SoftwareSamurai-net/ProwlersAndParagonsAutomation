@@ -12,7 +12,7 @@ sessions, not documentation.
 ## Where things stand
 
 Head is **`078b69d`**, on top of [#43](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/43).
-**3446 tests** — 3322 engine, 124 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3497 tests** — 3373 engine, 124 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
@@ -28,7 +28,7 @@ it is the reason this file exists.
 
 ---
 
-## Slice A: the mutation-audit backlog — 33 open findings
+## Slice A: the mutation-audit backlog — 21 open findings, A1 closed
 
 **Where these came from.** Three agents, each told nothing about the work, were asked for every
 guard test to name a plausible bug it claims to cover but would not catch, **and to demonstrate it
@@ -43,78 +43,26 @@ count before the corpus work).
 
 **Line numbers are as the agents reported them and predate `078b69d`. Verify before trusting.**
 
-### A1 — MCP server (12 open)
+### A1 — MCP server: closed, all twelve
 
-The gaps cluster in three places: fields of a tool's JSON output that no test reads, the
-documents, and the stdout-hygiene pair whose two halves share a blind spot rather than
-complementing each other.
+Done, with each fix demonstrated by re-applying its mutation and confirming the suite goes red.
+The reasoning is in `PROGRESS.md`, in the completed entry named after this slice — including what
+it did **not** close, and the two documents whose claims were wrong rather than merely unasserted
+(`CLAUDE.md` on the stdout guards being complementary, and both `CLAUDE.md` and `Mentions`' own
+summary naming a Power the rulebook does not have).
 
-**The two worth doing first.**
+**Three things worth carrying into A2 and A3.**
 
-1. **A `Console.WriteLine` inside a tool body reaches the client's stdout and neither guard sees
-   it.** `CLAUDE.md` claims these two halves are complementary; they are not.
-   - Mutation: in `mcp/CharacterTools.cs`, `SearchPowers`, add `Console` and `.WriteLine(...)` on
-     two separate lines.
-   - `NothingWritesToStandardOutput` scans each line for the token `Console.` — split across two
-     lines, neither line contains it. `CLAUDE.md` names "a spelling split across two lines" as
-     precisely why the runtime half exists.
-   - `TheBuiltProgramSpeaksNothingButTheProtocol` only sends `initialize`,
-     `notifications/initialized` and `tools/list`, so it **never enters a tool body**.
-   - Confirmed live against the built binary: line 2 of the JSON-RPC stream was
-     `searching for turns invisible`.
-   - The same write in `ListOptions` **was** caught — only because `ReadEverything` calls it at
-     startup. Same for `engine/FileSystemRulesSource.ReadAllText`. So the runtime test covers the
-     startup path and nothing else. **The fix is to drive at least one tool call in the runtime
-     test**, not to add another regex.
-2. **`search_powers` can be widened back to substring matching with the suite green.** This is the
-   bug the method's own docstring calls "worse than no match".
-   - Mutation: in `Mentions`, add `if (text.Contains(term, StringComparison.OrdinalIgnoreCase)) return true;`
-   - Confirmed live: `search_powers("she bakes bread in the city")` returns **Plasticity**,
-     `matched_on: ["name"]`, `matched_terms: ["city"]`.
-   - Every existing search test is a positive assertion or a negative on one query whose words
-     happen not to be substrings. Note this is the same weakness `PROGRESS.md` item 4 is about,
-     approached from the test side rather than the ranking side.
-
-**The rest, roughly by value.**
-
-3. `power_detail`'s `cost_variants` can be set to `null` — green. It is the only place a caller
-   learns the accepted variant keys, and `check_character` refuses a `per_rank_variable` Power
-   without one. `PowerDetailOffersOnlyTheOptionsTheRulebookAllows` loops all 141 Powers and reads
-   only the pros/cons arrays.
-4. Eight more `power_detail` fields are constants-safe: `category`→`"Offensive"`,
-   `stat_line`→`power.Name`, `rank_type`→`"ranked"`, `cost_type`→`"flat"`, `max_rank`→`99`,
-   `unit`→`"things"`, `description`→`"A Power."`, `source_ref`→`"Ch.2 p.1"`. Only `range`
-   (asserted for `force_field` alone), `ranks_purchasable` and the pro/con lists are read.
-5. `list_options` likewise: gear_features `cost_type`→`"flat"` and `grades`→`null` (which kills
-   the two graded features' keys), flaws `flaw_type`, perks `unit`, talents
-   `ordinary_human_rank`→`0`. `TheCatalogueNumbersAreTheRulesOwn` reads a hand-picked subset per
-   category.
-6. `Judgement.Issues` can drop `owner_id` and `options` — green. `AnIssueCarriesTheFactsToRepairFrom`
-   reads only `subject_kind`/`subject_id`/`value`/`limit`. `HeadlessBuildTests` covers both fields
-   for the *build* command's report; the MCP copy — which `CLAUDE.md` says duplicates it on
-   purpose — has no equivalent, and `QUESTION-POLICY.md` tells the assistant all six are there.
-7. `mcp/QUESTION-POLICY.md`'s schema **prose** is unchecked outside the fenced block. Changing
-   `{ "Id", "VariantKey", "Units" }` to `{ "ProId", "GradeKey", "Count" }` in the surrounding text
-   left the suite green; only the ```` ```jsonc ```` block goes through the strict reader.
-8. **The Claude Desktop half of `docs/MCP-SETUP.md` is entirely unchecked.** Breaking both JSON
-   blocks' `command` paths left the suite green. `EveryShellPublishesToThePathItThenRegisters`
-   only regexes `claude mcp add`, and `EveryPublishCommandNamesTheProjectThatProducesTheRegisteredBinary`
-   only requires the AssemblyName to appear *somewhere* in the guide. A Desktop user follows the
-   guide and gets nothing.
-9. The startup diagnostic the guide's first troubleshooting bullet points at can be deleted:
-   `Console.Error.WriteLine($"Prowlers & Paragons MCP server, rules from '{rulesDirectory}'.")`
-   in `mcp/Program.cs`. The guide says it is there; nothing asserts it.
-10. `CharacterServer.Instructions` reduces to keyword bait —
-    `"creation_guide check_character the engine decides"` passes.
-    `TheServerSaysWhoDecidesBeforeAnythingIsCalled` greps three substrings. Note the asymmetry:
-    `EveryToolSaysWhatItIsFor` enforces a 60-character floor on tool descriptions; the
-    instructions, the model's only pre-call guidance, have none.
-11. `ReadEverything` no longer reading the embedded guide (delete `_ = QuestionPolicy.Text.Length;`)
-    is green. The claim that a csproj edit dropping the resource becomes a *startup* failure rather
-    than an empty first conversation is asserted nowhere.
-12. The search limit clamp's upper bound is free: `Math.Clamp(limit, 1, 25)` → `(limit, 1, 400)`
-    passes. `ALimitOutsideTheRangeIsBroughtInsideIt` passes `int.MaxValue` but queries `"armor"`,
-    which matches fewer than 25 Powers, so the upper bound is never exercised.
+1. **A guard that names its fields will be missing the next one.** Nine of the twelve were "a JSON
+   field no test reads", and the fix that worked was one assertion over the whole payload *with
+   the key set asserted*, so an unread field fails until somebody reads it. Prefer that to
+   another list.
+2. **A runtime test is only worth the paths it drives.** The stdout pair looked complementary and
+   was not, because one half never entered a tool body. Ask of any end-to-end test which code it
+   actually reaches.
+3. **Reuse the case list, do not copy it.** `ValidationIssueStructureTests.CaseNames` and `Build`
+   are `internal` now precisely so the second consumer cannot go stale independently. A3's first
+   finding is about that same table skipping what it omits.
 
 ### A2 — browser and replay (13 open)
 

@@ -148,10 +148,16 @@ public sealed class McpStdioTests
 
         // Bounded, because the failure being looked for is a stream that never produces the
         // line this is waiting for, and a bare read would hang the suite rather than fail it.
+        // Thirty seconds, the same as Ends: the passing run is well under a second, and every
+        // second beyond that is spent on a failure that has already happened.
         using var giveUp = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
-        giveUp.CancelAfter(TimeSpan.FromSeconds(120));
+        giveUp.CancelAfter(TimeSpan.FromSeconds(30));
 
         using var server = Start(ServerExecutable(), rulesDirectory: null);
+
+        // Which read ran out of time, because the two mean different things and both are real
+        // mutations: no greeting at all, and a request that never came back.
+        var waitingFor = "a line on standard error at startup";
 
         try
         {
@@ -166,6 +172,8 @@ public sealed class McpStdioTests
                 + "stuck reader to look for that line in their client's log.");
 
             Assert.Contains(Path.Combine("data", "rules"), greeting!, StringComparison.Ordinal);
+
+            waitingFor = "a reply to every request";
 
             await Say(server, Request(1, "initialize", new JsonObject
             {
@@ -246,7 +254,7 @@ public sealed class McpStdioTests
         }
         catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
         {
-            Assert.Fail("The server stopped answering before every request had a reply.");
+            Assert.Fail($"The server never produced {waitingFor}.");
         }
         finally
         {

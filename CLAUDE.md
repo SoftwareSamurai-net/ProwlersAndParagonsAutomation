@@ -210,13 +210,24 @@ questions about the rules. It does not replace `build --from`; both call the sam
   `Console.` followed by anything but `Error` (not for `Console.WriteLine`, because
   `Console.Out.Write` and `OpenStandardOutput` are the same mistake in other spellings), **and
   it runs the built program and requires every line on that stream to be a JSON-RPC message.**
-  The runtime half exists because a source scan cannot see a write from a library or a spelling
-  split across two lines; the source half exists because **a stray line does not necessarily
-  break a client** — the first runtime test drove the binary through the SDK's own client and
-  asserted the session worked, and a real stray line left it perfectly happy, because the client
-  skips what it cannot parse. Do not replace either with the other. **This is also why the
+  The source half exists because **a stray line does not necessarily break a client** — the
+  first runtime test drove the binary through the SDK's own client and asserted the session
+  worked, and a real stray line left it perfectly happy, because the client skips what it cannot
+  parse. Do not replace either with the other. **This is also why the
   setup guide (`docs/MCP-SETUP.md`) points a client at the published binary rather than at `dotnet run`**, which writes
   MSBuild's own progress to standard output.
+- **The two halves are complementary only as far as the runtime half is driven, and this note
+  used to claim more than that.** It said the runtime test existed to catch "a spelling split
+  across two lines". It did not: it sent `initialize`, `notifications/initialized` and
+  `tools/list` and stopped, so it never entered a tool body. `Console` and `.WriteLine(…)` on
+  two lines inside `SearchPowers` contains the token `Console.` on neither line, and reached a
+  real client's stdout as message two with **both guards green**. The same write in
+  `ListOptions` was caught, and only because `ReadEverything` calls it at startup — that is how
+  narrow the cover was. The runtime test now calls all six tools and requires each answer to
+  carry something only the far end of that body produces, since a call answered "unknown tool"
+  would otherwise satisfy it while running no code at all. **The fix for a hole in the source
+  scan is another driven path, never another regex**: the spelling after a multi-line one is a
+  helper in another file, or a library.
 - **The rules are found beside the binary, then upwards — never by walking up for a `.sln`.**
   That is the CLI's answer and it is wrong here: a client launches the published program from a
   directory of its own choosing and there may be no repository on the machine. `PROWLERS_RULES_DIR`
@@ -250,8 +261,18 @@ questions about the rules. It does not replace `build --from`; both call the sam
   A search that always returns its five best rows reads as five answers however carefully the
   caution is worded, and the description naming something the rulebook does not have is exactly
   the one a model will build anyway. Matching is word by word with a shared-prefix rule, not by
-  substring: substring matching answered "she bakes bread in the city" with **Elasticity**, and
-  a match like that is worse than none because nothing in it looks wrong.
+  substring: substring matching answered "she bakes bread in the city" with **Plasticity**, and
+  a match like that is worse than none because nothing in it looks wrong. (This note and
+  `Mentions`' own summary both said *Elasticity*, which is not a Power in this rulebook —
+  a reproduction searches for an entry that is not there.)
+- **`Mentions` had no test at all until slice A1, and one line put the substring search back.**
+  Every search test was either a positive assertion or a negative on a query whose words happen
+  not to be substrings of anything, so the property the method exists for was unpinned. What
+  holds it now is four fragments that occur inside a Power's name and nowhere in the rules files
+  as a word — `city`/Plasticity, `ration`/Regeneration, `art`/Martial Arts,
+  `kinesis`/Telekinesis — each with the positive control beside it, so the guard cannot be
+  satisfied by a search that has stopped working. **Any change to matching has to keep the
+  baker's sentence at `found: 0`.**
 - **That flag says how the rows matched and never what to conclude**, and the first version got
   this exactly wrong. It attached "usually means the rulebook has no Power for this" — so
   "he can fly" returned Flight and then told the assistant there is no Power for flight, because

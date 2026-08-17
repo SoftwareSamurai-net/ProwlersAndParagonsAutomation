@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3446 across two projects — 3322 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3497 across two projects — 3373 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -196,7 +196,83 @@ Not urgent. The site works, and a returning visitor pays nothing.
 
 ---
 
+### 6. The mutation-audit backlog — A2 and A3 are still open
+
+**Recorded here so it outlives [`docs/HANDOVER.md`](docs/HANDOVER.md)**, which is a note between
+sessions and gets deleted. Three agents that knew nothing about the work were asked, for every
+guard test, to name a plausible bug it claims to cover but would not catch, **and to demonstrate
+it by mutation rather than argue it**. They ran 64 mutations and **38 survived**. Five were in the
+rulebook corpus and were fixed at the time; the remaining 33 were grouped into three slices.
+
+**A1, the MCP server's twelve, is closed** — see the completed entry below. **A2 (browser and
+replay, 13) and A3 (engine and validator, 8) are open**, and the entry for each names the test,
+the mutation and why it passed. Read them in `HANDOVER.md` before starting either.
+
+None of the 33 is a bug in the product. Every one is a **test that does not hold what it claims to
+hold**, which is a different and quieter problem: the suite's headline number goes up and its
+grip does not.
+
+---
+
 ## Completed work
+
+### The MCP server's twelve guards that held nothing — slice A1 of the mutation audit
+
+Twelve tests claimed to pin behaviour and did not. Each is recorded with the mutation that
+defeated it, because the mutation is the evidence and an argument is not. Every one was confirmed
+to survive the suite *before* being fixed, and confirmed to fail it after — with the production
+code reverted in between, so no fix is a claim.
+
+**The two that mattered.**
+
+**A `Console.WriteLine` inside a tool body reached the client's standard output with both guards
+green.** `NothingWritesToStandardOutput` scans each line for the token `Console.`, so `Console`
+and `.WriteLine(…)` on two lines contains it on neither.
+`TheBuiltProgramSpeaksNothingButTheProtocol` sent `initialize`, `notifications/initialized` and
+`tools/list` and stopped — so it never entered a tool body at all, and covered the startup path
+and the handshake and nothing else. Confirmed live: line 2 of the JSON-RPC stream was
+`searching for turns invisible`. The same write in `ListOptions` *was* caught, and only because
+`ReadEverything` calls it at startup.
+
+The fix is that the runtime test now **calls all six tools**, and each answer has to carry
+something only the far end of that body produces — a call answered "unknown tool" would otherwise
+satisfy it while running no code at all. **Not another regex**, which would only move the hole:
+the spelling after a multi-line one is a helper in another file, or a library. `CLAUDE.md` claimed
+the two halves were complementary and is corrected; so is the scan's own doc comment. Its
+deadline is 30 seconds and it says which read ran out, because "no greeting at all" and "a request
+that never came back" are both real mutations and mean different things.
+
+**`search_powers` could be widened back to substring matching by one line** — the failure
+`Mentions`' own summary calls "worse than no match", since it arrives looking exactly like a real
+answer. Confirmed live: `search_powers("she bakes bread in the city")` returns **Plasticity**.
+Every existing search test was a positive assertion or a negative on a query whose words happen
+not to be substrings of anything. It is pinned now by four fragments that occur inside a Power's
+name and nowhere in the rules files as a word — `city`/Plasticity, `ration`/Regeneration,
+`art`/Martial Arts, `kinesis`/Telekinesis — each with the positive control beside it, plus the
+baker's sentence held at `found: 0`. **Both `CLAUDE.md` and the method's own summary named
+*Elasticity*, which is not a Power in this rulebook**; a reproduction would have searched for an
+entry that is not there. Corrected in both.
+
+**The rest, where one payload assertion replaced the fields somebody remembered.** This is the
+shape of the whole slice: twelve separate field assertions is what produced the gaps, because a
+field added later is a field nobody wrote an assertion for.
+
+| Was free | Now |
+|---|---|
+| `power_detail`'s `cost_variants` → `null`, plus `category`, `stat_line`, `rank_type`, `cost_type`, `max_rank`, `unit`, `description`, `source_ref` each replaceable with a constant | Every field of all 141, against the model, **with the key set asserted** so a new field fails until it is read. `cost_variants` was the sharp one: it is the only place a caller learns the accepted keys, and `check_character` refuses a `per_rank_variable` Power for lacking one — the tool taught a dead end the judge then closed |
+| `list_options`' gear-feature `cost_type` and `grades` (nulling the second kills the two graded features' keys), flaw `flaw_type`, perk `unit`, talent `ordinary_human_rank` | Every field of every entry of all ten catalogues, plus the entry count and the report's own key set. `TheCatalogueNumbersAreTheRulesOwn` stays — it reads the numbers pairwise and says why each matters; this is the completeness half |
+| An issue could drop `owner_id` and `options` — the two a repair loop cannot work without | Every field of every issue, **driven from `ValidationIssueStructureTests.Cases`**, which is itself held to the validator's source, so the codes covered are the ones the validator can construct rather than a list that goes stale. `CaseNames` and `Build` are `internal` for that reason: a second copy would be the stale one. A companion test asserts the sheets really do reach all six optional fields, since two nulls compared to two nulls is how this gap arose |
+| `QUESTION-POLICY.md`'s schema **prose and comments** — only the fenced block goes through the strict reader, and with its comments stripped. Rewriting the sentence for a Pro to `ProId`/`Count` passed | Every quoted PascalCase name anywhere in the document must be a property in the character's object graph, by reflection rather than against a list here. Reading is strict, so a proposer following the prose gets an unreadable character |
+| **The whole Claude Desktop half of `docs/MCP-SETUP.md`** — breaking both blocks' `command` paths passed, because every other test regexes `claude mcp add` | Both blocks must parse as JSON, key the server under the same name the Code commands use, and give an **absolute** path ending in the binary this repository builds. One block keeps its doubled backslashes and one has none, which is the difference the pair exists to show |
+| The startup diagnostic the guide's first troubleshooting bullet sends a stuck reader to find | Read off standard error by the runtime test, and required to name the rules directory |
+| `CharacterServer.Instructions` reduced to `"creation_guide check_character the engine decides"` | A length floor, the "never state a figure" clause, and a sentence count. Note the asymmetry that made it worth fixing: every tool description had a 60-character floor and the instructions — the model's only guidance *before* it picks a tool — had none |
+| `ReadEverything` no longer reading the embedded guide | Asserted, and **honestly caveated**: a resource cannot be un-embedded from a loaded assembly, so there is no runtime arrangement in which the guide is absent. The line that reads it is what is checked, and the test says that is a limitation rather than a preference |
+| The search limit's upper bound: `Math.Clamp(limit, 1, 25)` → `(limit, 1, 400)` passed, because every row searched "armor", which matches fewer than 25 | Wide rows on a query that overflows the ceiling, and a test asserting that it really does — so the clamp rows prove something about the clamp |
+
+**What this did not close.** The runtime stdout test covers the startup path, the handshake and
+one call of every tool; a write reachable only from an argument shape nothing sends is still seen
+by neither guard. That is stated in the test rather than left to be discovered.
+
 
 Newest first. Link the PR so the reasoning stays findable.
 

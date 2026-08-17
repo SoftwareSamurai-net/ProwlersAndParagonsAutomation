@@ -716,9 +716,17 @@ public sealed class CharacterTools
     /// description that says "you can fly".
     ///
     /// <para><b>Word by word rather than by substring</b>, which is not a refinement: a
-    /// substring search matched "she bakes bread in the city" to <em>Elasticity</em>, and a
+    /// substring search matched "she bakes bread in the city" to <em>Plasticity</em>, and a
     /// match like that is worse than no match, because it arrives looking exactly like a real
-    /// one and there is nothing in it a reader can see is wrong.</para>
+    /// one and there is nothing in it a reader can see is wrong. (This said <em>Elasticity</em>,
+    /// which is not a Power in this rulebook.)</para>
+    ///
+    /// <para><b>One line puts the substring search back, and nothing stopped it for a whole
+    /// slice.</b> Every search test was a positive assertion or a negative on a query whose
+    /// words happen not to be substrings of anything, so this method's whole reason for existing
+    /// was unasserted. It is pinned now by fragments that occur inside a Power's name and nowhere
+    /// in the rules files as a word; the baker's sentence above is one of them and has to stay at
+    /// <c>found: 0</c>.</para>
     /// </summary>
     private static bool Mentions(string text, string term)
     {
