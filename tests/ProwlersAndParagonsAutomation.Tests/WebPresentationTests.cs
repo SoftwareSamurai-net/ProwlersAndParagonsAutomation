@@ -809,9 +809,9 @@ public sealed class WebPresentationTests
         // not a scope at all, so between two breakpoints the step labels sat 8px in while the
         // heading sat 24px in — the exact "stop sharing a left edge" failure this test is for,
         // arriving in a query the scan declined to look at.
-        foreach (Match query in Rx(@"@media\s*([^{]+)\{(.*?)\n\}", RegexOptions.Singleline).Matches(css))
-            if (columns.Any(c => query.Groups[2].Value.Contains(c, StringComparison.Ordinal)))
-                scopes.Add(($"@media {query.Groups[1].Value.Trim()}", query.Groups[2].Value));
+        foreach (var (condition, body) in MediaQueriesOf(css))
+            if (columns.Any(c => body.Contains(c, StringComparison.Ordinal)))
+                scopes.Add(($"@media {condition}", body));
 
         Assert.True(scopes.Count >= 2,
             "Only one scope touching a column was found. The narrow-viewport query pads all five, "
@@ -866,9 +866,50 @@ public sealed class WebPresentationTests
         }
     }
 
+    /// <summary>
+    /// Every <c>@media</c> block, as its condition and its body, found by <b>matching braces</b>
+    /// rather than by pattern.
+    ///
+    /// <para><b>The regex this replaces assumed a formatted block</b> — it ended at the first
+    /// <c>\n}</c> — so a query written on one line was not found at all, and its contents were
+    /// swallowed into whichever block *did* end that way. A fix-audit's single-line breakpoint duly
+    /// evaded the scan, and the guard's own doc claims the queries are discovered. CSS formatting is
+    /// not a property a guard may depend on.</para>
+    /// </summary>
+    private static List<(string Condition, string Body)> MediaQueriesOf(string css)
+    {
+        var found = new List<(string, string)>();
+
+        foreach (Match at in Rx(@"@media\s*([^{]+)\{").Matches(css))
+        {
+            var open = at.Index + at.Length - 1;
+            var depth = 0;
+
+            for (var i = open; i < css.Length; i++)
+            {
+                if (css[i] == '{') depth++;
+                else if (css[i] == '}' && --depth == 0)
+                {
+                    found.Add((at.Groups[1].Value.Trim(), css[(open + 1)..i]));
+                    break;
+                }
+            }
+        }
+
+        return found;
+    }
+
     /// <summary>The stylesheet with every <c>@media</c> block's contents removed.</summary>
-    private static string TopLevelOf(string css) =>
-        Rx(@"@media\s*[^{]+\{.*?\n\}", RegexOptions.Singleline).Replace(css, " ");
+    private static string TopLevelOf(string css)
+    {
+        var stripped = css;
+
+        // Longest first, so removing an outer block cannot invalidate an inner one's offsets.
+        foreach (var (_, body) in MediaQueriesOf(css).OrderByDescending(q => q.Body.Length))
+            stripped = stripped.Replace(body, " ", StringComparison.Ordinal);
+
+        return stripped;
+    }
 
     /// <summary>
     /// The single <c>--space-*</c> token a selector's horizontal padding resolves to, or null if

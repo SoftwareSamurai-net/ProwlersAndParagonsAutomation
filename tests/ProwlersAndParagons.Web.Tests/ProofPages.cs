@@ -184,9 +184,19 @@ public sealed class ProofPages
     /// </summary>
     private static readonly Dictionary<string, string[]> MustShow = new(StringComparer.Ordinal)
     {
-        // The shell's three bands, and the banner outside the shell rather than in it.
-        ["proof-shell-hero.html"] = ["class=\"banner\"", "class=\"steps\"", "class=\"budget\"", "class=\"shell\""],
-        ["proof-shell-villain.html"] = ["class=\"banner\"", "class=\"steps\"", "class=\"shell\""],
+        // The shell's bands, and the banner outside the shell rather than in it.
+        //
+        // **`banner-inner` is here because deleting the element while its CSS stayed passed every
+        // other test**, and the end state is worse than the defect it fixed: the banner's contents
+        // then have no padding at all and sit flush against the window edge. A CSS guard cannot see
+        // a missing element, so the markup is asserted where the markup is built.
+        //
+        // The villain page has no `.budget` on purpose — Ch.9 gives Villains no budget, and that
+        // asymmetry is exactly why the step band has to carry the closing edge itself.
+        ["proof-shell-hero.html"] =
+            ["class=\"banner\"", "class=\"banner-inner\"", "class=\"steps\"", "class=\"budget\"", "class=\"shell\""],
+        ["proof-shell-villain.html"] =
+            ["class=\"banner\"", "class=\"banner-inner\"", "class=\"steps\"", "class=\"shell\""],
         // The empty editors: the tab strip with a marker, and an empty state from each editor.
         // One marker per section, or the page can lose four of its five and still pass: the tab
         // strip alone carries both an `empty-state` and a ring, so a two-marker list only forbade
