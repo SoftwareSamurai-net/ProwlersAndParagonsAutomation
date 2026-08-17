@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3874 tests** — 3662 engine, 212 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3877 tests** — 3663 engine, 214 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
@@ -93,7 +93,7 @@ Each one has cost this project real time when skipped.
    ```bash
    dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
    ```
-   It must report **3662 + 212 = 3874** and zero warnings. **Warnings are errors only under that
+   It must report **3663 + 214 = 3877** and zero warnings. **Warnings are errors only under that
    flag**, so a plain `dotnet test` passes over things CI fails on.
 
    **Take the number from the run, not from a document, and update the document from the run.**

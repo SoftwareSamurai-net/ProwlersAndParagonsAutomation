@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3874 across two projects — 3662 on the engine, 212 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3877 across two projects — 3663 on the engine, 214 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -377,7 +377,53 @@ page which *is* written shows what it claims to — including a negative that ca
 shape, since wrapping the shell proof in a column defeats its whole purpose and every positive
 marker survives it.
 
-3854 tests to **3874**. Zero warnings at CI strictness. **Payload: unchanged** — one new component
+**Then a fix-audit, and its central finding is that this was one mechanism rather than twelve
+problems.** Of the twelve claims: two held, two did not, six held only against the mutation shown to
+them, and two fixes were correct while the defect they repaired reverted green. **`EffectiveValue`
+and `HorizontalPaddingTokenOf` each read a single CSS spelling of the property they were asked
+about**, so four separate guards fell the same way — `border-bottom-color: transparent` beat a
+`border-bottom` check, `border-left-width: 0` beat a `border-left` check, `margin-left: 0` beat a
+`margin` check, and `padding-inline` beat a padding check that knew only the physical pair. Closing
+the one helper converted four near-misses at once.
+
+- **`EffectiveValue` reads every declaration that decides a property** — the property, its
+  longhands, and its logical equivalents — in source order, and **refuses to answer when the last of
+  them is a spelling it does not model.** An unreadable answer is a red test, which is the safe
+  direction; modelling the whole cascade is a bigger job than any of these guards needs. **Order is
+  what makes that correct rather than merely strict**: `.budget-toggle` writes `border: none` and
+  then `border-bottom: …`, which the cascade resolves as the author meant, so a check refusing any
+  related spelling would fail on correct CSS. It caught exactly that on its first run.
+- **A zero width is not a visible edge.** `border-left: 0 solid var(--rule)` contains no `none`,
+  names the right token, and draws nothing — and got past both edge guards. Refused in any unit now,
+  along with a transparent ink.
+- **Two guards were not passing `exact: true`**, so a rule matching no element in this app supplied
+  the value they read. That is verbatim the defeat recorded on the `exact` parameter itself from the
+  previous audit, reached again by guards written after it.
+- **The media-query scan ended at the first newline-brace**, so a query written on one line was not
+  found at all and its contents were swallowed into whichever block did end that way — which is how
+  a band-only breakpoint evaded a guard whose own comment says the queries are discovered. It
+  brace-matches now. **CSS formatting is not a property a guard may depend on.**
+- **Four defects reverted green because they were fixed and not guarded**: the options scroller's
+  clip mark, the grid-cell margin reset, and the untouched ring's whole CSS rule — **the `.hp` trap
+  again, on the sibling of the feature this round had just closed it for.**
+- **Two sentence guards were satisfiable with the words wrong.** The picker's ban read the `Target`
+  enum, which is better than one word and still not the property wanted: "what this **Trait** does"
+  names no enum member and is false of a piece of Gear. And the Flaws figure was checked without the
+  claim around it, so *"the rules make them optional, though at least 1 buys extra Resolve"* passed
+  while the rules require 1–3. Both pin the clause now.
+- **Deleting the `.banner-inner` element while its CSS stayed passed everything**, and the end state
+  is worse than the defect it fixed — the banner's contents then have no padding at all. A CSS guard
+  cannot see a missing element, so the markup is asserted where the markup is built.
+- **And the proof-page markers were near-theatre for a reason I had not seen: they sat after
+  `if (!Asked) return`**, so the one mutation the negative half exists for was invisible to CI and to
+  every ordinary run — including the run whose count the commit quoted. The page builders are
+  extracted and asserted by a test that runs always, the mode is checked against the filename (the
+  Villain proof could be made a copy of the Hero one), and the empty-editor page carries a marker per
+  section rather than two the tab strip supplied on its own.
+
+Fourteen mutations were re-run after the fixes and all fourteen are caught.
+
+3854 tests to **3877**. Zero warnings at CI strictness. **Payload: unchanged** — one new component
 file, no new asset.
 
 ### Phase 0 of the front-end plan: the scales nothing after them can be consistent without
