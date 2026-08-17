@@ -168,6 +168,54 @@ public sealed class ValidationIssueStructureTests
     }
 
     /// <summary>
+    /// <b>Every Source finding, said outright rather than through a list.</b>
+    /// <see cref="MustOfferOptions"/> is a hand-maintained set, and deleting a code's
+    /// <c>Options</c> line <em>and</em> its entry in that set is a coordinated edit both halves
+    /// of the machinery miss — so nothing anywhere stated that <c>POWER_WITHOUT_SOURCE</c> must
+    /// offer the six Sources, which is the finding the whole option check was written for.
+    /// Naming them here does not depend on the list at all.
+    ///
+    /// <para><b>There are five places that offer the Sources, not four</b>, and an earlier
+    /// version of this test and of the account in <c>PROGRESS.md</c> both said four — counting a
+    /// line shared by the Ability and Talent arms twice, and missing the fifth entirely. The one
+    /// missed was the <em>blank</em> Source, which has its own sentence because printed through
+    /// the other one it read "names a Source, '', that is not one of the six": a Trait that names
+    /// a Source and then names none. It is reachable from exactly the hand-written or stale saved
+    /// character this validator exists for, and its options could be made perk ids with the whole
+    /// suite green — the same dead-branch defect as the Talent arm, in the same method.</para>
+    /// </summary>
+    [Fact]
+    public void EveryFindingAboutAMissingSourceOffersTheSixSources()
+    {
+        var sources = _f.Rules.Sources.Select(s => s.Id).Order().ToList();
+
+        var withoutSource = Legal();
+        withoutSource.SelectedPowers.Add(new SelectedPower("blast", 3));
+        Assert.Equal(sources, Issue(withoutSource, "POWER_WITHOUT_SOURCE").Options.Order());
+
+        var ranklessWithoutSource = Legal();
+        ranklessWithoutSource.SelectedPowers.Add(new SelectedPower("communications", 0));
+        Assert.Equal(sources, Issue(ranklessWithoutSource, "RANKLESS_POWER_WITHOUT_SOURCE").Options.Order());
+
+        var badOnAPower = Legal();
+        badOnAPower.SelectedPowers.Add(new SelectedPower("blast", 3) { SourceId = "cosmic" });
+        Assert.Equal(sources, Issue(badOnAPower, "UNKNOWN_SOURCE").Options.Order());
+
+        var badOnAnAbility = Legal();
+        badOnAnAbility.AbilitySources["might"] = "cosmic";
+        Assert.Equal(sources, Issue(badOnAnAbility, "UNKNOWN_SOURCE").Options.Order());
+
+        var badOnATalent = Legal();
+        badOnATalent.TalentSources["academics"] = "cosmic";
+        Assert.Equal(sources, Issue(badOnATalent, "UNKNOWN_SOURCE").Options.Order());
+
+        // The fifth: a Source recorded with no value, which is its own arm and its own sentence.
+        var blankOnAnAbility = Legal();
+        blankOnAnAbility.AbilitySources["might"] = "";
+        Assert.Equal(sources, Issue(blankOnAnAbility, "UNKNOWN_SOURCE").Options.Order());
+    }
+
+    /// <summary>
     /// A tier has to be chosen before anything else can be checked, so the one finding a
     /// fresh character always produces carries the list of tiers to choose from.
     /// </summary>
@@ -701,16 +749,53 @@ public sealed class ValidationIssueStructureTests
     {
         foreach (var issue in IssuesFor(which))
         {
-            if (!ExpectedKinds.TryGetValue(issue.Code, out var expected)) continue;
-
-            Assert.Contains(issue.SubjectKind, expected);
+            // <b>Not TryGetValue-and-continue.</b> That is what this test used to do, and it made
+            // the table's omissions into exemptions: eighteen of the validator's forty-five codes
+            // were absent, so relabelling DUPLICATE_PRO as an Ability problem — verbatim the
+            // failure this exists to prevent — walked straight through. A table that has to be
+            // exhaustive must fail on a code it does not mention, which is what
+            // <see cref="TheKindOfEveryCodeIsWrittenDown"/> asserts and this now relies on.
+            Assert.Contains(issue.SubjectKind, ExpectedKinds[issue.Code]);
         }
+    }
+
+    /// <summary>
+    /// <b>The table above is only worth the codes it names.</b> Nothing held it to the validator,
+    /// so a code added later was silently exempt from the kind check — and eighteen already were.
+    /// The same guarantee <see cref="EveryCodeTheValidatorCanReportIsProvokedBySomeCase"/> gives
+    /// for the case list, given for this table: adding a code to the validator fails here until
+    /// somebody writes down what it is about.
+    /// </summary>
+    [Fact]
+    public void TheKindOfEveryCodeIsWrittenDown()
+    {
+        var missing = DeclaredCodes(EngineSource).Except(ExpectedKinds.Keys, StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(missing.Count == 0,
+            "The validator can report these codes and ExpectedKinds does not say what kind of "
+            + "thing they are about: " + string.Join(", ", missing));
+
+        // And the other way, so a code that has been removed does not leave a line here claiming
+        // to guard something.
+        var stale = ExpectedKinds.Keys.Except(DeclaredCodes(EngineSource), StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(stale.Count == 0,
+            "ExpectedKinds names codes the validator no longer has: " + string.Join(", ", stale));
     }
 
     /// <summary>
     /// The kind each code must carry. Deliberately a table rather than a rule: the point is that
     /// somebody wrote down what each one is about, so a change to one of them has to disagree
     /// with a line here rather than with nothing.
+    ///
+    /// <para><c>Character</c> on the Pro and Con findings is not an oversight. A Pro sits on a
+    /// Power, a piece of gear or an Ability, and the thing it sits on is named by
+    /// <c>OwnerId</c> — so the subject kind is the sheet, and <c>SubjectId</c> is the option.
+    /// Calling one an Ability problem would send a repair loop into <c>AbilityRanks</c>.</para>
     /// </summary>
     private static readonly Dictionary<string, ValidationSubject[]> ExpectedKinds = new(StringComparer.Ordinal)
     {
@@ -719,6 +804,7 @@ public sealed class ValidationIssueStructureTests
         ["ICONIC_TIER_OPEN_BUDGET"]         = [ValidationSubject.Tier],
         ["UNKNOWN_PACKAGE"]                 = [ValidationSubject.Character],
         ["HP_BUDGET_EXCEEDED"]              = [ValidationSubject.Character],
+        ["CHARACTER_NOT_PRICEABLE"]         = [ValidationSubject.Character],
         ["FLAW_MIN_NOT_MET"]                = [ValidationSubject.Character],
         ["FLAW_MAX_EXCEEDED"]               = [ValidationSubject.Character],
         ["UNKNOWN_FLAW"]                    = [ValidationSubject.Flaw],
@@ -734,6 +820,12 @@ public sealed class ValidationIssueStructureTests
         ["POWER_COST_AT_MINIMUM"]           = [ValidationSubject.Power],
         ["POWER_WITHOUT_SOURCE"]            = [ValidationSubject.Power],
         ["RANKLESS_POWER_WITHOUT_SOURCE"]   = [ValidationSubject.Power],
+        ["POWER_MECHANICS_UNVERIFIED"]      = [ValidationSubject.Power],
+
+        // The one finding with no subject at all, and deliberately: it names every Power whose
+        // wording is unverified in a single sentence, so there is no one thing it is about.
+        ["POWER_DESCRIPTION_UNVERIFIED"]    = [ValidationSubject.None],
+
         ["UNKNOWN_GEAR_FEATURE"]            = [ValidationSubject.GearFeature],
         ["GEAR_FEATURE_NEEDS_GRADE"]        = [ValidationSubject.GearFeature],
         ["GEAR_COST_AT_MINIMUM"]            = [ValidationSubject.Gear],
@@ -741,6 +833,30 @@ public sealed class ValidationIssueStructureTests
         ["UNKNOWN_PERK"]                    = [ValidationSubject.Character],
         ["GEAR_WITHOUT_NAME"]               = [ValidationSubject.Character],
         ["PER_UNIT_WITHOUT_UNITS"]          = [ValidationSubject.Character, ValidationSubject.Power],
+
+        // A Trait or a Power over the cap, under the 1d floor, under its package's floor, or
+        // recorded with a negative quantity: the kind says which collection to write into.
+        ["TRAIT_ABOVE_CAP"]      = [ValidationSubject.Ability, ValidationSubject.Talent, ValidationSubject.Power],
+        ["TRAIT_BELOW_MINIMUM"]  = [ValidationSubject.Ability, ValidationSubject.Talent],
+        ["TRAIT_BELOW_PACKAGE"]  = [ValidationSubject.Ability, ValidationSubject.Talent],
+        ["NEGATIVE_RANK"]        = [ValidationSubject.Ability, ValidationSubject.Talent, ValidationSubject.Power],
+
+        // A quantity, which sits on a Power, a Perk or a Pro — the last two under Character,
+        // since a Perk is not one of the kinds and an option belongs to its owner.
+        ["NEGATIVE_UNITS"]       = [ValidationSubject.Power, ValidationSubject.Character],
+
+        ["UNKNOWN_PRO"]              = [ValidationSubject.Character],
+        ["UNKNOWN_CON"]              = [ValidationSubject.Character],
+        ["DUPLICATE_PRO"]            = [ValidationSubject.Character],
+        ["DUPLICATE_CON"]            = [ValidationSubject.Character],
+        ["PRO_NOT_APPLICABLE"]       = [ValidationSubject.Character],
+        ["CON_NOT_APPLICABLE"]       = [ValidationSubject.Character],
+        ["PRO_VARIANT_NOT_CHOSEN"]   = [ValidationSubject.Character],
+        ["CON_VARIANT_NOT_CHOSEN"]   = [ValidationSubject.Character],
+
+        // A Source is wrong on a Power or on a Trait, and the Trait cases carry the Trait's kind.
+        ["UNKNOWN_SOURCE"]       = [ValidationSubject.Power, ValidationSubject.Ability, ValidationSubject.Talent],
+        ["UNKNOWN_TRAIT_SOURCE"] = [ValidationSubject.Ability, ValidationSubject.Talent],
     };
 
     /// <summary>
@@ -765,6 +881,58 @@ public sealed class ValidationIssueStructureTests
         "PRO_VARIANT_NOT_CHOSEN", "CON_VARIANT_NOT_CHOSEN", "RANKLESS_POWER_WITHOUT_SOURCE",
         "POWER_WITHOUT_SOURCE", "MODIFIER_ON_UNBOUGHT_ABILITY", "FLAW_MIN_NOT_MET"
     };
+
+    /// <summary>
+    /// <b>The same guarantee for the list above, which was the identical hole one table over.</b>
+    /// <see cref="MustOfferOptions"/> is hand-maintained, and nothing held it to the validator: a
+    /// new code whose fix is a choice could be added with <c>Options = []</c> and left out of the
+    /// list, and both this and <see cref="EveryOptionOfferedIsOneTheRulesAccept"/> would pass —
+    /// the first by not listing it, the second by having nothing to walk.
+    ///
+    /// <para>Read off the source rather than off a run, because a code that offers options
+    /// <em>sometimes</em> is the case a behavioural check cannot see: the finding with the empty
+    /// list is exactly the one that needs catching.</para>
+    /// </summary>
+    [Fact]
+    public void EveryCodeThatOffersOptionsSaysSoInTheList()
+    {
+        // The source is cut at each finding rather than matched as a block: a finding written
+        // without an object initialiser has no closing brace to stop at, so a block pattern runs
+        // on into the next one and inherits its Options. Each finding therefore owns the text
+        // from its own code to where the next one starts.
+        var positions = new Regex(
+            @"ValidationSeverity\.(?:Error|Warning),\s*([^,]*),",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5))
+            .Matches(EngineSource);
+
+        var literals = new Regex(@"""([A-Z][A-Z0-9_]*)""", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        // `Options` with its assignment, not the bare word: one finding carries the comment
+        // "No Options here, deliberately", which is a statement that it has none.
+        var assigned = new Regex(@"\bOptions\s*=", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        var offering = new HashSet<string>(StringComparer.Ordinal);
+
+        for (var i = 0; i < positions.Count; i++)
+        {
+            var start = positions[i].Index;
+            var end   = i + 1 < positions.Count ? positions[i + 1].Index : EngineSource.Length;
+
+            if (!assigned.IsMatch(EngineSource[start..end])) continue;
+
+            foreach (Match code in literals.Matches(positions[i].Groups[1].Value))
+                offering.Add(code.Groups[1].Value);
+        }
+
+        Assert.NotEmpty(offering);
+
+        Assert.True(offering.SetEquals(MustOfferOptions),
+            "MustOfferOptions and the validator disagree about which findings carry a choice. "
+            + "Only in the validator: "
+            + string.Join(", ", offering.Except(MustOfferOptions, StringComparer.Ordinal).Order(StringComparer.Ordinal))
+            + ". Only in the list: "
+            + string.Join(", ", MustOfferOptions.Except(offering, StringComparer.Ordinal).Order(StringComparer.Ordinal)));
+    }
 
     /// <summary>
     /// Severity is what decides whether a character is legal, and several tests asserted a code
@@ -947,6 +1115,18 @@ public sealed class ValidationIssueStructureTests
                 sheet.AbilitySources["might"]     = "cosmic";
                 sheet.TalentSources["academics"]  = "cosmic";
                 sheet.AbilitySources["telepathy"] = "tech";
+
+                // <b>And the Talent half of the same finding, which nothing reached.</b>
+                // UNKNOWN_TRAIT_SOURCE was provoked on Abilities alone, and the guarantee here
+                // is per *code* rather than per construction site — so the Talent arm of its
+                // option list was dead, and could be made to offer perk ids with the whole suite
+                // green. That is the defect this file's option check exists for, alive on the
+                // branch no sheet visited.
+                sheet.TalentSources["telekinesis"] = "magic";
+
+                // And the blank Source, which is a third arm of the same method with its own
+                // sentence and its own option list, reached by no other case here.
+                sheet.TalentSources["covert"] = "";
                 return sheet;
             }
 
@@ -1178,22 +1358,200 @@ public sealed class ValidationIssueStructureTests
     private static readonly string[] UnprovokableCodes =
         ["POWER_MECHANICS_UNVERIFIED", "POWER_DESCRIPTION_UNVERIFIED", "CHARACTER_NOT_PRICEABLE"];
 
-    [Fact]
-    public void EveryCodeTheValidatorCanReportIsProvokedBySomeCase()
-    {
-        var source = File.ReadAllText(
-            Path.Combine(RulesFixture.RepoRoot, "engine", "CharacterValidator.cs"));
+    /// <summary>
+    /// <b>Every source file in the engine, not just the validator.</b> Reading
+    /// <c>CharacterValidator.cs</c> alone scoped all three guarantees to one file: moving the
+    /// codes to a constants class, or making the validator partial, left a code with no recorded
+    /// subject kind and no provoking case, with the whole suite green. Both are ordinary
+    /// refactors and neither should be able to void a guarantee silently.
+    /// </summary>
+    /// <remarks>
+    /// Build output is excluded. <c>AllDirectories</c> swept in six generated files from
+    /// <c>obj/</c>, which keyed three guarantees to whether the project had been built and in
+    /// which configuration — nothing broke, because none of them holds an all-capitals literal,
+    /// but a generated one would have been demanded to have a subject kind and a provoking case.
+    /// </remarks>
+    private static string EngineSource { get; } = string.Join("\n",
+        Directory.GetFiles(Path.Combine(RulesFixture.RepoRoot, "engine"), "*.cs",
+                           SearchOption.AllDirectories)
+            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
+                                    StringComparison.Ordinal)
+                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}",
+                                    StringComparison.Ordinal))
+            .OrderBy(f => f, StringComparer.Ordinal)
+            .Select(File.ReadAllText));
 
-        // Every code-shaped literal in the file, not only the ones written immediately after a
-        // severity. The narrower pattern missed eight of forty codes — the two spellings that
-        // hide one are a `isPro ? "UNKNOWN_PRO" : "UNKNOWN_CON"` ternary and a helper called with
-        // the code as an argument — and it missed them by *how they were written*, which is how
-        // the next one will be written too. All eight happened to be provoked already; the point
-        // is that they were exempt from the guarantee without anybody choosing that.
-        var declared = new Regex(@"""([A-Z]+(?:_[A-Z]+)+)""", RegexOptions.None, TimeSpan.FromSeconds(5))
+    /// <summary>
+    /// The one all-capitals literal in the engine that is not a validation code: the heading a
+    /// sheet prints over Powers with no Source (<c>SourceGrouping</c>). Named rather than matched
+    /// by shape, so a code that happens to look like it is not swept up with it.
+    /// </summary>
+    private static readonly string[] NotCodes = ["POWERS"];
+
+    /// <summary>
+    /// <b>Every code-shaped literal in the validator, found by its case rather than by its
+    /// punctuation.</b> This is what the two tables above and the invariants below are all
+    /// measured against, so what it fails to see is exempt from every one of them.
+    ///
+    /// <para>It has been too narrow twice. First it matched only a literal written immediately
+    /// after a severity, which missed eight of forty — a
+    /// <c>isPro ? "UNKNOWN_PRO" : "UNKNOWN_CON"</c> ternary and a helper taking the code as an
+    /// argument. Then it matched <c>[A-Z]+(?:_[A-Z]+)+</c>, which requires an underscore: a
+    /// clean A/B on the same unreachable check proved it, with <c>TOO_MANY_CONNECTIONS</c> going
+    /// red and <c>TOOMANYCONNECTIONS</c> staying green. Both times the escape was <em>how the
+    /// code was spelled</em>, which is exactly how the next one will be spelled too.</para>
+    ///
+    /// <para>So it now takes any all-capitals literal, and
+    /// <see cref="TheCodeScanIsNotDefeatedByHowACodeIsSpelled"/> drives it against a synthetic
+    /// source rather than the real one — because a scan that reads only the shipped file cannot
+    /// tell you what it would miss in a file that is not there yet.</para>
+    /// </summary>
+    private static HashSet<string> DeclaredCodes(string source)
+    {
+        var found = new Regex(@"""([A-Z][A-Z0-9_]*)""", RegexOptions.None, TimeSpan.FromSeconds(5))
             .Matches(source)
             .Select(m => m.Groups[1].Value)
             .ToHashSet(StringComparer.Ordinal);
+
+        found.ExceptWith(NotCodes);
+        return found;
+    }
+
+    /// <summary>
+    /// <b>The scan above is by case, so the case is enforced rather than assumed.</b> That is the
+    /// half that was missing: spelling a code <c>"TooManyConnections"</c> made it invisible to
+    /// every guarantee built on the scan, with the suite green — the same escape as
+    /// <c>TOOMANYCONNECTIONS</c> one spelling further on, and the reason widening the pattern
+    /// again would not have closed it. A pattern can always be out-spelled; a convention checked
+    /// at the point the code is written cannot.
+    ///
+    /// <para>Both places a code is written are read: the second argument of the issue
+    /// constructor, and the first of the <c>Negative</c> helper. The capture stops at the next
+    /// comma, which is why the <c>isPro ? "UNKNOWN_PRO" : "UNKNOWN_CON"</c> ternaries come
+    /// through whole — they contain no comma — and both arms are checked.</para>
+    /// </summary>
+    [Fact]
+    public void EveryCodeIsWrittenInTheOneSpellingTheScanCanSee()
+    {
+        var written = CodeExpressions(EngineSource);
+
+        // A pattern that matched nothing would pass this test in silence, which is the failure
+        // this whole area keeps having.
+        Assert.True(written.Count >= 40,
+            $"Only {written.Count} places construct a finding, which means this scan has stopped "
+            + "finding them rather than that the validator has shrunk.");
+
+        foreach (var (expression, literal) in written)
+            Assert.True(Regex.IsMatch(literal, "^[A-Z][A-Z0-9_]*$", RegexOptions.None, TimeSpan.FromSeconds(5)),
+                $"The code '{literal}' is written in a spelling DeclaredCodes cannot see, so it "
+                + "would be exempt from every structural rule here. Codes are ALL CAPITALS. "
+                + $"Written as: {expression.Trim()}");
+
+        // And the two scans agree, so neither can quietly stop seeing what the other does.
+        Assert.Empty(written.Select(w => w.Literal).Except(DeclaredCodes(EngineSource), StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>Exactly one place builds a finding from a code it was handed rather than one written
+    /// there, and that is what makes the spelling convention reach everything.</b>
+    ///
+    /// <para><c>CodeExpressions</c> reads two call shapes, so a third — a helper taking the code
+    /// as a parameter — hides both the helper's own construction site (its code is an identifier,
+    /// not a literal) and its call sites (an unrecognised shape). A code spelled
+    /// <c>"TooManyConnections"</c> and passed through one is then exempt from the convention, the
+    /// kind table, the provoking-case guarantee and the option check together.</para>
+    ///
+    /// <para><b>An earlier version pinned the <em>methods</em> that return a
+    /// <see cref="ValidationIssue"/>, and that was the same mistake one spelling on</b> — it
+    /// matched on the return type, so <c>AddFinding(List&lt;ValidationIssue&gt; into, string code,
+    /// …)</c> slipped past on the angle bracket, and appending to a passed-in list is this
+    /// validator's house idiom rather than an exotic shape. A generic <c>Finding&lt;T&gt;</c> got
+    /// past it too. So this counts <em>construction sites</em> instead, which is the thing that
+    /// actually makes a finding and cannot be hidden behind a signature.</para>
+    /// </summary>
+    [Fact]
+    public void OnlyOneIndirectionBuildsAFindingFromACodeItWasHanded()
+    {
+        var sites = new Regex(
+            @"new(?:\s+ValidationIssue)?\(\s*ValidationSeverity\.(?:Error|Warning),\s*([^,]*),",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5))
+            .Matches(EngineSource);
+
+        Assert.True(sites.Count >= 40,
+            $"Only {sites.Count} findings are constructed in the engine, which means this scan has "
+            + "stopped finding them rather than that the validator has shrunk.");
+
+        var literal = new Regex(@"""[^""]*""", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        var indirect = sites.Select(m => m.Groups[1].Value)
+            .Where(expression => !literal.IsMatch(expression))
+            .ToList();
+
+        Assert.True(indirect.Count == 1,
+            $"{indirect.Count} places build a finding from a code they were handed — "
+            + string.Join(", ", indirect.Select(e => $"'{e.Trim()}'"))
+            + ". There must be exactly one, Negative, because CodeExpressions knows that call "
+            + "shape and scans its arguments. Any other indirection puts its codes beyond the "
+            + "spelling convention and so beyond every structural rule here.");
+    }
+
+    /// <summary>
+    /// Every literal written where a code goes, with the expression it came from for the failure
+    /// message.
+    /// </summary>
+    private static List<(string Expression, string Literal)> CodeExpressions(string source)
+    {
+        var positions = new Regex(
+            @"ValidationSeverity\.(?:Error|Warning),\s*([^,]*),|Negative\(\s*([^,]*),",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        var literals = new Regex(@"""([^""]*)""", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        return
+        [
+            .. positions.Matches(source)
+                .Select(m => m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value)
+                .SelectMany(expression => literals.Matches(expression)
+                    .Select(l => (Expression: expression, Literal: l.Groups[1].Value)))
+        ];
+    }
+
+    /// <summary>
+    /// The scan above, driven against source it has never seen. Reading the real validator
+    /// cannot tell the difference between a pattern that finds every code and one that finds
+    /// every code <em>somebody happened to spell with an underscore</em>; these five lines can.
+    /// </summary>
+    [Fact]
+    public void TheCodeScanIsNotDefeatedByHowACodeIsSpelled()
+    {
+        const string synthetic = """
+            issues.Add(new(ValidationSeverity.Error, "TOO_MANY_CONNECTIONS", "A sentence."));
+            issues.Add(new(ValidationSeverity.Error, "TOOMANYCONNECTIONS", "Another."));
+            issues.Add(Negative(isPro ? "UNKNOWN_PRO2" : "UNKNOWN_CON", ValidationSubject.Power));
+            if (power.CostType is "per_unit" or "flat_variable") Report("Pro", power.Range);
+            """;
+
+        var found = DeclaredCodes(synthetic);
+
+        // The underscored spelling, the one without an underscore, one carrying a digit, and both
+        // arms of a ternary.
+        Assert.Contains("TOO_MANY_CONNECTIONS", found);
+        Assert.Contains("TOOMANYCONNECTIONS", found);
+        Assert.Contains("UNKNOWN_PRO2", found);
+        Assert.Contains("UNKNOWN_CON", found);
+
+        // And it does not sweep up the ordinary strings a validator is full of: the rules-data
+        // values it compares against, the words it builds sentences from, and prose.
+        Assert.DoesNotContain("per_unit", found);
+        Assert.DoesNotContain("flat_variable", found);
+        Assert.DoesNotContain("Pro", found);
+        Assert.DoesNotContain("A sentence.", found);
+    }
+
+    [Fact]
+    public void EveryCodeTheValidatorCanReportIsProvokedBySomeCase()
+    {
+        var declared = DeclaredCodes(EngineSource);
 
         Assert.NotEmpty(declared);
 
@@ -1257,6 +1615,139 @@ public sealed class ValidationIssueStructureTests
     }
 
     /// <summary>
+    /// <b>And the id it names has to be a thing of the kind it claims.</b> This is the rule
+    /// <see cref="EachCodeReportsTheKindOfThingItIsAbout"/> cannot state: that table is keyed by
+    /// code, and seven codes legitimately serve more than one kind — <c>TRAIT_ABOVE_CAP</c> is
+    /// about an Ability, a Talent or a Power depending on which loop raised it. So a swap
+    /// <em>within</em> a code's list was invisible to it. Changing <c>CheckTraitSources</c>'s
+    /// Ability argument to Talent reported <c>UNKNOWN_SOURCE</c> on <c>toughness</c> as a Talent
+    /// problem with the whole suite green, and a repair loop following that writes into
+    /// <c>TalentSources</c> and never terminates.
+    ///
+    /// <para>Asserting the id against the kind removes the need for the table to be precise about
+    /// which of several kinds a given finding took, and catches the swap in both directions.</para>
+    ///
+    /// <para><b>Deliberately no exemption list.</b> Half the codes here report an id the rulebook
+    /// does <em>not</em> have — that is the whole of what <c>UNKNOWN_ABILITY</c> says — so
+    /// "resolves against the rules" alone would have to excuse them, and excusing them was what
+    /// let the mutation through in the first place. So the id may resolve against the rules
+    /// <em>or</em> against the part of the character the kind names: <c>strength</c> is an
+    /// Ability problem because it is a key of <c>AbilityRanks</c>, whatever the rulebook thinks
+    /// of it, and it is still not a Talent problem.</para>
+    ///
+    /// <para><b><c>Character</c> is checked too, and skipping it was a hole of its own.</b> An
+    /// earlier version of this passed over it — and an earlier version of the account in
+    /// <c>PROGRESS.md</c> claimed that covered every finding, which it did not. Eleven codes are
+    /// Character-kinded by design, and two more may be Character <em>or</em> Power, so mutating
+    /// a subject kind <em>towards</em> Character walked through this test, through
+    /// <see cref="ASubjectThatIsNotTheWholeCharacterIsNamed"/>, and through the kind table, which
+    /// accepts any entry in the code's list. <c>PER_UNIT_WITHOUT_UNITS</c> could report a Power
+    /// id as a fault of "the character".</para>
+    ///
+    /// <para>What a Character-kinded finding may name is narrow: a Perk, a starting package, or a
+    /// Pro or Con — the three things that belong to the sheet rather than to a Trait. A Power id
+    /// is not one of them.</para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Cases))]
+    public void ASubjectIdNamesSomethingOfTheKindTheIssueClaims(string which)
+    {
+        var sheet = Build(which);
+
+        foreach (var issue in _f.Validator.Validate(sheet).Issues)
+        {
+            if (issue.SubjectKind is ValidationSubject.None) continue;
+            if (issue.SubjectId is not { } id) continue;
+
+            var resolves = issue.SubjectKind switch
+            {
+                ValidationSubject.Ability => _f.Rules.GetAbility(id) is not null
+                    || sheet.AbilityRanks.ContainsKey(id)
+                    || sheet.AbilitySources.ContainsKey(id)
+                    || sheet.AbilityModifiers.ContainsKey(id),
+
+                ValidationSubject.Talent => _f.Rules.GetTalent(id) is not null
+                    || sheet.TalentRanks.ContainsKey(id)
+                    || sheet.TalentSources.ContainsKey(id),
+
+                ValidationSubject.Power => _f.Rules.GetPower(id) is not null
+                    || sheet.SelectedPowers.Any(p => p.PowerId == id),
+
+                ValidationSubject.Flaw => _f.Rules.GetFlaw(id) is not null
+                    || sheet.Flaws.Any(f => f.FlawId == id),
+
+                ValidationSubject.Tier => _f.Rules.GetTier(id) is not null
+                    || sheet.SelectedTierId == id,
+
+                ValidationSubject.GearFeature => _f.Rules.GetGearFeature(id) is not null
+                    || sheet.Gear.Any(g => g.Features.Any(f => f?.FeatureId == id)),
+
+                // Gear has no id — its name is all it has — so it is looked up on the character.
+                ValidationSubject.Gear => sheet.Gear.Any(g => g.Name == id),
+
+                // The whole sheet: a Perk, a starting package, or a Pro or Con. Those are the
+                // three things that belong to the character rather than to one of its Traits.
+                ValidationSubject.Character =>
+                    _f.Rules.GetPerk(id) is not null
+                    || sheet.Perks.Any(p => p.PerkId == id)
+                    || _f.Rules.CreationRules.OptionalPackages.Any(p => p.Id == id)
+                    || sheet.SelectedPackageId == id
+                    || _f.Rules.GetPro(id) is not null
+                    || _f.Rules.GetCon(id) is not null
+                    || EveryChoiceOn(sheet).Any(c => c.Id == id),
+
+                _ => true
+            };
+
+            Assert.True(resolves,
+                $"{issue.Code} says it is about the {issue.SubjectKind} '{id}', which is not a "
+                + $"{issue.SubjectKind} in the rules or on this character. A caller repairing it "
+                + "writes into the wrong collection and gets the same finding back.");
+        }
+    }
+
+    /// <summary>
+    /// <b>The thing a Pro or Con sits on has to be findable, and nothing said so.</b>
+    /// <c>OwnerId</c> is the whole reason a caller told "this Pro is wrong" can go and change it,
+    /// and it was asserted in three spot tests — which left the two sites they do not cover free
+    /// to hold the printed <em>name</em> instead. That is not hypothetical: the validator's own
+    /// comment records it happening once already, when a caller told a Pro was wrong on
+    /// "Super Senses — Thermal Vision" got a display string and nothing it could look up.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Cases))]
+    public void AnOwnerIsNamedBySomethingTheCallerCanLookUp(string which)
+    {
+        var sheet = Build(which);
+
+        foreach (var issue in _f.Validator.Validate(sheet).Issues)
+        {
+            if (issue.OwnerId is not { } owner) continue;
+
+            // A Power by id, a piece of gear by name — gear has nothing else — or an Ability by
+            // id, which are the three things a Pro or Con can sit on.
+            var findable =
+                _f.Rules.GetPower(owner) is not null
+                || sheet.SelectedPowers.Any(p => p.PowerId == owner)
+                || sheet.Gear.Any(g => g.Name == owner)
+                || _f.Rules.GetAbility(owner) is not null
+                || sheet.AbilityModifiers.ContainsKey(owner);
+
+            Assert.True(findable,
+                $"{issue.Code} says its subject sits on '{owner}', which is not a Power, a piece "
+                + "of this character's gear, or an Ability. A printed name here is a display "
+                + "string the caller cannot look anything up by.");
+        }
+    }
+
+    /// <summary>Every Pro and Con on a character, wherever it sits.</summary>
+    private static IEnumerable<SelectedProCon> EveryChoiceOn(CharacterSheet sheet) =>
+        sheet.SelectedPowers.SelectMany(p => p.Pros.Concat(p.Cons))
+            .Concat(sheet.Gear.SelectMany(g => g.Pros.Concat(g.Cons)))
+            .Concat(sheet.AbilityModifiers.Values.SelectMany(m => m ?? []))
+            .Where(c => c is not null);
+
+    /// <summary>
     /// <b>Value and limit the right way round.</b> Swapping them is the likeliest way this
     /// structure goes wrong and the hardest to see: the report still reads plausibly, and a
     /// repair loop moves the character further from legal on every pass.
@@ -1284,8 +1775,15 @@ public sealed class ValidationIssueStructureTests
 
     /// <summary>
     /// An option is a value the caller writes back into the character, so every one of them
-    /// has to be a value the data will accept. Offering a humanised name, or an id from the
-    /// wrong collection, is worse than offering nothing: it looks actionable.
+    /// has to be a value the data will accept <b>in the field this code is about</b>.
+    ///
+    /// <para><b>Asking only whether a string is an id of anything was not that.</b> It was a
+    /// union over ten collections, which every id in the rules satisfies — so
+    /// <c>POWER_WITHOUT_SOURCE</c> could offer the six Ability ids and pass. A repair loop
+    /// following that writes <c>"agility"</c> into the Power's Source, gets
+    /// <c>UNKNOWN_SOURCE</c> back, and never terminates. Offering an id from the wrong
+    /// collection is worse than offering nothing, because it looks actionable — so what each
+    /// code offers is written down per code below.</para>
     /// </summary>
     [Theory]
     [MemberData(nameof(Cases))]
@@ -1297,22 +1795,56 @@ public sealed class ValidationIssueStructureTests
             {
                 Assert.False(string.IsNullOrWhiteSpace(option), $"{issue.Code} offers a blank option.");
 
-                var known =
-                    _f.Rules.GetTier(option) is not null ||
-                    _f.Rules.GetSource(option) is not null ||
-                    _f.Rules.GetFlaw(option) is not null ||
-                    _f.Rules.GetPower(option) is not null ||
-                    _f.Rules.GetGearFeature(option) is not null ||
-                    _f.Rules.GetAbility(option) is not null ||
-                    _f.Rules.GetTalent(option) is not null ||
-                    _f.Rules.GetPerk(option) is not null ||
-                    _f.Rules.CreationRules.OptionalPackages.Any(p => p.Id == option) ||
-                    IsAVariantKey(issue, option);
+                var accepted = IsAnOptionThisCodeCanOffer(issue, option);
 
-                Assert.True(known, $"{issue.Code} offers '{option}', which is not anything the rules have.");
+                Assert.True(accepted is not null,
+                    $"{issue.Code} offers options and nothing here says what kind they are, so "
+                    + "any id in the rules would satisfy this test. Add it to "
+                    + "IsAnOptionThisCodeCanOffer.");
+
+                Assert.True(accepted.Value,
+                    $"{issue.Code} offers '{option}', which is not a value the field it is about "
+                    + "accepts. A caller writing it back gets another finding, not a repair.");
             }
         }
     }
+
+    /// <summary>
+    /// What each code's options are, per code. Null means no code says — which fails, because a
+    /// list of options nobody has characterised is the hole this replaced.
+    /// </summary>
+    private bool? IsAnOptionThisCodeCanOffer(ValidationIssue issue, string option) => issue.Code switch
+    {
+        "NO_TIER_SELECTED" or "UNKNOWN_TIER" => _f.Rules.GetTier(option) is not null,
+
+        "UNKNOWN_PACKAGE" => _f.Rules.CreationRules.OptionalPackages.Any(p => p.Id == option),
+
+        "FLAW_MIN_NOT_MET" or "UNKNOWN_FLAW" => _f.Rules.GetFlaw(option) is not null,
+
+        "UNKNOWN_PERK" => _f.Rules.GetPerk(option) is not null,
+
+        "UNKNOWN_ABILITY" or "MODIFIER_ON_UNBOUGHT_ABILITY" => _f.Rules.GetAbility(option) is not null,
+
+        "UNKNOWN_TALENT" => _f.Rules.GetTalent(option) is not null,
+
+        "UNKNOWN_GEAR_FEATURE" => _f.Rules.GetGearFeature(option) is not null,
+
+        // The three Source findings all offer the six Sources, wherever the Source sits.
+        "UNKNOWN_SOURCE" or "POWER_WITHOUT_SOURCE" or "RANKLESS_POWER_WITHOUT_SOURCE"
+            => _f.Rules.GetSource(option) is not null,
+
+        // The exception: this one is about the Trait the Source was recorded against, not the
+        // Source, so it offers Traits — and which kind depends on which dictionary it came from.
+        "UNKNOWN_TRAIT_SOURCE" => issue.SubjectKind == ValidationSubject.Ability
+            ? _f.Rules.GetAbility(option) is not null
+            : _f.Rules.GetTalent(option) is not null,
+
+        // Keys rather than ids, and they have to be keys of *this* subject's own range.
+        "POWER_VARIANT_NOT_CHOSEN" or "PRO_VARIANT_NOT_CHOSEN" or "CON_VARIANT_NOT_CHOSEN"
+            or "GEAR_FEATURE_NEEDS_GRADE" => IsAVariantKey(issue, option),
+
+        _ => null
+    };
 
     /// <summary>
     /// The one kind of option with no printed name of its own: a key inside a Power's cost

@@ -11,29 +11,29 @@ sessions, not documentation.
 
 ## Where things stand
 
-Head is **`078b69d`**, on top of [#43](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/43).
-**3446 tests** — 3322 engine, 124 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3668 tests** — 3544 engine, 124 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
-The last session did two things. It **verified the previous slice rather than trusting it**, and
-it **rebuilt the rulebook extractor** because that verification found `data/rulebook/` was
-materially wrong — every chapter opening scrambled, 135 empty sections, 83 doubled page numbers
-inside sentences, and every named character in Ch.8 missing. That work is complete, committed and
-described in `PROGRESS.md`; the corpus now regenerates byte-identical from
-`tools/RulebookExtractor/`.
+Two sessions back the work was **verified rather than trusted**, and that verification found
+`data/rulebook/` materially wrong — every chapter opening scrambled, 135 empty sections, 83
+doubled page numbers inside sentences, and every named character in Ch.8 missing. The extractor
+was rebuilt; the corpus now regenerates byte-identical from `tools/RulebookExtractor/`.
 
-**What is not done is everything the audit turned up on the way.** That is the backlog below, and
-it is the reason this file exists.
+The last session closed **A3** of the backlog below — the eight engine and validator findings, and
+the test-file defect beside them. `PROGRESS.md` has the account.
+
+**What is not done is the rest of what that audit turned up.** That is the backlog below, and it
+is the reason this file exists.
 
 ---
 
-## Slice A: the mutation-audit backlog — 33 open findings
+## Slice A: the mutation-audit backlog — 25 open findings
 
 **Where these came from.** Three agents, each told nothing about the work, were asked for every
 guard test to name a plausible bug it claims to cover but would not catch, **and to demonstrate it
 by mutation rather than argue it**. They ran 64 mutations; **38 survived**. Five of those were in
-the rulebook corpus and are now fixed. The remaining 33 are below.
+the rulebook corpus and are now fixed, and the eight of A3 are closed. The remaining 25 are below.
 
 **Read this before starting.** These are *not* bugs in the product — every one is a **test that
 does not hold what it claims to hold**. The mutation is the evidence. Each entry names the test,
@@ -176,53 +176,23 @@ replayed sheet is** — which is the exact bug class `ReplayRenderTests` was wri
 This is the strip-tags trap `CLAUDE.md` already warns about, in a helper. The sheet and rank tests
 read `TextContent` and are sound.
 
-### A3 — engine and validator (8 open)
+### A3 — engine and validator — **CLOSED**
 
-1. **A validation issue can name the wrong kind of thing.** `CharacterValidator`,
-   `DUPLICATE_PRO`/`DUPLICATE_CON` `SubjectKind = ValidationSubject.Character` →
-   `ValidationSubject.Ability` — green. That is verbatim the failure
-   `ValidationIssueStructureTests.EachCodeReportsTheKindOfThingItIsAbout` exists to prevent. It
-   passes because `ExpectedKinds` does `TryGetValue(...) continue` on codes it omits, and **18 of
-   the validator's 45 codes are absent from that table**: `TRAIT_ABOVE_CAP`,
-   `TRAIT_BELOW_MINIMUM`, `TRAIT_BELOW_PACKAGE`, `NEGATIVE_RANK`, `NEGATIVE_UNITS`,
-   `UNKNOWN_PRO`/`CON`, `DUPLICATE_PRO`/`CON`, `PRO`/`CON_NOT_APPLICABLE`,
-   `PRO`/`CON_VARIANT_NOT_CHOSEN`, `UNKNOWN_SOURCE`, `UNKNOWN_TRAIT_SOURCE`. **A lookup that
-   silently skips what it omits is the shape to fix, not the eighteen entries.**
-2. **An issue can offer options of the wrong kind entirely.** `POWER_WITHOUT_SOURCE`,
-   `Options = SourceIds` → the Ability ids — green. A repair loop is told "this Power has no
-   Source; pick one of: agility, intellect, might…" and loops for ever on `UNKNOWN_SOURCE`.
-   `EveryOptionOfferedIsOneTheRulesAccept` asks only whether each string is an id of *anything*,
-   as a union over ten collections. Same hole for `UNKNOWN_PERK`, `UNKNOWN_FLAW`,
-   `UNKNOWN_ABILITY`, `UNKNOWN_TALENT`.
-3. **The "every code is provoked" guarantee is spelling-shaped.** Clean A/B on the same
-   unreachable check added to `CheckFlawCount`: code `"TOO_MANY_CONNECTIONS"` → **red**; code
-   `"TOOMANYCONNECTIONS"` → **green**. The regex is `"([A-Z]+(?:_[A-Z]+)+)"`, so any code without
-   an underscore is exempt from the requirement to add a case — and therefore from every
-   structural invariant downstream.
-4. **A Power can be deleted from a sample character.** Removing
-   `new SelectedPower("stun", 6) { SourceId = "tech" }` from `SampleCharacters.Hero()` is green.
-   The budget assertion is one-sided (`spent <= budget`) and "fills every section" asserts
-   non-empty, so it catches emptying a section but not the trimming its doc comment claims.
-5. **A player-facing Power description can be replaced with unrelated prose.** `powers.json:232`,
-   Armor's description → `"A quiet afternoon in the garden, with tea."` — green. Presence check
-   only; `PowerDescriptionTests` catches only claims that contradict rank scaling. Partly by
-   design, but the description is what a player reads while choosing.
-6. **An applicability caveat can say the opposite of the rulebook.** `pros.json:176` (penetrating)
-   → `"Applies to absolutely any Power at all, no conditions."` — green.
-   `AnUncheckableConstraintIsCarriedAsACaveat` asserts non-blank and a trailing full stop. Since
-   the whole design is that the caveat is carried to the player *instead of* being enforced, its
-   content is the entire deliverable and it is unpinned.
-7. The pickers' documented "rules-file order" has no test: adding `.Reverse()` to `ProsFor` is
-   green.
-8. The defensive intersection in `GradesFor` is behaviourally dead — replacing it with
-   `return allowance.Grades.ToList();` is green. Weakest of the eight and honestly caveated: with
-   the shipped data the two are equivalent, because `EveryOwnTextAllowanceResolvesAndCitesItsPrintedText`
-   guarantees every recorded grade is priced. But the comment says the intersection stops a rules
-   file "inventing a key", and nothing drives it with a synthetic allowance that would.
+All eight, plus the test-file defect. Each fix was demonstrated by re-applying the mutation and
+confirming red, then reverting and confirming green. See the completed entry in `PROGRESS.md` for
+what was done and, more usefully, for the three similarity framings measured against the Power
+descriptions that turned out **not** to be rules — do not re-derive them.
 
-**One test-file defect, not mutated**: `SampleCharacterTests.cs:152` calls `Sample("Hero")` while
-`Sample` (line 33) is `which == "hero" ? Hero() : Villain()` — ordinal and case-sensitive, so it
-silently builds the **Villain**. The test passes either way; the Hero export path is untested there.
+Two things from it worth carrying into A1 and A2:
+
+- **The first three findings were one bug in three places**: a lookup that silently skips what it
+  omits turns its own omissions into exemptions nobody chose. `ExpectedKinds` probed with
+  `TryGetValue`, the option check was a union over ten collections, and the code scan required an
+  underscore. Look for that shape in the remaining findings before treating one as specific.
+- **The code scan is now driven against a synthetic source**, not the real validator — reading the
+  shipped file cannot tell a pattern that finds every code from one that finds every code somebody
+  happened to spell with an underscore. That is the same lesson as the `PowerModel` tests, applied
+  to a regex.
 
 ### What held up
 

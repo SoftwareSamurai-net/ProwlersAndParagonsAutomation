@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3446 across two projects — 3322 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3668 across two projects — 3544 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -199,6 +199,199 @@ Not urgent. The site works, and a returning visitor pays nothing.
 ## Completed work
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Slice A3 of the mutation audit: eight guards that did not hold, and the three that were the wrong shape
+
+Eight findings from the mutation audit recorded in `docs/HANDOVER.md`, all in the engine and
+validator. **None of them was a bug in the product.** Every one was a test that did not hold what
+it claimed to hold, demonstrated by a mutation that left the whole suite green — and every fix
+here is demonstrated by the same mutation turning it red, then reverting to green.
+
+**The first three are one bug in three places, and it is worth naming as a class: a lookup that
+silently skips what it omits turns its own omissions into exemptions nobody chose.**
+
+- **A validation issue could name the wrong kind of thing.** `EachCodeReportsTheKindOfThingItIsAbout`
+  did `TryGetValue(...) continue` over a table missing **eighteen of the validator's forty-five
+  codes**, so `DUPLICATE_PRO` could be relabelled an Ability problem — verbatim the failure the
+  test's own doc comment exists to prevent, and one a repair loop follows into the wrong
+  dictionary. The fix is the shape rather than the eighteen entries: the table is now indexed
+  rather than probed, so an unlisted code throws, and `TheKindOfEveryCodeIsWrittenDown` holds it
+  to the validator **in both directions** — a new code fails until somebody writes down what it is
+  about, and a removed one fails until its line goes.
+- **An issue could offer options of the wrong kind entirely.** `EveryOptionOfferedIsOneTheRulesAccept`
+  asked only whether each string was an id of *anything*, as a union over ten collections — which
+  every id in the rules satisfies. So `POWER_WITHOUT_SOURCE` could offer the six Ability ids: a
+  repair loop writes `"agility"` into a Power's Source, gets `UNKNOWN_SOURCE` back, and never
+  terminates. What each code offers is now written down per code, and **a code carrying options
+  that nothing characterises fails** rather than passing on the union.
+- **The "every code is provoked" guarantee was spelling-shaped**, and so was every structural
+  invariant downstream of it. The scan was `"([A-Z]+(?:_[A-Z]+)+)"`, which requires an underscore:
+  a clean A/B on the same unreachable check had `TOO_MANY_CONNECTIONS` going red and
+  `TOOMANYCONNECTIONS` staying green. It now matches by case. **The part that matters is that it
+  is driven against a synthetic source**, in `TheCodeScanIsNotDefeatedByHowACodeIsSpelled` —
+  reading the shipped validator cannot distinguish a pattern that finds every code from one that
+  finds every code somebody happened to spell with an underscore. This is the third time that scan
+  has been too narrow, and both earlier escapes were also *how the code was written*.
+
+And the five specific ones:
+
+- **A Power could be deleted from a sample character.** The budget assertion was `spent <= budget`
+  and nothing else, and "fills every section" only asks whether a section is non-empty — so
+  deleting `stun` from the Hero was green. The budget is now checked at both ends, the Powers each
+  sample carries are recorded, and a second test says *why those Powers*: a baseline that is half a
+  Trait against one that equals it, a rate below 1 HP per rank, a rankless Power, two Super Senses
+  options, a Power carrying a Con, a Source-less Power. Naming the ids catches a deletion; the
+  shapes catch a replacement that costs the preview the thing it was previewing.
+- **A Power description could be replaced with unrelated prose.** `verified_fields` carries
+  `description`, and that flag is a boolean claim about a page somebody read which **survived any
+  edit to the text it was made about**: Armor's whole description became "A quiet afternoon in the
+  garden, with tea." and every test stayed green, the verified flag included. The descriptions are
+  now digested in `CanonicalPowerDescriptions`, so the claim is bound to the text and the failure
+  names the page to go and read.
+
+  **Three similarity framings were measured first and none of them is a rule** — recorded so
+  nobody re-derives them. A description need not repeat its own Power's name: 48 of the 141 do
+  not, and that is good writing. Word overlap against the printed entry in `data/rulebook/` fails
+  because these descriptions are deliberately *re-worded* rather than quoted — Blind Fighting's
+  shares one distinctive word in nine with the page it came from ("sight" for "vision", "fight"
+  for "combat"), which is the policy working. Ranked against all 1439 sections of the book, 130 of
+  the 141 match their own entry best, but Blind Fighting comes **215th** and the Super Senses
+  options cannot be scored at all, because the book gives the group one entry rather than one per
+  option. Every framing needs a threshold plus named exemptions. **What no test can say is whether
+  a description is *true*** — a wrong sentence digests like any other. That is the same limit
+  `CLAUDE.md` already records for the replay transcripts, and it is closed by reading the page.
+- **An applicability caveat could state the opposite of the rulebook.** Penetrating's became
+  "Applies to absolutely any Power at all, no conditions." and the suite stayed green, because the
+  only test asked whether it was non-blank and ended in a full stop. This matters more than it
+  would elsewhere: **the design is that a caveat is shown to the player instead of being enforced**,
+  so its wording is the entire deliverable and there is no mechanism behind it to be right when
+  the sentence is wrong. The fifteen are now transcribed in `CanonicalCaveats` with the printed
+  clause behind each, **and the clause is asserted to appear verbatim under that option's own
+  heading in `data/rulebook/ch02-characters.json`** — under its own heading rather than anywhere
+  in the chapter, which a reviewer showed is a different thing: Carrier Attack transcribed with
+  Ongoing's real printed sentence passed a whole-chapter search. A caveat must also *restrict* —
+  every one opens "Only for" or "Not for" — which refuses the inversion even if the record is
+  edited to agree with it. And the recorded clause has to say what it constrains: containment
+  accepts any fragment, so trimming one to the boilerplate "This Pro applies to" was a correct
+  quotation of the right entry that says nothing, and passed. What is left uncaught is a caveat
+  that restricts the *wrong* thing, changed in both places at once; the printed clause sits
+  beside it so a reader can see.
+- **The pickers' documented "rules-file order" had no test**: `.Reverse()` on `ProsFor` was green.
+  It is not cosmetic — Ch.2 prints Pros and Cons alphabetically and a player is looking one up by
+  name. Asserted as a subsequence of the rules file, so which options a Power is offered stays
+  `IsApplicable`'s answer.
+- **`GradesFor`'s defensive intersection is behaviourally dead against the shipped data**, and
+  that was the honest finding rather than a defect: every grade an allowance records is one the
+  option prices, guaranteed by `EveryOwnTextAllowanceResolvesAndCitesItsPrintedText`, so replacing
+  it with `return allowance.Grades.ToList();` changes nothing. It was still worth a test, because
+  a guard whose only evidence comes from data that cannot exercise it is a guard nobody knows the
+  state of — and the test had to be a **synthetic** allowance naming a key the Pro does not price,
+  since no reading of the shipped data can reach it.
+
+**One test-file defect, fixed:** `SampleCharacterTests` called `Sample("Hero")` against a
+`which == "hero"` comparison — ordinal and case-sensitive — so it silently built the **Villain**
+and the Hero's export path went untested under a test named for it. `Sample` now refuses a name
+that is not a sample rather than falling through to the other one.
+
+**The lesson from the previous slice held throughout**: a guard test that reads the shipped data
+cannot tell you the mechanism reads it too. Three of the fixes here are driven against synthetic
+input for exactly that reason — the code scan, the `GradesFor` allowance, and the caveat record's
+anchor in the corpus.
+
+**Then two adversarial passes — one told nothing about the work, one pointed at the fixes — found
+six more, and three of them were the same defect one table over.** Both reproduced all nine
+mutations as red first, so the fixes hold; what they found is what the fixes did not reach.
+
+- **A kind table keyed by code cannot see a swap *within* a code's list**, and seven codes serve
+  more than one kind. Changing `CheckTraitSources`' Ability argument to Talent reported
+  `UNKNOWN_SOURCE` on `toughness` as a Talent problem with the suite green — the same
+  never-terminating repair loop the slice was about. Closed by the rule the table cannot state:
+  **the id has to name a thing of the kind claimed.** Deliberately with no exemption list — half
+  these findings report an id the rulebook does *not* have, so "resolves against the rules" alone
+  would have to excuse them, and excusing them is what let it through. An id resolves against the
+  rules **or** against the part of the character the kind names.
+
+  **The first version of that rule skipped `Character`, and this entry claimed it "covers every
+  finding without excusing one", which was wrong** — a third review pass demonstrated it. Eleven
+  codes are Character-kinded by design and two more may be Character *or* Power, so mutating a
+  kind *towards* Character walked through the rule, through the "a subject is named" invariant,
+  and through the table, which accepts any entry in a code's list: `PER_UNIT_WITHOUT_UNITS` could
+  report a Power id as a fault of "the character". Character is checked now, against the three
+  things that belong to a sheet rather than a Trait — a Perk, a package, a Pro or Con.
+- **The code scan was still spelling-shaped**, one spelling further on: `"TooManyConnections"` was
+  invisible to every guarantee built on it. Widening the pattern again would not have closed it —
+  a pattern can always be out-spelled — so the case is now **enforced where a code is written**.
+- **And it read one file**, so moving the codes to a constants class or making the validator
+  partial voided all three guarantees silently. Both are ordinary refactors. It reads the engine
+  now.
+- **`MustOfferOptions` had no exhaustiveness check** — the identical hole to `ExpectedKinds`, left
+  open on its sibling. A new code with `Options = []` omitted from the list passed both it and the
+  option check, the first by not listing it and the second by having nothing to walk. Read off the
+  source now, because a code that offers options only *sometimes* is what a behavioural check
+  cannot see.
+- **The sample budget floor could not see the Powers at all.** A Standard-tier package plus
+  eighteen Traits clears half the budget alone, so a Hero with **no Powers whatsoever** passed it
+  — and this file's own account of the fix said otherwise. Corrected, with the Powers costed
+  separately.
+- **The "every shape" test read `powers.json` rather than the sample**, so `Prerequisite` and
+  `CostPerRank` stayed true while the preview stopped showing any of it: zeroing Armor, Danger
+  Sense and Resistance left every shape "present" and Armor printing its bare baseline instead of
+  4 free ranks and 4 bought reaching 8. It asserts on the selections now.
+- The picker-order narrowing covered Pros only, so `ConsFor` reduced to `.Take(1)` passed it.
+
+**Two of the round-two assertions were wrong when first written, and measuring corrected them** —
+worth recording, because both were plausible: the Hero's Powers cost **20 HP of 125**, not a fifth
+of the budget, and `pros.json` is **not** alphabetical (Zone/Nova sits between Area/Burst and
+Armor Piercing, following the printed pairing), which is what makes the Pro half of the order
+check real where the Con half cannot be.
+
+**A third pass then re-reviewed those fixes. All six held; it found five more**, and the pattern
+across all three rounds is worth stating plainly: *the escape is always one indirection past
+wherever the rule was written.*
+
+- The `Character` skip above — this file's own overclaim, now corrected.
+- **`OwnerId` had no invariant at all**, only three spot tests, so the two sites they miss could
+  hold the printed *name* instead of the id. That exact regression is recorded in the validator's
+  own comment as having happened once already.
+- **`UNKNOWN_TRAIT_SOURCE` was never provoked on the Talent side**, so the Talent arm of its
+  option list was dead and could be made to offer perk ids with the suite green — the round-one
+  defect alive on a branch no sheet visited. **The "every code is provoked" guarantee is per
+  code, not per construction site**, and that gap is now demonstrated rather than theoretical.
+  The case list reaches it.
+- The spelling convention reads two call shapes, so **a third helper is invisible to it** — the
+  same escape one indirection on.
+- `MustOfferOptions` catches a code added with `Options = []` but not one written with no
+  `Options` line at all and delisted in the same breath. That is a two-file coordinated edit, so
+  rather than chase it the Source findings are now asserted outright — which is the case the
+  option check existed for.
+
+**A fourth pass re-reviewed those. All five held; it found four more, and two of them were this
+file overclaiming again.** Both are recorded rather than quietly corrected, because the shape of
+the mistake is the useful part: *a fix that enumerates one spelling of a thing gets out-spelled,
+including when the thing being enumerated is the fix.*
+
+- **The helper pin was the same mistake one spelling on.** It matched methods *returning* a
+  `ValidationIssue`, so `AddFinding(List<ValidationIssue> into, string code, …)` slipped past on
+  the angle bracket — and appending to a passed-in list is this validator's house idiom, not an
+  exotic shape. A generic `Finding<T>` got past it too. This entry claimed "the set of methods
+  that build a finding is pinned"; it was not. **Construction sites are counted now** — the thing
+  that actually makes a finding, which cannot be hidden behind a signature — and the rule is that
+  exactly one of them takes its code from a variable.
+- **There are five places that offer the six Sources, not four.** This entry said four, and the
+  test did too: it counted a line shared by the Ability and Talent arms twice and missed the
+  fifth entirely. The one missed was the **blank** Source — a Trait that names a Source and then
+  names none, which has its own sentence because printed through the other one it read "names a
+  Source, '', that is not one of the six". Its options could be made perk ids with the suite
+  green: the same dead-branch defect as the Talent arm, in the same method, one round later.
+- **Requiring words after the boilerplate opener was not enough.** "This Pro applies to Powers
+  that" cleared it, and twelve of the fifteen entries open "Powers that…" after their opener, so
+  nearly all of them could be trimmed to the same empty phrase. It is the *content* word that has
+  to survive.
+- And that check refused a record holding the substantive clause **alone** — verbatim, under the
+  right heading, strictly more informative — telling the reader to go and find a fifth opener in
+  a book where nothing was wrong. The opener is optional now.
+
+3446 tests to **3668** — 3544 on the engine, 124 in bUnit. Zero warnings at CI strictness.
 
 ### The rulebook corpus was materially wrong, and its tests could not see it
 
