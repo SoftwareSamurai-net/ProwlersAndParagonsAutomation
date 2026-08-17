@@ -65,6 +65,8 @@ The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestM
 - **Qodana's counts on a pull request are not comparable to a scan of the whole tree.** It runs in PR mode — only changed files — so moving a file re-reports every finding in it as new. The Blazor slice moved `engine/` and `sheets/` into new projects and the count went from 144 to 249 without any of that code changing. Read the SARIF (`gh run download <run-id>`, then `qodana.sarif.json`) rather than the summary table before concluding anything moved.
 - **A whole-tree Qodana scan reports zero, and the config that gets it there is in `.editorconfig`, not `qodana.yaml`.** `qodana.yaml`'s `exclude:` list accepts an inspection *name* and silently ignores it — the .NET linter is ReSharper, which takes severities from EditorConfig. Only the path exclusions in `qodana.yaml` do anything. Each `resharper_*_highlighting = none` there is scoped as tightly as the tool allows and says why; nothing is baselined and there is no severity floor. Qodana runs in PR mode, so its count only covers changed files — to see the real number, run it over the whole tree yourself:
 
+  **This claim rots, and it has rotted twice.** It was 3 on `master` and 37 across the three reconciled audit slices before anybody measured; a previous slice found the same thing. Two of those 37 were real bugs no compiler sees — a doc comment stranded on the wrong method by an insertion, so one member carried two `<summary>` blocks and a `<paramref>` for a parameter it did not have. **Do not repeat the "reports zero" sentence without re-running the scan**, and read the count out of the log *and* the SARIF: a `grep` for the summary line prints nothing when the scan never ran, which looks identical to clean.
+
   ```bash
   docker run --rm -v "$(pwd -W):/data/project/" -v "$PWD/results:/data/results/" jetbrains/qodana-cdnet:2026.2 --save-report
   ```
@@ -119,7 +121,17 @@ exactly as the rules are, and fetched by `Program.cs` from `TranscriptLibrary.Fi
   **If a transcript ever holds a Hero Point total, that is the bug**: the number would sit there
   looking identical while being wrong. `TranscriptTests` refuses a recorded line that quotes a
   Hero Point figure, an Edge, a Health or a Resolve. Ranks are allowed and should be — a rank is
-  an input the transcript already carries.
+  an input the transcript already carries. **Two rules do that, and both are needed**: one bans
+  the *shape* — a number next to a word about money, in one clause — and one asks the engine
+  what the figures actually are and bans those numerals, in digits and spelled out. The second
+  exists because "She lands on 75 exactly, and the tier hands her 75 to spend" matches no
+  vocabulary anybody could write; the first because "over by a full nineteen" is a quoted figure
+  whether or not nineteen is the right answer. The scan reads the **character** as well as the
+  prose, by reflection rather than by naming its free-text fields.
+- **The question-count tests catch drift, not a questionnaire written to evade them.** A demand
+  phrased with an unlisted verb scores zero, and the companion test counts the person's
+  *replies*, so demands bundled into one turn cost one reply. That is recorded in the tests
+  themselves; the real guarantee is the same one the prose has — read a changed transcript.
 - **What the tests do not cover is whether a recorded sentence about the rules is true**, and
   that gap is not closeable by a regular expression. The characters are held to the engine and
   figures are banned from the prose, but a line saying "the Trait Cap is a limit on Abilities
@@ -141,8 +153,23 @@ exactly as the rules are, and fetched by `Program.cs` from `TranscriptLibrary.Fi
   library is read once at startup and shared by every visit; handing the instance over lets the
   first edit rewrite the recording.
 - **A failed transcript fetch must not stop the app.** Missing rules are a broken deployment;
-  missing recordings are a missing demonstration. `Program.cs` catches, registers an empty
-  library and carries the reason so the page can print it.
+  missing recordings are a missing demonstration. `ReplayLibrary.LoadAsync` catches, returns an
+  empty library and carries the reason so the page can print it — and **it is a method rather
+  than a block in `Program.cs` because that is where nothing could reach it.** It was a
+  `try`/`catch` in top-level statements; deleting the `try` left the whole suite green while
+  one 404 took the character generator to a blank page. One file short leaves *no* recordings
+  rather than most of them, which is deliberate: a library holding three of four looks like a
+  decision and answers the fourth address with "no such recording".
+- **Nothing on a replayed sheet may come from the visitor's own character**, and that is
+  asserted by rendering the same character twice — once held by the session, once passed as a
+  parameter over a *different* session character — and requiring the two pages to be identical.
+  Naming the fields does not work: seven of them were free at once. Anything that legitimately
+  comes from outside the character, which is `ShowBudget` and only `ShowBudget`, has to be
+  passed explicitly in both renderings or it hides every illegitimate difference behind itself.
+- **`ReplayLibrary.Find` is `OrdinalIgnoreCase` on purpose.** Blazor's route matching is
+  case-insensitive, so `/Replay/The-Conductor` reaches the page and only the lookup can refuse
+  it — which is a confident lie about a link that is fine. Same rule as `MainLayout`'s
+  first-path-segment check, and both now have tests.
 - **The Villain recording shows its budget finding rather than hiding it.** The GM review step
   hides `HP_BUDGET_EXCEEDED` in Villain mode; here it is shown with Ch.9 beside it, because one
   recording is about exactly that difference. **That branch claims no verdict at all** — not
@@ -210,13 +237,24 @@ questions about the rules. It does not replace `build --from`; both call the sam
   `Console.` followed by anything but `Error` (not for `Console.WriteLine`, because
   `Console.Out.Write` and `OpenStandardOutput` are the same mistake in other spellings), **and
   it runs the built program and requires every line on that stream to be a JSON-RPC message.**
-  The runtime half exists because a source scan cannot see a write from a library or a spelling
-  split across two lines; the source half exists because **a stray line does not necessarily
-  break a client** — the first runtime test drove the binary through the SDK's own client and
-  asserted the session worked, and a real stray line left it perfectly happy, because the client
-  skips what it cannot parse. Do not replace either with the other. **This is also why the
+  The source half exists because **a stray line does not necessarily break a client** — the
+  first runtime test drove the binary through the SDK's own client and asserted the session
+  worked, and a real stray line left it perfectly happy, because the client skips what it cannot
+  parse. Do not replace either with the other. **This is also why the
   setup guide (`docs/MCP-SETUP.md`) points a client at the published binary rather than at `dotnet run`**, which writes
   MSBuild's own progress to standard output.
+- **The two halves are complementary only as far as the runtime half is driven, and this note
+  used to claim more than that.** It said the runtime test existed to catch "a spelling split
+  across two lines". It did not: it sent `initialize`, `notifications/initialized` and
+  `tools/list` and stopped, so it never entered a tool body. `Console` and `.WriteLine(…)` on
+  two lines inside `SearchPowers` contains the token `Console.` on neither line, and reached a
+  real client's stdout as message two with **both guards green**. The same write in
+  `ListOptions` was caught, and only because `ReadEverything` calls it at startup — that is how
+  narrow the cover was. The runtime test now calls all six tools and requires each answer to
+  carry something only the far end of that body produces, since a call answered "unknown tool"
+  would otherwise satisfy it while running no code at all. **The fix for a hole in the source
+  scan is another driven path, never another regex**: the spelling after a multi-line one is a
+  helper in another file, or a library.
 - **The rules are found beside the binary, then upwards — never by walking up for a `.sln`.**
   That is the CLI's answer and it is wrong here: a client launches the published program from a
   directory of its own choosing and there may be no repository on the machine. `PROWLERS_RULES_DIR`
@@ -250,8 +288,18 @@ questions about the rules. It does not replace `build --from`; both call the sam
   A search that always returns its five best rows reads as five answers however carefully the
   caution is worded, and the description naming something the rulebook does not have is exactly
   the one a model will build anyway. Matching is word by word with a shared-prefix rule, not by
-  substring: substring matching answered "she bakes bread in the city" with **Elasticity**, and
-  a match like that is worse than none because nothing in it looks wrong.
+  substring: substring matching answered "she bakes bread in the city" with **Plasticity**, and
+  a match like that is worse than none because nothing in it looks wrong. (This note and
+  `Mentions`' own summary both said *Elasticity*, which is not a Power in this rulebook —
+  a reproduction searches for an entry that is not there.)
+- **`Mentions` had no test at all until slice A1, and one line put the substring search back.**
+  Every search test was either a positive assertion or a negative on a query whose words happen
+  not to be substrings of anything, so the property the method exists for was unpinned. What
+  holds it now is four fragments that occur inside a Power's name and nowhere in the rules files
+  as a word — `city`/Plasticity, `ration`/Regeneration, `art`/Martial Arts,
+  `kinesis`/Telekinesis — each with the positive control beside it, so the guard cannot be
+  satisfied by a search that has stopped working. **Any change to matching has to keep the
+  baker's sentence at `found: 0`.**
 - **That flag says how the rows matched and never what to conclude**, and the first version got
   this exactly wrong. It attached "usually means the rulebook has no Power for this" — so
   "he can fly" returned Flight and then told the assistant there is no Power for flight, because
@@ -342,6 +390,8 @@ Rasterising the result needs a PDF library (there is no `pdftoppm` or Python on 
 **The split is the point.** A source-reading test cannot see a bug in rendered output, and one duly shipped: Razor swallowed the space in `@name` + `<text> @(rank)d</text>` and the sheet printed **"Armor8d"**. It was fixed on the sheet and the same bug in a second spelling survived on the Powers tab for another whole slice, because no source file looks wrong. Anything about what a component *produces* belongs in the bUnit project; anything about how the source is *written* belongs in the other.
 
 **Assert on `TextContent`, never on markup with the tags stripped out.** Stripping a tag leaves a separator where it was, so `<b>Armor</b><span>8d</span>` reads as "Armor 8d" to any test that does it — which is how the Powers tab kept the Armor8d bug through a test written to catch it. It cuts the other way too, and worse: a `DoesNotContain("Communications 0d")` over stripped markup is satisfied by printing exactly that with the two halves in different elements. An adversarial pass did it, visibly, with the suite green. The browser concatenates text nodes; so must the test.
+
+**And the trap was inside the helper the render tests use to catch it.** `SheetRenderTests.Rendered` replaced every tag with a newline and one test then collapsed all whitespace, so `<b>Armor</b><span>8d</span>` read as "Armor 8d" — the exact string the assertions look for, produced by the exact bug they exist to find. It concatenates text nodes now. A test-side helper is as capable of being the bug as the component is; read the helper before trusting the assertion.
 
 **A typographic rule lives in the stylesheet, where no rendering test can see it.** Emptying `.hp` puts Hero Point costs back in the same size, weight and ink as ranks and every bUnit test still passes, because the class is still on the element. Anything whose whole substance is CSS — the `.hp` treatment, print font sizes, the break rules — is asserted in `WebPresentationTests` against the parsed rule, not inferred from markup.
 
@@ -485,9 +535,18 @@ Ten files, one per chapter, holding the printed text of the whole Ultimate Editi
 
 - **They answer different questions and must not be merged.** `data/rules/` is the *mechanics* — structured, verified entry by entry against the page, and the only thing the engine reads. `data/rulebook/` is the *text*, so a player can be shown what a Power says. No cost, rank or validity comes from the corpus, and where the two disagree, `data/rules/` wins.
 - **It is not in the browser payload, and that is deliberate rather than an oversight.** `web/`'s csproj copies `data/rules` and `data/transcripts` into `wwwroot` and nothing else, so the deployed public site does not serve the book. The intended reader is account-gated and comes after the front-end redesign; until it exists there is nothing to serve and no reason to publish the text to the open web. Turning it on is one `ItemGroup` — do not turn it on by accident.
-- **The book is two-column, and reading it by baseline alone interleaves the columns.** Printed p.52's heading extracts as `OVERKILL PHASE SHIFT`, which is two entries, and every entry then carries its neighbour's text. The extractor splits each page at the gutter. `RulebookCorpusTests` checks a known entry reads back with its stat line and without its facing neighbour's name.
-- **The PDF watermarks every page with the purchaser's name and order number, as four separate words.** A filter written against the whole phrase matches none of them, which put somebody's personal data into the prose of every chapter. It is filtered per token and asserted absent across the corpus.
-- Headings are detected by case and length, so a mis-detected heading is a *structural* error; the prose beneath one is still verbatim.
+- **The corpus is generated, and the generator is `tools/RulebookExtractor/`** — in the solution so it cannot rot. Regenerate with `dotnet run --project tools/RulebookExtractor -- <pdf> data/rulebook`. **Do not hand-edit `data/rulebook/`**; an edit there is lost on the next run and hides whatever the extractor is doing wrong. The first extractor was a scratch project that no longer existed by the time its output was found to be wrong, which meant the corpus could be neither audited nor regenerated.
+- **The book is two-column, and both naive readings destroy it in opposite directions.** Reading by baseline alone interleaves the columns — printed p.52's heading came out as `OVERKILL PHASE SHIFT`, which is two entries. Splitting every page at a fixed midpoint instead destroys anything set **full width**, cutting each line in half and filing the halves in different blocks; **every chapter opening in the book is set full width**, and all of them shipped scrambled. So the gutter is found per page, and a line counts as full-width only when **a word actually sits astride it** — the test that distinguishes a real full-width line from two facing headings sharing a baseline.
+- **The damage from all of this reads as English.** Ch.2 opened "…from the Heroes the GM. They include not only sentient beings but also animals, and so on", with two runs of the printed sentence missing and nothing about it looking broken. Judge a change here by re-running the extractor and the corpus tests, never by reading a paragraph and finding it plausible.
+- **The PDF watermarks every page with the purchaser's name and order number, as four separate words.** A filter written against the whole phrase matches none of them, which put somebody's personal data into the prose of every chapter. The extractor drops it **by font** — 6pt Helvetica occurs 780 times, four per page across 195 pages, and nowhere else in the book — and the test asserts each of the four tokens separately, because a version checking the surname, the order number and the literal `(Order #` was defeated by injecting `Dorian Order #`.
+- **The display faces are faked bold by drawing the text twice a fraction of a point apart**, so the passes interleave: page 29 reads `2299`, the wordmark `PPRROOWWLLEERRSS`. Every element that does it lives in the running foot, so the one rule that drops the foot removes them all. A glyph-level de-duplicator was written for this and **changed not one byte of the output**, so it is not in the tool; what guards the outcome is a test over the corpus, which still bites if the furniture rule moves.
+- **A heading with no body of its own qualifies the headings beneath it**, by point size. Discarding those instead lost **every name in Ch.8** — all twenty Heroes and all twenty Villains — leaving pages of anonymous `ABILITIES` and `POWERS`, and it ate the printed title of every table. Chaining the qualifiers instead of replacing them at the same level produced one 1,795-character heading listing the whole chapter.
+- **Words are split on the page's own space glyphs**, which the PDF really carries. Guessing from letter gaps merged "FORCE FIELD" into "FORCEFIELD", because in the condensed display face a word space is barely wider than the gap between two letters. A gap break is kept beside it, since two facing headings have no space glyph between them at all.
+- **Rotated text is furniture, never prose**: the chapter title runs up the outer margin a letter at a time and the word "chapter" beside it, which extracts reversed and landed in the corpus as the heading `retpahc`. Filtered on text orientation.
+- Headings are detected by **typeface** — the display faces are a closed list — so a mis-detected heading is a *structural* error; the prose beneath one is verbatim.
+- **Ch.8's stat-block headings are set in small capitals and come out as `aBIlItIes` and `FlaWs`. That is known, cosmetic, and deliberately not "fixed".** Two rules were tried; the better of them uppercased "Points" to "POINTS" while leaving the real cases alone, because a lowercase `t` is genuinely shorter than cap height. Do not tune a third heuristic until it happens to look right on the examples in front of you. **A table of three or more columns is read across rather than down** — the Powers list on printed p.20 and the location lists in Ch.9 — which is the other known limit; the two-column model is what the body text needs and a third column is rare enough not to have earned the complexity.
+- **Judge a change here by the tests and by the PDF, in that order — and the tests can now see the failures that matter.** They pin the total volume of prose, that every one of the 116 Ch.2 Power entries opens with the stat line `data/rules` records for it, and that every published character is named in Ch.8. Before that they were shape checks: an adversarial pass rotated all 1,492 section bodies onto the wrong headings, and separately deleted 90% of the book, and the suite stayed green through both.
+- **`ColumnLayout` is unit-tested against made-up pages**, because the committed corpus cannot show you a layout the book happens not to contain, and every failure this extractor has had was layout-shaped. **Two detectors, and both are needed**: an ordinary two-column page has almost no line containing the gutter (each line sits in one column), so it is found by which column of the page few words cross; but printed p.81 sets two sidebars above full-width body text, where no column is empty top to bottom and the gutter shows up only as a gap repeated at the same x. Removing either one turns real pages back into interleaved nonsense, and there is a test for each.
 
 ### The engine never touches the filesystem
 

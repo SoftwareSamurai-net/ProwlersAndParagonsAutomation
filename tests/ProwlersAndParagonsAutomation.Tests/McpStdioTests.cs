@@ -20,6 +20,10 @@ namespace ProwlersAndParagonsAutomation.Tests;
 [Collection(SharedRules.Name)]
 public sealed class McpStdioTests
 {
+    private readonly RulesFixture _f;
+
+    public McpStdioTests(RulesFixture f) => _f = f;
+
     private static string McpDirectory => Path.Combine(RulesFixture.RepoRoot, "mcp");
 
     /// <summary>
@@ -49,6 +53,15 @@ public sealed class McpStdioTests
     /// than on <c>Console.WriteLine</c> — <c>Console.Out.Write</c>, <c>Console.OpenStandardOutput</c>
     /// and a held reference to <c>Console.Out</c> are the same mistake in three spellings, and a
     /// check for the obvious one would pass while any of them shipped.</para>
+    ///
+    /// <para><b>It is line-by-line, and that is a real hole rather than a detail.</b>
+    /// <c>Console</c> on one line and <c>.WriteLine(…)</c> on the next is one statement that no
+    /// line of contains the token, and adding a multi-line pattern here would only move the
+    /// hole — the spelling after that is a helper in another file, or a library. What closes it
+    /// is <see cref="TheBuiltProgramSpeaksNothingButTheProtocol"/> calling every tool, so the
+    /// write happens on a stream something is reading. The two halves are only complementary to
+    /// the extent that the runtime half is <em>driven</em>: it covered the startup path alone
+    /// for a whole slice, and this scan reported nothing on the two lines the whole time.</para>
     /// </summary>
     [Fact]
     public void NothingWritesToStandardOutput()
@@ -106,10 +119,10 @@ public sealed class McpStdioTests
     }
 
     /// <summary>
-    /// <b>The property itself, read off the stream.</b> The source check above cannot see a
-    /// write from a library, from <c>engine/</c> or <c>sheets/</c>, or through a spelling
-    /// nobody thought of — so this starts the built program the way a client does and reads
-    /// its standard output by hand.
+    /// <b>The property itself, read off the stream — and with every tool actually called.</b>
+    /// The source check above cannot see a write from a library, from <c>engine/</c> or
+    /// <c>sheets/</c>, or through a spelling nobody thought of, so this starts the built program
+    /// the way a client does and reads its standard output by hand.
     ///
     /// <para><b>Every line has to be a JSON-RPC message.</b> An earlier version of this test
     /// drove the same binary through the SDK's client and asserted the session worked, under a
@@ -117,32 +130,118 @@ public sealed class McpStdioTests
     /// on that stream, printed before the transport starts, left the client perfectly happy and
     /// the test green. The client skipping what it cannot parse is exactly why this has to look
     /// at the bytes.</para>
+    ///
+    /// <para><b>And it enters every tool body, which is the half that was missing.</b> This sent
+    /// <c>initialize</c>, <c>notifications/initialized</c> and <c>tools/list</c> and stopped —
+    /// so it covered the startup path and the handshake and nothing else. <c>Console</c> and
+    /// <c>.WriteLine(…)</c> written on two lines inside <c>SearchPowers</c>
+    /// is invisible to the source scan above, which matches the token <c>Console.</c> on one
+    /// line, and was invisible here too because no tool was ever called: the stray line arrived
+    /// on a real client's stream as message two, with both guards green. A write inside
+    /// <c>ListOptions</c> <em>was</em> caught, and only because <c>ReadEverything</c> calls it at
+    /// startup — which is how narrow the cover was.</para>
+    ///
+    /// <para><b>Each answer has to carry something the tool only produces at the end of its
+    /// body</b>, or a call that came back "unknown tool" would satisfy this while running no
+    /// code at all.</para>
     /// </summary>
     [Fact]
     public async Task TheBuiltProgramSpeaksNothingButTheProtocol()
     {
         var cancellation = TestContext.Current.CancellationToken;
 
+        // Bounded, because the failure being looked for is a stream that never produces the
+        // line this is waiting for, and a bare read would hang the suite rather than fail it.
+        // Thirty seconds, the same as Ends: the passing run is well under a second, and every
+        // second beyond that is spent on a failure that has already happened.
+        using var giveUp = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        giveUp.CancelAfter(TimeSpan.FromSeconds(30));
+
         using var server = Start(ServerExecutable(), rulesDirectory: null);
+
+        // Which read ran out of time, because the two mean different things and both are real
+        // mutations: no greeting at all, and a request that never came back.
+        var waitingFor = "a line on standard error at startup";
 
         try
         {
-            await Say(server, """
-                {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"stdout-hygiene","version":"1"}}}
-                """, cancellation);
-            await Say(server, """{"jsonrpc":"2.0","method":"notifications/initialized"}""", cancellation);
-            await Say(server, """{"jsonrpc":"2.0","id":2,"method":"tools/list"}""", cancellation);
+            // <b>The startup diagnostic, which nothing asserted.</b> docs/MCP-SETUP.md's first
+            // troubleshooting bullet sends a reader to their client's MCP log to find it, so
+            // deleting the line makes that instruction a dead end. It goes to standard error,
+            // before the transport starts.
+            //
+            // <b>Read as "some line says it", not "the first line does".</b> Standard error is
+            // where everything said to a human is *supposed* to go, so an added greeting is a
+            // legitimate change — and against the first-line version it failed this test, which
+            // would have read as a stdout-hygiene regression and is nothing of the kind.
+            var said = new List<string>();
+            string? greeting = null;
 
-            var lines = new List<string>();
+            while (said.Count < 20 &&
+                   await server.StandardError.ReadLineAsync(giveUp.Token) is { } line)
+            {
+                said.Add(line);
 
-            // Reads until the answer to the second request arrives, so the run covers the
-            // startup, the handshake and a request — every point at which something could
-            // print. A line that is not JSON is a failure whatever else it says.
-            while (await server.StandardOutput.ReadLineAsync(cancellation) is { } line)
+                if (line.Contains(Path.Combine("data", "rules"), StringComparison.Ordinal))
+                {
+                    greeting = line;
+                    break;
+                }
+            }
+
+            Assert.True(greeting is not null,
+                "No line on standard error named the rules directory the server found. The setup "
+                + "guide's first troubleshooting bullet sends a stuck reader to their client's log "
+                + "to look for it. What was said instead:\n" + string.Join("\n", said));
+
+            waitingFor = "a reply to every request";
+
+            await Say(server, Request(1, "initialize", new JsonObject
+            {
+                ["protocolVersion"] = "2025-06-18",
+                ["capabilities"] = new JsonObject(),
+                ["clientInfo"] = new JsonObject
+                {
+                    ["name"] = "stdout-hygiene", ["version"] = "1"
+                }
+            }), giveUp.Token);
+
+            await Say(server, """{"jsonrpc":"2.0","method":"notifications/initialized"}""", giveUp.Token);
+            await Say(server, Request(2, "tools/list", null), giveUp.Token);
+
+            // What each answer must carry: id 1 is the handshake, id 2 the tool list, and one
+            // id per tool from 3 on.
+            var wanted = new Dictionary<int, string>
+            {
+                [1] = "protocolVersion",
+                [2] = CharacterServer.CheckCharacterTool
+            };
+
+            var id = 3;
+            var driven = new List<string>();
+
+            foreach (var (tool, arguments, marker) in EveryToolCall())
+            {
+                wanted[id] = marker;
+                driven.Add(tool);
+
+                await Say(server, Request(id, "tools/call", new JsonObject
+                {
+                    ["name"] = tool, ["arguments"] = arguments
+                }), giveUp.Token);
+
+                id++;
+            }
+
+            var answered = new Dictionary<int, string>();
+
+            // Reads until every request has been answered, so the run covers the startup, the
+            // handshake, a request, and the body of all six tools — every point at which
+            // something could print. A line that is not JSON is a failure whatever else it says.
+            while (answered.Count < wanted.Count &&
+                   await server.StandardOutput.ReadLineAsync(giveUp.Token) is { } line)
             {
                 if (line.Length == 0) continue;
-
-                lines.Add(line);
 
                 JsonNode node;
                 try
@@ -160,18 +259,124 @@ public sealed class McpStdioTests
 
                 Assert.Equal("2.0", node["jsonrpc"]!.GetValue<string>());
 
-                if (node["id"]?.GetValue<int>() == 2) break;
+                // A notification carries no id and is not an answer to anything; there should
+                // be none, and skipping one is not what this test is about.
+                if (node["id"]?.GetValue<int>() is not { } answeredId) continue;
+
+                Assert.Null(node["error"]);
+                answered[answeredId] = line;
             }
 
-            // Two answers, and the second one really is the tool list — so the loop above did
-            // not fall out of an empty stream having asserted nothing.
-            Assert.Equal(2, lines.Count);
-            Assert.Contains(CharacterServer.CheckCharacterTool, lines[1], StringComparison.Ordinal);
+            // Every request answered, and each answer carrying something only the far end of
+            // that tool's body produces — so the loop above did not fall out of an empty stream,
+            // and a tool that was never entered fails here rather than passing silently.
+            Assert.Equal(wanted.Keys.Order(), answered.Keys.Order());
+
+            foreach (var (requestId, marker) in wanted)
+                Assert.Contains(marker, answered[requestId], StringComparison.Ordinal);
+
+            // <b>And every tool the server serves was one of them, taken from its own tool list
+            // rather than from a count here.</b> Without this the cover is whatever
+            // <see cref="EveryToolCall"/> happens to yield: dropping one leaves five tools driven
+            // and a green test, and a seventh tool added later would never be called at all —
+            // which is the same shape of hole as sending no tool call in the first place.
+            var served = JsonNode.Parse(answered[2])!["result"]!["tools"]!.AsArray()
+                .Select(t => t!["name"]!.GetValue<string>())
+                .ToList();
+
+            Assert.NotEmpty(served);
+            Assert.Equal(served.Order(), driven.Distinct(StringComparer.Ordinal).Order());
+        }
+        catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
+        {
+            Assert.Fail($"The server never produced {waitingFor}.");
         }
         finally
         {
             Stop(server);
         }
+    }
+
+    /// <summary>
+    /// Every tool, twice: once with arguments that reach the far end of the body, and once with
+    /// arguments that reach its refusal. Each carries a string the answer must contain to show it
+    /// got there.
+    ///
+    /// <para><b>A marker has to be something only that body can produce, and one was not.</b>
+    /// <c>character_sheet</c>'s marker was the character's name — which the test itself sends as
+    /// the argument and <c>check_character</c> echoes back as <c>character.name</c>. So wiring the
+    /// <c>character_sheet</c> wire name to <c>CheckCharacter</c> passed: a client asking for the
+    /// printed sheet got JSON, and this was the only test that drives that wiring at all, since
+    /// every other one calls the method in process. It is the masthead now, which nothing but the
+    /// text renderer writes.</para>
+    ///
+    /// <para><b>And the refusal branches were undriven, which left a whole class of stray write
+    /// invisible.</b> A two-line <c>Console.WriteLine</c> in <c>TryReadCharacter</c>'s
+    /// <c>JsonException</c> branch — reached by the commonest first-draft mistake there is, a
+    /// misspelled field — passed the source scan and this test both, because the happy path never
+    /// goes near it. <c>creation_guide</c> has no refusal to drive: it takes no argument and
+    /// always answers.</para>
+    /// </summary>
+    private static IEnumerable<(string Tool, JsonObject Arguments, string Marker)> EveryToolCall()
+    {
+        var hero = JsonNode.Parse(CharacterSheetJson.Write(SampleCharacters.Hero()))!;
+
+        // A character in the right shape that the engine cannot price, so the sheet has nothing
+        // to print. An invented Power id costs nothing to write and throws out of the total.
+        var unpriceable = JsonNode.Parse(
+            """{"SelectedTierId":"standard","SelectedPowers":[{"PowerId":"no_such_power","PurchasedRanks":1}]}""")!;
+
+        yield return (CharacterServer.CreationGuideTool, new JsonObject(),
+            "The engine decides");
+
+        yield return (CharacterServer.ListOptionsTool,
+            new JsonObject { ["category"] = "tiers" }, "trait_cap");
+        yield return (CharacterServer.ListOptionsTool,
+            new JsonObject { ["category"] = "nothing_like_it" }, "NO_SUCH_CATEGORY");
+
+        yield return (CharacterServer.SearchPowersTool,
+            new JsonObject { ["query"] = "turns invisible" }, "nothing_matched_by_name");
+        yield return (CharacterServer.SearchPowersTool,
+            new JsonObject { ["query"] = "!!!" }, "EMPTY_QUERY");
+
+        yield return (CharacterServer.PowerDetailTool,
+            new JsonObject { ["powerId"] = "armor" }, "ranks_purchasable");
+        yield return (CharacterServer.PowerDetailTool,
+            new JsonObject { ["powerId"] = "time_punch" }, "NO_SUCH_POWER");
+
+        yield return (CharacterServer.CheckCharacterTool,
+            new JsonObject { ["character"] = hero.DeepClone() }, "verdict");
+        yield return (CharacterServer.CheckCharacterTool,
+            new JsonObject { ["character"] = new JsonObject { ["Nam"] = 1 } }, "CHARACTER_UNREADABLE");
+
+        // <b>The same character through the judge, which is where the guarded engine calls
+        // are.</b> Sent only to character_sheet, it never entered <c>Judgement</c> at all — so a
+        // stray write inside <c>Answer</c>'s catch, reached by any character the engine cannot
+        // price, was invisible again. This drives that catch, <c>Spending</c>, <c>Named</c>,
+        // <c>Looked</c> and the null-figure branch of the report.
+        yield return (CharacterServer.CheckCharacterTool,
+            new JsonObject { ["character"] = unpriceable.DeepClone() }, "UNKNOWN_POWER");
+
+        // The masthead the text renderer writes, which the judge's JSON report cannot contain.
+        yield return (CharacterServer.CharacterSheetTool,
+            new JsonObject { ["character"] = hero.DeepClone() }, "CHARACTER SHEET");
+        yield return (CharacterServer.CharacterSheetTool,
+            new JsonObject { ["character"] = unpriceable.DeepClone() }, "NO_SHEET_TO_PRINT");
+    }
+
+    /// <summary>One JSON-RPC request, on one line, which is what the framing requires.</summary>
+    private static string Request(int id, string method, JsonObject? parameters)
+    {
+        var message = new JsonObject
+        {
+            ["jsonrpc"] = "2.0",
+            ["id"] = id,
+            ["method"] = method
+        };
+
+        if (parameters is not null) message["params"] = parameters;
+
+        return message.ToJsonString();
     }
 
     /// <summary>
@@ -503,6 +708,108 @@ public sealed class McpStdioTests
     public void ACompleteRulesDirectoryStartsCleanly()
     {
         CharacterServer.ToolsFor(RulesFixture.DataPath).ReadEverything();
+    }
+
+    /// <summary>
+    /// <b>The startup check reads the embedded guide as well as the rules.</b> The guide is an
+    /// embedded resource, so the way it goes missing is a csproj edit — and the claim
+    /// <c>CharacterTools</c> makes for itself is that such an edit becomes a refusal at startup
+    /// rather than a conversation that opens with an empty document. Deleting the one line that
+    /// makes it true left the suite green.
+    ///
+    /// <para><b>Driven, after two source-reading versions of this were each defeated in one
+    /// line.</b> A grep of the method's body for the token <c>QuestionPolicy</c> passed with the
+    /// read deleted and a <em>comment</em> mentioning it left behind — which is what somebody
+    /// removing that line would actually write. Stripping comments closed that spelling and left
+    /// <c>_ = nameof(QuestionPolicy);</c>, a string literal and a <c>using</c> all open, because a
+    /// token is not a read and no amount of text-matching makes it one.</para>
+    ///
+    /// <para>So the guide is handed to <see cref="CharacterTools"/> the way its clock already is,
+    /// and this hands it one that throws. A resource genuinely cannot be un-embedded from a loaded
+    /// assembly — that part of the old caveat was true — but the claim was never about the
+    /// resource: it is that <see cref="CharacterTools.ReadEverything"/> <em>reads</em> the guide,
+    /// so a csproj edit is a refusal at startup instead of a conversation that opens with an empty
+    /// document. That is now a statement about behaviour, and deleting the read fails it.</para>
+    /// </summary>
+    [Fact]
+    public void TheStartupCheckReadsTheGuideAndNotOnlyTheRules()
+    {
+        var missing = new CharacterTools(
+            _f.Rules, _f.Costs, _f.Derived, _f.Validator,
+            guide: () => throw new InvalidOperationException(
+                "The question policy is not embedded in this assembly."));
+
+        var refusal = Assert.ThrowsAny<Exception>(missing.ReadEverything);
+
+        Assert.Contains("not embedded", refusal.Message, StringComparison.Ordinal);
+
+        // And a guide that is there is not a refusal, so the test above is about the guide rather
+        // than about this constructor.
+        new CharacterTools(_f.Rules, _f.Costs, _f.Derived, _f.Validator, guide: () => "a guide")
+            .ReadEverything();
+    }
+
+    /// <summary>
+    /// <b>A rules directory missing any one file is refused at startup — every file, not the one
+    /// somebody picked.</b>
+    ///
+    /// <para>The two tests beside this used a directory holding <c>tiers.json</c> alone, which
+    /// still throws on the Powers whatever else is broken. So <c>ReadEverything</c> could go back
+    /// to <c>ListOptions(Categories[0])</c> — warming one catalogue, the exact bug it was written
+    /// to prevent — and stay green, because a directory with everything except <c>perks.json</c>
+    /// started cleanly and then threw out of the tools. The source-reading test above cannot tell
+    /// "reads every catalogue" from "reads the first one" either: the token <c>Categories</c>
+    /// survives both.</para>
+    ///
+    /// <para>Driven from <see cref="RulesRepository.DataFileNames"/>, so a rules file added later
+    /// is covered without anybody remembering — which is the same reason that list exists for the
+    /// browser, where a file left out of it is a silently empty rules set.</para>
+    /// </summary>
+    public static TheoryData<string> EveryRulesFile() => [.. RulesRepository.DataFileNames];
+
+    [Theory]
+    [MemberData(nameof(EveryRulesFile))]
+    public void ARulesDirectoryMissingAnyOneFileIsRefusedAtStartup(string missing) =>
+        AssertStartupRefuses(missing, corrupt: false);
+
+    /// <summary>
+    /// <b>And a file that is there and is not JSON, which was covered nowhere.</b>
+    /// <c>Program.cs</c> carries <c>JsonException</c> in its catch list specifically for this, and
+    /// only missing files and a missing directory were ever tested — so the half-written or
+    /// half-downloaded rules file, which is the likelier accident than a deleted one, went to the
+    /// same place a working server does.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryRulesFile))]
+    public void ARulesDirectoryHoldingOneFileThatIsNotJsonIsRefusedAtStartup(string corrupted) =>
+        AssertStartupRefuses(corrupted, corrupt: true);
+
+    private static void AssertStartupRefuses(string file, bool corrupt)
+    {
+        var scratch = Path.Combine(Path.GetTempPath(), "pp-mcp-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(scratch);
+
+        try
+        {
+            foreach (var name in RulesRepository.DataFileNames.Where(n => n != file))
+                File.Copy(Path.Combine(RulesFixture.DataPath, name), Path.Combine(scratch, name));
+
+            // Truncated rather than nonsense: half a JSON document is what an interrupted write
+            // or a bad merge leaves behind, and it is the shape most likely to parse partly.
+            if (corrupt)
+                File.WriteAllText(Path.Combine(scratch, file),
+                    File.ReadAllText(Path.Combine(RulesFixture.DataPath, file))[..40]);
+
+            var tools = CharacterServer.ToolsFor(scratch);
+
+            Assert.ThrowsAny<Exception>(tools.ReadEverything);
+        }
+        finally
+        {
+            try { Directory.Delete(scratch, recursive: true); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
     }
 
     /// <summary>

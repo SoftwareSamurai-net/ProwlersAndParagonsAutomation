@@ -173,3 +173,37 @@ resharper_parameter_only_used_for_precondition_check_local_highlighting = none
 # Same JsonValue.Create story as CharacterSheetRenderer, in the test that mirrors
 # its output.
 resharper_redundant_suppress_nullable_warning_expression_highlighting = none
+
+# RulebookCorpusTests.Chapter/Section and ProConApplicabilityTests.Chapter/Section
+# are the shape of data/rulebook/*.json, private to the file that reads it and
+# constructed only by System.Text.Json through reflection. The `.Local` variant
+# rather than the `.Global` one above for the same reason as
+# engine/TranscriptLibrary.cs: nothing outside the reader should know the format.
+#
+# Acting on it would delete the record and with it the test's ability to read the
+# corpus at all.
+resharper_class_never_instantiated_local_highlighting = none
+
+# ValidationIssueStructureTests builds characters with nulls where ids belong —
+# {"Pros":[null]}, a null FeatureId — because that is what the validator has to
+# survive and what the headless command shipped a crash on. The declared types
+# say those cannot be null; the payloads say otherwise, which is the whole point
+# of the case list. Same objection as engine/CharacterValidator.cs and
+# engine/CharacterSheetJson.cs, in the tests that drive them.
+resharper_condition_is_always_true_or_false_according_to_nullable_api_contract_highlighting = none
+resharper_conditional_access_qualifier_is_non_nullable_according_to_api_contract_highlighting = none
+resharper_null_coalescing_condition_is_always_not_null_according_to_api_contract_highlighting = none
+
+[tools/**.cs]
+# ChapterFile and Section are the shape of the JSON this tool writes: every
+# positional property is read by System.Text.Json when it serializes them and by
+# nothing else. Acting on it would drop a field from data/rulebook/*.json, which
+# is not a build error — it is a corpus quietly missing its page references.
+resharper_not_accessed_positional_property_global_highlighting = none
+
+# `const int PageOffset` and `const string ExtractionNote` are compile-time
+# constants and are spelled the way constants are spelled everywhere else here.
+# ReSharper's "Local constants" rule wants camelCase, which would make a constant
+# look like a variable; the offset in particular is a fact about the book, not a
+# working value. Scoped to this tool, which is the only place the two live.
+resharper_inconsistent_naming_highlighting = none

@@ -27,6 +27,12 @@
              line. Only web/ has a test project of its own, because rendering components needs
              one. -->
         <ProjectReference Include="..\..\mcp\ProwlersAndParagons.Mcp.csproj" />
+
+        <!-- The corpus generator. Referenced so that the part of it CI can actually run — the
+             column geometry, which decides reading order — is driven against synthetic pages.
+             Everything else in the tool needs the publisher's PDF, which is gitignored and is
+             not on a build agent, so the corpus itself is committed and asserted as data. -->
+        <ProjectReference Include="..\..\tools\RulebookExtractor\RulebookExtractor.csproj" />
     </ItemGroup>
 
 </Project>

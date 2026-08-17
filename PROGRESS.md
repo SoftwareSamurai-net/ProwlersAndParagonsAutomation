@@ -17,12 +17,12 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3419 across two projects — 3295 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3772 across two projects — 3629 on the engine, 143 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
-| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero |
+| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export, not assumed**: it had drifted to 3 on `master` and to 37 on the reconciled slices before this was checked |
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
 | Licence | MIT, in `LICENSE`, covering this repository's own code only. The game system is © LakeSide Games. `data/rules/` holds structured metadata and this project's own descriptions; `data/rulebook/` holds the book's text **by the author's permission to this repository's owner**, is not served by the public site, and does not travel with a fork |
 
@@ -196,9 +196,617 @@ Not urgent. The site works, and a returning visitor pays nothing.
 
 ---
 
+### 6. The mutation-audit backlog — **closed**, all 33
+
+**Recorded here so it outlives [`docs/HANDOVER.md`](docs/HANDOVER.md)**, which is a note between
+sessions and gets deleted. Three agents that knew nothing about the work were asked, for every
+guard test, to name a plausible bug it claims to cover but would not catch, **and to demonstrate
+it by mutation rather than argue it**. They ran 64 mutations and **38 survived**. Five were in the
+rulebook corpus and were fixed at the time; the remaining 33 were grouped into three slices.
+
+**All three are closed** — A1 (the MCP server's twelve), A2 (browser and replay, thirteen) and A3
+(engine and validator, eight), one completed entry each below. **They were worked concurrently on
+three branches and reconciled afterwards**, which is why each entry quotes a test count measured
+against its own branch rather than against this tree; the reconciled figure is the one in the
+table at the top of this file. The merge touched only this file, `CLAUDE.md` and
+`docs/HANDOVER.md` — no test and no source file was resolved by hand.
+
+None of the 33 was a bug in the product. Every one was a **test that did not hold what it claimed
+to hold**, which is a different and quieter problem: the suite's headline number goes up and its
+grip does not.
+
+---
+
 ## Completed work
 
+### A1, A2 and A3 reconciled onto one branch, and the arithmetic that says nothing was dropped
+
+The three sub-slices of the mutation audit were worked **concurrently, one branch each**, all
+three forked from `5867340`. That is why the three entries below each read as though they were
+the last session: none of them could see the other two.
+
+**They collide on four files and nothing else** — `PROGRESS.md`, `CLAUDE.md`, `docs/HANDOVER.md`
+and `ValidationIssueStructureTests.cs`. The first three are documents and were resolved by hand;
+each branch had rewritten the same counts and the same "the last session did X" paragraph, so the
+conflict was real but its resolution is prose. **The fourth resolved itself and was checked rather
+than trusted**: A1 made `CaseNames` and `Build` `internal` so `McpServerTests` could drive the same
+sheets, A3 added 592 lines of new tests elsewhere in the file, and the two never touch the same
+declaration — so the clean auto-merge is clean for the right reason, not by luck. No test and no
+source file was resolved by hand.
+
+**The check that the merge lost nothing is the test count, and it reconciles exactly.** Base
+`5867340` was 3322 engine + 124 bUnit = 3446. A1 added 79 engine, A2 6 engine and 19 bUnit, A3 222
+engine. Predicted 3629 + 143; measured **3629 + 143 = 3772**, zero warnings, at
+`ContinuousIntegrationBuild=true`. A merge that silently dropped a test file would land under that
+number, and a merge that duplicated one would land over it.
+
+**The count is necessary and not sufficient, so each slice's flagship guard was re-run by mutation
+*on the merged tree*.** A test can survive a merge and stop biting: the count only says the method
+is still there, not that the assertion inside it still fails when it should. Five mutations, each
+confirmed applied with `git diff --numstat` before the suite was believed — A2's tier substitution
+in `SheetView` (4 red), A2's `Find` made case-sensitive (3 red), A2's `print-color-adjust: economy`
+(1 red), A1's substring matching restored in `Mentions` (8 red), A1's `ReadEverything` no longer
+reading the embedded guide (1 red), and A3's `DUPLICATE_PRO` reporting `ValidationSubject.Ability`
+(2 red). All still bite on the merged tree.
+
+**One near-miss worth recording, because the search for it is what should be copied.** Three
+`git stash` commits were left dangling on the A1 branch and one of them holds a test —
+`TheStartupCheckReadsTheEmbeddedGuideAndNotOnlyTheRules` — whose name appears nowhere in the merged
+tree. It had been **renamed**, not lost: it is `TheStartupCheckReadsTheGuideAndNotOnlyTheRules`, and
+deleting `_ = _guide().Length;` from `ReadEverything` turns it red. But a name comparison against
+dangling work is a cheap check that found the one thing worth checking, and `git fsck
+--lost-found` after a parallel-branch merge costs a minute.
+
+**Each entry below still quotes the count measured on its own branch**, deliberately — rewriting
+them to the reconciled figure would make three true statements into three false ones. The figure
+for this tree is the one in the table at the top of this file.
+
+### The MCP server's twelve guards that held nothing — slice A1 of the mutation audit
+
+**Verified on Linux at CI strictness as well as on Windows**, from a `git archive` export of the
+commit rather than in place: 3401 + 124 green, zero warnings. That step is not ceremony here — one
+of the fixes in this slice *was* a Windows-shaped assertion that passed locally and would have
+failed the container (`Path.IsPathRooted(@"C:\Users\…")` is `false` on Linux, because a backslash
+is not a separator there and `C:` is not a root). It was caught by reading rather than by running,
+and the run is what confirms nothing else of the shape is left.
+
+Twelve tests claimed to pin behaviour and did not. Each is recorded with the mutation that
+defeated it, because the mutation is the evidence and an argument is not. Every one was confirmed
+to survive the suite *before* being fixed, and confirmed to fail it after — with the production
+code reverted in between, so no fix is a claim.
+
+**The two that mattered.**
+
+**A `Console.WriteLine` inside a tool body reached the client's standard output with both guards
+green.** `NothingWritesToStandardOutput` scans each line for the token `Console.`, so `Console`
+and `.WriteLine(…)` on two lines contains it on neither.
+`TheBuiltProgramSpeaksNothingButTheProtocol` sent `initialize`, `notifications/initialized` and
+`tools/list` and stopped — so it never entered a tool body at all, and covered the startup path
+and the handshake and nothing else. Confirmed live: line 2 of the JSON-RPC stream was
+`searching for turns invisible`. The same write in `ListOptions` *was* caught, and only because
+`ReadEverything` calls it at startup.
+
+The fix is that the runtime test now **calls all six tools**, and each answer has to carry
+something only the far end of that body produces — a call answered "unknown tool" would otherwise
+satisfy it while running no code at all. **Not another regex**, which would only move the hole:
+the spelling after a multi-line one is a helper in another file, or a library. `CLAUDE.md` claimed
+the two halves were complementary and is corrected; so is the scan's own doc comment. Its
+deadline is 30 seconds and it says which read ran out, because "no greeting at all" and "a request
+that never came back" are both real mutations and mean different things.
+
+**`search_powers` could be widened back to substring matching by one line** — the failure
+`Mentions`' own summary calls "worse than no match", since it arrives looking exactly like a real
+answer. Confirmed live: `search_powers("she bakes bread in the city")` returns **Plasticity**.
+Every existing search test was a positive assertion or a negative on a query whose words happen
+not to be substrings of anything. It is pinned now by four fragments that occur inside a Power's
+name and nowhere in the rules files as a word — `city`/Plasticity, `ration`/Regeneration,
+`art`/Martial Arts, `kinesis`/Telekinesis — each with the positive control beside it, plus the
+baker's sentence held at `found: 0`. **Both `CLAUDE.md` and the method's own summary named
+*Elasticity*, which is not a Power in this rulebook**; a reproduction would have searched for an
+entry that is not there. There turned out to be a **third** copy, in this file — the correction
+missed it, and a reviewer pointed at it rather than a test, because nothing greps prose for the
+name of a Power that does not exist. All three now say Plasticity.
+
+**The rest, where one payload assertion replaced the fields somebody remembered.** This is the
+shape of the whole slice: twelve separate field assertions is what produced the gaps, because a
+field added later is a field nobody wrote an assertion for.
+
+| Was free | Now |
+|---|---|
+| `power_detail`'s `cost_variants` → `null`, plus `category`, `stat_line`, `rank_type`, `cost_type`, `max_rank`, `unit`, `description`, `source_ref` each replaceable with a constant | Every field of all 141, against the model, **with the key set asserted** so a new field fails until it is read. `cost_variants` was the sharp one: it is the only place a caller learns the accepted keys, and `check_character` refuses a `per_rank_variable` Power for lacking one — the tool taught a dead end the judge then closed |
+| `list_options`' gear-feature `cost_type` and `grades` (nulling the second kills the two graded features' keys), flaw `flaw_type`, perk `unit`, talent `ordinary_human_rank` | Every field of every entry of all ten catalogues, plus the entry count and the report's own key set. `TheCatalogueNumbersAreTheRulesOwn` stays — it reads the numbers pairwise and says why each matters; this is the completeness half |
+| An issue could drop `owner_id` and `options` — the two a repair loop cannot work without | Every field of every issue, **driven from `ValidationIssueStructureTests.Cases`**, which is itself held to the validator's source, so the codes covered are the ones the validator can construct rather than a list that goes stale. `CaseNames` and `Build` are `internal` for that reason: a second copy would be the stale one. A companion test asserts the sheets really do reach all six optional fields, since two nulls compared to two nulls is how this gap arose — and it checked **five** when this sentence first claimed six, which is the "three of four" shape a reviewer has caught here before. The sixth is asserted now |
+| `QUESTION-POLICY.md`'s schema **prose and comments** — only the fenced block goes through the strict reader, and with its comments stripped. Rewriting the sentence for a Pro to `ProId`/`Count` passed | Every quoted PascalCase name anywhere in the document must be a property in the character's object graph, by reflection rather than against a list here. Reading is strict, so a proposer following the prose gets an unreadable character |
+| **The whole Claude Desktop half of `docs/MCP-SETUP.md`** — breaking both blocks' `command` paths passed, because every other test regexes `claude mcp add` | Both blocks must parse as JSON, key the server under the same name the Code commands use, and give an **absolute** path ending in the binary this repository builds. One block keeps its doubled backslashes and one has none, which is the difference the pair exists to show |
+| The startup diagnostic the guide's first troubleshooting bullet sends a stuck reader to find | Read off standard error by the runtime test, and required to name the rules directory |
+| `CharacterServer.Instructions` reduced to `"creation_guide check_character the engine decides"` | A length floor, the "never state a figure" clause, and a sentence count. Note the asymmetry that made it worth fixing: every tool description had a 60-character floor and the instructions — the model's only guidance *before* it picks a tool — had none |
+| `ReadEverything` no longer reading the embedded guide | Asserted, and **honestly caveated**: a resource cannot be un-embedded from a loaded assembly, so there is no runtime arrangement in which the guide is absent. The line that reads it is what is checked, and the test says that is a limitation rather than a preference |
+| The search limit's upper bound: `Math.Clamp(limit, 1, 25)` → `(limit, 1, 400)` passed, because every row searched "armor", which matches fewer than 25 | Wide rows on a query that overflows the ceiling, and a test asserting that it really does — so the clamp rows prove something about the clamp |
+
+**What the two adversarial reviews then found, which is the part worth reading.** Fourteen further
+findings across two passes, **most of them inside the fixes above**, then six more from a third
+review pointed at those. All are closed and each was demonstrated the same way. (An earlier version
+of this sentence said "nine of them"; the figure is not reconcilable from the list either way,
+depending on how the two `ReadEverything` findings are grouped, so it is not stated as one.) Four
+patterns, and they are the transferable part:
+
+1. **A marker that proves a code path ran must be something only that path can produce.**
+   `character_sheet`'s marker was the character's name — which the test sends as the argument and
+   `check_character` echoes back as `character.name`. So wiring the `character_sheet` wire name to
+   `CheckCharacter` passed, and a client asking for the printed sheet would have got JSON. It was
+   the only test that drives that wiring at all, since every other one calls the method in process.
+   It is the sheet's masthead now.
+2. **A driven test covers the arguments it sends and nothing else.** Every tool's *refusal* branch
+   was undriven, so a two-line `Console.WriteLine` in `TryReadCharacter` — reached by a misspelled
+   field, the commonest first mistake there is — passed the source scan and the runtime test both.
+   Every tool is now called twice, once to its answer and once to its refusal.
+3. **A source-reading guard is worth what its instrument can see, and mine could see very little.**
+   `ReadEverything` could go back to warming one catalogue (`ListOptions(Categories[0])`) with the
+   grep green, because the token `Categories` survives; and the read of the embedded guide could be
+   deleted and replaced with a *comment* mentioning it, which is what somebody removing that line
+   would actually write. The first is now a runtime theory over `RulesRepository.DataFileNames` —
+   a directory missing any one rules file must be refused, which is the property, and the two older
+   tests both used a directory holding `tiers.json` alone that throws whatever else is broken. The
+   second was defeated twice more — a comment mentioning the token, then `nameof(QuestionPolicy)` —
+   before being made a real runtime test: the guide is handed to `CharacterTools` the way its clock
+   already is, so a guide that throws is an arrangement a test can build and deleting the read
+   fails. **A token is not a read, and no amount of text-matching makes it one.**
+4. **A phrase assertion cannot survive a "not" in front of the phrase.** The baseline note and the
+   server instructions were each pinned by required phrases and each inverted while keeping every
+   one of them — "do **not** stack on top of this baseline, and the Trait Cap applies to the total,
+   which is the baseline alone", and "It is a **myth** that the arithmetic is not guessable". Both
+   are asserted verbatim now. Where the content of a sentence *is* the deliverable, the sentence is
+   the assertion, and the duplicated literal buys the only thing that matters: a change to it has
+   to be deliberate and visible in a diff. The question policy's two confusable shapes needed the
+   same treatment for a different reason — swapping the two groups whole leaves both field sets
+   valid and only the English inverted, which no structural rule can see.
+
+The rest, briefly: `grades` could be *narrowed* rather than nulled, dropping the −4 grades of the
+two Cons the guide calls mandatory (key sets are exact both ways on every payload asserted whole;
+three one-sided `Except` checks remain, each documented in situ where the field set is genuinely
+open); `pros.own` and
+`cons.own` were not read at all, so three fields could go constant and a new one appear unnoticed;
+`Zip` truncates in silence, so an emptied array ran every loop zero times and fired no key check;
+the baseline `note` — the one string in `power_detail` that is not the engine's answer — could be
+inverted to say purchased ranks *replace* the baseline, across all 27 baseline Powers; the question
+policy could name a real field on the *wrong type*, which reflection over a flat name set cannot
+see, so each shape it writes out is now matched against the type that has those fields; the Desktop
+`command` paths could point somewhere no publish command produces, and `(\.exe)?$` accepted `.exe`
+on the macOS block — and then, once the extension rule existed, it asked `StartsWith("C:")`, so a
+`D:` path dropped the `.exe` and passed; `force_field`'s `area_burst` grades were pinned nowhere, so
+losing `burst` from the only place a caller learns it was invisible, and all three of its own-text
+allowances are pinned by key now; `Judgement`'s guarded engine calls were still unentered, because
+the unpriceable character went only to `character_sheet`, which never reaches them; a *corrupt*
+rules file, as against a missing one, was covered nowhere though `Program.cs` catches
+`JsonException` for exactly it; and one *opposite* failure — an extra, entirely legitimate line on
+standard error broke the runtime test, which reads as a stdout regression and is nothing of the
+kind, so it drains until a line names the rules directory.
+
+**What is still not closed, stated rather than left to be found.** The stdout pair covers the
+startup path, the handshake, and both branches of every tool; a write reachable only from an
+argument shape nothing sends is still seen by neither guard. A `list_options` field that is null
+for every entry in its catalogue would be caught now that key sets are exact, but the general point
+stands: these tests are worth the payloads they ask for.
+
+
 Newest first. Link the PR so the reasoning stays findable.
+
+### Thirteen guards on the browser and the replay that were not guarding anything
+
+The audit backlog in `docs/HANDOVER.md` listed 38 surviving mutations across the whole tree,
+grouped by subsystem. This closes the browser-and-replay group — **all thirteen, each
+demonstrated by re-applying the mutation, confirming red, reverting and confirming green.**
+
+**The first five are one bug class, and it is the one `ReplayRenderTests` was written for.** The
+four `.stat-block` figures and the Power ranks were genuinely pinned to the recorded character;
+nothing else on the page was. The tier in the masthead and the colophon, the budget sub-line, the
+Quote, the Motivation, the Description, the Connections and a rankless Power's stand-in rank could
+all be moved from the printed character to the visitor's own with the suite green — so a replay
+would print Vera Nunn's name over somebody else's tier, budget, words and connections.
+
+Five more named assertions would have moved the boundary rather than closed it: the eighth field
+somebody adds is unguarded again the day it is added. So the test compares **two renderings of the
+same character** — one where the session holds it, one where the session holds somebody else
+entirely and it arrives as a parameter — and asserts they are the same page. Every read of
+`Session.Sheet` that should have been a read of the parameter is a difference between them,
+whatever field it lives in. Three cases it cannot reach have their own tests: the stand-in rank
+(no recorded character has a rankless Power, so it is built from the Hero sample), the budget flag
+the replay passes for a Villain, and a capitalised address, which Blazor routes happily and
+`ReplayLibrary.Find` then refused.
+
+**The transcript honesty rules were narrower than they read.** The figure scan read `Title`,
+`Blurb` and the recorded lines — never the character, which is what the sheet at the end is
+printed from, so a Hero Point total in a Motivation, a Quote, a Description, a Connection or a
+Flaw's narrative detail passed. It walks the character by reflection rather than naming six
+fields, because a list of field names is exactly what goes stale here. Its word set was the
+engine's vocabulary and not the page's: `ReplayVerdict` labels the gap `Over by` and `Left`, and
+"nineteen over … three to spare" matched none of `HP|hero points|points|edge|health|resolve|
+budget`. Those positional words now count, at a **one-word window** rather than three — at three,
+Vera Nunn's "an apron over a cardigan" is a quoted figure.
+
+And questions were counted by `'?'`, so seven imperative demands asked nothing at all — a
+questionnaire, in the one file whose job is to demonstrate the opposite. The counter recognises a
+demand now, and is honest in its own doc comment about being a heuristic; a second test counts the
+**person's replies**, which no phrasing can get round.
+
+**Three CSS rules were asserted by presence rather than by value**, which is the same mistake in
+three places: `print-color-adjust: exact` could become `economy` (every heading bar prints white —
+the failure the rule's own comment describes), `.hp` could be set at 2.4rem/800 (a Hero Point cost
+three times the size of the rank beside it), and the 7pt print floor matched only sizes already
+written in `pt`, so the two densest blocks on the sheet could go to `0.3rem` and `4px` unseen. The
+floor now requires every printed size to be in points, which it has to be to mean anything: `rem`
+is relative to a root size the print block resets.
+
+**"A failed transcript fetch must not stop the app" had no test**, because the guarantee was a
+`try`/`catch` in top-level statements that nothing can reach. Deleting it was green, and one 404
+then took the whole character generator to a blank page. It is `ReplayLibrary.LoadAsync` now,
+which takes the fetch as an argument and can therefore be handed one that fails — four tests,
+including that one file short leaves **no** recordings rather than most of them, plus a source
+test that `Program.cs` actually goes through it. Both halves are needed: a guarded loader nobody
+calls guarantees nothing.
+
+**And the strip-tags trap was in the helper `SheetRenderTests` uses to catch it.** `Rendered`
+replaced every tag with a newline and one test then collapsed all whitespace, so
+`<b>Armor</b><span>8d</span>` read as "Armor 8d" — the string the assertions look for, produced by
+the bug they exist to find. Demonstrated both ways: splitting a Pros line into per-word elements
+is red against the concatenated text nodes and green against the old helper.
+
+**Then two reviewers found fourteen ways round the fixes, and thirteen are closed.** That is the
+most useful number in this entry: the first pass at closing a finding is roughly half right, and
+the review that goes looking for the *hole in the fix* has now been the most valuable one three
+sessions running.
+
+**Nine were one shape wearing different clothes: a check that reads one place while the thing it
+guards is decided somewhere else.** Three CSS guards read the first matching rule, or one rule by
+its exact selector, while the cascade reads the last — so a second `.hp` rule further down, or a
+second `font-size` inside the same block, or `print-color-adjust: economy` written after `exact`,
+all did what the guard forbade with the suite green. They read every declaration of every rule
+that targets the class now. The 7pt floor read `font-size` and never the `font` shorthand, which
+sets a size without writing the property; and it reads declared sizes, so `zoom: 0.55` on the
+printed sheet left every declaration legal and printed the stat lines at about 4pt. The shorthand
+and page-scaling are both refused outright. The source check on `Program.cs` asserted the guarded
+loader was *called*, which stays true if the fetch is hoisted back outside it — so `LoadAsync`
+takes the `HttpClient` and there is nothing left to hoist. And the path it fetches from was
+pinned by a `Contains`, which `data/transcript` satisfies against `data/transcripts`: the
+one-character mistake the test existed to catch, passing it.
+
+**Two were preconditions that had quietly stopped being true.** The sheet-equality pool crossed
+tiers on one row of four, because Vera Nunn is the only recorded character who is not Standard —
+so the masthead, the Trait Cap and the budget sub-line would have stopped being covered the day
+she changed, with nothing failing to say so. And the verdict panel's Perks and Gear rows were
+asserted against the engine while every character in play had zero of both, which cannot tell two
+characters apart; that panel now gets the same two-visitors treatment the sheet does. The
+Villain's budget finding was asserted to be *not called illegal* and never asserted to be
+**shown**, though showing it is what that recording is about.
+
+**One was not closeable by vocabulary, and needed a different kind of rule.** "She lands on 75
+exactly, and the tier hands her 75 to spend" quotes her spend and her budget in one sentence and
+matches no word list anybody could write. So a second rule asks the engine what the figures are
+and refuses those numerals outright, in digits and spelled out — which is what `CLAUDE.md` says
+the rule is. It sits beside the vocabulary rule rather than replacing it: the vocabulary rule is
+about *shape*, and "over by a full nineteen" is a quoted figure whether or not nineteen is the
+right answer.
+
+**The one still open is recorded rather than fixed**, because it cannot be fixed by a test.
+`IsARequest` recognises the phrasings a demand is normally written in; an unlisted verb —
+"Settle the tier. Work out whether she is one Power or several." — scores zero. Its companion
+counts the person's *replies*, so seven demands bundled into one turn cost one reply. An earlier
+version of that note called the reply count "the half no wording can defeat", which was wrong and
+now says so. Four hand-written recordings that change rarely have one real guarantee, and
+`CLAUDE.md` already states it for the prose: **read a changed transcript.**
+
+### Slice A3 of the mutation audit: eight guards that did not hold, and the three that were the wrong shape
+
+Eight findings from the mutation audit recorded in `docs/HANDOVER.md`, all in the engine and
+validator. **None of them was a bug in the product.** Every one was a test that did not hold what
+it claimed to hold, demonstrated by a mutation that left the whole suite green — and every fix
+here is demonstrated by the same mutation turning it red, then reverting to green.
+
+**The first three are one bug in three places, and it is worth naming as a class: a lookup that
+silently skips what it omits turns its own omissions into exemptions nobody chose.**
+
+- **A validation issue could name the wrong kind of thing.** `EachCodeReportsTheKindOfThingItIsAbout`
+  did `TryGetValue(...) continue` over a table missing **eighteen of the validator's forty-five
+  codes**, so `DUPLICATE_PRO` could be relabelled an Ability problem — verbatim the failure the
+  test's own doc comment exists to prevent, and one a repair loop follows into the wrong
+  dictionary. The fix is the shape rather than the eighteen entries: the table is now indexed
+  rather than probed, so an unlisted code throws, and `TheKindOfEveryCodeIsWrittenDown` holds it
+  to the validator **in both directions** — a new code fails until somebody writes down what it is
+  about, and a removed one fails until its line goes.
+- **An issue could offer options of the wrong kind entirely.** `EveryOptionOfferedIsOneTheRulesAccept`
+  asked only whether each string was an id of *anything*, as a union over ten collections — which
+  every id in the rules satisfies. So `POWER_WITHOUT_SOURCE` could offer the six Ability ids: a
+  repair loop writes `"agility"` into a Power's Source, gets `UNKNOWN_SOURCE` back, and never
+  terminates. What each code offers is now written down per code, and **a code carrying options
+  that nothing characterises fails** rather than passing on the union.
+- **The "every code is provoked" guarantee was spelling-shaped**, and so was every structural
+  invariant downstream of it. The scan was `"([A-Z]+(?:_[A-Z]+)+)"`, which requires an underscore:
+  a clean A/B on the same unreachable check had `TOO_MANY_CONNECTIONS` going red and
+  `TOOMANYCONNECTIONS` staying green. It now matches by case. **The part that matters is that it
+  is driven against a synthetic source**, in `TheCodeScanIsNotDefeatedByHowACodeIsSpelled` —
+  reading the shipped validator cannot distinguish a pattern that finds every code from one that
+  finds every code somebody happened to spell with an underscore. This is the third time that scan
+  has been too narrow, and both earlier escapes were also *how the code was written*.
+
+And the five specific ones:
+
+- **A Power could be deleted from a sample character.** The budget assertion was `spent <= budget`
+  and nothing else, and "fills every section" only asks whether a section is non-empty — so
+  deleting `stun` from the Hero was green. The budget is now checked at both ends, the Powers each
+  sample carries are recorded, and a second test says *why those Powers*: a baseline that is half a
+  Trait against one that equals it, a rate below 1 HP per rank, a rankless Power, two Super Senses
+  options, a Power carrying a Con, a Source-less Power. Naming the ids catches a deletion; the
+  shapes catch a replacement that costs the preview the thing it was previewing.
+- **A Power description could be replaced with unrelated prose.** `verified_fields` carries
+  `description`, and that flag is a boolean claim about a page somebody read which **survived any
+  edit to the text it was made about**: Armor's whole description became "A quiet afternoon in the
+  garden, with tea." and every test stayed green, the verified flag included. The descriptions are
+  now digested in `CanonicalPowerDescriptions`, so the claim is bound to the text and the failure
+  names the page to go and read.
+
+  **Three similarity framings were measured first and none of them is a rule** — recorded so
+  nobody re-derives them. A description need not repeat its own Power's name: 48 of the 141 do
+  not, and that is good writing. Word overlap against the printed entry in `data/rulebook/` fails
+  because these descriptions are deliberately *re-worded* rather than quoted — Blind Fighting's
+  shares one distinctive word in nine with the page it came from ("sight" for "vision", "fight"
+  for "combat"), which is the policy working. Ranked against all 1439 sections of the book, 130 of
+  the 141 match their own entry best, but Blind Fighting comes **215th** and the Super Senses
+  options cannot be scored at all, because the book gives the group one entry rather than one per
+  option. Every framing needs a threshold plus named exemptions. **What no test can say is whether
+  a description is *true*** — a wrong sentence digests like any other. That is the same limit
+  `CLAUDE.md` already records for the replay transcripts, and it is closed by reading the page.
+- **An applicability caveat could state the opposite of the rulebook.** Penetrating's became
+  "Applies to absolutely any Power at all, no conditions." and the suite stayed green, because the
+  only test asked whether it was non-blank and ended in a full stop. This matters more than it
+  would elsewhere: **the design is that a caveat is shown to the player instead of being enforced**,
+  so its wording is the entire deliverable and there is no mechanism behind it to be right when
+  the sentence is wrong. The fifteen are now transcribed in `CanonicalCaveats` with the printed
+  clause behind each, **and the clause is asserted to appear verbatim under that option's own
+  heading in `data/rulebook/ch02-characters.json`** — under its own heading rather than anywhere
+  in the chapter, which a reviewer showed is a different thing: Carrier Attack transcribed with
+  Ongoing's real printed sentence passed a whole-chapter search. A caveat must also *restrict* —
+  every one opens "Only for" or "Not for" — which refuses the inversion even if the record is
+  edited to agree with it. And the recorded clause has to say what it constrains: containment
+  accepts any fragment, so trimming one to the boilerplate "This Pro applies to" was a correct
+  quotation of the right entry that says nothing, and passed. What is left uncaught is a caveat
+  that restricts the *wrong* thing, changed in both places at once; the printed clause sits
+  beside it so a reader can see.
+- **The pickers' documented "rules-file order" had no test**: `.Reverse()` on `ProsFor` was green.
+  It is not cosmetic — Ch.2 prints Pros and Cons alphabetically and a player is looking one up by
+  name. Asserted as a subsequence of the rules file, so which options a Power is offered stays
+  `IsApplicable`'s answer.
+- **`GradesFor`'s defensive intersection is behaviourally dead against the shipped data**, and
+  that was the honest finding rather than a defect: every grade an allowance records is one the
+  option prices, guaranteed by `EveryOwnTextAllowanceResolvesAndCitesItsPrintedText`, so replacing
+  it with `return allowance.Grades.ToList();` changes nothing. It was still worth a test, because
+  a guard whose only evidence comes from data that cannot exercise it is a guard nobody knows the
+  state of — and the test had to be a **synthetic** allowance naming a key the Pro does not price,
+  since no reading of the shipped data can reach it.
+
+**One test-file defect, fixed:** `SampleCharacterTests` called `Sample("Hero")` against a
+`which == "hero"` comparison — ordinal and case-sensitive — so it silently built the **Villain**
+and the Hero's export path went untested under a test named for it. `Sample` now refuses a name
+that is not a sample rather than falling through to the other one.
+
+**The lesson from the previous slice held throughout**: a guard test that reads the shipped data
+cannot tell you the mechanism reads it too. Three of the fixes here are driven against synthetic
+input for exactly that reason — the code scan, the `GradesFor` allowance, and the caveat record's
+anchor in the corpus.
+
+**Then two adversarial passes — one told nothing about the work, one pointed at the fixes — found
+six more, and three of them were the same defect one table over.** Both reproduced all nine
+mutations as red first, so the fixes hold; what they found is what the fixes did not reach.
+
+- **A kind table keyed by code cannot see a swap *within* a code's list**, and seven codes serve
+  more than one kind. Changing `CheckTraitSources`' Ability argument to Talent reported
+  `UNKNOWN_SOURCE` on `toughness` as a Talent problem with the suite green — the same
+  never-terminating repair loop the slice was about. Closed by the rule the table cannot state:
+  **the id has to name a thing of the kind claimed.** Deliberately with no exemption list — half
+  these findings report an id the rulebook does *not* have, so "resolves against the rules" alone
+  would have to excuse them, and excusing them is what let it through. An id resolves against the
+  rules **or** against the part of the character the kind names.
+
+  **The first version of that rule skipped `Character`, and this entry claimed it "covers every
+  finding without excusing one", which was wrong** — a third review pass demonstrated it. Eleven
+  codes are Character-kinded by design and two more may be Character *or* Power, so mutating a
+  kind *towards* Character walked through the rule, through the "a subject is named" invariant,
+  and through the table, which accepts any entry in a code's list: `PER_UNIT_WITHOUT_UNITS` could
+  report a Power id as a fault of "the character". Character is checked now, against the three
+  things that belong to a sheet rather than a Trait — a Perk, a package, a Pro or Con.
+- **The code scan was still spelling-shaped**, one spelling further on: `"TooManyConnections"` was
+  invisible to every guarantee built on it. Widening the pattern again would not have closed it —
+  a pattern can always be out-spelled — so the case is now **enforced where a code is written**.
+- **And it read one file**, so moving the codes to a constants class or making the validator
+  partial voided all three guarantees silently. Both are ordinary refactors. It reads the engine
+  now.
+- **`MustOfferOptions` had no exhaustiveness check** — the identical hole to `ExpectedKinds`, left
+  open on its sibling. A new code with `Options = []` omitted from the list passed both it and the
+  option check, the first by not listing it and the second by having nothing to walk. Read off the
+  source now, because a code that offers options only *sometimes* is what a behavioural check
+  cannot see.
+- **The sample budget floor could not see the Powers at all.** A Standard-tier package plus
+  eighteen Traits clears half the budget alone, so a Hero with **no Powers whatsoever** passed it
+  — and this file's own account of the fix said otherwise. Corrected, with the Powers costed
+  separately.
+- **The "every shape" test read `powers.json` rather than the sample**, so `Prerequisite` and
+  `CostPerRank` stayed true while the preview stopped showing any of it: zeroing Armor, Danger
+  Sense and Resistance left every shape "present" and Armor printing its bare baseline instead of
+  4 free ranks and 4 bought reaching 8. It asserts on the selections now.
+- The picker-order narrowing covered Pros only, so `ConsFor` reduced to `.Take(1)` passed it.
+
+**Two of the round-two assertions were wrong when first written, and measuring corrected them** —
+worth recording, because both were plausible: the Hero's Powers cost **20 HP of 125**, not a fifth
+of the budget, and `pros.json` is **not** alphabetical (Zone/Nova sits between Area/Burst and
+Armor Piercing, following the printed pairing), which is what makes the Pro half of the order
+check real where the Con half cannot be.
+
+**A third pass then re-reviewed those fixes. All six held; it found five more**, and the pattern
+across all three rounds is worth stating plainly: *the escape is always one indirection past
+wherever the rule was written.*
+
+- The `Character` skip above — this file's own overclaim, now corrected.
+- **`OwnerId` had no invariant at all**, only three spot tests, so the two sites they miss could
+  hold the printed *name* instead of the id. That exact regression is recorded in the validator's
+  own comment as having happened once already.
+- **`UNKNOWN_TRAIT_SOURCE` was never provoked on the Talent side**, so the Talent arm of its
+  option list was dead and could be made to offer perk ids with the suite green — the round-one
+  defect alive on a branch no sheet visited. **The "every code is provoked" guarantee is per
+  code, not per construction site**, and that gap is now demonstrated rather than theoretical.
+  The case list reaches it.
+- The spelling convention reads two call shapes, so **a third helper is invisible to it** — the
+  same escape one indirection on.
+- `MustOfferOptions` catches a code added with `Options = []` but not one written with no
+  `Options` line at all and delisted in the same breath. That is a two-file coordinated edit, so
+  rather than chase it the Source findings are now asserted outright — which is the case the
+  option check existed for.
+
+**A fourth pass re-reviewed those. All five held; it found four more, and two of them were this
+file overclaiming again.** Both are recorded rather than quietly corrected, because the shape of
+the mistake is the useful part: *a fix that enumerates one spelling of a thing gets out-spelled,
+including when the thing being enumerated is the fix.*
+
+- **The helper pin was the same mistake one spelling on.** It matched methods *returning* a
+  `ValidationIssue`, so `AddFinding(List<ValidationIssue> into, string code, …)` slipped past on
+  the angle bracket — and appending to a passed-in list is this validator's house idiom, not an
+  exotic shape. A generic `Finding<T>` got past it too. This entry claimed "the set of methods
+  that build a finding is pinned"; it was not. **Construction sites are counted now** — the thing
+  that actually makes a finding, which cannot be hidden behind a signature — and the rule is that
+  exactly one of them takes its code from a variable.
+- **There are five places that offer the six Sources, not four.** This entry said four, and the
+  test did too: it counted a line shared by the Ability and Talent arms twice and missed the
+  fifth entirely. The one missed was the **blank** Source — a Trait that names a Source and then
+  names none, which has its own sentence because printed through the other one it read "names a
+  Source, '', that is not one of the six". Its options could be made perk ids with the suite
+  green: the same dead-branch defect as the Talent arm, in the same method, one round later.
+- **Requiring words after the boilerplate opener was not enough.** "This Pro applies to Powers
+  that" cleared it, and twelve of the fifteen entries open "Powers that…" after their opener, so
+  nearly all of them could be trimmed to the same empty phrase. It is the *content* word that has
+  to survive.
+- And that check refused a record holding the substantive clause **alone** — verbatim, under the
+  right heading, strictly more informative — telling the reader to go and find a fifth opener in
+  a book where nothing was wrong. The opener is optional now.
+
+3446 tests to **3668** — 3544 on the engine, 124 in bUnit. Zero warnings at CI strictness.
+
+### The rulebook corpus was materially wrong, and its tests could not see it
+
+`data/rulebook/` shipped in [#43](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/43)
+described as the book's text, verbatim beneath each heading. It was not, and the way it was wrong
+is the dangerous way: **the damaged prose still reads as English.**
+
+**The extractor split every page at a fixed midpoint and emitted the left half, then the right.**
+That is right for the two-column body and destroys anything set full width — it cuts each line in
+two and files the halves in different blocks. **Every chapter opening in the book is set full
+width.** Chapter 2's read:
+
+> "run game more Characters include all beings in the game world, from the Heroes the GM. They
+> include not only sentient beings but also animals, and so on."
+
+against a page that prints "…from the Heroes **run by the players to the Villains, Foes, Minions,
+and Extras run by** the GM. They include not only sentient beings but also animals, **monsters,
+mindless undead, unthinking robots, career politicians,** and so on." Two runs gone, the orphans
+parked at the front, and nothing about the result looks broken.
+
+Four more defects, all of which the suite passed:
+
+- **135 of 1303 sections had no text at all.** Chapter 9 ended with eighteen sections scraped off
+  the blank Hero Sheet form on printed p.189, under headings like `EEDDIITTIIOONN`.
+- **83 sections carried a doubled page number mid-sentence** — "…per extra force field. 2299 PRO
+  Inviolate…". The display faces are faked bold by drawing the text twice a fraction of a point
+  apart, so the two passes interleave.
+- **The rotated marginalia was read as prose**, giving `retpahc` — "chapter" reversed — as a
+  section heading.
+- **Two facing entries on printed p.52 were one section**, headed `OVERKILL PHASE SHIFT`. That is
+  the two-column interleave `CLAUDE.md` already warned about, in the shipped data.
+
+**Measured rather than asserted.** A word-adjacency check against the PDF, calibrated so the two
+entries the old test vouched for score 2–6%, put **114 of 1095 sections at 10% or more fabricated
+adjacencies**. The damage concentrated in chapter openings, tables and Ch.8's stat blocks; the
+narrative Power entries were sound throughout, and Force Field's load-bearing sentence was
+verbatim correct.
+
+**The extractor no longer exists as a scratch project.** It was one, and by the time the output
+was found to be wrong it was gone — so the corpus could be neither audited nor regenerated. It is
+now `tools/RulebookExtractor/`, in the solution so it cannot rot:
+
+```bash
+dotnet run --project tools/RulebookExtractor -- <rulebook.pdf> data/rulebook
+```
+
+It finds the gutter **per page** and decides a line crosses it by whether a **word actually sits
+astride it** — not by whether the line's outermost words fall either side, which is equally true
+of two facing headings sharing a baseline, and is exactly how p.52 merged. Full-width lines then
+break the page into bands, and the columns are read within a band. Furniture goes by rule rather
+than by string: the running foot by position, the purchaser watermark **by font** (6pt Helvetica,
+780 words — four per page across 195 pages, and nothing else in the book), the vertical chapter
+title by text orientation. Doubled glyphs are removed by testing that two glyphs are the same
+character *and physically on top of each other*, which "2299" is and a legitimate "aa" is not.
+
+**Words are split on the page's own space glyphs.** Guessing from letter gaps turned "FORCE FIELD"
+into "FORCEFIELD" — in the condensed display face a word space is barely wider than the gap
+between two letters. A gap break is kept alongside, because two facing headings have no space
+glyph between them at all.
+
+**`RulebookCorpusTests` was almost pure shape-checking and now asserts content, every guard
+demonstrated by mutation.** All the defect shapes were re-injected and every one goes red:
+blanking a section's text, the given name of the watermark, a doubled page number, `retpahc`,
+collapsing a chapter's citations onto one page, overlapping two chapters' ranges, stripping the
+character names from Ch.8, and **the original scramble itself, pasted back verbatim.**
+
+**Three tests do the heavy lifting, and each exists because a reviewer defeated what was there
+before.** An adversarial pass rotated all 1,492 section bodies onto the wrong headings and the
+suite stayed green; it deleted 90% of the book and the suite stayed green; it blanked all 33
+sections of Chapter 5 and the suite stayed green.
+
+- `TheCorpusStillHoldsTheWholeBook` — a floor on total prose. A null check cannot see truncation.
+- `EveryPowerEntryOpensWithItsOwnPrintedStatLine` — **the one that ties a body to its own
+  heading**, across 116 entries rather than four spot checks, by cross-checking the Range against
+  `data/rules`. It is also the sharpest reading-order check there is: Ch.2 sets one Power after
+  another down two columns, so any column mistake shows up at once as an entry opening with its
+  neighbour's tail.
+- `EveryPublishedCharacterIsNamedInChapterEight` — the names come from `PrebuiltHeroes`, which is
+  held to the printed sheets, so it cannot be satisfied by whatever the extractor produced.
+
+**And `ColumnLayout` is now unit-tested against synthetic pages**, because nothing in CI ran a
+line of the extractor: the committed corpus can only show you layouts the book happens to
+contain, and every failure here has been layout-shaped. Disabling either gutter detector fails
+those tests.
+
+**An adversarial review found the first attempt at this was not sound, and the headline defect was
+still in the data by a new route.** That reviewer is the reason this entry describes a working
+extractor rather than a plausible one, and what it caught is worth recording:
+
+- **Sixteen pages were still column-scrambled**, 10% of the corpus, because the gutter search took
+  the strict emptiest point and then measured the run at exactly that count. On printed p.83 the
+  minimum sits on a **1pt spur** where two lines happen to end, while the real 20pt gutter beside
+  it is crossed by seven — so the spur failed the width test, the page was called single-column,
+  and both columns were emitted interleaved. The same defect this change exists to fix, reached
+  from the other direction, on the very page used to demonstrate the fix.
+- **108 headings the old corpus had were gone**, including every named character in Ch.8 — see
+  above; a name is followed straight by its "hero"/"villain" label, so it never got a body and was
+  discarded as empty.
+- **The tests were close to theatre**, which is what the three content tests above now answer.
+- **A claim in every chapter file was false.** The embedded note said the doubled glyphs were
+  collapsed; the de-duplicator written for that job turned out to change **not one byte** of the
+  output, because every element that doubles lives in the running foot and is dropped by position.
+  It is gone, and the note now says what actually happens.
+
+**And fixing the gutter took four attempts, each of which broke something the last one had fixed.**
+Worth stating plainly, because the lesson is that this is not one rule: raising the tolerance fixed
+p.83 and left the band too wide, so every line on p.81 read as full-width; switching to per-line
+gaps fixed p.81 and broke **26 of Chapter 2's Power entries**, because on an ordinary two-column
+page almost every line sits in one column and contains no gap at all. **The old extractor, for all
+its faults, got all 116 of those right** — measured, not assumed, and that measurement is what
+stopped a regression shipping as a fix. The answer is two detectors with a test each.
+
+**Known limits, stated rather than tuned away.** Chapter 8 sets its stat-block headings in small
+capitals, which arrive as `aBIlItIes` and `FlaWs`; two rules were tried — point size, then ascender
+height — and the second was worse than the disease, uppercasing "Points" to "POINTS" while leaving
+the real cases untouched. A table of three or more columns is read across rather than down. Both
+are recorded in the extraction note in every chapter file. Tuning a heuristic until it looks right
+on the two examples to hand is the thing this repository forbids everywhere else.
+
+Chapter 9 now ends at printed 188. Printed 189 is the blank Hero Sheet form — a form, not prose.
 
 ### Two Heroes in the rulebook this tool refused, and the question nobody had asked
 
@@ -511,9 +1119,10 @@ above were found rather than reasoned:
   unrelated Powers matched on a word inside their descriptions. **A search that always returns
   its five best rows reads as five answers however carefully the caution is worded**, so
   `nothing_matched_by_name` and a note now say it outright. The same run found that substring
-  matching answered "she bakes bread in the city" with **Elasticity**; matching is word by word
+  matching answered "she bakes bread in the city" with **Plasticity**; matching is word by word
   with a shared-prefix rule now, because a match like that is worse than none — nothing in it
-  looks wrong.
+  looks wrong. (This entry said *Elasticity*, which is not a Power in this rulebook. It was the
+  third of three copies of that mistake and the one the first correction missed.)
 
 Smaller things worth keeping: standard output carries the protocol and nothing else, asserted by
 reading the source for `Console.` followed by anything but `Error` (the obvious check for

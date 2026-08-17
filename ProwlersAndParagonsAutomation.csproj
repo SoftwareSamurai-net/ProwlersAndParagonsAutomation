@@ -17,6 +17,7 @@
         <Compile Remove="web\**" />
         <Compile Remove="mcp\**" />
         <Compile Remove="tests\**" />
+        <Compile Remove="tools\**" />
     </ItemGroup>
 
     <ItemGroup>
