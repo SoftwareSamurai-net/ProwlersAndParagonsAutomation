@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3849 across two projects — 3653 on the engine, 196 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3852 across two projects — 3656 on the engine, 196 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -303,7 +303,63 @@ through an iframe, which is **measured rather than eyeballed**: `clientWidth 360
 rasterised and read — three sheets still three pages in both palettes, ink on white paper,
 heading bars still a tint, Notes and Origin still ruled at a writable 4mm, gear still flush left.
 
-3841 tests to **3849**. Zero warnings at CI strictness. **Payload: unchanged** — no file added,
+**Two reviewers that knew nothing about it then found three code defects and eight guards that
+held nothing.** Every one of the eight was demonstrated by mutation there and re-demonstrated
+here after the fix.
+
+**The three defects.** Two were found independently by both reviewers, which is worth noting: the
+overlap was not redundancy, it was corroboration on the two that mattered.
+
+- **`.sheet-section > table` read `width: calc(100% - 1.2rem)` and was a matched pair with the
+  0.6rem inset on its siblings.** Phase 0 moved the inset onto the scale and left the width
+  behind, so a table's right edge fell 3.2px short of every other child of its box *and* of the
+  heading bar above it — measured at 8.00px of inset on the left against 11.20px on the right,
+  five boxes a sheet, both palettes. **The change written to abolish paired literals left one
+  standing one property name outside its own scope**, and no test could see it because `width` is
+  not padding, margin, gap or font-size. `NoScreenCalcNamesARawLength` closes the class rather
+  than adding `width` to a list: what makes the bug possible is not the property, it is a number
+  that has to agree with a token and has no way of doing so. Now 75 of 75 children of every
+  section measure symmetric.
+- **`--text-3xl` was declared 2.1rem while four documents called it "exactly 2.15rem… not to be
+  tidied onto a ratio".** It had been tidied onto the ratio. So the one rung the notes single out
+  as unpinnable was the one already off its stated anchor — and unlike `--text-xs` it had no
+  test. It is 2.15rem and pinned, and the note now states what the anchor *costs*: a 1.26 top
+  step rather than ~1.2, which is the honest version of "anchored, not derived".
+- **`.replay-figures.spent-on` became a rule identical to its base**, 0.8rem against 0.85rem with
+  both snapping to one rung. It was the modifier's only declaration, so the class did nothing
+  anywhere while a component still emitted it — **the `.label-line`-applied-to-nothing shape this
+  very entry cites as a lesson, reintroduced in the same commit.** The distinction was 6% and
+  below perception, so the rule and the class go rather than inventing a new size difference:
+  that is Phase 1's hierarchy work, not Phase 0's mechanical pass.
+
+**The eight guards, and the transferable part of each.**
+
+| Held nothing because | Now |
+|---|---|
+| The scale check read token **names** and never a value, and nothing else in the suite pinned any `--space-*`. `--space-4: 4rem` re-padded most of the app, the narrow shell and the strip's bleed from 12px to 64px, green | Every rung's value is recorded and asserted, and the rungs must be strictly increasing. Same pattern as the server instructions: where the value *is* the deliverable, the value is the assertion, and the duplicated literal buys a change having to be deliberate and visible in a diff |
+| The declared set was computed from **theme.css alone**, so a `--space-9` declared in a `:root` block inside app.css joined the scale invisibly and the raw-length scan waved through every `var()` using it | Both stylesheets and `index.html` are checked to declare no rung at all. theme.css is the only file allowed to |
+| The unit list was `px\|rem\|em\|ch\|vh\|vw\|%`, so `margin-top: 9pt` walked through — and so would mm, cm, in, pc, ex, lh, vmin, dvh and the container units. **An allow-list of units is the wrong shape for a ban** | Every CSS length unit, longest-first |
+| **`@page` sits *above* `@media print`**, so it was inside the region this file calls the screen half, and the guard's own doc claim that print is out of scope was false for it. It passed only because `mm` was missing — closing that gap would have turned a live print declaration red | Excluded by name, and **asserted present before being removed**, so a moved or renamed page box fails rather than silently un-excluding itself |
+| `BleedTokenOf` took the first negative token found **anywhere** in the shorthand and assigned it to both sides, so it could not tell a horizontal bleed from a vertical one. A margin pulling the strip 24px *up* over the step nav, with positive side margins and the rail left 48px wider than the strip, satisfied the pairing | Both the padding and the margin readers parse the four sides properly. Splitting on whitespace was the cause: `calc(-1 * var(--space-6))` contains three spaces |
+| `Contains("position:sticky")` is satisfied by a declaration a **later one in the same block** overrides, so `position: static` un-stuck the strip while it kept the top elevation step — with the guard's own comment claiming that could not happen. **The identical shadowing trick the `.hp` guard in this file was already hardened against; the new guard did not inherit the fix** | The last `position` declaration wins, as the cascade does |
+| The rank-word band is **absolute**, and the rank it glosses is a rung of the same scale, so setting the gloss to that rung left it exactly level with the figure it sits behind | The relationship is asserted. Before Phase 0 the two were unrelated literals in two rules and this could not be expressed at all — **the scales made a describable claim into a checkable one**, which is the clearest thing Phase 0 bought |
+| The 1px exemptions are justified **entirely** by the `border-bottom` they sit against. Replace it with `text-decoration: underline` and the padding is dead decoration with the stated reason false, and a guard checking the declaration string passed. Its own doc calls a stale exemption "worse than a missing one" | Each exemption carries its precondition, looked for across every rule targeting the element — `.hp` supplies the `.power-entry .head .hp` case by inheritance, so requiring it in the same block asserted something never true |
+
+Three elevation steps may also no longer be three copies of one shadow, which a name-only check
+could not have told apart either.
+
+**And a method finding, which is the one to carry forward.** **Two reviewers running concurrently
+in one worktree poison each other** — both mutate files and revert with `git checkout`, so one
+caught the other's `--text-sm: 2rem` and read it as a finding, both lost runs to `index.lock`,
+and one's cleanup deleted the other's harness. Give each its own worktree. Relatedly, **a numstat
+check taken *before* the test run does not catch a mutation reverted mid-run**; the harness checks
+after as well now, which is the same lesson as reading `Passed!` off a crashed run, one level down.
+
+The headline count also read 3849 against a tree of 3850 for one commit, copied from a run taken
+before the last test was added. Both reviewers spent a finding on it, which is a waste of a
+reviewer: **take the number from the run.**
+
+3841 tests to **3852**. Zero warnings at CI strictness. **Payload: unchanged** — no file added,
 no byte of CSS beyond the token declarations.
 
 ### The visual redesign: two faces, and the filter box somebody actually asked for

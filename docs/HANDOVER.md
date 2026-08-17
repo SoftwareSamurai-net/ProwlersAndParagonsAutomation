@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3849 tests** — 3653 engine, 196 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3852 tests** — 3656 engine, 196 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
@@ -84,8 +84,13 @@ Each one has cost this project real time when skipped.
    ```bash
    dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
    ```
-   It must report **3645 + 196 = 3841** and zero warnings. **Warnings are errors only under that
+   It must report **3656 + 196 = 3852** and zero warnings. **Warnings are errors only under that
    flag**, so a plain `dotnet test` passes over things CI fails on.
+
+   **Take the number from the run, not from a document, and update the document from the run.**
+   The figure here read 3849 against a tree of 3850 for one commit, because it was copied from a
+   run taken before the last test was added — and both reviewers caught it, which is a waste of a
+   reviewer.
 4. **Read the summary line properly.** A crashed test process still prints
    `Passed!  -  Failed: 0` — a stack overflow reports `Catastrophic failure ... exit code
    -1073741571`, skips tests, and the summary still reads green. **Grep for `Catastrophic` and
@@ -112,6 +117,18 @@ Each one has cost this project real time when skipped.
 8. **Test a 375px viewport with an iframe, not `--window-size=375`.** Headless Chrome clamps its
    window width to about 485px, so a 375-wide screenshot is a 485px render cropped — it looks
    like catastrophic overflow and is not. A reviewer nearly filed that.
+
+   **And make the harness print the measurement rather than leaving it to the eye.** The bug this
+   guards against was 8px of overflow, which is invisible in a screenshot and unmistakable as
+   `clientWidth 360, scrollWidth 368`. An iframe onto `proof-hero.html` with three lines of script
+   does it; the same trick measures box insets, which is how a 3.2px table misalignment was found.
+
+9. **Do not run two reviewers concurrently in one worktree.** Both of Phase 0's reviewers
+   mutate files and revert with `git checkout`, so they poison each other: one caught the other's
+   `--text-sm: 2rem` and read it as a finding, and both lost runs to `index.lock`. Give each
+   reviewer its own worktree, or run them one at a time. Their own scratch files under
+   `web/wwwroot` also break `PrintRestatesEveryTokenTheScreenPalettesDeclare` by naming tokens,
+   and one reviewer's cleanup deleted the other's harness.
 
 ---
 
