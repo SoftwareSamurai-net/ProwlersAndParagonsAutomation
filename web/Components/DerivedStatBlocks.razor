@@ -15,9 +15,13 @@
         @* The published sheet sets Hero Points beside the other three, and on paper that is
            right: it is the one figure a GM checks a character against. A Villain has no
            budget to check against (Ch.9), so the box carries what they cost instead. *@
+        @* No formula here even when the others carry one. The only page that asks for
+           formulas is the derived-stats step, which does not show this box at all — so a
+           rule written for it would be unreachable by any configuration, which is what the
+           deleted `PointsRule` was. What the spend is made of is the budget bar's job, and
+           it itemises all six parts. *@
         <StatBlock Label="@(Budgeted ? "Hero Points" : "Points Spent")"
-                   Value="@Points" Sub="@Budget"
-                   Formula="@(WithFormulas ? PointsRule : null)" />
+                   Value="@Points" Sub="@Budget" />
     }
 </StatBlockRow>
 
@@ -76,10 +80,6 @@
     private const string ResolveRule =
         "Trait Cap less the character's highest relevant rank, doubled. Determination adds 1 "
         + "for every 5 Hero Points spent on it, and each Condition or Plot Hook adds 1.";
-
-    private const string PointsRule =
-        "Every rank, Power, Perk and gear feature bought, less what the Flaws and the starting "
-        + "package give back.";
 
     private bool Budgeted => ShowBudget ?? Session.ShowBudget;
 

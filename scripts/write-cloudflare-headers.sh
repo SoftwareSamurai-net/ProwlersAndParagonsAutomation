@@ -109,6 +109,15 @@ cat > "$root/_headers" <<HEADERS
 # wrong rulebook rather than a cosmetic problem. Revalidate every time.
 /data/rules/*
   Cache-Control: no-cache
+
+# The two self-hosted typefaces — 381 KB across three files, and the largest thing on the
+# site after the framework. Their names are stable by hand rather than by fingerprint, but
+# a font file does not change without being replaced under a new name, and the cost of
+# getting this wrong is a stale *glyph set* rather than a wrong rule. Without this rule
+# they fall to the platform default and are revalidated on every visit, which is the whole
+# of the payload argument in PROGRESS.md item 5 paid again on every page load.
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
 HEADERS
 
 echo "Wrote $root/_headers with $count inline script hash(es):$hashes"

@@ -621,7 +621,17 @@ label {
     border-top: 1px solid var(--rule);
     white-space: normal;
 }
-.options.cards .option:hover { border-left-color: var(--accent); }
+/* **The card's hover ground is --panel-sunk, not the --accent-soft the list rows
+   use, and that is a contrast fix rather than a preference.** The cost line above
+   is set in --heading, and Villain --heading (#B8873B) on Villain --accent-soft
+   (which resolves to #382F26) measures **4.10:1** — under the 4.5:1 that text
+   needs, and WCAG 1.4.3 applies to a hover state as much as to a resting one. On
+   --panel-sunk (#16161B) the same pair is 5.70:1. Hero passes either way at
+   ~7:1. Re-measure if you restyle; do not eyeball it. */
+.options.cards .option:hover {
+    background: var(--panel-sunk);
+    border-left-color: var(--accent);
+}
 
 /* The choice already made. A ring, never a fill — --accent is 1.8:1 on --surface
    in the Hero palette and unreadable behind text — and never the only marking:
@@ -684,10 +694,14 @@ label {
    the tool uses to report a number. Nothing about a turn should read as a control, and
    nothing about a verdict should read as dialogue. */
 
+/* The display face, like everything else uppercase in this app. It sits in the
+   banner beside .banner-title, so leaving it in the body face put two uppercase
+   items of similar size in the same strip in two different faces. */
 .banner-link {
     color: var(--on-primary);
-    font-size: 0.8rem;
-    letter-spacing: 0.04em;
+    font-family: var(--font-display);
+    font-size: 0.82rem;
+    letter-spacing: var(--label-track);
     text-transform: uppercase;
     text-decoration: none;
     border-bottom: 1px solid var(--on-primary);
@@ -707,10 +721,18 @@ label {
     border-left: 5px solid var(--accent);
     background: var(--accent-soft);
 }
+/* **This clause was set in --heading and the comment above claimed it was "the only
+   one of the three that is contrast-rated as text in either mode". That was false.**
+   Villain --heading on this band's --accent-soft ground measures 4.10:1, under the
+   4.5:1 text needs — the claim was never measured against the tint it sits on, only
+   against the panel. It is body ink now, which is the highest contrast available on
+   that ground in both modes, and the three carriers become the tint, the heavy left
+   edge, and this clause's weight and case rather than its colour. */
 .panel.replay-label b:first-child {
-    color: var(--heading);
+    color: var(--ink);
+    font-family: var(--font-display);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: var(--label-track);
 }
 .panel.replay-label p:last-child { margin-bottom: 0; }
 
@@ -1163,6 +1185,14 @@ label {
        sets them — they are the reason to have the sheet on the table at all. */
     .stat-blocks.quad { gap: 2.5mm; }
     .stat-block { min-width: 0; padding: 1.5mm 1mm; }
+    /* **The third time this trap has been recorded in this file**, after `.ruled { gap }`
+       and gear alignment. `.stat-blocks.with-formulas .stat-block` on the screen side is
+       (0,3,0) and the reset above is (0,1,0); `@media` adds nothing to specificity, so the
+       screen's 14rem floor wins on paper and four stat blocks would each demand 14rem of a
+       74mm column. Today no page renders `with-formulas` on the sheet, so the deliverable is
+       safe by an accident of markup rather than by this stylesheet — which is exactly the
+       state the other two were in before they broke. */
+    .stat-blocks.with-formulas .stat-block { min-width: 0; flex: 0 1 auto; }
     .stat-block .label { font-size: 7pt; }
     .stat-block .value { font-size: 19pt; }
     .stat-block .sub { font-size: 7pt; }

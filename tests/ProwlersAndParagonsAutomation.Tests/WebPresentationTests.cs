@@ -199,6 +199,32 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// The type tokens are restated for paper too.
+    ///
+    /// <para><b>The theory above cannot see them and would not notice them going.</b> It
+    /// derives its list from the two <c>data-mode</c> blocks, and these three live on a bare
+    /// <c>:root</c> because they are not per-mode — so a screen tracking of 0.06em, which reads
+    /// as deliberate at 1.7rem, would silently open an 8pt heading bar on paper into loose
+    /// letters. They are restated today; nothing held them there.</para>
+    ///
+    /// <para><c>--font-display</c> and <c>--font-body</c> are deliberately <b>not</b> in this
+    /// list: they have no per-mode variant to survive, and paper wants the same two faces the
+    /// screen does.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("--display-track")]
+    [InlineData("--display-leading")]
+    [InlineData("--label-track")]
+    public void PrintRestatesTheTypeTokensToo(string token)
+    {
+        var print = OnlyPrintBlockOf(ThemeCss);
+        var screen = ThemeCss[..ThemeCss.IndexOf("@media print", StringComparison.Ordinal)];
+
+        Assert.Contains($"{token}:", Normalise(screen), StringComparison.Ordinal);
+        Assert.Contains($"{token}:", Normalise(print), StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The print block's tokens as the cascade resolves them for one mode: the unqualified
     /// rule, then the mode's own on top.
     /// </summary>

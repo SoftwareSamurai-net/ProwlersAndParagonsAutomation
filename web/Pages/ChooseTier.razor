@@ -199,13 +199,17 @@
         || !string.IsNullOrWhiteSpace(Session.Sheet.Name);
 
     /// <summary>
-    /// What choosing this tier means, in one line. The Iconic tier is the reason the note is
-    /// folded in here rather than dropped: its "200+" is explicitly a bare minimum left to
-    /// the GM, and a card that showed the figure without that sentence would be stating a
-    /// budget the rulebook does not state.
+    /// What choosing this tier means, in one line.
+    ///
+    /// <para><b>The description alone, and the note deliberately not appended to it.</b> Iconic
+    /// is the only tier that carries a note, and its description already says the thing the note
+    /// exists to say — "The 200 HP listed is a bare minimum for this tier." Concatenating the two
+    /// printed that point twice in one paragraph, and because the cards are an equal-height grid
+    /// row, the five-line Iconic card left High Level and Legendary with about five lines of dead
+    /// white above their cost rule. An earlier version of this comment claimed the note was
+    /// needed or the card would state a budget the rulebook does not; the description states it.</para>
     /// </summary>
-    private static string Consequence(TierModel tier) =>
-        tier.Notes is null ? tier.Description : $"{tier.Description} {tier.Notes}";
+    private static string Consequence(TierModel tier) => tier.Description;
 
     private void SelectTier(string id)
     {
