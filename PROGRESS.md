@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3826 across two projects — 3641 on the engine, 185 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3841 across two projects — 3645 on the engine, 196 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -354,7 +354,64 @@ process still prints `Passed!  -  Failed: 0`: the endless render loop this compo
 prevents ends in a stack overflow, 31 of 153 tests never run, and the summary line reads as green.
 The exit code is 1 so CI catches it — a person grepping for `Passed!` does not.
 
-3772 tests to **3826** — 3641 on the engine, 185 in bUnit. Zero warnings at CI strictness.
+**A second review measured rather than read**, resolving the `color-mix()` tokens itself and
+validating them against Chrome's own resolution, so its numbers are figures rather than
+impressions. It found a **real WCAG failure**: Villain `--heading` on `--accent-soft` is
+**4.08:1**, and 1.4.3 applies to a hover state. It also found the print-specificity trap for
+the **third time in this file**, `PointsRule` unreachable, item 4's formulas duplicating the
+panel below them on the only page they appear, no cache header on 381 KB of fonts, and the
+Iconic tier card printing its one sentence twice — which, because the cards are an
+equal-height grid row, cost the two cards beside it five lines of dead white.
+
+**Then a fix-audit — a reviewer pointed at the fixes rather than the code — and it was worth
+more than either review before it.** Three of the fixes did not hold:
+
+- **`EachFamilyIsServedItsOwnFile` caught the mutation it was written for and missed two
+  routes to the same regression.** `FontFaces()` filtered out any face whose `src` it could not
+  parse, so an **absolute** `url("/fonts/PublicSans-Variable.ttf")` — live under
+  `<base href="/">` — dropped the Oswald face from the family check *and* from the licence
+  check, and the app served Public Sans for every heading with all 96 tests green. **The filter
+  written to make the guard robust widened the hole it was closing.** The second route was
+  overwriting one font file with the other's bytes, which no name correlation can see; the
+  check now reads the TrueType `name` table.
+- **The licence guard's three strings all appear in an OFL file's first nine lines**, so
+  `head -9` — 383 bytes, permission grant and warranty disclaimer deleted — passed.
+- **`UppercasedTextTests` closed with `Assert.True(seen >= 0)`**, a tautology, and **13 of its
+  25 selectors matched nothing on any rendered page**. Setting `.verdict` to
+  "Trait Cap 12d (Ch.9, p.150)" rendered `TRAIT CAP 12D (CH.9, P.150)` with the suite green —
+  the exact bug class the file exists for. It renders fourteen components now and **refuses a
+  selector it never found**, with six named exemptions.
+
+**And the fix for the contrast finding was itself half a fix**: moving the tier card off
+`--accent-soft` left `.btn:hover` on the identical failing pair and `.btn.danger:hover` on a
+worse one (3.94:1 Villain, 4.55:1 Hero). There are far more buttons than tier cards, so the
+stylesheet carried a comment calling the pair a fault eleven lines above two live instances.
+
+3772 tests to **3841** — 3645 on the engine, 196 in bUnit. Zero warnings at CI strictness.
+
+### The budget bar becomes chrome, and the plan for what the front end could be
+
+The budget was a bordered panel costing about **110px above every step** — roughly a quarter of
+a laptop viewport, six times over, most of it a seven-part table consulted occasionally while
+occupying the space continuously. A persistent budget is *ambient status*, and status belongs
+where the banner is rather than in the column the reader scrolls.
+
+It is a **sticky strip** now: the spend set large against its budget as a denominator, what is
+left beside it, a **3px rail** bled to the width of the shell along its own bottom edge, and the
+breakdown disclosed on request. About 40px, and it stays put. Whether the disclosure is open is
+a field on the component — deliberately **not** on `CharacterSheet`, which is what gets exported
+and restored.
+
+**It shipped unreviewed and had three defects**, all found by the fix-audit and all now covered
+by `BudgetStripTests`: the negative-margin bleed is fixed while the shell's padding is not, so it
+overflowed 8px at 375px; the `progressbar` announced `valuenow=132` against `valuemax=125` when
+over budget — invalid, and disagreeing with its own clamped fill — and had no accessible name;
+and `aria-controls` pointed at an element that only exists while open.
+
+[`docs/FRONT-END-PLAN.md`](docs/FRONT-END-PLAN.md) is the plan for the rest, in six phases. **Its
+one load-bearing decision is that there is no animation library**: `element.animate()` does
+everything on the list, the payload is already item 5 below, and the View Transitions API does a
+thing no library can. The shortlist is named if that is overruled.
 
 ### A1, A2 and A3 reconciled onto one branch, and the arithmetic that says nothing was dropped
 
