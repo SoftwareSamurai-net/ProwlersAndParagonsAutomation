@@ -359,7 +359,7 @@ public sealed class McpQuestionPolicyTests
     public void EveryShapeTheDocumentWritesOutBelongsToOneThing()
     {
         var shapes = CharacterShapes();
-        var checked_ = 0;
+        var verified = 0;
 
         foreach (var group in BraceGroups(Text))
         {
@@ -373,7 +373,7 @@ public sealed class McpQuestionPolicyTests
             // shape at all — an id map, or the problem envelope.
             if (names.Count < 2) continue;
 
-            checked_++;
+            verified++;
 
             Assert.True(
                 shapes.Any(shape => names.TrueForAll(shape.Fields.Contains)),
@@ -385,7 +385,7 @@ public sealed class McpQuestionPolicyTests
 
         // Enough groups to be reading the schema. Nothing is asserted by a regex that stops
         // matching, and this document's shapes are the whole reason the test exists.
-        Assert.True(checked_ >= 4, $"Only {checked_} shapes were found in the guide to check.");
+        Assert.True(verified >= 4, $"Only {verified} shapes were found in the guide to check.");
     }
 
     /// <summary>

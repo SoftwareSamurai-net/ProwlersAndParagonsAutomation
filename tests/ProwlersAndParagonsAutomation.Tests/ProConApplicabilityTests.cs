@@ -584,7 +584,7 @@ public sealed class ProConApplicabilityTests
     /// from a list of fifty is looking one up by name, so a list in some other order is a list
     /// they have to read all of. Asserted as a subsequence of the rules file rather than as a
     /// literal list, because which options a given Power is offered is
-    /// <see cref="IsApplicable"/>'s answer and not this test's business.</para>
+    /// <see cref="ProConApplicability.IsApplicable"/>'s answer and not this test's business.</para>
     /// </summary>
     [Fact]
     public void ThePickersOfferOptionsInRulesFileOrder()

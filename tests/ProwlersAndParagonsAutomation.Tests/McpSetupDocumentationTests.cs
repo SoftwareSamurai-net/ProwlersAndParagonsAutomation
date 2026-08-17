@@ -284,9 +284,9 @@ public sealed class McpSetupDocumentationTests
             // block, contradicting the guide's own prose two paragraphs above it; and a version
             // of this that asked `StartsWith("C:")` let a `D:` path drop the extension, which
             // sends a Windows Desktop user to a file that does not exist.
-            var windows = Rx(@"^[A-Za-z]:").IsMatch(command);
+            var windows = Rx("^[A-Za-z]:").IsMatch(command);
 
-            Assert.Matches($@"{Regex.Escape(assemblyName)}{(windows ? @"\.exe" : "")}$", command);
+            Assert.Matches($"{Regex.Escape(assemblyName)}{(windows ? @"\.exe" : "")}$", command);
 
             // <b>And the directory is one step 1 actually publishes to.</b> This checked JSON,
             // the server key, absoluteness and the file name, and never the directory — so both

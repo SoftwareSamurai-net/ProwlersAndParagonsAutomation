@@ -54,7 +54,11 @@ public sealed class ReplayLoadingTests
         var asked = new List<string>();
 
         using var handler = new Recorder(asked);
-        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.invalid/") };
+        using var http = new HttpClient(handler);
+
+        // Assigned rather than set in an initialiser: an initialiser that threw would leave the
+        // client undisposed, because `using` has not taken hold of it yet.
+        http.BaseAddress = new Uri("https://example.invalid/");
 
         var library = await ReplayLibrary.LoadAsync(http);
 

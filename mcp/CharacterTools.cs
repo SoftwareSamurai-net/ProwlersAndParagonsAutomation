@@ -277,11 +277,10 @@ public sealed class CharacterTools
         // The grades this Power may actually pick, which is not always every grade printed:
         // those of Zone/Nova and Ranged encode a Range, and a Power reaching them through its
         // own text has one the rulebook does not price.
-        var grades = range is null
-            ? null
-            : range.Where(kv => ProConApplicability.GradesFor(option, power, range.Keys)
-                                                   .Contains(kv.Key, StringComparer.Ordinal))
-                   .ToDictionary(kv => kv.Key, kv => kv.Value);
+        var grades = range?
+            .Where(kv => ProConApplicability.GradesFor(option, power, range.Keys)
+                                            .Contains(kv.Key, StringComparer.Ordinal))
+            .ToDictionary(kv => kv.Key, kv => kv.Value);
 
         return new()
         {
@@ -291,7 +290,7 @@ public sealed class CharacterTools
             ["applies_to_ranges"] = Strings(option.AppliesToRanges),
             ["applies_to_rank_types"] = Strings(option.AppliesToRankTypes),
             ["repeatable"] = option.Repeatable,
-            ["allowed_by_this_power_text"] = allowance is null ? null : allowance.Reason,
+            ["allowed_by_this_power_text"] = allowance?.Reason,
             ["caveat"] = option.ApplicabilityCaveat
         };
     }
