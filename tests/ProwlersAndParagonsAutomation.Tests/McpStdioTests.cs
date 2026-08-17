@@ -49,6 +49,15 @@ public sealed class McpStdioTests
     /// than on <c>Console.WriteLine</c> — <c>Console.Out.Write</c>, <c>Console.OpenStandardOutput</c>
     /// and a held reference to <c>Console.Out</c> are the same mistake in three spellings, and a
     /// check for the obvious one would pass while any of them shipped.</para>
+    ///
+    /// <para><b>It is line-by-line, and that is a real hole rather than a detail.</b>
+    /// <c>Console</c> on one line and <c>.WriteLine(…)</c> on the next is one statement that no
+    /// line of contains the token, and adding a multi-line pattern here would only move the
+    /// hole — the spelling after that is a helper in another file, or a library. What closes it
+    /// is <see cref="TheBuiltProgramSpeaksNothingButTheProtocol"/> calling every tool, so the
+    /// write happens on a stream something is reading. The two halves are only complementary to
+    /// the extent that the runtime half is <em>driven</em>: it covered the startup path alone
+    /// for a whole slice, and this scan reported nothing on the two lines the whole time.</para>
     /// </summary>
     [Fact]
     public void NothingWritesToStandardOutput()
@@ -106,10 +115,10 @@ public sealed class McpStdioTests
     }
 
     /// <summary>
-    /// <b>The property itself, read off the stream.</b> The source check above cannot see a
-    /// write from a library, from <c>engine/</c> or <c>sheets/</c>, or through a spelling
-    /// nobody thought of — so this starts the built program the way a client does and reads
-    /// its standard output by hand.
+    /// <b>The property itself, read off the stream — and with every tool actually called.</b>
+    /// The source check above cannot see a write from a library, from <c>engine/</c> or
+    /// <c>sheets/</c>, or through a spelling nobody thought of, so this starts the built program
+    /// the way a client does and reads its standard output by hand.
     ///
     /// <para><b>Every line has to be a JSON-RPC message.</b> An earlier version of this test
     /// drove the same binary through the SDK's client and asserted the session worked, under a
@@ -117,32 +126,91 @@ public sealed class McpStdioTests
     /// on that stream, printed before the transport starts, left the client perfectly happy and
     /// the test green. The client skipping what it cannot parse is exactly why this has to look
     /// at the bytes.</para>
+    ///
+    /// <para><b>And it enters every tool body, which is the half that was missing.</b> This sent
+    /// <c>initialize</c>, <c>notifications/initialized</c> and <c>tools/list</c> and stopped —
+    /// so it covered the startup path and the handshake and nothing else. <c>Console</c> and
+    /// <c>.WriteLine(…)</c> written on two lines inside <c>SearchPowers</c>
+    /// is invisible to the source scan above, which matches the token <c>Console.</c> on one
+    /// line, and was invisible here too because no tool was ever called: the stray line arrived
+    /// on a real client's stream as message two, with both guards green. A write inside
+    /// <c>ListOptions</c> <em>was</em> caught, and only because <c>ReadEverything</c> calls it at
+    /// startup — which is how narrow the cover was.</para>
+    ///
+    /// <para><b>Each answer has to carry something the tool only produces at the end of its
+    /// body</b>, or a call that came back "unknown tool" would satisfy this while running no
+    /// code at all.</para>
     /// </summary>
     [Fact]
     public async Task TheBuiltProgramSpeaksNothingButTheProtocol()
     {
         var cancellation = TestContext.Current.CancellationToken;
 
+        // Bounded, because the failure being looked for is a stream that never produces the
+        // line this is waiting for, and a bare read would hang the suite rather than fail it.
+        using var giveUp = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        giveUp.CancelAfter(TimeSpan.FromSeconds(120));
+
         using var server = Start(ServerExecutable(), rulesDirectory: null);
 
         try
         {
-            await Say(server, """
-                {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"stdout-hygiene","version":"1"}}}
-                """, cancellation);
+            // <b>The startup diagnostic, which nothing asserted.</b> docs/MCP-SETUP.md's first
+            // troubleshooting bullet sends a reader to their client's MCP log to find it, so
+            // deleting the line makes that instruction a dead end. It goes to standard error,
+            // before the transport starts.
+            var greeting = await server.StandardError.ReadLineAsync(giveUp.Token);
+
+            Assert.False(string.IsNullOrWhiteSpace(greeting),
+                "The server said nothing on standard error at startup. The setup guide tells a "
+                + "stuck reader to look for that line in their client's log.");
+
+            Assert.Contains(Path.Combine("data", "rules"), greeting!, StringComparison.Ordinal);
+
+            await Say(server, Request(1, "initialize", new JsonObject
+            {
+                ["protocolVersion"] = "2025-06-18",
+                ["capabilities"] = new JsonObject(),
+                ["clientInfo"] = new JsonObject
+                {
+                    ["name"] = "stdout-hygiene", ["version"] = "1"
+                }
+            }), cancellation);
+
             await Say(server, """{"jsonrpc":"2.0","method":"notifications/initialized"}""", cancellation);
-            await Say(server, """{"jsonrpc":"2.0","id":2,"method":"tools/list"}""", cancellation);
+            await Say(server, Request(2, "tools/list", null), cancellation);
 
-            var lines = new List<string>();
+            // What each answer must carry: id 1 is the handshake, id 2 the tool list, and one
+            // id per tool from 3 on.
+            var wanted = new Dictionary<int, string>
+            {
+                [1] = "protocolVersion",
+                [2] = CharacterServer.CheckCharacterTool
+            };
 
-            // Reads until the answer to the second request arrives, so the run covers the
-            // startup, the handshake and a request — every point at which something could
-            // print. A line that is not JSON is a failure whatever else it says.
-            while (await server.StandardOutput.ReadLineAsync(cancellation) is { } line)
+            var id = 3;
+
+            foreach (var (tool, arguments, marker) in EveryToolCall())
+            {
+                wanted[id] = marker;
+
+                await Say(server, Request(id, "tools/call", new JsonObject
+                {
+                    ["name"] = tool, ["arguments"] = arguments
+                }), cancellation);
+
+                id++;
+            }
+
+            var answered = new Dictionary<int, string>();
+
+            // Reads until every request has been answered, so the run covers the startup, the
+            // handshake, a request, and the body of all six tools — every point at which
+            // something could print. A line that is not JSON is a failure whatever else it says.
+            while (answered.Count < wanted.Count &&
+                   await server.StandardOutput.ReadLineAsync(giveUp.Token) is { } line)
             {
                 if (line.Length == 0) continue;
-
-                lines.Add(line);
 
                 JsonNode node;
                 try
@@ -160,18 +228,75 @@ public sealed class McpStdioTests
 
                 Assert.Equal("2.0", node["jsonrpc"]!.GetValue<string>());
 
-                if (node["id"]?.GetValue<int>() == 2) break;
+                // A notification carries no id and is not an answer to anything; there should
+                // be none, and skipping one is not what this test is about.
+                if (node["id"]?.GetValue<int>() is not { } answeredId) continue;
+
+                Assert.Null(node["error"]);
+                answered[answeredId] = line;
             }
 
-            // Two answers, and the second one really is the tool list — so the loop above did
-            // not fall out of an empty stream having asserted nothing.
-            Assert.Equal(2, lines.Count);
-            Assert.Contains(CharacterServer.CheckCharacterTool, lines[1], StringComparison.Ordinal);
+            // Every request answered, and each answer carrying something only the far end of
+            // that tool's body produces — so the loop above did not fall out of an empty stream,
+            // and a tool that was never entered fails here rather than passing silently.
+            Assert.Equal(wanted.Keys.Order(), answered.Keys.Order());
+
+            foreach (var (requestId, marker) in wanted)
+                Assert.Contains(marker, answered[requestId], StringComparison.Ordinal);
+        }
+        catch (OperationCanceledException) when (!cancellation.IsCancellationRequested)
+        {
+            Assert.Fail("The server stopped answering before every request had a reply.");
         }
         finally
         {
             Stop(server);
         }
+    }
+
+    /// <summary>
+    /// One call of every tool, with arguments that reach the far end of each body, and a string
+    /// each answer must carry to show it got there.
+    ///
+    /// <para>The markers are deliberately things the <em>report</em> is built with rather than
+    /// things the argument contains, so echoing the request back would not satisfy one.</para>
+    /// </summary>
+    private static IEnumerable<(string Tool, JsonObject Arguments, string Marker)> EveryToolCall()
+    {
+        var hero = JsonNode.Parse(CharacterSheetJson.Write(SampleCharacters.Hero()))!;
+
+        yield return (CharacterServer.CreationGuideTool, new JsonObject(),
+            "The engine decides");
+
+        yield return (CharacterServer.ListOptionsTool,
+            new JsonObject { ["category"] = "tiers" }, "trait_cap");
+
+        yield return (CharacterServer.SearchPowersTool,
+            new JsonObject { ["query"] = "turns invisible" }, "nothing_matched_by_name");
+
+        yield return (CharacterServer.PowerDetailTool,
+            new JsonObject { ["powerId"] = "armor" }, "ranks_purchasable");
+
+        yield return (CharacterServer.CheckCharacterTool,
+            new JsonObject { ["character"] = hero.DeepClone() }, "verdict");
+
+        yield return (CharacterServer.CharacterSheetTool,
+            new JsonObject { ["character"] = hero.DeepClone() }, SampleCharacters.Hero().Name);
+    }
+
+    /// <summary>One JSON-RPC request, on one line, which is what the framing requires.</summary>
+    private static string Request(int id, string method, JsonObject? parameters)
+    {
+        var message = new JsonObject
+        {
+            ["jsonrpc"] = "2.0",
+            ["id"] = id,
+            ["method"] = method
+        };
+
+        if (parameters is not null) message["params"] = parameters;
+
+        return message.ToJsonString();
     }
 
     /// <summary>
@@ -503,6 +628,44 @@ public sealed class McpStdioTests
     public void ACompleteRulesDirectoryStartsCleanly()
     {
         CharacterServer.ToolsFor(RulesFixture.DataPath).ReadEverything();
+    }
+
+    /// <summary>
+    /// <b>The startup check reads the embedded guide as well as the rules.</b> The guide is an
+    /// embedded resource, so the way it goes missing is a csproj edit — and the claim
+    /// <c>CharacterTools</c> makes for itself is that such an edit becomes a refusal at startup
+    /// rather than a conversation that opens with an empty document. Deleting the one line that
+    /// makes it true left the suite green.
+    ///
+    /// <para><b>Read from the source, and that is a limitation rather than a preference.</b> A
+    /// resource cannot be un-embedded from an assembly that is already loaded, so there is no
+    /// runtime arrangement in which the guide is absent for this to observe — the nearest thing
+    /// available is the line that reads it. <see cref="McpQuestionPolicyTests"/> covers the
+    /// other half, that the resource is there and is this document; what has no runtime test,
+    /// and cannot have one from here, is which of the two failures a missing resource produces.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void TheStartupCheckReadsTheEmbeddedGuideAndNotOnlyTheRules()
+    {
+        var source = File.ReadAllText(Path.Combine(McpDirectory, "CharacterTools.cs"));
+
+        var start = source.IndexOf("public void ReadEverything()", StringComparison.Ordinal);
+        Assert.True(start >= 0, "CharacterTools no longer has a ReadEverything method.");
+
+        // To the end of the method, which at this indentation is the first line that is a
+        // closing brace in the first column of the class body.
+        var end = source.IndexOf("\n    }", start, StringComparison.Ordinal);
+        Assert.True(end > start, "ReadEverything's body could not be found.");
+
+        var body = source[start..end];
+
+        Assert.Contains(nameof(QuestionPolicy), body, StringComparison.Ordinal);
+
+        // And the rules, both halves of them: every catalogue rather than one — the bug this
+        // check was written for — and the Powers, which are not a catalogue.
+        Assert.Contains("Categories", body, StringComparison.Ordinal);
+        Assert.Contains("Powers", body, StringComparison.Ordinal);
     }
 
     /// <summary>

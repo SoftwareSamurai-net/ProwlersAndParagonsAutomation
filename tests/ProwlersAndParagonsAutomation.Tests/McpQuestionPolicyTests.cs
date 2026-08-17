@@ -295,6 +295,84 @@ public sealed class McpQuestionPolicyTests
     }
 
     /// <summary>
+    /// <b>Every field name the document quotes anywhere is a field a character has</b> — in the
+    /// prose and in the comments, not only inside the fenced block.
+    ///
+    /// <para>Only the block goes through the strict reader, and it goes through it with its
+    /// comments stripped, because comments are what make it worth reading and are not JSON. So
+    /// two of the three places this document names a field were unchecked: the sentence under the
+    /// block saying a Pro or Con is <c>{ "Id", "VariantKey", "Units" }</c>, and the comment
+    /// telling a proposer that a gear feature is <c>{ "FeatureId", "GradeKey" }</c> and
+    /// <em>not</em> the shape a Pro takes. Rewriting them to <c>ProId</c>, <c>GradeKey</c> and
+    /// <c>Count</c> left the suite green — and reading is strict, so a proposer following the
+    /// prose gets an unreadable character with no hint which spelling was wanted. That comment
+    /// exists precisely because the confusion is the likely one.</para>
+    ///
+    /// <para>Checked against the character's own object graph by reflection rather than against a
+    /// list here, so a renamed field fails this without anybody remembering to update it.</para>
+    /// </summary>
+    [Fact]
+    public void EveryFieldNameTheDocumentQuotesIsOneACharacterHas()
+    {
+        var real = CharacterFieldNames();
+
+        // Quoted and PascalCase, which is how this document writes a field name and is not how it
+        // writes anything else: an id is lower case, a report field is snake_case, and a value
+        // like "Chrono Jab" has a space in it.
+        var quoted = new Regex("\"([A-Z][A-Za-z]*)\"", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Matches(Text)
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        // Enough of them to be reading the schema rather than one stray word.
+        Assert.True(quoted.Count > 20,
+            $"The guide quotes only {quoted.Count} field names; it used to describe the whole shape.");
+
+        Assert.All(quoted, name => Assert.True(real.Contains(name),
+            $"The guide names a field \"{name}\", which no part of a character has. Reading is "
+            + "strict, so a proposer following that gets an unreadable character."));
+
+        // And the other direction for the fields that carry a purchase, because those are the
+        // ones a proposer cannot infer and the document is the only place they are written down.
+        foreach (var required in new[] { "PowerId", "PurchasedRanks", "PerkId", "FlawId", "FeatureId", "GradeKey", "VariantKey", "Units", "Id" })
+            Assert.Contains(required, quoted);
+    }
+
+    /// <summary>
+    /// Every property name in a character's object graph — <see cref="CharacterSheet"/> and the
+    /// records hanging off it, which is where <c>Id</c>, <c>VariantKey</c> and <c>GradeKey</c>
+    /// live rather than on the sheet itself.
+    /// </summary>
+    private static HashSet<string> CharacterFieldNames()
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        var seen = new HashSet<Type>();
+
+        Walk(typeof(CharacterSheet));
+
+        return names;
+
+        void Walk(Type type)
+        {
+            if (!seen.Add(type)) return;
+
+            foreach (var property in type.GetProperties())
+            {
+                names.Add(property.Name);
+
+                foreach (var candidate in Related(property.PropertyType))
+                    if (candidate.Namespace?.StartsWith("ProwlersAndParagonsAutomation", StringComparison.Ordinal) == true)
+                        Walk(candidate);
+            }
+        }
+
+        // The property's own type, plus what a list or dictionary of them holds.
+        static IEnumerable<Type> Related(Type type) =>
+            type.IsGenericType ? [type, .. type.GetGenericArguments()] : [type];
+    }
+
+    /// <summary>
     /// The example writes out all eighteen Traits, because that is the trap the document warns
     /// about two paragraphs later — and an example that broke its own rule would teach the
     /// mistake more loudly than the paragraph corrects it.

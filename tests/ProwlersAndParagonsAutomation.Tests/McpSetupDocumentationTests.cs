@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using ProwlersAndParagonsAutomation.Mcp;
 
@@ -210,6 +211,77 @@ public sealed class McpSetupDocumentationTests
                 binary.StartsWith(directory, StringComparison.Ordinal),
                 $"The guide publishes to '{directory}' and registers '{binary}', which is "
                 + "somewhere else. Both commands would succeed and no tool would appear.");
+    }
+
+    /// <summary>
+    /// <b>The Claude Desktop half, which was checked by nothing at all.</b>
+    ///
+    /// <para>Every other test here reads the Claude Code instructions:
+    /// <see cref="EveryShellPublishesToThePathItThenRegisters"/> regexes <c>claude mcp add</c>,
+    /// and <see cref="EveryPublishCommandNamesTheProjectThatProducesTheRegisteredBinary"/> only
+    /// asks that the assembly name appear <em>somewhere</em> in the guide — which the Code
+    /// commands satisfy on their own. So breaking the <c>command</c> path in both JSON blocks
+    /// left the suite green, and a Desktop user follows the guide and gets nothing, with no way
+    /// to tell whether the document or their machine is wrong.</para>
+    ///
+    /// <para>Three things are checked, because the failures are different: the block has to be
+    /// JSON (a hand-edited configuration file is pasted whole, and Desktop refuses the lot if it
+    /// will not parse); the server has to be keyed under the name the rest of the guide uses; and
+    /// the command has to be an <em>absolute</em> path to the binary this repository builds — the
+    /// guide's own prose says why, since a client starts the program from a working directory of
+    /// its own choosing.</para>
+    /// </summary>
+    [Fact]
+    public void TheClaudeDesktopConfigurationIsJsonThatNamesThisServersBinary()
+    {
+        var blocks = Rx("```json\r?\n(.*?)```", RegexOptions.Singleline)
+            .Matches(Guide)
+            .Select(m => m.Groups[1].Value)
+            .Where(b => b.Contains("mcpServers", StringComparison.Ordinal))
+            .ToList();
+
+        // One per platform. The guide gives Windows and then macOS/Linux, and the second exists
+        // because the first teaches doubled backslashes and no extension is wrong there.
+        Assert.Equal(2, blocks.Count);
+
+        var assemblyName = Rx("<AssemblyName>([^<]+)</AssemblyName>")
+            .Match(File.ReadAllText(Path("mcp", "ProwlersAndParagons.Mcp.csproj")))
+            .Groups[1].Value;
+
+        Assert.False(string.IsNullOrWhiteSpace(assemblyName));
+
+        foreach (var block in blocks)
+        {
+            var parsed = JsonNode.Parse(block);
+
+            Assert.NotNull(parsed);
+
+            var servers = parsed!["mcpServers"]!.AsObject();
+            var entry = Assert.Single(servers);
+
+            // The same name the Claude Code commands register, so somebody reading both halves
+            // is told about one server rather than two.
+            Assert.Equal(CharacterServer.Name, entry.Key);
+
+            var command = entry.Value!["command"]!.GetValue<string>();
+
+            Assert.True(System.IO.Path.IsPathRooted(command.Replace("\\\\", "\\", StringComparison.Ordinal))
+                        || command.StartsWith('/'),
+                $"The Desktop configuration points at '{command}', which is not an absolute path. "
+                + "A client starts the program from a working directory of its own choosing.");
+
+            Assert.Contains(assemblyName, command, StringComparison.Ordinal);
+
+            // And it is the binary rather than a directory or the project, which is the mistake
+            // that produces a server Desktop reports as "failed to start" and nothing else.
+            Assert.Matches($@"{Regex.Escape(assemblyName)}(\.exe)?$", command);
+        }
+
+        // The Windows one has its backslashes doubled and the other has none, which is the
+        // difference the two blocks exist to show — and a single JSON escape gone wrong is the
+        // likeliest way this rots, because it still parses.
+        Assert.Contains(blocks, b => b.Contains("\\\\", StringComparison.Ordinal));
+        Assert.Contains(blocks, b => !b.Contains('\\', StringComparison.Ordinal));
     }
 
     /// <summary>

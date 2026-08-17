@@ -5,6 +5,7 @@ using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using ProwlersAndParagonsAutomation.Engine;
+using ProwlersAndParagonsAutomation.Engine.Models;
 using ProwlersAndParagonsAutomation.Mcp;
 
 namespace ProwlersAndParagonsAutomation.Tests;
@@ -161,6 +162,14 @@ public sealed class McpServerTests
     /// The instructions the client is handed before anything is called. Losing the ordering
     /// sentence would leave a server that reads like an invitation to work the costs out,
     /// which is the one thing this surface exists to prevent.
+    ///
+    /// <para><b>And they have to be prose, which is the half that was missing.</b> Three
+    /// substring checks are satisfied by <c>"creation_guide check_character the engine decides"</c>
+    /// — keyword bait, with the reasoning gone. Note the asymmetry that made it worth fixing:
+    /// <see cref="EveryToolSaysWhatItIsFor"/> puts a 60-character floor on a tool description,
+    /// and the instructions — the model's only guidance <em>before</em> it picks a tool at all —
+    /// had none. The sentence that forbids quoting a figure is the one that matters most and was
+    /// the easiest to lose, because nothing named it.</para>
     /// </summary>
     [Fact]
     public async Task TheServerSaysWhoDecidesBeforeAnythingIsCalled()
@@ -168,9 +177,29 @@ public sealed class McpServerTests
         await WithClient(client =>
         {
             Assert.NotNull(client.ServerInstructions);
-            Assert.Contains("the engine decides", client.ServerInstructions!, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains(CharacterServer.CheckCharacterTool, client.ServerInstructions!, StringComparison.Ordinal);
-            Assert.Contains(CharacterServer.CreationGuideTool, client.ServerInstructions!, StringComparison.Ordinal);
+
+            var said = client.ServerInstructions!;
+
+            Assert.Contains("the engine decides", said, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(CharacterServer.CheckCharacterTool, said, StringComparison.Ordinal);
+            Assert.Contains(CharacterServer.CreationGuideTool, said, StringComparison.Ordinal);
+
+            // The prohibition, which is the whole of what stops a plausible number being quoted
+            // before anything has been costed.
+            Assert.Contains("Never state", said, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Hero Point", said, StringComparison.Ordinal);
+            Assert.Contains("legal", said, StringComparison.Ordinal);
+
+            // Prose rather than a keyword list: several sentences, and long enough to have said
+            // why. A word count catches the shape a floor alone would not — "check_character
+            // creation_guide the engine decides never state a Hero Point cost legal" is every
+            // substring above and no instruction at all.
+            Assert.True(said.Length > 250,
+                $"The server instructions are {said.Length} characters, which is a keyword list "
+                + "rather than the guidance a model reads before its first tool call.");
+
+            Assert.True(said.Count(c => c == '.') >= 3,
+                "The server instructions are not written as sentences.");
 
             return Task.CompletedTask;
         });
@@ -1103,17 +1132,49 @@ public sealed class McpServerTests
         Assert.Equal(wide["caution"]!.GetValue<string>(), narrow["caution"]!.GetValue<string>());
     }
 
-    /// <summary>A limit outside the range it accepts is brought inside it rather than obeyed.</summary>
+    /// <summary>
+    /// A limit outside the range it accepts is brought inside it rather than obeyed.
+    ///
+    /// <para><b>The upper bound needs a query that overflows it, and every row here used to
+    /// search "armor".</b> That matches fewer than 25 Powers, so <c>int.MaxValue</c> was clamped
+    /// to a ceiling the result never reached — and raising the ceiling from 25 to 400 passed.
+    /// The wide rows below match far more than 25, so the clamp is the only thing keeping the
+    /// answer short, and <see cref="TheWideQueryTheClampIsMeasuredAgainstReallyOverflowsIt"/>
+    /// says so rather than leaving it to be assumed.</para>
+    /// </summary>
     [Theory]
-    [InlineData(0)]
-    [InlineData(-5)]
-    [InlineData(int.MinValue)]
-    [InlineData(int.MaxValue)]
-    public void ALimitOutsideTheRangeIsBroughtInsideIt(int limit)
+    [InlineData("armor", 0)]
+    [InlineData("armor", -5)]
+    [InlineData("armor", int.MinValue)]
+    [InlineData("armor", int.MaxValue)]
+    [InlineData(WideQuery, int.MaxValue)]
+    [InlineData(WideQuery, 400)]
+    [InlineData(WideQuery, 26)]
+    public void ALimitOutsideTheRangeIsBroughtInsideIt(string query, int limit)
     {
-        var matches = Parse(Tools().SearchPowers("armor", limit))["matches"]!.AsArray();
+        var matches = Parse(Tools().SearchPowers(query, limit))["matches"]!.AsArray();
 
         Assert.InRange(matches.Count, 1, 25);
+    }
+
+    /// <summary>The word is in most of the rulebook's Power entries, which is what makes it wide.</summary>
+    private const string WideQuery = "rank";
+
+    /// <summary>
+    /// And the wide query really does find more than the ceiling, so the rows above are testing
+    /// the clamp rather than a search that happens to be short.
+    /// </summary>
+    [Fact]
+    public void TheWideQueryTheClampIsMeasuredAgainstReallyOverflowsIt()
+    {
+        var report = Parse(Tools().SearchPowers(WideQuery, 25));
+
+        Assert.True(report["found"]!.GetValue<int>() > 25,
+            $"'{WideQuery}' found {report["found"]} Powers, which is not enough to reach the "
+            + "limit's upper bound — so the rows in the clamp theory prove nothing about it.");
+
+        Assert.Equal(25, report["matches"]!.AsArray().Count);
+        Assert.True(report["more_beyond_these"]!.GetValue<bool>());
     }
 
     /// <summary>
@@ -1440,5 +1501,528 @@ public sealed class McpServerTests
 
         Assert.Null(itsZone["allowed_by_this_power_text"]);
         Assert.Equal(4, itsZone["grades"]!.AsObject().Count);
+    }
+
+    // ── Word by word, not by substring ────────────────────────────────────
+
+    /// <summary>
+    /// <b>A word that occurs only inside a longer word is not a match.</b> That is the whole
+    /// property <c>Mentions</c> exists for, and nothing held it to it: adding one line —
+    /// <c>if (text.Contains(term, …)) return true;</c> — widened it back to a substring search
+    /// with every search test green, because each of them is either a positive assertion or a
+    /// negative on a query whose words happen not to be substrings of anything.
+    ///
+    /// <para><b>The method's own summary calls this failure "worse than no match", and it is.</b>
+    /// "She bakes bread in the city" comes back with Plasticity, matched on "city" — an answer
+    /// that arrives looking exactly like a real one, with nothing in it a reader can see is
+    /// wrong. Each row below is a real English word that appears nowhere in the rules files as a
+    /// word and inside the named Power as a run of letters.</para>
+    ///
+    /// <para>Both halves, so this cannot be satisfied by a search that has stopped working: the
+    /// Power is absent for the fragment and present for its own name.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("city", "plasticity")]
+    [InlineData("ration", "regeneration")]
+    [InlineData("art", "martial_arts")]
+    [InlineData("kinesis", "telekinesis")]
+    public void AWordThatOnlyOccursInsideALongerWordIsNotAMatch(string fragment, string powerId)
+    {
+        var found = Parse(Tools().SearchPowers(fragment, 25))["matches"]!.AsArray()
+            .Select(m => m!["id"]!.GetValue<string>()).ToList();
+
+        Assert.DoesNotContain(powerId, found);
+
+        // And the same Power answers to its own name, so the row above is not passing because
+        // the search returns nothing at all.
+        Assert.Contains(powerId,
+            Parse(Tools().SearchPowers(_f.Rules.GetPower(powerId)!.Name, 25))["matches"]!.AsArray()
+                .Select(m => m!["id"]!.GetValue<string>()));
+    }
+
+    /// <summary>
+    /// And the sentence the method's own summary names, whole: every searchable word in it is a
+    /// run of letters inside some Power and a word in none, so a substring search answers a
+    /// description of a baker with a stretchy superhero.
+    /// </summary>
+    [Fact]
+    public void TheSentenceAboutABakerMatchesNoPowerAtAll()
+    {
+        var report = Parse(Tools().SearchPowers("she bakes bread in the city", 25));
+
+        Assert.Equal(0, report["found"]!.GetValue<int>());
+        Assert.Empty(report["matches"]!.AsArray());
+    }
+
+    // ── Every field of every answer ───────────────────────────────────────
+
+    /// <summary>
+    /// <b>Every field of a <c>power_detail</c>, for all 141 Powers, against the engine's own
+    /// model — and nothing in the document left unread.</b>
+    ///
+    /// <para>Nine of its fields were free. <c>cost_variants</c> could be set to <c>null</c> with
+    /// the suite green, and it is the only place a caller learns the accepted variant keys, which
+    /// <c>check_character</c> then refuses a <c>per_rank_variable</c> Power for not having — so
+    /// the tool taught a dead end and the judge closed it. <c>category</c>, <c>stat_line</c>,
+    /// <c>rank_type</c>, <c>cost_type</c>, <c>max_rank</c>, <c>unit</c>, <c>description</c> and
+    /// <c>source_ref</c> could each be replaced with a constant.</para>
+    ///
+    /// <para><b>The key set is asserted, not just the fields.</b> Twelve separate field
+    /// assertions is the shape that produced those nine gaps in the first place: a field added
+    /// later is a field nobody wrote an assertion for. Here a new one fails this test until it
+    /// is listed and checked.</para>
+    /// </summary>
+    [Fact]
+    public void EveryFieldOfAPowerDetailIsTheEnginesOwnAnswer()
+    {
+        var applicability = new ProConApplicability(_f.Rules);
+
+        foreach (var power in _f.Rules.Powers)
+        {
+            var report = Parse(Tools().PowerDetail(power.Id)).AsObject();
+
+            Assert.True(report["ok"]!.GetValue<bool>(), power.Id);
+
+            Assert.Equal(power.Id, report["id"]!.GetValue<string>());
+            Assert.Equal(power.Name, report["name"]!.GetValue<string>());
+            Assert.Equal(power.Category, report["category"]?.GetValue<string>());
+            Assert.Equal(Sheets.PowerFormatter.StatLine(power), report["stat_line"]!.GetValue<string>());
+            Assert.Equal(power.Range, report["range"]?.GetValue<string>());
+            Assert.Equal(power.RankType, report["rank_type"]?.GetValue<string>());
+            Assert.Equal(power.CostType, report["cost_type"]?.GetValue<string>());
+            Assert.Equal(power.MaxRank, report["max_rank"]?.GetValue<int>());
+            Assert.Equal(power.MaxRank != 0, report["ranks_purchasable"]!.GetValue<bool>());
+            Assert.Equal(power.CostUnitLabel, report["unit"]?.GetValue<string>());
+            Assert.Equal(power.Description, report["description"]?.GetValue<string>());
+            Assert.Equal(power.SourceRef, report["source_ref"]?.GetValue<string>());
+
+            AssertNumbers(power.CostVariants, report["cost_variants"], $"{power.Id} cost_variants");
+
+            if (power.Prerequisite is { } prerequisite)
+            {
+                var baseline = report["baseline"]!.AsObject();
+
+                Assert.Equal(prerequisite.Relationship, baseline["relationship"]?.GetValue<string>());
+                Assert.Equal(prerequisite.Ability, baseline["ability"]?.GetValue<string>());
+                Assert.Equal(prerequisite.FixedValue, baseline["fixed_value"]?.GetValue<int>());
+                Assert.Equal(prerequisite.Description, baseline["description"]?.GetValue<string>());
+                Assert.Equal(prerequisite.Powers,
+                    baseline["powers"]!.AsArray().Select(p => p!.GetValue<string>()).ToList());
+
+                Assert.False(string.IsNullOrWhiteSpace(baseline["note"]?.GetValue<string>()));
+
+                Assert.Empty(baseline.Select(kv => kv.Key)
+                    .Except(BaselineFields, StringComparer.Ordinal));
+            }
+            else
+            {
+                Assert.Null(report["baseline"]);
+            }
+
+            // The generic rows carry the option's own numbers and constraints, which is what an
+            // assistant reads before proposing one.
+            foreach (var (row, option) in report["pros"]!["generic"]!.AsArray()
+                         .Zip(applicability.ProsFor(power)))
+                AssertProConRow(row!.AsObject(), option, option.CostModifier, option.CostModifierRange);
+
+            foreach (var (row, option) in report["cons"]!["generic"]!.AsArray()
+                         .Zip(applicability.ConsFor(power)))
+                AssertProConRow(row!.AsObject(), option, option.CostModifier, option.CostModifierRange);
+
+            Assert.Empty(report.Select(kv => kv.Key).Except(PowerDetailFields, StringComparer.Ordinal));
+        }
+    }
+
+    private static readonly string[] PowerDetailFields =
+    [
+        "ok", "id", "name", "category", "stat_line", "range", "rank_type", "cost_type",
+        "cost_variants", "max_rank", "ranks_purchasable", "unit", "description", "source_ref",
+        "pros", "cons", "baseline"
+    ];
+
+    private static readonly string[] BaselineFields =
+    [
+        "relationship", "ability", "powers", "fixed_value", "description", "note"
+    ];
+
+    private static readonly string[] ProConRowFields =
+    [
+        "id", "name", "hero_points", "grades", "applies_to_ranges", "applies_to_rank_types",
+        "repeatable", "allowed_by_this_power_text", "caveat"
+    ];
+
+    /// <summary>
+    /// One generic Pro or Con row, wherever it is served — <c>list_options</c> and
+    /// <c>power_detail</c> build it with the same helper, so it is asserted with one here.
+    ///
+    /// <para><b><c>grades</c> is the field that mattered.</b> Nulling it passed, and it is what
+    /// carries the accepted keys for the options priced by grade — Charges, Area/Burst, Limited
+    /// — which the guide tells a proposer are required. <c>power_detail</c> narrows the set for a
+    /// Power that reaches the option through its own text, so what is asserted is that every key
+    /// offered is one the rulebook prints and that the field is there at all whenever the option
+    /// has a range.</para>
+    /// </summary>
+    private static void AssertProConRow(
+        JsonObject row, IGenericProCon option, int? cost, IReadOnlyDictionary<string, int>? range)
+    {
+        Assert.Equal(option.Id, row["id"]!.GetValue<string>());
+        Assert.Equal(option.Name, row["name"]!.GetValue<string>());
+        Assert.Equal(cost, row["hero_points"]?.GetValue<int>());
+        Assert.Equal(option.Repeatable, row["repeatable"]!.GetValue<bool>());
+        Assert.Equal(option.ApplicabilityCaveat, row["caveat"]?.GetValue<string>());
+
+        Assert.Equal(option.AppliesToRanges,
+            row["applies_to_ranges"]!.AsArray().Select(r => r!.GetValue<string>()).ToList());
+        Assert.Equal(option.AppliesToRankTypes,
+            row["applies_to_rank_types"]!.AsArray().Select(r => r!.GetValue<string>()).ToList());
+
+        if (range is null)
+        {
+            Assert.Null(row["grades"]);
+        }
+        else
+        {
+            var grades = row["grades"]!.AsObject();
+
+            Assert.NotEmpty(grades);
+
+            foreach (var (key, value) in grades)
+            {
+                Assert.Contains(key, range.Keys);
+                Assert.Equal(range[key], (int)value!.GetValue<double>());
+            }
+        }
+
+        Assert.Empty(row.Select(kv => kv.Key).Except(ProConRowFields, StringComparer.Ordinal));
+    }
+
+    /// <summary>A dictionary of numbers as <c>Numbers</c> serialises one, or null for null.</summary>
+    private static void AssertNumbers<T>(
+        IReadOnlyDictionary<string, T>? expected, JsonNode? actual, string what)
+        where T : struct, IConvertible
+    {
+        if (expected is null)
+        {
+            Assert.Null(actual);
+            return;
+        }
+
+        var node = Assert.IsType<JsonObject>(actual);
+
+        Assert.Equal(expected.Keys.Order(), node.Select(kv => kv.Key).Order());
+
+        foreach (var (key, value) in expected)
+            Assert.Equal(
+                Convert.ToDouble(value, System.Globalization.CultureInfo.InvariantCulture),
+                node[key]!.GetValue<double>());
+
+        Assert.True(node.Count > 0, $"{what} came back empty.");
+    }
+
+    /// <summary>
+    /// <b>Every field of every catalogue entry, against the rules — and the key set with it.</b>
+    ///
+    /// <para><see cref="TheCatalogueNumbersAreTheRulesOwn"/> reads a hand-picked subset per
+    /// category, which left five fields free: a gear feature's <c>cost_type</c> and its
+    /// <c>grades</c> — nulling the second kills the accepted keys of the two features the
+    /// rulebook prices by grade — a flaw's <c>flaw_type</c>, a perk's <c>unit</c>, and a
+    /// talent's <c>ordinary_human_rank</c>. That test stays: it reads the numbers pairwise
+    /// against the model and says why each matters. This one is the completeness half.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("tiers")]
+    [InlineData("packages")]
+    [InlineData("abilities")]
+    [InlineData("talents")]
+    [InlineData("sources")]
+    [InlineData("perks")]
+    [InlineData("flaws")]
+    [InlineData("pros")]
+    [InlineData("cons")]
+    [InlineData("gear_features")]
+    public void EveryFieldOfEveryCatalogueEntryIsTheRulesOwn(string category)
+    {
+        var report = Parse(Tools().ListOptions(category)).AsObject();
+        var entries = report["entries"]!.AsArray();
+
+        Assert.True(report["ok"]!.GetValue<bool>(), category);
+        Assert.NotEmpty(entries);
+
+        string[] fields;
+
+        switch (category)
+        {
+            case "tiers":
+                fields = ["id", "name", "hero_points", "trait_cap", "description", "notes"];
+
+                foreach (var (entry, tier) in entries.Zip(_f.Rules.Tiers))
+                {
+                    Assert.Equal(tier.Id, entry!["id"]!.GetValue<string>());
+                    Assert.Equal(tier.Name, entry["name"]!.GetValue<string>());
+                    Assert.Equal(tier.HeroPoints, entry["hero_points"]?.GetValue<int>());
+                    Assert.Equal(tier.TraitCapRank, entry["trait_cap"]!.GetValue<int>());
+                    Assert.Equal(tier.Description, entry["description"]?.GetValue<string>());
+                    Assert.Equal(tier.Notes, entry["notes"]?.GetValue<string>());
+                }
+
+                break;
+
+            case "packages":
+                fields = ["id", "name", "hero_points", "grants_every_ability",
+                          "grants_every_talent", "description"];
+
+                foreach (var (entry, package) in entries.Zip(_f.Rules.CreationRules.OptionalPackages))
+                {
+                    Assert.Equal(package.Id, entry!["id"]!.GetValue<string>());
+                    Assert.Equal(package.Name, entry["name"]!.GetValue<string>());
+                    Assert.Equal(package.Cost, entry["hero_points"]!.GetValue<int>());
+                    Assert.Equal(package.AbilitiesRank, entry["grants_every_ability"]!.GetValue<int>());
+                    Assert.Equal(package.TalentsRank, entry["grants_every_talent"]!.GetValue<int>());
+                    Assert.Equal(package.Description, entry["description"]?.GetValue<string>());
+                }
+
+                break;
+
+            case "abilities":
+                fields = ["id", "name", "hero_points_per_rank", "ordinary_human_rank", "description"];
+
+                foreach (var (entry, ability) in entries.Zip(_f.Rules.Abilities))
+                {
+                    Assert.Equal(ability.Id, entry!["id"]!.GetValue<string>());
+                    Assert.Equal(ability.Name, entry["name"]!.GetValue<string>());
+                    Assert.Equal(ability.CostPerRank, entry["hero_points_per_rank"]!.GetValue<int>());
+                    Assert.Equal(ability.OrdinaryHumanRank, entry["ordinary_human_rank"]!.GetValue<int>());
+                    Assert.Equal(ability.Description, entry["description"]?.GetValue<string>());
+                }
+
+                break;
+
+            case "talents":
+                fields = ["id", "name", "hero_points_per_rank", "ordinary_human_rank",
+                          "linked_ability", "description"];
+
+                foreach (var (entry, talent) in entries.Zip(_f.Rules.Talents))
+                {
+                    Assert.Equal(talent.Id, entry!["id"]!.GetValue<string>());
+                    Assert.Equal(talent.Name, entry["name"]!.GetValue<string>());
+                    Assert.Equal(talent.CostPerRank, entry["hero_points_per_rank"]!.GetValue<int>());
+                    Assert.Equal(talent.OrdinaryHumanRank, entry["ordinary_human_rank"]!.GetValue<int>());
+                    Assert.Equal(talent.LinkedAbility, entry["linked_ability"]?.GetValue<string>());
+                    Assert.Equal(talent.Description, entry["description"]?.GetValue<string>());
+                }
+
+                break;
+
+            case "sources":
+                fields = ["id", "name", "default_rank_ability", "description"];
+
+                foreach (var (entry, source) in entries.Zip(_f.Rules.Sources))
+                {
+                    Assert.Equal(source.Id, entry!["id"]!.GetValue<string>());
+                    Assert.Equal(source.Name, entry["name"]!.GetValue<string>());
+                    Assert.Equal(source.DefaultRankAbility, entry["default_rank_ability"]?.GetValue<string>());
+                    Assert.Equal(source.Description, entry["description"]?.GetValue<string>());
+                }
+
+                break;
+
+            case "perks":
+                fields = ["id", "name", "cost_type", "hero_points", "hero_points_per_unit",
+                          "unit", "description", "narrative_constraint"];
+
+                foreach (var (entry, perk) in entries.Zip(_f.Rules.Perks))
+                {
+                    Assert.Equal(perk.Id, entry!["id"]!.GetValue<string>());
+                    Assert.Equal(perk.Name, entry["name"]!.GetValue<string>());
+                    Assert.Equal(perk.CostType, entry["cost_type"]!.GetValue<string>());
+                    Assert.Equal(perk.Cost, entry["hero_points"]?.GetValue<int>());
+                    Assert.Equal(perk.CostPerUnit, entry["hero_points_per_unit"]?.GetValue<int>());
+                    Assert.Equal(perk.UnitLabel, entry["unit"]?.GetValue<string>());
+                    Assert.Equal(perk.Description, entry["description"]?.GetValue<string>());
+                    Assert.Equal(perk.NarrativeConstraint, entry["narrative_constraint"]?.GetValue<string>());
+                }
+
+                break;
+
+            case "flaws":
+                fields = ["id", "name", "flaw_type", "description", "narrative_constraint"];
+
+                foreach (var (entry, flaw) in entries.Zip(_f.Rules.Flaws))
+                {
+                    Assert.Equal(flaw.Id, entry!["id"]!.GetValue<string>());
+                    Assert.Equal(flaw.Name, entry["name"]!.GetValue<string>());
+                    Assert.Equal(flaw.FlawType, entry["flaw_type"]?.GetValue<string>());
+                    Assert.Equal(flaw.Description, entry["description"]?.GetValue<string>());
+                    Assert.Equal(flaw.NarrativeConstraint, entry["narrative_constraint"]?.GetValue<string>());
+                }
+
+                break;
+
+            case "pros":
+                fields = ProConRowFields;
+
+                foreach (var (entry, pro) in entries.Zip(_f.Rules.Pros))
+                    AssertProConRow(entry!.AsObject(), pro, pro.CostModifier, pro.CostModifierRange);
+
+                break;
+
+            case "cons":
+                fields = ProConRowFields;
+
+                foreach (var (entry, con) in entries.Zip(_f.Rules.Cons))
+                    AssertProConRow(entry!.AsObject(), con, con.CostModifier, con.CostModifierRange);
+
+                break;
+
+            case "gear_features":
+                fields = ["id", "name", "cost_type", "hero_points", "grades", "applies_to", "description"];
+
+                foreach (var (entry, feature) in entries.Zip(_f.Rules.GearFeatures))
+                {
+                    Assert.Equal(feature.Id, entry!["id"]!.GetValue<string>());
+                    Assert.Equal(feature.Name, entry["name"]!.GetValue<string>());
+                    Assert.Equal(feature.CostType, entry["cost_type"]!.GetValue<string>());
+                    Assert.Equal(feature.Cost, entry["hero_points"]?.GetValue<int>());
+                    Assert.Equal(feature.AppliesTo, entry["applies_to"]?.GetValue<string>());
+                    Assert.Equal(feature.Description, entry["description"]?.GetValue<string>());
+
+                    AssertNumbers(feature.CostRange, entry["grades"], $"{feature.Id} grades");
+                }
+
+                break;
+
+            default:
+                Assert.Fail($"This test does not know the '{category}' catalogue.");
+                return;
+        }
+
+        // Every entry read whole, and the count, so a catalogue serving fewer entries than the
+        // rules hold cannot pass by having its first few agree.
+        Assert.All(entries, entry =>
+            Assert.Empty(entry!.AsObject().Select(kv => kv.Key).Except(fields, StringComparer.Ordinal)));
+
+        Assert.Equal(EntryCount(category), entries.Count);
+
+        // And the report around them. `note` and `at_creation` are conditional, so the check is
+        // that nothing unexpected is there rather than that everything is.
+        Assert.Empty(report.Select(kv => kv.Key)
+            .Except(["ok", "category", "entries", "note", "at_creation"], StringComparer.Ordinal));
+
+        Assert.Equal(category, report["category"]!.GetValue<string>());
+    }
+
+    private int EntryCount(string category) => category switch
+    {
+        "tiers"         => _f.Rules.Tiers.Count,
+        "packages"      => _f.Rules.CreationRules.OptionalPackages.Count,
+        "abilities"     => _f.Rules.Abilities.Count,
+        "talents"       => _f.Rules.Talents.Count,
+        "sources"       => _f.Rules.Sources.Count,
+        "perks"         => _f.Rules.Perks.Count,
+        "flaws"         => _f.Rules.Flaws.Count,
+        "pros"          => _f.Rules.Pros.Count,
+        "cons"          => _f.Rules.Cons.Count,
+        "gear_features" => _f.Rules.GearFeatures.Count,
+        _               => throw new ArgumentOutOfRangeException(nameof(category), category, null)
+    };
+
+    /// <summary>
+    /// <b>Every field of every issue is the validator's own, over every sheet that makes it say
+    /// something different.</b>
+    ///
+    /// <para><see cref="AnIssueCarriesTheFactsToRepairFrom"/> reads four of the six optional
+    /// fields on one issue, so <c>owner_id</c> and <c>options</c> could both be dropped with the
+    /// suite green — and those are the two a repair loop cannot work without: <c>owner_id</c> is
+    /// which Power or item the finding is on, and an issue whose fix is a choice is useless
+    /// without the choices. <c>QUESTION-POLICY.md</c> tells the assistant all six are there.
+    /// <c>HeadlessBuildTests</c> covers both for the <c>build</c> command's report; this report
+    /// duplicates that one on purpose and had no equivalent.</para>
+    ///
+    /// <para><b>Driven from <see cref="ValidationIssueStructureTests.Cases"/></b>, which is held
+    /// to the validator's own source so that every code it can construct is provoked by some
+    /// sheet here. A list of codes this test remembered would go stale the first time one was
+    /// added — which is the failure that list exists to record.</para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ValidationIssueStructureTests.Cases),
+        MemberType = typeof(ValidationIssueStructureTests))]
+    public void EveryFieldOfEveryIssueIsTheValidatorsOwn(string which)
+    {
+        // The sheets are that class's, reused rather than copied: they are the set the
+        // validator's source is checked against, and a second copy would be the stale one.
+        var json = CharacterSheetJson.Write(new ValidationIssueStructureTests(_f).Build(which));
+
+        // Validated as the tool receives it, so a round trip cannot show up here as a
+        // disagreement about the issues.
+        var expected = _f.Validator.Validate(CharacterSheetJson.Read(json, strict: true)!);
+
+        var report = Parse(Tools().CheckCharacter(Element(json)));
+
+        Assert.NotNull(report["issues"]);
+
+        // The one issue in the document that is not the validator's; it has a test of its own.
+        var reported = report["issues"]!.AsArray()
+            .Where(i => i!["code"]!.GetValue<string>() != "ENGINE_COULD_NOT_ANSWER")
+            .ToList();
+
+        Assert.Equal(expected.Issues.Select(i => i.Code).ToList(),
+                     reported.Select(i => i!["code"]!.GetValue<string>()).ToList());
+
+        foreach (var (node, issue) in reported.Zip(expected.Issues))
+        {
+            var fields = node!.AsObject();
+
+            Assert.Equal(issue.Severity == ValidationSeverity.Error ? "error" : "warning",
+                fields["severity"]!.GetValue<string>());
+            Assert.Equal(issue.Message, fields["message"]!.GetValue<string>());
+
+            // Absent rather than null where there is nothing to say, which is this report's own
+            // rule — so the expected value for "nothing" is a missing key.
+            Assert.Equal(
+                issue.SubjectKind == ValidationSubject.None
+                    ? null
+                    : Judgement.SubjectKindName(issue.SubjectKind),
+                fields["subject_kind"]?.GetValue<string>());
+
+            Assert.Equal(issue.SubjectId, fields["subject_id"]?.GetValue<string>());
+            Assert.Equal(issue.OwnerId, fields["owner_id"]?.GetValue<string>());
+            Assert.Equal(issue.Value, fields["value"]?.GetValue<int>());
+            Assert.Equal(issue.Limit, fields["limit"]?.GetValue<int>());
+
+            Assert.Equal(
+                issue.Options.Count == 0 ? null : issue.Options.ToList(),
+                fields["options"]?.AsArray().Select(o => o!.GetValue<string>()).ToList());
+
+            Assert.Empty(fields.Select(kv => kv.Key).Except(IssueFields, StringComparer.Ordinal));
+        }
+    }
+
+    private static readonly string[] IssueFields =
+    [
+        "severity", "code", "message", "subject_kind", "subject_id", "owner_id",
+        "value", "limit", "options"
+    ];
+
+    /// <summary>
+    /// And the set of sheets above really does reach <c>owner_id</c> and <c>options</c>, so the
+    /// theory is not asserting two null fields against two null fields across the board — which
+    /// is exactly how the gap it closes came to exist.
+    /// </summary>
+    [Fact]
+    public void TheIssuesCheckedReachEveryFieldAnIssueCanCarry()
+    {
+        var cases = new ValidationIssueStructureTests(_f);
+
+        var issues = ValidationIssueStructureTests.CaseNames
+            .SelectMany(which => _f.Validator.Validate(cases.Build(which)).Issues)
+            .ToList();
+
+        Assert.Contains(issues, i => i.OwnerId is not null);
+        Assert.Contains(issues, i => i.Options.Count > 0);
+        Assert.Contains(issues, i => i.Value is not null);
+        Assert.Contains(issues, i => i.Limit is not null);
+        Assert.Contains(issues, i => i.SubjectId is not null);
+        Assert.Contains(issues, i => i.Severity == ValidationSeverity.Warning);
+        Assert.Contains(issues, i => i.Severity == ValidationSeverity.Error);
     }
 }
