@@ -12,7 +12,7 @@ sessions, not documentation.
 ## Where things stand
 
 Head is **`078b69d`**, on top of [#43](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/43).
-**3512 tests** — 3388 engine, 124 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3525 tests** — 3401 engine, 124 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
@@ -52,11 +52,13 @@ it did **not** close, and the two documents whose claims were wrong rather than 
 (`CLAUDE.md` on the stdout guards being complementary, and both `CLAUDE.md` and `Mentions`' own
 summary naming a Power the rulebook does not have).
 
-**The two reviews then found fourteen more, nine of them inside the fixes.** All closed. Do not
-skip that step on A2 or A3 — it was worth more than the original slice, and the "audit the fixes,
-not the code" reviewer again found something the general one did not.
+**Three rounds of adversarial review then found twenty more, most of them inside the fixes.** All
+closed. **Do not skip that step on A2 or A3, and do not stop at one round** — the third review, run
+on the fixes for the second review's findings, still found six, two of them the same defect in a new
+spelling. It was worth more than the original slice every time, and the "audit the fixes, not the
+code" framing found things the general reviewer did not.
 
-**Six things worth carrying into A2 and A3.**
+**Seven things worth carrying into A2 and A3.**
 
 1. **A guard that names its fields will be missing the next one.** Nine of the twelve were "a JSON
    field no test reads", and the fix that worked was one assertion over the whole payload *with
@@ -70,13 +72,19 @@ not the code" reviewer again found something the general one did not.
    was the character's name, which the test itself sends and the judge echoes — so serving the
    judge under the sheet's name passed. A2's replay tests are full of this shape: the sheet prints
    figures that *could* come from either character.
-4. **A source-reading guard is worth what its instrument can see.** A token check was defeated by a
-   comment mentioning the token, and by `ListOptions(Categories[0])` keeping the word `Categories`.
-   Where a runtime property exists, drive it — a theory over `RulesRepository.DataFileNames` replaced
-   the grep and is a real statement about behaviour. A2 has several CSS guards of exactly this kind.
-5. **`Zip` truncates in silence.** An emptied array runs every loop zero times and fires no
+4. **A source-reading guard is worth what its instrument can see, and a token is not a read.** A
+   token check was defeated by `ListOptions(Categories[0])` keeping the word `Categories`, then by a
+   comment mentioning the token, then by `nameof(...)`. Where a runtime property exists, drive it —
+   a theory over `RulesRepository.DataFileNames` replaced one grep, and injecting the guide the way
+   the clock is already injected replaced the other. **A2 has several CSS guards of exactly this
+   kind**, and items 10–12 there are all "the rule is asserted by looking at the text of it".
+5. **A phrase assertion cannot survive a "not" in front of the phrase.** Two prose contracts were
+   pinned by required phrases and both were *inverted* while keeping every one of them. Where the
+   content of a sentence is the deliverable, assert the sentence. This bears directly on A2's
+   items 6 and 7, which are both about what a recorded line is allowed to say.
+6. **`Zip` truncates in silence.** An emptied array runs every loop zero times and fires no
    assertion inside it. Assert the count first.
-6. **Reuse the case list, do not copy it.** `ValidationIssueStructureTests.CaseNames` and `Build`
+7. **Reuse the case list, do not copy it.** `ValidationIssueStructureTests.CaseNames` and `Build`
    are `internal` now precisely so the second consumer cannot go stale independently. A3's first
    finding is about that same table skipping what it omits.
 

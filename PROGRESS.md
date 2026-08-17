@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3512 across two projects — 3388 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3525 across two projects — 3401 on the engine, 124 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -272,8 +272,11 @@ field added later is a field nobody wrote an assertion for.
 | The search limit's upper bound: `Math.Clamp(limit, 1, 25)` → `(limit, 1, 400)` passed, because every row searched "armor", which matches fewer than 25 | Wide rows on a query that overflows the ceiling, and a test asserting that it really does — so the clamp rows prove something about the clamp |
 
 **What the two adversarial reviews then found, which is the part worth reading.** Fourteen further
-findings across two passes, nine of them *inside* the fixes above. All are closed and each was
-demonstrated the same way. Three patterns, and they are the transferable part:
+findings across two passes, **most of them inside the fixes above**, then six more from a third
+review pointed at those. All are closed and each was demonstrated the same way. (An earlier version
+of this sentence said "nine of them"; the figure is not reconcilable from the list either way,
+depending on how the two `ReadEverything` findings are grouped, so it is not stated as one.) Four
+patterns, and they are the transferable part:
 
 1. **A marker that proves a code path ran must be something only that path can produce.**
    `character_sheet`'s marker was the character's name — which the test sends as the argument and
@@ -292,10 +295,24 @@ demonstrated the same way. Three patterns, and they are the transferable part:
    would actually write. The first is now a runtime theory over `RulesRepository.DataFileNames` —
    a directory missing any one rules file must be refused, which is the property, and the two older
    tests both used a directory holding `tiers.json` alone that throws whatever else is broken. The
-   second strips comments before looking.
+   second was defeated twice more — a comment mentioning the token, then `nameof(QuestionPolicy)` —
+   before being made a real runtime test: the guide is handed to `CharacterTools` the way its clock
+   already is, so a guide that throws is an arrangement a test can build and deleting the read
+   fails. **A token is not a read, and no amount of text-matching makes it one.**
+4. **A phrase assertion cannot survive a "not" in front of the phrase.** The baseline note and the
+   server instructions were each pinned by required phrases and each inverted while keeping every
+   one of them — "do **not** stack on top of this baseline, and the Trait Cap applies to the total,
+   which is the baseline alone", and "It is a **myth** that the arithmetic is not guessable". Both
+   are asserted verbatim now. Where the content of a sentence *is* the deliverable, the sentence is
+   the assertion, and the duplicated literal buys the only thing that matters: a change to it has
+   to be deliberate and visible in a diff. The question policy's two confusable shapes needed the
+   same treatment for a different reason — swapping the two groups whole leaves both field sets
+   valid and only the English inverted, which no structural rule can see.
 
 The rest, briefly: `grades` could be *narrowed* rather than nulled, dropping the −4 grades of the
-two Cons the guide calls mandatory (key sets are now exact both ways, everywhere); `pros.own` and
+two Cons the guide calls mandatory (key sets are exact both ways on every payload asserted whole;
+three one-sided `Except` checks remain, each documented in situ where the field set is genuinely
+open); `pros.own` and
 `cons.own` were not read at all, so three fields could go constant and a new one appear unnoticed;
 `Zip` truncates in silence, so an emptied array ran every loop zero times and fired no key check;
 the baseline `note` — the one string in `power_detail` that is not the engine's answer — could be
@@ -303,10 +320,15 @@ inverted to say purchased ranks *replace* the baseline, across all 27 baseline P
 policy could name a real field on the *wrong type*, which reflection over a flat name set cannot
 see, so each shape it writes out is now matched against the type that has those fields; the Desktop
 `command` paths could point somewhere no publish command produces, and `(\.exe)?$` accepted `.exe`
-on the macOS block; the instructions' length-and-full-stop floor was defeated by padding, so the
-reasoning clauses are pinned instead; and one *opposite* failure — an extra, entirely legitimate
-line on standard error broke the runtime test, which reads as a stdout regression and is nothing
-of the kind, so it drains until a line names the rules directory.
+on the macOS block — and then, once the extension rule existed, it asked `StartsWith("C:")`, so a
+`D:` path dropped the `.exe` and passed; `force_field`'s `area_burst` grades were pinned nowhere, so
+losing `burst` from the only place a caller learns it was invisible, and all three of its own-text
+allowances are pinned by key now; `Judgement`'s guarded engine calls were still unentered, because
+the unpriceable character went only to `character_sheet`, which never reaches them; a *corrupt*
+rules file, as against a missing one, was covered nowhere though `Program.cs` catches
+`JsonException` for exactly it; and one *opposite* failure — an extra, entirely legitimate line on
+standard error broke the runtime test, which reads as a stdout regression and is nothing of the
+kind, so it drains until a line names the rules directory.
 
 **What is still not closed, stated rather than left to be found.** The stdout pair covers the
 startup path, the handshake, and both branches of every tool; a write reachable only from an
