@@ -31,6 +31,24 @@ public sealed class ReplayRenderTests
     private const string DidNotFit = "sheet-lightning";
     private const string Villain = "the-conductor";
 
+    /// <summary>
+    /// The two sample characters, named the way a recording is so both can be written as one
+    /// <c>InlineData</c>. They are here because no recorded character has a rankless Power and
+    /// the Hero sample does — see
+    /// <see cref="ARanklessPowerPrintsTheStandInRankOfTheCharacterOnThePage"/>.
+    /// </summary>
+    private const string OurHero = "sample:hero";
+
+    private const string OurVillain = "sample:villain";
+
+    private static CharacterSheet Character(RenderContext ctx, string key) => key switch
+    {
+        OurHero => SampleCharacters.Hero(),
+        OurVillain => SampleCharacters.Villain(),
+        _ => Conversation(ctx, key).FinalCharacter
+             ?? throw new InvalidOperationException($"'{key}' never arrives at a character.")
+    };
+
     private static Transcript Conversation(RenderContext ctx, string id) =>
         ctx.Services.GetRequiredService<ReplayLibrary>().Find(id)
         ?? throw new InvalidOperationException($"No recording called '{id}'.");
@@ -255,6 +273,57 @@ public sealed class ReplayRenderTests
     }
 
     /// <summary>
+    /// <b>And nothing in the verdict panel comes from the visitor's character either.</b>
+    ///
+    /// <para>The test above reads the figures off the page and compares them to the engine's
+    /// answer for the recorded character — which catches a stored number and a hard-coded
+    /// offset, and does not catch the panel costing the <em>wrong character</em>, because the
+    /// context it renders in has an empty sheet and the recorded characters have no Perks and
+    /// no gear. All three figures are 0, so all three agree. An adversarial pass pointed the
+    /// Perks and Gear rows at <c>Session.Sheet</c> and both suites stayed green — on the two
+    /// rows that had been added specifically to close that gap.</para>
+    ///
+    /// <para>So this asks the question directly: the same recorded character, rendered under
+    /// two <em>different</em> visitors, has to produce the same panel. No figure is named, so
+    /// a row added later is covered the day it is added.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(Cheap, false)]
+    [InlineData(DidNotFit, false)]
+    [InlineData(Villain, true)]
+    public void TheVerdictPanelReadsOnlyTheCharacterItWasGiven(string id, bool villain)
+    {
+        string Panel(RenderContext context, CharacterSheet visitors, CharacterSheet subject)
+        {
+            context.Session.Restore(visitors, SheetMode.Hero);
+
+            return context.Render<ReplayVerdict>(p => p
+                    .Add(v => v.Character, subject)
+                    .Add(v => v.Villain, villain))
+                .Find(".replay-verdict").TextContent;
+        }
+
+        using var ctx = new RenderContext();
+        var costs = ctx.Services.GetRequiredService<CostCalculator>();
+        var subject = Character(ctx, id);
+
+        // Two visitors who differ in every figure this panel prints. The Hero sample carries
+        // Perks and customised gear and the Villain sample carries neither, which is what makes
+        // those two rows able to bite at all; the tier is moved so the budget and the Trait Cap
+        // can too.
+        var one = SampleCharacters.Hero();
+        var other = SampleCharacters.Villain();
+        other.SelectedTierId = "street_level";
+
+        Assert.NotEqual(one.SelectedTierId, other.SelectedTierId);
+        Assert.NotEqual(costs.TotalPerksCost(one), costs.TotalPerksCost(other));
+        Assert.NotEqual(costs.TotalGearCost(one), costs.TotalGearCost(other));
+        Assert.NotEqual(costs.TotalCost(one), costs.TotalCost(other));
+
+        Assert.Equal(Panel(ctx, one, subject), Panel(ctx, other, subject));
+    }
+
+    /// <summary>
     /// The recording that turns on a draft not fitting has to <em>show</em> it not fitting, and
     /// then show the settled character fitting. Both verdicts are the validator's, taken off
     /// the rendered page.
@@ -281,6 +350,14 @@ public sealed class ReplayRenderTests
     /// looking at, so it reports the overspend regardless. The replay neither hides that nor
     /// calls the character illegal for it: no verdict is claimed, and the reason is on the
     /// page in words.
+    ///
+    /// <para><b>Both halves, and only the second used to be asserted.</b> The GM review step
+    /// legitimately filters <c>HP_BUDGET_EXCEEDED</c> in Villain mode, so copying that one line
+    /// into this panel "for consistency" is a change somebody would make — and it left the
+    /// Conductor printing "Nothing to report." underneath a paragraph explaining a finding
+    /// that was no longer there, with the suite green. <c>CLAUDE.md</c> is explicit that this
+    /// recording shows its budget finding rather than hiding it; that is what the recording is
+    /// <em>about</em>.</para>
     /// </summary>
     [Fact]
     public void AVillainIsNotCalledIllegalForHavingNoBudget()
@@ -290,6 +367,17 @@ public sealed class ReplayRenderTests
         ShowAll(page);
 
         Assert.Empty(page.FindAll(".verdict"));
+
+        // The finding itself is on the page, in the validator's own words rather than a
+        // paraphrase — asked of the engine here so this cannot agree with a message that has
+        // drifted.
+        var overspend = ctx.Services.GetRequiredService<CharacterValidator>()
+            .Validate(Conversation(ctx, Villain).FinalCharacter!)
+            .Issues.Single(i => i.Code == "HP_BUDGET_EXCEEDED");
+
+        Assert.Contains(
+            page.FindAll(".replay-verdict .issues li"),
+            li => li.TextContent.Contains(overspend.Message, StringComparison.Ordinal));
 
         var text = Text(page);
         Assert.Contains("Ch.9", text, StringComparison.Ordinal);
@@ -400,6 +488,155 @@ public sealed class ReplayRenderTests
             // also what catches the separator going missing and printing "Armor8d".
             Assert.Contains(entries, e => e.Contains($"{name} {rank}d", StringComparison.Ordinal));
         }
+    }
+
+    /// <summary>
+    /// <b>A sheet printed for somebody else's character reads exactly as it would if that
+    /// character were the visitor's own.</b>
+    ///
+    /// <para>This is the one assertion on this surface that does not go stale. The two tests
+    /// above name the figures they check, and everything they do not name was free: an audit
+    /// moved <c>Tier</c>, the budget sub-line, the Quote, the Motivation, the Description, the
+    /// Connections and the stand-in rank from the printed character to the visitor's own, and
+    /// all seven mutations were green. Naming seven more fields would only move the boundary —
+    /// the eighth field somebody adds is unguarded again the day it is added.</para>
+    ///
+    /// <para>So it compares two renderings of the <em>same</em> character: one where the
+    /// session holds it, one where the session holds somebody else entirely and it arrives as
+    /// a parameter. Every read of <c>Session.Sheet</c> that should have been a read of the
+    /// parameter is a difference between the two, whatever field it is in.</para>
+    ///
+    /// <para>The pairs are chosen so the two characters differ in the things a sheet prints,
+    /// and <b>the visitor's tier is moved so that every pair crosses tiers</b>. Left as they
+    /// come, only the rows involving Vera Nunn did — every other recorded character and both
+    /// samples are Standard — so the tier, the Trait Cap and the budget sub-line were covered
+    /// by one row out of four, and would have stopped being covered at all the day she became
+    /// a Standard character, with nothing failing to say so.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(Cheap, OurHero)]
+    [InlineData(OurHero, Cheap)]
+    [InlineData(Villain, OurVillain)]
+    [InlineData(DidNotFit, OurHero)]
+    public void ASheetPrintedForSomebodyElsesCharacterReadsExactlyAsTheirOwnWould(
+        string printed, string visitors)
+    {
+        // Both renderings pass ShowBudget explicitly. It is the one thing on this sheet that
+        // is genuinely allowed to come from outside the character — whether a recorded
+        // character is a Villain has nothing to do with the palette the visitor is wearing —
+        // so leaving it to default would make the two renderings differ for a legitimate
+        // reason and hide every illegitimate one behind it.
+        static string AsTheirOwn(RenderContext ctx, CharacterSheet sheet)
+        {
+            ctx.Session.Restore(sheet, SheetMode.Hero);
+            return ctx.Render<SheetView>(p => p.Add(s => s.ShowBudget, true))
+                .Find(".sheet").TextContent;
+        }
+
+        using var ctx = new RenderContext();
+        var rules = ctx.Services.GetRequiredService<RulesRepository>();
+        var subject = Character(ctx, printed);
+        var mine = Character(ctx, visitors);
+
+        // Whatever tier the visitor came with, they are moved off the subject's — so the
+        // masthead, the colophon and the budget sub-line can bite on every row rather than on
+        // the one row that happens to involve the only non-Standard recording.
+        mine.SelectedTierId = rules.Tiers.First(t => t.Id != subject.SelectedTierId).Id;
+        Assert.NotEqual(subject.SelectedTierId, mine.SelectedTierId);
+
+        var expected = AsTheirOwn(ctx, subject);
+
+        // The bite guard. If the two characters printed the same page the comparison below
+        // would hold however thoroughly the component read the wrong one.
+        Assert.NotEqual(expected, AsTheirOwn(ctx, mine));
+
+        // And now the visitor's character is the one in the session, with the subject passed
+        // in — which is exactly what the replay does. Asserted rather than left to the order
+        // of the two calls above: with the subject still in the session this whole comparison
+        // would pass by rendering the same thing twice.
+        Assert.Same(mine, ctx.Session.Sheet);
+
+        var actual = ctx.Render<SheetView>(p => p
+                .Add(s => s.Character, subject)
+                .Add(s => s.ShowBudget, true))
+            .Find(".sheet").TextContent;
+
+        Assert.Equal(expected, actual);
+    }
+
+    /// <summary>
+    /// The one thing on a printed sheet the pairing above cannot exercise: a rankless Power's
+    /// stand-in rank, which no recorded character has.
+    ///
+    /// <para>A rankless Power has no rank of its own, but it is not rankless when another
+    /// Power acts on it — its Source names an Ability that stands in, and the sheet prints
+    /// what that comes to. Read off the wrong character it is a number a player would act on
+    /// the moment somebody Drained it.</para>
+    /// </summary>
+    [Fact]
+    public void ARanklessPowerPrintsTheStandInRankOfTheCharacterOnThePage()
+    {
+        using var ctx = new RenderContext();
+        var rules = ctx.Services.GetRequiredService<RulesRepository>();
+        var derived = ctx.Services.GetRequiredService<DerivedStatsCalculator>();
+
+        // Printed: the Hero sample, whose Communications is rankless and Tech-Sourced.
+        // In the session: a recorded character, whose Toughness is a different number.
+        var printed = SampleCharacters.Hero();
+        ctx.Session.Restore(Character(ctx, Cheap), SheetMode.Hero);
+
+        var rankless = printed.SelectedPowers
+            .Where(p => rules.GetPower(p.PowerId) is { RankType: "default" or "special" })
+            .ToList();
+
+        Assert.NotEmpty(rankless);
+
+        var sheet = ctx.Render<SheetView>(p => p.Add(s => s.Character, printed))
+            .Find(".sheet").TextContent;
+
+        foreach (var power in rankless)
+        {
+            var theirs = derived.GetRankAgainstPowers(power, printed);
+            var visitors = derived.GetRankAgainstPowers(power, ctx.Session.Sheet);
+
+            Assert.NotEqual(theirs, visitors);
+
+            var ability = rules.GetAbility(rules.GetSource(power.SourceId!)!.DefaultRankAbility)!.Name;
+
+            Assert.Contains($"Against other Powers: {ability} {theirs}d", sheet, StringComparison.Ordinal);
+            Assert.DoesNotContain($"Against other Powers: {ability} {visitors}d", sheet, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// <b>A recorded character is measured against a budget if and only if <em>they</em> have
+    /// one</b> — which has nothing to do with the palette the visitor happens to be wearing.
+    ///
+    /// <para>Ch.9 gives a Villain no Hero Point budget, so the Conductor's fourth box carries
+    /// what he cost and nothing to measure it against. Dropping the flag the replay passes
+    /// falls back to the app's own mode, so a visitor in Hero colours read the Conductor's
+    /// sheet as "Hero Points … of 125" — a budget the rulebook says he does not have.
+    /// <see cref="AVillainIsNotCalledIllegalForHavingNoBudget"/> makes that claim for the
+    /// verdict panel and never for the sheet.</para>
+    ///
+    /// <para>Both directions, because the fallback is right half the time by accident: a Hero
+    /// recording read by a visitor in Villain colours has to keep its budget.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(Villain, SheetMode.Hero, "Points Spent", null)]
+    [InlineData(Cheap, SheetMode.Villain, "Hero Points", "of 75")]
+    public void ARecordedCharacterIsMeasuredAgainstTheirOwnBudgetAndNotTheVisitors(
+        string id, SheetMode visitorsMode, string label, string? sub)
+    {
+        using var ctx = new RenderContext().With(visitorsMode);
+        var page = Play(ctx, id);
+        ShowAll(page);
+
+        var block = page.FindAll(".sheet .stat-block")
+            .Single(b => b.QuerySelector(".label")!.TextContent.Trim() is "Hero Points" or "Points Spent");
+
+        Assert.Equal(label, block.QuerySelector(".label")!.TextContent.Trim());
+        Assert.Equal(sub, block.QuerySelector(".sub")?.TextContent.Trim());
     }
 
     /// <summary>
@@ -568,6 +805,35 @@ public sealed class ReplayRenderTests
 
         Assert.Contains("No such recording", Text(page), StringComparison.Ordinal);
         Assert.Empty(page.FindAll(".replay-turn"));
+    }
+
+    /// <summary>
+    /// <b>And an address reaches its recording whatever case it was typed in.</b>
+    ///
+    /// <para>Blazor's route matching is case-insensitive, so <c>/Replay/The-Conductor</c>
+    /// reaches this page perfectly happily; only the lookup that follows can refuse it. An
+    /// ordinal comparison there answers a link somebody capitalised — or that an email client
+    /// sentence-cased for them — with "that address does not name one of the recorded
+    /// conversations", which is a confident lie about a link that is fine.</para>
+    ///
+    /// <para>This is the identical bug
+    /// <see cref="TheVisitorsOwnBudgetBarIsNotShownOverARecordedCharacter"/> guards for the
+    /// shell, on the sibling call site, which had no test of its own. The lower-case row is
+    /// the control: without it, a lookup that matched nothing at all would fail this the same
+    /// way and say nothing about case.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(Villain)]
+    [InlineData("The-Conductor")]
+    [InlineData("VERA-NUNN")]
+    [InlineData("Sheet-Lightning")]
+    public void AnAddressReachesItsRecordingWhateverCaseItWasTypedIn(string id)
+    {
+        using var ctx = new RenderContext();
+        var page = ctx.Render<ReplayConversation>(p => p.Add(c => c.Id, id));
+
+        Assert.DoesNotContain("No such recording", Text(page), StringComparison.Ordinal);
+        Assert.NotEmpty(page.FindAll(".replay-turn"));
     }
 
     /// <summary>

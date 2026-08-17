@@ -196,7 +196,7 @@ Not urgent. The site works, and a returning visitor pays nothing.
 
 ---
 
-### 6. The mutation-audit backlog — A2 and A3 are still open
+### 6. The mutation-audit backlog — **closed**, all 33
 
 **Recorded here so it outlives [`docs/HANDOVER.md`](docs/HANDOVER.md)**, which is a note between
 sessions and gets deleted. Three agents that knew nothing about the work were asked, for every
@@ -204,12 +204,15 @@ guard test, to name a plausible bug it claims to cover but would not catch, **an
 it by mutation rather than argue it**. They ran 64 mutations and **38 survived**. Five were in the
 rulebook corpus and were fixed at the time; the remaining 33 were grouped into three slices.
 
-**A1, the MCP server's twelve, is closed** — see the completed entry below. **A2 (browser and
-replay, 13) and A3 (engine and validator, 8) are open**, and the entry for each names the test,
-the mutation and why it passed. Read them in `HANDOVER.md` before starting either.
+**All three are closed** — A1 (the MCP server's twelve), A2 (browser and replay, thirteen) and A3
+(engine and validator, eight), one completed entry each below. **They were worked concurrently on
+three branches and reconciled afterwards**, which is why each entry quotes a test count measured
+against its own branch rather than against this tree; the reconciled figure is the one in the
+table at the top of this file. The merge touched only this file, `CLAUDE.md` and
+`docs/HANDOVER.md` — no test and no source file was resolved by hand.
 
-None of the 33 is a bug in the product. Every one is a **test that does not hold what it claims to
-hold**, which is a different and quieter problem: the suite's headline number goes up and its
+None of the 33 was a bug in the product. Every one was a **test that did not hold what it claimed
+to hold**, which is a different and quieter problem: the suite's headline number goes up and its
 grip does not.
 
 ---
@@ -345,6 +348,110 @@ stands: these tests are worth the payloads they ask for.
 
 
 Newest first. Link the PR so the reasoning stays findable.
+
+### Thirteen guards on the browser and the replay that were not guarding anything
+
+The audit backlog in `docs/HANDOVER.md` listed 38 surviving mutations across the whole tree,
+grouped by subsystem. This closes the browser-and-replay group — **all thirteen, each
+demonstrated by re-applying the mutation, confirming red, reverting and confirming green.**
+
+**The first five are one bug class, and it is the one `ReplayRenderTests` was written for.** The
+four `.stat-block` figures and the Power ranks were genuinely pinned to the recorded character;
+nothing else on the page was. The tier in the masthead and the colophon, the budget sub-line, the
+Quote, the Motivation, the Description, the Connections and a rankless Power's stand-in rank could
+all be moved from the printed character to the visitor's own with the suite green — so a replay
+would print Vera Nunn's name over somebody else's tier, budget, words and connections.
+
+Five more named assertions would have moved the boundary rather than closed it: the eighth field
+somebody adds is unguarded again the day it is added. So the test compares **two renderings of the
+same character** — one where the session holds it, one where the session holds somebody else
+entirely and it arrives as a parameter — and asserts they are the same page. Every read of
+`Session.Sheet` that should have been a read of the parameter is a difference between them,
+whatever field it lives in. Three cases it cannot reach have their own tests: the stand-in rank
+(no recorded character has a rankless Power, so it is built from the Hero sample), the budget flag
+the replay passes for a Villain, and a capitalised address, which Blazor routes happily and
+`ReplayLibrary.Find` then refused.
+
+**The transcript honesty rules were narrower than they read.** The figure scan read `Title`,
+`Blurb` and the recorded lines — never the character, which is what the sheet at the end is
+printed from, so a Hero Point total in a Motivation, a Quote, a Description, a Connection or a
+Flaw's narrative detail passed. It walks the character by reflection rather than naming six
+fields, because a list of field names is exactly what goes stale here. Its word set was the
+engine's vocabulary and not the page's: `ReplayVerdict` labels the gap `Over by` and `Left`, and
+"nineteen over … three to spare" matched none of `HP|hero points|points|edge|health|resolve|
+budget`. Those positional words now count, at a **one-word window** rather than three — at three,
+Vera Nunn's "an apron over a cardigan" is a quoted figure.
+
+And questions were counted by `'?'`, so seven imperative demands asked nothing at all — a
+questionnaire, in the one file whose job is to demonstrate the opposite. The counter recognises a
+demand now, and is honest in its own doc comment about being a heuristic; a second test counts the
+**person's replies**, which no phrasing can get round.
+
+**Three CSS rules were asserted by presence rather than by value**, which is the same mistake in
+three places: `print-color-adjust: exact` could become `economy` (every heading bar prints white —
+the failure the rule's own comment describes), `.hp` could be set at 2.4rem/800 (a Hero Point cost
+three times the size of the rank beside it), and the 7pt print floor matched only sizes already
+written in `pt`, so the two densest blocks on the sheet could go to `0.3rem` and `4px` unseen. The
+floor now requires every printed size to be in points, which it has to be to mean anything: `rem`
+is relative to a root size the print block resets.
+
+**"A failed transcript fetch must not stop the app" had no test**, because the guarantee was a
+`try`/`catch` in top-level statements that nothing can reach. Deleting it was green, and one 404
+then took the whole character generator to a blank page. It is `ReplayLibrary.LoadAsync` now,
+which takes the fetch as an argument and can therefore be handed one that fails — four tests,
+including that one file short leaves **no** recordings rather than most of them, plus a source
+test that `Program.cs` actually goes through it. Both halves are needed: a guarded loader nobody
+calls guarantees nothing.
+
+**And the strip-tags trap was in the helper `SheetRenderTests` uses to catch it.** `Rendered`
+replaced every tag with a newline and one test then collapsed all whitespace, so
+`<b>Armor</b><span>8d</span>` read as "Armor 8d" — the string the assertions look for, produced by
+the bug they exist to find. Demonstrated both ways: splitting a Pros line into per-word elements
+is red against the concatenated text nodes and green against the old helper.
+
+**Then two reviewers found fourteen ways round the fixes, and thirteen are closed.** That is the
+most useful number in this entry: the first pass at closing a finding is roughly half right, and
+the review that goes looking for the *hole in the fix* has now been the most valuable one three
+sessions running.
+
+**Nine were one shape wearing different clothes: a check that reads one place while the thing it
+guards is decided somewhere else.** Three CSS guards read the first matching rule, or one rule by
+its exact selector, while the cascade reads the last — so a second `.hp` rule further down, or a
+second `font-size` inside the same block, or `print-color-adjust: economy` written after `exact`,
+all did what the guard forbade with the suite green. They read every declaration of every rule
+that targets the class now. The 7pt floor read `font-size` and never the `font` shorthand, which
+sets a size without writing the property; and it reads declared sizes, so `zoom: 0.55` on the
+printed sheet left every declaration legal and printed the stat lines at about 4pt. The shorthand
+and page-scaling are both refused outright. The source check on `Program.cs` asserted the guarded
+loader was *called*, which stays true if the fetch is hoisted back outside it — so `LoadAsync`
+takes the `HttpClient` and there is nothing left to hoist. And the path it fetches from was
+pinned by a `Contains`, which `data/transcript` satisfies against `data/transcripts`: the
+one-character mistake the test existed to catch, passing it.
+
+**Two were preconditions that had quietly stopped being true.** The sheet-equality pool crossed
+tiers on one row of four, because Vera Nunn is the only recorded character who is not Standard —
+so the masthead, the Trait Cap and the budget sub-line would have stopped being covered the day
+she changed, with nothing failing to say so. And the verdict panel's Perks and Gear rows were
+asserted against the engine while every character in play had zero of both, which cannot tell two
+characters apart; that panel now gets the same two-visitors treatment the sheet does. The
+Villain's budget finding was asserted to be *not called illegal* and never asserted to be
+**shown**, though showing it is what that recording is about.
+
+**One was not closeable by vocabulary, and needed a different kind of rule.** "She lands on 75
+exactly, and the tier hands her 75 to spend" quotes her spend and her budget in one sentence and
+matches no word list anybody could write. So a second rule asks the engine what the figures are
+and refuses those numerals outright, in digits and spelled out — which is what `CLAUDE.md` says
+the rule is. It sits beside the vocabulary rule rather than replacing it: the vocabulary rule is
+about *shape*, and "over by a full nineteen" is a quoted figure whether or not nineteen is the
+right answer.
+
+**The one still open is recorded rather than fixed**, because it cannot be fixed by a test.
+`IsARequest` recognises the phrasings a demand is normally written in; an unlisted verb —
+"Settle the tier. Work out whether she is one Power or several." — scores zero. Its companion
+counts the person's *replies*, so seven demands bundled into one turn cost one reply. An earlier
+version of that note called the reply count "the half no wording can defeat", which was wrong and
+now says so. Four hand-written recordings that change rarely have one real guarantee, and
+`CLAUDE.md` already states it for the prose: **read a changed transcript.**
 
 ### Slice A3 of the mutation audit: eight guards that did not hold, and the three that were the wrong shape
 

@@ -15,25 +15,32 @@ sessions, not documentation.
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
-Two sessions back the work was **verified rather than trusted**, and that verification found
+Earlier the work was **verified rather than trusted**, and that verification found
 `data/rulebook/` materially wrong — every chapter opening scrambled, 135 empty sections, 83
 doubled page numbers inside sentences, and every named character in Ch.8 missing. The extractor
 was rebuilt; the corpus now regenerates byte-identical from `tools/RulebookExtractor/`.
 
-The last session closed **A3** of the backlog below — the eight engine and validator findings, and
-the test-file defect beside them. `PROGRESS.md` has the account.
+**A1, A2 and A3 were then worked in parallel, one branch each, and are reconciled here.** Each
+closed its own findings by mutation and was reviewed twice or more; `PROGRESS.md` carries three
+completed entries, one per sub-slice. Because they ran concurrently, each branch's own copy of
+this file claimed to be "the last session" and counted only its own closures — those counts are
+superseded by the reconciled ones below, and the merge changed no test and no source file, only
+the four documents the three branches all wrote to.
+
 
 **What is not done is the rest of what that audit turned up.** That is the backlog below, and it
 is the reason this file exists.
 
 ---
 
-## Slice A: the mutation-audit backlog — RECONCILE_OPEN_COUNT
+## Slice A: the mutation-audit backlog — **CLOSED**, all 33
 
 **Where these came from.** Three agents, each told nothing about the work, were asked for every
 guard test to name a plausible bug it claims to cover but would not catch, **and to demonstrate it
 by mutation rather than argue it**. They ran 64 mutations; **38 survived**. Five of those were in
-the rulebook corpus and are now fixed. RECONCILE_REMAINDER
+the rulebook corpus and were fixed then. The other 33 split into A1 (12), A2 (13) and A3 (8), and
+**all three are now closed** — the sections below record what each one cost rather than what is
+left to do.
 
 **Read this before starting.** These are *not* bugs in the product — every one is a **test that
 does not hold what it claims to hold**. The mutation is the evidence. Each entry names the test,
@@ -87,65 +94,34 @@ code" framing found things the general reviewer did not.
    are `internal` now precisely so the second consumer cannot go stale independently. A3's first
    finding is about that same table skipping what it omits.
 
-### A2 — browser and replay (13 open)
+### A2 — browser and replay — **CLOSED**
 
-**The four `.stat-block` values and the Power ranks are genuinely pinned. Nothing else on a
-replayed sheet is** — which is the exact bug class `ReplayRenderTests` was written for.
+All thirteen are fixed, plus the flagged-but-undemonstrated weakness in
+`SheetRenderTests.Rendered`. Each was closed by re-applying the mutation, confirming red,
+reverting and confirming green. The reasoning is in `PROGRESS.md` under "Thirteen guards on the
+browser and the replay that were not guarding anything"; two things from it are worth carrying
+forward:
 
-1. **Tier and Trait Cap in the masthead and colophon.** `web/Components/SheetView.razor`, `Tier` →
-   `Session.Sheet.SelectedTierId`. Vera Nunn is Street Level and the visitor's sample is Standard,
-   so her sheet prints `Standard · Trait Cap 12d`.
-   `TheSheetAtTheEndCarriesTheRecordedCharactersOwnFigures` should cover this.
-2. **The budget sub-line.** `web/Components/DerivedStatBlocks.razor`, same substitution, so
-   `of 75` becomes `of 125`. That test's own doc comment explains it was narrowed to read `.value`
-   precisely because the sub-line confused an earlier version — `.sub` is now the unguarded half.
-3. **Every prose box.** `SheetView.razor`, `Sheet.Quote`/`Motivation`/`Appearance`/`Connections` →
-   `Session.Sheet.*` (8 lines). The recorded character's sheet prints the visitor's words.
-4. **`ShowBudget` dropped** from `web/Pages/ReplayConversation.razor` falls back to
-   `Session.ShowBudget`, so the Conductor's sheet prints `Hero Points … of 125` against a budget
-   Ch.9 says a Villain does not have. `AVillainIsNotCalledIllegalForHavingNoBudget` makes that
-   claim for the verdict panel and never for the sheet.
-5. Stand-in rank: `SheetView.razor`, `GetRankAgainstPowers(sp, Sheet)` → `Session.Sheet`. Latent —
-   no recorded character currently has a rankless Power — but the `Against other Powers:` line has
-   no replay assertion at all.
-6. **The honesty scan never reads the character.** Putting a figure in
-   `data/transcripts/vera-nunn.json`'s `Motivation` passes.
-   `NoRecordedLineQuotesAFigureTheEngineIsSupposedToAnswer` reads `Title`, `Blurb` and `turn.Text`
-   only — but `Name`, `Motivation`, `Quote`, `Appearance`, `Connections` and flaw
-   `NarrativeDetail` are all printed by `SheetView`.
-7. **The figure word-set is closed and omits the page's own labels.** "nineteen over … three to
-   spare" passes; `ReplayVerdict` prints those as `Over by 19` and `Left 3`. The regex accepts
-   `HP|hero points?|points?|edge|health|resolve|budget` — not *over*, *left*, *spare* or
-   *remaining*, which is how anyone would naturally write it.
-8. **Questions are counted by `?`.** `NoRecordedConversationAsksMoreThanThreeQuestions` sums `'?'`
-   characters, so seven imperative demands ("Tell me the tier. Tell me whether she is one Power or
-   several. …") pass — a questionnaire, which is the one thing the question policy exists to avoid.
-9. **`ReplayLibrary.Find` case-sensitivity is unguarded.** `web/Services/ReplayLibrary.cs`,
-   `OrdinalIgnoreCase` → `Ordinal`. Blazor routing is case-insensitive, so `/Replay/The-Conductor`
-   reaches the page and answers "that address does not name one of the recorded conversations".
-   This is the identical bug `TheVisitorsOwnBudgetBarIsNotShownOverARecordedCharacter` guards for
-   `MainLayout`; the sibling call site is untested.
-10. `print-color-adjust: exact` → `economy` (`app.css:892-893`) is unasserted. Browsers drop print
-    backgrounds by default, so every heading bar prints white — the failure the rule's own comment
-    describes.
-11. **`.hp` asserts presence, not value.** `app.css:753-754`, `0.72rem/400` → `2.4rem/800` passes;
-    `AHeroPointCostIsSetApartFromTheNumbersAPlayerRolls` checks only that `font-size:` appears. The
-    neighbouring `ATraitSourceLineIsSetApartFromThePowersBelowIt` was explicitly hardened against
-    this; `.hp` was not.
-12. **The 7pt print floor only sees `pt`.** `app.css:919,921` → `0.3rem` and `4px` on
-    `.stat-table td` and `.power-entry .statline`, the two densest blocks.
-    `NothingOnPaperIsSetBelowSevenPoint` matches `font-size:\s*([\d.]+)pt` and its `Assert.NotEmpty`
-    is satisfied by the other sizes.
-13. **"A failed transcript fetch must not stop the app" has no test.** Removing the `try`/`catch`
-    from `web/Program.cs` is green; one 404 then takes the whole character generator to a blank
-    page. `RecordingsThatCouldNotBeLoadedAreNotReportedAsABadAddress` tests the *display* of a
-    reason a fixture hands it, never the code that produces it.
-
-**One weakness flagged but not demonstrated**: `SheetRenderTests.Rendered` replaces each tag with
-`\n`, which `Collapse` then turns into a space — so `Assert.Contains("Also X ×3")` in
-`ARepeatedProPrintsOnceWithItsCountOnBothSurfaces` could be satisfied by two adjacent elements.
-This is the strip-tags trap `CLAUDE.md` already warns about, in a helper. The sheet and rank tests
-read `TextContent` and are sound.
+- **The five sheet substitutions are not guarded by naming five more fields.** The test renders
+  the same character twice — once held by the session, once passed as a parameter over a
+  different session character — and asserts the two pages are identical. A new field on the
+  sheet is covered the day it is added, which a list of assertions would not be. Anything that
+  legitimately comes from outside the character (`ShowBudget`) has to be passed explicitly in
+  both renderings, or it hides every illegitimate difference behind a legitimate one.
+- **`ReplayLibrary.LoadAsync` exists because a `try`/`catch` in top-level statements is
+  unreachable.** If anything else in `Program.cs` ever acquires a guarantee, move it out the same
+  way rather than testing the source for a `try`. It takes the `HttpClient` rather than a fetch
+  for a reason: with a fetch parameter, `Program.cs` can do the fetching itself and hand the
+  guard a delegate that cannot fail, which passes every test and restores the bug exactly.
+- **A CSS guard must read every declaration that targets the class, not the first rule it
+  finds.** Three of these were defeated the same way — a more specific rule further down, or a
+  second declaration in the same block, both of which win the cascade while the first is what
+  the test read. `WebPresentationTests.RulesTargeting` is the shape to copy.
+- **A guard's precondition rots silently.** Two here had stopped being able to bite: a pool that
+  crossed tiers on one row of four because only one recorded character is not Standard, and an
+  assertion comparing two characters that both had zero Perks and zero gear. Neither failed;
+  they just stopped meaning anything. When writing a guard, assert that the thing it compares
+  actually differs.
 
 ### A3 — engine and validator — **CLOSED**
 

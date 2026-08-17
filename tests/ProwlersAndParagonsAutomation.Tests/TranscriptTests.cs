@@ -57,6 +57,97 @@ public sealed class TranscriptTests
         return TranscriptLibrary.ReadAll(files);
     }
 
+    /// <summary>
+    /// <b>Everything a transcript puts in front of a visitor, wherever it keeps it.</b>
+    ///
+    /// <para>The honesty scan read <c>Title</c>, <c>Blurb</c> and the recorded lines, and that
+    /// is not what the replay shows: the character travels with the conversation, and
+    /// <c>SheetView</c> prints its Name, Motivation, Quote, Description, Connections and the
+    /// narrative detail on every Flaw and Perk. A figure written into any of those sat on the
+    /// printed sheet unguarded.</para>
+    ///
+    /// <para>The character is walked by reflection rather than by naming those fields.
+    /// <b>A list of field names is exactly the thing that went stale here once already</b> —
+    /// it would be right until somebody adds a seventh free-text field, and wrong silently
+    /// from then on. Ids come back too and are harmless: an id is one word, and every rule
+    /// below needs a number beside a word about money.</para>
+    /// </summary>
+    private static IEnumerable<(string Where, string Text)> EveryProseIn(Transcript t)
+    {
+        yield return ("title", t.Title);
+        yield return ("blurb", t.Blurb);
+
+        for (var i = 0; i < t.Turns.Count; i++)
+        {
+            yield return ($"turn {i + 1}", t.Turns[i].Text);
+
+            if (t.Turns[i].Character is not { } character)
+                continue;
+
+            // Reference equality, not the default. SelectedProCon and friends compare by value,
+            // and a character legitimately carries two equal ones — Also X three times. A
+            // value-equality visited set would walk the first and skip the rest.
+            var seen = new HashSet<object>(ReferenceEqualityComparer.Instance);
+
+            foreach (var (path, text) in StringsIn(character, "character", seen))
+                yield return ($"turn {i + 1} {path}", text);
+        }
+    }
+
+    /// <summary>
+    /// Every string reachable from an object, with the path it was found at. Depth is bounded
+    /// by the object graph a character is — there are no cycles in it — and a visited set
+    /// guards the assumption rather than trusting it.
+    /// </summary>
+    private static IEnumerable<(string Path, string Text)> StringsIn(
+        object? node, string path, HashSet<object> seen)
+    {
+        switch (node)
+        {
+            case null:
+                yield break;
+
+            case string text:
+                yield return (path, text);
+                yield break;
+
+            case System.Collections.IDictionary map:
+                foreach (var key in map.Keys)
+                {
+                    if (key is string name) yield return ($"{path} key", name);
+                    foreach (var found in StringsIn(map[key], $"{path}[{key}]", seen))
+                        yield return found;
+                }
+
+                yield break;
+
+            case System.Collections.IEnumerable list:
+            {
+                var i = 0;
+                foreach (var item in list)
+                {
+                    foreach (var found in StringsIn(item, $"{path}[{i}]", seen))
+                        yield return found;
+                    i++;
+                }
+
+                yield break;
+            }
+        }
+
+        // A value type with no strings in it — an int rank, a bool — and the recursion stops.
+        if (node.GetType().IsPrimitive || node is Enum || !seen.Add(node))
+            yield break;
+
+        foreach (var property in node.GetType().GetProperties())
+        {
+            if (property.GetIndexParameters().Length > 0) continue;
+
+            foreach (var found in StringsIn(property.GetValue(node), $"{path}.{property.Name}", seen))
+                yield return found;
+        }
+    }
+
     private static IEnumerable<(Transcript Transcript, int Turn, CharacterSheet Character)> EveryCharacter() =>
         All().SelectMany(t => t.Turns
             .Select((turn, i) => (Transcript: t, Turn: i + 1, turn.Character))
@@ -139,6 +230,30 @@ public sealed class TranscriptTests
     /// <para>Counted over the whole conversation rather than per turn, because the cost to
     /// the person is the number of things they have to answer and not how they were grouped.
     /// </para>
+    ///
+    /// <para><b>A question mark is not what makes something a question.</b> This counted
+    /// <c>'?'</c> characters and nothing else, so seven imperative demands — "Tell me the
+    /// tier. Tell me whether she is one Power or several. …" — were a conversation that asked
+    /// nothing. That is a questionnaire, in the one file whose job is to demonstrate the
+    /// opposite. A demand phrased as an instruction costs the person exactly what a question
+    /// costs them, so it is counted as one.</para>
+    ///
+    /// <para><b>The detector is a heuristic and cannot be anything else, which is worth saying
+    /// plainly and was once said too strongly here.</b> It knows the phrasings a request is
+    /// normally written in; "Settle the tier before I go on. Work out whether she is one Power
+    /// or several. Have a look at what she is ordinary at." is three demands and scores zero,
+    /// because those verbs are not on the list and no list closes that. An earlier version of
+    /// this note called
+    /// <see cref="ARecordingNeverMakesThePersonAnswerMoreThanThreeTimes"/> "the half no
+    /// wording can defeat", and that is not true either: it counts <em>replies</em>, so seven
+    /// demands bundled into one turn cost one reply and pass. Bundling defeats it, not wording.
+    /// </para>
+    ///
+    /// <para>The two together catch a questionnaire written the ordinary way and neither is a
+    /// proof. There are four recordings, they are hand-written, and they change rarely — so
+    /// the real guarantee is the one <c>CLAUDE.md</c> already states for the prose: <b>read a
+    /// changed transcript</b>. These tests are here to catch drift, not to classify English.
+    /// </para>
     /// </summary>
     [Fact]
     public void NoRecordedConversationAsksMoreThanThreeQuestions() =>
@@ -146,10 +261,89 @@ public sealed class TranscriptTests
         {
             var asked = t.Turns
                 .Where(turn => turn.Speaker == TranscriptSpeaker.Assistant)
-                .Sum(turn => turn.Text.Count(c => c == '?'));
+                .Sum(turn =>
+                    turn.Text.Count(c => c == '?')
+                    + Sentences(turn.Text).Count(s =>
+                        !s.Contains('?', StringComparison.Ordinal) && IsARequest(s)));
 
-            Assert.True(asked <= 3, $"{t.Id} asks {asked} questions. The policy allows three.");
+            Assert.True(asked <= 3,
+                $"{t.Id} asks {asked} things of the person. The policy allows three.");
         });
+
+    /// <summary>
+    /// The same rule measured a way no phrasing can get round: <b>how many times the person
+    /// had to reply.</b>
+    ///
+    /// <para>Counting the shape of the assistant's sentences will always be a matter of
+    /// recognising how a request is written. Counting the person's turns is not — whatever
+    /// they were asked and however it was worded, a conversation where they speak five times
+    /// made them supply five things, and that is the cost the question policy is about.</para>
+    ///
+    /// <para>Their opening description is not an answer to anything, so it does not count.</para>
+    /// </summary>
+    [Fact]
+    public void ARecordingNeverMakesThePersonAnswerMoreThanThreeTimes() =>
+        Assert.All(All(), t =>
+        {
+            var answers = t.Turns.Skip(1).Count(turn => turn.Speaker == TranscriptSpeaker.Person);
+
+            Assert.True(answers <= 3,
+                $"{t.Id} makes the person answer {answers} times. The policy allows three.");
+        });
+
+    /// <summary>Roughly, sentences — enough to ask what each one opens with.</summary>
+    private static IEnumerable<string> Sentences(string text) =>
+        Rx(@"[^.!?]+[.!?]*").Matches(text)
+            .Select(m => m.Value.Trim())
+            .Where(s => s.Length > 0);
+
+    /// <summary>
+    /// Whether a sentence asks the person for something without a question mark on it. Either
+    /// it opens with a verb that demands an answer, or it carries one of the phrases a request
+    /// is normally wrapped in.
+    ///
+    /// <para><c>let</c> is deliberately not an opener — "Let me build her" announces what the
+    /// assistant is about to do, which is the thing this design wants more of. "Let me know"
+    /// is a request and is caught as a phrase.</para>
+    ///
+    /// <para><b>A politeness wrapper is stripped before the opener is read.</b> Matching the
+    /// first word alone missed every request phrased the way people actually phrase them:
+    /// "Could you settle the tier for me. Could you say whether she is one Power or several.
+    /// Please supply her Source." — five demands counted as none, because each opens with
+    /// "could" or "please". A modal plus the second person <em>is</em> the request; the verb
+    /// after it is the same verb.</para>
+    /// </summary>
+    private static bool IsARequest(string sentence)
+    {
+        string[] openers =
+        [
+            "tell", "say", "give", "name", "describe", "choose", "pick", "decide", "confirm",
+            "specify", "list", "explain", "answer", "state", "provide", "share", "send",
+            "supply", "settle", "pin", "set", "select", "work", "think", "consider", "have",
+            "go", "bring", "look", "check", "point", "sort"
+        ];
+
+        string[] phrases =
+        [
+            "tell me", "let me know", "i need to know", "i need you to", "i'll need you to",
+            "i need from you", "your answer", "answer me"
+        ];
+
+        var lower = sentence.ToLowerInvariant();
+
+        if (phrases.Any(p => lower.Contains(p, StringComparison.Ordinal))) return true;
+
+        // "Could you …", "Would you mind …", "Please …" — a request whatever follows, so this
+        // returns true on the wrapper rather than stripping it and hoping the verb is listed.
+        if (Rx(@"^\W*(please\b|(could|would|can|will|might)\s+you\b)").IsMatch(lower)) return true;
+
+        // And the wrapper again, this time stripped, so "First, could you please name her
+        // Source" is read as "name her Source".
+        var stripped = Rx(@"^\W*((please|kindly|first|then|now|also)\b\W*)*").Replace(lower, "");
+        var first = Rx(@"^[^a-z]*([a-z']+)").Match(stripped);
+
+        return first.Success && openers.Contains(first.Groups[1].Value, StringComparer.Ordinal);
+    }
 
     // ── The rot guard ───────────────────────────────────────────────────────────
 
@@ -257,6 +451,31 @@ public sealed class TranscriptTests
     /// printed on the list of recordings — was unguarded. It matched digits only, so "works
     /// out to nine" walked past. And its second direction listed the verbs it would accept
     /// (<c>of|is|at|:</c>), which is a closed set masquerading as a rule.</para>
+    ///
+    /// <para><b>And two more a later one found.</b> It never read the <em>character</em>,
+    /// though the character is what the replay prints a sheet from — so a figure in a
+    /// Motivation, a Quote, a Description, a Connection or a Flaw's narrative detail passed.
+    /// See <see cref="EveryProseIn"/>. And the word set was the engine's vocabulary rather
+    /// than the page's: <c>ReplayVerdict</c> labels the gap <c>Over by</c> and <c>Left</c>,
+    /// and "nineteen over … with three to spare" — which is how anybody would write it —
+    /// matched none of <c>HP|hero points|points|edge|health|resolve|budget</c>.</para>
+    ///
+    /// <para>The positional words will occasionally catch a sentence that meant nothing of the
+    /// kind — "she left with two bags" is a match. That is the right way round for a guard
+    /// whose failure mode is a wrong number on a page nobody can tell is wrong, and the
+    /// message quotes what it matched, so rewording is a minute's work.</para>
+    ///
+    /// <para>What separates them from ordinary English is <b>punctuation, not distance</b>.
+    /// "over" and "left" are common words, and the first attempt at this gave them a one-word
+    /// window to keep Vera Nunn's "Seventy-one, an apron over a cardigan" out — which duly let
+    /// "over by a full nineteen" through, three words being all it takes. A quoted figure and
+    /// its label are in one clause; a description is not. So the window is three words as
+    /// everywhere else, and what may sit between them is words and spaces.</para>
+    ///
+    /// <para><b>This rule is about shape and the one below is about value</b>, and both are
+    /// needed. A recording saying "over by a full nineteen" is quoting a figure whether or not
+    /// nineteen is the right answer — arguably worse if it is not — so it cannot be left to a
+    /// check that compares against what the engine says.</para>
     /// </summary>
     [Fact]
     public void NoRecordedLineQuotesAFigureTheEngineIsSupposedToAnswer()
@@ -276,21 +495,30 @@ public sealed class TranscriptTests
         // much of it there was.
         const string figure = "(HP|hero points?|points?|edge|health|resolve|budget)";
 
+        // The words the page itself uses for the gap: "Over by 19", "Left 3". They are also
+        // ordinary English, so they are constrained differently — see the remarks.
+        const string gap = "(over|overspent|overspend|under|left|remaining|spare|short)";
+
         // Both directions, with a short window either way rather than a list of verbs.
+        //
+        // The gap words take the same three-word window as the rest, but the words between
+        // them and the number must be **words and spaces only**. That is what tells a quoted
+        // figure from ordinary prose, and it is a better rule than the narrow window it
+        // replaces: a figure and its label sit in one clause — "over by a full nineteen",
+        // "three to spare" — while Vera Nunn's "Seventy-one, an apron over a cardigan" has a
+        // hyphen and a comma in the way. A one-word window kept that description out and let
+        // "over by a full nineteen" straight through.
         var quoted = Rx(
-            $@"\b{number}\W+(\w+\W+){{0,3}}{figure}\b|\b{figure}\W+(\w+\W+){{0,3}}{number}\b",
+            $@"\b{number}\W+(\w+\W+){{0,3}}{figure}\b|\b{figure}\W+(\w+\W+){{0,3}}{number}\b"
+            + $@"|\b{number}\s+(\w+\s+){{0,3}}{gap}\b|\b{gap}\s+(\w+\s+){{0,3}}{number}\b",
             RegexOptions.IgnoreCase);
 
         foreach (var transcript in All())
         {
-            // Title and Blurb are prose the visitor reads before choosing a recording, so they
-            // are held to the same rule as a line inside one.
-            var prose = transcript.Turns
-                .Select((t, i) => ($"turn {i + 1}", t.Text))
-                .Prepend(("blurb", transcript.Blurb))
-                .Prepend(("title", transcript.Title));
-
-            foreach (var (where, text) in prose)
+            // Title and Blurb are prose the visitor reads before choosing a recording, and the
+            // character is what the sheet at the end is printed from. All of it is held to the
+            // same rule as a line inside the conversation.
+            foreach (var (where, text) in EveryProseIn(transcript))
             {
                 var match = quoted.Match(text);
 
@@ -298,6 +526,140 @@ public sealed class TranscriptTests
                     $"{transcript.Id} {where} says \"{match.Value}\". Every such figure has to "
                     + "come back from the engine in the browser, not out of the recording.");
             }
+        }
+    }
+
+    /// <summary>
+    /// <b>And no recorded line may carry a number the engine works out for the character
+    /// beside it — whatever words are around it, or none.</b>
+    ///
+    /// <para>The rule above is a vocabulary, and a vocabulary can always be walked round. An
+    /// adversarial pass wrote "She lands on 75 exactly, and the tier hands her 75 to spend"
+    /// into a recorded line — her exact spend and her exact budget, twice in one sentence —
+    /// and it matched nothing, because "lands on" and "hands her" are not on any list and
+    /// never could be. So this asks the engine what the figures actually are and refuses those
+    /// numerals outright. It is the rule <c>CLAUDE.md</c> states: <b>if a transcript ever holds
+    /// a Hero Point total, that is the bug.</b></para>
+    ///
+    /// <para><b>Spelled out as well as in digits.</b> "over by a full nineteen" is the same
+    /// quoted figure as "over by 19", and it slipped past the vocabulary rule too — that rule
+    /// gives its positional words a one-word window, so three words of padding walk through
+    /// it, and "overspent" does not contain the word "over" at all. Neither dodge survives
+    /// asking what the number actually is, in either spelling.</para>
+    ///
+    /// <para><b>Two deliberate limits.</b> Figures under ten are left to the vocabulary rule:
+    /// below that a digit on a page is as likely to be a count of Powers, a rank or a year, and
+    /// the small figures are exactly the ones written with a word beside them — "three to
+    /// spare" — which the rule above already catches. And the <b>Trait Cap is not in the set</b>,
+    /// because it is a rank: ranks are inputs the transcript already carries and are allowed to
+    /// be quoted. A rank written the way the rulebook writes one, <c>12d</c>, is not matched by
+    /// a word-bounded <c>12</c> in any case.</para>
+    /// </summary>
+    [Fact]
+    public void NoRecordedLineCarriesANumberTheEngineWorksOutForItsOwnCharacter()
+    {
+        const int smallest = 10;
+
+        foreach (var transcript in All())
+        {
+            var figures = new SortedSet<int>();
+
+            foreach (var x in EveryCharacter().Where(c => c.Transcript.Id == transcript.Id))
+            {
+                var tier = _f.Rules.GetTier(x.Character.SelectedTierId!)!;
+                var spent = _f.Costs.TotalCost(x.Character);
+
+                figures.UnionWith(
+                [
+                    spent,
+                    tier.HeroPoints,
+                    Math.Abs(tier.HeroPoints - spent),
+                    _f.Derived.CalculateEdge(x.Character),
+                    _f.Derived.CalculateHealth(x.Character),
+                    _f.Derived.CalculateResolve(x.Character),
+                    _f.Costs.PackageCost(x.Character),
+                    _f.Costs.AbilityCost(x.Character),
+                    _f.Costs.TalentCost(x.Character),
+                    _f.Costs.TotalPowersCost(x.Character),
+                    _f.Costs.TotalPerksCost(x.Character),
+                    _f.Costs.TotalGearCost(x.Character)
+                ]);
+            }
+
+            foreach (var figure in figures.Where(f => f >= smallest))
+            {
+                var spellings = InWords(figure)
+                    .Select(System.Text.RegularExpressions.Regex.Escape)
+                    .Prepend(figure.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+                var quoted = Rx($@"\b({string.Join('|', spellings)})\b", RegexOptions.IgnoreCase);
+
+                foreach (var (where, text) in EveryProseIn(transcript))
+                {
+                    var match = quoted.Match(text);
+
+                    Assert.False(match.Success,
+                        $"{transcript.Id} {where} says \"{match.Value}\", which is {figure} — a "
+                        + "figure the engine works out for the character this recording carries. "
+                        + "It has to come back from the browser, not out of the recording.");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// A whole number written the way somebody would write it, in every spelling worth
+    /// guarding: <c>seventy-five</c> and <c>seventy five</c>, <c>one hundred and five</c> and
+    /// <c>one hundred five</c>. Only reached for figures of ten and over, so the single-word
+    /// forms below twenty are here to be composed with rather than used alone.
+    /// </summary>
+    private static IEnumerable<string> InWords(int n)
+    {
+        string[] ones =
+        [
+            "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+            "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+            "seventeen", "eighteen", "nineteen"
+        ];
+
+        string[] tens =
+        [
+            "", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"
+        ];
+
+        if (n < 0 || n > 999) yield break;
+
+        if (n < 20)
+        {
+            yield return ones[n];
+            yield break;
+        }
+
+        if (n < 100)
+        {
+            if (n % 10 == 0)
+            {
+                yield return tens[n / 10];
+                yield break;
+            }
+
+            yield return $"{tens[n / 10]}-{ones[n % 10]}";
+            yield return $"{tens[n / 10]} {ones[n % 10]}";
+            yield break;
+        }
+
+        var hundreds = $"{ones[n / 100]} hundred";
+
+        if (n % 100 == 0)
+        {
+            yield return hundreds;
+            yield break;
+        }
+
+        foreach (var rest in InWords(n % 100))
+        {
+            yield return $"{hundreds} {rest}";
+            yield return $"{hundreds} and {rest}";
         }
     }
 

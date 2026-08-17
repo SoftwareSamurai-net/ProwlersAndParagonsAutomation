@@ -40,29 +40,14 @@ builder.Services.AddScoped<CharacterStore>();
 // cannot glob a directory it has no filesystem for, so TranscriptLibrary.FileNames is the
 // contract, as RulesRepository.DataFileNames is above.
 //
-// Unlike the rules, this block is allowed to fail. The recordings are a demonstration for
-// somebody who has no way to hold the conversation themselves; the app is a character
-// generator, and refusing to start it because a demo file did not arrive would be the wrong
-// trade in every direction. What is not allowed is an empty list that looks deliberate, so
-// the reason travels with the library and the replay pages print it.
-ReplayLibrary replays;
-
-#pragma warning disable CA1031 // any failure here means "no recordings", never "no app"
-try
-{
-    var transcripts = new Dictionary<string, string>(StringComparer.Ordinal);
-    foreach (var name in TranscriptLibrary.FileNames)
-        transcripts[name] = await http.GetStringAsync($"data/transcripts/{name}");
-
-    replays = new ReplayLibrary(TranscriptLibrary.ReadAll(transcripts));
-}
-catch (Exception e)
-{
-    replays = new ReplayLibrary([], e.Message);
-}
-#pragma warning restore CA1031
-
-builder.Services.AddSingleton(replays);
+// Unlike the rules, this is allowed to fail: the recordings are a demonstration and the app
+// is a character generator, so a demo file that did not arrive must not stop somebody
+// building a character. That guarantee lives in ReplayLibrary.LoadAsync and is tested there,
+// and the *client* is handed over rather than a fetch: fetching here and passing a delegate
+// that cannot fail puts the throwing call back outside the guard with every test still green.
+// It was a try/catch here, where nothing could reach it at all — deleting the try left the
+// suite green and one 404 took the whole app to a blank page.
+builder.Services.AddSingleton(await ReplayLibrary.LoadAsync(http));
 
 var host = builder.Build();
 
