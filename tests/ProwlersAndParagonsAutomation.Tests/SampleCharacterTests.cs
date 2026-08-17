@@ -30,8 +30,19 @@ public sealed class SampleCharacterTests : IClassFixture<RulesFixture>
 
     public static TheoryData<string> SampleNames => new("hero", "villain");
 
-    private CharacterSheet Sample(string which) =>
-        which == "hero" ? SampleCharacters.Hero() : SampleCharacters.Villain();
+    /// <summary>
+    /// <b>Anything that is not the Hero is the Villain, and that used to be silent.</b> A caller
+    /// wrote <c>Sample("Hero")</c> — the comparison is ordinal and case-sensitive, so it built
+    /// the Villain and passed, leaving the Hero's export path untested under a test named for it.
+    /// The two names are the ones <see cref="SampleNames"/> supplies and nothing else is one.
+    /// </summary>
+    private static CharacterSheet Sample(string which) => which switch
+    {
+        "hero"    => SampleCharacters.Hero(),
+        "villain" => SampleCharacters.Villain(),
+        _ => throw new ArgumentOutOfRangeException(nameof(which),
+                 $"'{which}' is not one of the samples: they are 'hero' and 'villain'.")
+    };
 
     [Theory]
     [MemberData(nameof(SampleNames))]
@@ -45,9 +56,20 @@ public sealed class SampleCharacterTests : IClassFixture<RulesFixture>
             string.Join("\n", errors));
     }
 
+    /// <summary>
+    /// <b>Both ends of the budget, because only one of them was ever checked.</b> A sample that
+    /// cannot be afforded teaches the wrong thing about the budget bar — and so does one that
+    /// spends a third of it, which is what the one-sided comparison allowed: deleting
+    /// <c>stun</c> outright from the Hero left this green, and every other test with it, since
+    /// "fills every section" only asks whether a section is non-empty.
+    ///
+    /// <para>The floor is half the budget rather than a figure close to what they spend now, so
+    /// it bounds the failure it is for without being a number to re-tune every time a sample is
+    /// edited. As they stand the Hero spends 105 of 125 and the Villain 119.</para>
+    /// </summary>
     [Theory]
     [MemberData(nameof(SampleNames))]
-    public void SampleFitsItsHeroPointBudget(string which)
+    public void SampleFitsItsHeroPointBudgetAndUsesMostOfIt(string which)
     {
         var sheet  = Sample(which);
         var budget = _rules.GetTier(sheet.SelectedTierId!)!.HeroPoints;
@@ -56,6 +78,69 @@ public sealed class SampleCharacterTests : IClassFixture<RulesFixture>
         Assert.True(spent <= budget,
             $"The {which} sample spends {spent} of {budget} HP. A sample that cannot be " +
             "afforded teaches the wrong thing about the budget bar.");
+
+        Assert.True(spent * 2 >= budget,
+            $"The {which} sample spends only {spent} of {budget} HP. A preview built to show " +
+            "what a finished sheet looks like has had something taken out of it.");
+    }
+
+    /// <summary>
+    /// <b>What each sample is made of, so that trimming it is a change somebody makes on
+    /// purpose.</b> The doc comment on <see cref="SampleFillsEverySectionOfTheSheet"/> claims to
+    /// catch "someone trimming one down" and does not: it asserts sections are non-empty, so a
+    /// Power can be deleted from a list of seven and nothing anywhere objects.
+    ///
+    /// <para>These are this project's own characters rather than data that evolves, so naming
+    /// their Powers is a record, not a duplicate of something else. If one is deliberately
+    /// swapped, this line is the place that says so.</para>
+    /// </summary>
+    [Fact]
+    public void TheSamplesCarryThePowersTheyWereBuiltWith()
+    {
+        Assert.Equal<IEnumerable<string>>(
+            ["armor", "danger_sense", "super_senses_thermal_vision", "super_senses_radio_hearing",
+             "resistance", "communications", "stun"],
+            SampleCharacters.Hero().SelectedPowers.Select(p => p.PowerId));
+
+        Assert.Equal<IEnumerable<string>>(
+            ["mind_control", "invisibility", "teleportation", "lightning_reflexes"],
+            SampleCharacters.Villain().SelectedPowers.Select(p => p.PowerId));
+    }
+
+    /// <summary>
+    /// <b>And why those Powers rather than any seven.</b> Each was chosen to put a different
+    /// shape on the sheet — a baseline that is half a Trait against one that equals it, a rate
+    /// below 1 HP per rank, a Power with no rank at all, the one Power the rulebook costs as a
+    /// group, and a Power carrying a Con. Naming the ids above catches a deletion; this catches
+    /// a replacement that quietly costs the preview the thing it was previewing.
+    /// </summary>
+    [Fact]
+    public void TheSamplesShowEveryShapeAPrintedSheetHas()
+    {
+        var hero = SampleCharacters.Hero();
+        var powers = hero.SelectedPowers.Select(p => _rules.GetPower(p.PowerId)!).ToList();
+
+        Assert.Contains(powers, p => p.Prerequisite?.Relationship == "baseline_half");
+        Assert.Contains(powers, p => p.Prerequisite?.Relationship == "baseline_equal");
+        Assert.Contains(powers, p => p.CostPerRank is > 0 and < 1);
+        Assert.Contains(powers, p => p.RankType is "default" or "special");
+
+        // Super Senses is costed as one Power however many options are taken (Ch.2), which only
+        // shows on a sheet carrying more than one of them.
+        Assert.True(powers.Count(p => p.Id.StartsWith("super_senses_", StringComparison.Ordinal)) >= 2);
+
+        // A Trait bought through equipment: the Item Con and a Source on the Ability, which is
+        // what makes the sheet print an "Abilities (…)" line inside a Power group.
+        Assert.NotEmpty(hero.AbilityModifiers);
+        Assert.NotEmpty(hero.AbilitySources);
+        Assert.Contains(hero.Gear, g => g.Features.Count > 0);
+        Assert.Contains(hero.Perks, p => _rules.GetPerk(p.PerkId)!.CostType == "per_unit");
+
+        var villain = SampleCharacters.Villain();
+
+        Assert.Contains(villain.SelectedPowers, p => p.Cons.Count > 0);
+        Assert.Contains(villain.SelectedPowers, p => p.SourceId is null);   // the plain POWERS heading
+        Assert.NotEmpty(villain.TalentSources);
     }
 
     /// <summary>
@@ -149,7 +234,7 @@ public sealed class SampleCharacterTests : IClassFixture<RulesFixture>
     [Fact]
     public void TheTextExportCollapsesARepeatedOptionAndTheJsonDoesNot()
     {
-        var sheet = Sample("Hero");
+        var sheet = Sample("hero");
         sheet.SelectedPowers.Add(new SelectedPower("energy_absorption", 6,
             [new SelectedProCon("also_x"), new SelectedProCon("also_x"), new SelectedProCon("also_x")],
             []) { SourceId = "super", CostVariantKey = "kinetic" });

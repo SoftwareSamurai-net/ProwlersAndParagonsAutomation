@@ -28,6 +28,50 @@ public sealed class PowerDescriptionTests
         Assert.True(_f.Rules.GetPower(id)!.DescriptionVerified,
             $"Power '{id}' description is not marked verified.");
 
+    /// <summary>
+    /// <b>The verified flag above is a claim about a page somebody read, and until this it
+    /// survived any edit to the text it was made about.</b> Armor's whole description was
+    /// replaced with "A quiet afternoon in the garden, with tea." and the suite stayed green,
+    /// this file included: the checks below see prose of a reasonable length ending in a full
+    /// stop, and the one consistency rule there is only fires on a rankless Power claiming
+    /// per-rank scaling.
+    ///
+    /// <para>The description is what a player reads while choosing, so it is the half of an
+    /// entry with the least mechanical hold on it and the most direct reach to a person.
+    /// <see cref="CanonicalPowerDescriptions"/> records what was verified and says why it is a
+    /// digest rather than a similarity score — three other framings were measured and none of
+    /// them is a rule.</para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(PowerDataTests.AllPowerIds), MemberType = typeof(PowerDataTests))]
+    public void ADescriptionIsTheOneThatWasVerified(string id)
+    {
+        var power = _f.Rules.GetPower(id)!;
+
+        Assert.True(CanonicalPowerDescriptions.Digests.TryGetValue(id, out var verified),
+            $"Power '{id}' has no recorded description digest. Read {power.SourceRef}, satisfy "
+            + "yourself the description matches the entry, then add it to CanonicalPowerDescriptions.");
+
+        Assert.True(verified == CanonicalPowerDescriptions.DigestOf(power.Description),
+            $"Power '{id}' has a different description from the one that was checked against "
+            + $"{power.SourceRef}, while still claiming to be verified. Read that page and agree "
+            + "the new wording with it, then update the digest in CanonicalPowerDescriptions. "
+            + $"It now reads: \"{power.Description}\"");
+    }
+
+    /// <summary>
+    /// The table is a record of the 141 Powers and nothing else. A stale entry for a Power that
+    /// has been renamed or removed is a line nothing checks, which is how a record quietly stops
+    /// being one.
+    /// </summary>
+    [Fact]
+    public void TheRecordedDescriptionsAreExactlyThePowersTheRulebookHas()
+    {
+        Assert.Equal(
+            _f.Rules.Powers.Select(p => p.Id).Order(StringComparer.Ordinal),
+            CanonicalPowerDescriptions.Digests.Keys.Order(StringComparer.Ordinal));
+    }
+
     [Theory]
     [MemberData(nameof(PowerDataTests.AllPowerIds), MemberType = typeof(PowerDataTests))]
     public void DescriptionSaysSomethingUseful(string id)

@@ -207,6 +207,104 @@ public sealed class ProConApplicabilityTests
     }
 
     /// <summary>
+    /// <b>What the caveat actually says, which is the whole of what it delivers.</b> The test
+    /// above asks whether there is a sentence there; it does not ask whether the sentence is
+    /// true. Penetrating's was replaced with "Applies to absolutely any Power at all, no
+    /// conditions." — the opposite of the printed constraint — and the suite stayed green.
+    ///
+    /// <para>That matters more here than for anything else in the data, because the design is
+    /// that a caveat is <em>shown to the player instead of being enforced</em>. Everywhere else a
+    /// wrong sentence is a wrong sentence beside a mechanism that still works; here the sentence
+    /// <em>is</em> the mechanism, so nothing downstream can be wrong in a way anybody notices.
+    /// </para>
+    ///
+    /// <para>See <see cref="CanonicalCaveats"/> for why this is two assertions rather than one:
+    /// the caveat is held to a record, and the record is held to the printed page.</para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Caveats))]
+    public void ACaveatSaysWhatTheRulebookPrints(string id)
+    {
+        var entry = CanonicalCaveats.All.First(e => e.Id == id);
+
+        IGenericProCon option = entry.IsPro ? _f.Rules.GetPro(id)! : _f.Rules.GetCon(id)!;
+
+        Assert.True(entry.Caveat == option.ApplicabilityCaveat,
+            $"'{id}' carries a different caveat from the one recorded against its printed "
+            + $"constraint (\"{entry.PrintedConstraint}\"). Read Ch.2 pp.48-53 and agree the "
+            + $"wording with the page before changing either. It now reads: "
+            + $"\"{option.ApplicabilityCaveat}\"");
+
+        // And the record is held to the book rather than to itself, so a caveat and a
+        // transcription cannot be edited into agreement about something never printed.
+        Assert.Contains(entry.PrintedConstraint, PowersChapterText, StringComparison.Ordinal);
+    }
+
+    public static TheoryData<string> Caveats() => [.. CanonicalCaveats.All.Select(e => e.Id)];
+
+    /// <summary>
+    /// The caveats are exactly the options that carry one — so an entry cannot acquire a caveat
+    /// nobody checked, or lose the one recorded here and leave a line guarding nothing.
+    /// </summary>
+    [Fact]
+    public void EveryCaveatInTheDataIsOneThatWasCheckedAgainstThePage()
+    {
+        var carried = _f.Rules.Pros.Select(p => $"pro:{p.Id}")
+            .Concat(_f.Rules.Cons.Select(c => $"con:{c.Id}"))
+            .Zip(_f.Rules.Pros.Select(p => p.ApplicabilityCaveat)
+                    .Concat(_f.Rules.Cons.Select(c => c.ApplicabilityCaveat)))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Second))
+            .Select(x => x.First)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.Equal<IEnumerable<string>>(
+            [.. CanonicalCaveats.All
+                .Select(e => $"{(e.IsPro ? "pro" : "con")}:{e.Id}")
+                .Order(StringComparer.Ordinal)],
+            carried);
+    }
+
+    // Cached rather than constructed per call: CA1869, which is an error under
+    // ContinuousIntegrationBuild and so does not show up in a local `dotnet test`.
+    private static readonly System.Text.Json.JsonSerializerOptions SnakeCase =
+        new() { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.SnakeCaseLower };
+
+    /// <summary>
+    /// Chapter 2's printed text, which is where every Pro and Con in the game is defined
+    /// (pp.48-53). Read through the deserializer rather than off the raw file, so the JSON
+    /// escapes the extractor writes — <c>+</c> among them — are the characters the book prints.
+    /// </summary>
+    /// <remarks>
+    /// <b>Declared after <see cref="SnakeCase"/>, and it has to be.</b> Static field initialisers
+    /// run in declaration order, so with these two the other way round the options were still
+    /// null when the chapter was read — which does not throw, it silently deserialises without
+    /// the naming policy and hands back a chapter with no sections. Every caveat then failed on
+    /// a sentence the book does contain.
+    /// </remarks>
+    private static string PowersChapterText { get; } = ReadPowersChapter();
+
+    private static string ReadPowersChapter()
+    {
+        var path = Path.Combine(RulesFixture.RepoRoot, "data", "rulebook", "ch02-characters.json");
+
+        var chapter = System.Text.Json.JsonSerializer.Deserialize<Chapter>(File.ReadAllText(path), SnakeCase)
+            ?? throw new InvalidOperationException($"{path} is not readable as a chapter.");
+
+        // An empty read is the failure mode that matters here: it makes every printed clause
+        // look absent from a book that contains all of them, which reads as fifteen wrong
+        // transcriptions rather than as one unread file.
+        if (chapter.Sections is not { Length: > 0 })
+            throw new InvalidOperationException($"{path} read back with no sections at all.");
+
+        return string.Join("\n", chapter.Sections.Select(s => s.Text));
+    }
+
+    private sealed record Chapter(Section[] Sections);
+
+    private sealed record Section(string Heading, string Text);
+
+    /// <summary>
     /// Force Field is Self range and its own entry names three generic Pros anyway:
     /// "Apply the Zone Pro to shield large areas, the Ranged Pro to shield things at a
     /// distance, or the Area Pro to shield large areas at a distance" (Ch.2 p.29). T-Kay
@@ -399,6 +497,87 @@ public sealed class ProConApplicabilityTests
             .ToList();
 
         Assert.Equal(["energy_absorption/also_x", "form_energy/also_x"], powerSpecific);
+    }
+
+    /// <summary>
+    /// <b>The pickers offer options in rules-file order, and the two editors show them in the
+    /// order they are offered.</b> Both methods say so in their own summaries and nothing held
+    /// them to it: adding <c>.Reverse()</c> to <c>ProsFor</c> left the whole suite green.
+    ///
+    /// <para>It is not cosmetic. Ch.2 prints Pros and Cons alphabetically and a player choosing
+    /// from a list of fifty is looking one up by name, so a list in some other order is a list
+    /// they have to read all of. Asserted as a subsequence of the rules file rather than as a
+    /// literal list, because which options a given Power is offered is
+    /// <see cref="IsApplicable"/>'s answer and not this test's business.</para>
+    /// </summary>
+    [Fact]
+    public void ThePickersOfferOptionsInRulesFileOrder()
+    {
+        var pros = _f.Rules.Pros.Select(p => p.Id).ToList();
+        var cons = _f.Rules.Cons.Select(c => c.Id).ToList();
+
+        foreach (var power in _f.Rules.Powers)
+        {
+            var offeredPros = _sut.ProsFor(power).Select(p => p.Id).ToList();
+            var offeredCons = _sut.ConsFor(power).Select(c => c.Id).ToList();
+
+            Assert.Equal(pros.Where(offeredPros.Contains), offeredPros);
+            Assert.Equal(cons.Where(offeredCons.Contains), offeredCons);
+        }
+
+        // Narrow: a file order that happened to be the same as some other order would make the
+        // check above vacuous, so at least one Power is offered enough options to tell them apart.
+        Assert.True(_sut.ProsFor(Power("blast")).Count > 2);
+    }
+
+    /// <summary>
+    /// <b>The intersection in <c>GradesFor</c>, driven rather than observed.</b> Its comment says
+    /// it stops a rules file "inventing a key", and with the shipped data it cannot: every grade
+    /// any allowance records is one the option prices — <see
+    /// cref="EveryOwnTextAllowanceResolvesAndCitesItsPrintedText"/> guarantees exactly that — so
+    /// replacing the whole thing with <c>return allowance.Grades.ToList();</c> is behaviourally
+    /// identical and every test stayed green.
+    ///
+    /// <para>Which is the point rather than an objection: a guard whose only evidence comes from
+    /// data that cannot exercise it is a guard nobody knows the state of. These two Powers differ
+    /// only in the grades their allowance names, and one of them names a key the Pro does not
+    /// price. The narrower test above — Force Field taking the Ranged grades and not the Touch
+    /// ones — covers the case the rulebook has; this covers the case the comment claims.</para>
+    /// </summary>
+    [Fact]
+    public void AGradeARulesFileNamesButTheOptionDoesNotPriceIsNotOffered()
+    {
+        var zone = _f.Rules.Pros.Single(p => p.Id == "zone_nova");
+        var printed = zone.CostModifierRange!.Keys.ToList();
+
+        Assert.DoesNotContain("zone_underwater", printed);
+
+        var honest = new PowerModel
+        {
+            Id = "made_up", Range = "self", RankType = "power",
+            ProsAllowedByOwnText =
+                [new ProAllowanceModel { Id = "zone_nova", Reason = "test", Grades = ["zone_ranged"] }]
+        };
+
+        var inventing = honest with
+        {
+            ProsAllowedByOwnText =
+            [
+                new ProAllowanceModel
+                {
+                    Id = "zone_nova", Reason = "test",
+                    Grades = ["zone_ranged", "zone_underwater"]
+                }
+            ]
+        };
+
+        Assert.Equal<IEnumerable<string>>(
+            ["zone_ranged"], ProConApplicability.GradesFor(zone, honest, printed));
+
+        // The invented key is dropped rather than offered, so a caller cannot be told to write
+        // back a grade nothing can price.
+        Assert.Equal<IEnumerable<string>>(
+            ["zone_ranged"], ProConApplicability.GradesFor(zone, inventing, printed));
     }
 
     [Fact]
