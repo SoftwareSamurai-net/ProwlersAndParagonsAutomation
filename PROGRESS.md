@@ -240,6 +240,23 @@ engine. Predicted 3629 + 143; measured **3629 + 143 = 3772**, zero warnings, at
 `ContinuousIntegrationBuild=true`. A merge that silently dropped a test file would land under that
 number, and a merge that duplicated one would land over it.
 
+**The count is necessary and not sufficient, so each slice's flagship guard was re-run by mutation
+*on the merged tree*.** A test can survive a merge and stop biting: the count only says the method
+is still there, not that the assertion inside it still fails when it should. Five mutations, each
+confirmed applied with `git diff --numstat` before the suite was believed — A2's tier substitution
+in `SheetView` (4 red), A2's `Find` made case-sensitive (3 red), A2's `print-color-adjust: economy`
+(1 red), A1's substring matching restored in `Mentions` (8 red), A1's `ReadEverything` no longer
+reading the embedded guide (1 red), and A3's `DUPLICATE_PRO` reporting `ValidationSubject.Ability`
+(2 red). All still bite on the merged tree.
+
+**One near-miss worth recording, because the search for it is what should be copied.** Three
+`git stash` commits were left dangling on the A1 branch and one of them holds a test —
+`TheStartupCheckReadsTheEmbeddedGuideAndNotOnlyTheRules` — whose name appears nowhere in the merged
+tree. It had been **renamed**, not lost: it is `TheStartupCheckReadsTheGuideAndNotOnlyTheRules`, and
+deleting `_ = _guide().Length;` from `ReadEverything` turns it red. But a name comparison against
+dangling work is a cheap check that found the one thing worth checking, and `git fsck
+--lost-found` after a parallel-branch merge costs a minute.
+
 **Each entry below still quotes the count measured on its own branch**, deliberately — rewriting
 them to the reconciled figure would make three true statements into three false ones. The figure
 for this tree is the one in the table at the top of this file.
