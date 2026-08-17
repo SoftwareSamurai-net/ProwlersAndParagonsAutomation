@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3841 across two projects — 3645 on the engine, 196 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3849 across two projects — 3653 on the engine, 196 rendering components with bUnit — run in CI at the same strictness as the build |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -218,6 +218,93 @@ grip does not.
 ---
 
 ## Completed work
+
+### Phase 0 of the front-end plan: the scales nothing after them can be consistent without
+
+[`docs/FRONT-END-PLAN.md`](docs/FRONT-END-PLAN.md) puts this first because it is invisible on
+its own and every later phase is cheaper for it. **Nothing here changes what the app does.**
+
+**The counts in the plan were an undercount, and the measured ones are the reason this was
+worth doing.** The plan named "twenty separately-chosen spacing values and eleven font sizes".
+Measured off the screen half of `app.css`: **twenty-seven** distinct lengths on padding, margin
+and gap, and **twenty** font sizes — nineteen in rem plus the body's own 15.5px — of which
+**ten sat between 0.68rem and 0.9rem**, a range no reader can resolve into ten steps. That is
+not a design, it is a history of individual decisions, and the reason nothing could have told
+you so is that every one of them was locally reasonable.
+
+**Nine spacing rungs and seven type rungs replace them**, plus three elevation steps and a
+second easing. 169 lengths rewritten; every rung is used by at least one rule and no rule names
+a length outside the scales.
+
+- **Steps of 2px at the bottom and 4px above it, not a strict 4px base.** Four of the old values
+  sat between 4.8px and 7.2px — tag padding, pip gaps, the gap in a row of controls — and a
+  4px-only scale collapses that whole range onto either 4px or 8px, which is a factor of two on
+  the tightest spacing in the app. The half-steps stop above 8px, where 2px is invisible anyway.
+- **Two type rungs are anchored to existing values rather than to the ratio, and both for a
+  measured reason rather than a taste one.** `--text-xs` is exactly **0.72rem** because that is
+  the size `--muted` was measured against: the note on it holds it to 4.5:1 rather than 3:1
+  *because* it carries explanatory prose at this size, and a scale that rounded the bottom rung
+  down to 0.67rem to fit a ratio would have invalidated that measurement silently — the colour
+  would still pass its own test, at a size nobody had checked. `--text-3xl` is exactly 2.15rem
+  because it is the masthead and nothing sits above it for a ratio to answer to. The base is
+  0.97rem, the 15.5px the body has always been, so prose does not reflow for a round number.
+- **Elevation was one `--shadow` carrying the banner, every panel, the sheet, the tier cards and
+  the sticky strip.** The consequence was not that the page looked wrong — it is that nothing on
+  it had a *height*. `--shadow-3` is claimed by the budget strip alone, which is the only element
+  that moves independently of the document, and that is asserted **by count**: spreading the top
+  step back across the page would undo the distinction without changing a single value.
+- **There is deliberately no `--ease-emphasised`**, though the plan named one. An overshoot curve
+  wants something that should read as *landing*, and the only candidate is a row arriving in a
+  list, which is Phase 2. Declaring it now ships a token no rule asks for — and this app has
+  already shipped a `.label-line` class applied to nothing, found by looking at a rendered page
+  rather than by any test. `--ease-out` is added and used, on the four things that travel.
+
+**Held by the same rule as colour and typeface, and the rule refuses both spellings.**
+`NoScreenRuleNamesARawSpacingOrTypeLength` bans a raw length in padding, margin, gap or
+font-size — **in px as well as rem**, because px is what somebody reaching for a value rather
+than a rung would naturally write, and a rem-only check leaves that door open. The print block is
+out of scope by design: it is mm and pt, a different medium with its own scale and its own tests.
+Three literals are exempt, each **paired with the selector it belongs to** and each asserted to
+still exist, because an exemption whose selector was renamed away permits its declaration
+everywhere and says nothing.
+
+**Three things were found by doing this rather than by planning it, and the first was mine.**
+
+- **The scripted rewrite produced `-var(--space-6)`, which is not valid CSS.** A minus sign in
+  front of a `var()` invalidates the whole declaration, so the browser drops it — the budget
+  strip would have quietly stopped bleeding to the shell's edges, and the `margin-bottom` on the
+  same line would have gone with it. **Nothing about the page would have looked broken**; it
+  would have looked as though the bleed had never been written. Four sites, all `calc(-1 * …)`
+  now, and the comment beside the first says why.
+- **Three existing typographic guards read their font size out of the declaration with a regex,
+  and stopped working the moment the sizes became tokens.** The obvious repair — accept a
+  `var()` and skip the range check — turns three *measured* assertions into three assertions
+  that a property is present, which is the exact weakness all three of their doc comments record
+  being hardened against. They **resolve the scale** instead, so they are stronger than before:
+  `--text-sm: 2rem` in theme.css now fails the trait-Source-line guard, which no literal read
+  could ever have seen.
+- **"The bleed has to follow the shell's padding" was a comment asking to be remembered.** It
+  had to be: two unrelated literals have no relationship to assert, which is why the 8px overflow
+  at 375px got in. Two references to one token do, so it is
+  `TheBudgetStripsBleedMatchesTheShellsPadding` now — asserted at every breakpoint, with the
+  media queries **discovered rather than listed**, so a third breakpoint is covered the day it is
+  added rather than the day somebody remembers it.
+
+**Eighteen mutations were run against the new guards before any reviewer saw them; seventeen
+applied and all seventeen were caught.** The other two are the finding worth keeping: **a
+mutation aimed by line number at a file that had since gained four lines of comment deleted a
+comment instead, passed, and reported as a survivor.** The harness now asserts the file actually
+moved and prints the numstat, so "the mutation never applied" and "the guard held" stop looking
+identical — which is the same failure as reading `Passed!` off a crashed run, one level down.
+
+**Verified by looking, not only by testing.** Both palettes at 1400px and the narrow viewport
+through an iframe, which is **measured rather than eyeballed**: `clientWidth 360, scrollWidth
+360, overflow 0px`, against the 368/360 that was the bug this replaces. The printed sheet was
+rasterised and read — three sheets still three pages in both palettes, ink on white paper,
+heading bars still a tint, Notes and Origin still ruled at a writable 4mm, gear still flush left.
+
+3841 tests to **3849**. Zero warnings at CI strictness. **Payload: unchanged** — no file added,
+no byte of CSS beyond the token declarations.
 
 ### The visual redesign: two faces, and the filter box somebody actually asked for
 

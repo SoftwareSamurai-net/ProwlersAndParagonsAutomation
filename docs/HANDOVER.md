@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3841 tests** — 3645 engine, 196 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3849 tests** — 3653 engine, 196 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
@@ -44,9 +44,19 @@ The plan is [`docs/FRONT-END-PLAN.md`](FRONT-END-PLAN.md), in six phases, and it
 **Read it before starting** — it carries the reasoning, and one load-bearing decision that will
 otherwise be re-litigated.
 
-**Do the phases in order.** Phase 0 is invisible on its own and every later phase is cheaper and
-better for it: `app.css` currently spends twenty separately-chosen spacing values and eleven font
-sizes, so nothing after it can be consistent until it exists.
+**Do the phases in order. Phase 0 is done** — the spacing, type and elevation scales exist and
+`NoScreenRuleNamesARawSpacingOrTypeLength` holds them, so **Phase 1 starts by asking a scale for
+a value rather than choosing one.** `PROGRESS.md` has the account; the plan carries the four
+things a later phase needs to know, including two rungs that are pinned to measured values and
+must not be tidied onto a ratio.
+
+**Next is Phase 1 — density and hierarchy**, which is mostly deletion: the editors are bordered
+boxes inside bordered boxes, and now that headings carry structure typographically most inner
+borders are redundant. It is the half of slice B item 2 that was reached for and half-delivered.
+Two warnings specific to it, both already recorded: it touches every page, and **the print
+stylesheet corrects screen rules by specificity, which has broken three times** — so re-proof
+the PDF rather than the screen. Phase 0 did not touch the print block at all, which is why the
+sheet came out unchanged; Phase 1 will not have that luxury.
 
 **The one decision already made: there is no animation library.** `element.animate()` does
 everything on the list in ten lines; the payload is already this project's largest open item and

@@ -40,24 +40,29 @@ would still start without one and add it only where the platform actually falls 
 
 ---
 
-## Phase 0 — the scales nothing can be consistent without
+## Phase 0 — the scales nothing can be consistent without — **done**
 
 Invisible on its own; every later phase is cheaper and better for it. **Do this first.**
 
-- **A spacing scale.** `app.css` currently spends `0.15rem 0.2rem 0.25rem 0.3rem 0.35rem
-  0.4rem 0.45rem 0.5rem 0.55rem 0.6rem 0.65rem 0.7rem 0.75rem 0.85rem 0.9rem 0.95rem 1.1rem
-  1.15rem 1.25rem 1.5rem` — twenty values chosen one at a time. Replace with `--space-1`…`-8`
-  on a 4px base. The vertical rhythm becomes a decision instead of an accumulation.
-- **A type scale.** Same problem: eleven font sizes between `0.68rem` and `2.15rem`. A modular
-  scale (1.2 ratio) tied to `--text-xs`…`--text-3xl`.
-- **An elevation scale.** One `--shadow` today, used for panels, the sheet, cards and the
-  sticky strip — four things at different depths. Three steps, and the sticky strip is the
-  only thing that should read as floating.
-- **A motion vocabulary.** `--step`/`--swap`/`--enter` are durations; add named easings
-  (`--ease-out`, `--ease-emphasised`) so "how a thing moves" is a token too.
+`PROGRESS.md` has the account. Four things a later phase needs to know:
 
-Held by the same rule as colour: a test that no component names a raw length. **Cost: one
-slice. Risk: low — mechanical, and every step is visible in a screenshot diff.**
+- **The counts here were an undercount.** Measured off the file: twenty-seven spacing values,
+  not twenty, and twenty font sizes, not eleven. Nine spacing rungs and seven type rungs
+  replace them, at `--space-0`…`-8` and `--text-xs`…`-3xl`.
+- **The scale is not a strict 4px base and the type scale is not a clean 1.2 ratio**, both
+  deliberately. `--space-0` and `-2` are 2px and 6px because four of the old values sat between
+  4.8px and 7.2px and a 4px-only scale doubles the tightest spacing in the app. `--text-xs` is
+  pinned at 0.72rem because that is the size `--muted`'s 4.5:1 floor was *measured* at, and
+  `--text-3xl` at 2.15rem because it is the masthead. Do not "tidy" either to a ratio.
+- **`--shadow-3` belongs to the sticky strip and nothing else**, asserted by count. If a later
+  phase wants a hover lift, that is `--shadow-2`.
+- **There is no `--ease-emphasised` yet, on purpose.** Nothing wanted an overshoot; the first
+  thing that does is a row arriving in a list, which is Phase 2. Add it there, and use it.
+
+Held by the same rule as colour: `NoScreenRuleNamesARawSpacingOrTypeLength`, which refuses px
+as well as rem. **Cost: as estimated. Risk: was low, and the one real hazard was self-inflicted
+— a scripted rewrite emitting `-var(…)`, which is invalid CSS and drops the whole declaration
+without looking broken.**
 
 ---
 
@@ -159,8 +164,9 @@ keystroke unless it is throttled.**
 
 Every one of these has already cost this project a bug, and all are recorded in `CLAUDE.md`:
 
-- **No component names a colour, a font, a radius or a duration** — and after Phase 0, nor a
-  raw length. theme.css is the only file that names any of them.
+- **No component names a colour, a font, a radius, a duration or a raw length.** theme.css is
+  the only file that names any of them, and as of Phase 0 the length half is asserted too —
+  in px as well as rem.
 - **One component owns each repeated class.**
 - **Hero and Villain stay purely visual.** No mode field on `CharacterSheet`, and the validator
   is never told. If a phase seems to need one, the design is wrong.
