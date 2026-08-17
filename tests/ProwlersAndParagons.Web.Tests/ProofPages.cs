@@ -49,6 +49,7 @@ public sealed class ProofPages
 
         var body = new StringBuilder();
 
+        Section(body, "The budget, as a strip of chrome", ctx.Render<HpBudgetBar>().Markup);
         Section(body, "Tier — a card grid", ctx.Render<ChooseTier>().Markup);
         Section(body, "Abilities — the rulebook's word beside each rank",
             ctx.Render<AbilitiesTab>().Markup);

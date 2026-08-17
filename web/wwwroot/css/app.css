@@ -228,46 +228,104 @@ hr {
 
 /* ── Budget bar ──────────────────────────────────────────────────────────── */
 
+/* Chrome, not content. It stays put while the column under it scrolls, so the
+   budget is glanceable from anywhere in a long editor without being a panel the
+   reader scrolls past six times. `top: 0` rather than under the banner: the
+   banner is not sticky, so this takes the top edge once the banner has gone.
+
+   The z-index sits above the page and below Blazor's error bar (1000), which has
+   to cover everything. */
 .budget {
+    position: sticky;
+    top: 0;
+    z-index: 20;
     background: var(--panel);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius);
-    padding: 0.75rem 0.95rem;
-    margin-bottom: 1.5rem;
+    border-bottom: var(--rule-weight) solid var(--rule);
+    margin: 0 -1.25rem 1.25rem;
+    padding: 0.5rem 1.25rem 0;
     box-shadow: var(--shadow);
 }
-.budget-line { display: flex; gap: 1rem; align-items: baseline; flex-wrap: wrap; }
-.budget-line strong {
+
+.budget-strip {
+    display: flex;
+    gap: 0.9rem;
+    align-items: baseline;
+    flex-wrap: wrap;
+    padding-bottom: 0.45rem;
+}
+.budget-strip .spacer { margin-left: auto; }
+
+/* The figure that moves, and the constant it is measured against. */
+.budget-figure { display: inline-flex; align-items: baseline; gap: 0.3rem; }
+.budget-figure strong {
     font-family: var(--font-display);
     font-variant-numeric: tabular-nums;
-    font-size: 1.35rem;
+    font-size: 1.5rem;
+    line-height: var(--display-leading);
     letter-spacing: var(--display-track);
 }
-.budget-line .spacer { margin-left: auto; }
-.budget-track {
-    height: 10px;
+.budget-of {
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    color: var(--muted);
+}
+.budget-left {
+    font-family: var(--font-display);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    color: var(--muted);
+}
+
+/* Three pixels along the strip's own bottom edge, bled to the full width of the
+   shell — a rail rather than a bordered track sitting inside a panel. */
+.budget-rail {
+    height: 3px;
+    margin: 0 -1.25rem;
     background: var(--panel-sunk);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-pill);
     overflow: hidden;
-    margin-top: 0.5rem;
 }
 .budget-fill {
     height: 100%;
     background: var(--accent);
-    border-radius: inherit;
     transition: width var(--enter) var(--ease), background-color var(--swap) var(--ease);
 }
 .budget-fill.over { background: var(--danger); }
-.over-text { color: var(--danger); font-weight: 700; }
+.over-text {
+    color: var(--danger);
+    font-family: var(--font-display);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    font-weight: 700;
+}
+
+/* The disclosure. Reads as a control rather than a heading, and says which way it
+   is about to go rather than naming the thing it hides. */
+.budget-toggle {
+    font: inherit;
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--rule);
+    color: var(--muted);
+    padding: 0 0 1px;
+    cursor: pointer;
+    transition: color var(--swap) var(--ease), border-color var(--swap) var(--ease);
+}
+.budget-toggle:hover { color: var(--heading); border-color: var(--heading); }
 
 .breakdown {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.9rem;
-    margin-top: 0.5rem;
+    gap: 0.5rem 0.9rem;
+    padding: 0.6rem 0 0.7rem;
     font-size: 0.8rem;
     color: var(--muted);
+    animation: rise var(--enter) var(--ease) both;
 }
 .breakdown b { color: var(--ink); font-variant-numeric: tabular-nums; }
 

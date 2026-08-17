@@ -3,7 +3,17 @@
 
 @* The Hero Point budget, straight from CostCalculator — nothing here adds anything up.
    Hidden entirely in Villain mode: Ch.9 gives Villains no budget, so a bar showing 0/0
-   and an over-budget error would both be wrong rather than merely unhelpful. *@
+   and an over-budget error would both be wrong rather than merely unhelpful.
+
+   **It is a strip of chrome rather than a panel of content.** A persistent budget is an
+   ambient status indicator: it belongs where the banner is, not in the column the reader
+   scrolls. As a bordered panel with a headline, a 10px track and a seven-part breakdown it
+   cost about 110px above *every* step — roughly a quarter of a laptop viewport, repeated six
+   times, most of it a table consulted occasionally while occupying the space continuously.
+
+   So the headline figures stay put as the page scrolls, the progress becomes a hairline rail
+   along the strip's own bottom edge, and the breakdown is disclosed on request and remembers
+   whether it was open. *@
 
 @if (Session.ShowBudget && Session.Sheet.SelectedTierId is not null)
 {
@@ -13,8 +23,8 @@
     <section class="budget" aria-label="Hero Point budget">
         @if (spent is null)
         {
-            <div class="budget-line">
-                <span class="muted">Not costable yet — a selection is still missing a
+            <div class="budget-strip">
+                <span class="muted small">Not costable yet — a selection is still missing a
                     variant or a grade. The GM review step names it.</span>
             </div>
         }
@@ -24,37 +34,70 @@
             var over      = remaining < 0;
             var pct       = budget <= 0 ? 0 : Math.Min(100, spent.Value * 100 / budget);
 
-            <div class="budget-line">
-                <span><strong class="num">@spent.Value</strong> <span class="muted small">of @budget HP spent</span></span>
-                <span class="spacer"></span>
+            <div class="budget-strip">
+                @* The spend is the figure that moves, so it is the one set large; the budget
+                   is the constant it is measured against and reads as its denominator. *@
+                <span class="budget-figure">
+                    <strong class="num">@spent.Value</strong><span class="budget-of num">/ @budget</span>
+                </span>
+
+                @* Never colour alone: over-budget says so in words as well as in --danger. *@
                 @if (over)
                 {
-                    <span class="over-text num">@(-remaining) HP over budget</span>
+                    <span class="over-text num">@(-remaining) HP over</span>
                 }
                 else
                 {
-                    <span class="num"><strong>@remaining</strong> <span class="muted small">remaining</span></span>
+                    <span class="budget-left num">@remaining left</span>
                 }
+
+                <span class="spacer"></span>
+
+                <button type="button" class="budget-toggle"
+                        aria-expanded="@(_open ? "true" : "false")"
+                        aria-controls="budget-breakdown"
+                        @onclick="() => _open = !_open">
+                    @(_open ? "Hide the breakdown" : "What it went on")
+                </button>
             </div>
 
-            <div class="budget-track" role="progressbar" aria-valuenow="@spent.Value" aria-valuemin="0" aria-valuemax="@budget">
+            @* The rail is the strip's own bottom edge rather than a track inside it — three
+               pixels instead of a bordered ten, and it reads as part of the furniture. The
+               width is the one inline style left in this app, and the sole reason the
+               Content-Security-Policy carries style-src 'unsafe-inline'. *@
+            <div class="budget-rail" role="progressbar"
+                 aria-valuenow="@spent.Value" aria-valuemin="0" aria-valuemax="@budget">
                 <div class="budget-fill @(over ? "over" : "")" style="width:@(pct)%"></div>
             </div>
         }
 
-        <div class="breakdown">
-            <span>Package <b class="num">@Cost(() => Session.Costs.PackageCost(Session.Sheet))</b></span>
-            <span>Abilities <b class="num">@Cost(() => Session.Costs.AbilityCost(Session.Sheet))</b></span>
-            <span>Talents <b class="num">@Cost(() => Session.Costs.TalentCost(Session.Sheet))</b></span>
-            <span>Powers <b class="num">@Cost(() => Session.Costs.TotalPowersCost(Session.Sheet))</b></span>
-            <span>Perks <b class="num">@Cost(() => Session.Costs.TotalPerksCost(Session.Sheet))</b></span>
-            <span>Gear <b class="num">@Cost(() => Session.Costs.TotalGearCost(Session.Sheet))</b></span>
-            <span>Trait Cap <b class="num">@Session.TraitCap<span class="muted">d</span></b></span>
-        </div>
+        @if (_open)
+        {
+            <div id="budget-breakdown" class="breakdown">
+                <span>Package <b class="num">@Cost(() => Session.Costs.PackageCost(Session.Sheet))</b></span>
+                <span>Abilities <b class="num">@Cost(() => Session.Costs.AbilityCost(Session.Sheet))</b></span>
+                <span>Talents <b class="num">@Cost(() => Session.Costs.TalentCost(Session.Sheet))</b></span>
+                <span>Powers <b class="num">@Cost(() => Session.Costs.TotalPowersCost(Session.Sheet))</b></span>
+                <span>Perks <b class="num">@Cost(() => Session.Costs.TotalPerksCost(Session.Sheet))</b></span>
+                <span>Gear <b class="num">@Cost(() => Session.Costs.TotalGearCost(Session.Sheet))</b></span>
+                <span>Trait Cap <b class="num">@Session.TraitCap<span class="muted">d</span></b></span>
+            </div>
+        }
     </section>
 }
 
 @code {
+    /// <summary>
+    /// Whether the breakdown is showing.
+    ///
+    /// <para>A field on the component rather than anything stored: <c>MainLayout</c> holds this
+    /// component across page navigations, so it survives walking between steps, which is the
+    /// only span over which anyone would notice. <b>It is emphatically not on
+    /// <c>CharacterSheet</c></b> — whether a disclosure is open is a fact about a screen, not
+    /// about a character, and the sheet is what gets exported and restored.</para>
+    /// </summary>
+    private bool _open;
+
     protected override void OnInitialized() => Session.Changed += StateHasChanged;
 
     private static string Cost(Func<int> cost) =>
