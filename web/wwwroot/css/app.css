@@ -1325,11 +1325,18 @@ label {
     border-color: var(--accent);
 }
 
-/* The tip. Hidden by default and shown by a class rather than by a `hidden`
-   attribute, because the description is read off this element by name whether or
-   not it is visible — see the note in the component. `visibility` rather than
-   `display: none` so the transition has something to animate. */
-/* **Downward, and that is not the default anybody reaches for first.** A tip above its trigger
+/* The tip: the *visible* copy only. The accessible description is a separate
+   sr-only element in the component, which is what lets this one leave layout
+   entirely when closed.
+
+   **`display: none`, not `visibility: hidden` — that was the first version and it
+   was wrong.** A hidden element keeps its layout box, so this absolutely
+   positioned box contributed real horizontal overflow at 375px while closed, on
+   every page carrying a tooltip. Both 375px harnesses went red in CI and the whole
+   local suite passed, because no rendering test here can see a box leaving the
+   viewport. Losing the fade is the price and it is not much of one.
+
+   **Downward, and that is not the default anybody reaches for first.** A tip above its trigger
    is the conventional shape and it is wrong here: one of the two call sites is inside the budget
    breakdown, which hangs off a strip stuck to `top: 0`, so an upward tip is clipped by the window
    edge exactly where it is most likely to be opened. Found by rendering one and looking at it —
@@ -1341,7 +1348,7 @@ label {
     left: 50%;
     z-index: 30;
     width: max-content;
-    max-width: 22rem;
+    max-width: min(22rem, 88vw);
     transform: translateX(-50%);
     margin-top: var(--space-2);
     padding: var(--space-2) var(--space-3);
@@ -1353,17 +1360,10 @@ label {
     font-size: var(--text-sm);
     font-weight: 400;
 
-    /* Not display:none — see above. Opacity and visibility together, so it is both
-       invisible and not a pointer target while closed. */
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity var(--swap) var(--ease), visibility var(--swap) var(--ease);
+    display: none;
 }
 
-.tip.shown {
-    opacity: 1;
-    visibility: visible;
-}
+.tip.shown { display: block; }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    The command palette — Ctrl-K, from anywhere.
