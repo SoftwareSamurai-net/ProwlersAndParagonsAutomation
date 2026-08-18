@@ -1236,6 +1236,59 @@ label {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Motion across a step change — the View Transitions API.
+
+   The script half is wwwroot/js/motion.js; this is the half that says what
+   persists. Without a name, everything is part of one `root` group and the whole
+   window cross-fades — including the three bands that did not change, which is
+   the flicker this exists to remove. A named element becomes its own group and
+   is matched to the same name on the other side, so the browser interpolates it
+   from where it was to where it is instead of fading one out over the other.
+
+   **These are the shared elements the plan asks to persist**: the banner and the
+   step list never change across a step, and the budget strip changes only its
+   figures. What is left in `root` is the content of `main`, which is the thing
+   that actually changed and the only thing that should be seen to.
+
+   A name must be unique in the document — two elements sharing one is a spec
+   error and Chrome skips the whole transition, which fails as "no animation" and
+   looks exactly like an unsupported browser. All three are singletons.
+
+   **`view-transition-name` on the strip does not unstick it, and that was
+   measured rather than reasoned about**: `TheStickyStrip` reports the same
+   `.budget` top of 0.0 after a scroll with these rules in place as without. It is
+   the kind of claim this file has been wrong about before — the containing block
+   is what makes the strip work, and a captured element is one of the things that
+   could plausibly change it.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.banner { view-transition-name: banner; }
+.steps  { view-transition-name: steps; }
+.budget { view-transition-name: budget; }
+
+/* The content cross-fade. `--enter` is the panel-arriving duration and this is the
+   same event at page scale, so it borrows it rather than introducing a fourth.
+
+   Durations are tokens, so `prefers-reduced-motion` already collapses this to
+   0.01ms — but that is belt to the script's braces, not the mechanism: motion.js
+   asks `matchMedia` itself and never starts a transition at all for somebody who
+   asked for less movement. A token cannot reach a script. */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: var(--enter);
+    animation-timing-function: var(--ease-out);
+}
+
+/* The named groups travel rather than fade, so they get the same curve but should
+   not also cross-fade against themselves — the strip's figures would ghost. */
+::view-transition-group(banner),
+::view-transition-group(steps),
+::view-transition-group(budget) {
+    animation-duration: var(--enter);
+    animation-timing-function: var(--ease-out);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Print.
 
    Judge this by the PDF, never by the screen. The palette is forced light in

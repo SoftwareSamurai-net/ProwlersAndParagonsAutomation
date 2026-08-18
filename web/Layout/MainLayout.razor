@@ -104,9 +104,59 @@
         // The shell has to redraw on a navigation as well as on a change to the character:
         // walking from a recording back into the wizard has to bring the budget bar back.
         Nav.LocationChanged += Moved;
+
+        // ...and a view transition has to be *opened* before the navigation, which is a
+        // different hook entirely. See OpenTransition.
+        _leaving = Nav.RegisterLocationChangingHandler(OpenTransition);
     }
 
     private void Moved(object? sender, LocationChangedEventArgs e) => StateHasChanged();
+
+    /// <summary>The LocationChanging registration, released on dispose.</summary>
+    private IDisposable? _leaving;
+
+    /// <summary>Whether a transition is open and waiting on this render to finish.</summary>
+    private bool _midTransition;
+
+    /// <summary>
+    /// Snapshot the page before Blazor swaps the step out from under the chrome.
+    ///
+    /// <para><b><c>LocationChanged</c> is the wrong hook for this and it is the obvious one to
+    /// reach for.</b> The View Transitions API animates between two snapshots and the first has
+    /// to be taken while the old page is still on screen; by the time <c>LocationChanged</c>
+    /// fires, the navigation has happened and there is nothing left to capture.
+    /// <c>LocationChanging</c> runs before it.</para>
+    ///
+    /// <para><b>Nothing here decides whether to animate.</b> The script asks the browser whether
+    /// it supports transitions and the user whether they want movement, and does nothing at all
+    /// if either answer is no — a component can ask neither question, and the reduced-motion
+    /// tokens in the stylesheet cannot reach a script.</para>
+    /// </summary>
+    private async ValueTask OpenTransition(LocationChangingContext context)
+    {
+        _ = context;    // nothing here ever cancels a navigation; this only observes one
+
+        _midTransition = true;
+        await Js.InvokeVoidAsync("ppMotion.begin");
+    }
+
+    /// <summary>
+    /// Release the transition once the new step has actually rendered, which is what lets the
+    /// second snapshot be taken.
+    ///
+    /// <para>Guarded on the flag because this fires after <em>every</em> render — a rank
+    /// changing, the breakdown opening — and an unguarded release would close the next
+    /// navigation's transition before its content had arrived.</para>
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ = firstRender;
+
+        if (!_midTransition) return;
+
+        _midTransition = false;
+        await Js.InvokeVoidAsync("ppMotion.end");
+    }
 
     /// <summary>
     /// The palette is a data-mode attribute on the document element, set through interop
@@ -123,5 +173,6 @@
     {
         Session.Changed -= StateHasChanged;
         Nav.LocationChanged -= Moved;
+        _leaving?.Dispose();
     }
 }

@@ -2573,6 +2573,159 @@ public sealed class WebPresentationTests
     private static string Normalise(string css) => Rx(@"\s+").Replace(css, "");
 
     /// <summary>
+    /// <b>The script asks about reduced motion itself.</b>
+    ///
+    /// <para>The duration tokens collapse to <c>0.01ms</c> under
+    /// <c>prefers-reduced-motion</c>, and that covers every CSS transition in the app — but it
+    /// covers nothing a script does. <c>startViewTransition()</c> and <c>element.animate()</c>
+    /// read no custom property, so a reduced-motion user gets the full movement from anything
+    /// driven by JavaScript unless the script asks separately. <b>A token cannot reach a
+    /// script</b>, and the stylesheet looking correct is exactly why this is easy to miss.</para>
+    ///
+    /// <para>Asserted per entry point rather than per file: a single <c>matchMedia</c> call
+    /// anywhere in <c>motion.js</c> satisfies a file-level check while a second animation added
+    /// below it ignores the setting entirely.</para>
+    /// </summary>
+    [Fact]
+    public void EveryScriptedAnimationAsksWhetherMovementIsWanted()
+    {
+        var motion = Scripts.SingleOrDefault(s => s.Name == "motion.js");
+
+        Assert.False(motion.Text is null,
+            "motion.js has gone. If scripted motion moved to another file, point this test at it: "
+            + "the reduced-motion setting is unreachable from the stylesheet.");
+
+        Assert.Contains("prefers-reduced-motion", motion.Text, StringComparison.Ordinal);
+        Assert.Contains("matchMedia", motion.Text, StringComparison.Ordinal);
+
+        // Every animation entry point in the file, and each one must be gated. still() is the
+        // helper that reads the media query; naming it is what a caller has to do to respect it.
+        foreach (var call in new[] { "startViewTransition", "animate(" })
+        {
+            if (!motion.Text.Contains(call, StringComparison.Ordinal)) continue;
+
+            var body = BodyContaining(motion.Text, call);
+            Assert.True(
+                body.Contains("still()", StringComparison.Ordinal),
+                $"The block calling {call} does not check still() - a reduced-motion user gets the "
+                + "full animation. The stylesheet 0.01ms tokens do not reach this code.");
+        }
+    }
+
+    /// <summary>
+    /// <b>A view transition that is never released leaves the page frozen.</b>
+    ///
+    /// <para>While one is open the live DOM is hidden behind a snapshot, so a navigation that
+    /// throws, or a handler disposed mid-flight, strands the user looking at a still image of
+    /// the app with no way back. That is the worst failure available in this file, and it is
+    /// invisible in every ordinary run because the release normally arrives.</para>
+    ///
+    /// <para>So the script must release on a timer as well as on the render. This asserts the
+    /// timer exists <em>and</em> that it is armed after the transition is opened, since a
+    /// <c>setTimeout</c> that an early return skips is not a safety net.</para>
+    /// </summary>
+    [Fact]
+    public void AnOpenViewTransitionIsAlwaysReleased()
+    {
+        var motion = Scripts.Single(s => s.Name == "motion.js").Text;
+
+        Assert.Contains("setTimeout", motion, StringComparison.Ordinal);
+        Assert.Contains("clearTimeout", motion, StringComparison.Ordinal);
+
+        var timer = motion.IndexOf("setTimeout", StringComparison.Ordinal);
+        var opens = motion.IndexOf("startViewTransition", StringComparison.Ordinal);
+
+        Assert.True(opens >= 0, "Nothing opens a transition; this test has lost its subject.");
+        Assert.True(
+            timer > opens,
+            "The safety timer is armed before the transition is opened, so an early return skips "
+            + "it and leaves the snapshot up for ever.");
+    }
+
+    /// <summary>
+    /// <b>The transition is opened on <c>LocationChanging</c>, which is not the obvious hook.</b>
+    ///
+    /// <para><c>LocationChanged</c> is the one already in this layout and the one anybody would
+    /// reach for, and it fires <em>after</em> the navigation, at which point the old page is gone
+    /// and there is nothing left to snapshot. The failure is silent: the API is called, no error
+    /// is raised, and the result is simply no animation, which is indistinguishable from a
+    /// browser that does not support it.</para>
+    /// </summary>
+    [Fact]
+    public void TheTransitionIsOpenedBeforeTheNavigationNotAfterIt()
+    {
+        var layout = File.ReadAllText(Path.Combine(WebRoot, "Layout", "MainLayout.razor"));
+
+        Assert.Contains("RegisterLocationChangingHandler", layout, StringComparison.Ordinal);
+
+        // And it is released, or the app freezes on its first navigation.
+        Assert.Contains("ppMotion.begin", layout, StringComparison.Ordinal);
+        Assert.Contains("ppMotion.end", layout, StringComparison.Ordinal);
+
+        // The registration is disposed. bUnit creates a layout per test, and an undisposed
+        // handler outlives the component that registered it.
+        Assert.Contains("_leaving?.Dispose()", layout, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>No two elements share a <c>view-transition-name</c>.</b>
+    ///
+    /// <para>A duplicate name is a spec error, and the browser's response is to abandon the whole
+    /// transition, so the symptom is that nothing animates anywhere. That reads as "not
+    /// supported" rather than as a mistake in this stylesheet, and nothing else in the suite
+    /// would notice, because both rules are individually valid CSS.</para>
+    ///
+    /// <para><b>It refuses a subject it never found.</b> An enumerating guard that quietly passes
+    /// on an empty list is worth nothing the moment the thing it enumerates is renamed, which is
+    /// the shape the handover records as having cost this project a guard more than once.</para>
+    /// </summary>
+    [Fact]
+    public void EveryViewTransitionNameIsUnique()
+    {
+        var names = Rx(@"view-transition-name:\s*([A-Za-z-][\w-]*)")
+            .Matches(WithoutCssComments(AppCss))
+            .Select(m => m.Groups[1].Value)
+            .ToList();
+
+        Assert.True(
+            names.Count >= 3,
+            $"Found {names.Count} view-transition-name declarations, expected the three chrome "
+            + "bands. If they moved, point this test at them rather than letting it pass empty.");
+
+        var duplicated = names.GroupBy(n => n, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+
+        Assert.True(
+            duplicated.Count == 0,
+            $"Shared view-transition-name: {string.Join(", ", duplicated)}. The browser abandons "
+            + "the entire transition, which looks exactly like a browser that does not support it.");
+    }
+
+    /// <summary>
+    /// The smallest enclosing braced block containing <paramref name="needle"/> - enough to ask
+    /// what guards a call without parsing JavaScript.
+    /// </summary>
+    private static string BodyContaining(string text, string needle)
+    {
+        var at = text.IndexOf(needle, StringComparison.Ordinal);
+        Assert.True(at >= 0, $"'{needle}' is not in the file.");
+
+        var open = text.LastIndexOf('{', at);
+        if (open < 0) return text;
+
+        var depth = 0;
+        for (var i = open; i < text.Length; i++)
+        {
+            if (text[i] == '{') depth++;
+            else if (text[i] == '}' && --depth == 0) return text[(open + 1)..i];
+        }
+
+        return text[open..];
+    }
+
+    /// <summary>
     /// The contents of the file's one <c>@media print</c> block, comments stripped first so a
     /// brace inside one cannot end the block early. That there is only one is its own test.
     /// </summary>
