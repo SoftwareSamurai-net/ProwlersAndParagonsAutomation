@@ -2,6 +2,7 @@
 @implements IDisposable
 @inject CharacterSession Session
 @inject IJSRuntime Js
+@inject Motion Motion
 @inject NavigationManager Nav
 
 @* The fill runs the full width of the window; the contents sit on --column, like the two bands
@@ -137,7 +138,7 @@
         _ = context;    // nothing here ever cancels a navigation; this only observes one
 
         _midTransition = true;
-        await Js.InvokeVoidAsync("ppMotion.begin");
+        await Motion.Begin();
     }
 
     /// <summary>
@@ -155,7 +156,7 @@
         if (!_midTransition) return;
 
         _midTransition = false;
-        await Js.InvokeVoidAsync("ppMotion.end");
+        await Motion.End();
     }
 
     /// <summary>

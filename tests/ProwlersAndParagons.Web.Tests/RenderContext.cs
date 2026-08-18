@@ -54,6 +54,10 @@ public sealed class RenderContext : BunitContext
         // the interop it asks for can be read back off JSInterop.Invocations.
         Services.AddScoped<CharacterStore>();
 
+        // Every call into motion.js, with its failures swallowed. Registered here so a render
+        // test exercises the same guarded path the app does rather than a bare IJSRuntime.
+        Services.AddScoped<Motion>();
+
         // The mode switch and the sample loader both call into JS. Loose mode records the
         // calls and answers nothing, which is right here: what those calls do to the
         // document is the browser's business, not a component's.

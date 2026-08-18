@@ -2572,19 +2572,25 @@ public sealed class WebPresentationTests
     /// <summary>Whitespace removed, so `position:fixed` and `position: fixed` are one string.</summary>
     private static string Normalise(string css) => Rx(@"\s+").Replace(css, "");
 
+    /// <summary>Every spelling of "start moving something" this app can use.</summary>
+    private static readonly string[] AnimationCalls = ["startViewTransition(", ".animate("];
+
     /// <summary>
-    /// <b>The script asks about reduced motion itself.</b>
+    /// <b>Every scripted animation asks whether movement is wanted — each one, not the file.</b>
     ///
-    /// <para>The duration tokens collapse to <c>0.01ms</c> under
-    /// <c>prefers-reduced-motion</c>, and that covers every CSS transition in the app — but it
-    /// covers nothing a script does. <c>startViewTransition()</c> and <c>element.animate()</c>
-    /// read no custom property, so a reduced-motion user gets the full movement from anything
-    /// driven by JavaScript unless the script asks separately. <b>A token cannot reach a
-    /// script</b>, and the stylesheet looking correct is exactly why this is easy to miss.</para>
+    /// <para>The duration tokens collapse to <c>0.01ms</c> under <c>prefers-reduced-motion</c>,
+    /// which covers every CSS transition in the app and nothing a script does:
+    /// <c>startViewTransition()</c> and <c>element.animate()</c> read no custom property. <b>A
+    /// token cannot reach a script</b>, and the stylesheet looking correct is why this is easy to
+    /// miss.</para>
     ///
-    /// <para>Asserted per entry point rather than per file: a single <c>matchMedia</c> call
-    /// anywhere in <c>motion.js</c> satisfies a file-level check while a second animation added
-    /// below it ignores the setting entirely.</para>
+    /// <para><b>This was a whole-file grep wearing a per-entry-point docstring, and two reviewers
+    /// demonstrated it independently.</b> The helper took the <em>first</em> <c>animate(</c> —
+    /// which is in the file's header comment, above any brace — so it fell back to returning the
+    /// whole file, and "the block calling this gates on <c>still()</c>" became "the file mentions
+    /// <c>still()</c> somewhere". A new entry point added below, gated by nothing, was green here
+    /// <em>and</em> in the browser harness, which drives only the entry points it knows about.
+    /// Comments are stripped first now, and every occurrence is checked rather than the first.</para>
     /// </summary>
     [Fact]
     public void EveryScriptedAnimationAsksWhetherMovementIsWanted()
@@ -2598,17 +2604,25 @@ public sealed class WebPresentationTests
         Assert.Contains("prefers-reduced-motion", motion.Text, StringComparison.Ordinal);
         Assert.Contains("matchMedia", motion.Text, StringComparison.Ordinal);
 
-        // Every animation entry point in the file, and each one must be gated. still() is the
-        // helper that reads the media query; naming it is what a caller has to do to respect it.
-        foreach (var call in new[] { "startViewTransition", "animate(" })
-        {
-            if (!motion.Text.Contains(call, StringComparison.Ordinal)) continue;
+        var code = WithoutJsComments(motion.Text);
 
-            var body = BodyContaining(motion.Text, call);
+        var calls = AnimationCalls
+            .SelectMany(needle => Occurrences(code, needle).Select(at => (Needle: needle, At: at)))
+            .ToList();
+
+        Assert.True(
+            calls.Count >= 3,
+            $"Found {calls.Count} animation calls in motion.js; expected at least the three entry "
+            + "points. If they moved, point this test at them rather than letting it pass empty.");
+
+        foreach (var (needle, at) in calls)
+        {
+            var body = EnclosingBlock(code, at);
+
             Assert.True(
                 body.Contains("still()", StringComparison.Ordinal),
-                $"The block calling {call} does not check still() - a reduced-motion user gets the "
-                + "full animation. The stylesheet 0.01ms tokens do not reach this code.");
+                $"A call to {needle} is not gated on still(), so a reduced-motion user gets the "
+                + "full animation. The stylesheet's 0.01ms tokens do not reach this code.");
         }
     }
 
@@ -2643,86 +2657,220 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
-    /// <b>The transition is opened on <c>LocationChanging</c>, which is not the obvious hook.</b>
+    /// <b>The transition is opened from the <c>LocationChanging</c> handler itself.</b>
     ///
-    /// <para><c>LocationChanged</c> is the one already in this layout and the one anybody would
-    /// reach for, and it fires <em>after</em> the navigation, at which point the old page is gone
-    /// and there is nothing left to snapshot. The failure is silent: the API is called, no error
-    /// is raised, and the result is simply no animation, which is indistinguishable from a
-    /// browser that does not support it.</para>
+    /// <para><c>LocationChanged</c> is the hook already in this layout and the one anybody would
+    /// reach for, and it fires <em>after</em> the navigation, when the old page is gone and there
+    /// is nothing left to snapshot. The failure is silent — no error, just no animation, which is
+    /// indistinguishable from a browser that does not support it.</para>
+    ///
+    /// <para><b>The first version of this test asserted four substrings over the whole file and
+    /// checked none of that.</b> A reviewer moved the snapshot into <c>Moved</c> — the
+    /// <c>LocationChanged</c> handler — left <c>OpenTransition</c> registered and empty, and every
+    /// one of the four still matched: the whole suite and all six browser harnesses stayed green.
+    /// So this resolves the registered handler by name and asks what <em>its</em> body does.</para>
+    ///
+    /// <para>The behavioural half is <c>TheShellOpensATransitionOnNavigation</c> in the bUnit
+    /// project, which drives a real navigation and reads the interop back. Both are wanted: this
+    /// one names the mechanism, that one proves it fires.</para>
     /// </summary>
     [Fact]
-    public void TheTransitionIsOpenedBeforeTheNavigationNotAfterIt()
+    public void TheTransitionIsOpenedFromTheLocationChangingHandler()
     {
         var layout = File.ReadAllText(Path.Combine(WebRoot, "Layout", "MainLayout.razor"));
 
-        Assert.Contains("RegisterLocationChangingHandler", layout, StringComparison.Ordinal);
+        // Which method is registered as the changing handler?
+        var registered = Rx(@"RegisterLocationChangingHandler\(\s*(\w+)\s*\)").Match(layout);
+        Assert.True(
+            registered.Success,
+            "Nothing registers a LocationChanging handler, so the snapshot cannot be taken while "
+            + "the old page is still on screen.");
 
-        // And it is released, or the app freezes on its first navigation.
-        Assert.Contains("ppMotion.begin", layout, StringComparison.Ordinal);
-        Assert.Contains("ppMotion.end", layout, StringComparison.Ordinal);
+        var handler = registered.Groups[1].Value;
 
-        // The registration is disposed. bUnit creates a layout per test, and an undisposed
-        // handler outlives the component that registered it.
+        // ...and what does that method's body do? Anchored on the declaration, so moving the call
+        // into LocationChanged's handler no longer satisfies it.
+        var body = MethodBodyOf(layout, handler);
+
+        Assert.True(
+            body.Contains("Motion.Begin()", StringComparison.Ordinal),
+            $"'{handler}' is registered as the LocationChanging handler but does not open the "
+            + "transition. If the snapshot is taken from LocationChanged instead, it captures the "
+            + "page that has already gone.");
+
+        // Released after the render, or the app freezes behind a snapshot on its first navigation.
+        Assert.Contains("Motion.End()", layout, StringComparison.Ordinal);
+
+        // The registration is disposed. bUnit creates a layout per test, and an undisposed handler
+        // outlives the component that registered it.
         Assert.Contains("_leaving?.Dispose()", layout, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// <b>No two elements share a <c>view-transition-name</c>.</b>
+    /// The body of a C# method declared in <paramref name="source"/>, found by name and matched by
+    /// brace depth from its opening brace.
+    /// </summary>
+    private static string MethodBodyOf(string source, string name)
+    {
+        var declared = Rx($@"\b{System.Text.RegularExpressions.Regex.Escape(name)}\s*\(")
+            .Matches(source)
+            .Select(m => m.Index)
+            .ToList();
+
+        foreach (var at in declared)
+        {
+            var open = source.IndexOf('{', at);
+            if (open < 0) continue;
+
+            // A call site — `RegisterLocationChangingHandler(OpenTransition)` — has no body of its
+            // own, so require the brace to be close enough to be this declaration's.
+            if (source[at..open].Contains(';', StringComparison.Ordinal)) continue;
+
+            var depth = 0;
+            for (var i = open; i < source.Length; i++)
+            {
+                if (source[i] == '{') depth++;
+                else if (source[i] == '}' && --depth == 0)
+                {
+                    var body = source[(open + 1)..i];
+                    if (body.Trim().Length > 0) return body;
+                    break;
+                }
+            }
+        }
+
+        Assert.Fail($"Could not find a method body for '{name}'.");
+        return string.Empty;
+    }
+
+    /// <summary>The three chrome bands, each appearing exactly once in the component tree.</summary>
+    private static readonly string[] SingletonSelectors = [".banner", ".steps", ".budget"];
+
+    /// <summary>
+    /// <b>No two <em>elements</em> can share a <c>view-transition-name</c>.</b>
     ///
-    /// <para>A duplicate name is a spec error, and the browser's response is to abandon the whole
-    /// transition, so the symptom is that nothing animates anywhere. That reads as "not
-    /// supported" rather than as a mistake in this stylesheet, and nothing else in the suite
-    /// would notice, because both rules are individually valid CSS.</para>
+    /// <para>A duplicate name is a spec error and the browser abandons the whole transition, so
+    /// the symptom is that nothing animates anywhere — which reads as "not supported" rather than
+    /// as a mistake in this stylesheet.</para>
     ///
-    /// <para><b>It refuses a subject it never found.</b> An enumerating guard that quietly passes
-    /// on an empty list is worth nothing the moment the thing it enumerates is renamed, which is
-    /// the shape the handover records as having cost this project a guard more than once.</para>
+    /// <para><b>Checking that the declared names differ is not that check</b>, and both reviewers
+    /// broke it the same way: one name on a selector matching many elements is unique as a string
+    /// and duplicated on the page. <c>.panel { view-transition-name: panel }</c> passed here, and
+    /// driven against real Chrome produced <c>InvalidStateError: Transition was aborted because of
+    /// invalid state</c> — every transition in the app dead. So the <em>selector</em> is what is
+    /// checked, against the three known to match exactly one element.</para>
     /// </summary>
     [Fact]
-    public void EveryViewTransitionNameIsUnique()
+    public void EveryViewTransitionNameIsOnASingletonSelector()
     {
-        var names = Rx(@"view-transition-name:\s*([A-Za-z-][\w-]*)")
+        // A local would fail CA1861 under warnings-as-errors; see SingletonSelectors.
+
+        var rules = Rx(@"([^{}]+)\{([^{}]*?view-transition-name:\s*([A-Za-z-][\w-]*)[^{}]*)\}")
             .Matches(WithoutCssComments(AppCss))
-            .Select(m => m.Groups[1].Value)
+            .Select(m => (Selector: Normalise(m.Groups[1].Value), Name: m.Groups[3].Value))
             .ToList();
 
         Assert.True(
-            names.Count >= 3,
-            $"Found {names.Count} view-transition-name declarations, expected the three chrome "
-            + "bands. If they moved, point this test at them rather than letting it pass empty.");
+            rules.Count >= 3,
+            $"Found {rules.Count} view-transition-name rules, expected the three chrome bands. If "
+            + "they moved, point this test at them rather than letting it pass on an empty list.");
 
-        var duplicated = names.GroupBy(n => n, StringComparer.Ordinal)
+        foreach (var (selector, name) in rules)
+        {
+            Assert.True(
+                SingletonSelectors.Contains(selector, StringComparer.Ordinal),
+                $"'{selector}' carries view-transition-name: {name} and is not one of the selectors "
+                + $"known to match exactly one element ({string.Join(", ", SingletonSelectors)}). A name on "
+                + "a selector matching several elements is a spec error, and the browser responds "
+                + "by abandoning every transition in the app.");
+        }
+
+        var duplicated = rules.GroupBy(r => r.Name, StringComparer.Ordinal)
             .Where(g => g.Count() > 1)
             .Select(g => g.Key)
             .ToList();
 
-        Assert.True(
-            duplicated.Count == 0,
-            $"Shared view-transition-name: {string.Join(", ", duplicated)}. The browser abandons "
-            + "the entire transition, which looks exactly like a browser that does not support it.");
+        Assert.True(duplicated.Count == 0, $"Shared name: {string.Join(", ", duplicated)}.");
+    }
+
+    /// <summary>Every index at which <paramref name="needle"/> occurs.</summary>
+    private static IEnumerable<int> Occurrences(string text, string needle)
+    {
+        for (var at = text.IndexOf(needle, StringComparison.Ordinal);
+             at >= 0;
+             at = text.IndexOf(needle, at + 1, StringComparison.Ordinal))
+        {
+            yield return at;
+        }
     }
 
     /// <summary>
-    /// The smallest enclosing braced block containing <paramref name="needle"/> - enough to ask
-    /// what guards a call without parsing JavaScript.
+    /// JavaScript with its comments blanked out, so a match inside prose cannot anchor anything.
+    ///
+    /// <para><b>This is what two reviewers broke independently.</b> The first <c>animate(</c> and
+    /// the first <c>startViewTransition</c> in <c>motion.js</c> are both in the file's header
+    /// comment, above any brace — so a helper that took the first occurrence and searched upwards
+    /// for a <c>{</c> found none and fell back to the whole file, turning a per-entry-point check
+    /// into a whole-file grep.</para>
+    ///
+    /// <para>Blanked rather than removed, so every index still lines up with the original.</para>
     /// </summary>
-    private static string BodyContaining(string text, string needle)
+    private static string WithoutJsComments(string js)
     {
-        var at = text.IndexOf(needle, StringComparison.Ordinal);
-        Assert.True(at >= 0, $"'{needle}' is not in the file.");
+        var outp = new System.Text.StringBuilder(js.Length);
+        var i = 0;
 
-        var open = text.LastIndexOf('{', at);
-        if (open < 0) return text;
-
-        var depth = 0;
-        for (var i = open; i < text.Length; i++)
+        while (i < js.Length)
         {
-            if (text[i] == '{') depth++;
-            else if (text[i] == '}' && --depth == 0) return text[(open + 1)..i];
+            if (i + 1 < js.Length && js[i] == '/' && js[i + 1] == '/')
+            {
+                while (i < js.Length && js[i] != '\n') { outp.Append(' '); i++; }
+                continue;
+            }
+
+            if (i + 1 < js.Length && js[i] == '/' && js[i + 1] == '*')
+            {
+                while (i + 1 < js.Length && !(js[i] == '*' && js[i + 1] == '/'))
+                {
+                    outp.Append(js[i] == '\n' ? '\n' : ' ');
+                    i++;
+                }
+
+                for (var k = 0; k < 2 && i < js.Length; k++, i++) outp.Append(' ');
+                continue;
+            }
+
+            outp.Append(js[i]);
+            i++;
         }
 
-        return text[open..];
+        return outp.ToString();
+    }
+
+    /// <summary>The smallest braced block containing <paramref name="at"/>.</summary>
+    private static string EnclosingBlock(string text, int at)
+    {
+        var open = text.LastIndexOf('{', at);
+
+        while (open >= 0)
+        {
+            var depth = 0;
+
+            for (var i = open; i < text.Length; i++)
+            {
+                if (text[i] == '{') depth++;
+                else if (text[i] == '}' && --depth == 0)
+                {
+                    // A block that closes before the call is a sibling, not an ancestor.
+                    if (i > at) return text[(open + 1)..i];
+                    break;
+                }
+            }
+
+            open = text.LastIndexOf('{', open - 1);
+        }
+
+        return text;
     }
 
     /// <summary>

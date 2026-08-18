@@ -1,6 +1,6 @@
 @implements IDisposable
 @inject CharacterSession Session
-@inject IJSRuntime Js
+@inject Motion Motion
 
 @* The Hero Point budget, straight from CostCalculator — nothing here adds anything up.
    Hidden entirely in Villain mode: Ch.9 gives Villains no budget, so a bar showing 0/0
@@ -147,6 +147,14 @@
     {
         _ = firstRender;
 
+        // **The strip is not rendered in Villain mode, and Blazor never clears an `@ref` when
+        // its element stops rendering.** So `_figure` keeps pointing at a detached node while
+        // this component stays alive and subscribed, and every change to the character sent one
+        // interop call for an element the browser can no longer find. It was absorbed by
+        // `ppCount`'s null guard rather than throwing — which made it invisible — but the round
+        // trip was real and `_shown` advanced against nothing on screen.
+        if (!Session.ShowBudget || Session.Sheet.SelectedTierId is null) return;
+
         if (_figure is not { } figure) return;
 
         var spent = CharacterSession.TryCost(() => Session.Spent);
@@ -157,7 +165,7 @@
         var from = _shown ?? spent.Value;
         _shown = spent.Value;
 
-        await Js.InvokeVoidAsync("ppCount", figure, from, spent.Value);
+        await Motion.Count(figure, from, spent.Value);
     }
 
     private static string Cost(Func<int> cost) =>

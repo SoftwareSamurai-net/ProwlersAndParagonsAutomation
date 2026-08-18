@@ -315,10 +315,19 @@ public sealed class ProofPages
           let started = 0;
           let held = null;
           let releasedAt = null;
+
+          // Every opened transition, in order, and which of them have been released. The overlap
+          // check needs both: a `begin()` while one is open must release the first, and a single
+          // "was it released" flag cannot tell one release from two.
+          const released = [];
           document.startViewTransition = (cb) => {
             started++;
+            const mine = started;
             held = cb();
-            held.then(() => { releasedAt = releasedAt ?? 'released'; });
+            held.then(() => {
+              releasedAt = releasedAt ?? 'released';
+              released.push(mine);
+            });
             return { ready: Promise.resolve(), finished: Promise.resolve(),
                      updateCallbackDone: Promise.resolve(), skipTransition: () => {} };
           };
@@ -440,6 +449,48 @@ public sealed class ProofPages
           check('an interrupted count lands on the newest answer',
                 busy.textContent === '42',
                 `reduced=${reduced} landed on ${busy.textContent}`);
+
+          // **One live clock on the figure, and this is what the interrupt check was missing.**
+          // Seeking and calling `draw()` bypasses the rAF pump entirely, so deleting the
+          // `cancel()` in `ppCount` passed every check here — while in a real browser the
+          // abandoned count kept pumping and wrote its own final frame *after* the newer count
+          // had settled. The strip came to rest on a Hero Point figure the engine no longer
+          // returns, which is the shape CLAUDE.md forbids in as many words. `getAnimations()`
+          // sees the abandoned clock without needing a single frame to run.
+          check('an interrupted count leaves one live clock, not two',
+                reduced ? busy.getAnimations().length === 0 : busy.getAnimations().length === 1,
+                `reduced=${reduced} live clocks on the figure: ${busy.getAnimations().length}`);
+
+          // A completed count leaves none. `fill: "forwards"` keeps a finished animation
+          // relevant, so without an explicit cancel they accumulated one per count on the one
+          // element in the budget strip — measured growing 1..10 over ten counts.
+          const tidy = document.createElement('span');
+          document.body.appendChild(tidy);
+          window.ppCount(tidy, 1, 2);
+          if (!reduced) {
+            tidy.ppCount.clock.currentTime = enterMs;
+            tidy.ppCount.clock.finish();
+          }
+
+          // The tidy-up hangs off `clock.finished`, which settles as a microtask — checking
+          // straight after `finish()` reads the animation before its own promise has run.
+          await settle();
+          check('a finished count leaves no animation behind',
+                tidy.getAnimations().length === 0,
+                `live clocks after finishing: ${tidy.getAnimations().length}`);
+
+          // **Overlapping transitions.** `begin()` while one is open must release the first, or
+          // its snapshot stays on screen for ever — the failsafe cannot help, because `guard` is
+          // a module singleton the second `begin()` overwrote. Two navigations inside 260ms is
+          // an ordinary click-through.
+          released.length = 0;
+          window.ppMotion.begin();
+          window.ppMotion.begin();
+          window.ppMotion.end();
+          await settle();
+          check('a second transition releases the first',
+                reduced ? released.length === 0 : released.length === 2,
+                `reduced=${reduced} released ${released.length} of 2 opened`);
 
 
           // ── A row landing in a list ──────────────────────────────────────────────────
@@ -575,10 +626,16 @@ public sealed class ProofPages
             // pass. So: the shell rendered, and the window actually moved.
             const rendered = !!d.querySelector('.banner') && !!d.querySelector('.shell');
             const moved = w.scrollY > 0;
+            // **`before` is in the verdict, and leaving it out let `fixed` pass as `sticky`.**
+            // A fixed strip sits at the top from the start, so it reports `before 0.0` and
+            // `after 0.0` — indistinguishable from a working sticky strip on the `after`
+            // measurement alone, which is all this used to check. A strip that begins below the
+            // banner is what sticky means; one that never moved was never sticky.
+            const startedBelow = before > 20;
 
             const stuck = Math.abs(after) < 1.5;
             const scrolled = stepsAfter < 0;
-            say(rendered && moved && stuck && scrolled,
+            say(rendered && moved && startedBelow && stuck && scrolled,
               `scrollY ${w.scrollY}\n` +
               `.budget top: before ${before.toFixed(1)}, after ${after.toFixed(1)} (want ~0)\n` +
               `.steps bottom after: ${stepsAfter.toFixed(1)} (want negative — scrolled away)`);
@@ -673,8 +730,30 @@ public sealed class ProofPages
             const rendered = d.querySelectorAll('*').length;
             const narrow = client > 300 && client < 400;
 
-            say(rendered > 20 && narrow && scroll <= client + 0.5,
+            // **Both directions.** Content overflowing to the *left* in LTR does not grow
+            // `scrollWidth` and *reduces* an element's `right`, so the two measurements above
+            // move the wrong way and a figure dragged off the left edge reported "nothing
+            // overflows" with every 375px guard green. Demonstrated with a negative margin on
+            // the budget figure: the Hero Point total sat entirely off-screen.
+            const off = [...d.querySelectorAll('*')]
+              .map((el) => ({ el, box: el.getBoundingClientRect() }))
+              .filter((x) => x.box.width > 0 && x.box.left < -0.5)
+              .sort((a, b) => a.box.left - b.box.left)
+              .slice(0, 5)
+              .map((x) => `    ${x.el.tagName.toLowerCase()}` +
+                          `${x.el.className ? '.' + String(x.el.className).split(' ').join('.') : ''}` +
+                          ` left ${x.box.left.toFixed(1)}`);
+
+            // **`over` is in the verdict, and leaving it out made this incapable of failing.**
+            // `documentElement.scrollWidth` is decoupled from real overflow by any clipping
+            // ancestor, so `overflow-x: clip` on the shell — the commonest wrong fix for
+            // horizontal overflow — hides 350px of unreachable content behind a document that
+            // reports no scroll at all. The offenders were being computed, sorted, printed and
+            // then ignored. WCAG 1.4.10 is about content you cannot reach, not about a
+            // scrollbar.
+            say(rendered > 20 && narrow && over.length === 0 && off.length === 0 && scroll <= client + 0.5,
               `target {{target}}  elements ${rendered}\nclientWidth ${client}  scrollWidth ${scroll}` +
+              (off.length ? `\noff the left edge:\n${off.join('\n')}` : '') +
               (over.length ? `\noverflowing:\n${over.join('\n')}` : '\nnothing overflows'));
           } catch (e) {
             say(false, 'blocked: ' + e.message);
@@ -742,6 +821,7 @@ public sealed class ProofPages
 
             const rows = [];
             const lefts = [];
+            const rights = [];
             for (const [name, sel] of Object.entries(parts)) {
               const el = d.querySelector(sel);
               if (!el) { rows.push(`    ${name}: ${sel} NOT FOUND`); continue; }
@@ -755,19 +835,25 @@ public sealed class ProofPages
               const left = r.left + parseFloat(pad.paddingLeft || '0');
               const right = r.right - parseFloat(pad.paddingRight || '0');
               lefts.push(left);
+              rights.push(right);
               rows.push(`    ${name.padEnd(7)} content ${left.toFixed(1)} .. ${right.toFixed(1)}`);
             }
 
-            // Every band's contents start on the same x, or the column is not shared.
+            // **Both edges, because asserting only the left let one band run 96px short.**
+            // A shared column means the contents start *and* end together; a padding-right on
+            // one band moves nothing this used to read, while the row underneath printed the
+            // discrepancy in plain sight.
             const spread = lefts.length ? Math.max(...lefts) - Math.min(...lefts) : 999;
+            const rightSpread = rights.length ? Math.max(...rights) - Math.min(...rights) : 999;
 
-            // Positive control: the bands were actually found and measured. `spread` over an
+            // Positive control: the bands were actually found and measured. A spread over an
             // empty list is 999 and fails, but over a *single* found band it is 0 and passes —
             // so the count is asserted, not inferred from the spread.
             const found = lefts.length === Object.keys(parts).length;
 
-            say(found && spread < 0.5,
-              `${rows.join('\n')}\n    spread ${spread.toFixed(2)}px (want < 0.5)`);
+            say(found && spread < 0.5 && rightSpread < 0.5,
+              `${rows.join('\n')}\n    spread ${spread.toFixed(2)}px left, ` +
+              `${rightSpread.toFixed(2)}px right (want < 0.5)`);
           } catch (e) {
             say(false, 'blocked: ' + e.message);
           }
@@ -989,7 +1075,14 @@ public sealed class ProofPages
     {
         _ = file;   // kept in the signature so a caller cannot pass a body for the wrong page
 
+        // **`<div id="app">`, because that is what index.html ships.** Blazor renders the whole
+        // layout inside it; these pages used to write the markup straight into `<body>`, so every
+        // ancestor-borne fault was invisible to them — and the sticky harness's own docstring
+        // names that category ("anything that wraps it, and any `transform`, `filter` or
+        // `contain` on an ancestor"). `#app { overflow-x: hidden }` unsticks the budget strip in
+        // the real app and the proof reported it pinned, because the proof had no `#app`.
         var inner = wrap ? $"<div class=\"shell\">{body}</div>" : body;
+        inner = $"<div id=\"app\">{inner}</div>";
 
         return $"""
             <!doctype html>

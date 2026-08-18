@@ -98,6 +98,12 @@ window.ppMotionStats = { counts: 0, transitions: 0, landings: 0 };
 window.ppCount = (element, from, to) => {
     if (!element) return;
 
+    // **Cancel first, before any early return.** An in-flight count has to be stopped whatever
+    // this call decides to do next: taking the immediate path below while an older count keeps
+    // pumping lets that older count write its own frames *after* this one has assigned the
+    // answer, and the figure comes to rest on a number the engine no longer returns.
+    if (element.ppCount) element.ppCount.cancel();
+
     // Reduced motion, or nothing to count: the answer, immediately.
     if (still() || from === to) {
         element.textContent = to;
@@ -108,14 +114,17 @@ window.ppCount = (element, from, to) => {
     // moves with the rail beneath it — they are the same event. Unreadable means no animation
     // rather than a guessed one; the harness asserts this token resolves, because a script that
     // silently degrades to assigning the end state passes every test of the end state.
-    const ms = parseFloat(
-        window.getComputedStyle(document.documentElement).getPropertyValue("--enter"));
+    //
+    // **Read as milliseconds explicitly.** `parseFloat` on `0.26s` yields 0.26 and would make
+    // the count last a quarter of a millisecond, with every driven check still green because
+    // they are all expressed in terms of this same number.
+    const raw = window.getComputedStyle(document.documentElement)
+        .getPropertyValue("--enter").trim();
+    const ms = raw.endsWith("ms") ? parseFloat(raw)
+        : raw.endsWith("s") ? parseFloat(raw) * 1000
+        : NaN;
 
     if (!(ms > 0)) { element.textContent = to; return; }
-
-    // A change arriving mid-count: drop the one in flight and start from here, or the two run
-    // together and the figure jitters between them.
-    if (element.ppCount) element.ppCount.cancel();
 
     // The clock. It animates nothing anybody can see — opacity from 1 to 1 — because what is
     // wanted is a timeline, not an effect. The figure is text, and text is not interpolable.
@@ -140,11 +149,31 @@ window.ppCount = (element, from, to) => {
     };
 
     let handle = 0;
+
+    // The pump draws the frames a visitor sees. It draws only: **completion is the clock's own
+    // business**, below. Tying cleanup to the pump made it depend on frames being produced, and
+    // frames are exactly what `--virtual-time-budget` suppresses — so the tidy-up could not be
+    // driven, which is another way of saying it was not tested.
     const pump = () => {
         draw();
         if (Number(clock.currentTime ?? 0) < ms) handle = requestAnimationFrame(pump);
-        else element.ppCount = null;
     };
+
+    // **Completion, from the animation's own promise.** `fill: "forwards"` keeps a finished
+    // animation *relevant*, so it stays attached to the element — one per count, on the single
+    // element in the budget strip, measured growing 1..10 over ten counts. Cancelling it is the
+    // tidy-up; drawing once more is what guarantees the resting figure is assigned even if no
+    // frame ever ran.
+    //
+    // `cancel()` rejects this promise, which is the interrupt path and wants no tidy-up of its
+    // own — the interrupting call has already taken over.
+    clock.finished
+        .then(() => {
+            draw();
+            clock.cancel();
+            element.ppCount = null;
+        })
+        .catch(() => { /* cancelled: the newer count owns this element now */ });
 
     element.ppCount = {
         clock,
@@ -171,7 +200,9 @@ window.ppCount = (element, from, to) => {
 window.ppLand = (list, announce) => {
     if (!list) return;
 
-    const arrived = list.querySelectorAll("li:not([data-landed])");
+    // `:scope >` so a nested list cannot have its rows landed by the outer one. No call site
+    // nests an <li> today; this is what the selector always meant.
+    const arrived = list.querySelectorAll(":scope > li:not([data-landed])");
 
     for (const row of arrived) {
         row.setAttribute("data-landed", "");
