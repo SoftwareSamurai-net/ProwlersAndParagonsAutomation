@@ -39,6 +39,11 @@ window.ppMotion = {
         const held = new Promise((resolve) => { release = resolve; });
         document.startViewTransition(() => held);
 
+        // Positive control: a harness must be able to assert a transition actually opened,
+        // not merely that the page looks right afterwards. Declared further down; this runs
+        // long after the script has executed, so the order is fine.
+        window.ppMotionStats.transitions++;
+
         // **The safety net, and it is not optional.** While a transition is open the live DOM
         // is hidden behind a snapshot overlay. If `end()` never arrives — a navigation that
         // throws, a handler that is disposed mid-flight — the page is left showing a still
@@ -62,4 +67,91 @@ window.ppMotion = {
         if (guard) { window.clearTimeout(guard); guard = 0; }
         if (release) { release(); release = null; }
     },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Feedback on change — the spent figure counts to its new value rather than jumping.
+//
+// **It counts *to* the engine's answer and never invents one.** Both ends are figures
+// CostCalculator returned; nothing here does arithmetic about a character beyond interpolating
+// between two numbers it was handed, and the resting frame is *assigned* rather than computed,
+// so what comes to rest is the engine's number exactly. CLAUDE.md states the rule.
+//
+// **The clock is a Web Animations object rather than a requestAnimationFrame loop, and the
+// reason is testability rather than taste.** `--virtual-time-budget`, which every screenshot
+// and every driven proof in this repository needs, suppresses frame production: rAF does not
+// tick and the document timeline does not advance. Measured — a probe reports `RAF-FIRED-1`
+// without the flag and never fires with it, identically under `--dump-dom`, `--screenshot`
+// and `--run-all-compositor-stages-before-draw`. A WAAPI animation's `currentTime` is
+// *settable*, so a test can seek it to a fixed moment and read the figure, which is the only
+// way this is checkable by the instrument CI actually has.
+//
+// rAF still pumps the redraw in a real browser, because that is what a browser is for. What
+// the animation object owns is the *clock*, and `draw()` is a pure function of it — so the
+// path a test drives and the path a visitor sees compute the figure the same way.
+
+// **A positive control.** Every counting check asserts an outcome, and an outcome is satisfied
+// by a feature that never ran — twice now. This counts the counts, so a harness can assert the
+// work happened before it asserts the work was right.
+window.ppMotionStats = { counts: 0, transitions: 0 };
+
+window.ppCount = (element, from, to) => {
+    if (!element) return;
+
+    // Reduced motion, or nothing to count: the answer, immediately.
+    if (still() || from === to) {
+        element.textContent = to;
+        return;
+    }
+
+    // The duration comes from the stylesheet, so the app keeps one set of durations and this
+    // moves with the rail beneath it — they are the same event. Unreadable means no animation
+    // rather than a guessed one; the harness asserts this token resolves, because a script that
+    // silently degrades to assigning the end state passes every test of the end state.
+    const ms = parseFloat(
+        window.getComputedStyle(document.documentElement).getPropertyValue("--enter"));
+
+    if (!(ms > 0)) { element.textContent = to; return; }
+
+    // A change arriving mid-count: drop the one in flight and start from here, or the two run
+    // together and the figure jitters between them.
+    if (element.ppCount) element.ppCount.cancel();
+
+    // The clock. It animates nothing anybody can see — opacity from 1 to 1 — because what is
+    // wanted is a timeline, not an effect. The figure is text, and text is not interpolable.
+    const clock = element.animate(
+        [{ opacity: 1 }, { opacity: 1 }],
+        { duration: ms, fill: "forwards" });
+
+    // The displayed figure, as a pure function of the clock. **Seeking `clock.currentTime` and
+    // calling this is exactly what a visitor's frame does**, which is what makes the driven
+    // test a test of the shipped path rather than of a reproduction.
+    const draw = () => {
+        const t = Math.min(1, Math.max(0, Number(clock.currentTime ?? 0) / ms));
+
+        if (t >= 1) {
+            // Assigned, never interpolated: the resting figure is the engine's.
+            element.textContent = to;
+            return;
+        }
+
+        // Cubic ease out, matching --ease-out: quick away, settling into place.
+        element.textContent = Math.round(from + ((to - from) * (1 - Math.pow(1 - t, 3))));
+    };
+
+    let handle = 0;
+    const pump = () => {
+        draw();
+        if (Number(clock.currentTime ?? 0) < ms) handle = requestAnimationFrame(pump);
+        else element.ppCount = null;
+    };
+
+    element.ppCount = {
+        clock,
+        draw,
+        cancel: () => { cancelAnimationFrame(handle); clock.cancel(); element.ppCount = null; },
+    };
+
+    window.ppMotionStats.counts++;
+    handle = requestAnimationFrame(pump);
 };

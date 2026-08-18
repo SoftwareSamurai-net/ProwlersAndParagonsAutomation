@@ -348,6 +348,100 @@ public sealed class ProofPages
                 `reduced=${reduced} started=${started} releasedAt=${releasedAt}`);
 
 
+          // ── Positive controls ────────────────────────────────────────────────────────
+          //
+          // **Twice a check here passed because the feature never ran**: once when an inverted
+          // gate meant no transition opened, once when an unreadable duration token meant no
+          // count did. Both times the *outcome* assertions were satisfied by the absence of the
+          // work. So the work is now asserted to have happened, before anything asks whether it
+          // was right — and under reduced motion the same counter must read zero, which is the
+          // outcome there.
+          check('a transition actually opened (positive control)',
+                reduced
+                  ? window.ppMotionStats.transitions === 0
+                  : window.ppMotionStats.transitions > 0,
+                `reduced=${reduced} transitions=${window.ppMotionStats.transitions}`);
+
+          // ── The counting figure ──────────────────────────────────────────────────────
+          //
+          // Driven by *seeking* the clock, not by waiting. --virtual-time-budget suppresses
+          // frame production, so rAF never ticks and the document timeline never advances —
+          // measured, and the reason the count is a WAAPI animation rather than a rAF loop.
+          // `draw()` is a pure function of `clock.currentTime`, and it is the same `draw` a
+          // visitor's frame calls, so this drives the shipped path rather than a reproduction.
+          const cell = document.createElement('span');
+          document.body.appendChild(cell);
+
+          const before = window.ppMotionStats.counts;
+          window.ppCount(cell, 10, 20);
+
+          check('a count actually started (positive control)',
+                reduced
+                  ? window.ppMotionStats.counts === before
+                  : window.ppMotionStats.counts === before + 1,
+                `reduced=${reduced} counts ${before} -> ${window.ppMotionStats.counts}`);
+
+          if (reduced) {
+            // Under reduced motion there is no clock at all, and the answer is already shown.
+            check('reduced motion shows the answer with no clock',
+                  cell.textContent === '20' && !cell.ppCount,
+                  `showed ${cell.textContent}, clock ${cell.ppCount ? 'present' : 'absent'}`);
+          } else {
+            const clock = cell.ppCount.clock;
+            const ms = enterMs;
+
+            // Seek to fixed moments and read the figure at each.
+            const samples = [0, 0.25, 0.5, 0.75, 1].map((f) => {
+              clock.currentTime = ms * f;
+              cell.ppCount.draw();
+              return { at: f, shown: cell.textContent };
+            });
+
+            const shown = samples.map((s) => Number(s.shown));
+
+            check('the resting frame is the engine number exactly',
+                  samples[samples.length - 1].shown === '20',
+                  `at t=1 showed ${samples[samples.length - 1].shown}`);
+
+            check('no seeked frame invents a figure outside the two answers',
+                  shown.every((n) => n >= 10 && n <= 20),
+                  samples.map((s) => `t=${s.at}:${s.shown}`).join('  '));
+
+            check('the figure actually moves between the two ends',
+                  shown[0] !== shown[shown.length - 1],
+                  `t=0 showed ${samples[0].shown}, t=1 showed ${samples[samples.length - 1].shown}`);
+
+            check('the count never runs backwards',
+                  shown.every((n, i) => i === 0 || n >= shown[i - 1]),
+                  shown.join(' -> '));
+          }
+
+          // An interrupted count must land on the newest answer, not the one it was heading for.
+          // **The second call is made in both modes.** An earlier version made it only when
+          // animating, then asserted its result in both — so reduced motion failed a check about
+          // an interruption that had not been performed. The harness's own asymmetry, and the
+          // reason every branch here states what it does rather than skipping silently.
+          const busy = document.createElement('span');
+          document.body.appendChild(busy);
+          window.ppCount(busy, 0, 100);
+
+          if (!reduced) {
+            busy.ppCount.clock.currentTime = enterMs * 0.4;
+            busy.ppCount.draw();
+          }
+
+          window.ppCount(busy, Number(busy.textContent), 42);
+
+          if (!reduced) {
+            busy.ppCount.clock.currentTime = enterMs;
+            busy.ppCount.draw();
+          }
+
+          check('an interrupted count lands on the newest answer',
+                busy.textContent === '42',
+                `reduced=${reduced} landed on ${busy.textContent}`);
+
+
           const ok = checks.every((c) => c.ok);
           document.title = ok ? 'MOTION: PASS' : 'MOTION: FAIL';
           box.className = ok ? '' : 'bad';
@@ -419,9 +513,15 @@ public sealed class ProofPages
 
             // Stuck at the top, and the band above it genuinely scrolled away — without the
             // second half, a page that simply did not scroll would report a perfect pass.
+            // **Positive controls.** An empty iframe scrolls nowhere and sticks nothing, and a
+            // page that never scrolled reports a strip perfectly at rest — both read as a clean
+            // pass. So: the shell rendered, and the window actually moved.
+            const rendered = !!d.querySelector('.banner') && !!d.querySelector('.shell');
+            const moved = w.scrollY > 0;
+
             const stuck = Math.abs(after) < 1.5;
             const scrolled = stepsAfter < 0;
-            say(stuck && scrolled,
+            say(rendered && moved && stuck && scrolled,
               `scrollY ${w.scrollY}\n` +
               `.budget top: before ${before.toFixed(1)}, after ${after.toFixed(1)} (want ~0)\n` +
               `.steps bottom after: ${stepsAfter.toFixed(1)} (want negative — scrolled away)`);
@@ -509,8 +609,15 @@ public sealed class ProofPages
                           `${x.el.className ? '.' + String(x.el.className).split(' ').join('.') : ''}` +
                           ` right ${x.right.toFixed(1)}`);
 
-            say(scroll <= client + 0.5,
-              `target {{target}}\nclientWidth ${client}  scrollWidth ${scroll}` +
+            // **Positive control, and this harness needs one most of all.** An iframe that failed
+            // to load has clientWidth === scrollWidth === the frame width, which is a clean PASS
+            // reporting that nothing overflows an empty document. So the target must have
+            // actually rendered, and the frame must actually be narrow.
+            const rendered = d.querySelectorAll('*').length;
+            const narrow = client > 300 && client < 400;
+
+            say(rendered > 20 && narrow && scroll <= client + 0.5,
+              `target {{target}}  elements ${rendered}\nclientWidth ${client}  scrollWidth ${scroll}` +
               (over.length ? `\noverflowing:\n${over.join('\n')}` : '\nnothing overflows'));
           } catch (e) {
             say(false, 'blocked: ' + e.message);
@@ -589,7 +696,12 @@ public sealed class ProofPages
             // Every band's contents start on the same x, or the column is not shared.
             const spread = lefts.length ? Math.max(...lefts) - Math.min(...lefts) : 999;
 
-            say(lefts.length === Object.keys(parts).length && spread < 0.5,
+            // Positive control: the bands were actually found and measured. `spread` over an
+            // empty list is 999 and fails, but over a *single* found band it is 0 and passes —
+            // so the count is asserted, not inferred from the spread.
+            const found = lefts.length === Object.keys(parts).length;
+
+            say(found && spread < 0.5,
               `${rows.join('\n')}\n    spread ${spread.toFixed(2)}px (want < 0.5)`);
           } catch (e) {
             say(false, 'blocked: ' + e.message);
@@ -654,6 +766,11 @@ public sealed class ProofPages
             // And the harness precondition. Without theme.css linked the token is unreadable
             // and every counting check passes without a count running, which is how it shipped.
             "css/theme.css", "--enter resolves",
+            // The counting half, and the positive controls. `ppMotionStats` is what makes a
+            // check of the outcome mean anything: twice a check passed because the feature had
+            // not run at all.
+            "ppCount", "ppMotionStats", "positive control",
+            "currentTime", "resting frame is the engine number",
         ],
         // The 375px harnesses. `clientWidth`/`scrollWidth` is the measurement; naming the widest
         // overflowing element is what turns a failure into a fix.
