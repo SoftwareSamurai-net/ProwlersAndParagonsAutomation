@@ -58,6 +58,14 @@ public sealed class RenderContext : BunitContext
         // test exercises the same guarded path the app does rather than a bare IJSRuntime.
         Services.AddScoped<Motion>();
 
+        // The command palette: what it offers, and the guarded calls into palette.js. Both are
+        // registered for every render rather than only for the palette's own tests, because
+        // the Powers section asks for a requested Power on each pass and the step above it
+        // reads the same service — a component that could not resolve them would throw out of
+        // renders that have nothing to do with the palette.
+        Services.AddScoped<Commands>();
+        Services.AddScoped<Shortcuts>();
+
         // The mode switch and the sample loader both call into JS. Loose mode records the
         // calls and answers nothing, which is right here: what those calls do to the
         // document is the browser's business, not a component's.

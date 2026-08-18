@@ -36,6 +36,8 @@ builder.Services.AddSingleton(new SourceGrouping(rules));
 builder.Services.AddScoped<CharacterSession>();
 builder.Services.AddScoped<CharacterStore>();
 builder.Services.AddScoped<Motion>();
+builder.Services.AddScoped<Commands>();
+builder.Services.AddScoped<Shortcuts>();
 
 // The recorded conversations, fetched the same way and for the same reason — a browser
 // cannot glob a directory it has no filesystem for, so TranscriptLibrary.FileNames is the
