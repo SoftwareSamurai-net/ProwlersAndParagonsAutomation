@@ -162,9 +162,9 @@ window.ppCount = (element, from, to) => {
 // **Identity lives here rather than in the component, and that is the whole trick.** Blazor
 // reuses DOM nodes across renders, so "which row is new" is not a question the render tree
 // answers cheaply — but a row that has already landed can be marked, and a row without the mark
-// has never been seen. `data-landed` is that mark. It also survives the thing a key would not:
-// a list re-ordered by a filter is not twelve arrivals.
-//
+// has never been seen. `data-landed` is that mark. A key would work too, and would have to be
+// threaded through the eight components that build these lists: `ChosenRow` carries no identity
+// today. The mark needs nothing from any of them.
 // `announce` is false on a component's first render, so restoring a saved character marks its
 // twelve rows without playing twelve animations at once. Marking still happens — otherwise the
 // next genuine addition would land the whole list.
