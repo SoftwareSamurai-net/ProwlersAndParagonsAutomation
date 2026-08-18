@@ -45,8 +45,17 @@ public sealed class TooltipTests
         Assert.False(string.IsNullOrEmpty(named));
 
         var described = tip.Find($"#{named}");
-        Assert.Equal("tooltip", described.GetAttribute("role"));
         Assert.Contains(Text, described.TextContent, StringComparison.Ordinal);
+
+        // **The described element is not the visible one**, and that split is what lets the
+        // visible copy leave layout entirely when closed — which it must, because a hidden box
+        // that keeps its layout overflowed a 375px viewport on every page carrying a tooltip.
+        Assert.Contains("sr-only", described.ClassName ?? "", StringComparison.Ordinal);
+        Assert.DoesNotContain("tip-wrap", described.ClassName ?? "", StringComparison.Ordinal);
+
+        // ...and the visible copy is hidden from assistive technology, or the sentence is
+        // announced twice — once as the button's description and again as text on the page.
+        Assert.Equal("true", tip.Find(".tip").GetAttribute("aria-hidden"));
     }
 
     /// <summary>

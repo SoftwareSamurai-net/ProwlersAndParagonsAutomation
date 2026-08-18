@@ -33,18 +33,27 @@
         <span class="sr-only">What @Term means</span>
     </button>
 
-    @* **Always in the document, hidden by a class — deliberately unlike the budget breakdown.**
-       There, `aria-controls` is written only while the target exists, because it genuinely does
-       not exist when closed. Here the opposite is right: an `aria-describedby` that pointed at
-       nothing whenever the tip was hidden would be a dangling reference for all but a moment,
-       and a description a reader has to *hover* to be told is a description a screen-reader user
-       never gets. The accessible description is computed from the referenced element whether or
-       not it is visible, so keeping it here gives that reader the sentence for free.
+    @* **The description and the visible tip are two elements, and that split is load-bearing.**
+
+       The description is what `aria-describedby` names. It is always in the document, so the
+       reference never dangles and a screen-reader user is given the sentence without having to
+       hover for it — deliberately unlike the budget breakdown, where `aria-controls` is written
+       only while its target exists because there the target genuinely does not.
+
+       **It is `sr-only` rather than the visible box hidden, and the narrow harness is why.** The
+       first version had one element hidden with `visibility: hidden`, which keeps its layout box
+       — so an absolutely-positioned tip up to 22rem wide contributed real horizontal overflow at
+       375px while closed, on every page carrying one. CI caught it; nothing local did. `sr-only`
+       is a clipped 1px box and contributes none. *@
+    <span id="@Id" class="sr-only">@Text</span>
+
+    @* The visible copy, and only that: `aria-hidden`, or the sentence is announced twice — once
+       as the button's description and again as text in the page.
 
        It sits inside the wrapper rather than beside the button so that moving the pointer onto
        the tip keeps it open. WCAG 1.4.13 asks for exactly that — hoverable, dismissable,
        persistent — and a tip that vanishes when you reach for it fails the first. *@
-    <span class="@TipClass" id="@Id" role="tooltip">@Text</span>
+    <span class="@TipClass" role="tooltip" aria-hidden="true">@Text</span>
 </span>
 
 @code {

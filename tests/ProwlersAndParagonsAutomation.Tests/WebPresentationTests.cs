@@ -3023,32 +3023,38 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
-    /// <b>A closed tip is invisible, and not by <c>display: none</c>.</b>
+    /// <b>A closed tip takes no layout box at all — <c>display: none</c>, not
+    /// <c>visibility: hidden</c>.</b>
     ///
-    /// <para>Two claims, and the second is the one that would rot silently. The accessible
-    /// description is read off that element by name whether or not it is showing, which is what
-    /// gives a screen-reader user the sentence without hovering for it — and it is why the element
-    /// stays in the document rather than being wrapped in an <c>@@if</c> like the budget breakdown.
-    /// Swapping the mechanism to <c>display: none</c> keeps every rendering test green and quietly
-    /// takes the description away.</para>
+    /// <para><b>This assertion is the exact inverse of the one it replaces, and CI is why.</b> The
+    /// first version hid the tip with <c>visibility</c> so that the accessible description could
+    /// be read off it while closed, and this test required that it not be <c>display: none</c>.
+    /// A hidden element keeps its layout box: an absolutely-positioned tip up to 22rem wide then
+    /// contributed real horizontal overflow at 375px, while closed, on every page carrying one.
+    /// The narrow harness caught it in CI; the whole suite passed locally, because no rendering
+    /// test here can see a box leaving the viewport.</para>
     ///
-    /// <para>The first claim has no rendering test either: emptying <c>.tip</c> leaves the class on
-    /// the element and every assertion in the tooltip's own tests passing, with the sentence
-    /// permanently on screen beside the term.</para>
+    /// <para>The description now lives on a separate <c>sr-only</c> element — a clipped 1px box
+    /// that contributes no overflow — so the visible copy is free to leave layout entirely. Both
+    /// halves are asserted, because keeping only this one would allow the description to be
+    /// deleted and the tooltip to become decoration.</para>
     /// </summary>
     [Fact]
-    public void AClosedTipIsInvisibleWithoutBeingRemoved()
+    public void AClosedTipTakesNoLayoutBox()
     {
-        Assert.Equal("hidden", EffectiveValue(ScreenHalfOfAppCss, ".tip", "visibility"));
-        Assert.Equal("0", EffectiveValue(ScreenHalfOfAppCss, ".tip", "opacity"));
+        Assert.Equal("none", EffectiveValue(ScreenHalfOfAppCss, ".tip", "display"));
+        Assert.Equal("block", EffectiveValue(ScreenHalfOfAppCss, ".tip.shown", "display"));
 
-        // Not display:none, or the accessible description goes with it.
-        Assert.NotEqual("none", EffectiveValue(ScreenHalfOfAppCss, ".tip", "display"));
+        // visibility:hidden would put the overflow straight back. Named rather than left implied,
+        // since it is the spelling somebody reaches for when restoring a fade.
+        Assert.NotEqual("hidden", EffectiveValue(ScreenHalfOfAppCss, ".tip", "visibility"));
 
-        // ...and the open state reverses both, so the above is a closed default rather than a tip
-        // nobody can ever see.
-        Assert.Equal("visible", EffectiveValue(ScreenHalfOfAppCss, ".tip.shown", "visibility"));
-        Assert.Equal("1", EffectiveValue(ScreenHalfOfAppCss, ".tip.shown", "opacity"));
+        // And the described element is not the one that just left layout. The component points
+        // aria-describedby at an sr-only copy; a version that pointed it back at `.tip` would be
+        // naming a `display: none` element, which is exactly the description-loss this shape
+        // exists to avoid.
+        var tooltip = File.ReadAllText(Path.Combine(WebRoot, "Components", "Tooltip.razor"));
+        Assert.Matches(Rx(@"id=""@Id""\s+class=""sr-only"""), tooltip);
     }
 
     /// <summary>
