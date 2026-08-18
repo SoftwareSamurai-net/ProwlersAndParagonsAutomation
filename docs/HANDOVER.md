@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3908 tests** — 3668 engine, 240 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3914 tests** — 3670 engine, 244 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server. **CI drives a browser too**: six
 proof harnesses on `ubuntu-latest`, each required to *say* `PASS` in its `<title>`.
@@ -89,52 +89,6 @@ because they are one job: widening `--column` above a breakpoint, which every ba
 automatically, but which also widens the sheet and the replay. Decide that deliberately rather than
 as a side effect. Watch the render cost — the sheet re-renders on every keystroke unless throttled.
 
----
-
-## Decided, not yet built: the mode becomes colour, and "custom" becomes its own thing
-
-**Asked for by the repository's owner on 18 August 2026, with the three open decisions settled by
-him in the same conversation.** It is written down here rather than started, because it contradicts
-an entry in `CLAUDE.md`'s settled list and the next session must not re-litigate it.
-
-Today **Villain means two things at once**: a palette, and no Hero Point budget. That conflation is
-what `CLAUDE.md` refuses a mode field on `CharacterSheet` for — "the only mechanical difference is
-that a Villain has no Hero Point budget". The change separates them, which is what makes a field
-defensible rather than a crack in "the browser never decides a rule".
-
-1. **Hero/Villain becomes colour and nothing else**, defaulting from the character. A sheet for a
-   Villain opens wearing the Villain palette.
-2. **The no-budget behaviour moves out of the mode and into an independent "custom" toggle.** A
-   Hero can be custom; a Villain can be held to a budget. One control does not decide the other.
-3. **Custom removes the limit, never the validation.** Every other finding is still reported and
-   still means what it says — the tool still answers whether the character is *legal*, it just
-   stops treating the budget as a cap.
-
-The three decisions, as settled:
-
-- **The flag goes on `CharacterSheet`, and the engine is never given it.** So it travels with an
-  exported character and a re-imported one keeps its palette — which storage-only would not — while
-  the validator and both calculators stay ignorant of it. **That needs a guard proving no rules code
-  reads it**, of the same kind as the caveats-are-never-filters test: without one it rots into a real
-  input the first time somebody finds it convenient, and the whole justification is that it is not.
-- **Custom is an independent toggle**, not a third position on the mode switch.
-- **In custom mode there is no budget finding at all.** The strip becomes a running total: no cap,
-  no bar, no remaining figure. Not "shown but not a failure", and not filtered from the display
-  while the export still records it — which is what Villain mode does today.
-
-Consequences worth knowing before starting, none of them blocking:
-
-- `HpBudgetBar` currently renders on `Session.ShowBudget`, which is `Mode == Hero`. That becomes the
-  custom toggle, and the strip needs a second shape rather than an absence.
-- The **replay** carries recorded characters, and the Villain recording deliberately shows its
-  budget finding with Ch.9 beside it. Decide what it shows once "Villain" no longer implies
-  no-budget — that recording is *about* the difference, so it may need its own note rather than
-  inheriting the new default.
-- `MainLayout` sets the palette through `ppSetMode` interop on a user action. Defaulting from the
-  character means it also has to be set when a character is loaded, restored or replayed.
-- `CLAUDE.md`'s settled list has two entries to rewrite, not one: the mode field, and "Hero and
-  Villain are one app with two palettes". Rewrite them; do not delete them.
-
 **Phase 5 — the things that are simply missing.** A skip link and landmark roles; "Saved" feedback,
 since the character write-through is silent; and a print preview honest about the browser's own
 header, which no page can suppress.
@@ -152,6 +106,66 @@ Phase 2 item 3 — exit animations — is deferred by the plan itself.
 
 ---
 
+## Done since, outside the plan: the palette is the character's
+
+**The mode is `CharacterSheet.IsVillain` and the Hero Point limit is `UnlimitedBudget`, an
+independent toggle.** This reverses an entry in `CLAUDE.md`'s settled list, deliberately and with
+the reasoning rewritten there rather than deleted. `PROGRESS.md` has the full account. What a later
+slice needs to know:
+
+- **No rules code may name either field**, and `PresentationFlagsTests` enforces it with a positive
+  control. That test is the entire justification for the fields existing; do not weaken it.
+- **A Villain can be held to a budget and a Hero need not be.** If anything ever reads one flag to
+  decide the other, the split has been undone.
+- **One route puts the palette on the document**: `MainLayout`, on the render after any change of
+  character. `ppSetMode` has left the interop guard's by-hand allow-list and goes through `Theme`.
+- **The replay's Villain recording still shows its own budget finding**, driven by the recording's
+  own flag rather than by the visitor's toggle. That recording is *about* the difference, so it did
+  not inherit the new default. Check it deliberately if you touch this.
+
+---
+
+## Asked for, not yet built — two directions, both bigger than a slice
+
+Both were asked for by the repository's owner while the work above was in flight. They are recorded
+here rather than started, because each needs decisions taken before code.
+
+### One tool becomes two masters
+
+Today one app does two jobs and the chrome says so: "Watch one being built" and "Or start from a
+finished character" sit beside the thing somebody would actually use at a table. The direction is a
+split:
+
+- **A play aide** — the rules reference and the character sheet helper. The thing a player has open
+  during a session.
+- **A portfolio surface** — the recordings, the sample characters, and the demonstration of how the
+  engine was built. The thing that justifies the work to somebody evaluating it.
+
+Characters tie to accounts, which `PROGRESS.md` already anticipates for the rulebook reader
+("account-gated and comes after the front-end redesign"). **Questions to settle first:** whether the
+two are separate routes in one deployment or two; what an anonymous visitor sees; whether the
+account store replaces browser storage or sits beside it; and what happens to `/replay` and the two
+samples, which are load-bearing for the portfolio half and noise for the play half.
+
+Note the constraint that makes this cheap: `data/rulebook/` is already extracted and is deliberately
+**not** in the browser payload — one `ItemGroup` in `web/`'s csproj serves it. A rules reference has
+its content waiting.
+
+### Tooltips
+
+Asked for without detail, so the shape is open. The thing worth deciding before building: **a
+`title` attribute is not a tooltip.** It never appears on touch, is unreliable for keyboard users,
+cannot be styled, and is announced inconsistently by screen readers — so it fails the standard this
+app holds itself to everywhere else. A real one is a component with `aria-describedby`, hover *and*
+focus, and Escape to dismiss.
+
+**What they are for matters more than how they look.** A rules reference wants a Power's own text on
+hover — `data/rulebook/` has it, and it is not served yet. A form wants an explanation of a term.
+Those are different components and the second is nearly `Field`'s existing helper text. Settle which
+before writing either.
+
+---
+
 ## Prerequisites — run these before writing any code
 
 Each one has cost this project real time when skipped.
@@ -164,7 +178,7 @@ Each one has cost this project real time when skipped.
    ```bash
    dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
    ```
-   It must report **3668 + 240 = 3908** and zero warnings. **Warnings are errors only under that
+   It must report **3670 + 244 = 3914** and zero warnings. **Warnings are errors only under that
    flag**, so a plain `dotnet test` passes over things CI fails on.
 
    **Take the number from the run, not from a document, and update the document from the run.**
