@@ -319,13 +319,16 @@
    change. `--ease-out` decelerates hard into place and is for something that
    *travels*: a panel arriving, the budget rail moving to a new figure.
 
-   **There is deliberately no `--ease-emphasised` yet**, though the plan for this
-   phase named one. An overshoot curve wants something that should read as
-   landing, and nothing on the page does that today — the one candidate is a row
-   arriving in a list, which is Phase 2. Declaring it now would ship a token no
-   rule asks for, and this codebase has already shipped a `.label-line` class
-   applied to nothing and found it by looking at a rendered page rather than by
-   any test. Add it in the phase that uses it.
+   **`--ease-emphasised` arrives here, in the phase that has something to
+   overshoot.** It was deliberately absent through Phases 0 and 1 because an
+   overshoot curve wants something that should read as *landing*, and nothing on
+   the page did — declaring it earlier would have shipped a token no rule asked
+   for, the way a `.label-line` class once shipped applied to nothing. The thing
+   that lands is a row arriving in a chosen list: it comes from the picker below
+   and settles into place, and a curve that goes slightly past and comes back is
+   what makes that read as an arrival rather than a repaint. It is used by that
+   one rule and should stay that way — an overshoot on a state change reads as a
+   wobble.
 
    These are curves and not durations, so `prefers-reduced-motion` does not touch
    them — it collapses the durations below to 0.01ms, at which point no curve is
@@ -344,6 +347,10 @@
 
     --ease:     cubic-bezier(0.2, 0, 0.2, 1);   /* a state change            */
     --ease-out: cubic-bezier(0.16, 1, 0.3, 1);  /* something that travels    */
+
+    /* Goes past and comes back — for something that lands. One user: a row
+       arriving in a chosen list. See the note above before reaching for it. */
+    --ease-emphasised: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* Anyone who has asked their system for less movement gets none of it. This has

@@ -442,6 +442,63 @@ public sealed class ProofPages
                 `reduced=${reduced} landed on ${busy.textContent}`);
 
 
+          // ── A row landing in a list ──────────────────────────────────────────────────
+          //
+          // Identity is a `data-landed` mark in the script, not a key in the component, so what
+          // is tested here is exactly what decides it in the app.
+          const list = document.createElement('ul');
+          list.innerHTML = '<li>one</li><li>two</li>';
+          document.body.appendChild(list);
+
+          // First render: mark, do not animate. Restoring a saved character must not play a
+          // dozen arrivals at once — but the rows must still be marked, or the next genuine
+          // addition lands the whole list with it.
+          const landingsBefore = window.ppMotionStats.landings;
+          window.ppLand(list, false);
+
+          check('a first render marks rows without landing them',
+                window.ppMotionStats.landings === landingsBefore &&
+                  list.querySelectorAll('li[data-landed]').length === 2,
+                `landings ${landingsBefore} -> ${window.ppMotionStats.landings}, ` +
+                `marked ${list.querySelectorAll('li[data-landed]').length}/2`);
+
+          // A row arrives. Only that one may animate.
+          const fresh = document.createElement('li');
+          fresh.textContent = 'three';
+          list.appendChild(fresh);
+          window.ppLand(list, true);
+
+          // **getAnimations() is the positive control**: it asks the browser what is actually
+          // running, rather than trusting a counter this file also owns.
+          const running = fresh.getAnimations().length;
+          const others = [...list.querySelectorAll('li')]
+            .filter((li) => li !== fresh)
+            .reduce((n, li) => n + li.getAnimations().length, 0);
+
+          check('an arriving row lands (positive control)',
+                reduced ? running === 0 : running === 1,
+                `reduced=${reduced} animations on the new row: ${running}`);
+
+          check('rows already present do not land again',
+                others === 0,
+                `animations on the two pre-existing rows: ${others}`);
+
+          check('every row is marked once landing has run',
+                list.querySelectorAll('li[data-landed]').length === 3,
+                `${list.querySelectorAll('li[data-landed]').length}/3 marked`);
+
+          if (!reduced && running === 1) {
+            // The curve is the stylesheet's. A hard-coded easing here would drift from the token
+            // and no CSS test could see it, because the animation is built in script.
+            const eased = fresh.getAnimations()[0].effect.getTiming().easing;
+            const token = window.getComputedStyle(document.documentElement)
+              .getPropertyValue('--ease-emphasised').trim();
+            check('the landing uses --ease-emphasised from the stylesheet',
+                  eased === token && token.length > 0,
+                  `effect easing "${eased}" vs token "${token}"`);
+          }
+
+
           const ok = checks.every((c) => c.ok);
           document.title = ok ? 'MOTION: PASS' : 'MOTION: FAIL';
           box.className = ok ? '' : 'bad';
@@ -779,6 +836,7 @@ public sealed class ProofPages
             // not run at all.
             "ppCount", "ppMotionStats", "positive control",
             "currentTime", "resting frame is the engine number",
+            "ppLand", "getAnimations", "ease-emphasised",
         ],
         // The 375px harnesses. `clientWidth`/`scrollWidth` is the measurement; naming the widest
         // overflowing element is what turns a failure into a fix.

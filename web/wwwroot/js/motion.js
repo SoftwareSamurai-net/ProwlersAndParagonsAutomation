@@ -93,7 +93,7 @@ window.ppMotion = {
 // **A positive control.** Every counting check asserts an outcome, and an outcome is satisfied
 // by a feature that never ran — twice now. This counts the counts, so a harness can assert the
 // work happened before it asserts the work was right.
-window.ppMotionStats = { counts: 0, transitions: 0 };
+window.ppMotionStats = { counts: 0, transitions: 0, landings: 0 };
 
 window.ppCount = (element, from, to) => {
     if (!element) return;
@@ -154,4 +154,45 @@ window.ppCount = (element, from, to) => {
 
     window.ppMotionStats.counts++;
     handle = requestAnimationFrame(pump);
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A row arriving in a chosen list should land, not appear.
+//
+// **Identity lives here rather than in the component, and that is the whole trick.** Blazor
+// reuses DOM nodes across renders, so "which row is new" is not a question the render tree
+// answers cheaply — but a row that has already landed can be marked, and a row without the mark
+// has never been seen. `data-landed` is that mark. It also survives the thing a key would not:
+// a list re-ordered by a filter is not twelve arrivals.
+//
+// `announce` is false on a component's first render, so restoring a saved character marks its
+// twelve rows without playing twelve animations at once. Marking still happens — otherwise the
+// next genuine addition would land the whole list.
+window.ppLand = (list, announce) => {
+    if (!list) return;
+
+    const arrived = list.querySelectorAll("li:not([data-landed])");
+
+    for (const row of arrived) {
+        row.setAttribute("data-landed", "");
+
+        if (!announce || still()) continue;
+
+        const styles = window.getComputedStyle(document.documentElement);
+        const ms = parseFloat(styles.getPropertyValue("--enter"));
+        const ease = styles.getPropertyValue("--ease-emphasised").trim();
+
+        if (!(ms > 0) || !ease) continue;
+
+        // The one place --ease-emphasised is used. It overshoots, which is what makes this read
+        // as landing rather than as a repaint; the curve is the stylesheet's, not this file's.
+        row.animate(
+            [
+                { opacity: 0, transform: "translateY(-6px)" },
+                { opacity: 1, transform: "translateY(0)" },
+            ],
+            { duration: ms, easing: ease });
+
+        window.ppMotionStats.landings++;
+    }
 };

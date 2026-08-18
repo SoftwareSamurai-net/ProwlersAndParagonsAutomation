@@ -1,9 +1,35 @@
-@* The list of things already on the sheet, holding <ChosenRow> children. *@
+@inject IJSRuntime Js
 
-<ul class="chosen">
+@* The list of things already on the sheet, holding <ChosenRow> children.
+
+   A row arriving here should land rather than appear — it is the one thing in this app that
+   reads as an object moving from the picker below into the character above, and the only user
+   of `--ease-emphasised`. Which row is new is decided in `motion.js` by a `data-landed` mark
+   rather than here: Blazor reuses DOM nodes, so the render tree does not answer that cheaply,
+   and a mark also survives a filter re-ordering the list, which a key would report as a dozen
+   arrivals. *@
+
+<ul class="chosen" @ref="_list">
     @ChildContent
 </ul>
 
 @code {
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private ElementReference? _list;
+
+    /// <summary>
+    /// Let any row that has not been seen before land.
+    ///
+    /// <para><b><c>firstRender</c> is passed through rather than used to skip the call.</b> On a
+    /// first render the rows are marked but not animated, so restoring a saved character does not
+    /// play twelve arrivals at once — but they must still be marked, or the next genuine addition
+    /// lands the entire list with it.</para>
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_list is not { } list) return;
+
+        await Js.InvokeVoidAsync("ppLand", list, !firstRender);
+    }
 }
