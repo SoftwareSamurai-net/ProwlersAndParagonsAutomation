@@ -65,6 +65,32 @@ stash turns out to be empty, it cost nothing; `git stash pop` afterwards is one 
 **Committing first is better still** where the work is in a committable state — a mutation
 experiment run against committed work has nothing to lose. Stash is for when it is not.
 
+
+**And when it goes wrong anyway, git has probably still got it.**
+
+```bash
+git reflog                                  # every HEAD move: bad reset, bad rebase, lost commit
+git fsck --unreachable | grep commit        # dropped stashes and orphaned commits
+git stash apply <sha>                       # recover one by hand
+git show <sha>:path/to/file                 # or just read one file out of it
+```
+
+`git stash pop` **prints the SHA it dropped** — `Dropped refs/stash@{0} (c1c89e…)`. That line is the
+cheapest recovery handle there is, and piping the pop to `/dev/null` throws it away. Do not.
+
+**The line that decides whether any of this works is whether an object was ever created.** A stash,
+a commit, even a bare `git add`, all write objects that survive being dropped and are findable
+above. A working-tree edit that was never stashed, added or committed is not an object, and
+`git checkout -- <file>` over it is unrecoverable by any means — which is exactly the loss this
+section opens with. So the stash rule is not only prevention: **it is what makes recovery possible
+at all.**
+
+Related, for the other direction: when something *is* broken and nobody knows since when,
+`git bisect run <command>` will find the commit. It takes any command whose exit code says
+good-or-bad, so the harness drivers work directly — a script that regenerates the proofs and greps
+`<title>` for `PASS` is a usable bisect predicate, and would have located a regression this project
+shipped inside a fix.
+
 ### A check is not done until you have broken it and watched it fail
 
 **Write the guard, then deliberately break the thing it guards, then run it and see it go red.**
