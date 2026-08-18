@@ -15,13 +15,16 @@ sessions, not documentation.
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
-**Two slices are finished and both are on branches that have not been merged to `master`.**
+**The reconciliation is in `master`; the visual redesign is not.**
 
-- **`claude/reconcile-a1-a3`** reconciles the three sub-slices of the mutation audit, which were
-  worked concurrently on three branches from `5867340` and each rewrote the same four documents.
-  The merge changed no test and no source file. All 33 findings are closed.
-- **`claude/slice-b-visual-redesign-221eb7`** is the visual redesign, based on the reconciliation
-  so the two merge cleanly. Both branches are pushed.
+- **`claude/reconcile-a1-a3`** reconciled the three sub-slices of the mutation audit, worked
+  concurrently on three branches from `5867340`, each rewriting the same four documents. It
+  **merged as [#45](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/45)** and
+  is `master`'s tip. All 33 findings are closed. (An earlier version of this file said both slices
+  were unmerged; that was true when it was written and is not now.)
+- **`claude/slice-b-visual-redesign-c88220`** is the live branch: the visual redesign plus Phases
+  0, 1 and 2 of the front-end plan. **`…-221eb7` is the same work two phases stale** — it stops at
+  `38131df` and should not be started from.
 
 **Slice B shipped all six items** — two self-hosted faces (Oswald and Public Sans, both SIL OFL
 with their licences), labels carrying the structure of the long forms, the tier choice as a card
@@ -87,8 +90,8 @@ Each one has cost this project real time when skipped.
 1. **Confirm the toolchain.** `dotnet --version` must report **10.0.x**; the 9.x SDK cannot build
    this. `global.json` pins `10.0.100` with `latestMinor`.
 2. **Start from the right commit.** `git log --oneline -1` on
-   `claude/slice-b-visual-redesign-221eb7`. If you are on `master` you are missing both slices —
-   `master` does not have them.
+   `claude/slice-b-visual-redesign-c88220` — **not `…-221eb7`, which is two phases behind.**
+   `master` has the mutation-audit reconciliation but none of the front-end work.
 3. **Establish the baseline before you change anything.**
    ```bash
    dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
