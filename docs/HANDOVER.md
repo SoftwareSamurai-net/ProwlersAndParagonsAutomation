@@ -11,9 +11,9 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3893 tests** — 3668 engine, 225 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3908 tests** — 3668 engine, 240 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
-browser app, `build --from character.json`, and an MCP server. **CI drives a browser too**: five
+browser app, `build --from character.json`, and an MCP server. **CI drives a browser too**: six
 proof harnesses on `ubuntu-latest`, each required to *say* `PASS` in its `<title>`.
 
 **Everything through Phase 2 is in `master`.** The mutation-audit reconciliation merged as
@@ -51,11 +51,22 @@ The plan is [`docs/FRONT-END-PLAN.md`](FRONT-END-PLAN.md) and it is the brief. *
 starting.** Phases 0–2 are done; three remain.
 
 **Phase 3 — the interactions that are still forms.** Two slices, risk medium-high. Where the app
-stops feeling like a document and starts feeling like a tool:
+stops feeling like a document and starts feeling like a tool.
 
-- **A `Ctrl-K` command palette** — jump to a step, find a Power, add one. The highest-leverage
-  item on the list and mostly built already: `OptionFilter.Admits` does the matching, and 141
-  Powers is exactly the catalogue a palette is for.
+**The first slice is done: the `Ctrl-K` command palette.** It offers the six steps and, once
+something is typed, the Powers; it matches by the lists' own rule, and it *requests* a Power
+rather than adding one, because only the editor knows how to price ranks and variants.
+`PROGRESS.md` has the account. Three things a later slice needs to know:
+
+- **The six steps now live in `Commands` and the step band draws them from there.** Do not give
+  either a list of its own.
+- **`OptionFilter.Matches` is the shared matching rule.** Anything that filters a list of options
+  calls it, or the app answers the same query two ways.
+- **`proof-shortcut.html` is the sixth CI harness**, and it exists because bUnit cannot dispatch
+  a document-level key event. Any new global key belongs in it.
+
+What remains in Phase 3:
+
 - **The pips become the control.** They are `aria-hidden` decoration beside a `+`/`−` stepper
   today; clicking the fifth pip should set 5d, with arrow keys and Home/End.
 - **Keyboard navigation in the option lists**, with the filter box keeping focus. Every list is
@@ -64,8 +75,12 @@ stops feeling like a document and starts feeling like a tool:
   surface at GM review. A Trait over the cap should say so on its own row.
 - **Undo.** Three buttons on the tier page can destroy twenty minutes behind a confirm dialogue.
 
-**This phase is not bUnit-shaped.** A palette and a pip control are new interaction surfaces and
-need real keyboard and screen-reader testing. Budget for that rather than discovering it.
+**This phase is not bUnit-shaped**, and the palette proved it exactly. bUnit drove the component's
+key handler fine and could not reach the listener that hears the chord at all, because that is an
+event on the document and no render tree contains one — so a driven harness had to be written
+beside it. The pip control is the same shape. Budget for that rather than discovering it, and
+note that screen-reader testing is still owed on both: `aria-activedescendant` is asserted to
+point at a row that exists, which is not the same as having been listened to.
 
 **Phase 4 — the sheet as the reward, not the exit.** Half a slice, risk low. A live preview column
 so the sheet is visible *while* building, which is nearly free — `SheetView` already takes a
@@ -103,7 +118,7 @@ Each one has cost this project real time when skipped.
    ```bash
    dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
    ```
-   It must report **3668 + 225 = 3893** and zero warnings. **Warnings are errors only under that
+   It must report **3668 + 240 = 3908** and zero warnings. **Warnings are errors only under that
    flag**, so a plain `dotnet test` passes over things CI fails on.
 
    **Take the number from the run, not from a document, and update the document from the run.**
@@ -152,7 +167,7 @@ Each one has cost this project real time when skipped.
    checked by seeking** (`anim.currentTime = x`), never by waiting. This is why the counting figure
    is an `element.animate()` clock rather than a rAF loop, and a regression that hid behind exactly
    this property shipped once already.
-10. **The five browser harnesses run in CI**, so a change that breaks one fails the PR rather than
+10. **The six browser harnesses run in CI**, so a change that breaks one fails the PR rather than
     waiting for somebody to run it by hand. `gh pr checks <n> --watch` is the authority. Verify the
     step *ran* — the harness output names each page — because a step that silently did nothing
     looks exactly like one that passed.

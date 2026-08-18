@@ -1355,7 +1355,14 @@ label {
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
     cursor: pointer;
-    border-left: var(--rule-weight) solid transparent;
+    /* 3px, the same edge `.option` marks a chosen row with, rather than the hairline token.
+       **Found by looking at both palettes and not by any test.** At --rule-weight the marking
+       was legible in Hero and very nearly invisible in Villain, where --accent sits on a
+       near-black ground — and this edge is the only thing on screen saying what Enter is
+       about to do. A hairline is the weakest available affordance for the strongest claim
+       the palette makes. */
+    border-left: 3px solid transparent;
+    transition: background-color var(--swap) var(--ease), border-left-color var(--swap) var(--ease);
 }
 
 /* The current row is marked by a ground *and* an edge, never by colour alone: around
