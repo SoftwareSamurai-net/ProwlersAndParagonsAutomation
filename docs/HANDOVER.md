@@ -89,6 +89,52 @@ because they are one job: widening `--column` above a breakpoint, which every ba
 automatically, but which also widens the sheet and the replay. Decide that deliberately rather than
 as a side effect. Watch the render cost — the sheet re-renders on every keystroke unless throttled.
 
+---
+
+## Decided, not yet built: the mode becomes colour, and "custom" becomes its own thing
+
+**Asked for by the repository's owner on 18 August 2026, with the three open decisions settled by
+him in the same conversation.** It is written down here rather than started, because it contradicts
+an entry in `CLAUDE.md`'s settled list and the next session must not re-litigate it.
+
+Today **Villain means two things at once**: a palette, and no Hero Point budget. That conflation is
+what `CLAUDE.md` refuses a mode field on `CharacterSheet` for — "the only mechanical difference is
+that a Villain has no Hero Point budget". The change separates them, which is what makes a field
+defensible rather than a crack in "the browser never decides a rule".
+
+1. **Hero/Villain becomes colour and nothing else**, defaulting from the character. A sheet for a
+   Villain opens wearing the Villain palette.
+2. **The no-budget behaviour moves out of the mode and into an independent "custom" toggle.** A
+   Hero can be custom; a Villain can be held to a budget. One control does not decide the other.
+3. **Custom removes the limit, never the validation.** Every other finding is still reported and
+   still means what it says — the tool still answers whether the character is *legal*, it just
+   stops treating the budget as a cap.
+
+The three decisions, as settled:
+
+- **The flag goes on `CharacterSheet`, and the engine is never given it.** So it travels with an
+  exported character and a re-imported one keeps its palette — which storage-only would not — while
+  the validator and both calculators stay ignorant of it. **That needs a guard proving no rules code
+  reads it**, of the same kind as the caveats-are-never-filters test: without one it rots into a real
+  input the first time somebody finds it convenient, and the whole justification is that it is not.
+- **Custom is an independent toggle**, not a third position on the mode switch.
+- **In custom mode there is no budget finding at all.** The strip becomes a running total: no cap,
+  no bar, no remaining figure. Not "shown but not a failure", and not filtered from the display
+  while the export still records it — which is what Villain mode does today.
+
+Consequences worth knowing before starting, none of them blocking:
+
+- `HpBudgetBar` currently renders on `Session.ShowBudget`, which is `Mode == Hero`. That becomes the
+  custom toggle, and the strip needs a second shape rather than an absence.
+- The **replay** carries recorded characters, and the Villain recording deliberately shows its
+  budget finding with Ch.9 beside it. Decide what it shows once "Villain" no longer implies
+  no-budget — that recording is *about* the difference, so it may need its own note rather than
+  inheriting the new default.
+- `MainLayout` sets the palette through `ppSetMode` interop on a user action. Defaulting from the
+  character means it also has to be set when a character is loaded, restored or replayed.
+- `CLAUDE.md`'s settled list has two entries to rewrite, not one: the mode field, and "Hero and
+  Villain are one app with two palettes". Rewrite them; do not delete them.
+
 **Phase 5 — the things that are simply missing.** A skip link and landmark roles; "Saved" feedback,
 since the character write-through is silent; and a print preview honest about the browser's own
 header, which no page can suppress.
