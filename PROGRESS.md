@@ -246,6 +246,41 @@ verdict is written to `document.title` as well, which the script alone writes an
 is neither verdict, so the three states are distinguishable. `MustNotShow` refuses a hard-coded
 `say(true, …)`; a proof that cannot fail is worse than no proof, because it is read as evidence.
 
+**Item 1, continuity across steps, is in.** The three chrome bands carry a `view-transition-name`,
+so the browser matches each to itself either side of a navigation and interpolates rather than
+cross-fading the whole window; what is left in the `root` group is the content of `main`, which is
+the only thing that changed. `wwwroot/js/motion.js` is 55 lines and the only script added — no
+animation library, for the reasons in the plan. The CSP is untouched: `script-src 'self'` already
+allows a same-origin file.
+
+**`LocationChanged` is the wrong hook and it is the one already in the layout.** The API animates
+between two snapshots and the first has to be taken while the old page is still on screen; by the
+time `LocationChanged` fires there is nothing left to capture. `RegisterLocationChangingHandler`
+runs before the navigation, so `begin()` snapshots and holds the transition open on a promise and
+`OnAfterRenderAsync` resolves it once the new step has rendered. The failure mode of getting this
+wrong is silent — no error, just no animation, indistinguishable from an unsupported browser.
+
+**Two of the four new guards were theatre, and a variant is what showed it.** Both assert that
+`motion.js` *mentions* something — `still()`, `setTimeout` — and both pass against a script doing
+the opposite of what it says:
+
+- `if (… || !still()) return` — one character — serves the animation to exactly the people who
+  asked for none, and every string assertion still passes.
+- `setTimeout(() => {}, 1000)` is a safety net that catches nothing. That one matters more than it
+  reads: while a transition is open the live DOM sits behind a snapshot, so a release that never
+  arrives leaves a frozen picture of the app with no way back.
+
+**The fix is not two more string assertions.** The property is behavioural, so the instrument has
+to run the code — the same class of mistake as `Contains`, one level up. `proof-motion.html` loads
+the shipped `motion.js`, stubs `startViewTransition` to observe it, and asks three questions: does
+`begin()` open a transition, does `end()` release it, does an unreleased one free itself. It is run
+twice, the second under Chrome's `--force-prefers-reduced-motion`, **and every expectation inverts**
+— which is the half no source scan can reach. Re-run against both variants it catches both, and
+discriminates: the inverted gate fails checks 1 and 2, the dead timer fails only check 3.
+
+The source guards are kept beside it. They are cheap, they run in CI where the browser does not, and
+what they now claim is only what they can support.
+
 ### Phase 1 of the front-end plan: density and hierarchy, which was mostly deletion
 
 Three of the plan's four items in full, the fourth split — see the end of this entry, which says
