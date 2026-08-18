@@ -278,30 +278,68 @@ twice, the second under Chrome's `--force-prefers-reduced-motion`, **and every e
 — which is the half no source scan can reach. Re-run against both variants it catches both, and
 discriminates: the inverted gate fails checks 1 and 2, the dead timer fails only check 3.
 
-**Item 2 is parked, not done, and the reason is the instrument rather than the feature.** The
-counting figure was written and worked; bringing it to this repo's standard is what stopped it.
-`requestAnimationFrame` **does not fire under `--headless=new --dump-dom`** — a probe in one run
-reported `rAF=0` against `setTimeoutTicks=41` — so an rAF-driven count cannot be verified by the
-only browser instrument this project has, and CI has no other. The implementation is parked at
-`.claude/parked/` with its patch; whether it returns as an `element.animate()` count, whose
-timeline can be driven deterministically, is a decision rather than a repair.
+**Item 2 is in, on a clock a test can seek — and the first explanation of why was wrong.** The
+counting figure was written on `requestAnimationFrame`, found to be unverifiable, and parked with
+the note that "rAF does not fire under `--headless=new --dump-dom`". **That named the wrong cause
+and would have misdirected the next session**, because it points at the dump mode. The cause is
+`--virtual-time-budget`: it suppresses frame production, so neither rAF nor the document timeline
+advances, while `setTimeout` continues to fire. Measured both ways —
 
-**Before it was parked, the harness written to test it was itself theatre — and it took reading a
-detail line to see it.** `proof-motion.html` linked no stylesheet, so `--enter` resolved to the
-empty string, `parseFloat` gave `NaN`, and `ppCount` took its "nothing to animate" path on every
-call. All four counting checks passed **without a single count running**, and the verdict said
-PASS. What gave it away was not the verdict but a detail string reading `showed 99 immediately` in
-a run where the count should still have been mid-flight. The harness now links `theme.css` and
-asserts its own precondition — `--enter resolves` — as a live check rather than a comment, because
-a comment does not fail.
+| flags | result |
+|---|---|
+| `--screenshot --dump-dom`, no virtual time | `RAF-FIRED-1` |
+| `--virtual-time-budget=8000` + any of `--dump-dom`, `--screenshot`, `--run-all-compositor-stages-before-draw` | `NO-FRAME`, and `waapi=running@0` |
 
-**The two theatre guards are now backed by a browser in CI.** `ubuntu-latest` ships Chrome, so the
-build workflow drives all five harnesses and requires each to *say* PASS in its `<title>`. Asserted
-on the positive: a harness whose script never ran leaves its resting text, which is neither
-verdict, so grepping for FAIL would call a broken harness green. Demonstrated on the same inverted
-gate as before — the source guard still reports `Passed!`, the browser check reports `MOTION: FAIL`
-with three of four checks down.
+**That matters beyond this feature**: every screenshot in this repository needs
+`--virtual-time-budget`, because `.panel` animates from `opacity: 0` and a bare capture photographs
+it mid-animation. So the flag this project cannot work without is the flag that makes frame-driven
+animation unobservable. Anything animated here has to be checkable by *seeking* rather than by
+waiting.
 
+Which is why the counting figure is `element.animate()`. Not because rAF is impossible — it runs
+perfectly in a real browser and still pumps the redraw — but because a WAAPI animation's
+`currentTime` is **settable**, and `draw()` is a pure function of it. Seeking the clock and calling
+the same `draw` a visitor's frame calls is a test of the shipped path. Seeked at t = 0, .25, .5,
+.75, 1 the figure reads **10, 16, 19, 20, 20**: in bounds, monotonic, and resting on the engine's
+number.
+
+**Every harness now carries a positive control, and the reason is a tally rather than a
+principle.** Three separate checks in this slice passed because the feature under test never ran —
+an inverted gate meant no transition opened, an unlinked stylesheet meant no count started, and an
+iframe that fails to load reports `clientWidth === scrollWidth` over an empty document, which is a
+clean "nothing overflows". So each harness asserts the work happened — `ppMotionStats.transitions`,
+`ppMotionStats.counts`, an element count, a scroll position that actually moved — before asking
+whether the outcome was right.
+
+**All five were then deliberately broken, and the exercise paid for itself immediately.**
+
+| break | caught by | result |
+|---|---|---|
+| `.budget { position: static }` | sticky | `STICKY: FAIL`, others unaffected |
+| `.panel { min-width: 460px }` | both narrow harnesses | `NARROW: FAIL` ×2 |
+| `.budget-strip { padding-left: 60px }` | insets | **survived at first** |
+| the reduced-motion gate inverted | motion, both modes | `MOTION: FAIL` |
+| the count rests one short | motion | `at t=1 showed 19`, and the monotonic check too |
+
+**The third one is the finding.** `getBoundingClientRect()` returns the *border* box, so padding
+moves the content on the page without moving the number the harness read: one band sat 60px out of
+line and the spread still reported `0.00px`. It measures the content edge now. Nothing but breaking
+it would have found that — it had been passing, against a real layout, the whole time.
+
+A sixth mutation — deleting the assigned resting frame so the last value is interpolated — was
+**not** caught, and that is correct rather than a hole: the easing reaches exactly 1 at `t=1`, so
+`Math.round(from + (to - from) * 1)` is already `to`. The mutation changes nothing observable. It
+is recorded because "a guard missed this" and "this mutation was a no-op" look identical in a
+
+**The two source guards on `motion.js` are theatre and stay theatre, so a browser runs in CI.**
+They assert the script *mentions* `still()` and `setTimeout`, and both pass against
+`|| !still()) return`. `ubuntu-latest` ships Chrome, so the build workflow drives all five
+harnesses and requires each to *say* PASS in its `<title>` — asserted on the positive, because a
+harness whose script never ran leaves resting text that is neither verdict, and grepping for FAIL
+would call a broken harness green. The source guards are kept beside it: they run where the
+browser does not, and they now claim only what they can support.
+
+results table and are not the same fact.
 **Four harnesses were missing, not one.** `proof-sticky`, `proof-measure`, `proof-narrow` and
 `proof-narrow-shell` were all uncommitted scratch. All four are generators now. The restored
 measurements: nothing overflows at 375px on either page, and all four chrome bands sit on the same

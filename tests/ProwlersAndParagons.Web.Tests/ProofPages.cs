@@ -688,9 +688,17 @@ public sealed class ProofPages
             for (const [name, sel] of Object.entries(parts)) {
               const el = d.querySelector(sel);
               if (!el) { rows.push(`    ${name}: ${sel} NOT FOUND`); continue; }
+              // **The content edge, not the border edge.** `getBoundingClientRect().left` is the
+              // border box, so padding moves the text on the page without moving the number this
+              // reads — a 60px padding-left on one band left it visibly out of line with the
+              // other three and the harness reported a spread of 0.00px. Found by deliberately
+              // breaking it, which is the only reason it is not still wrong.
               const r = el.getBoundingClientRect();
-              lefts.push(r.left);
-              rows.push(`    ${name.padEnd(7)} left ${r.left.toFixed(1)}  right ${r.right.toFixed(1)}`);
+              const pad = window.getComputedStyle(el);
+              const left = r.left + parseFloat(pad.paddingLeft || '0');
+              const right = r.right - parseFloat(pad.paddingRight || '0');
+              lefts.push(left);
+              rows.push(`    ${name.padEnd(7)} content ${left.toFixed(1)} .. ${right.toFixed(1)}`);
             }
 
             // Every band's contents start on the same x, or the column is not shared.

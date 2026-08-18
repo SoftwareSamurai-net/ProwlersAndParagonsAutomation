@@ -203,8 +203,11 @@ Not preferences — this is what the last few slices cost when they were skipped
 - **Warnings are errors only under `ContinuousIntegrationBuild`**, so a green `dotnet test` does
   not cover it. Run
   `dotnet build --configuration Release -p:ContinuousIntegrationBuild=true` before pushing.
-- **Commit before letting anything mutate files.** A mutation pass reverts with
-  `git checkout -- .`, which takes uncommitted work with it. That has cost rework twice.
+- **Before any destructive revert, run `git stash push -u -m pre-experiment`.** Not "commit
+  first" as a caution — this was a caution twice and was ignored twice by people who had read
+  it, most recently by an agent that reverted one file to undo a mutation and took an unrelated
+  uncommitted change with it in the same breath. `CLAUDE.md` carries the rule; there is no
+  judgement call about whether a given revert is risky.
 - **`perl -pi` silently edits nothing on this machine.** It exits 0, prints nothing, and leaves the
   file untouched — so a mutation "applied" that way looks exactly like a fix that holds. Use
   `sed -i` or the editor, and check `git diff --numstat` every time.

@@ -41,6 +41,56 @@ dotnet build --configuration Release -p:ContinuousIntegrationBuild=true
 dotnet test
 ```
 
+## Two disciplines that are commands, not cautions
+
+Both of these were written here as warnings first, and both were then ignored by somebody who
+had read them in the same session. A caution does not fire hundreds of steps later, when you are
+thinking about something else. These are phrased as things to *run*.
+
+### Before any destructive revert, stash
+
+```bash
+git stash push -u -m pre-experiment
+```
+
+**Run it before `git checkout -- .`, `git checkout -- <file>`, `git reset --hard`, or letting any
+mutation pass revert for you.** `git checkout --` takes uncommitted work with it, silently and
+with no confirmation. That has now cost this project rework three times, the last of them by an
+agent that had read this paragraph's predecessor earlier in the same session and reverted one
+file to undo a mutation, taking an unrelated uncommitted change with it.
+
+There is no judgement call to make about whether a particular revert is risky. Stash first. If the
+stash turns out to be empty, it cost nothing; `git stash pop` afterwards is one command.
+
+**Committing first is better still** where the work is in a committable state — a mutation
+experiment run against committed work has nothing to lose. Stash is for when it is not.
+
+### A check is not done until you have broken it and watched it fail
+
+**Write the guard, then deliberately break the thing it guards, then run it and see it go red.**
+Not "reason about whether it would catch it" — run it. A check that has never failed is a claim,
+and the claim is usually wrong: this repository has now shipped, on separate occasions,
+
+- a guard that passed because a one-character inversion left every asserted string in place,
+- a guard that passed because its `setTimeout` was present and did nothing,
+- a proof whose four checks passed because a missing stylesheet meant **the animation never ran
+  at all**, so every assertion about the end state held trivially,
+- an inset measurement that reported a spread of `0.00px` while one band was visibly 60px out of
+  line, because `getBoundingClientRect()` returns the border box and the break was padding.
+
+Every one of those was found by breaking it. None was found by reading it.
+
+**And every harness carries a positive control**: assert that the work *happened* — an execution
+counter, `getAnimations().length`, an element count, a scroll position that actually moved —
+**before** asserting that its outcome was right. Three of the four failures above were a feature
+that did not run being mistaken for a feature that worked, which is the single most common way a
+check in this repository has been wrong.
+
+A mutation that is semantically null does not count as breaking it. Removing the assigned resting
+frame from the counting figure changes nothing observable, because the easing already reaches
+exactly 1 at `t=1`; the honest report is that the mutation was a no-op, not that the guard has a
+hole. Break it with something that changes the answer.
+
 ## Tests
 
 `tests/ProwlersAndParagonsAutomation.Tests` (xunit.v3). Two things to know before touching it:
