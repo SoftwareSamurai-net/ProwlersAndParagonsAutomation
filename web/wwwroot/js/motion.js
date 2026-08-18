@@ -135,14 +135,23 @@ window.ppCount = (element, from, to) => {
     // The displayed figure, as a pure function of the clock. **Seeking `clock.currentTime` and
     // calling this is exactly what a visitor's frame does**, which is what makes the driven
     // test a test of the shipped path rather than of a reproduction.
+    //
+    // **A null `currentTime` means the clock is finished or cancelled, and it must read as the
+    // end — not as the beginning.** `clock.currentTime ?? 0` made it read as `t = 0`, so a frame
+    // still scheduled when the tidy-up ran wrote `from` over the answer and rescheduled itself
+    // for ever. The figure came to rest on the *previous* Hero Point total with rAF spinning
+    // behind it, which is worse than the leak that change was made to fix, and invisible to
+    // every driven check because `--virtual-time-budget` produces no frames at all.
     const draw = () => {
-        const t = Math.min(1, Math.max(0, Number(clock.currentTime ?? 0) / ms));
+        const now = clock.currentTime;
 
-        if (t >= 1) {
+        if (now === null || now === undefined || Number(now) >= ms) {
             // Assigned, never interpolated: the resting figure is the engine's.
             element.textContent = to;
             return;
         }
+
+        const t = Math.min(1, Math.max(0, Number(now) / ms));
 
         // Cubic ease out, matching --ease-out: quick away, settling into place.
         element.textContent = Math.round(from + ((to - from) * (1 - Math.pow(1 - t, 3))));
@@ -150,36 +159,48 @@ window.ppCount = (element, from, to) => {
 
     let handle = 0;
 
-    // The pump draws the frames a visitor sees. It draws only: **completion is the clock's own
-    // business**, below. Tying cleanup to the pump made it depend on frames being produced, and
-    // frames are exactly what `--virtual-time-budget` suppresses — so the tidy-up could not be
-    // driven, which is another way of saying it was not tested.
+    // The record this count owns the element with. A pump frame that finds a different record —
+    // superseded, or tidied away — is a leftover and must not draw: it would be writing an older
+    // count's numbers over a newer one's.
+    let record = null;
+
+    // The pump draws the frames a visitor sees. It draws only: completion is the clock's own
+    // business, below. Tying cleanup to the pump made it depend on frames being produced, and
+    // frames are exactly what `--virtual-time-budget` suppresses.
     const pump = () => {
+        if (element.ppCount !== record) return;
+
         draw();
-        if (Number(clock.currentTime ?? 0) < ms) handle = requestAnimationFrame(pump);
+
+        const now = clock.currentTime;
+        if (now !== null && now !== undefined && Number(now) < ms) {
+            handle = requestAnimationFrame(pump);
+        }
     };
 
     // **Completion, from the animation's own promise.** `fill: "forwards"` keeps a finished
     // animation *relevant*, so it stays attached to the element — one per count, on the single
-    // element in the budget strip, measured growing 1..10 over ten counts. Cancelling it is the
-    // tidy-up; drawing once more is what guarantees the resting figure is assigned even if no
-    // frame ever ran.
+    // element in the budget strip, measured growing 1..10 over ten counts.
     //
     // `cancel()` rejects this promise, which is the interrupt path and wants no tidy-up of its
     // own — the interrupting call has already taken over.
     clock.finished
         .then(() => {
             draw();
+            cancelAnimationFrame(handle);
             clock.cancel();
             element.ppCount = null;
         })
         .catch(() => { /* cancelled: the newer count owns this element now */ });
 
-    element.ppCount = {
+    record = {
         clock,
         draw,
         cancel: () => { cancelAnimationFrame(handle); clock.cancel(); element.ppCount = null; },
     };
+
+    element.ppCount = record;
+
 
     window.ppMotionStats.counts++;
     handle = requestAnimationFrame(pump);

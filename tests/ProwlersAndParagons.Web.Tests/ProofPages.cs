@@ -479,6 +479,37 @@ public sealed class ProofPages
                 tidy.getAnimations().length === 0,
                 `live clocks after finishing: ${tidy.getAnimations().length}`);
 
+          // **A frame that arrives after the tidy-up must not undo the answer.** This is the
+          // regression the previous fix shipped: `clock.cancel()` leaves `currentTime` null, the
+          // old code read that as `t = 0` through `?? 0`, and a pump frame still scheduled at
+          // completion wrote `from` back over the figure and rescheduled itself for ever. The
+          // strip came to rest on the *previous* Hero Point total.
+          //
+          // It was invisible to everything here because `--virtual-time-budget` produces no
+          // frames, so no pump was ever pending. Capturing `draw` and calling it after the
+          // tidy-up reproduces that frame exactly, with no frames required.
+          const late = document.createElement('span');
+          document.body.appendChild(late);
+          window.ppCount(late, 40, 60);
+
+          if (reduced) {
+            check('a frame arriving after the tidy-up cannot undo the answer',
+                  late.textContent === '60',
+                  `reduced=${reduced} shows ${late.textContent}`);
+          } else {
+            const leftover = late.ppCount;
+            leftover.clock.currentTime = enterMs;
+            leftover.clock.finish();
+            await settle();
+
+            const settled = late.textContent;
+            leftover.draw();
+
+            check('a frame arriving after the tidy-up cannot undo the answer',
+                  settled === '60' && late.textContent === '60',
+                  `settled on ${settled}, then a late frame showed ${late.textContent}`);
+          }
+
           // **Overlapping transitions.** `begin()` while one is open must release the first, or
           // its snapshot stays on screen for ever — the failsafe cannot help, because `guard` is
           // a module singleton the second `begin()` overwrote. Two navigations inside 260ms is
