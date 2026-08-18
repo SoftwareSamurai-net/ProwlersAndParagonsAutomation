@@ -395,6 +395,55 @@ One latent defect is also recorded: `_midTransition` is released by any render o
 not specifically the navigation's, so a render batch flushing in between would close the
 transition early and snapshot the old page twice. Not reachable today — no step-navigation path
 writes to the session before navigating — and it becomes live the first time one does.
+
+**The fix-audit — a reviewer pointed at the fixes rather than the code — was the most valuable of
+the three, and its first finding was a bug the previous round had *introduced*.** Of the ten fixes
+audited, three held, one held while shipping something worse, and six did not hold. That is close
+to the rate this project has recorded four sessions running, and it was found by asking for a
+*variant* rather than a re-run.
+
+**Severity 1: the counting figure came to rest on the previous Hero Point total.** Moving the
+tidy-up onto `clock.finished` calls `clock.cancel()`, after which `currentTime` is `null` — and
+`draw` read that through a nullish default as `t = 0`, so a pump frame still scheduled at
+completion wrote the *old* figure back over the answer and rescheduled itself for ever. Worse than
+the leak it replaced, live on the branch, and **found with no mutation applied at all**.
+
+The reason nothing saw it is the reason the fix was made in the first place:
+`--virtual-time-budget` produces no frames, so no pump was ever pending in any driven check. The
+property that made the cleanup testable is the property that hid the regression. It is fixed four
+ways, each sufficient alone — a null `currentTime` reads as the end rather than the beginning, the
+pump stops on it, the pump checks it still owns the element, and the finished handler cancels the
+pending frame — and the check that catches it needs no frames: capture the record's `draw`, finish
+the clock, call `draw` once more. Against the buggy version it reports *"settled on 60, then a late
+frame showed 40"*.
+
+**What else did not hold, and the variant that showed it:**
+
+| fix | the variant that walked past it |
+|---|---|
+| `view-transition-name` on a singleton selector | the rule put in `theme.css`, which was never read — and the same rule spelled `VIEW-TRANSITION-NAME`, which CSS treats as identical and a case-sensitive regex does not |
+| the cancel above the early returns | moving it *below* them: the harness's interrupt used 78→42, which never takes an early return, while `HpBudgetBar` produces `from === to` routinely |
+| every animation gated on `still()` | a module-level helper — `EnclosingBlock` still fell back to returning the whole file, which contains `still()`; and only `motion.js` was scanned |
+| `Motion` guarding the interop | calling `Js.InvokeVoidAsync("ppLand", …)` directly again: the fix guarded two call sites, not the property |
+| the `ShowBudget` guard | correct code with **zero cover** — deleting the line left everything green |
+| the insets harness | a margin on a band's first child: the band's own box and padding are untouched, so both spreads still read `0.00` |
+| the narrow harnesses | a 300px `::before` at `left: -320px` — `querySelectorAll` returns no pseudo-elements |
+| the structural hook guard | a *comment* naming `Motion.Begin()` left in the handler while the real call moved. Its bUnit half caught it; the structural half was worth nothing alone |
+
+**And one the audit found outside the ten:** `Begin(); End();` in the changing handler passes every
+check — a transition opened, from the right hook, and released — while animating nothing, because
+the second snapshot is taken before Blazor renders. The release belongs to the render, and that is
+asserted now.
+
+**Three fixes held under attack**, and the audit said what it tried: the `#app` wrapper (also
+confirming that `transform` and `contain` on that wrapper genuinely do *not* unstick the strip, so
+the harness's own docstring overstates them), the sticky harness's `before > 20`, and the overlap
+check.
+
+**My own new guard was theatre once in this round too.** The release-ordering check read its
+counter synchronously after `begin()`, and a release resolves a promise — so it reported zero
+whether or not `begin()` had released, and passed the exact variant it was written for. It settles
+first now.
 **Item 2's last part: a row arriving in a chosen list lands, and `--ease-emphasised` arrives with
 it.** Phase 0 withheld that token deliberately — an overshoot curve wants something that should
 read as *landing*, and until now nothing did. A row moving from the picker into the character is

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
 using Microsoft.JSInterop;
+using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Layout;
 using ProwlersAndParagonsAutomation.Web.Services;
 
@@ -117,5 +118,46 @@ public sealed class MotionWiringTests
 
         // And the failure is recorded rather than merely ignored, so it is inspectable.
         Assert.True(ctx.Services.GetRequiredService<Motion>().ScriptIsMissing);
+    }
+
+    /// <summary>
+    /// <b>No interop for a strip that is not on the page.</b>
+    ///
+    /// <para>Villain mode removes the whole budget section, but Blazor never clears an
+    /// <c>@ref</c> when its element stops rendering — and the component stays alive and
+    /// subscribed. So every change to the character fired a count at a detached node, absorbed by
+    /// a null guard in the script that nobody had written down as load-bearing.</para>
+    ///
+    /// <para>The guard that fixed it had no cover at all: deleting the line left the whole suite
+    /// green. <c>TheChromeAlwaysEndsInAVisibleEdge</c> looked like cover and is not — it asserts
+    /// the string <c>Session.ShowBudget</c> occurs in the file, which the markup's own
+    /// <c>@if</c> satisfies.</para>
+    /// </summary>
+    [Fact]
+    public async Task NoCountIsIssuedWhileTheStripIsNotRendered()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+
+        var strip = ctx.Render<HpBudgetBar>();
+        Assert.Contains("budget-figure", strip.Markup, StringComparison.Ordinal);
+
+        // Switch to a Villain: Ch.9 gives no budget, so the section stops rendering entirely.
+        await strip.InvokeAsync(() => ctx.Session.Mode = SheetMode.Villain);
+        strip.Render();
+        Assert.DoesNotContain("budget-figure", strip.Markup, StringComparison.Ordinal);
+
+        var before = ctx.JSInterop.Invocations.Count(i => i.Identifier == "ppCount");
+
+        // Anything that changes the spend. The component is still subscribed and still renders.
+        await strip.InvokeAsync(() => ctx.Session.Sheet.AbilityRanks["might"] = 7);
+        strip.Render();
+
+        var after = ctx.JSInterop.Invocations.Count(i => i.Identifier == "ppCount");
+
+        Assert.True(
+            after == before,
+            $"ppCount was called {after - before} more time(s) while the strip was not rendered. "
+            + "The @ref still points at a detached node; the call is absorbed by a null guard in "
+            + "the script rather than doing anything.");
     }
 }

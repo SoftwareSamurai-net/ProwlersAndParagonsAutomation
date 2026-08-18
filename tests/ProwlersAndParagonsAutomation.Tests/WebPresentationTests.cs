@@ -2604,26 +2604,41 @@ public sealed class WebPresentationTests
         Assert.Contains("prefers-reduced-motion", motion.Text, StringComparison.Ordinal);
         Assert.Contains("matchMedia", motion.Text, StringComparison.Ordinal);
 
-        var code = WithoutJsComments(motion.Text);
+        // **Every script the app ships, not just motion.js.** `download.js` is already a second
+        // file in index.html and was unchecked; the next animation need not land in the file this
+        // test was named after.
+        var scripts = Scripts.ToList();
 
-        var calls = AnimationCalls
-            .SelectMany(needle => Occurrences(code, needle).Select(at => (Needle: needle, At: at)))
-            .ToList();
+        Assert.Contains(scripts, s => s.Name == "motion.js");
+
+        var gated = 0;
+
+        foreach (var (name, text) in scripts)
+        {
+            var code = WithoutJsComments(text);
+
+            foreach (var needle in AnimationCalls)
+            {
+                foreach (var at in Occurrences(code, needle))
+                {
+                    gated++;
+
+                    var body = EnclosingBlock(code, at);
+
+                    Assert.True(
+                        body.Contains("still()", StringComparison.Ordinal),
+                        $"{name}: a call to {needle} is not gated on still(), so a reduced-motion "
+                        + "user gets the full animation. The stylesheet's 0.01ms tokens do not "
+                        + "reach a script.");
+                }
+            }
+        }
 
         Assert.True(
-            calls.Count >= 3,
-            $"Found {calls.Count} animation calls in motion.js; expected at least the three entry "
-            + "points. If they moved, point this test at them rather than letting it pass empty.");
-
-        foreach (var (needle, at) in calls)
-        {
-            var body = EnclosingBlock(code, at);
-
-            Assert.True(
-                body.Contains("still()", StringComparison.Ordinal),
-                $"A call to {needle} is not gated on still(), so a reduced-motion user gets the "
-                + "full animation. The stylesheet's 0.01ms tokens do not reach this code.");
-        }
+            gated >= 3,
+            $"Found {gated} animation calls across the app's scripts; expected at least the three "
+            + "entry points. If they moved, point this test at them rather than letting it pass "
+            + "on an empty list.");
     }
 
     /// <summary>
@@ -2690,7 +2705,9 @@ public sealed class WebPresentationTests
 
         // ...and what does that method's body do? Anchored on the declaration, so moving the call
         // into LocationChanged's handler no longer satisfies it.
-        var body = MethodBodyOf(layout, handler);
+        // Comments blanked first: the fix-audit left a comment mentioning Motion.Begin() inside
+        // the handler while moving the real call into LocationChanged, and this passed.
+        var body = MethodBodyOf(WithoutJsComments(layout), handler);
 
         Assert.True(
             body.Contains("Motion.Begin()", StringComparison.Ordinal),
@@ -2698,8 +2715,22 @@ public sealed class WebPresentationTests
             + "transition. If the snapshot is taken from LocationChanged instead, it captures the "
             + "page that has already gone.");
 
-        // Released after the render, or the app freezes behind a snapshot on its first navigation.
-        Assert.Contains("Motion.End()", layout, StringComparison.Ordinal);
+
+        // **The release is not in the changing handler.** `Begin(); End();` there passes every
+        // other check — a transition is opened, from the right hook, and released — and animates
+        // nothing at all, because the second snapshot is taken before Blazor has rendered the new
+        // page. The release belongs to the render.
+        Assert.False(
+            body.Contains("Motion.End()", StringComparison.Ordinal),
+            "The transition is released inside the LocationChanging handler, so the second "
+            + "snapshot is taken before the new page has rendered and nothing ever animates. "
+            + "Release it from OnAfterRenderAsync.");
+
+        Assert.True(
+            MethodBodyOf(WithoutJsComments(layout), "OnAfterRenderAsync")
+                .Contains("Motion.End()", StringComparison.Ordinal),
+            "Nothing releases the transition after a render, so the app is left behind a "
+            + "snapshot of itself until the failsafe fires.");
 
         // The registration is disposed. bUnit creates a layout per test, and an undisposed handler
         // outlives the component that registered it.
@@ -2743,6 +2774,51 @@ public sealed class WebPresentationTests
         return string.Empty;
     }
 
+
+    /// <summary>
+    /// <b>Nothing calls the app's own scripts except through <c>Motion</c>.</b>
+    ///
+    /// <para><c>Motion</c> exists because a missing or broken <c>motion.js</c> would otherwise
+    /// throw out of a <c>LocationChanging</c> handler and out of every <c>ChosenList</c> render,
+    /// taking navigation down with a 404. But guarding the two call sites is not the same
+    /// property as guarding the app: the fix-audit put <c>Js.InvokeVoidAsync("ppLand", …)</c>
+    /// straight back into <c>ChosenList</c> and every test stayed green.</para>
+    ///
+    /// <para>So this asserts the shape rather than the instances. <c>ppSetMode</c>,
+    /// <c>ppStore</c> and <c>ppDownload</c> are exempt by name: they are reached only by an
+    /// explicit user action — switching palette, saving, downloading — where a failure is
+    /// visible and recoverable, not by a render or a navigation. Adding a fourth needs a reason
+    /// of the same kind.</para>
+    /// </summary>
+    [Fact]
+    public void TheAppsOwnScriptsAreCalledOnlyThroughMotion()
+    {
+        // Reached by a user action, not by rendering or navigating.
+        string[] byHand = ["ppSetMode", "ppStore", "ppDownload"];
+
+        var offenders = new List<string>();
+
+        foreach (var file in RazorFiles)
+        {
+            var text = File.ReadAllText(file);
+
+            foreach (Match call in Rx(@"Invoke(Void)?Async(<[^>]+>)?\(\s*""(pp[A-Za-z.]+)""").Matches(text))
+            {
+                var target = call.Groups[3].Value;
+                var root = target.Split('.')[0];
+
+                if (byHand.Contains(root, StringComparer.Ordinal)) continue;
+
+                offenders.Add($"{Path.GetFileName(file)} calls {target} directly");
+            }
+        }
+
+        Assert.True(
+            offenders.Count == 0,
+            "These reach a script without going through Motion, so a missing motion.js throws "
+            + "out of a render or a navigation instead of being swallowed:\n  "
+            + string.Join("\n  ", offenders));
+    }
     /// <summary>The three chrome bands, each appearing exactly once in the component tree.</summary>
     private static readonly string[] SingletonSelectors = [".banner", ".steps", ".budget"];
 
@@ -2765,8 +2841,15 @@ public sealed class WebPresentationTests
     {
         // A local would fail CA1861 under warnings-as-errors; see SingletonSelectors.
 
-        var rules = Rx(@"([^{}]+)\{([^{}]*?view-transition-name:\s*([A-Za-z-][\w-]*)[^{}]*)\}")
-            .Matches(WithoutCssComments(AppCss))
+        // **Both stylesheets, and case-insensitively.** The fix-audit broke the first version two
+        // ways without touching this file: a rule put in `theme.css`, which was never read, and
+        // the same rule spelled `VIEW-TRANSITION-NAME`, which CSS treats as identical and a
+        // case-sensitive regex does not. Both reached driven Chrome as
+        // `InvalidStateError: Transition was aborted because of invalid state`.
+        var rules = Rx(
+                @"([^{}]+)\{([^{}]*?view-transition-name:\s*([A-Za-z-][\w-]*)[^{}]*)\}",
+                RegexOptions.IgnoreCase)
+            .Matches(WithoutCssComments(AppCss) + "\n" + WithoutCssComments(ThemeCss))
             .Select(m => (Selector: Normalise(m.Groups[1].Value), Name: m.Groups[3].Value))
             .ToList();
 
@@ -2847,7 +2930,17 @@ public sealed class WebPresentationTests
         return outp.ToString();
     }
 
-    /// <summary>The smallest braced block containing <paramref name="at"/>.</summary>
+    /// <summary>
+    /// The smallest braced block containing <paramref name="at"/>, or <b>the empty string</b> when
+    /// there is none.
+    ///
+    /// <para><b>Returning the whole file as a fallback is what made the old helper a whole-file
+    /// grep</b>, and the fix-audit showed the fallback surviving the first repair: a call at
+    /// module top level has no enclosing block, so the file came back — and the file contains
+    /// <c>still()</c>. An ungated animation in a module-level helper passed. Empty is the honest
+    /// answer, and it fails the caller's assertion, which is the right outcome: an animation
+    /// nothing encloses is an animation nothing gates.</para>
+    /// </summary>
     private static string EnclosingBlock(string text, int at)
     {
         var open = text.LastIndexOf('{', at);
@@ -2870,7 +2963,7 @@ public sealed class WebPresentationTests
             open = text.LastIndexOf('{', open - 1);
         }
 
-        return text;
+        return string.Empty;
     }
 
     /// <summary>

@@ -461,6 +461,25 @@ public sealed class ProofPages
                 reduced ? busy.getAnimations().length === 0 : busy.getAnimations().length === 1,
                 `reduced=${reduced} live clocks on the figure: ${busy.getAnimations().length}`);
 
+          // **An interrupt that takes an early return.** The check above uses 78 -> 42, which
+          // never hits one — so moving the cancel *below* the early returns passed it, while
+          // `HpBudgetBar` produces the early-return case routinely: `OnAfterRenderAsync` calls
+          // with `from === to` whenever a render changes nothing about the spend. With an older
+          // count still in flight, that path assigned the answer and left the old count pumping
+          // over the top of it.
+          const early = document.createElement('span');
+          document.body.appendChild(early);
+          window.ppCount(early, 0, 100);
+
+          if (!reduced) { early.ppCount.clock.currentTime = enterMs * 0.4; early.ppCount.draw(); }
+
+          // Same value both ends: the immediate path.
+          window.ppCount(early, 100, 100);
+
+          check('an interrupt taking the immediate path still stops the old count',
+                early.textContent === '100' && early.getAnimations().length === 0,
+                `shows ${early.textContent}, live clocks ${early.getAnimations().length}`);
+
           // A completed count leaves none. `fill: "forwards"` keeps a finished animation
           // relevant, so without an explicit cancel they accumulated one per count on the one
           // element in the budget strip — measured growing 1..10 over ten counts.
@@ -522,6 +541,29 @@ public sealed class ProofPages
           check('a second transition releases the first',
                 reduced ? released.length === 0 : released.length === 2,
                 `reduced=${reduced} released ${released.length} of 2 opened`);
+
+          // **The release must come after the snapshot, not with it.** Moving `end()` below
+          // `startViewTransition` inside `begin()` releases every transition before Blazor has
+          // rendered the new page, so nothing ever animates — and checks 2, 3 and the overlap
+          // check are all satisfied by a release that happened too early. Holding the promise
+          // open across a `begin()` is the property; this asserts it directly.
+          released.length = 0;
+          window.ppMotion.begin();
+
+          // **Settle first.** The release resolves a promise, so reading the counter
+          // synchronously after begin() reports 0 whether or not begin() released it — which is
+          // how the first version of this check passed the very variant it was written for.
+          await settle();
+          const releasedWhileOpen = released.length;
+          window.ppMotion.end();
+          await settle();
+
+          check('a transition stays open until end() is called',
+                reduced
+                  ? releasedWhileOpen === 0 && released.length === 0
+                  : releasedWhileOpen === 0 && released.length === 1,
+                `reduced=${reduced} released ${releasedWhileOpen} before end(), ` +
+                `${released.length} after`);
 
 
           // ── A row landing in a list ──────────────────────────────────────────────────
@@ -782,8 +824,35 @@ public sealed class ProofPages
             // reports no scroll at all. The offenders were being computed, sorted, printed and
             // then ignored. WCAG 1.4.10 is about content you cannot reach, not about a
             // scrollbar.
-            say(rendered > 20 && narrow && over.length === 0 && off.length === 0 && scroll <= client + 0.5,
+            // **`::before` and `::after` too, and this is not a corner case.** `querySelectorAll`
+            // returns no pseudo-elements, so a generated box pushed off the viewport is invisible
+            // to the sweep above — and leftward overflow does not grow `scrollWidth` either, so
+            // nothing else notices. A 300px `::before` at `left: -320px` sat entirely off a 375px
+            // screen with both narrow harnesses green. Range boxes are what a pseudo-element can
+            // be measured with; the element's own box does not include it.
+            const generated = [];
+            for (const el of d.querySelectorAll('*')) {
+              for (const which of ['::before', '::after']) {
+                const gen = d.defaultView.getComputedStyle(el, which);
+                if (!gen || gen.content === 'none' || gen.content === '' ) continue;
+                if (gen.position !== 'absolute' && gen.position !== 'fixed') continue;
+
+                const l = parseFloat(gen.left);
+                const wide = parseFloat(gen.width);
+                if (Number.isNaN(l) || Number.isNaN(wide)) continue;
+
+                const box = el.getBoundingClientRect();
+                const from = box.left + l;
+                if (from < -0.5 || from + wide > client + 0.5) {
+                  generated.push(`    ${el.tagName.toLowerCase()}${which} spans ` +
+                                 `${from.toFixed(1)}..${(from + wide).toFixed(1)}`);
+                }
+              }
+            }
+
+            say(rendered > 20 && narrow && over.length === 0 && off.length === 0 && generated.length === 0 && scroll <= client + 0.5,
               `target {{target}}  elements ${rendered}\nclientWidth ${client}  scrollWidth ${scroll}` +
+              (generated.length ? `\ngenerated boxes off-screen:\n${generated.join('\n')}` : '') +
               (off.length ? `\noff the left edge:\n${off.join('\n')}` : '') +
               (over.length ? `\noverflowing:\n${over.join('\n')}` : '\nnothing overflows'));
           } catch (e) {
@@ -856,15 +925,22 @@ public sealed class ProofPages
             for (const [name, sel] of Object.entries(parts)) {
               const el = d.querySelector(sel);
               if (!el) { rows.push(`    ${name}: ${sel} NOT FOUND`); continue; }
-              // **The content edge, not the border edge.** `getBoundingClientRect().left` is the
-              // border box, so padding moves the text on the page without moving the number this
-              // reads — a 60px padding-left on one band left it visibly out of line with the
-              // other three and the harness reported a spread of 0.00px. Found by deliberately
-              // breaking it, which is the only reason it is not still wrong.
+              // **Two different sources, because one measurement cannot catch both faults.**
+              // The left edge is where the contents actually begin, so it is read off the first
+              // child: a margin there moves the text 96px while the band's own box and padding
+              // are untouched, and measuring the band alone reported a spread of 0.00. The right
+              // edge cannot come from the first child — that is just one element's width — so it
+              // is the band's padding box, which is what a padding-right change moves.
               const r = el.getBoundingClientRect();
               const pad = window.getComputedStyle(el);
-              const left = r.left + parseFloat(pad.paddingLeft || '0');
+              const inner = el.firstElementChild;
+              const innerBox = inner ? inner.getBoundingClientRect() : null;
+
+              const left = innerBox && innerBox.width > 0
+                ? innerBox.left
+                : r.left + parseFloat(pad.paddingLeft || '0');
               const right = r.right - parseFloat(pad.paddingRight || '0');
+
               lefts.push(left);
               rights.push(right);
               rows.push(`    ${name.padEnd(7)} content ${left.toFixed(1)} .. ${right.toFixed(1)}`);
