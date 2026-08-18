@@ -53,7 +53,12 @@
     --panel-sunk:   color-mix(in srgb, var(--panel) 92%, var(--ink));
     --accent-soft:  color-mix(in srgb, var(--accent) 22%, var(--panel));
     --danger-soft:  color-mix(in srgb, var(--danger) 12%, var(--panel));
-    --shadow:       0 1px 2px rgb(15 27 45 / 8%), 0 4px 14px rgb(15 27 45 / 6%);
+
+    /* Three depths. See the elevation note further down: one shadow was doing the
+       work of four different heights, so nothing on the page had a height. */
+    --shadow-1:     0 1px 2px rgb(15 27 45 / 7%);
+    --shadow-2:     0 1px 2px rgb(15 27 45 / 8%), 0 4px 14px rgb(15 27 45 / 6%);
+    --shadow-3:     0 1px 3px rgb(15 27 45 / 10%), 0 10px 28px rgb(15 27 45 / 12%);
 
     --rule-weight:  1px;
     --heading-track: 0.01em;   /* letter-spacing on headings */
@@ -80,7 +85,13 @@
     --panel-sunk:   color-mix(in srgb, var(--panel) 80%, #000);
     --accent-soft:  color-mix(in srgb, var(--accent) 18%, var(--panel));
     --danger-soft:  color-mix(in srgb, var(--danger) 14%, var(--panel));
-    --shadow:       0 1px 2px rgb(0 0 0 / 55%), 0 6px 20px rgb(0 0 0 / 45%);
+
+    /* Heavier at every step than the Hero palette's, for the reason the block
+       comment above gives: a dark theme built by flipping a light one reads flat,
+       and a shadow on a near-black ground has to be darker to be seen at all. */
+    --shadow-1:     0 1px 2px rgb(0 0 0 / 45%);
+    --shadow-2:     0 1px 2px rgb(0 0 0 / 55%), 0 6px 20px rgb(0 0 0 / 45%);
+    --shadow-3:     0 1px 3px rgb(0 0 0 / 60%), 0 12px 32px rgb(0 0 0 / 55%);
 
     --rule-weight:  2px;
     --heading-track: -0.005em;
@@ -88,9 +99,240 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Type.
+
+   Two faces with distinct jobs, which is the single biggest visual difference
+   between this app and the companion app it was measured against. A condensed
+   face carries every heading, label and figure — the structural furniture — and
+   a separate face carries running prose. Separating levels by size and weight
+   alone, which is what the system stack did here on its own, reads as a document
+   with no design in it.
+
+   **The same rule applies as to colour: nothing outside this file names a face.**
+   app.css and every component ask for --font-display or --font-body, so changing
+   the house style is an edit here and the two palettes cannot drift apart on it.
+   There is a test.
+
+   **Both are self-hosted, and both are under the SIL Open Font License**, whose
+   text travels with them in wwwroot/fonts/ — that is a condition of redistributing
+   them and not a courtesy. Served from this origin, so the Content-Security-Policy
+   needs nothing beyond the `font-src 'self'` it already carries; a hosted font
+   service would have needed a policy change and would have made the site depend on
+   somebody else's uptime.
+
+   **Oswald for display**: a condensed grotesque drawn for headings rather than a
+   text face squeezed narrow, which is what makes it hold up at the sizes below and
+   at tracking this wide. It has no italic and needs none — everything set in it is
+   uppercase.
+
+   **Public Sans for body**, over Source Sans 3, on payload: the variable Public
+   Sans is 103 KB against Source Sans 3's 642 KB for the same job, and the browser
+   payload is already the largest open item on this project. Its italic is a second
+   file because the sheet means it — the quote and the Trait Source line are set
+   that way, and a browser told to fake an oblique slants the roman instead.
+
+   Both are **variable** fonts, so one file covers every weight the app asks for
+   rather than four; the ranges below are what each family actually ships.
+
+   They are `.ttf` rather than `.woff2`, which would be roughly 40% smaller. That
+   is not a preference — there is no converter on this machine and no network to
+   fetch one. Converting them is a worthwhile follow-up and changes one line each.
+
+   The stacks still name system fallbacks after the self-hosted family, because a
+   font file can fail to load and the page still has to be readable when it does.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@font-face {
+    font-family: "Oswald";
+    src: url("../fonts/Oswald-Variable.ttf") format("truetype-variations");
+    font-weight: 200 700;
+    font-style: normal;
+    /* Show the fallback immediately and swap when the file lands, rather than
+       holding the text invisible while it loads. A character sheet that is briefly
+       set in the wrong face is better than one that is briefly blank. */
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Public Sans";
+    src: url("../fonts/PublicSans-Variable.ttf") format("truetype-variations");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Public Sans";
+    src: url("../fonts/PublicSans-Italic-Variable.ttf") format("truetype-variations");
+    font-weight: 100 900;
+    font-style: italic;
+    font-display: swap;
+}
+
+:root {
+    --font-body: "Public Sans", "Segoe UI", system-ui, -apple-system,
+                 "Helvetica Neue", sans-serif;
+
+    --font-display: "Oswald", "Bahnschrift", "Archivo Narrow",
+                    "Avenir Next Condensed", "Liberation Sans Narrow",
+                    "DejaVu Sans Condensed", system-ui, sans-serif;
+
+    /* A condensed face is narrower per character, so it takes more tracking to
+       read as deliberate and less leading to read as set rather than stacked.
+       Both are tokens because the print block wants different values: tracking
+       that looks right on a screen closes up on paper at 8pt. */
+    --display-track: 0.06em;
+    --display-leading: 1.08;
+
+    /* The small uppercase tracked label that carries the structure of a long form
+       on screen. Separate from --display-track because a 0.7rem label needs
+       noticeably more of it than a 1.7rem heading does. */
+    --label-track: 0.11em;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Space.
+
+   **These are the scale, and app.css may not name a length outside it.** Same
+   argument as colour and type, and the same test shape holds it: a stylesheet
+   that picks a padding per rule accumulates a vertical rhythm instead of
+   deciding one, and no two boxes end up related to each other by anything.
+
+   It had accumulated. Before this scale existed the screen half of app.css spent
+   **twenty-seven** distinct lengths on padding, margin and gap alone —
+   0.05 0.15 0.2 0.22 0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85
+   0.9 0.95 1 1.1 1.15 1.2 1.25 1.5 2 3rem — which is not a scale but a history
+   of individual decisions, most of them a fraction apart and none of them
+   distinguishable on screen. (`docs/FRONT-END-PLAN.md` listed twenty of them; the
+   count here is measured off the file.) Nine rungs replace them.
+
+   **Steps of 2px at the bottom and 4px above it, not 4px throughout.** Four of
+   the values above sit between 4.8px and 7.2px — tag padding, pip gaps, the gap
+   in a flex row of controls — and a strict 4px scale collapses that whole range
+   onto either 4px or 8px, which is a factor of two on the tightest spacing in the
+   app. The half-steps are where the interface genuinely needs them and stop
+   above 8px, where nobody can see 2px anyway.
+
+   Nothing here is for *structural* geometry — a card grid's 17rem column floor, a
+   68ch measure for prose, the 1100px shell — which is a different kind of number:
+   a spacing token says how far apart two things sit, and those say how big one
+   thing is. The test that holds this rule says so, and names them.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* The width of the content column, and the one length that is neither spacing nor
+   type. It is a token because **three separate bands have to agree on it**: the
+   shell, the step list and the budget strip are laid out full-window-width and
+   centre their contents on this figure, so a reader sees one column rather than
+   three that nearly line up. Before the chrome moved out of the shell there was
+   one copy of it and a pair of negative margins keeping the strip in step; there
+   are three references now and no negative margins at all. */
+:root { --column: 1100px; }
+
+:root {
+    --space-0:  0.125rem;  /*  2px — hairline: tag padding, pip gaps          */
+    --space-1:  0.25rem;   /*  4px                                           */
+    --space-2:  0.375rem;  /*  6px                                           */
+    --space-3:  0.5rem;    /*  8px                                           */
+    --space-4:  0.75rem;   /* 12px — the workhorse: most box padding          */
+    --space-5:  1rem;      /* 16px                                           */
+    --space-6:  1.5rem;    /* 24px — between sections                        */
+    --space-7:  2rem;      /* 32px                                           */
+    --space-8:  3rem;      /* 48px — the foot of the page                    */
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Type sizes.
+
+   The same problem and the same fix: **twenty** distinct font sizes on the screen
+   side, nineteen in rem plus the body's own 15.5px, ten of them crowded between
+   0.68rem and 0.9rem where no reader can tell one from the next. Seven rungs
+   replace them, stepping by roughly 1.2 in the middle of the scale.
+
+   **Two rungs are anchored to existing values rather than to the ratio, and both
+   for a reason that is not taste.** `--text-xs` is exactly 0.72rem because that
+   is the floor `--muted` was *measured* against — the note on it above holds it
+   to 4.5:1 rather than 3:1 precisely because it carries explanatory prose at this
+   size, and a scale that rounded the smallest rung down to 0.67rem would quietly
+   invalidate that measurement. `--text-3xl` is exactly 2.15rem because it is the
+   masthead and there is nothing above it for the ratio to answer to.
+
+   **Both anchors have a test, and the second one did not.** This block said
+   "exactly 2.15rem … not to be tidied onto a ratio" while the declaration below
+   read 2.1rem — the ratio-derived value — so the rung the note singles out as
+   unpinnable was the one already off its stated anchor, in four documents at once,
+   with nothing reporting it. The consequence of the anchor is that the top step is
+   1.26 rather than ~1.2; that is what "anchored, not derived" costs, and it is
+   stated here rather than being tidied away next time somebody notices.
+
+   The base is 0.97rem, which is the 15.5px the body has always been set at, so
+   running prose does not reflow for the sake of a round number.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+:root {
+    --text-xs:   0.72rem;  /* 11.5px — uppercase labels, tags, costs. The floor. */
+    --text-sm:   0.82rem;  /* 13.1px — small print, captions, stat lines         */
+    --text-base: 0.97rem;  /* 15.5px — body                                     */
+    --text-lg:   1.15rem;  /* 18.4px — h3, a stepper's value, a card's name      */
+    --text-xl:   1.4rem;   /* 22.4px — h2, the banner title                     */
+    --text-2xl:  1.7rem;   /* 27.2px — the character's name on the sheet        */
+    --text-3xl:  2.15rem;  /* 34.4px — h1, and the four figures. Anchored: see  */
+                           /*          the note above, and the test that pins it */
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Elevation — the note the two palettes above point at.
+
+   **One `--shadow` was carrying four different heights**: the banner, every panel,
+   the character sheet, the tier cards and the sticky budget strip all asked for
+   the same one. The consequence is not that the page looked wrong — it is that
+   nothing on it had a height. A strip that stays put while the column scrolls
+   under it is doing something no panel does, and it said so with the same shadow
+   as a panel.
+
+   Three steps, and they are a hierarchy rather than three tastes:
+
+     --shadow-1  resting. Panels, cards, the sheet. Barely there — it separates a
+                 white box from a near-white page and no more.
+     --shadow-2  a band. The banner, which sits above the page rather than in it.
+     --shadow-3  floating. **The sticky budget strip, and nothing else.** It is
+                 the only element that moves independently of the document, and
+                 the only one that should read as being over it.
+
+   The values differ per palette, which is why they are declared up there with the
+   colours rather than here: a shadow is a colour with a blur on it, and one built
+   for a near-white page is invisible on a near-black one.
+
+   All three flatten to `none` on paper. See the print block at the foot of this
+   file, which restates each of them — a token left out keeps its screen value.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Shape and motion. Not colours, but the same argument applies: a component that
    hard-codes a radius or a duration is a component the two palettes can drift
    apart on, and one more place to edit when the house style changes.
+
+   **The easings are tokens for the same reason the durations are.** How a thing
+   moves is as much a house style as how long it takes, and `--ease` alone meant
+   every transition in the app shared one curve whether it was a 120ms pip
+   changing state or a 260ms panel arriving. `--ease` stays the curve for a state
+   change — a hover, a border, a colour, where the motion is incidental to the
+   change. `--ease-out` decelerates hard into place and is for something that
+   *travels*: a panel arriving, the budget rail moving to a new figure.
+
+   **`--ease-emphasised` arrives here, in the phase that has something to
+   overshoot.** It was deliberately absent through Phases 0 and 1 because an
+   overshoot curve wants something that should read as *landing*, and nothing on
+   the page did — declaring it earlier would have shipped a token no rule asked
+   for, the way a `.label-line` class once shipped applied to nothing. The thing
+   that lands is a row arriving in a chosen list: it comes from the picker below
+   and settles into place, and a curve that goes slightly past and comes back is
+   what makes that read as an arrival rather than a repaint. It is used by that
+   one rule and should stay that way — an overshoot on a state change reads as a
+   wobble.
+
+   These are curves and not durations, so `prefers-reduced-motion` does not touch
+   them — it collapses the durations below to 0.01ms, at which point no curve is
+   observable. A reduced-motion user is served by the duration block, not here.
    ───────────────────────────────────────────────────────────────────────────── */
 
 :root {
@@ -102,7 +344,13 @@
     --step:         120ms;    /* pips, bar fills — must feel instant       */
     --swap:         180ms;    /* hover and focus states                    */
     --enter:        260ms;    /* a panel arriving                          */
-    --ease:         cubic-bezier(0.2, 0, 0.2, 1);
+
+    --ease:     cubic-bezier(0.2, 0, 0.2, 1);   /* a state change            */
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);  /* something that travels    */
+
+    /* Goes past and comes back — for something that lands. One user: a row
+       arriving in a chosen list. See the note above before reaching for it. */
+    --ease-emphasised: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* Anyone who has asked their system for less movement gets none of it. This has
@@ -147,7 +395,14 @@
         --primary:      #FFFFFF;   /* a fill: on paper the banner is ruled       */
         --panel-sunk:   #FFFFFF;
         --danger-soft:  #FFFFFF;
-        --shadow:       none;
+
+        /* All three depths flatten. Paper has no elevation, and a box-shadow that
+           survives into print is a grey smear along one edge of every box. Each is
+           restated rather than left to the cascade for the reason the block comment
+           gives: a token left out keeps its screen value. */
+        --shadow-1:     none;
+        --shadow-2:     none;
+        --shadow-3:     none;
 
         --rule-weight:  1px;
         --heading-track: 0.02em;
@@ -156,6 +411,16 @@
         --radius:       0;         /* rounded corners are a screen affordance   */
         --radius-small: 0;
         --radius-pill:  0;
+
+        /* The two faces stay as they are — a printed sheet wants a display face
+           for its section bars as much as the screen does, and the published
+           sheet sets its own headings that way. What changes is the fitting.
+           Tracking that reads as deliberate at 1.7rem on a screen opens a 8pt
+           bar into loose letters on paper, and a condensed face at that size can
+           take tighter leading than a screen needs. */
+        --display-track: 0.04em;
+        --display-leading: 1.05;
+        --label-track: 0.09em;
     }
 
     /* Hero — the same navy and gold as the screen, at printable strength. */

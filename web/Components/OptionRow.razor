@@ -1,19 +1,26 @@
 @* One pickable row: a name, an optional line of explanation under it, and a price or
-   category on the right. The whole row is the button, so the target is the full width. *@
+   category on the right. The whole row is the button, so the target is the full width.
 
-<button type="button" class="option" @onclick="OnSelect">
-    <span class="body">
-        <span class="name">@Name@NameExtra</span>
-        @if (Caveat is not null)
+   Whether it is drawn at all is the enclosing <OptionList>'s filter to decide. A row outside
+   one draws unconditionally — the cascading value is optional, so this component is still
+   usable on its own. *@
+
+@if (Admitted)
+{
+    <button type="button" class="@RowClass" @onclick="OnSelect">
+        <span class="body">
+            <span class="name">@Name@NameExtra</span>
+            @if (Caveat is not null)
+            {
+                <span class="caveat">@Caveat</span>
+            }
+        </span>
+        @if (Cost is not null)
         {
-            <span class="caveat">@Caveat</span>
+            <span class="cost">@Cost</span>
         }
-    </span>
-    @if (Cost is not null)
-    {
-        <span class="cost">@Cost</span>
-    }
-</button>
+    </button>
+}
 
 @code {
     [Parameter, EditorRequired] public string Name { get; set; } = "";
@@ -27,5 +34,63 @@
     /// <summary>Right-hand column: a price, or a category where there is no price.</summary>
     [Parameter] public string? Cost { get; set; }
 
+    /// <summary>
+    /// Words this row can be found by that it does not print. The Powers tab searched tags as
+    /// well as names before the filter moved into <see cref="OptionList"/>, and tags appear
+    /// nowhere on the row — so without this, moving the box here would have quietly narrowed
+    /// the one list that already had one.
+    /// </summary>
+    [Parameter] public IEnumerable<string>? Keywords { get; set; }
+
+    /// <summary>
+    /// Whether this row is the answer already chosen. Drawn as a ring rather than a fill,
+    /// because <c>--accent</c> is never legible behind text in either palette — and it is
+    /// never the <i>only</i> marking, since a ring is a colour and around one man in twelve
+    /// has some colour-vision deficiency. Callers pass a tag through
+    /// <see cref="NameExtra"/> beside it; the tier cards say "Selected" in words.
+    /// </summary>
+    [Parameter] public bool Selected { get; set; }
+
     [Parameter] public EventCallback OnSelect { get; set; }
+
+    private string RowClass => Selected ? "option selected" : "option";
+
+    [CascadingParameter] private OptionFilter? Filter { get; set; }
+
+    /// <summary>
+    /// <b>Evaluated once per render pass and stored, not written as a property the markup
+    /// calls.</b> Asking the filter is what counts the row, so a property read twice would
+    /// count it twice and report more rows than the list holds.
+    /// </summary>
+    private bool Admitted { get; set; } = true;
+
+    /// <summary>
+    /// The pass this row last counted itself for.
+    ///
+    /// <para><b>Blazor sets a row's parameters twice per pass and the count was double.</b> A
+    /// row inside a <c>CascadingValue</c> is reached from both directions when the value
+    /// changes — once because the parent re-rendered the fragment holding it, and once because
+    /// the cascading value notified its subscribers — so <c>OnParametersSet</c> runs twice and
+    /// the naive version counted 282 of 282 Powers where the rulebook has 141. It read as a
+    /// plausible number beside a list nobody counts.</para>
+    ///
+    /// <para>So the row counts itself <b>once per pass, however many times it is asked</b>,
+    /// rather than the list assuming how often Blazor will ask. That is the invariant the
+    /// count depends on, stated where it can hold.</para>
+    /// </summary>
+    private int _countedPass = -1;
+
+    protected override void OnParametersSet()
+    {
+        if (Filter is null)
+        {
+            Admitted = true;
+            return;
+        }
+
+        if (Filter.Pass == _countedPass) return;
+
+        _countedPass = Filter.Pass;
+        Admitted = Filter.Admits([Name, Caveat, .. Keywords ?? []]);
+    }
 }

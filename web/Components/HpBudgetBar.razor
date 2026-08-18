@@ -1,9 +1,20 @@
 @implements IDisposable
 @inject CharacterSession Session
+@inject Motion Motion
 
 @* The Hero Point budget, straight from CostCalculator — nothing here adds anything up.
    Hidden entirely in Villain mode: Ch.9 gives Villains no budget, so a bar showing 0/0
-   and an over-budget error would both be wrong rather than merely unhelpful. *@
+   and an over-budget error would both be wrong rather than merely unhelpful.
+
+   **It is a strip of chrome rather than a panel of content.** A persistent budget is an
+   ambient status indicator: it belongs where the banner is, not in the column the reader
+   scrolls. As a bordered panel with a headline, a 10px track and a seven-part breakdown it
+   cost about 110px above *every* step — roughly a quarter of a laptop viewport, repeated six
+   times, most of it a table consulted occasionally while occupying the space continuously.
+
+   So the headline figures stay put as the page scrolls, the progress becomes a hairline rail
+   along the strip's own bottom edge, and the breakdown is disclosed on request and remembers
+   whether it was open. *@
 
 @if (Session.ShowBudget && Session.Sheet.SelectedTierId is not null)
 {
@@ -13,8 +24,8 @@
     <section class="budget" aria-label="Hero Point budget">
         @if (spent is null)
         {
-            <div class="budget-line">
-                <span class="muted">Not costable yet — a selection is still missing a
+            <div class="budget-strip">
+                <span class="muted small">Not costable yet — a selection is still missing a
                     variant or a grade. The GM review step names it.</span>
             </div>
         }
@@ -24,38 +35,138 @@
             var over      = remaining < 0;
             var pct       = budget <= 0 ? 0 : Math.Min(100, spent.Value * 100 / budget);
 
-            <div class="budget-line">
-                <span><strong class="num">@spent.Value</strong> <span class="muted small">of @budget HP spent</span></span>
-                <span class="spacer"></span>
+            <div class="budget-strip">
+                @* The spend is the figure that moves, so it is the one set large; the budget
+                   is the constant it is measured against and reads as its denominator. *@
+                <span class="budget-figure">
+                    <strong class="num" @ref="_figure">@spent.Value</strong><span class="budget-of num">/ @budget</span>
+                </span>
+
+                @* Never colour alone: over-budget says so in words as well as in --danger. *@
                 @if (over)
                 {
-                    <span class="over-text num">@(-remaining) HP over budget</span>
+                    <span class="over-text num">@(-remaining) HP over</span>
                 }
                 else
                 {
-                    <span class="num"><strong>@remaining</strong> <span class="muted small">remaining</span></span>
+                    <span class="budget-left num">@remaining left</span>
                 }
+
+                <span class="spacer"></span>
+
+                @* aria-controls only while the thing it names exists. Blazor renders the
+                   breakdown inside an @if, so pointing at it unconditionally leaves a dangling
+                   IDREF whenever it is closed — which assistive technology may report as a
+                   broken relationship rather than a closed one. aria-expanded is what carries
+                   the state, and it is written as a string for the reason recorded in
+                   CLAUDE.md: a bool renders as aria-expanded="" and announces the opposite. *@
+                <button type="button" class="budget-toggle"
+                        aria-expanded="@(_open ? "true" : "false")"
+                        aria-controls="@(_open ? "budget-breakdown" : null)"
+                        @onclick="() => _open = !_open">
+                    @(_open ? "Hide the breakdown" : "What it went on")
+                </button>
             </div>
 
-            <div class="budget-track" role="progressbar" aria-valuenow="@spent.Value" aria-valuemin="0" aria-valuemax="@budget">
+            @* The rail is the strip's own bottom edge rather than a track inside it — three
+               pixels instead of a bordered ten, and it reads as part of the furniture. The
+               width is the one inline style left in this app, and the sole reason the
+               Content-Security-Policy carries style-src 'unsafe-inline'. *@
+            @* **aria-valuenow is clamped to the maximum, and aria-valuetext carries the truth.**
+               An over-budget character spends more than the budget, and a progressbar reporting
+               valuenow=132 against valuemax=125 is out of range and invalid — the bar itself was
+               already clamped to 100% in the same block while the announced value was not, so
+               the two disagreed. The text is what a screen reader actually reads out, so nothing
+               is lost by clamping the number.
+
+               It also carries its own name: aria-label on the enclosing <section> names the
+               section, not the progressbar inside it, which was left anonymous. *@
+            <div class="budget-rail" role="progressbar"
+                 aria-label="Hero Points spent"
+                 aria-valuenow="@Math.Min(spent.Value, budget)"
+                 aria-valuemin="0" aria-valuemax="@budget"
+                 aria-valuetext="@($"{spent.Value} of {budget} Hero Points spent")">
                 <div class="budget-fill @(over ? "over" : "")" style="width:@(pct)%"></div>
             </div>
         }
 
-        <div class="breakdown">
-            <span>Package <b class="num">@Cost(() => Session.Costs.PackageCost(Session.Sheet))</b></span>
-            <span>Abilities <b class="num">@Cost(() => Session.Costs.AbilityCost(Session.Sheet))</b></span>
-            <span>Talents <b class="num">@Cost(() => Session.Costs.TalentCost(Session.Sheet))</b></span>
-            <span>Powers <b class="num">@Cost(() => Session.Costs.TotalPowersCost(Session.Sheet))</b></span>
-            <span>Perks <b class="num">@Cost(() => Session.Costs.TotalPerksCost(Session.Sheet))</b></span>
-            <span>Gear <b class="num">@Cost(() => Session.Costs.TotalGearCost(Session.Sheet))</b></span>
-            <span>Trait Cap <b class="num">@Session.TraitCap<span class="muted">d</span></b></span>
-        </div>
+        @if (_open)
+        {
+            <div id="budget-breakdown" class="breakdown">
+                <span>Package <b class="num">@Cost(() => Session.Costs.PackageCost(Session.Sheet))</b></span>
+                <span>Abilities <b class="num">@Cost(() => Session.Costs.AbilityCost(Session.Sheet))</b></span>
+                <span>Talents <b class="num">@Cost(() => Session.Costs.TalentCost(Session.Sheet))</b></span>
+                <span>Powers <b class="num">@Cost(() => Session.Costs.TotalPowersCost(Session.Sheet))</b></span>
+                <span>Perks <b class="num">@Cost(() => Session.Costs.TotalPerksCost(Session.Sheet))</b></span>
+                <span>Gear <b class="num">@Cost(() => Session.Costs.TotalGearCost(Session.Sheet))</b></span>
+                <span>Trait Cap <b class="num">@Session.TraitCap<span class="muted">d</span></b></span>
+            </div>
+        }
     </section>
 }
 
 @code {
+    /// <summary>
+    /// Whether the breakdown is showing.
+    ///
+    /// <para>A field on the component rather than anything stored: <c>MainLayout</c> holds this
+    /// component across page navigations, so it survives walking between steps, which is the
+    /// only span over which anyone would notice. <b>It is emphatically not on
+    /// <c>CharacterSheet</c></b> — whether a disclosure is open is a fact about a screen, not
+    /// about a character, and the sheet is what gets exported and restored.</para>
+    /// </summary>
+    private bool _open;
+
     protected override void OnInitialized() => Session.Changed += StateHasChanged;
+
+    /// <summary>
+    /// The element holding the spent figure, so it can be counted to its new value.
+    /// </summary>
+    private ElementReference? _figure;
+
+    /// <summary>
+    /// The figure currently on screen — the one a count would start from.
+    ///
+    /// <para>Held here rather than read back out of the element because <b>the number in the DOM
+    /// is already the new one by the time this runs</b>: Blazor writes the render before
+    /// OnAfterRender, so reading it would count from the answer to the answer.</para>
+    /// </summary>
+    private int? _shown;
+
+    /// <summary>
+    /// Count the spent figure from what was on screen to what the engine now says.
+    ///
+    /// <para><b>Both ends are the engine's.</b> Nothing here predicts a figure — the count is an
+    /// interpolation between two answers <c>CostCalculator</c> gave, and the script assigns the
+    /// final frame rather than computing it, so what comes to rest is the answer exactly.</para>
+    ///
+    /// <para>An uncostable character leaves the figure alone. There is no number to count to, and
+    /// the strip says so in words instead.</para>
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ = firstRender;
+
+        // **The strip is not rendered in Villain mode, and Blazor never clears an `@ref` when
+        // its element stops rendering.** So `_figure` keeps pointing at a detached node while
+        // this component stays alive and subscribed, and every change to the character sent one
+        // interop call for an element the browser can no longer find. It was absorbed by
+        // `ppCount`'s null guard rather than throwing — which made it invisible — but the round
+        // trip was real and `_shown` advanced against nothing on screen.
+        if (!Session.ShowBudget || Session.Sheet.SelectedTierId is null) return;
+
+        if (_figure is not { } figure) return;
+
+        var spent = CharacterSession.TryCost(() => Session.Spent);
+        if (spent is null || _shown == spent.Value) return;
+
+        // First sight of a figure is not a change: there is nothing it moved from, and counting
+        // up from zero on load would animate a character the visitor did not just build.
+        var from = _shown ?? spent.Value;
+        _shown = spent.Value;
+
+        await Motion.Count(figure, from, spent.Value);
+    }
 
     private static string Cost(Func<int> cost) =>
         CharacterSession.TryCost(cost)?.ToString() ?? "—";

@@ -28,6 +28,11 @@
                 disabled="@(Rank >= Max)"
                 @onclick="() => Set(Rank + 1)">+</button>
     </div>
+
+    @* The rulebook's word for this rank. Outside the stepper, because it is a gloss on the
+       number rather than one of its controls, and it is left as an empty cell above 6d so
+       the ranks below stay in a column. *@
+    <div class="rank-word">@Word</div>
 </div>
 
 @code {
@@ -46,7 +51,42 @@
     /// <summary>The rank a starting package already grants, and so pays for.</summary>
     [Parameter] public int PackageFloor { get; set; }
 
+    /// <summary>
+    /// Ch.2's word for each rank of this Trait — the ABILITY RANKS table on printed p.17
+    /// (Impaired, Undeveloped, Developed, Noteworthy, Exceptional, Peak) and the TALENT RANKS
+    /// table on p.18 (Clueless, Unskilled, Proficient, Advanced, Expert, Master).
+    ///
+    /// <para>Passed in rather than looked up here, so this component still knows nothing about
+    /// the rules; the tabs hand over <c>AbilityModel.RankGuide</c> or
+    /// <c>TalentModel.RankGuide</c>, which have carried this the whole time with nothing
+    /// showing them.</para>
+    /// </summary>
+    [Parameter] public IReadOnlyDictionary<string, string>? RankGuide { get; set; }
+
     [Parameter] public EventCallback<int> RankChanged { get; set; }
+
+    /// <summary>
+    /// The word for the rank as it stands, or nothing.
+    ///
+    /// <para><b>Both tables stop at 6d, and above that there is deliberately no word.</b> The
+    /// rulebook stops because a 7d Trait is beyond what the scale describes — so a rank with
+    /// no entry shows an empty cell rather than the nearest word, which would be this program
+    /// inventing a rung the book does not have.</para>
+    ///
+    /// <para>The stored value carries a gloss on two of the rungs — "Undeveloped (ordinary
+    /// human average)" — and only the word is shown here. The gloss is a sentence about
+    /// people in general and this is a label on one row of a form.</para>
+    /// </summary>
+    private string? Word
+    {
+        get
+        {
+            if (RankGuide is null || !RankGuide.TryGetValue($"{Rank}d", out var entry)) return null;
+
+            var gloss = entry.IndexOf(" (", StringComparison.Ordinal);
+            return gloss < 0 ? entry : entry[..gloss];
+        }
+    }
 
     private Task Set(int value) =>
         RankChanged.InvokeAsync(Math.Clamp(value, Math.Max(Floor, PackageFloor), Max));

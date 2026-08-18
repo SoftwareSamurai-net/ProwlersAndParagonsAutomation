@@ -14,17 +14,24 @@ body {
     margin: 0;
     background: var(--surface);
     color: var(--ink);
-    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
-    font-size: 15.5px;
+    font-family: var(--font-body);
+    font-size: var(--text-base);
     line-height: 1.55;
     text-underline-offset: 0.15em;
 }
 
+/* Every heading is the display face, uppercase, tracked and set tighter than
+   solid. That is the whole of item 1 of the redesign: the app used to separate
+   levels by size and weight in one face, which reads as a document rather than
+   as a designed page. --heading-track is still added on top per palette, because
+   the Villain theme tightens its headings and the Hero one opens them. */
 h1, h2, h3, h4 {
     color: var(--heading);
-    letter-spacing: var(--heading-track);
-    margin: 0 0 0.5rem;
-    line-height: 1.2;
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: calc(var(--display-track) + var(--heading-track));
+    margin: 0 0 var(--space-3);
+    line-height: var(--display-leading);
     text-wrap: balance;
 }
 
@@ -32,32 +39,30 @@ h1, h2, h3, h4 {
    masthead mark, not a divider. It is decorative, so it is a pseudo-element and screen
    readers never meet it. */
 h1 {
-    font-size: 1.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.045em;
-    margin-bottom: 0.75rem;
+    font-size: var(--text-3xl);
+    margin-bottom: var(--space-4);
 }
 h1::after {
     content: "";
     display: block;
     width: 2.75rem;
     height: 3px;
-    margin-top: 0.4rem;
+    margin-top: var(--space-2);
     border-radius: var(--radius-pill);
     background: var(--accent);
 }
 
-h2 { font-size: 1.2rem; }
-h3 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.07em; }
+h2 { font-size: var(--text-xl); }
+h3 { font-size: var(--text-lg); }
 
-p { margin: 0 0 0.75rem; }
+p { margin: 0 0 var(--space-4); }
 
 a { color: var(--heading); }
 
 hr {
     border: none;
     border-top: var(--rule-weight) solid var(--rule);
-    margin: 1.25rem 0;
+    margin: var(--space-6) 0;
 }
 
 /* ── Boot screen (index.html, before WebAssembly starts) ─────────────────── */
@@ -69,11 +74,12 @@ hr {
     text-align: center;
 }
 .boot-title {
-    font-size: 1.6rem;
+    font-size: var(--text-2xl);
     color: var(--heading);
+    font-family: var(--font-display);
     letter-spacing: var(--banner-track);
     text-transform: uppercase;
-    margin-bottom: 0.25rem;
+    margin-bottom: var(--space-1);
 }
 .boot-sub { color: var(--muted); }
 
@@ -86,7 +92,7 @@ hr {
     position: fixed;
     inset: auto 0 0 0;
     z-index: 1000;
-    padding: 0.7rem 1.2rem;
+    padding: var(--space-4) var(--space-6);
     background: var(--danger);
     color: var(--on-primary);
     border-top: var(--rule-weight) solid var(--rule);
@@ -116,33 +122,53 @@ hr {
         color-mix(in srgb, var(--primary) 88%, var(--on-primary)),
         var(--primary));
     color: var(--on-primary);
-    padding: 0.85rem 1.25rem;
+    border-bottom: var(--rule-weight) solid var(--rule);
+    box-shadow: var(--shadow-2);
+}
+
+/* **The banner centres on --column like the other bands, and the note in MainLayout claimed it
+   already did.** It did not: a flat side padding put the wordmark 24px from the window edge while
+   the step labels below it sat at (window − column) ÷ 2 + 24, so the band the note offered as the
+   example was the only one out of step — by the same 8px at narrow widths as the bleed bug this
+   change removed.
+
+   An inner element rather than a clever `padding-inline: max(…, calc((100% − …) / 2))`, which
+   works and was written first. Two reasons the wrapper is better: the percentage is a raw length
+   the stylesheet's own rule refuses, and it would have needed an exemption to keep; and this makes
+   the banner *structurally* the same as the other three bands — full-width fill, centred column
+   inside — so one guard checks all four the same way instead of three plus a special case. */
+.banner-inner {
+    max-width: var(--column);
+    margin: 0 auto;
+    padding: var(--space-4) var(--space-6);
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: var(--space-5);
     flex-wrap: wrap;
-    border-bottom: var(--rule-weight) solid var(--rule);
-    box-shadow: var(--shadow);
 }
 .banner-title {
+    font-family: var(--font-display);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: var(--banner-track);
-    font-size: 1.05rem;
+    font-size: var(--text-xl);
+    line-height: var(--display-leading);
     margin-right: auto;
 }
 .banner-title small {
     display: block;
+    font-family: var(--font-body);
     font-weight: 400;
-    font-size: 0.7rem;
+    font-size: var(--text-xs);
+    text-transform: none;
     opacity: 0.8;
     letter-spacing: 0.03em;
 }
 
 .shell {
-    max-width: 1100px;
+    max-width: var(--column);
     margin: 0 auto;
-    padding: 1.5rem 1.25rem 3rem;
+    padding: var(--space-6) var(--space-6) var(--space-8);
 }
 
 /* The sentence or two that introduces a step. Panels are as wide as the page needs to be;
@@ -162,11 +188,12 @@ hr {
     background: transparent;
     color: var(--on-primary);
     border: none;
-    padding: 0.3rem 0.85rem;
+    padding: var(--space-1) var(--space-4);
     font: inherit;
-    font-size: 0.8rem;
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
     cursor: pointer;
-    letter-spacing: 0.04em;
+    letter-spacing: var(--label-track);
     text-transform: uppercase;
     transition: background-color var(--swap) var(--ease), color var(--swap) var(--ease);
 }
@@ -181,23 +208,48 @@ hr {
 
 /* ── Step navigation ─────────────────────────────────────────────────────── */
 
+/* The band, on the <nav>. Full window width like the banner above it.
+
+   **It carries its own bottom edge, and the first version deliberately did not.** The argument
+   was that the budget strip directly beneath closes the pair, so a rule here would be a second
+   line inside one band. That is true whenever the strip is there — and it is absent on three
+   whole classes of screen: **every page in Villain mode** (Ch.9 gives Villains no budget, so the
+   strip renders nothing at all), **the tier page before a tier is chosen**, which is the first
+   screen a new visitor sees, and **every `/replay` route**. On all three the chips sat on the page
+   ground with no edge under them and the heading followed with only the shell's padding between,
+   so the chrome simply had no bottom.
+
+   It was visible in this repository's own `proof-shell-villain.html`, which was generated and
+   never opened. Two rules 45px apart read as a divider between two rows of one band; no rule at
+   all reads as a missing edge. */
 .steps {
+    padding-top: var(--space-4);
+    border-bottom: var(--rule-weight) solid var(--rule);
+}
+
+/* …and the centred column inside it, on --column, which is the figure the shell and the
+   budget strip also centre on. Three bands agreeing on one token is what makes the step
+   labels, the spend figure and the page heading share a left edge. */
+.steps-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
+    gap: var(--space-2);
     list-style: none;
-    margin: 0 0 1.5rem;
-    padding: 0 0 0.75rem;
-    border-bottom: var(--rule-weight) solid var(--rule);
+    max-width: var(--column);
+    margin: 0 auto;
+    padding: 0 var(--space-6) var(--space-4);
 }
 .steps a {
     display: block;
-    padding: 0.3rem 0.7rem;
+    padding: var(--space-1) var(--space-4);
     border: 1px solid var(--rule);
     border-radius: var(--radius-small);
     text-decoration: none;
     color: var(--muted);
-    font-size: 0.85rem;
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
     background: var(--panel);
     transition: color var(--swap) var(--ease),
                 border-color var(--swap) var(--ease),
@@ -210,45 +262,118 @@ hr {
     font-weight: 700;
     box-shadow: inset 0 -2px 0 var(--accent);
 }
-.steps .step-index { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 0.35rem; }
+.steps .step-index { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: var(--space-2); }
 
 /* ── Budget bar ──────────────────────────────────────────────────────────── */
 
+/* Chrome, not content. It stays put while the column under it scrolls, so the
+   budget is glanceable from anywhere in a long editor without being a panel the
+   reader scrolls past six times. `top: 0` rather than under the banner: the
+   banner is not sticky, so this takes the top edge once the banner has gone.
+
+   The z-index sits above the page and below Blazor's error bar (1000), which has
+   to cover everything. */
+/* **No negative margins.** The strip used to be pulled out of the shell's padding by
+   `calc(-1 * var(--space-6))` in three places, with a matching pair in the narrow-viewport
+   query that had to be kept in step or the band ran 8px past the page — measured once as
+   scrollWidth 368 against clientWidth 360. It is a sibling of `main` now, so it is already
+   the width of the window and there is nothing to escape. The mechanism is gone rather than
+   guarded, and the guard that watched it went with it. */
 .budget {
+    position: sticky;
+    top: 0;
+    z-index: 20;
     background: var(--panel);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius);
-    padding: 0.75rem 0.95rem;
-    margin-bottom: 1.5rem;
-    box-shadow: var(--shadow);
+    border-bottom: var(--rule-weight) solid var(--rule);
+    padding-top: var(--space-3);
+    box-shadow: var(--shadow-3);
 }
-.budget-line { display: flex; gap: 1rem; align-items: baseline; flex-wrap: wrap; }
-.budget-line strong { font-variant-numeric: tabular-nums; font-size: 1.15rem; }
-.budget-line .spacer { margin-left: auto; }
-.budget-track {
-    height: 10px;
+
+.budget-strip {
+    display: flex;
+    gap: var(--space-5);
+    align-items: baseline;
+    flex-wrap: wrap;
+    max-width: var(--column);
+    margin: 0 auto;
+    padding: 0 var(--space-6) var(--space-3);
+}
+.budget-strip .spacer { margin-left: auto; }
+
+/* The figure that moves, and the constant it is measured against. */
+.budget-figure { display: inline-flex; align-items: baseline; gap: var(--space-1); }
+.budget-figure strong {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--text-xl);
+    line-height: var(--display-leading);
+    letter-spacing: var(--display-track);
+}
+.budget-of {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    color: var(--muted);
+}
+.budget-left {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    color: var(--muted);
+}
+
+/* Three pixels along the strip's own bottom edge — a rail rather than a bordered track
+   sitting inside a panel. It runs the whole width of the window rather than stopping with
+   the column above it, which is deliberate: the other bands centre their *contents* on
+   --column, and a progress rail is not content. It is the band's edge. */
+.budget-rail {
+    height: 3px;
     background: var(--panel-sunk);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-pill);
     overflow: hidden;
-    margin-top: 0.5rem;
 }
 .budget-fill {
     height: 100%;
     background: var(--accent);
-    border-radius: inherit;
-    transition: width var(--enter) var(--ease), background-color var(--swap) var(--ease);
+    transition: width var(--enter) var(--ease-out), background-color var(--swap) var(--ease);
 }
 .budget-fill.over { background: var(--danger); }
-.over-text { color: var(--danger); font-weight: 700; }
+.over-text {
+    color: var(--danger);
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    font-weight: 700;
+}
+
+/* The disclosure. Reads as a control rather than a heading, and says which way it
+   is about to go rather than naming the thing it hides. */
+.budget-toggle {
+    font: inherit;
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--rule);
+    color: var(--muted);
+    padding: 0 0 1px;
+    cursor: pointer;
+    transition: color var(--swap) var(--ease), border-color var(--swap) var(--ease);
+}
+.budget-toggle:hover { color: var(--heading); border-color: var(--heading); }
 
 .breakdown {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.9rem;
-    margin-top: 0.5rem;
-    font-size: 0.8rem;
+    gap: var(--space-3) var(--space-5);
+    max-width: var(--column);
+    margin: 0 auto;
+    padding: var(--space-3) var(--space-6) var(--space-4);
+    font-size: var(--text-sm);
     color: var(--muted);
+    animation: rise var(--enter) var(--ease-out) both;
 }
 .breakdown b { color: var(--ink); font-variant-numeric: tabular-nums; }
 
@@ -258,10 +383,10 @@ hr {
     background: var(--panel);
     border: 1px solid var(--rule);
     border-radius: var(--radius);
-    padding: 1.1rem;
-    margin-bottom: 1.1rem;
-    box-shadow: var(--shadow);
-    animation: rise var(--enter) var(--ease) both;
+    padding: var(--space-5);
+    margin-bottom: var(--space-5);
+    box-shadow: var(--shadow-1);
+    animation: rise var(--enter) var(--ease-out) both;
 }
 .panel > h2:first-child, .panel > h3:first-child { margin-top: 0; }
 
@@ -269,17 +394,17 @@ hr {
    than a fill, because --accent is never legible as a background for text. */
 .panel.selected {
     border-color: var(--accent);
-    box-shadow: var(--shadow), inset 0 0 0 1px var(--accent);
+    box-shadow: var(--shadow-1), inset 0 0 0 1px var(--accent);
 }
 
 .panel-head {
     display: flex;
     align-items: baseline;
-    gap: 0.75rem;
+    gap: var(--space-4);
     flex-wrap: wrap;
     border-bottom: var(--rule-weight) solid var(--rule);
-    padding-bottom: 0.5rem;
-    margin-bottom: 0.85rem;
+    padding-bottom: var(--space-3);
+    margin-bottom: var(--space-4);
 }
 .panel-head h2, .panel-head h3 { margin: 0; margin-right: auto; }
 .panel-head .cost { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
@@ -287,23 +412,48 @@ hr {
 /* `start`, not the default `stretch`. Two boxes side by side are rarely the same length —
    one Perk against three Flaws — and stretching the short one draws a ruled box around a
    column of nothing. On paper that void can run the whole height of a page. */
-.grid { display: grid; gap: 0.9rem; align-items: start; }
+.grid { display: grid; gap: var(--space-5); align-items: start; }
+/* A `.field` carries its own bottom margin, which a grid row already supplies — so the Sources
+   editor's rows came out twice as far apart as its columns, 32px against 16px. The grid owns the
+   spacing between its cells; a cell does not get to add to it. Every other `.grid` call site
+   holds panels, which is why this is the first one to hit it. */
+.grid > .field { margin-bottom: 0; }
 .grid.two { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .grid.three { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
 
+/* Read out, never drawn. For a fact a sighted reader gets from a shape or a position and a
+   screen-reader user would otherwise have to infer — the untouched ring on the tab strip is the
+   first of them.
+
+   Clipped rather than `display: none` or `visibility: hidden`, both of which take the text out of
+   the accessibility tree along with the picture, which is the opposite of the point. The 1px box
+   with `clip-path` is the standard form; `white-space: nowrap` stops a long phrase wrapping into
+   a tall invisible column that can still be scrolled to. */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
 .muted { color: var(--muted); }
-.small { font-size: 0.82rem; }
+.small { font-size: var(--text-sm); }
 .nowrap { white-space: nowrap; }
 .num { font-variant-numeric: tabular-nums; }
 .wide { width: 100%; }
-.spaced { margin-top: 0.75rem; }
+.spaced { margin-top: var(--space-4); }
 
 /* ── Controls ────────────────────────────────────────────────────────────── */
 
 .btn {
     display: inline-block;
     font: inherit;
-    padding: 0.4rem 0.9rem;
+    padding: var(--space-2) var(--space-5);
     border: 1px solid var(--heading);
     border-radius: var(--radius-small);
     background: var(--panel);
@@ -315,14 +465,24 @@ hr {
                 transform var(--step) var(--ease),
                 filter var(--swap) var(--ease);
 }
-.btn:hover:not(:disabled) { background: var(--accent-soft); }
+/* **--panel-sunk, not --accent-soft, and this is the same measured fault as the
+   tier card's.** `.btn` sets its text in --heading, and Villain --heading on
+   Villain --accent-soft is **4.08:1** — under the 4.5:1 text needs, and WCAG
+   1.4.3 applies to a hover state. On --panel-sunk the pair is 5.62:1. There are
+   far more buttons than tier cards, so this was the worse of the two instances
+   and it survived the fix that named it. Re-measure; do not eyeball. */
+.btn:hover:not(:disabled) { background: var(--panel-sunk); }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn.primary { background: var(--primary); color: var(--on-primary); border-color: var(--primary); font-weight: 600; }
 .btn.primary:hover:not(:disabled) { filter: brightness(1.12); background: var(--primary); }
 .btn.danger { border-color: var(--danger); color: var(--danger); }
-.btn.danger:hover:not(:disabled) { background: var(--danger-soft); }
-.btn.small { padding: 0.15rem 0.5rem; font-size: 0.8rem; }
+/* Same again, and this pair was the worst on the page: --danger text on
+   --danger-soft measures **3.94:1** in Villain and only 4.55:1 in Hero, which is
+   passing by 0.05. The destructive buttons are the last place to accept a
+   marginal reading. --panel-sunk keeps both modes well clear. */
+.btn.danger:hover:not(:disabled) { background: var(--panel-sunk); }
+.btn.small { padding: var(--space-0) var(--space-3); font-size: var(--text-sm); }
 
 /* An <a> standing in for a disabled button. Without href it is not focusable, but it still
    needs to look and behave as unavailable. */
@@ -354,7 +514,7 @@ input[type="text"], input[type="number"], input[type="search"], select, textarea
     background: var(--panel);
     border: 1px solid var(--rule);
     border-radius: var(--radius-small);
-    padding: 0.35rem 0.55rem;
+    padding: var(--space-2) var(--space-3);
     max-width: 100%;
     transition: border-color var(--swap) var(--ease);
 }
@@ -362,17 +522,44 @@ input[type="text"]:hover, input[type="number"]:hover, input[type="search"]:hover
 select:hover, textarea:hover { border-color: var(--heading); }
 textarea { width: 100%; resize: vertical; }
 input[type="number"] { width: 5.5rem; }
-label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.2rem; }
+/* Item 2 of the redesign, and the place it actually earns its keep. A long form is
+   legible either because boxes divide it or because its labels do, and the second
+   is quieter — the Sources editor is eighteen fields in a column, and eighteen
+   labels set in the body face at 0.85rem read as eighteen more lines of prose
+   rather than as the spine of the form.
 
-.field { margin-bottom: 0.9rem; }
-.inline { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+   This is the screen answer only. `SheetSection`'s centred heading in a bar is
+   right on *paper* — the published Hero Sheet prints it that way — and is left
+   alone in the print block below. */
+/* **Not uppercased, and that is the second place a rank-and-citation notation
+   caught this redesign out.** Every other label here is a short word or two and
+   is set in caps; a form label in this app is often a whole sentence — the
+   narrative constraint a Pro or Con carries is "Player must define the specific
+   condition when purchasing." — and a sentence in caps at 0.75rem in a condensed
+   face is shouted and harder to read. Worse, one of them is
+   "Custom features (Ch.6, p.93)", which came out as CH.6, P.93: a rulebook
+   citation in a notation the rulebook does not use, which is the same fault as
+   printing a rank as 12D. The face, the tracking and the muted ink carry the job
+   without the caps. */
+label {
+    display: block;
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    letter-spacing: var(--label-track);
+    line-height: var(--display-leading);
+    color: var(--muted);
+    margin-bottom: var(--space-1);
+}
+
+.field { margin-bottom: var(--space-5); }
+.inline { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
 
 .nav-buttons {
     display: flex;
-    gap: 0.75rem;
+    gap: var(--space-4);
     align-items: center;
-    margin-top: 1.5rem;
-    padding-top: 1rem;
+    margin-top: var(--space-6);
+    padding-top: var(--space-5);
     border-top: var(--rule-weight) solid var(--rule);
 }
 .nav-buttons .spacer { margin-left: auto; }
@@ -380,11 +567,14 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 
 /* ── Tabs (the characteristics step's five sections) ─────────────────────── */
 
-.tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1.1rem; }
+.tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-5); }
 .tabs button {
     font: inherit;
-    font-size: 0.88rem;
-    padding: 0.35rem 0.8rem;
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    padding: var(--space-2) var(--space-4);
     background: var(--panel);
     color: var(--muted);
     border: 1px solid var(--rule);
@@ -403,24 +593,38 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 }
 .tabs .tab-count { color: var(--muted); font-weight: 400; }
 
+/* A section with nothing in it. The count says so already, but a 0 among four other numbers
+   is something a reader has to notice rather than something the strip tells them — so the
+   figure is ringed, which reads as a marker at a glance and still reads as a number up close.
+   Not a colour alone: --muted stays, and the ring is a shape. */
+.tabs .tab-count.untouched {
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-pill);
+    padding: 0 var(--space-2);
+}
+
 /* ── Rank stepper and pips ───────────────────────────────────────────────── */
 
+/* Name, pips, stepper, and the rulebook's word for the rank. The word gets a column
+   of its own with a floor under its width so the words form a column rather than
+   ragging off the end of each stepper — and so the cell for a 7d Trait, which the
+   rulebook gives no word, is empty space rather than a jump in the layout. */
 .rank-row {
     display: grid;
-    grid-template-columns: minmax(7rem, 1fr) auto auto;
+    grid-template-columns: minmax(7rem, 1fr) auto auto minmax(5.5rem, auto);
     align-items: center;
-    gap: 0.6rem;
-    padding: 0.35rem 0;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
     border-bottom: 1px solid var(--rule);
 }
 .rank-row:last-child { border-bottom: none; }
 .rank-name { font-weight: 600; }
-.rank-name small { display: block; font-weight: 400; color: var(--muted); font-size: 0.75rem; }
+.rank-name small { display: block; font-weight: 400; color: var(--muted); font-size: var(--text-xs); }
 
 /* The Pros and Cons carried by the Ability on the row above. */
-.rank-note { margin: 0 0 0.5rem 0.2rem; }
+.rank-note { margin: 0 0 var(--space-3) var(--space-1); }
 
-.stepper { display: flex; align-items: center; gap: 0.3rem; }
+.stepper { display: flex; align-items: center; gap: var(--space-1); }
 .stepper button {
     width: 1.7rem; height: 1.7rem;
     font: inherit; line-height: 1;
@@ -436,9 +640,17 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .stepper button:hover:not(:disabled) { border-color: var(--heading); color: var(--heading); }
 .stepper button:active:not(:disabled) { transform: translateY(1px); }
 .stepper button:disabled { opacity: 0.35; cursor: not-allowed; }
-.stepper .value { min-width: 2.4rem; text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; }
+.stepper .value {
+    min-width: 2.4rem;
+    text-align: center;
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: var(--display-track);
+    font-weight: 700;
+}
 
-.pips { display: flex; gap: 2px; }
+.pips { display: flex; gap: var(--space-0); }
 .pip {
     width: 7px; height: 14px;
     border-radius: var(--radius-hair);
@@ -454,9 +666,9 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .chosen { list-style: none; margin: 0; padding: 0; }
 .chosen > li {
     display: flex;
-    gap: 0.6rem;
+    gap: var(--space-3);
     align-items: flex-start;
-    padding: 0.55rem 0;
+    padding: var(--space-3) 0;
     border-bottom: 1px solid var(--rule);
 }
 .chosen > li:last-child { border-bottom: none; }
@@ -465,14 +677,15 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 
 .tag {
     display: inline-block;
-    font-size: 0.72rem;
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 0.05rem 0.4rem;
+    letter-spacing: var(--label-track);
+    padding: var(--space-0) var(--space-2);
     border: 1px solid var(--rule);
     border-radius: var(--radius-small);
     color: var(--muted);
-    margin-left: 0.35rem;
+    margin-left: var(--space-2);
     vertical-align: 1px;
 }
 .tag.own { border-color: var(--heading); color: var(--heading); }
@@ -480,20 +693,141 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 
 /* ── Option rows (pros, cons, powers, perks, flaws to pick from) ─────────── */
 
+/* The filter box and its count, above every list of options. Item 6 of the
+   redesign, and the only one that came from somebody actually using the thing:
+   scrolling these lists is annoying and Powers alone is 141 entries. */
+.options-filter {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-2);
+}
+.options-filter input[type="search"] { flex: 1 1 auto; min-width: 0; }
+.options-count {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.options-empty {
+    margin: var(--space-3) 0 0;
+    font-size: var(--text-sm);
+    color: var(--muted);
+}
+
+/* What a list says when it holds nothing. Guidance rather than content, and marked as such by a
+   hairline on its leading edge rather than by a box: an empty list is the one moment a tool can
+   most usefully say what happens next, and the sentence should not look like the first row of
+   the list it is standing in for. `--rule`, not `--accent` — this is an instruction, not a
+   warning and not a selection. */
+.empty-state {
+    margin: 0;
+    padding: var(--space-2) 0 var(--space-2) var(--space-4);
+    border-left: 2px solid var(--rule);
+}
+
+/* **No border of its own.** Every one of these lists is inside a panel that is already a
+   ruled box with a heading in a strip above it, so the border here drew a second box around
+   the first one's contents — a bordered scroller inside a bordered card, three nested edges
+   deep once the rows' own separators are counted. The rows are separated from each other and
+   the panel frames the group; nothing was left for this edge to say.
+
+   The scroll stays, and so does the top rule, which is doing a different job: it separates
+   the list from the filter box above it, which is a control rather than a row. */
+/* **Both horizontal rules, and dropping the bottom one was a real mistake.** The top one
+   separates the list from the filter box, which is a control rather than a row. The bottom one
+   marks where the list is *clipped*: 141 Powers scrolling inside 22rem end mid-row against the
+   panel's own white, so a row cut through the middle of its own stat line reads as a rendering
+   fault rather than as a scroller, with nothing but the scrollbar thumb to say otherwise.
+   `.option:last-child` drops its own separator on the assumption the container supplies it. */
 .options {
     max-height: 22rem;
     overflow-y: auto;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+}
+
+/* Item 3: the same options as a card grid rather than a full-width scrolling
+   list. A long list is right for picking one of 141 Powers by name, and wrong
+   for six tiers a reader is meant to *compare* — set full width, each one is a
+   line of text and the choice reads as a form field rather than as a decision.
+
+   This is a modifier on the same component and the same markup: `.option` is
+   already a full-width button with a name, a second line and a right-hand
+   figure, which is a card as soon as it stops being a row. So the grid drops the
+   scroller and the shared border, and each button becomes the ruled box. */
+.options.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+    gap: var(--space-4);
+    max-height: none;
+    overflow: visible;
+    /* Both of the base rule's edges, and no others: a card grid is separate boxes, so it wants
+       neither the separator above nor the clip mark below — it does not scroll, so there is no
+       clip to mark. Named rather than written `border: none`, so that resetting a property the
+       base rule does not set stays out of the file. */
+    border-top: none;
+    border-bottom: none;
+}
+.options.cards .option {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    height: 100%;
+    padding: var(--space-4) var(--space-5);
     border: 1px solid var(--rule);
-    border-radius: var(--radius-small);
+    border-left: 3px solid transparent;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-1);
+}
+.options.cards .option .name { font-size: var(--text-lg); }
+/* The consequence of choosing this card, set as the line under the name rather
+   than squeezed against the right edge the way a price is in a list. */
+/* Not uppercased, unlike every other label in this app, and the exception is a
+   rules one rather than a taste one: this line carries a rank, and the rulebook
+   writes a rank as `12d`. `TRAIT CAP 12D` is a different notation from the one
+   the book uses and the one every other surface here prints. Anything that sets
+   a line carrying a rank in caps has the same problem. */
+.options.cards .option .cost {
+    order: 3;
+    font-family: var(--font-display);
+    letter-spacing: var(--label-track);
+    font-size: var(--text-sm);
+    color: var(--heading);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--rule);
+    white-space: normal;
+}
+/* **The card's hover ground is --panel-sunk, not the --accent-soft the list rows
+   use, and that is a contrast fix rather than a preference.** The cost line above
+   is set in --heading, and Villain --heading (#B8873B) on Villain --accent-soft
+   (which resolves to #382F26) measures **4.10:1** — under the 4.5:1 that text
+   needs, and WCAG 1.4.3 applies to a hover state as much as to a resting one. On
+   --panel-sunk (#16161B) the same pair is 5.70:1. Hero passes either way at
+   ~7:1. Re-measure if you restyle; do not eyeball it. */
+.options.cards .option:hover {
+    background: var(--panel-sunk);
+    border-left-color: var(--accent);
+}
+
+/* The choice already made. A ring, never a fill — --accent is 1.8:1 on --surface
+   in the Hero palette and unreadable behind text — and never the only marking:
+   the caller puts a word beside the name as well, because a ring is a colour. */
+.option.selected {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-1), inset 0 0 0 1px var(--accent);
 }
 .option {
     display: flex;
-    gap: 0.6rem;
+    gap: var(--space-3);
     align-items: flex-start;
     width: 100%;
     text-align: left;
     font: inherit;
-    padding: 0.55rem 0.65rem;
+    padding: var(--space-3) var(--space-4);
     background: var(--panel);
     color: var(--ink);
     border: none;
@@ -507,22 +841,27 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .option .body { flex: 1 1 auto; min-width: 0; }
 .option .name { font-weight: 600; }
 .option .cost { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.option .caveat { display: block; font-size: 0.78rem; color: var(--muted); }
+.option .caveat { display: block; font-size: var(--text-sm); color: var(--muted); }
 
 /* ── Validation ──────────────────────────────────────────────────────────── */
 
 .issues { list-style: none; margin: 0; padding: 0; }
 .issues li {
-    padding: 0.45rem 0.65rem;
+    padding: var(--space-3) var(--space-4);
     border-left: 3px solid var(--rule);
     border-radius: 0 var(--radius-small) var(--radius-small) 0;
-    margin-bottom: 0.35rem;
+    margin-bottom: var(--space-2);
     background: var(--panel-sunk);
 }
 .issues li.error { border-left-color: var(--danger); background: var(--danger-soft); }
 .issues li.warning { border-left-color: var(--accent); background: var(--accent-soft); }
 
-.verdict { font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.verdict {
+    font-family: var(--font-display);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+}
 .verdict.invalid { color: var(--danger); }
 
 /* ── The replay ──────────────────────────────────────────────────────────── */
@@ -535,10 +874,14 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
    the tool uses to report a number. Nothing about a turn should read as a control, and
    nothing about a verdict should read as dialogue. */
 
+/* The display face, like everything else uppercase in this app. It sits in the
+   banner beside .banner-title, so leaving it in the body face put two uppercase
+   items of similar size in the same strip in two different faces. */
 .banner-link {
     color: var(--on-primary);
-    font-size: 0.8rem;
-    letter-spacing: 0.04em;
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    letter-spacing: var(--label-track);
     text-transform: uppercase;
     text-decoration: none;
     border-bottom: 1px solid var(--on-primary);
@@ -558,10 +901,18 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     border-left: 5px solid var(--accent);
     background: var(--accent-soft);
 }
+/* **This clause was set in --heading and the comment above claimed it was "the only
+   one of the three that is contrast-rated as text in either mode". That was false.**
+   Villain --heading on this band's --accent-soft ground measures 4.10:1, under the
+   4.5:1 text needs — the claim was never measured against the tint it sits on, only
+   against the panel. It is body ink now, which is the highest contrast available on
+   that ground in both modes, and the three carriers become the tint, the heavy left
+   edge, and this clause's weight and case rather than its colour. */
 .panel.replay-label b:first-child {
-    color: var(--heading);
+    color: var(--ink);
+    font-family: var(--font-display);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: var(--label-track);
 }
 .panel.replay-label p:last-child { margin-bottom: 0; }
 
@@ -574,12 +925,12 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
    one column on a phone. */
 .grid.replay-list { grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr)); }
 
-.replay { margin-bottom: 1.25rem; }
+.replay { margin-bottom: var(--space-6); }
 
 .replay-turn {
     max-width: 62ch;
-    margin-bottom: 0.9rem;
-    padding: 0.65rem 0.9rem;
+    margin-bottom: var(--space-5);
+    padding: var(--space-4) var(--space-5);
     border: 1px solid var(--rule);
     border-radius: var(--radius);
     background: var(--panel);
@@ -594,11 +945,12 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .replay-turn.said-by-it { margin-left: auto; }
 
 .replay-who {
-    font-size: 0.7rem;
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: var(--label-track);
     color: var(--muted);
-    margin-bottom: 0.2rem;
+    margin-bottom: var(--space-1);
 }
 
 /* The figures. Tabular numerals because these are re-costed live and a proportional 1 makes
@@ -607,13 +959,12 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .replay-figures {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem 1.1rem;
-    font-size: 0.85rem;
+    gap: var(--space-2) var(--space-5);
+    font-size: var(--text-sm);
     color: var(--muted);
-    margin-bottom: 0.6rem;
+    margin-bottom: var(--space-3);
 }
 .replay-figures b { color: var(--ink); font-variant-numeric: tabular-nums; }
-.replay-figures.spent-on { font-size: 0.8rem; }
 
 /* ── The character sheet itself ──────────────────────────────────────────── */
 
@@ -621,11 +972,11 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     background: var(--panel);
     border: 1px solid var(--rule);
     border-radius: var(--radius);
-    box-shadow: var(--shadow);
+    box-shadow: var(--shadow-1);
     overflow: hidden;
-    animation: rise var(--enter) var(--ease) both;
+    animation: rise var(--enter) var(--ease-out) both;
 }
-.sheet-body { padding: 1.15rem; }
+.sheet-body { padding: var(--space-5); }
 
 /* The layout of the published Ultimate Edition Hero Sheet: a masthead, then three columns
    — Traits, the Powers stack, and the figures you read off mid-scene — then a foot of
@@ -636,9 +987,9 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .sheet-masthead,
 .sheet-columns {
     display: grid;
-    gap: 0.9rem;
+    gap: var(--space-5);
     align-items: start;
-    margin-bottom: 0.9rem;
+    margin-bottom: var(--space-5);
 }
 .sheet-masthead { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
 .sheet-foot { margin-bottom: 0; }
@@ -648,37 +999,40 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
    white underneath. That is what the box is for: Notes and Origin are the two you write on
    by hand, and they are the right ones to grow. */
 .sheet-columns { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); align-items: stretch; }
-.sheet-col { display: flex; flex-direction: column; gap: 0.9rem; }
+.sheet-col { display: flex; flex-direction: column; gap: var(--space-5); }
 .sheet-section.fill { flex: 1 1 auto; display: flex; flex-direction: column; }
 .sheet-section.fill > .ruled { flex: 1 1 auto; justify-content: space-between; gap: 0; min-height: 6rem; }
 
 .identity .ident-name {
-    font-size: 1.5rem;
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: var(--banner-track);
-    line-height: 1.15;
+    line-height: var(--display-leading);
     color: var(--heading);
-    margin-bottom: 0.4rem;
+    margin-bottom: var(--space-2);
 }
-.ident-fields { display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.5rem; margin: 0; font-size: 0.82rem; }
+.ident-fields { display: grid; grid-template-columns: auto 1fr; gap: var(--space-0) var(--space-3); margin: 0; font-size: var(--text-sm); }
 .ident-fields dt { color: var(--muted); }
 .ident-fields dd { margin: 0; min-width: 0; }
 
 .title-block { text-align: center; }
 .title-main {
+    font-family: var(--font-display);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: var(--banner-track);
+    line-height: var(--display-leading);
     color: var(--heading);
 }
-.title-sub, .title-meta { font-size: 0.78rem; color: var(--muted); }
-.title-meta { margin-top: 0.3rem; }
+.title-sub, .title-meta { font-size: var(--text-sm); color: var(--muted); }
+.title-meta { margin-top: var(--space-1); }
 
 /* Blank rules to write on. The published sheet is a form, and the fields this engine has
    no data for — Alias, Team, Origin, Notes, Details — are more useful as ruled space than
    as nothing at all. */
-.ruled { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.2rem; }
+.ruled { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-1); }
 .rule-line {
     display: block;
     min-height: 0.9em;
@@ -687,7 +1041,7 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .rule-line.short { display: inline-block; width: 2.2rem; vertical-align: baseline; }
 
 .plain-list { list-style: none; margin: 0; padding: 0; }
-.plain-list li { padding: 0.15rem 0; border-bottom: 1px solid var(--rule); }
+.plain-list li { padding: var(--space-0) 0; border-bottom: 1px solid var(--rule); }
 .plain-list li:last-child { border-bottom: none; }
 
 /* Every section is a ruled box with its heading in a bar across the top, as on the
@@ -700,38 +1054,116 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 }
 .sheet-section > h3 {
     margin: 0;
-    padding: 0.3rem 0.6rem;
+    padding: var(--space-1) var(--space-3);
     text-align: center;
-    font-size: 0.78rem;
-    letter-spacing: 0.12em;
+    font-size: var(--text-sm);
+    letter-spacing: var(--label-track);
     border-bottom: var(--rule-weight) solid var(--rule);
     background: var(--panel-sunk);
 }
 /* Everything after the heading is the box's contents. */
-.sheet-section > :not(h3) { margin-left: 0.6rem; margin-right: 0.6rem; }
-.sheet-section > :nth-child(2) { margin-top: 0.5rem; }
-.sheet-section > :last-child { margin-bottom: 0.5rem; }
-.sheet-section > table { width: calc(100% - 1.2rem); }
+.sheet-section > :not(h3) { margin-left: var(--space-3); margin-right: var(--space-3); }
+.sheet-section > :nth-child(2) { margin-top: var(--space-3); }
+.sheet-section > :last-child { margin-bottom: var(--space-3); }
+/* **Derived from the same token the margins above use, not from a literal that matched it
+   once.** This read `calc(100% - 1.2rem)` while the inset beside it was 0.6rem — a matched
+   pair of literals. Phase 0 moved the inset onto the scale and left the width behind, so the
+   table's right edge fell 3.2px short of every sibling in the box and of the heading bar
+   above it: measured at 8.00px of inset on the left and 11.20px on the right, against
+   8.00/8.00 for every non-table child. Five boxes a sheet, both palettes.
 
-.trait-table td { font-size: 0.86rem; }
-.trait-table td:first-child { text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; }
+   `width` is not one of the four properties the raw-length guard scans, which is how a
+   change written to abolish paired literals left one standing a property name outside its
+   own scope. `NoScreenCalcNamesARawLength` closes that class. */
+.sheet-section > table { width: calc(100% - 2 * var(--space-3)); }
 
-.stat-blocks { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-.stat-blocks.quad { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+.trait-table td { font-size: var(--text-sm); }
+.trait-table td:first-child {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: var(--display-track);
+    font-weight: 600;
+}
+
+/* The rulebook's word for a rank — item 5 of the redesign. Ch.2 prints an ABILITY
+   RANKS table on p.17 and a TALENT RANKS table on p.18, and this app knew both and
+   showed neither: the editors printed a bare `4d` where the book says "Noteworthy".
+   Set behind the rank rather than beside it, because the number is the fact and the
+   word is the gloss on it. Both tables stop at 6d — above that is superhuman and the
+   book gives no word — so this is simply absent on a 7d Ability rather than guessed. */
+.rank-word {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.stat-blocks { display: flex; gap: var(--space-4); flex-wrap: wrap; }
+.stat-blocks.quad { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .stat-block {
     border: var(--rule-weight) solid var(--rule);
     border-radius: var(--radius-small);
-    padding: 0.5rem 0.9rem;
+    padding: var(--space-3) var(--space-5);
     text-align: center;
     min-width: 5.75rem;
     background: var(--panel-sunk);
 }
-.stat-block .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-.stat-block .value { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.stat-block .sub { font-size: 0.68rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stat-block .label {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    color: var(--muted);
+}
+.stat-block .value {
+    font-family: var(--font-display);
+    font-size: var(--text-3xl);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: var(--display-track);
+    line-height: var(--display-leading);
+}
+
+/* The rule under the figure — item 4 of the redesign. Teaching the rule is the
+   point of running the real engine in the browser rather than reimplementing it,
+   and a figure with no derivation beside it teaches nothing. It is set in the
+   body face on purpose: it is a sentence about arithmetic, not a label, and the
+   display face at this size is harder to read than it is handsome. */
+.stat-block .sub {
+    font-size: var(--text-xs);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.3;
+    display: block;
+    margin-top: var(--space-0);
+}
+
+/* The rule under the figure. Set to the left rather than centred like the number
+   above it: it is a sentence, and centred sentences of three lines read as a
+   plaque. The boxes widen to hold one, which is why this is a modifier on the row
+   rather than something every stat block carries. */
+.stat-blocks.with-formulas .stat-block { min-width: 14rem; flex: 1 1 14rem; }
+/* The derived step's row is no longer inside a panel — four ruled boxes did not need a fifth
+   box drawn round them — so it carries the gap the panel used to give it. `with-formulas` is
+   that step and nothing else; the sheet never asks for formulas. Reset in the print block,
+   because a screen margin on a (0,2,0) selector would otherwise survive onto paper if the
+   modifier ever reached the sheet, which is the specificity trap this file records three times. */
+.stat-blocks.with-formulas { margin-bottom: var(--space-5); }
+.stat-block .formula {
+    margin-top: var(--space-2);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--rule);
+    font-size: var(--text-xs);
+    line-height: 1.35;
+    color: var(--muted);
+    text-align: left;
+    text-wrap: pretty;
+}
 
 .stat-table { width: 100%; border-collapse: collapse; }
-.stat-table td { padding: 0.22rem 0.4rem; border-bottom: 1px solid var(--rule); }
+.stat-table td { padding: var(--space-1) var(--space-2); border-bottom: 1px solid var(--rule); }
 .stat-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .stat-table tr:last-child td { border-bottom: none; }
 
@@ -750,29 +1182,30 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
    lighter, letter-spaced and set in the muted ink, which puts it a clear step behind the
    numbers a player actually uses at the table. */
 .hp {
-    font-size: 0.72rem;
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
     font-weight: 400;
-    letter-spacing: 0.08em;
+    letter-spacing: var(--label-track);
     text-transform: uppercase;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
 
-.power-entry { padding: 0.45rem 0; border-bottom: 1px solid var(--rule); }
+.power-entry { padding: var(--space-3) 0; border-bottom: 1px solid var(--rule); }
 .power-entry:last-child { border-bottom: none; }
-.power-entry .head { display: flex; gap: 0.5rem; align-items: baseline; }
+.power-entry .head { display: flex; gap: var(--space-3); align-items: baseline; }
 .power-entry .head .pname { font-weight: 700; margin-right: auto; }
 /* Letter-spacing is added after the last character as well as between them, so a cost set
    against the right edge sits a fraction short of it while the ranks above and below it do
    not. Pulling that last gap back is what lines the column up. */
 .power-entry .head .hp { align-self: baseline; margin-right: -0.08em; }
-.power-entry .statline { font-size: 0.78rem; color: var(--muted); }
+.power-entry .statline { font-size: var(--text-sm); color: var(--muted); }
 
 /* The Abilities (…) line that opens a Source group. It is not a Power — it has no rank and
    costs nothing — so it is set apart from the entries below it rather than reading as the
    first of them, which is how the published sheets set it too. */
-.power-entry.trait-sources { font-style: italic; font-size: 0.85rem; }
+.power-entry.trait-sources { font-style: italic; font-size: var(--text-sm); }
 
 .sheet .quote { font-style: italic; }
 
@@ -780,9 +1213,79 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
 .sheet-footer { display: none; }
 
 @media (max-width: 620px) {
-    .shell { padding: 1rem 0.75rem 2rem; }
-    .rank-row { grid-template-columns: 1fr auto; }
+    .shell { padding: var(--space-5) var(--space-4) var(--space-7); }
+
+    /* **The three bands narrow together, and that is the invariant that replaced the
+       bleed.** The chrome used to be pulled out of the shell's padding by a negative
+       margin, and this query had to cancel the same amount or the band ran 8px past
+       the page on both sides — measured once at a 375px viewport as scrollWidth 368
+       against clientWidth 360. The bands are siblings of `main` now, so there is no
+       bleed to keep in step; what has to agree instead is the padding each of them
+       reserves around its own column, which is the same requirement stated in the
+       direction that cannot overflow. `TheChromeBandsShareTheShellsColumn` reads it. */
+    .banner-inner,
+    .steps-list,
+    .budget-strip,
+    .breakdown { padding-left: var(--space-4); padding-right: var(--space-4); }
+
+    /* The pips go and the word stays. The pips restate the stepper's own number; the
+       word is the only thing on the row a reader cannot work out from the figure. */
+    .rank-row { grid-template-columns: 1fr auto auto; }
     .rank-row .pips { display: none; }
+    .rank-word { min-width: 0; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Motion across a step change — the View Transitions API.
+
+   The script half is wwwroot/js/motion.js; this is the half that says what
+   persists. Without a name, everything is part of one `root` group and the whole
+   window cross-fades — including the three bands that did not change, which is
+   the flicker this exists to remove. A named element becomes its own group and
+   is matched to the same name on the other side, so the browser interpolates it
+   from where it was to where it is instead of fading one out over the other.
+
+   **These are the shared elements the plan asks to persist**: the banner and the
+   step list never change across a step, and the budget strip changes only its
+   figures. What is left in `root` is the content of `main`, which is the thing
+   that actually changed and the only thing that should be seen to.
+
+   A name must be unique in the document — two elements sharing one is a spec
+   error and Chrome skips the whole transition, which fails as "no animation" and
+   looks exactly like an unsupported browser. All three are singletons.
+
+   **`view-transition-name` on the strip does not unstick it, and that was
+   measured rather than reasoned about**: `TheStickyStrip` reports the same
+   `.budget` top of 0.0 after a scroll with these rules in place as without. It is
+   the kind of claim this file has been wrong about before — the containing block
+   is what makes the strip work, and a captured element is one of the things that
+   could plausibly change it.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.banner { view-transition-name: banner; }
+.steps  { view-transition-name: steps; }
+.budget { view-transition-name: budget; }
+
+/* The content cross-fade. `--enter` is the panel-arriving duration and this is the
+   same event at page scale, so it borrows it rather than introducing a fourth.
+
+   Durations are tokens, so `prefers-reduced-motion` already collapses this to
+   0.01ms — but that is belt to the script's braces, not the mechanism: motion.js
+   asks `matchMedia` itself and never starts a transition at all for somebody who
+   asked for less movement. A token cannot reach a script. */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: var(--enter);
+    animation-timing-function: var(--ease-out);
+}
+
+/* The named groups travel rather than fade, so they get the same curve but should
+   not also cross-fade against themselves — the strip's figures would ghost. */
+::view-transition-group(banner),
+::view-transition-group(steps),
+::view-transition-group(budget) {
+    animation-duration: var(--enter);
+    animation-timing-function: var(--ease-out);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -809,6 +1312,14 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
     .banner-link,
     .replay,
     .no-print,
+    /* A search box is a control, and a count of what it let through is a fact about
+       a screen. Neither means anything on paper, and both would print as an empty
+       ruled box above the list. */
+    .options-filter,
+    /* The rule a figure came out of. The sheet does not ask for these — see
+       DerivedStatBlocks — but printing any other page should not put three lines of
+       small print under each of four boxes either. */
+    .stat-block .formula,
     #blazor-error-ui {
         display: none !important;
     }
@@ -935,6 +1446,15 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
        sets them — they are the reason to have the sheet on the table at all. */
     .stat-blocks.quad { gap: 2.5mm; }
     .stat-block { min-width: 0; padding: 1.5mm 1mm; }
+    /* **The third time this trap has been recorded in this file**, after `.ruled { gap }`
+       and gear alignment. `.stat-blocks.with-formulas .stat-block` on the screen side is
+       (0,3,0) and the reset above is (0,1,0); `@media` adds nothing to specificity, so the
+       screen's 14rem floor wins on paper and four stat blocks would each demand 14rem of a
+       74mm column. Today no page renders `with-formulas` on the sheet, so the deliverable is
+       safe by an accident of markup rather than by this stylesheet — which is exactly the
+       state the other two were in before they broke. */
+    .stat-blocks.with-formulas .stat-block { min-width: 0; flex: 0 1 auto; }
+    .stat-blocks.with-formulas { margin-bottom: 0; }
     .stat-block .label { font-size: 7pt; }
     .stat-block .value { font-size: 19pt; }
     .stat-block .sub { font-size: 7pt; }
@@ -967,8 +1487,9 @@ label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 
         margin-top: 2mm;
         padding-top: 1.5mm;
         border-top: 1px solid var(--rule);
+        font-family: var(--font-display);
         font-size: 7.5pt;
-        letter-spacing: 0.06em;
+        letter-spacing: var(--label-track);
         text-transform: uppercase;
         color: var(--muted);
         break-inside: avoid;

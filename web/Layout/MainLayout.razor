@@ -2,9 +2,15 @@
 @implements IDisposable
 @inject CharacterSession Session
 @inject IJSRuntime Js
+@inject Motion Motion
 @inject NavigationManager Nav
 
+@* The fill runs the full width of the window; the contents sit on --column, like the two bands
+   below it and the shell below them. That is one element rather than a `calc()` on the padding
+   because it makes the banner structurally the same as the others, so one guard covers all four
+   — see the comment on `.banner-inner` in app.css. *@
 <header class="banner">
+  <div class="banner-inner">
     <div class="banner-title">
         Prowlers &amp; Paragons
         <small>Character creation — @(Session.Mode == SheetMode.Hero ? "Hero" : "Villain")</small>
@@ -27,21 +33,46 @@
                 aria-pressed="@Pressed(SheetMode.Villain)"
                 @onclick="() => SetMode(SheetMode.Villain)">Villain</button>
     </div>
+  </div>
 </header>
 
+@* **The chrome is outside the shell, and that is what makes it one band rather than three.**
+   The banner, the step list and the budget strip used to be three separately-framed
+   horizontal things — the banner full width, then a step list with its own bottom rule inside
+   the 1100px column, then the budget as a shadowed white card inset from the window. About
+   215px of furniture before the page heading, on every step, reading as four stacked pieces.
+
+   Out here they are full-window-width bands like the banner, contiguous, each centring its own
+   contents on --column so that all of them agree — **including the banner, which this note
+   originally claimed was already doing so and was not.** It had a flat side padding, so the
+   wordmark sat 24px from the window edge while the step labels below it sat on the column: the
+   one band described as the example was the only one out of step. The strip's negative-margin
+   bleed is gone with them:
+   it existed only to escape the shell's padding, and an element that is not inside the shell
+   has nothing to escape. So has the pair of narrow-viewport rules that had to be kept in step
+   with it, and the 8px overflow they caused at 375px is now unreachable rather than guarded.
+
+   **The budget has to be a sibling of `main` rather than a child of a wrapper around the two
+   bands.** `position: sticky` is bounded by its parent, so a short `.chrome` div holding both
+   rows would unstick the strip the moment the band scrolled past — which is the whole span it
+   exists to survive. Out here its containing block is the document, and it stays for the page.
+
+   The nav also stops being inside `<main>`, which it should never have been. *@
+<StepNav />
+
+@* The budget bar is the character being built, and it does not belong above a recording
+   of somebody else's. Both are six labelled figures in the same format — Package, Abilities,
+   Talents, Powers, Perks, Gear — so a visitor part-way through their own character met
+   "105 of 125 spent, 20 remaining" directly above a recorded character costed at 136, with
+   nothing on the page saying whose was whose. Worse on the Villain recording, which
+   deliberately shows no budget of its own: the only budget on the screen belonged to a
+   different character entirely. *@
+@if (!ShowingARecording)
+{
+    <HpBudgetBar />
+}
+
 <main class="shell">
-    <StepNav />
-    @* The budget bar is the character being built, and it does not belong above a recording
-       of somebody else's. Both are six labelled figures in the same format — Package,
-       Abilities, Talents, Powers, Perks, Gear — so a visitor part-way through their own
-       character met "105 of 125 spent, 20 remaining" directly above a recorded character
-       costed at 136, with nothing on the page saying whose was whose. Worse on the Villain
-       recording, which deliberately shows no budget of its own: the only budget on the screen
-       belonged to a different character entirely. *@
-    @if (!ShowingARecording)
-    {
-        <HpBudgetBar />
-    }
     @Body
 </main>
 
@@ -74,9 +105,59 @@
         // The shell has to redraw on a navigation as well as on a change to the character:
         // walking from a recording back into the wizard has to bring the budget bar back.
         Nav.LocationChanged += Moved;
+
+        // ...and a view transition has to be *opened* before the navigation, which is a
+        // different hook entirely. See OpenTransition.
+        _leaving = Nav.RegisterLocationChangingHandler(OpenTransition);
     }
 
     private void Moved(object? sender, LocationChangedEventArgs e) => StateHasChanged();
+
+    /// <summary>The LocationChanging registration, released on dispose.</summary>
+    private IDisposable? _leaving;
+
+    /// <summary>Whether a transition is open and waiting on this render to finish.</summary>
+    private bool _midTransition;
+
+    /// <summary>
+    /// Snapshot the page before Blazor swaps the step out from under the chrome.
+    ///
+    /// <para><b><c>LocationChanged</c> is the wrong hook for this and it is the obvious one to
+    /// reach for.</b> The View Transitions API animates between two snapshots and the first has
+    /// to be taken while the old page is still on screen; by the time <c>LocationChanged</c>
+    /// fires, the navigation has happened and there is nothing left to capture.
+    /// <c>LocationChanging</c> runs before it.</para>
+    ///
+    /// <para><b>Nothing here decides whether to animate.</b> The script asks the browser whether
+    /// it supports transitions and the user whether they want movement, and does nothing at all
+    /// if either answer is no — a component can ask neither question, and the reduced-motion
+    /// tokens in the stylesheet cannot reach a script.</para>
+    /// </summary>
+    private async ValueTask OpenTransition(LocationChangingContext context)
+    {
+        _ = context;    // nothing here ever cancels a navigation; this only observes one
+
+        _midTransition = true;
+        await Motion.Begin();
+    }
+
+    /// <summary>
+    /// Release the transition once the new step has actually rendered, which is what lets the
+    /// second snapshot be taken.
+    ///
+    /// <para>Guarded on the flag because this fires after <em>every</em> render — a rank
+    /// changing, the breakdown opening — and an unguarded release would close the next
+    /// navigation's transition before its content had arrived.</para>
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _ = firstRender;
+
+        if (!_midTransition) return;
+
+        _midTransition = false;
+        await Motion.End();
+    }
 
     /// <summary>
     /// The palette is a data-mode attribute on the document element, set through interop
@@ -93,5 +174,6 @@
     {
         Session.Changed -= StateHasChanged;
         Nav.LocationChanged -= Moved;
+        _leaving?.Dispose();
     }
 }

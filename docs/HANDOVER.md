@@ -1,188 +1,193 @@
 # Handover
 
 Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) first. `PROGRESS.md` is the
-single source of truth for what is done; this file is only the short version of where the last
+single source of truth for what is done; this file is the short version of where the last
 session stopped and what the next one is for.
 
-**Delete this file when you have finished the slices it describes.** It is a note between
+**Delete this file when you have finished the work it describes.** It is a note between
 sessions, not documentation.
 
 ---
 
 ## Where things stand
 
-**3772 tests** — 3629 engine, 143 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3877 tests** — 3663 engine, 214 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server.
 
-Earlier the work was **verified rather than trusted**, and that verification found
-`data/rulebook/` materially wrong — every chapter opening scrambled, 135 empty sections, 83
-doubled page numbers inside sentences, and every named character in Ch.8 missing. The extractor
-was rebuilt; the corpus now regenerates byte-identical from `tools/RulebookExtractor/`.
+**The reconciliation is in `master`; the visual redesign is not.**
 
-**A1, A2 and A3 were then worked in parallel, one branch each, and are reconciled here.** Each
-closed its own findings by mutation and was reviewed twice or more; `PROGRESS.md` carries three
-completed entries, one per sub-slice. Because they ran concurrently, each branch's own copy of
-this file claimed to be "the last session" and counted only its own closures — those counts are
-superseded by the reconciled ones below, and the merge changed no test and no source file, only
-the four documents the three branches all wrote to.
+- **`claude/reconcile-a1-a3`** reconciled the three sub-slices of the mutation audit, worked
+  concurrently on three branches from `5867340`, each rewriting the same four documents. It
+  **merged as [#45](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/45)** and
+  is `master`'s tip. All 33 findings are closed. (An earlier version of this file said both slices
+  were unmerged; that was true when it was written and is not now.)
+- **`claude/slice-b-visual-redesign-c88220`** is the live branch: the visual redesign plus Phases
+  0, 1 and 2 of the front-end plan. **`…-221eb7` is the same work two phases stale** — it stops at
+  `38131df` and should not be started from.
 
-**So the audit backlog is finished, and what is left is Slice B below.**
+**Slice B shipped all six items** — two self-hosted faces (Oswald and Public Sans, both SIL OFL
+with their licences), labels carrying the structure of the long forms, the tier choice as a card
+grid, the rule under each derived figure, the rulebook's word beside each rank, and one filter
+box in the component all five pickable lists share. The budget bar then became a sticky strip of
+chrome rather than a panel costing ~110px above every step. `PROGRESS.md` has the full account.
 
----
-
-## Slice A: the mutation-audit backlog — **CLOSED**, all 33
-
-**Where these came from.** Three agents, each told nothing about the work, were asked for every
-guard test to name a plausible bug it claims to cover but would not catch, **and to demonstrate it
-by mutation rather than argue it**. They ran 64 mutations; **38 survived**. Five of those were in
-the rulebook corpus and were fixed then. The other 33 split into A1 (12), A2 (13) and A3 (8), and
-**all three are now closed** — the sections below record what each one cost rather than what is
-left to do.
-
-**Kept as a record, not a queue.** None of the 33 was a bug in the product — every one was a
-**test that did not hold what it claimed to hold**, and the mutation was the evidence. What is
-worth carrying out of it is the shape of the mistakes, which is what the three sections below
-are for.
-
-### A1 — MCP server: closed, all twelve
-
-Done, with each fix demonstrated by re-applying its mutation and confirming the suite goes red.
-The reasoning is in `PROGRESS.md`, in the completed entry named after this slice — including what
-it did **not** close, and the two documents whose claims were wrong rather than merely unasserted
-(`CLAUDE.md` on the stdout guards being complementary, and both `CLAUDE.md` and `Mentions`' own
-summary naming a Power the rulebook does not have).
-
-**Three rounds of adversarial review then found twenty more, most of them inside the fixes.** All
-closed. **Do not skip that step, and do not stop at one round** — the third review, run
-on the fixes for the second review's findings, still found six, two of them the same defect in a new
-spelling. It was worth more than the original slice every time, and the "audit the fixes, not the
-code" framing found things the general reviewer did not.
-
-**Seven things worth carrying forward** — written for A2 and A3 while they were still open, and
-kept because they generalise past this backlog.
-
-1. **A guard that names its fields will be missing the next one.** Nine of the twelve were "a JSON
-   field no test reads", and the fix that worked was one assertion over the whole payload *with
-   the key set asserted exactly, both ways*. Asserting only that nothing unexpected is present
-   catches an added field and never a removed one.
-2. **A runtime test is only worth the paths it drives.** The stdout pair looked complementary and
-   was not, because one half never entered a tool body — and after that was fixed, it still only
-   drove the *happy path*, so every refusal branch stayed invisible. Ask of any end-to-end test
-   which arguments it actually sends.
-3. **A marker that proves a path ran must be unproducible by any other path.** `character_sheet`'s
-   was the character's name, which the test itself sends and the judge echoes — so serving the
-   judge under the sheet's name passed. A2's replay tests are full of this shape: the sheet prints
-   figures that *could* come from either character.
-4. **A source-reading guard is worth what its instrument can see, and a token is not a read.** A
-   token check was defeated by `ListOptions(Categories[0])` keeping the word `Categories`, then by a
-   comment mentioning the token, then by `nameof(...)`. Where a runtime property exists, drive it —
-   a theory over `RulesRepository.DataFileNames` replaced one grep, and injecting the guide the way
-   the clock is already injected replaced the other. **A2 has several CSS guards of exactly this
-   kind**, and items 10–12 there are all "the rule is asserted by looking at the text of it".
-5. **A phrase assertion cannot survive a "not" in front of the phrase.** Two prose contracts were
-   pinned by required phrases and both were *inverted* while keeping every one of them. Where the
-   content of a sentence is the deliverable, assert the sentence. This bears directly on A2's
-   items 6 and 7, which are both about what a recorded line is allowed to say.
-6. **`Zip` truncates in silence.** An emptied array runs every loop zero times and fires no
-   assertion inside it. Assert the count first.
-7. **Reuse the case list, do not copy it.** `ValidationIssueStructureTests.CaseNames` and `Build`
-   are `internal` now precisely so the second consumer cannot go stale independently. A3's first
-   finding is about that same table skipping what it omits.
-
-### A2 — browser and replay — **CLOSED**
-
-All thirteen are fixed, plus the flagged-but-undemonstrated weakness in
-`SheetRenderTests.Rendered`. Each was closed by re-applying the mutation, confirming red,
-reverting and confirming green. The reasoning is in `PROGRESS.md` under "Thirteen guards on the
-browser and the replay that were not guarding anything"; two things from it are worth carrying
-forward:
-
-- **The five sheet substitutions are not guarded by naming five more fields.** The test renders
-  the same character twice — once held by the session, once passed as a parameter over a
-  different session character — and asserts the two pages are identical. A new field on the
-  sheet is covered the day it is added, which a list of assertions would not be. Anything that
-  legitimately comes from outside the character (`ShowBudget`) has to be passed explicitly in
-  both renderings, or it hides every illegitimate difference behind a legitimate one.
-- **`ReplayLibrary.LoadAsync` exists because a `try`/`catch` in top-level statements is
-  unreachable.** If anything else in `Program.cs` ever acquires a guarantee, move it out the same
-  way rather than testing the source for a `try`. It takes the `HttpClient` rather than a fetch
-  for a reason: with a fetch parameter, `Program.cs` can do the fetching itself and hand the
-  guard a delegate that cannot fail, which passes every test and restores the bug exactly.
-- **A CSS guard must read every declaration that targets the class, not the first rule it
-  finds.** Three of these were defeated the same way — a more specific rule further down, or a
-  second declaration in the same block, both of which win the cascade while the first is what
-  the test read. `WebPresentationTests.RulesTargeting` is the shape to copy.
-- **A guard's precondition rots silently.** Two here had stopped being able to bite: a pool that
-  crossed tiers on one row of four because only one recorded character is not Standard, and an
-  assertion comparing two characters that both had zero Perks and zero gear. Neither failed;
-  they just stopped meaning anything. When writing a guard, assert that the thing it compares
-  actually differs.
-
-### A3 — engine and validator — **CLOSED**
-
-All eight, plus the test-file defect. Each fix was demonstrated by re-applying the mutation and
-confirming red, then reverting and confirming green. See the completed entry in `PROGRESS.md` for
-what was done and, more usefully, for the three similarity framings measured against the Power
-descriptions that turned out **not** to be rules — do not re-derive them.
-
-Two things from it worth carrying into A1 and A2:
-
-- **The first three findings were one bug in three places**: a lookup that silently skips what it
-  omits turns its own omissions into exemptions nobody chose. `ExpectedKinds` probed with
-  `TryGetValue`, the option check was a union over ten collections, and the code scan required an
-  underscore. Look for that shape in the remaining findings before treating one as specific.
-- **The code scan is now driven against a synthetic source**, not the real validator — reading the
-  shipped file cannot tell a pattern that finds every code from one that finds every code somebody
-  happened to spell with an underscore. That is the same lesson as the `PowerModel` tests, applied
-  to a regex.
-
-### What held up
-
-Worth knowing so it is not re-audited. The engine-facing judge in the MCP server
-(`EveryFigureReportedIsTheEnginesOwnAnswer`, the verdict and null-figure tests), the rules-location
-logic, the strict-reading discipline, `ReplayTurn` speaker attribution, the `Armor8d` spacing bug in
-both its spellings, and the whole own-text/repeatable mechanism in `ProConApplicabilityTests` all
-went red under every mutation aimed at them. **The two tests that build synthetic `PowerModel` /
-`ProModel` values caught everything thrown at them** — that approach works, and the gap is that it
-was applied to one mechanism and nothing else.
+**Three reviews ran on it and the third was worth more than the first two.** A general
+adversarial pass found eight holes; a typography-and-contrast pass measured a real WCAG failure
+and found the print-specificity trap for the third time; and a **fix-audit — a reviewer pointed
+at the fixes rather than at the code — found that three of those fixes did not hold**, including
+one where the filter written to make a guard robust widened the hole it was closing. Do not skip
+that third reviewer.
 
 ---
 
-## Slice B: the visual redesign
+## What the next session is for: the front end as an application
 
-Unchanged from the previous handover and still not started. **Chosen after looking at
-[pnpready.com](https://www.pnpready.com/)** — another unofficial companion app for this game,
-further along in scope and, more to the point, better presented. Its scope is not worth chasing;
-its presentation is.
+The plan is [`docs/FRONT-END-PLAN.md`](FRONT-END-PLAN.md), in six phases, and it is the brief.
+**Read it before starting** — it carries the reasoning, and one load-bearing decision that will
+otherwise be re-litigated.
 
-In rising order of cost:
+**Do the phases in order. Phase 0 is done** — the spacing, type and elevation scales exist and
+`NoScreenRuleNamesARawSpacingOrTypeLength` holds them, so **Phase 1 starts by asking a scale for
+a value rather than choosing one.** `PROGRESS.md` has the account; the plan carries the four
+things a later phase needs to know, including two rungs that are pinned to measured values and
+must not be tidied onto a ratio.
 
-1. **Two typefaces with distinct jobs.** A condensed uppercase display face for headings and a
-   separate body face. This app uses the system stack throughout. Biggest single difference. Cost:
-   two self-hosted files and `--font-display` / `--font-body` tokens — no component changes, since
-   a component may no more name a font than a colour. Mind the CSP's `font-src` and the print block.
-2. **Small uppercase tracked labels carry the structure of a long form**, rather than borders doing
-   it. `SheetSection`'s centred heading in a bar is right on *paper*; the editors on screen are a
-   different problem.
-3. **Choices as a card grid, not a full-width list.** Six tiers as six cards, each with its
-   consequence on one line. CSS on `OptionList`, not new markup.
-4. **Every derived stat shows its formula** under the figure. `StatBlock` already takes a `Sub`.
-   Teaching the rule is the point of running the real engine in the browser.
-5. **The rank descriptor beside the rank** — `1d Impaired`, `1d Clueless`. **The data already
-   exists**: `rank_guide` on every entry in `abilities.json` and `talents.json`, already read into
-   `AbilityModel.RankGuide` / `TalentModel.RankGuide` and locked by
-   `RulesFileCoverageTests.ThePrintedRankTablesAreWhatTheRulebookPrints`. No front end shows them.
-   **Do not go extracting it.**
-6. **A filter box on `OptionList`.** The only item here that came from somebody actually using the
-   thing: scrolling the long lists is annoying, and Powers alone is 141 entries. `OptionList` is
-   one component, so this belongs in it once rather than in five tabs. Treat it as a requirement,
-   not a nice-to-have.
+**Phase 1 is done too**, except for one half deliberately moved to Phase 4 — see the plan, which
+says which half and why. The chrome is one band instead of three, six empty states name the next
+action, and the print block came through untouched (three pages, both palettes).
 
-**The palette is in scope and it is the part that fails quietly.** `theme.css`'s contrast figures
-are measured and commented, and the print block at the bottom restates *every* token — one left out
-keeps its screen value through the cascade, which is exactly how a Villain sheet once printed as a
-full-bleed ink dump. Re-measure rather than eyeball, and re-proof the PDF.
+**Next is Phase 2 — motion that carries meaning**, and its own note is the one to read first: the
+principle before the list, because this is where "slick" becomes "noisy". Two things Phase 0 and 1
+left ready for it. **`--ease-out` exists and is used; `--ease-emphasised` deliberately does not** —
+add it in the phase that has something to overshoot, which the plan says is a row arriving in a
+list. And the **View Transitions** item wants the shared elements to persist across a route change:
+the step list and the budget strip are now full-width siblings of `main` rather than children of
+it, which is the shape that makes them persistable rather than re-rendered.
+
+**The one thing Phase 2 must not break is the sticky strip.** It stays put because its containing
+block is the document; anything that wraps it, or gives an ancestor a transform or a filter, ends
+that silently. There is a measured check — `proof-sticky.html` scrolls the shell in an iframe and
+reports the strip's top, which must be 0 after a scroll.
+
+**The one decision already made: there is no animation library.** `element.animate()` does
+everything on the list in ten lines; the payload is already this project's largest open item and
+slice B just added 381 KB of fonts to it; there is no network on this machine to fetch, vendor or
+verify one; and the View Transitions API does a thing no library can. The shortlist is in the
+plan if that is overruled — it is a decision, not a prohibition.
+
+**JavaScript itself is open.** `wwwroot/js/download.js` already exists and is called for the
+palette, the download and local storage; `script-src 'self'` allows a same-origin script with no
+hash and no policy change. Only an *inline* script would need one, and the header script hashes
+exactly one of those today.
+
+---
+
+## Prerequisites — run these before writing any code
+
+Each one has cost this project real time when skipped.
+
+1. **Confirm the toolchain.** `dotnet --version` must report **10.0.x**; the 9.x SDK cannot build
+   this. `global.json` pins `10.0.100` with `latestMinor`.
+2. **Start from the right commit.** `git log --oneline -1` on
+   `claude/slice-b-visual-redesign-c88220` — **not `…-221eb7`, which is two phases behind.**
+   `master` has the mutation-audit reconciliation but none of the front-end work.
+3. **Establish the baseline before you change anything.**
+   ```bash
+   dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
+   ```
+   It must report **3663 + 214 = 3877** and zero warnings. **Warnings are errors only under that
+   flag**, so a plain `dotnet test` passes over things CI fails on.
+
+   **Take the number from the run, not from a document, and update the document from the run.**
+   The figure here read 3849 against a tree of 3850 for one commit, because it was copied from a
+   run taken before the last test was added — and both reviewers caught it, which is a waste of a
+   reviewer.
+4. **Read the summary line properly.** A crashed test process still prints
+   `Passed!  -  Failed: 0` — a stack overflow reports `Catastrophic failure ... exit code
+   -1073741571`, skips tests, and the summary still reads green. **Grep for `Catastrophic` and
+   check the total moved.**
+5. **Confirm you can see the app without a dev server.** Do not start one; it raises an approval
+   dialogue that blocks unattended work.
+   ```bash
+   PP_PROOF=1 dotnet test tests/ProwlersAndParagons.Web.Tests
+   ```
+   should write `web/wwwroot/proof-*.html` (gitignored). Screenshot with headless Chrome at
+   `C:\Program Files\Google\Chrome\Application\chrome.exe`, using
+   `--headless=new --no-sandbox --allow-file-access-from-files --user-data-dir=<temp>
+   --virtual-time-budget=3000`. **The virtual-time budget is not optional** — `.panel` animates
+   from `opacity: 0` and a bare screenshot photographs it mid-animation, which has been misread
+   as a palette fault and half-fixed as one.
+6. **Confirm you can proof the printed sheet**, because it is the deliverable and every phase can
+   break it. Add `--no-pdf-header-footer --print-to-pdf=<ABSOLUTE WINDOWS PATH>`; rasterise with
+   Docnet.Core + ImageSharp **pinned below 4.0** (both are in the local NuGet cache). Three copies
+   of `SheetView` must come out as exactly **three pages** in both palettes.
+7. **Know where the rulebook is.** The PDFs live in the **main working directory's** `docs/`, not
+   in a worktree — `*.pdf` is gitignored repository-wide, so `ls docs/*.pdf` from a worktree
+   reports nothing, which reads as "there is no rulebook" and is wrong. A whole slice was worked
+   on that mistake.
+8. **Test a 375px viewport with an iframe, not `--window-size=375`.** Headless Chrome clamps its
+   window width to about 485px, so a 375-wide screenshot is a 485px render cropped — it looks
+   like catastrophic overflow and is not. A reviewer nearly filed that.
+
+   **And make the harness print the measurement rather than leaving it to the eye.** The bug this
+   guards against was 8px of overflow, which is invisible in a screenshot and unmistakable as
+   `clientWidth 360, scrollWidth 368`. An iframe onto `proof-hero.html` with three lines of script
+   does it; the same trick measures box insets, which is how a 3.2px table misalignment was found.
+
+9. **Do not run two reviewers concurrently in one worktree.** Both of Phase 0's reviewers
+   mutate files and revert with `git checkout`, so they poison each other: one caught the other's
+   `--text-sm: 2rem` and read it as a finding, and both lost runs to `index.lock`. Give each
+   reviewer its own worktree, or run them one at a time. Their own scratch files under
+   `web/wwwroot` also break `PrintRestatesEveryTokenTheScreenPalettesDeclare` by naming tokens,
+   and one reviewer's cleanup deleted the other's harness.
+
+---
+
+## How this project expects to be worked on
+
+Not preferences — this is what the last few slices cost when they were skipped.
+
+1. **Update `PROGRESS.md` in the same change**, not afterwards. It is the only place the
+   reasoning survives.
+2. **Have the work adversarially reviewed by agents that know nothing about it.** For every guard
+   test, ask the reviewer to name a plausible bug the test claims to cover but would not catch —
+   **and to demonstrate it by mutation rather than argue it.**
+3. **Then ask a reviewer to audit the fixes, not the code.** This has been the most valuable
+   reviewer four sessions running, and on this one it found that three fixes did not hold and
+   that a brand-new component had three defects and no coverage at all. On Phase 0 it found that
+   **nine of eleven fixes caught only the mutation demonstrated to them** — ask it for a *variant*
+   that reaches the same end state, not a re-run of the original.
+
+4. **A later declaration of the same thing beats a `Contains`, and that one root cause has now
+   defeated five guards in `WebPresentationTests`.** `Contains("position:sticky")` is satisfied by
+   a declaration overridden on the next line; a pinned `--space-4: 0.75rem` is satisfied while a
+   duplicate lower down wins the cascade; `border-bottom:` is satisfied by `border-bottom: none`.
+   The instrument is `EffectiveValue` — comma lists split, suffix-matched, last declaration wins —
+   and `RulesTargeting` beside it. **Do not write a new guard in this file with `Contains`.**
+
+5. **Placement in the cascade is part of aiming a mutation.** Twice this slice a mutation inserted
+   *earlier* in the file than the rule it was meant to override reported as a survivor, because the
+   cascade genuinely resolved the right way and the mutation never reached the state being tested
+   for. Insert after the rule you are overriding, and check the numstat **and** the marker after
+   the run as well as before — a concurrent revert mid-run reads exactly like a guard holding.
+6. **Look at the thing, do not only test it — and *generating* a proof is not looking at it.**
+   Every visual bug in slice B — a count reading 282 of 141, a rank printed as `12D`, a citation
+   as `CH.6` — was found by looking at a rendered page, and none was visible to any test. Phase 1
+   then added a proof of the shell in both palettes, screenshotted the Hero one, wrote "verified by
+   looking… both palettes", and shipped a chrome band with **no bottom edge at all** in Villain
+   mode, on the tier page before a tier is chosen, and on every replay route. The Villain proof
+   showed it. **If you generate a page per palette, open every one of them.**
+
+7. **Fix the class of defect, not the defect.** The same round produced six guards that caught only
+   the mutation shown to them, and then — after all six were fixed on exactly that principle — the
+   most severe finding of the lot was repaired with no guard at all, and a mutation put it straight
+   back. Fixing a defect and not guarding it is the same failure one level up.
+8. **A guard that grows subjects without growing coverage is worth less each time.** Adding three
+   uppercased classes to the budget strip added three selectors the guard could not reach. If a
+   test enumerates things, make it refuse a subject it never found.
+9. **Check a rulebook citation before repeating it.** A comment cited "Elasticity", which is not
+   a Power in this rulebook; `CLAUDE.md` already recorded that exact slip being made once before.
 
 ---
 
@@ -201,64 +206,45 @@ full-bleed ink dump. Re-measure rather than eyeball, and re-proof the PDF.
 - **Warnings are errors only under `ContinuousIntegrationBuild`**, so a green `dotnet test` does
   not cover it. Run
   `dotnet build --configuration Release -p:ContinuousIntegrationBuild=true` before pushing.
-- **Commit before letting anything mutate files.** A mutation pass reverts with
-  `git checkout -- .`, which takes uncommitted work with it. That cost two rounds of rework in
-  the replay slice, both times on work written minutes earlier — and the hazard was already
-  recorded from [#30](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/30) in
-  its single-file form, so knowing about it is demonstrably not enough.
-- **`perl -pi` silently edits nothing on this machine.** It exits 0, prints nothing, and leaves
-  the file untouched — so a mutation "applied" that way looks exactly like a fix that holds, and
-  a green suite means nothing. Use `sed -i` or the editor, and check `git diff --numstat` every
-  time. This cost a wrong conclusion in the slice that recorded it.
+- **Before any destructive revert, run `git stash push -u -m pre-experiment`.** Not "commit
+  first" as a caution — this was a caution twice and was ignored twice by people who had read
+  it, most recently by an agent that reverted one file to undo a mutation and took an unrelated
+  uncommitted change with it in the same breath. `CLAUDE.md` carries the rule; there is no
+  judgement call about whether a given revert is risky.
+- **`perl -pi` silently edits nothing on this machine.** It exits 0, prints nothing, and leaves the
+  file untouched — so a mutation "applied" that way looks exactly like a fix that holds. Use
+  `sed -i` or the editor, and check `git diff --numstat` every time.
 - **`sed` mangles Windows paths**: `\c` becomes a backspace and `\r` a carriage return, silently.
   Use the editor for anything containing a path.
-- **A check that never ran looks exactly like a check that passed, and piping it through `grep`
-  is what hides the difference.** The Docker CI-strict command above was run as
-  `docker … | grep -E "Passed!|Failed!"` while Docker Desktop happened to be stopped: the daemon
-  connection error went to the filtered-out lines, the pipeline exited **0**, and the result was
-  an empty output that a hurried reader takes for green. It was caught only because *nothing*
-  printed rather than something wrong. **Assert on the positive** — require the `Passed!` line to
-  be there — and when a run reports success with no output, treat that as a failure to
-  investigate rather than a quiet win. The same shape as the `perl` trap above: both are
-  successes that never happened. **It has now happened twice**: the A1–A3 reconciliation hit the
-  identical thing on the identical command, one slice after it was written down, which is the
-  clearest evidence available that reading this file is not the same as being protected by it.
-  A nested `$_` in a PowerShell `Where-Object` shadows the outer loop variable and will report
-  everything missing, for the same reason: it fails by looking successful.
-- **The authority on CI is CI.** `gh pr checks <n> --watch` runs the same strict flags on Linux
-  and needs no local daemon. Prefer it to the Docker route when a branch is already pushed.
-- **A guard test that reads the shipped data cannot tell you the mechanism reads it too.** Every
-  test of the Force Field exemption passed with the whole thing hard-coded to
-  `power.Id == "force_field"`, because they all asserted over the real rules files. To pin a
+- **A check that never ran looks exactly like one that passed.** Do not pipe a verification through
+  `grep` and read empty output as green; assert on the positive. A nested `$_` in a PowerShell
+  `Where-Object` shadows the outer loop variable and will report everything missing.
+- **The authority on CI is CI.** `gh pr checks <n> --watch` runs the same strict flags on Linux and
+  needs no local daemon. Prefer it to a local Docker run when a branch is already pushed — and note
+  that a Docker run piped through `grep` while the daemon happens to be stopped exits **0** with an
+  empty output, which a hurried reader takes for green. Carried from
+  [#44](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/44); it was nearly lost
+  merging `master` into this branch, because this file had been rewritten on both sides.
+- **A crashed test process still prints `Passed!  -  Failed: 0`.** Removing the equality guard in
+  `OptionList.OnAfterRender` produces the endless render loop its own comment describes. The run
+  ends in `Catastrophic failure: Test process crashed with exit code -1073741571` — `0xC00000FD`,
+  stack overflow — **31 of 153 tests never run, and the summary line still reads `Passed!` with
+  `Failed: 0`.** The exit code is 1, so CI catches it; a person tailing the log for `Passed!`
+  does not, and a reviewer's first pass did exactly that before catching itself. **Grep for
+  `Catastrophic` and check the test total moved, never the word `Passed!` alone.**
+- **A guard test that reads the shipped data cannot tell you the mechanism reads it too.** To pin a
   mechanism, drive it against a synthetic model that differs only in the field.
+
 
 ---
 
-## How this project expects to be worked on
+## Two more, carried from earlier slices
 
-Not preferences — this is what the last few slices cost when they were skipped.
-
-1. **Update `PROGRESS.md` in the same change**, not afterwards.
-2. **Have the work adversarially reviewed by agents that know nothing about it**, act on the
-   findings, re-review, and only then merge. Ask each reviewer, for every guard test, to name a
-   plausible bug it claims to cover but would not catch — **and to demonstrate it by mutation
-   rather than argue it.** That question has found a third to a half of new guards were theatre
-   every time it has been asked; last time it was 38 of 64.
-3. **Ask a reviewer to audit the fixes, not just the code.** The most valuable reviewer of the last
-   four sessions, every time. Last session it found the corpus fix still scrambling 16 pages by a
-   new mechanism — the same defect class the fix was for.
-4. **Measure against the thing you are replacing.** The extractor rewrite regressed 26 of Ch.2's
-   Power entries that the *old* extractor got right, and the only reason that did not ship as a
-   fix is that the old corpus was scored on the same check. A rewrite is not automatically better
-   than what it replaces.
-5. **Look at the thing, do not only test it.** Render a component through bUnit into a static page
-   against the real stylesheets and screenshot with headless Chrome. Pass
-   `--virtual-time-budget=3000` or `--force-prefers-reduced-motion`, or you will photograph panels
-   mid-entry-animation and read washed-out styling as a palette fault. That happened and was
-   half-fixed as one.
-6. **Do not start a dev server.** It raises an approval dialogue that blocks unattended work.
-   `dotnet build`, `dotnet test`, the Docker Qodana scan and the screenshot route above all run
-   without one.
-7. **Check a rulebook citation before repeating it.** The suite holds recorded characters to the
-   engine and bans figures from transcript prose; **it cannot tell whether a recorded sentence
-   about the rules is true.**
+- **Measure against the thing you are replacing.** The extractor rewrite regressed 26 of Ch.2's
+  Power entries that the *old* extractor got right, and the only reason that did not ship as a
+  fix is that the old corpus was scored on the same check. A rewrite is not automatically better
+  than what it replaces — and this applies squarely to a redesign.
+- **The mutation question has found a third to a half of new guards were theatre every time it
+  has been asked.** Last time it was 38 of 64. This slice it was three fixes out of eight plus a
+  whole new component. Expect it, and budget for the second pass rather than treating it as bad
+  news.

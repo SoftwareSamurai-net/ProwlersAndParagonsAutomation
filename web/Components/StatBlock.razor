@@ -8,6 +8,10 @@
     {
         <div class="sub">@Sub</div>
     }
+    @if (Formula is not null)
+    {
+        <div class="formula">@Formula</div>
+    }
 </div>
 
 @code {
@@ -20,4 +24,15 @@
     /// the spend — the budget is context for it.
     /// </summary>
     [Parameter] public string? Sub { get; set; }
+
+    /// <summary>
+    /// The rule the figure above came out of, in words.
+    ///
+    /// <para><b>It is a statement of the rule and never a working of it.</b> The engine
+    /// returns a number and not the terms it added up, and reconstructing them here would be
+    /// arithmetic in the browser — which is the one thing this front end exists not to do.
+    /// So this says how Edge is worked out; what Edge *is* comes from the engine, beside
+    /// it.</para>
+    /// </summary>
+    [Parameter] public string? Formula { get; set; }
 }

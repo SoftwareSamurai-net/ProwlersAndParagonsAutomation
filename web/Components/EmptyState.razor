@@ -1,0 +1,19 @@
+@* What a list says when it holds nothing — and, more to the point, what to do about it.
+
+   Six of these read "None yet.", "None." or "Nothing yet.": a full stop reporting a fact the
+   reader can already see, on the one screen where they most need telling what happens next.
+   An empty list is the moment a tool is least useful and most able to help, and every one of
+   them spent it restating the emptiness.
+
+   It is a component rather than a class applied six times for the reason the rest of them are:
+   one owner per repeated class, so the treatment cannot drift between six copies. It also
+   gives the guard something to find — `EveryEmptyStateNamesTheNextAction` renders each editor
+   with an empty character, locates this element and refuses a sentence that is only a
+   negation. A class spread by hand across six files would have to be enumerated instead, and
+   an enumeration is a list that goes stale. *@
+
+<p class="empty-state small muted">@ChildContent</p>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

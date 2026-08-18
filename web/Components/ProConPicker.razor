@@ -1,5 +1,8 @@
 @* Adds and removes Pros and Cons.
 
+   Serves Powers, Abilities and Gear — three scopes, not two — so nothing said in this
+   component may name one of them. See the empty state below.
+
    Which generic options are on offer is ProConApplicability's answer, never this
    component's: the rulebook states applicability inside each option ("This Pro applies to
    Zone Powers"), not inside the Power, and the per-Power lists that used to exist here
@@ -13,7 +16,20 @@
 <Field Label="@(IsPro ? "Pros" : "Cons")">
     @if (Selected.Count == 0)
     {
-        <p class="small muted">None.</p>
+        @* Worded for **any** subject: "this", never "this Power". The picker renders under a
+           Power, an Ability and a piece of Gear, so naming any one of the three is false on the
+           other two — and an earlier note here said "Powers and Abilities both", which named two
+           of three and was itself the mistake it was warning about. *@
+        <EmptyState>
+            @if (IsPro)
+            {
+                <text>None yet. A Pro widens what this does, and adds to what it costs.</text>
+            }
+            else
+            {
+                <text>None yet. A Con narrows what this does, and discounts it.</text>
+            }
+        </EmptyState>
     }
     else
     {
@@ -53,7 +69,7 @@
 
     @if (_adding && _pending is null)
     {
-        <OptionList Class="spaced">
+        <OptionList Class="spaced" Placeholder="Filter these Pros and Cons">
             @foreach (var own in OwnEntries)
             {
                 <OptionRow Name="@own.Name" Caveat="@own.Description" Cost="@PowerProConCost(own)"

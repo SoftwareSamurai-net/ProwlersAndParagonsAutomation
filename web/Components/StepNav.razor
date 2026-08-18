@@ -2,8 +2,15 @@
    reachable at any time — the terminal wizard has back-navigation for the same reason,
    and a browser that only moved forwards would be a step backwards from it. *@
 
-<nav aria-label="Creation steps">
-    <ul class="steps">
+@* `.steps` is on the <nav>, which is the band, and the list inside it is the centred column.
+   The class stayed on the outer element on purpose: the print block hides `.steps`, and moving
+   it to the list would leave the band's own padding and bottom rule printing around nothing.
+
+   The band carries that rule because the budget strip below it is absent on three whole classes
+   of screen — Villain mode, the tier page before a tier is chosen, and every replay route — so
+   nothing else closes the chrome there. See the comment on `.steps` in app.css. *@
+<nav class="steps" aria-label="Creation steps">
+    <ul class="steps-list">
         @for (var i = 0; i < Steps.Length; i++)
         {
             var step = Steps[i];

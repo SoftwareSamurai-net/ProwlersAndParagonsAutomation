@@ -41,6 +41,82 @@ dotnet build --configuration Release -p:ContinuousIntegrationBuild=true
 dotnet test
 ```
 
+## Two disciplines that are commands, not cautions
+
+Both of these were written here as warnings first, and both were then ignored by somebody who
+had read them in the same session. A caution does not fire hundreds of steps later, when you are
+thinking about something else. These are phrased as things to *run*.
+
+### Before any destructive revert, stash
+
+```bash
+git stash push -u -m pre-experiment
+```
+
+**Run it before `git checkout -- .`, `git checkout -- <file>`, `git reset --hard`, or letting any
+mutation pass revert for you.** `git checkout --` takes uncommitted work with it, silently and
+with no confirmation. That has now cost this project rework three times, the last of them by an
+agent that had read this paragraph's predecessor earlier in the same session and reverted one
+file to undo a mutation, taking an unrelated uncommitted change with it.
+
+There is no judgement call to make about whether a particular revert is risky. Stash first. If the
+stash turns out to be empty, it cost nothing; `git stash pop` afterwards is one command.
+
+**Committing first is better still** where the work is in a committable state — a mutation
+experiment run against committed work has nothing to lose. Stash is for when it is not.
+
+
+**And when it goes wrong anyway, git has probably still got it.**
+
+```bash
+git reflog                                  # every HEAD move: bad reset, bad rebase, lost commit
+git fsck --unreachable | grep commit        # dropped stashes and orphaned commits
+git stash apply <sha>                       # recover one by hand
+git show <sha>:path/to/file                 # or just read one file out of it
+```
+
+`git stash pop` **prints the SHA it dropped** — `Dropped refs/stash@{0} (c1c89e…)`. That line is the
+cheapest recovery handle there is, and piping the pop to `/dev/null` throws it away. Do not.
+
+**The line that decides whether any of this works is whether an object was ever created.** A stash,
+a commit, even a bare `git add`, all write objects that survive being dropped and are findable
+above. A working-tree edit that was never stashed, added or committed is not an object, and
+`git checkout -- <file>` over it is unrecoverable by any means — which is exactly the loss this
+section opens with. So the stash rule is not only prevention: **it is what makes recovery possible
+at all.**
+
+Related, for the other direction: when something *is* broken and nobody knows since when,
+`git bisect run <command>` will find the commit. It takes any command whose exit code says
+good-or-bad, so the harness drivers work directly — a script that regenerates the proofs and greps
+`<title>` for `PASS` is a usable bisect predicate, and would have located a regression this project
+shipped inside a fix.
+
+### A check is not done until you have broken it and watched it fail
+
+**Write the guard, then deliberately break the thing it guards, then run it and see it go red.**
+Not "reason about whether it would catch it" — run it. A check that has never failed is a claim,
+and the claim is usually wrong: this repository has now shipped, on separate occasions,
+
+- a guard that passed because a one-character inversion left every asserted string in place,
+- a guard that passed because its `setTimeout` was present and did nothing,
+- a proof whose four checks passed because a missing stylesheet meant **the animation never ran
+  at all**, so every assertion about the end state held trivially,
+- an inset measurement that reported a spread of `0.00px` while one band was visibly 60px out of
+  line, because `getBoundingClientRect()` returns the border box and the break was padding.
+
+Every one of those was found by breaking it. None was found by reading it.
+
+**And every harness carries a positive control**: assert that the work *happened* — an execution
+counter, `getAnimations().length`, an element count, a scroll position that actually moved —
+**before** asserting that its outcome was right. Three of the four failures above were a feature
+that did not run being mistaken for a feature that worked, which is the single most common way a
+check in this repository has been wrong.
+
+A mutation that is semantically null does not count as breaking it. Removing the assigned resting
+frame from the counting figure changes nothing observable, because the easing already reaches
+exactly 1 at `t=1`; the honest report is that the mutation was a no-op, not that the guard has a
+hole. Break it with something that changes the answer.
+
 ## Tests
 
 `tests/ProwlersAndParagonsAutomation.Tests` (xunit.v3). Two things to know before touching it:
@@ -105,6 +181,16 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 - `Program.cs` fetches every name in `RulesRepository.DataFileNames` **before the first render** and hands them to an `InMemoryRulesSource`. The engine is synchronous by design; a half-loaded repository throws.
 - **The rules are copied into `web/wwwroot/data/rules/` by the csproj, not committed there** (`wwwroot/data/` is gitignored). `Content Include` with `LinkBase` looks like it would do this and does not — the asset is registered against a content root the file is not under, so every request answers `200` with an empty body. Copy before static-asset discovery.
 - `CharacterSession` (scoped) owns the `CharacterSheet` and forwards to the calculators. **Anything resembling arithmetic in that file is a bug.**
+- **An animation may interpolate between two engine answers; it may never invent one.** The rule
+  above is about *authority*, not about every pixel: a frame part-way through a counting figure is
+  transient presentation, and the engine stays authoritative for any figure that **comes to rest,
+  is exported, or is read back**. So `ppCount` is allowed to draw the numbers between 105 and 118
+  because both ends are `CostCalculator` answers and the resting frame is **assigned rather than
+  computed** — the figure that settles is the engine's exactly, not a rounding of an interpolation.
+  What stays forbidden is the shape this permits people to reach for: counting *towards* a figure
+  the engine has not returned yet, easing a bar to a predicted width, or holding a stale number on
+  screen because the animation is still running. If an animation would show a number nobody asked
+  the engine for, it is the bug this rule has always been about.
 - `CharacterSession.TryCost` exists because the engine throws rather than guessing on an incomplete selection — a variable-cost Power with no variant. The editors never commit one, so this is only for the always-on budget bar.
 - **`CharacterStore` decides what a stored character is by asking the engine, not by checking its shape.** A saved sheet is nested several levels deep, and `System.Text.Json` will put a null at any of them without the type system objecting — so the guard costs and validates the sheet once and rejects a payload the engine cannot answer for. The first version stripped nulls level by level and missed `"Pros":[null]`, which restored cleanly and then took the app down on the first frame, because the budget bar renders on every route. **Do not replace this with a list of shapes**: the list goes stale the first time somebody adds a field. `InvalidOperationException` is deliberately not caught there — that is a half-finished character, not a corrupt one.
 - **Trimming is disabled on publish.** `RulesRepository` deserializes by reflection, so the trimmer can quietly remove model properties and leave the site running on empty rules. See `PROGRESS.md` item 5 before turning it back on.
@@ -397,15 +483,52 @@ Rasterising the result needs a PDF library (there is no `pdftoppm` or Python on 
 
 bUnit pulls AngleSharp transitively at a version carrying a published advisory, so `web/`'s test project pins AngleSharp forward. Do not suppress NU1902 instead — see the comment in its csproj.
 
-### The browser front end's three presentation rules
+### The browser front end's four presentation rules
 
-All three are asserted by `WebPresentationTests`, which reads the source because none of them is visible to a compiler.
+All four are asserted by `WebPresentationTests`, which reads the source because none of them is visible to a compiler.
 
 1. **No component names a colour.** Checked by hex, by keyword, *and* by `rgb()`/`hsl()`/`oklch()` function syntax — that last one is the loophole a hex grep leaves open. `transparent` is allowed; it is the absence of a colour. Radii and durations are tokens for the same reason, and `prefers-reduced-motion` turns every animation off by setting three duration tokens to `0.01ms` — not `0`, which makes some engines skip `transitionend` entirely.
+
+   **Nor a typeface.** `--font-display` (Oswald) and `--font-body` (Public Sans) are declared in `theme.css` and nothing else names a family; `font:` shorthand is checked as well as `font-family`, because the shorthand carries a family too and `font: inherit` is everywhere. **Both faces are self-hosted under `web/wwwroot/fonts/` and both are SIL OFL, so the licence text ships beside them** — this repository redistributes them on every deploy and every fork, which is a condition rather than a courtesy, and there is a test. **A missing font file fails silently**: the stacks name system fallbacks on purpose, so a renamed file degrades the whole app to them with every other test green — which is why one test reads the bytes on disk. They are `.ttf` and would be ~40% smaller as `.woff2`; converting them is a one-line change per face.
 2. **Nothing on screen names an internal type or a build command.** Asserted on the *prose*, which `VisibleText` derives by stripping `@* *@` comments, the `@code` block, every tag (and so every attribute) and every Razor expression — so `@PowerFormatter.StatLine(p)` is fine and the same characters in a paragraph are not. The rule is general: no compound PascalCase type declared in `engine/` or `sheets/` may appear. The reverse is asserted too — `Ch.6`, `Ch.9`, `Trait Cap` and `Hero Point` must still appear *in the prose*, since deleting the rulebook references would satisfy a naive reading of this rule and ruin the app. (Asserted against the raw file, that test passed while `Ch.6` survived only in a comment.)
 
    **The validator's messages are the other half of this surface**, and `web/`'s tests cannot see them — they are engine strings, printed verbatim on the GM review step and in both exports. `ValidationMessageTests` provokes them from real sheets and holds them to the same rule: no file name, no internal flag, no bare id where the rulebook has a name, no `flaw(s)`, and every message a sentence.
 3. **One component owns each repeated class.** `Panel`, `Field`, `SheetSection`, `StatBlock`, `DerivedStatBlocks`, `OptionList`/`OptionRow`, `ChosenList`/`ChosenRow`. Writing `class="panel"` by hand anywhere else fails a test. The budget bar's live fill width is the **only** inline style left, and it is the sole justification for `style-src 'unsafe-inline'` in the CSP.
+4. **No screen rule names a raw length**, in px any more than in rem. Padding, margin, gap and font-size come from `--space-0`…`-8` and `--text-xs`…`-3xl` in `theme.css`; the print block is out of scope because mm and pt are a different medium with its own scale. Before the scales existed the screen half of `app.css` spent **twenty-seven** distinct spacing lengths and **twenty** font sizes, ten of the latter between 0.68rem and 0.9rem — an accumulation nothing could flag, because every value in it was locally reasonable.
+
+   Three literals are exempt, each **paired with the selector it belongs to and asserted to still exist**: an exemption whose selector has been renamed away permits its declaration everywhere and reports nothing.
+
+   **Two rungs are pinned to measured values, not to a ratio, and must not be tidied onto one.** `--text-xs` is 0.72rem because that is the size `--muted`'s 4.5:1 floor was measured at — round it down to fit a ratio and the colour still passes its own test at a size nobody checked. `--text-3xl` is 2.15rem because it is the masthead. The spacing scale is 2px at the bottom and 4px above it for the same kind of reason: a strict 4px base doubles the tightest spacing in the app.
+
+   **`--shadow-3` belongs to the sticky budget strip and nothing else, asserted by count.** One `--shadow` used to carry the banner, every panel, the sheet, the cards and the strip — which did not look wrong, it just meant nothing on the page had a height. Spreading the top step back would undo that without changing a value.
+
+   **A `-var(…)` is not a negative length.** A minus sign in front of a `var()` invalidates the whole declaration and the browser drops it, so the budget strip's bleed disappears and nothing looks broken. Write `calc(-1 * var(--space-6))`. The bleed matching the shell's padding used to be a comment asking to be remembered; two references to one token made it a test.
+
+   **`app.css` may not declare a custom property at all.** Narrowing that rule to `--space-*` and `--text-*` defended the *names* of the scales rather than the property that makes a scale mean anything, which is that lengths are decided in one file — and two mutations walked straight through it: `--table-inset: 1.2rem` beside `width: calc(100% - var(--table-inset))`, and `--pad-lg: 4rem` behind an ordinary `padding`. A custom-property declaration is not one of the four scanned properties, and every `var()` is stripped before the scan looks for a literal.
+
+**A CSS guard is worth one spelling of the property it reads, and CSS has several.** One helper reading `border-bottom` was beaten by `border-bottom-color: transparent`; one reading `border-left` by `border-left-width: 0`; one reading `margin` by `margin-left: 0`; and one reading `padding-left`/`padding-right` by `padding-inline`. Four separate guards, one cause. `EffectiveValue` now gathers the property, its longhands **and its logical equivalents** in source order and **refuses to answer when the last of them is a spelling it does not model** — a red test is the safe direction. Order is what makes that correct rather than merely strict: `.budget-toggle` writes `border: none` then `border-bottom: …`, which the cascade resolves as intended, so a check refusing any related spelling fails on correct CSS.
+
+Two more of the same family. **A zero width is not a visible edge** — `border-left: 0 solid var(--rule)` names the right token, contains no `none`, and draws nothing. And **CSS formatting is not a property a guard may depend on**: a media-query scan that ended at the first newline-brace could not see a query written on one line, and swallowed its contents into the next block that *was* formatted. Brace-match.
+
+**A later declaration of the same thing beats a `Contains`, and this one root cause has defeated five guards in `WebPresentationTests`.** `Contains("position:sticky")` is satisfied by a declaration overridden on the next line; a pinned `--space-4: 0.75rem` is satisfied while a duplicate lower down wins the cascade; `border-bottom:` is satisfied by `border-bottom: none`; a filter on `Selector == ".budget"` misses `.budget, .breakdown { … }`; and reading the *first* `@page` misses a second one that prints the sheet A5 landscape. The instruments are `EffectiveValue` — comma lists split, suffix-matched, last declaration wins — and `RulesTargeting` beside it. **Do not write a new guard in that file with `Contains`**, and where a guard asks "does this rule still say this" rather than "what applies here", match the selector *exactly*: suffix matching let a rule matching no element in the app supply an exemption's whole justification.
+
+**An allow-list of units is the wrong shape for a ban.** That was got wrong twice, the second time in a fix whose own comment said so: `px|rem|em|ch|vh|vw|%` let `9pt` through, and the thirty-unit replacement let `9dvmin`, `3svb`, `2lvi` and `4PX` through. Invert it — a digit followed immediately by letters or a percent is a length, whatever the letters are. No whitespace between the two, or `margin: 0 auto` reads as a length.
+
+**`OptionList` owns the filter box, and `OptionRow` decides whether to draw itself.** The five pickable lists — Powers, Pros and Cons, Perks, Flaws, gear features — get a filter by being lists of options rather than by five tabs each growing a search box; the Powers tab had the only one and now has none of its own, keeping its category facet. A row is passed `Keywords` for words it can be *found* by but does not print, because the Powers box read tags and moving it would otherwise have narrowed the one list that worked.
+
+- **The filter is cascaded as a record that is replaced every render, never mutated.** Blazor only re-renders a child when something it can compare has changed, so a cascading value that is the same object with different contents leaves every row on its last answer and the list stops responding to the box above it. `Pass` on that record is what makes each render's value distinct.
+- **A row counts itself once per pass, however many times Blazor asks.** A row inside a `CascadingValue` is reached from both directions when the value changes — the parent re-renders the fragment holding it *and* the cascading value notifies its subscribers — so `OnParametersSet` runs twice and the naive count reported **282 of 282 Powers where the rulebook has 141**. It read as a plausible number beside a list nobody counts. Do not move the decision back into a property the markup calls; asking the filter is what counts the row.
+- **The count lags its own render by one pass and `OnAfterRender` catches it up**, guarded by comparing against what was drawn. Remove the guard and it is an endless render loop rather than a count.
+- **The "nothing matches" line appears only when a filter is the reason.** A list that is empty for its own reasons says so in its own words — "None yet." — and answering an unasked question would contradict it.
+
+**The budget is chrome, not content.** `HpBudgetBar` is a sticky strip with a 3px rail on its own bottom edge, not a panel in the column — as a panel it cost ~110px above every one of six steps, most of it a table consulted occasionally. Three things it has already been got wrong on:
+
+- **The negative-margin bleed must follow `.shell`'s padding.** The strip is pulled out by `-1.25rem` to run edge to edge; the ≤620px query cuts that padding to `0.75rem`, and a fixed pull is then 8px wider than its container on both sides — measured as real horizontal overflow at 375px. Change one and you must change the other.
+- **`aria-valuenow` is clamped to `aria-valuemax` and `aria-valuetext` carries the truth.** An over-budget character spends more than the budget, and a `progressbar` reporting 132 of 125 is out of range; the fill was already clamped in the same block while the announced value was not. The bar also carries its own `aria-label` — the one on the enclosing `<section>` names the section, not the bar.
+- **`aria-controls` only while the target exists.** The breakdown renders inside an `@if`, so naming it unconditionally leaves a dangling IDREF. `aria-expanded` is what carries the state.
+- Whether the disclosure is open is a field on the component, **never on `CharacterSheet`** — that is a fact about a screen, and the sheet is what gets exported and restored.
+
+**`--accent-soft` and `--danger-soft` are grounds for tints, not for text.** Villain `--heading` on `--accent-soft` measures **4.08:1** and `--danger` on `--danger-soft` **3.94:1**, both under the 4.5:1 text needs — and WCAG 1.4.3 applies to a **hover state**, which is where all three instances were. Hover grounds are `--panel-sunk`. This was found twice: the first fix moved the tier card and left `.btn:hover` and `.btn.danger:hover` on the same pairs, so the file carried a comment naming the fault eleven lines above two live instances of it. **Re-measure; the screen palette has no luminance test, unlike print.**
 
 Two Razor traps this surface has already hit:
 

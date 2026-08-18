@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3772 across two projects — 3629 on the engine, 143 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3893 across two projects — 3668 on the engine, 225 rendering components with bUnit — run in CI at the same strictness as the build, plus five browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -218,6 +218,888 @@ grip does not.
 ---
 
 ## Completed work
+
+### Phase 2 of the front-end plan: motion that carries meaning — **in progress**
+
+**The first thing found was that the guard this phase must not break did not exist.** The handover
+names `proof-sticky.html` as the measured check on the budget strip — the strip stays put only
+because its containing block is the document, and View Transitions is precisely the change that
+would wrap it. The file was on disk and **had never been committed**: no generator in `ProofPages`,
+`web/wwwroot/proof-*.html` is gitignored, and regenerating the proofs deleted it. So did
+`proof-measure.html`, `proof-narrow.html` and `proof-narrow-shell.html`, the three harnesses
+prerequisite 8 leans on for the 375px measurements. Four measured checks the handover treats as
+standing were one `PP_PROOF=1` run from gone, and absent entirely in a fresh worktree.
+
+`TheStickyStrip` is now a generator beside the others, so it survives a clean checkout, and
+`TheStickyHarnessMeasuresRatherThanAsserts` runs on every build — not under `PP_PROOF`, which is the
+mistake Phase 1's fix-audit found in the marker checks and would have reproduced exactly.
+
+**The harness states a verdict token rather than leaving it to the eye**, so the check is read out of
+a dumped DOM instead of a screenshot. The baseline measures `.budget` top at 117.0 before a scroll
+and **0.0** after, with `.steps` bottom at −483.0 — stuck, against a page that genuinely scrolled.
+
+**And the instruction for reading it was itself defeatable, which only looking at the dump showed.**
+The first version said to assert on `STICKY: PASS` in the page. That string appears **twice** in a
+dumped DOM — once as the verdict and once inside the harness's own script source — so the assertion
+passes on a harness whose script never fired, which is the failure mode being guarded against. The
+verdict is written to `document.title` as well, which the script alone writes and whose resting value
+is neither verdict, so the three states are distinguishable. `MustNotShow` refuses a hard-coded
+`say(true, …)`; a proof that cannot fail is worse than no proof, because it is read as evidence.
+
+**Item 1, continuity across steps, is in.** The three chrome bands carry a `view-transition-name`,
+so the browser matches each to itself either side of a navigation and interpolates rather than
+cross-fading the whole window; what is left in the `root` group is the content of `main`, which is
+the only thing that changed. `wwwroot/js/motion.js` is 55 lines and the only script added — no
+animation library, for the reasons in the plan. The CSP is untouched: `script-src 'self'` already
+allows a same-origin file.
+
+**`LocationChanged` is the wrong hook and it is the one already in the layout.** The API animates
+between two snapshots and the first has to be taken while the old page is still on screen; by the
+time `LocationChanged` fires there is nothing left to capture. `RegisterLocationChangingHandler`
+runs before the navigation, so `begin()` snapshots and holds the transition open on a promise and
+`OnAfterRenderAsync` resolves it once the new step has rendered. The failure mode of getting this
+wrong is silent — no error, just no animation, indistinguishable from an unsupported browser.
+
+**Two of the four new guards were theatre, and a variant is what showed it.** Both assert that
+`motion.js` *mentions* something — `still()`, `setTimeout` — and both pass against a script doing
+the opposite of what it says:
+
+- `if (… || !still()) return` — one character — serves the animation to exactly the people who
+  asked for none, and every string assertion still passes.
+- `setTimeout(() => {}, 1000)` is a safety net that catches nothing. That one matters more than it
+  reads: while a transition is open the live DOM sits behind a snapshot, so a release that never
+  arrives leaves a frozen picture of the app with no way back.
+
+**The fix is not two more string assertions.** The property is behavioural, so the instrument has
+to run the code — the same class of mistake as `Contains`, one level up. `proof-motion.html` loads
+the shipped `motion.js`, stubs `startViewTransition` to observe it, and asks three questions: does
+`begin()` open a transition, does `end()` release it, does an unreleased one free itself. It is run
+twice, the second under Chrome's `--force-prefers-reduced-motion`, **and every expectation inverts**
+— which is the half no source scan can reach. Re-run against both variants it catches both, and
+discriminates: the inverted gate fails checks 1 and 2, the dead timer fails only check 3.
+
+**Item 2 is in, on a clock a test can seek — and the first explanation of why was wrong.** The
+counting figure was written on `requestAnimationFrame`, found to be unverifiable, and parked with
+the note that "rAF does not fire under `--headless=new --dump-dom`". **That named the wrong cause
+and would have misdirected the next session**, because it points at the dump mode. The cause is
+`--virtual-time-budget`: it suppresses frame production, so neither rAF nor the document timeline
+advances, while `setTimeout` continues to fire. Measured both ways —
+
+| flags | result |
+|---|---|
+| `--screenshot --dump-dom`, no virtual time | `RAF-FIRED-1` |
+| `--virtual-time-budget=8000` + any of `--dump-dom`, `--screenshot`, `--run-all-compositor-stages-before-draw` | `NO-FRAME`, and `waapi=running@0` |
+
+**That matters beyond this feature**: every screenshot in this repository needs
+`--virtual-time-budget`, because `.panel` animates from `opacity: 0` and a bare capture photographs
+it mid-animation. So the flag this project cannot work without is the flag that makes frame-driven
+animation unobservable. Anything animated here has to be checkable by *seeking* rather than by
+waiting.
+
+Which is why the counting figure is `element.animate()`. Not because rAF is impossible — it runs
+perfectly in a real browser and still pumps the redraw — but because a WAAPI animation's
+`currentTime` is **settable**, and `draw()` is a pure function of it. Seeking the clock and calling
+the same `draw` a visitor's frame calls is a test of the shipped path. Seeked at t = 0, .25, .5,
+.75, 1 the figure reads **10, 16, 19, 20, 20**: in bounds, monotonic, and resting on the engine's
+number.
+
+**Every harness now carries a positive control, and the reason is a tally rather than a
+principle.** Three separate checks in this slice passed because the feature under test never ran —
+an inverted gate meant no transition opened, an unlinked stylesheet meant no count started, and an
+iframe that fails to load reports `clientWidth === scrollWidth` over an empty document, which is a
+clean "nothing overflows". So each harness asserts the work happened — `ppMotionStats.transitions`,
+`ppMotionStats.counts`, an element count, a scroll position that actually moved — before asking
+whether the outcome was right.
+
+**All five were then deliberately broken, and the exercise paid for itself immediately.**
+
+| break | caught by | result |
+|---|---|---|
+| `.budget { position: static }` | sticky | `STICKY: FAIL`, others unaffected |
+| `.panel { min-width: 460px }` | both narrow harnesses | `NARROW: FAIL` ×2 |
+| `.budget-strip { padding-left: 60px }` | insets | **survived at first** |
+| the reduced-motion gate inverted | motion, both modes | `MOTION: FAIL` |
+| the count rests one short | motion | `at t=1 showed 19`, and the monotonic check too |
+
+**The third one is the finding.** `getBoundingClientRect()` returns the *border* box, so padding
+moves the content on the page without moving the number the harness read: one band sat 60px out of
+line and the spread still reported `0.00px`. It measures the content edge now. Nothing but breaking
+it would have found that — it had been passing, against a real layout, the whole time.
+
+A sixth mutation — deleting the assigned resting frame so the last value is interpolated — was
+**not** caught, and that is correct rather than a hole: the easing reaches exactly 1 at `t=1`, so
+`Math.round(from + (to - from) * 1)` is already `to`. The mutation changes nothing observable. It
+is recorded because "a guard missed this" and "this mutation was a no-op" look identical in a
+
+
+
+**The adversarial round: two reviewers, ten findings between them, every one demonstrated by
+mutation rather than argued.** Three were bugs in shipped code, not in the guards — the rate this
+project records for new guards ("a third to a half are theatre") held, and understated it.
+
+**What was wrong with the code:**
+
+- **`ppCount` leaked one live `Animation` per count.** `fill: "forwards"` keeps a finished
+  animation *relevant*, so it stayed attached to the single `<strong>` in the budget strip —
+  measured growing 1, 2, 3 … 10 over ten counts, for the life of a session. The cleanup now hangs
+  off `clock.finished` rather than the rAF pump, which also makes it *drivable*: frames are
+  exactly what `--virtual-time-budget` suppresses, so a tidy-up tied to the pump could not be
+  tested at all.
+- **An interrupted count could come to rest on a figure the engine no longer returns.** The
+  cancel sat below the early returns, so a call taking the immediate path left an older count
+  pumping — and a probe showed the abandoned count writing **100** after the newer one had settled
+  on **42**. That is the shape `CLAUDE.md` forbids in as many words. The cancel is above every
+  early return now.
+- **`motion.js` had quietly become load-bearing for navigation itself.** `OpenTransition` awaits
+  interop on *every* internal navigation and `ChosenList` on every render; a 404 or a parse error
+  would have thrown out of both. `Motion` swallows the script's failure — **a service rather than
+  a `try` at each call site, for the same reason `ReplayLibrary.LoadAsync` is a method**: a block
+  inside a component is where nothing can reach it.
+- **`HpBudgetBar` held an `@ref` to an element Villain mode does not render** and called interop
+  against it on every change. Blazor never clears an `@ref` when its element stops rendering, and
+  the call was absorbed by `ppCount`'s null guard — invisible, and load-bearing without anybody
+  having written that down.
+
+**What was wrong with the guards — eight of them:**
+
+| guard | it passed while… |
+|---|---|
+| the `LocationChanging` hook | the snapshot was taken from `LocationChanged` instead — **no cover at all**, suite and all six harnesses green |
+| `view-transition-name` uniqueness | one name sat on `.panel`; driven Chrome returns `InvalidStateError` and abandons every transition |
+| the reduced-motion gate | a new ungated entry point was added; its helper anchored on the first `animate(`, **which is in the file's header comment** |
+| the safety-timer ordering | it compared indices against that same comment |
+| the narrow harnesses | `overflow-x: clip` hid 352px of unreachable content; and leftward overflow is invisible to both measurements |
+| the insets harness | one band ran 96px short, printed in its own evidence |
+| the sticky harness | `position: fixed` reported as `sticky`, because `before` was measured and discarded |
+| every proof page | the app's own `<div id="app">` wrapper was missing, so ancestor-borne faults could not be seen |
+
+**The bUnit test written to close the worst of those passed against the mutation on its first
+attempt**, because it recorded the address from its own handler rather than correlating with the
+moment `Begin` ran. It counts interop calls already made when a `LocationChanging` handler fires,
+which is the only thing that separates the two hooks.
+
+**Two findings are recorded rather than fixed, and deliberately.**
+
+- **A held-open transition swallows pointer input.** Measured: `elementFromPoint` over a button
+  returns the `::view-transition` overlay rather than the button, for ~260ms normally and up to
+  1000ms if `end()` never arrives. `pointer-events: none` on the pseudo would let the click
+  through — **to the new page, while the visitor is still looking at a snapshot of the old one**,
+  which trades a dead click for a wrong one. 260ms of inert overlay is what every implementation
+  of this API does. Recorded with the numbers so the next session can weigh it rather than
+  rediscover it.
+- **There is no `aria-live` anywhere**, so the counting figure spams nothing — but crossing into
+  over-budget is announced to nobody either. Worth adding; **it must go on a sibling summary,
+  never on `.budget-figure strong`**, which `ppCount` rewrites up to 60×/s.
+
+One latent defect is also recorded: `_midTransition` is released by any render of `MainLayout`,
+not specifically the navigation's, so a render batch flushing in between would close the
+transition early and snapshot the old page twice. Not reachable today — no step-navigation path
+writes to the session before navigating — and it becomes live the first time one does.
+
+**The fix-audit — a reviewer pointed at the fixes rather than the code — was the most valuable of
+the three, and its first finding was a bug the previous round had *introduced*.** Of the ten fixes
+audited, three held, one held while shipping something worse, and six did not hold. That is close
+to the rate this project has recorded four sessions running, and it was found by asking for a
+*variant* rather than a re-run.
+
+**Severity 1: the counting figure came to rest on the previous Hero Point total.** Moving the
+tidy-up onto `clock.finished` calls `clock.cancel()`, after which `currentTime` is `null` — and
+`draw` read that through a nullish default as `t = 0`, so a pump frame still scheduled at
+completion wrote the *old* figure back over the answer and rescheduled itself for ever. Worse than
+the leak it replaced, live on the branch, and **found with no mutation applied at all**.
+
+The reason nothing saw it is the reason the fix was made in the first place:
+`--virtual-time-budget` produces no frames, so no pump was ever pending in any driven check. The
+property that made the cleanup testable is the property that hid the regression. It is fixed four
+ways, each sufficient alone — a null `currentTime` reads as the end rather than the beginning, the
+pump stops on it, the pump checks it still owns the element, and the finished handler cancels the
+pending frame — and the check that catches it needs no frames: capture the record's `draw`, finish
+the clock, call `draw` once more. Against the buggy version it reports *"settled on 60, then a late
+frame showed 40"*.
+
+**What else did not hold, and the variant that showed it:**
+
+| fix | the variant that walked past it |
+|---|---|
+| `view-transition-name` on a singleton selector | the rule put in `theme.css`, which was never read — and the same rule spelled `VIEW-TRANSITION-NAME`, which CSS treats as identical and a case-sensitive regex does not |
+| the cancel above the early returns | moving it *below* them: the harness's interrupt used 78→42, which never takes an early return, while `HpBudgetBar` produces `from === to` routinely |
+| every animation gated on `still()` | a module-level helper — `EnclosingBlock` still fell back to returning the whole file, which contains `still()`; and only `motion.js` was scanned |
+| `Motion` guarding the interop | calling `Js.InvokeVoidAsync("ppLand", …)` directly again: the fix guarded two call sites, not the property |
+| the `ShowBudget` guard | correct code with **zero cover** — deleting the line left everything green |
+| the insets harness | a margin on a band's first child: the band's own box and padding are untouched, so both spreads still read `0.00` |
+| the narrow harnesses | a 300px `::before` at `left: -320px` — `querySelectorAll` returns no pseudo-elements |
+| the structural hook guard | a *comment* naming `Motion.Begin()` left in the handler while the real call moved. Its bUnit half caught it; the structural half was worth nothing alone |
+
+**And one the audit found outside the ten:** `Begin(); End();` in the changing handler passes every
+check — a transition opened, from the right hook, and released — while animating nothing, because
+the second snapshot is taken before Blazor renders. The release belongs to the render, and that is
+asserted now.
+
+**Three fixes held under attack**, and the audit said what it tried: the `#app` wrapper (also
+confirming that `transform` and `contain` on that wrapper genuinely do *not* unstick the strip, so
+the harness's own docstring overstates them), the sticky harness's `before > 20`, and the overlap
+check.
+
+**My own new guard was theatre once in this round too.** The release-ordering check read its
+counter synchronously after `begin()`, and a release resolves a promise — so it reported zero
+whether or not `begin()` had released, and passed the exact variant it was written for. It settles
+first now.
+**Item 2's last part: a row arriving in a chosen list lands, and `--ease-emphasised` arrives with
+it.** Phase 0 withheld that token deliberately — an overshoot curve wants something that should
+read as *landing*, and until now nothing did. A row moving from the picker into the character is
+the one thing that does, and it is the token's only user; an overshoot on a state change reads as
+a wobble.
+
+**Which row is new is decided by a `data-landed` mark in `motion.js`, not by a key in the
+component.** Blazor reuses DOM nodes, so the render tree does not answer that cheaply — and a mark
+survives something a key does not: a filter re-ordering the list is not twelve arrivals.
+`firstRender` is passed *through* rather than used to skip the call, so restoring a saved character
+marks its rows without playing a dozen animations at once, and the next genuine addition still
+lands alone. Both halves are asserted, and both were broken to prove it:
+
+| break | result |
+|---|---|
+| land on first render too | `a first render marks rows without landing them` fails, and so does `rows already present do not land again` — 2 animations where 0 belong |
+| hard-code the curve instead of reading the token | `effect easing "ease-in-out" vs token "cubic-bezier(0.34, 1.56, 0.64, 1)"` |
+
+The second is the one no CSS test could have caught: the animation is built in script, so a curve
+that drifts from the token is invisible to every stylesheet scan. The harness reads the easing back
+off the running effect and compares it against the computed token.
+
+`getAnimations()` is the positive control throughout — it asks the browser what is actually
+running rather than trusting a counter this code also owns.
+**The two source guards on `motion.js` are theatre and stay theatre, so a browser runs in CI.**
+They assert the script *mentions* `still()` and `setTimeout`, and both pass against
+`|| !still()) return`. `ubuntu-latest` ships Chrome, so the build workflow drives all five
+harnesses and requires each to *say* PASS in its `<title>` — asserted on the positive, because a
+harness whose script never ran leaves resting text that is neither verdict, and grepping for FAIL
+would call a broken harness green. The source guards are kept beside it: they run where the
+browser does not, and they now claim only what they can support.
+
+results table and are not the same fact.
+**Four harnesses were missing, not one.** `proof-sticky`, `proof-measure`, `proof-narrow` and
+`proof-narrow-shell` were all uncommitted scratch. All four are generators now. The restored
+measurements: nothing overflows at 375px on either page, and all four chrome bands sit on the same
+column to 0.00px.
+
+The source guards are kept beside it. They are cheap, they run in CI where the browser does not, and
+what they now claim is only what they can support.
+
+### Phase 1 of the front-end plan: density and hierarchy, which was mostly deletion
+
+Three of the plan's four items in full, the fourth split — see the end of this entry, which says
+what was left and why.
+
+**One chrome band, in place of three.** The banner ran full width, then a step list with its own
+bottom rule inside the 1100px column, then the budget as a shadowed white card inset from the
+window: **about 215px of furniture before the page heading, on every step**, reading as four
+stacked pieces. It is **163px** now and reads as one — banner, steps, strip, rail, contiguous and
+all full width.
+
+- **The step list and the strip are siblings of `main` rather than children of it**, and that is
+  load-bearing twice over. Full width without a bleed: the negative-margin hack that pulled the
+  strip out of the shell's padding is gone from three sites, along with the pair of
+  narrow-viewport rules that had to be kept in step with it — **so the 8px overflow they caused
+  at 375px is now unreachable rather than guarded.** An invariant is better deleted than guarded
+  when the thing it constrains can be removed.
+- **And a wrapper around both rows would have broken the sticky strip.** `position: sticky` is
+  bounded by its parent, so a short chrome `div` holding both would unstick it the moment the band
+  scrolled past — the whole span it exists to survive. Measured through an iframe: the strip sits
+  at 116 before a scroll and at **0** after scrolling 600, with the step list at −484. Joined the
+  band and scrolled away, which is what the plan asked for.
+- What replaces the deleted guard is a real requirement in the direction that cannot overflow: the
+  shell and all three chrome columns cap on `--column` and reserve the same padding, **discovered
+  per media query rather than listed**. It failed on its first run and was right to — the
+  narrow-viewport rule pads the three bands in one grouped rule, and the padding reader filtered
+  on the whole selector string being equal, which is the **same comma-list weakness a fix-audit
+  had found in the sticky-strip guard two commits earlier.**
+
+**Two boxes that were drawn around boxes.** The options scroller carried its own border inside a
+panel that is already a ruled box with a heading strip, so a list of rows with their own
+separators sat three nested edges deep; only the top rule survives, which does a different job —
+separating the list from the filter box, which is a control and not a row. And the derived step
+wrapped four ruled figures in a bare untitled panel, a box round four boxes separating nothing.
+
+**Six empty states that said nothing.** "None yet.", "None.", "Nothing yet." — a full stop
+restating a fact the reader can already see, on the one screen where a tool is least useful and
+best placed to help. Each now names the next action, and where a rule stands behind it, the rule:
+the Flaws tab says the rules ask for a minimum at creation and **reads the figure from the same
+place its own heading reads it**, and the Gear step says ordinary gear is free so the only thing
+that spends Hero Points is a custom feature. They are an `EmptyState` component rather than a
+class applied six times — one owner per repeated class, and the guard gets one element to find
+rather than an enumeration that goes stale.
+
+**The tab strip marks what is untouched, and only three sections can be marked.** That is a rules
+matter rather than a convenience: Ch.2 floors every Ability and Talent at 1d, so a character has
+all eighteen and **cannot be without them** — those sections are never empty, and their 0 HP means
+a package covered the cost rather than that nobody has been there. Powers, Perks and Flaws are
+genuinely collections. The marker is a ring rather than a colour.
+
+**The Sources editor becomes a grid.** Eighteen fields between the two pickers, each a short label
+over a 200px control, stacked one per row — the right-hand two thirds of the panel spent on
+nothing, and the Talents picker taller than a laptop viewport. Six rows become two, twelve become
+three. The rank rows on the tabs are deliberately left alone: those are a table read down.
+
+**Two guards were written after a mutation showed they were needed, not before.** The picker test
+rendered `AbilitiesTab`, which is where the app puts the component — and that tab passes
+`IsPro="false"` and nothing else, so **the Pro half of the wording was never rendered** and putting
+"this Power does" into it passed. And the untouched marker **shipped with no guard at all**; the
+negative half of the test that now covers it is the load-bearing one, since marking a Trait section
+would report eighteen Traits a character cannot be without as missing.
+
+**Two process failures of mine, both traps this repository had already written down.**
+
+- **The mutation harness reverts with `git checkout -- <file>`, which restores the last
+  *committed* state** — and the empty-state edits were not committed when I mutated those two
+  files, so the revert discarded them. `docs/HANDOVER.md` says "Commit before letting anything
+  mutate files… That has cost rework twice." It is three times now, by somebody who had just
+  finished reading it.
+- **And I committed the damage, because the command was `dotnet test | grep … && git commit`** —
+  which gates the commit on grep finding lines, not on the tests passing. What caught it was the
+  new guard **refusing to pass when it could find no `.empty-state` element at all**, rather than
+  asserting nothing over an empty set: the "refuse a subject you never found" rule doing its job
+  one commit after being written. Every run since captures the output and asserts on the absence
+  of `Failed!` before committing.
+- A third, smaller: `git diff --numstat` is **blind to an untracked file**, so mutating a
+  brand-new component read as "never applied" *and* could not be reverted — the mutation was
+  silently left in the working tree, which is worse than either failure alone. Both harnesses
+  refuse an untracked target now.
+
+**Verified by looking as well as by testing**, since every visual bug in this project's history was
+found that way: both palettes at 1400px, the chrome band and the empty editors read on a rendered
+page, 375px measured at `overflow 0px` with the bands correctly edge-to-edge, the sheet still
+**three pages in both palettes**, and every one of 75 section children still inset symmetrically.
+
+**A proof of the shell, and a proof of the editors holding nothing** — the two states no page this
+harness wrote had ever shown. Every other proof renders components into a bare `.shell` div, so
+the three chrome bands never appeared together and "how much does the chrome cost" had no answer;
+and every other proof loads a sample, so an empty list was invisible. Part of why six empty states
+stayed full stops for so long is that nobody could see them.
+
+**What was left, and why.** The plan's fourth item is "a real grid on wide screens", and it names
+**Phase 4** in its own text: above ~1400px the editors and *a live sheet preview* sit side by side.
+The preview is Phase 4's, and without it a second column has nothing in it — while at today's
+1100px column two editor panels would be ~530px each, too narrow for a Power list with a stat line
+under every name. Widening `--column` globally would also widen the sheet and the replay, which is
+a design decision Phase 1 has no business making as a side effect. So the half that stands alone
+was done (the Sources grid) and the half that needs Phase 4 waits for it. **Item 4 is not
+finished; it is split, and the remaining half is listed under Phase 4 in the plan.**
+
+**An adversarial reviewer then found five real defects and demonstrated that six of six of the new
+guards held nothing.** The worst of the five was visible in a proof page this change added, and
+which I generated and never opened.
+
+- **The chrome had no bottom edge at all on three whole classes of screen.** `.steps` lost its
+  bottom rule on the argument that the budget strip beneath carries the edge for both — and the
+  strip renders nothing in **Villain mode** (Ch.9 gives Villains no budget), on **the tier page
+  before a tier is chosen**, which is the first screen a new visitor sees, and on **every
+  `/replay` route**. On all three the step chips sat on the page ground with the heading following
+  on the shell's padding alone. `proof-shell-villain.html` showed it plainly; I screenshotted the
+  Hero one and wrote "verified by looking… both palettes". **Generating a proof is not looking at
+  it.**
+- **"Untouched" was inverted for the default path, and my test pinned the mistake.** The claim was
+  that Abilities and Talents can never be marked, because Ch.2 floors every Trait at 1d and 0 HP
+  there means a package covered the cost. The first half is true of a *finished* character and is
+  exactly why a fresh one needs telling; the second is false, because `AbilityCost` walks
+  `AbilityRanks`, which is empty on a new sheet — **so no package also costs 0 HP.** The two
+  sections that most needed marking were the two forbidden from saying so, on a character the
+  engine reports eighteen `TRAIT_BELOW_MINIMUM` errors deep. The predicate is now whether a rank
+  is *recorded*, which tells the cases apart properly: choosing a package writes its granted ranks
+  into the sheet, so a packaged character reads as touched at 0 HP.
+- **The banner was the one band not on `--column`**, while the note in `MainLayout` offered it as
+  the example the others follow. Fixed with an inner column rather than a `padding-inline: max(…
+  calc((100% − …) / 2))`: the percentage is a raw length the stylesheet's own rule refuses, and the
+  wrapper makes the banner structurally identical to the other three bands, so **one guard covers
+  four instead of three plus a special case.** The guard then immediately caught that the
+  narrow-viewport rule had not been told about it — 24px against 16px, the same figure as the
+  bleed bug.
+- `.field`'s own margin **doubled the row gap** in the new Sources grid, 32px against 16px; and
+  `.options` lost the bottom rule that **marks where 141 Powers are clipped**, so a row cut through
+  its own stat line read as a rendering fault rather than as a scroller.
+
+**The six guard survivors, each fixed as a property rather than as a case.** A new breakpoint
+widening `.shell` alone passed, because `max-width` was read in the base rules only while the doc
+claimed queries were discovered. Centring was not read at all, so a strip with `margin: 0` sat
+flush against the window edge with the labels above and the heading below still on the column. The
+band elements were outside the guard entirely, so padding on `.budget` shifted the column inside it
+and stopped the rail running edge to edge. **Deleting the whole `.empty-state` rule left all eight
+`EmptyStateTests` green plus both ownership tests** — the class is still on the element and every
+assertion reads markup, which is the `.hp` trap this file records verbatim, reproduced by the change
+that cites it. Pinning Powers to permanently untouched passed, because the test filled Perks alone.
+Naming the *Ability* in the picker passed, because the ban listed one of three subjects. And
+**misstating the creation minimum to the player passed** — the one empty state that quotes a rules
+figure had nothing checking the figure.
+
+**Then one more, of my own making and worse than any of them: I fixed the missing edge and wrote no
+guard, so a mutation put it straight back.** That is the same failure as the six, one level up —
+fixing the defect rather than the class of defect — on the most severe finding of the round. It is
+guarded now, together with the three conditions that are the *reason* for it, because a guard whose
+premise has quietly gone is worse than none.
+
+**The two proof harnesses genuinely cannot be guarded much, and that is stated rather than papered
+over**: they are generators gated on `PP_PROOF`, so with it unset they are no-ops and a reviewer
+duly commented out five of six sections with the suite at full count. What is checkable is that a
+page which *is* written shows what it claims to — including a negative that catches the dangerous
+shape, since wrapping the shell proof in a column defeats its whole purpose and every positive
+marker survives it.
+
+**Then a fix-audit, and its central finding is that this was one mechanism rather than twelve
+problems.** Of the twelve claims: two held, two did not, six held only against the mutation shown to
+them, and two fixes were correct while the defect they repaired reverted green. **`EffectiveValue`
+and `HorizontalPaddingTokenOf` each read a single CSS spelling of the property they were asked
+about**, so four separate guards fell the same way — `border-bottom-color: transparent` beat a
+`border-bottom` check, `border-left-width: 0` beat a `border-left` check, `margin-left: 0` beat a
+`margin` check, and `padding-inline` beat a padding check that knew only the physical pair. Closing
+the one helper converted four near-misses at once.
+
+- **`EffectiveValue` reads every declaration that decides a property** — the property, its
+  longhands, and its logical equivalents — in source order, and **refuses to answer when the last of
+  them is a spelling it does not model.** An unreadable answer is a red test, which is the safe
+  direction; modelling the whole cascade is a bigger job than any of these guards needs. **Order is
+  what makes that correct rather than merely strict**: `.budget-toggle` writes `border: none` and
+  then `border-bottom: …`, which the cascade resolves as the author meant, so a check refusing any
+  related spelling would fail on correct CSS. It caught exactly that on its first run.
+- **A zero width is not a visible edge.** `border-left: 0 solid var(--rule)` contains no `none`,
+  names the right token, and draws nothing — and got past both edge guards. Refused in any unit now,
+  along with a transparent ink.
+- **Two guards were not passing `exact: true`**, so a rule matching no element in this app supplied
+  the value they read. That is verbatim the defeat recorded on the `exact` parameter itself from the
+  previous audit, reached again by guards written after it.
+- **The media-query scan ended at the first newline-brace**, so a query written on one line was not
+  found at all and its contents were swallowed into whichever block did end that way — which is how
+  a band-only breakpoint evaded a guard whose own comment says the queries are discovered. It
+  brace-matches now. **CSS formatting is not a property a guard may depend on.**
+- **Four defects reverted green because they were fixed and not guarded**: the options scroller's
+  clip mark, the grid-cell margin reset, and the untouched ring's whole CSS rule — **the `.hp` trap
+  again, on the sibling of the feature this round had just closed it for.**
+- **Two sentence guards were satisfiable with the words wrong.** The picker's ban read the `Target`
+  enum, which is better than one word and still not the property wanted: "what this **Trait** does"
+  names no enum member and is false of a piece of Gear. And the Flaws figure was checked without the
+  claim around it, so *"the rules make them optional, though at least 1 buys extra Resolve"* passed
+  while the rules require 1–3. Both pin the clause now.
+- **Deleting the `.banner-inner` element while its CSS stayed passed everything**, and the end state
+  is worse than the defect it fixed — the banner's contents then have no padding at all. A CSS guard
+  cannot see a missing element, so the markup is asserted where the markup is built.
+- **And the proof-page markers were near-theatre for a reason I had not seen: they sat after
+  `if (!Asked) return`**, so the one mutation the negative half exists for was invisible to CI and to
+  every ordinary run — including the run whose count the commit quoted. The page builders are
+  extracted and asserted by a test that runs always, the mode is checked against the filename (the
+  Villain proof could be made a copy of the Hero one), and the empty-editor page carries a marker per
+  section rather than two the tab strip supplied on its own.
+
+Fourteen mutations were re-run after the fixes and all fourteen are caught.
+
+3854 tests to **3877**. Zero warnings at CI strictness. **Payload: unchanged** — one new component
+file, no new asset.
+
+### Phase 0 of the front-end plan: the scales nothing after them can be consistent without
+
+[`docs/FRONT-END-PLAN.md`](docs/FRONT-END-PLAN.md) puts this first because it is invisible on
+its own and every later phase is cheaper for it. **Nothing here changes what the app does.**
+
+**The counts in the plan were an undercount, and the measured ones are the reason this was
+worth doing.** The plan named "twenty separately-chosen spacing values and eleven font sizes".
+Measured off the screen half of `app.css`: **twenty-seven** distinct lengths on padding, margin
+and gap, and **twenty** font sizes — nineteen in rem plus the body's own 15.5px — of which
+**ten sat between 0.68rem and 0.9rem**, a range no reader can resolve into ten steps. That is
+not a design, it is a history of individual decisions, and the reason nothing could have told
+you so is that every one of them was locally reasonable.
+
+**Nine spacing rungs and seven type rungs replace them**, plus three elevation steps and a
+second easing. 169 lengths rewritten; every rung is used by at least one rule and no rule names
+a length outside the scales.
+
+- **Steps of 2px at the bottom and 4px above it, not a strict 4px base.** Four of the old values
+  sat between 4.8px and 7.2px — tag padding, pip gaps, the gap in a row of controls — and a
+  4px-only scale collapses that whole range onto either 4px or 8px, which is a factor of two on
+  the tightest spacing in the app. The half-steps stop above 8px, where 2px is invisible anyway.
+- **Two type rungs are anchored to existing values rather than to the ratio, and both for a
+  measured reason rather than a taste one.** `--text-xs` is exactly **0.72rem** because that is
+  the size `--muted` was measured against: the note on it holds it to 4.5:1 rather than 3:1
+  *because* it carries explanatory prose at this size, and a scale that rounded the bottom rung
+  down to 0.67rem to fit a ratio would have invalidated that measurement silently — the colour
+  would still pass its own test, at a size nobody had checked. `--text-3xl` is exactly 2.15rem
+  because it is the masthead and nothing sits above it for a ratio to answer to. The base is
+  0.97rem, the 15.5px the body has always been, so prose does not reflow for a round number.
+- **Elevation was one `--shadow` carrying the banner, every panel, the sheet, the tier cards and
+  the sticky strip.** The consequence was not that the page looked wrong — it is that nothing on
+  it had a *height*. `--shadow-3` is claimed by the budget strip alone, which is the only element
+  that moves independently of the document, and that is asserted **by count**: spreading the top
+  step back across the page would undo the distinction without changing a single value.
+- **There is deliberately no `--ease-emphasised`**, though the plan named one. An overshoot curve
+  wants something that should read as *landing*, and the only candidate is a row arriving in a
+  list, which is Phase 2. Declaring it now ships a token no rule asks for — and this app has
+  already shipped a `.label-line` class applied to nothing, found by looking at a rendered page
+  rather than by any test. `--ease-out` is added and used, on the four things that travel.
+
+**Held by the same rule as colour and typeface, and the rule refuses both spellings.**
+`NoScreenRuleNamesARawSpacingOrTypeLength` bans a raw length in padding, margin, gap or
+font-size — **in px as well as rem**, because px is what somebody reaching for a value rather
+than a rung would naturally write, and a rem-only check leaves that door open. The print block is
+out of scope by design: it is mm and pt, a different medium with its own scale and its own tests.
+Three literals are exempt, each **paired with the selector it belongs to** and each asserted to
+still exist, because an exemption whose selector was renamed away permits its declaration
+everywhere and says nothing.
+
+**Three things were found by doing this rather than by planning it, and the first was mine.**
+
+- **The scripted rewrite produced `-var(--space-6)`, which is not valid CSS.** A minus sign in
+  front of a `var()` invalidates the whole declaration, so the browser drops it — the budget
+  strip would have quietly stopped bleeding to the shell's edges, and the `margin-bottom` on the
+  same line would have gone with it. **Nothing about the page would have looked broken**; it
+  would have looked as though the bleed had never been written. Four sites, all `calc(-1 * …)`
+  now, and the comment beside the first says why.
+- **Three existing typographic guards read their font size out of the declaration with a regex,
+  and stopped working the moment the sizes became tokens.** The obvious repair — accept a
+  `var()` and skip the range check — turns three *measured* assertions into three assertions
+  that a property is present, which is the exact weakness all three of their doc comments record
+  being hardened against. They **resolve the scale** instead, so they are stronger than before:
+  `--text-sm: 2rem` in theme.css now fails the trait-Source-line guard, which no literal read
+  could ever have seen.
+- **"The bleed has to follow the shell's padding" was a comment asking to be remembered.** It
+  had to be: two unrelated literals have no relationship to assert, which is why the 8px overflow
+  at 375px got in. Two references to one token do, so it is
+  `TheBudgetStripsBleedMatchesTheShellsPadding` now — asserted at every breakpoint, with the
+  media queries **discovered rather than listed**, so a third breakpoint is covered the day it is
+  added rather than the day somebody remembers it.
+
+**Eighteen mutations were run against the new guards before any reviewer saw them; seventeen
+applied and all seventeen were caught.** The other two are the finding worth keeping: **a
+mutation aimed by line number at a file that had since gained four lines of comment deleted a
+comment instead, passed, and reported as a survivor.** The harness now asserts the file actually
+moved and prints the numstat, so "the mutation never applied" and "the guard held" stop looking
+identical — which is the same failure as reading `Passed!` off a crashed run, one level down.
+
+**Verified by looking, not only by testing.** Both palettes at 1400px and the narrow viewport
+through an iframe, which is **measured rather than eyeballed**: `clientWidth 360, scrollWidth
+360, overflow 0px`, against the 368/360 that was the bug this replaces. The printed sheet was
+rasterised and read — three sheets still three pages in both palettes, ink on white paper,
+heading bars still a tint, Notes and Origin still ruled at a writable 4mm, gear still flush left.
+
+**Two reviewers that knew nothing about it then found three code defects and eight guards that
+held nothing.** Every one of the eight was demonstrated by mutation there and re-demonstrated
+here after the fix.
+
+**The three defects.** Two were found independently by both reviewers, which is worth noting: the
+overlap was not redundancy, it was corroboration on the two that mattered.
+
+- **`.sheet-section > table` read `width: calc(100% - 1.2rem)` and was a matched pair with the
+  0.6rem inset on its siblings.** Phase 0 moved the inset onto the scale and left the width
+  behind, so a table's right edge fell 3.2px short of every other child of its box *and* of the
+  heading bar above it — measured at 8.00px of inset on the left against 11.20px on the right,
+  five boxes a sheet, both palettes. **The change written to abolish paired literals left one
+  standing one property name outside its own scope**, and no test could see it because `width` is
+  not padding, margin, gap or font-size. `NoScreenCalcNamesARawLength` closes the class rather
+  than adding `width` to a list: what makes the bug possible is not the property, it is a number
+  that has to agree with a token and has no way of doing so. Now 75 of 75 children of every
+  section measure symmetric.
+- **`--text-3xl` was declared 2.1rem while four documents called it "exactly 2.15rem… not to be
+  tidied onto a ratio".** It had been tidied onto the ratio. So the one rung the notes single out
+  as unpinnable was the one already off its stated anchor — and unlike `--text-xs` it had no
+  test. It is 2.15rem and pinned, and the note now states what the anchor *costs*: a 1.26 top
+  step rather than ~1.2, which is the honest version of "anchored, not derived".
+- **`.replay-figures.spent-on` became a rule identical to its base**, 0.8rem against 0.85rem with
+  both snapping to one rung. It was the modifier's only declaration, so the class did nothing
+  anywhere while a component still emitted it — **the `.label-line`-applied-to-nothing shape this
+  very entry cites as a lesson, reintroduced in the same commit.** The distinction was 6% and
+  below perception, so the rule and the class go rather than inventing a new size difference:
+  that is Phase 1's hierarchy work, not Phase 0's mechanical pass.
+
+**The eight guards, and the transferable part of each.**
+
+| Held nothing because | Now |
+|---|---|
+| The scale check read token **names** and never a value, and nothing else in the suite pinned any `--space-*`. `--space-4: 4rem` re-padded most of the app, the narrow shell and the strip's bleed from 12px to 64px, green | Every rung's value is recorded and asserted, and the rungs must be strictly increasing. Same pattern as the server instructions: where the value *is* the deliverable, the value is the assertion, and the duplicated literal buys a change having to be deliberate and visible in a diff |
+| The declared set was computed from **theme.css alone**, so a `--space-9` declared in a `:root` block inside app.css joined the scale invisibly and the raw-length scan waved through every `var()` using it | Both stylesheets and `index.html` are checked to declare no rung at all. theme.css is the only file allowed to |
+| The unit list was `px\|rem\|em\|ch\|vh\|vw\|%`, so `margin-top: 9pt` walked through — and so would mm, cm, in, pc, ex, lh, vmin, dvh and the container units. **An allow-list of units is the wrong shape for a ban** | Every CSS length unit, longest-first |
+| **`@page` sits *above* `@media print`**, so it was inside the region this file calls the screen half, and the guard's own doc claim that print is out of scope was false for it. It passed only because `mm` was missing — closing that gap would have turned a live print declaration red | Excluded by name, and **asserted present before being removed**, so a moved or renamed page box fails rather than silently un-excluding itself |
+| `BleedTokenOf` took the first negative token found **anywhere** in the shorthand and assigned it to both sides, so it could not tell a horizontal bleed from a vertical one. A margin pulling the strip 24px *up* over the step nav, with positive side margins and the rail left 48px wider than the strip, satisfied the pairing | Both the padding and the margin readers parse the four sides properly. Splitting on whitespace was the cause: `calc(-1 * var(--space-6))` contains three spaces |
+| `Contains("position:sticky")` is satisfied by a declaration a **later one in the same block** overrides, so `position: static` un-stuck the strip while it kept the top elevation step — with the guard's own comment claiming that could not happen. **The identical shadowing trick the `.hp` guard in this file was already hardened against; the new guard did not inherit the fix** | The last `position` declaration wins, as the cascade does |
+| The rank-word band is **absolute**, and the rank it glosses is a rung of the same scale, so setting the gloss to that rung left it exactly level with the figure it sits behind | The relationship is asserted. Before Phase 0 the two were unrelated literals in two rules and this could not be expressed at all — **the scales made a describable claim into a checkable one**, which is the clearest thing Phase 0 bought |
+| The 1px exemptions are justified **entirely** by the `border-bottom` they sit against. Replace it with `text-decoration: underline` and the padding is dead decoration with the stated reason false, and a guard checking the declaration string passed. Its own doc calls a stale exemption "worse than a missing one" | Each exemption carries its precondition, looked for across every rule targeting the element — `.hp` supplies the `.power-entry .head .hp` case by inheritance, so requiring it in the same block asserted something never true |
+
+Three elevation steps may also no longer be three copies of one shadow, which a name-only check
+could not have told apart either.
+
+**And a method finding, which is the one to carry forward.** **Two reviewers running concurrently
+in one worktree poison each other** — both mutate files and revert with `git checkout`, so one
+caught the other's `--text-sm: 2rem` and read it as a finding, both lost runs to `index.lock`,
+and one's cleanup deleted the other's harness. Give each its own worktree. Relatedly, **a numstat
+check taken *before* the test run does not catch a mutation reverted mid-run**; the harness checks
+after as well now, which is the same lesson as reading `Passed!` off a crashed run, one level down.
+
+The headline count also read 3849 against a tree of 3850 for one commit, copied from a run taken
+before the last test was added. Both reviewers spent a finding on it, which is a waste of a
+reviewer: **take the number from the run.**
+
+**Then a fix-audit — a reviewer pointed at the fixes rather than at the code — and it found that
+nine of the eleven caught only the mutation demonstrated to them.** That is the fourth session
+running this reviewer has been worth more than the passes before it, and the second time it has
+found most of a round of fixes to be narrower than claimed. Both figures it re-measured from the
+documents checked out (75 of 75 children symmetric, `overflow 0px`, 3852 tests), which is the
+other half of its job.
+
+**Its central finding is one root cause behind three of the nine, and the correct pattern was
+already in this file twice: a later declaration of the same thing beats a `Contains`.** Each of
+the three reached the bad end state by declaring the thing *again* rather than by editing what the
+guard was reading — a duplicate `--space-4: 4rem` under `--space-8` (workhorse rung at 64px, full
+suite green), `.budget, .breakdown { position: static }` later in the file (strip un-stuck, top
+elevation step kept), and `border-bottom: none` instead of deleting the line. It is fixed once, as
+`EffectiveValue`: comma lists split, suffix-matched, last declaration wins.
+
+**Two doors needed no scale token at all, and that is the more useful lesson.**
+`--table-inset: 1.2rem` beside `width: calc(100% - var(--table-inset))` restored the table
+misalignment byte for byte — 3.20px on all fifteen tables — and `--pad-lg: 4rem` re-padded an
+element with a raw length under a name no rule about the scales could match. **Narrowing the
+earlier check to `--space-*` and `--text-*` defended the names of the scales rather than the
+property that makes a scale mean anything**, which is that there is one place lengths are decided.
+`app.css` may now declare no custom property at all — free, because it declares none.
+
+**And the unit list was the wrong shape twice, the second time knowingly.** The fix's own doc
+comment said "an allow-list of units is the wrong shape for a ban" and then shipped a longer
+allow-list, which `9dvmin`, `3svb`, `2lvi` and `4PX` walked through — twelve viewport units
+missing and the match case-sensitive besides. It is inverted now: a digit followed by letters or a
+percent is a length, whatever the letters are, so a unit from a future specification is caught the
+day it ships.
+
+Three more where the fix asserted more than it checked, which is the shape this project keeps
+being bitten by:
+
+- **`ScreenHalfOfAppCss` strips every `@page` block while `ThePageIsA4WithMargins` read only the
+  first** — and the stripping cited that test as the compensating check. A second `@page` after
+  the A4 block printed the sheet A5 landscape at margin 0, seen by nothing.
+  `ThereIsExactlyOnePrintBlockInEachStylesheet` exists for this failure one at-rule over; the page
+  box now has its equivalent, pseudo-pages included.
+- **`TokenIn`/`NegativeTokenIn` still took the first token found anywhere inside a side**, which is
+  the first-match weakness the four-side parser was written to remove, surviving one level down.
+  `calc(-1 * calc(-1 * var(--space-6)))` computes to **plus** 24px and read as a bleed;
+  `calc(var(--space-6) * 3)` is 72px of padding read as matching a 24px bleed. Both anchored to
+  the whole side, so a side doing arithmetic fails safe rather than being guessed at.
+- **The rank-word guard named `.trait-table td` as "the rank it glosses", and the two never render
+  on the same surface** — `.rank-word` comes from `RankRow.razor` and `.trait-table` from
+  `SheetView.razor`. The claim was about a pair nobody can see together, and it passed only by
+  being accidentally conservative. Shrinking `.stepper .value`, the figure it actually sits beside,
+  put the gloss exactly level with it, green. Compared against that now, with an assertion that
+  the two really do render together.
+
+**One route needed a second round.** Reading the exemption's precondition as a *value* closed
+`border-bottom: none` and did not close `.sheet .budget-toggle { border-bottom: … }` — a selector
+matching nothing in this app, supplying the reason while the real rule lost its border. **Suffix
+matching is right for "what applies to this element" and wrong for "does this rule still say
+this",** and a source-reading test cannot know which selectors match real elements. So each
+exemption records the selector that must carry its reason, matched exactly — which for `.hp` is
+the base rule rather than the exempt selector, because the letter-spacing is inherited.
+
+**Two of the fixes were mine to break again in the same sitting**, both caught by running rather
+than by reading: the inverted unit regex allowed whitespace between number and unit, so
+`margin: 0 auto` read as the length "0 auto"; and the precondition field carried a trailing colon
+into a pattern that appends its own, demanding two and matching nothing, which reported every
+exemption's reason as missing. And `CA1875` — an analyzer error **only the
+`ContinuousIntegrationBuild` flag reports**, which a plain `dotnet test` was green over.
+
+**One of my own re-runs was a misaimed mutation reported as a survivor, for the second time this
+slice.** The comma-list rule was inserted at `.boot-sub`, line 84, which is *earlier* in the file
+than `.budget` at 239 — so the cascade genuinely resolved to sticky and the mutation never reached
+the state it was testing for. Re-aimed after the rule it had to override, both it and a
+more-specific-selector variant are caught. **Placement in the cascade is part of aiming a
+mutation, not a detail of it.**
+
+3841 tests to **3854**. Zero warnings at CI strictness. **Payload: unchanged** — no file added,
+no byte of CSS beyond the token declarations.
+
+### The visual redesign: two faces, and the filter box somebody actually asked for
+
+All six items of Slice B, chosen after looking at [pnpready.com](https://www.pnpready.com/) —
+a companion app for this game whose scope is not worth chasing and whose presentation is.
+
+**1. Two typefaces with distinct jobs**, which was the single biggest difference. **Oswald** for
+display and **Public Sans** for body, both self-hosted under `web/wwwroot/fonts/`, both SIL Open
+Font License with the licence text shipped beside them — a condition of redistributing them, not
+a courtesy, and this repository redistributes them on every deploy and every fork. Public Sans
+over Source Sans 3 on payload: 103 KB variable against 642 KB for the same job. Both variable, so
+one file covers every weight.
+
+**The tokens are the point, not the faces.** `--font-display` and `--font-body` live in
+`theme.css` and nothing else names a face, which is the same discipline already holding for
+colour, radius and duration — so the house style is one edit and no component can drift.
+`NoComponentNamesATypeface` checks both spellings, because `font:` shorthand carries a family
+too and `font: inherit` is all over `app.css`.
+
+**Two guards, both demonstrated by mutation.** A font file that goes missing degrades the whole
+app to the system fallbacks *silently* — the stacks name fallbacks deliberately, so a failed load
+still leaves a readable page, which means nothing but the bytes on disk can catch a renamed file.
+And a family may not ship without its licence.
+
+**2. Labels carry the structure of the long forms** on screen, rather than borders alone. Written
+first as a `.label-line` class that was applied to nothing — dead CSS, found by looking at the
+rendered page — and now on `label` itself, which is where a long form needs it: the Sources
+editor is eighteen fields in a column. `SheetSection`'s centred bar heading is untouched, because
+it is right on *paper* and the published Hero Sheet prints it that way.
+
+**3. The tier choice is a card grid**, six cards each carrying its consequence on a line of its
+own, built as a `cards` modifier on `OptionList` rather than as new markup — which also deleted
+the hand-rolled Panel grid the page used to carry.
+
+**4. Every derived figure shows the rule it came out of.** **A statement of the rule and never a
+working of it**: the engine returns a number, not the terms it added up, and reconstructing them
+in the browser would be the one thing this front end exists not to do. Off on the sheet, because
+the published sheet prints no formulas and one page is a margin four blocks of small print would
+spend. **It overlaps the "Where they come from" panel on that page and was left overlapping** —
+the panel's value is the live working with the character's own numbers, which the rule under the
+figure cannot be; if one of the two goes, it is the panel's rule paragraphs and not the workings.
+
+**5. The rulebook's word beside each rank** — `4d Noteworthy`, `4d Proficient`. Presentation only:
+`rank_guide` has been on every entry in `abilities.json` and `talents.json` the whole time, read
+into the models the whole time, and shown by nothing. **Both tables stop at 6d and above that
+there is deliberately no word**, so a 7d Trait shows an empty cell rather than the nearest one,
+which would be this program inventing a rung the book does not have.
+
+**6. One filter box, in the component all five pickable lists share.** The only item here that
+came from somebody using the thing: scrolling 141 Powers. **The Powers tab had the only search
+box in the app** and it now has none of its own — the box moved into `OptionList`, so Pros, Cons,
+Perks, Flaws and gear features got one by being lists of options. It reads a row's tags as well as
+its text, because the Powers box did and tags are never printed, so moving it would otherwise
+have quietly narrowed the one list that already worked.
+
+**Two bugs found by looking at the rendered page, neither of which any test would have caught:**
+
+- **The count read `282 of 282` where the rulebook has 141 Powers.** A row inside a
+  `CascadingValue` is reached from *both* directions when the value changes — the parent
+  re-renders the fragment holding it, and the cascading value notifies its subscribers — so
+  `OnParametersSet` runs twice per pass and every row counted itself twice. **It read as a
+  plausible number beside a list nobody counts.** The row now counts itself once per pass however
+  often it is asked, rather than the list assuming how often Blazor will ask; the test asserts the
+  count against the rows underneath it rather than against a figure from the rules.
+- **A tier card printed `TRAIT CAP 12D`.** Every label in this redesign is uppercased and that
+  line carries a *rank*, which the rulebook writes `12d`. The card is now the one label that is
+  not uppercased, for a rules reason rather than a taste one.
+
+**And then the same bug a second time, which is what turned it into a guard.** Uppercasing every
+form `label` made "Custom features (Ch.6, p.93)" read `CH.6, P.93` — a rulebook citation in a
+notation the rulebook does not use. Several labels are whole sentences besides: a Pro's narrative
+constraint reads "Player must define the specific condition when purchasing." So `label` keeps
+the face, the tracking and the muted ink, and drops the capitals.
+
+**`UppercasedTextTests` guards the class, in two halves, and one half is not enough.**
+
+- The **rendered** half takes its selectors from whatever `app.css` actually uppercases today —
+  never a list somebody remembered to update — and asserts that no such element on a rendered
+  page carries a rank or a citation. Reinstating the capitals on the tier card's cost line fails
+  it, quoting `Trait Cap 8d`.
+- The **source** half exists because the rendered half **could not see the case that caused it**.
+  The gear labels live several interactions deep, and rendering that page with a character
+  loaded produces *zero* labels — so the mutation left the rendered theory green. That is exactly
+  "a runtime test is only worth the paths it drives", found by mutating rather than by trusting a
+  new test because it was new. It is conditional on the stylesheet, so the constraint lifts if
+  the capitals ever go.
+
+**The printed sheet was re-proofed on paper, not on screen**, through the bUnit-plus-headless-
+Chrome route with `--print-to-pdf` and `--no-pdf-header-footer`, and rasterised with Docnet plus
+ImageSharp pinned below 4.0. **Three sheets print as three pages in both palettes** — the new
+metrics did not cost the one-page property — white paper, navy or crimson ink, heading bars still
+a tint. That harness is now `ProofPages`, which writes nothing unless `PP_PROOF` is set.
+
+**What this did not close.** The fonts ship as `.ttf` and would be roughly 40% smaller as
+`.woff2`; there is no converter and no network on this machine, and it is a one-line change per
+face when there is. It also adds ~372 KB to a payload item 5 already calls large.
+
+**The fonts were verified as far as the published output**, not merely the build: `.NET` static
+web assets do not copy into `bin/wwwroot`, so a build tells you nothing about what ships. A
+`dotnet publish` puts all three faces and both licences in `wwwroot/fonts/`.
+
+**An adversarial review then found eight holes, one of which reverted the slice.** Every one was
+demonstrated by mutation there and re-demonstrated here after the fix.
+
+- **Both `@font-face` families could be pointed at the same file.** Every heading, label, figure
+  and section bar rendered in the body face — with both tokens declared, both different, both
+  asked for, every file present and licensed, and four font guards green. **Nothing correlated a
+  family to its own file**, so the headline item of this slice silently reverted and the app
+  looked exactly as it had before. `EachFamilyIsServedItsOwnFile` is three lines in a test that
+  already computed both halves.
+- **The rank word had no rendering coverage at all** — its only guard was the CSS rule check,
+  which passes while the word is wrong, invented or hidden. Three mutations went through: reading
+  the 6d word for every rank above it (*the exact failure the component's own comment says is
+  prevented*), an off-by-one printing the 5d word beside a 4d Trait, and `display: none` on the
+  class. `RankWordTests` renders it against the rules' own guide with two anchors from the printed
+  tables, and the CSS half now refuses `display: none` over every rule targeting the class.
+- **The licence guard was `File.Exists`**, so a 23-byte stub reading "Oswald is a nice font."
+  satisfied it. **This is the one green in the slice that carries a legal claim.** It reads the
+  licence text and the reserved font name now, so one family's licence cannot stand in for the
+  other's.
+- **Four of the five lists could drop their filter box silently**, and matching by *description*
+  was untested while four placeholders promise it. Both were one test each — and **both had to
+  drive the page rather than render it**: the gear features are two clicks in and the Pro/Con list
+  is behind a toggle, so the first version of that test passed against a page with no options on
+  it at all, which is the same blind spot in a new coat.
+- **`index.html` was scanned by neither the colour nor the typeface rule**, and it is the other
+  file in the payload that can carry CSS — `style-src 'unsafe-inline'` means an inline block there
+  applies rather than being blocked.
+- And a comment cited **Elasticity**, which is not a Power in this rulebook. `CLAUDE.md` records
+  that exact slip being made once before from a stale note; this is the second time.
+
+**One finding was about method rather than code, and it is in the traps list now.** A crashed test
+process still prints `Passed!  -  Failed: 0`: the endless render loop this component's guard
+prevents ends in a stack overflow, 31 of 153 tests never run, and the summary line reads as green.
+The exit code is 1 so CI catches it — a person grepping for `Passed!` does not.
+
+**A second review measured rather than read**, resolving the `color-mix()` tokens itself and
+validating them against Chrome's own resolution, so its numbers are figures rather than
+impressions. It found a **real WCAG failure**: Villain `--heading` on `--accent-soft` is
+**4.08:1**, and 1.4.3 applies to a hover state. It also found the print-specificity trap for
+the **third time in this file**, `PointsRule` unreachable, item 4's formulas duplicating the
+panel below them on the only page they appear, no cache header on 381 KB of fonts, and the
+Iconic tier card printing its one sentence twice — which, because the cards are an
+equal-height grid row, cost the two cards beside it five lines of dead white.
+
+**Then a fix-audit — a reviewer pointed at the fixes rather than the code — and it was worth
+more than either review before it.** Three of the fixes did not hold:
+
+- **`EachFamilyIsServedItsOwnFile` caught the mutation it was written for and missed two
+  routes to the same regression.** `FontFaces()` filtered out any face whose `src` it could not
+  parse, so an **absolute** `url("/fonts/PublicSans-Variable.ttf")` — live under
+  `<base href="/">` — dropped the Oswald face from the family check *and* from the licence
+  check, and the app served Public Sans for every heading with all 96 tests green. **The filter
+  written to make the guard robust widened the hole it was closing.** The second route was
+  overwriting one font file with the other's bytes, which no name correlation can see; the
+  check now reads the TrueType `name` table.
+- **The licence guard's three strings all appear in an OFL file's first nine lines**, so
+  `head -9` — 383 bytes, permission grant and warranty disclaimer deleted — passed.
+- **`UppercasedTextTests` closed with `Assert.True(seen >= 0)`**, a tautology, and **13 of its
+  25 selectors matched nothing on any rendered page**. Setting `.verdict` to
+  "Trait Cap 12d (Ch.9, p.150)" rendered `TRAIT CAP 12D (CH.9, P.150)` with the suite green —
+  the exact bug class the file exists for. It renders fourteen components now and **refuses a
+  selector it never found**, with six named exemptions.
+
+**And the fix for the contrast finding was itself half a fix**: moving the tier card off
+`--accent-soft` left `.btn:hover` on the identical failing pair and `.btn.danger:hover` on a
+worse one (3.94:1 Villain, 4.55:1 Hero). There are far more buttons than tier cards, so the
+stylesheet carried a comment calling the pair a fault eleven lines above two live instances.
+
+3772 tests to **3841** — 3645 on the engine, 196 in bUnit. Zero warnings at CI strictness.
+
+### The budget bar becomes chrome, and the plan for what the front end could be
+
+The budget was a bordered panel costing about **110px above every step** — roughly a quarter of
+a laptop viewport, six times over, most of it a seven-part table consulted occasionally while
+occupying the space continuously. A persistent budget is *ambient status*, and status belongs
+where the banner is rather than in the column the reader scrolls.
+
+It is a **sticky strip** now: the spend set large against its budget as a denominator, what is
+left beside it, a **3px rail** bled to the width of the shell along its own bottom edge, and the
+breakdown disclosed on request. About 40px, and it stays put. Whether the disclosure is open is
+a field on the component — deliberately **not** on `CharacterSheet`, which is what gets exported
+and restored.
+
+**It shipped unreviewed and had three defects**, all found by the fix-audit and all now covered
+by `BudgetStripTests`: the negative-margin bleed is fixed while the shell's padding is not, so it
+overflowed 8px at 375px; the `progressbar` announced `valuenow=132` against `valuemax=125` when
+over budget — invalid, and disagreeing with its own clamped fill — and had no accessible name;
+and `aria-controls` pointed at an element that only exists while open.
+
+[`docs/FRONT-END-PLAN.md`](docs/FRONT-END-PLAN.md) is the plan for the rest, in six phases. **Its
+one load-bearing decision is that there is no animation library**: `element.animate()` does
+everything on the list, the payload is already item 5 below, and the View Transitions API does a
+thing no library can. The shortlist is named if that is overruled.
 
 ### A1, A2 and A3 reconciled onto one branch, and the arithmetic that says nothing was dropped
 
