@@ -1,11 +1,9 @@
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
-using ProwlersAndParagonsAutomation.Engine;
 using Microsoft.JSInterop;
 using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Layout;
-using ProwlersAndParagonsAutomation.Web.Services;
 
 namespace ProwlersAndParagons.Web.Tests;
 
@@ -43,15 +41,18 @@ public sealed class MotionWiringTests
 
         var nav = ctx.Services.GetRequiredService<NavigationManager>();
 
-        var begins = () => ctx.JSInterop.Invocations
-            .Count(i => i.Identifier == "ppMotion.begin");
+        // A local function over the interop rather than a delegate over `ctx`: capturing the
+        // disposable in a closure is what ReSharper flags, and the interop object is the only
+        // part actually wanted here.
+        var interop = ctx.JSInterop;
+        int Begins() => interop.Invocations.Count(i => i.Identifier == "ppMotion.begin");
 
-        var before = begins();
+        var before = Begins();
         int duringChanging = -1;
 
         nav.RegisterLocationChangingHandler(_ =>
         {
-            duringChanging = begins();
+            duringChanging = Begins();
             return ValueTask.CompletedTask;
         });
 
@@ -136,7 +137,7 @@ public sealed class MotionWiringTests
     [Fact]
     public async Task NoCountIsIssuedWhileTheStripIsNotRendered()
     {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
+        await using var ctx = new RenderContext().With(SheetMode.Hero);
 
         var strip = ctx.Render<HpBudgetBar>();
         Assert.Contains("budget-figure", strip.Markup, StringComparison.Ordinal);

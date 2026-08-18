@@ -11,75 +11,83 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3877 tests** — 3663 engine, 214 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3893 tests** — 3668 engine, 225 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
-browser app, `build --from character.json`, and an MCP server.
+browser app, `build --from character.json`, and an MCP server. **CI drives a browser too**: five
+proof harnesses on `ubuntu-latest`, each required to *say* `PASS` in its `<title>`.
 
-**The reconciliation is in `master`; the visual redesign is not.**
-
-- **`claude/reconcile-a1-a3`** reconciled the three sub-slices of the mutation audit, worked
-  concurrently on three branches from `5867340`, each rewriting the same four documents. It
-  **merged as [#45](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/45)** and
-  is `master`'s tip. All 33 findings are closed. (An earlier version of this file said both slices
-  were unmerged; that was true when it was written and is not now.)
-- **`claude/slice-b-visual-redesign-c88220`** is the live branch: the visual redesign plus Phases
-  0, 1 and 2 of the front-end plan. **`…-221eb7` is the same work two phases stale** — it stops at
-  `38131df` and should not be started from.
+**Everything through Phase 2 is in `master`.** The mutation-audit reconciliation merged as
+[#45](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/45); slice B and Phases
+0, 1 and 2 of the front-end plan merged as
+[#46](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/46). Start from `master`.
+The old branches — `…-221eb7`, `…-c88220`, `claude/reconcile-a1-a3` — are all behind it now and
+should not be started from.
 
 **Slice B shipped all six items** — two self-hosted faces (Oswald and Public Sans, both SIL OFL
 with their licences), labels carrying the structure of the long forms, the tier choice as a card
 grid, the rule under each derived figure, the rulebook's word beside each rank, and one filter
 box in the component all five pickable lists share. The budget bar then became a sticky strip of
-chrome rather than a panel costing ~110px above every step. `PROGRESS.md` has the full account.
+chrome rather than a panel costing ~110px above every step.
 
-**Three reviews ran on it and the third was worth more than the first two.** A general
-adversarial pass found eight holes; a typography-and-contrast pass measured a real WCAG failure
-and found the print-specificity trap for the third time; and a **fix-audit — a reviewer pointed
-at the fixes rather than at the code — found that three of those fixes did not hold**, including
-one where the filter written to make a guard robust widened the hole it was closing. Do not skip
-that third reviewer.
+**Phases 0, 1 and 2 are done.** The scales exist and are held by
+`NoScreenRuleNamesARawSpacingOrTypeLength`; the chrome is one band instead of three and six empty
+states name the next action; and motion carries meaning — the chrome persists across a step change
+through the View Transitions API, the budget figure counts to its new value, and a row arriving in
+a chosen list lands. No animation library: `wwwroot/js/motion.js` is the whole of it, **+3.5 KB
+brotli**, and the CSP is unchanged. `PROGRESS.md` has the full account.
+
+**Three reviewers ran on Phase 2 and the third was worth more than the first two.** Two adversarial
+passes found three bugs in *shipped code* — an `Animation` leaked per count, an abandoned count
+could rest the strip on a figure the engine no longer returns, and `motion.js` had become
+load-bearing for navigation. The fix-audit then found that of ten fixes only three held, **and that
+one of them had shipped a bug worse than the one it closed**, found with no mutation applied at all.
+Do not skip that third reviewer.
 
 ---
 
-## What the next session is for: the front end as an application
+## What the next session is for: Phases 3, 4 and 5
 
-The plan is [`docs/FRONT-END-PLAN.md`](FRONT-END-PLAN.md), in six phases, and it is the brief.
-**Read it before starting** — it carries the reasoning, and one load-bearing decision that will
-otherwise be re-litigated.
+The plan is [`docs/FRONT-END-PLAN.md`](FRONT-END-PLAN.md) and it is the brief. **Read it before
+starting.** Phases 0–2 are done; three remain.
 
-**Do the phases in order. Phase 0 is done** — the spacing, type and elevation scales exist and
-`NoScreenRuleNamesARawSpacingOrTypeLength` holds them, so **Phase 1 starts by asking a scale for
-a value rather than choosing one.** `PROGRESS.md` has the account; the plan carries the four
-things a later phase needs to know, including two rungs that are pinned to measured values and
-must not be tidied onto a ratio.
+**Phase 3 — the interactions that are still forms.** Two slices, risk medium-high. Where the app
+stops feeling like a document and starts feeling like a tool:
 
-**Phase 1 is done too**, except for one half deliberately moved to Phase 4 — see the plan, which
-says which half and why. The chrome is one band instead of three, six empty states name the next
-action, and the print block came through untouched (three pages, both palettes).
+- **A `Ctrl-K` command palette** — jump to a step, find a Power, add one. The highest-leverage
+  item on the list and mostly built already: `OptionFilter.Admits` does the matching, and 141
+  Powers is exactly the catalogue a palette is for.
+- **The pips become the control.** They are `aria-hidden` decoration beside a `+`/`−` stepper
+  today; clicking the fifth pip should set 5d, with arrow keys and Home/End.
+- **Keyboard navigation in the option lists**, with the filter box keeping focus. Every list is
+  mouse-only in practice.
+- **Validation where the mistake is made.** The engine answers continuously; the findings only
+  surface at GM review. A Trait over the cap should say so on its own row.
+- **Undo.** Three buttons on the tier page can destroy twenty minutes behind a confirm dialogue.
 
-**Next is Phase 2 — motion that carries meaning**, and its own note is the one to read first: the
-principle before the list, because this is where "slick" becomes "noisy". Two things Phase 0 and 1
-left ready for it. **`--ease-out` exists and is used; `--ease-emphasised` deliberately does not** —
-add it in the phase that has something to overshoot, which the plan says is a row arriving in a
-list. And the **View Transitions** item wants the shared elements to persist across a route change:
-the step list and the budget strip are now full-width siblings of `main` rather than children of
-it, which is the shape that makes them persistable rather than re-rendered.
+**This phase is not bUnit-shaped.** A palette and a pip control are new interaction surfaces and
+need real keyboard and screen-reader testing. Budget for that rather than discovering it.
 
-**The one thing Phase 2 must not break is the sticky strip.** It stays put because its containing
-block is the document; anything that wraps it, or gives an ancestor a transform or a filter, ends
-that silently. There is a measured check — `proof-sticky.html` scrolls the shell in an iframe and
-reports the strip's top, which must be 0 after a scroll.
+**Phase 4 — the sheet as the reward, not the exit.** Half a slice, risk low. A live preview column
+so the sheet is visible *while* building, which is nearly free — `SheetView` already takes a
+character and there is one sheet component by design. **Phase 1's deferred fourth item lands here**,
+because they are one job: widening `--column` above a breakpoint, which every band follows
+automatically, but which also widens the sheet and the replay. Decide that deliberately rather than
+as a side effect. Watch the render cost — the sheet re-renders on every keystroke unless throttled.
 
-**The one decision already made: there is no animation library.** `element.animate()` does
-everything on the list in ten lines; the payload is already this project's largest open item and
-slice B just added 381 KB of fonts to it; there is no network on this machine to fetch, vendor or
-verify one; and the View Transitions API does a thing no library can. The shortlist is in the
-plan if that is overruled — it is a decision, not a prohibition.
+**Phase 5 — the things that are simply missing.** A skip link and landmark roles; "Saved" feedback,
+since the character write-through is silent; and a print preview honest about the browser's own
+header, which no page can suppress.
 
-**JavaScript itself is open.** `wwwroot/js/download.js` already exists and is called for the
-palette, the download and local storage; `script-src 'self'` allows a same-origin script with no
-hash and no policy change. Only an *inline* script would need one, and the header script hashes
-exactly one of those today.
+**Two Phase 2 findings are recorded rather than fixed, both measured** — see `PROGRESS.md`:
+
+- A held-open view transition **swallows pointer input** for ~260ms, up to 1000ms if the failsafe
+  fires. `pointer-events: none` on the pseudo would let the click through *to the new page while
+  the visitor still sees the old one*, trading a dead click for a wrong one.
+- **There is no `aria-live` anywhere**, so crossing into over-budget is announced to nobody. If you
+  add one it must go on a sibling summary, **never** on `.budget-figure strong`, which `ppCount`
+  rewrites up to 60×/s.
+
+Phase 2 item 3 — exit animations — is deferred by the plan itself.
 
 ---
 
@@ -89,20 +97,21 @@ Each one has cost this project real time when skipped.
 
 1. **Confirm the toolchain.** `dotnet --version` must report **10.0.x**; the 9.x SDK cannot build
    this. `global.json` pins `10.0.100` with `latestMinor`.
-2. **Start from the right commit.** `git log --oneline -1` on
-   `claude/slice-b-visual-redesign-c88220` — **not `…-221eb7`, which is two phases behind.**
-   `master` has the mutation-audit reconciliation but none of the front-end work.
+2. **Start from `master`.** Everything through Phase 2 is merged. The old branches — `…-c88220`,
+   `…-221eb7`, `claude/reconcile-a1-a3` — are all behind it.
 3. **Establish the baseline before you change anything.**
    ```bash
    dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
    ```
-   It must report **3663 + 214 = 3877** and zero warnings. **Warnings are errors only under that
+   It must report **3668 + 225 = 3893** and zero warnings. **Warnings are errors only under that
    flag**, so a plain `dotnet test` passes over things CI fails on.
 
    **Take the number from the run, not from a document, and update the document from the run.**
    The figure here read 3849 against a tree of 3850 for one commit, because it was copied from a
    run taken before the last test was added — and both reviewers caught it, which is a waste of a
-   reviewer.
+   reviewer. It has since been wrong twice more, once on both sides of a merge conflict at the
+   same time.
+
 4. **Read the summary line properly.** A crashed test process still prints
    `Passed!  -  Failed: 0` — a stack overflow reports `Catastrophic failure ... exit code
    -1073741571`, skips tests, and the summary still reads green. **Grep for `Catastrophic` and
@@ -135,7 +144,20 @@ Each one has cost this project real time when skipped.
    `clientWidth 360, scrollWidth 368`. An iframe onto `proof-hero.html` with three lines of script
    does it; the same trick measures box insets, which is how a 3.2px table misalignment was found.
 
-9. **Do not run two reviewers concurrently in one worktree.** Both of Phase 0's reviewers
+9. **`--virtual-time-budget` suppresses frame production.** It is *required* for screenshots —
+   `.panel` animates from `opacity: 0` and a bare capture photographs it mid-animation — and under
+   it `requestAnimationFrame` never fires and animation timelines do not advance. Measured: a probe
+   reports `RAF-FIRED-1` without the flag and `NO-FRAME` with it, identically under `--dump-dom`,
+   `--screenshot` and `--run-all-compositor-stages-before-draw`. **So anything animated must be
+   checked by seeking** (`anim.currentTime = x`), never by waiting. This is why the counting figure
+   is an `element.animate()` clock rather than a rAF loop, and a regression that hid behind exactly
+   this property shipped once already.
+10. **The five browser harnesses run in CI**, so a change that breaks one fails the PR rather than
+    waiting for somebody to run it by hand. `gh pr checks <n> --watch` is the authority. Verify the
+    step *ran* — the harness output names each page — because a step that silently did nothing
+    looks exactly like one that passed.
+
+11. **Do not run two reviewers concurrently in one worktree.** Both of Phase 0's reviewers
    mutate files and revert with `git checkout`, so they poison each other: one caught the other's
    `--text-sm: 2rem` and read it as a finding, and both lost runs to `index.lock`. Give each
    reviewer its own worktree, or run them one at a time. Their own scratch files under
