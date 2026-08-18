@@ -160,8 +160,12 @@ public sealed class OptionFilterTests
             .Click();
 
         // Same again: the Pro/Con list is behind an "Add a Pro" toggle.
+        // The Power is resolved before the render, so the parameter builder does not close over
+        // the test context.
+        var armor = ctx.Services.GetRequiredService<RulesRepository>().GetPower("armor");
+
         var prosAndCons = ctx.Render<ProConPicker>(p => p
-            .Add(c => c.Power, ctx.Services.GetRequiredService<RulesRepository>().GetPower("armor"))
+            .Add(c => c.Power, armor)
             .Add(c => c.Selected, [])
             .Add(c => c.IsPro, true));
         prosAndCons.FindAll("button")

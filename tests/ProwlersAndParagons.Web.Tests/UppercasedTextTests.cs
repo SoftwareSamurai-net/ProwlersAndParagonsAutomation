@@ -1,7 +1,5 @@
 using System.Text.RegularExpressions;
-using AngleSharp.Dom;
 using Bunit;
-using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Pages;
 

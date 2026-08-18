@@ -57,7 +57,7 @@ public sealed class RankWordTests
                 else ctx.Session.Sheet.TalentRanks[id] = rank;
 
                 var row = Row(ctx, kind, name);
-                var expected = entry.Split(" (", StringSplitOptions.None)[0];
+                var expected = entry.Split(" (")[0];
 
                 Assert.Equal(expected, row);
 

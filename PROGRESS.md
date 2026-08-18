@@ -219,6 +219,31 @@ grip does not.
 
 ## Completed work
 
+
+### Qodana's 32 findings on #46 — and two were real defects, not style
+
+All 32 were in test files, none in production code, and Qodana runs in PR mode so several were
+pre-existing rather than new. Most were spelling: seven redundant `using` directives, six redundant
+verbatim prefixes, a redundant name qualifier, a redundant default argument.
+
+**Two were worth the scan on their own.**
+
+- **`EffectiveValue` carried two `<summary>` blocks.** The doc for `ScreenHalfOfAppCss` — eighteen
+  lines explaining why the `@page` box is stripped, and recording that an earlier version of the
+  note cited a compensating check that did not compensate — had been **stranded 175 lines from its
+  method** by an insertion, leaving `ScreenHalfOfAppCss` with no documentation at all and
+  `EffectiveValue` with two summaries and an unclosed `<para>`. This is the exact defect
+  `CLAUDE.md` already records from an earlier slice, repeated by the same mechanism: line-based
+  splicing. **The compiler sees none of it**, and neither does any test in this repository.
+- **A lambda parameter named `rule` shadowed a `Match` named `rule`** eight lines above it, in the
+  same method, with different types. Renamed.
+
+The seven `AccessToDisposedClosure` were fixed by removing the capture rather than suppressing the
+inspection — the fill actions take the sheet as a parameter now, the Power is resolved before the
+render that used it, and the interop counter is a local function over `ctx.JSInterop` rather than a
+delegate over `ctx`. `CLAUDE.md` asks for a rationale beside any deliberate exception; none was
+needed, because none of these needed an exception.
+
 ### Phase 2 of the front-end plan: motion that carries meaning — **in progress**
 
 **The first thing found was that the guard this phase must not break did not exist.** The handover

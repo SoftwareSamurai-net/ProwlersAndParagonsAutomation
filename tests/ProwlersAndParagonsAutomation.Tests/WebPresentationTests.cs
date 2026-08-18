@@ -96,9 +96,9 @@ public sealed class WebPresentationTests
     /// </remarks>
     private static readonly string[] EverySpellingOfHidden =
     [
-        @"display:none", @"visibility:hidden", @"visibility:collapse",
+        "display:none", "visibility:hidden", "visibility:collapse",
         @"(?<![\w-])color:transparent", @"font-size:0(?![.\d])", @"opacity:0(?![.\d])",
-        @"content-visibility:hidden"
+        "content-visibility:hidden"
     ];
 
     // ── No component names a colour ─────────────────────────────────────────────
@@ -640,7 +640,7 @@ public sealed class WebPresentationTests
         // No rung of this scale declared anywhere but theme.css, and none there beyond the set
         // above. Both stylesheets and index.html are read: theme.css is the only file allowed
         // to declare one, so a :root block elsewhere is the interesting case.
-        foreach (var (where, css) in new[] { ("app.css", AppCss), ("index.html", IndexHtml) })
+        foreach (var (_, css) in new[] { ("app.css", AppCss), ("index.html", IndexHtml) })
             Assert.DoesNotMatch(Rx($@"{Regex.Escape(prefix)}[a-z0-9-]+\s*:"), WithoutCssComments(css));
 
         var declared = Rx($@"({Regex.Escape(prefix)}[a-z0-9-]+)\s*:")
@@ -1308,24 +1308,6 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
-    /// The stylesheet up to its print block, with the <c>@page</c> box removed. Comments stripped.
-    ///
-    /// <para><b><c>@page</c> is paper and it is not inside <c>@media print</c>.</b> It sits just
-    /// above it, so cutting at the first <c>@media print</c> left <c>@page { margin: 14mm 13mm }</c>
-    /// in the region this file calls "the screen half" — and the raw-length guard's own doc claim
-    /// that the print rules are out of scope was false for it. It passed only because <c>mm</c>
-    /// was missing from the unit list, so closing that gap would have turned a legitimate print
-    /// declaration red. Excluded by name, which is the honest fix: the page box is a paper rule
-    /// wherever it is written.
-    ///
-    /// <para><b>The first version of this note cited <c>ThePageIsA4WithMargins</c> as the
-    /// compensating check and that was false when written.</b> That test read the *first*
-    /// <c>@page</c> while this strips *every* one of them, so a second page box after the A4
-    /// block — A5 landscape, margin 0 — won the cascade and was seen by nothing. It reads all of
-    /// them and requires exactly one now, which is what makes stripping them here safe. A
-    /// pseudo-page such as <c>@page :first</c> is stripped too, and counted there.</para>
-    /// </summary>
-    /// <summary>
     /// The value of <paramref name="property"/> that actually applies to <paramref name="selector"/>
     /// — the <b>last</b> one declared, across <b>every</b> rule that targets it — or null.
     ///
@@ -1482,6 +1464,24 @@ public sealed class WebPresentationTests
                && aliases.Any(a => a == other || other.StartsWith($"{a}-", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// The stylesheet up to its print block, with the <c>@page</c> box removed. Comments stripped.
+    ///
+    /// <para><b><c>@page</c> is paper and it is not inside <c>@media print</c>.</b> It sits just
+    /// above it, so cutting at the first <c>@media print</c> left <c>@page { margin: 14mm 13mm }</c>
+    /// in the region this file calls "the screen half" — and the raw-length guard's own doc claim
+    /// that the print rules are out of scope was false for it. It passed only because <c>mm</c>
+    /// was missing from the unit list, so closing that gap would have turned a legitimate print
+    /// declaration red. Excluded by name, which is the honest fix: the page box is a paper rule
+    /// wherever it is written.</para>
+    ///
+    /// <para><b>The first version of this note cited <c>ThePageIsA4WithMargins</c> as the
+    /// compensating check and that was false when written.</b> That test read the *first*
+    /// <c>@page</c> while this strips *every* one of them, so a second page box after the A4
+    /// block — A5 landscape, margin 0 — won the cascade and was seen by nothing. It reads all of
+    /// them and requires exactly one now, which is what makes stripping them here safe. A
+    /// pseudo-page such as <c>@page :first</c> is stripped too, and counted there.</para>
+    /// </summary>
     private static string ScreenHalfOfAppCss
     {
         get
@@ -1650,7 +1650,7 @@ public sealed class WebPresentationTests
 
         Assert.NotEmpty(FontFaces());
 
-        foreach (var (family, file) in FontFaces())
+        foreach (var (_, file) in FontFaces())
         {
             var path = Path.Combine(fonts, file);
 
@@ -1869,10 +1869,10 @@ public sealed class WebPresentationTests
         // Matched as whole declarations, not as substrings: `font-size:0` is a prefix of the
         // rule's own `font-size:0.72rem`, and `opacity:0` of `opacity:0.8`. A ban that fires on
         // the thing it is protecting is worse than no ban, because the fix is to weaken it.
-        Assert.All(RulesTargeting(".rank-word"), rule =>
+        Assert.All(RulesTargeting(".rank-word"), targeting =>
             Assert.All(EverySpellingOfHidden, way =>
-                Assert.False(Rx(way).IsMatch(Normalise(rule)),
-                    $"A rule targeting .rank-word hides it with '{way}': {Normalise(rule)}")));
+                Assert.False(Rx(way).IsMatch(Normalise(targeting)),
+                    $"A rule targeting .rank-word hides it with '{way}': {Normalise(targeting)}")));
     }
 
     // ── The UI is written for players ───────────────────────────────────────────
@@ -2743,7 +2743,7 @@ public sealed class WebPresentationTests
     /// </summary>
     private static string MethodBodyOf(string source, string name)
     {
-        var declared = Rx($@"\b{System.Text.RegularExpressions.Regex.Escape(name)}\s*\(")
+        var declared = Rx($@"\b{Regex.Escape(name)}\s*\(")
             .Matches(source)
             .Select(m => m.Index)
             .ToList();

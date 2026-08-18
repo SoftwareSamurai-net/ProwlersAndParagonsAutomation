@@ -1,5 +1,4 @@
 using Bunit;
-using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
 
 namespace ProwlersAndParagons.Web.Tests;

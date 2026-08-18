@@ -193,13 +193,16 @@ public sealed class EmptyStateTests
 
         // Each section filled on its own, and only its own marker may clear. A test that fills
         // one and checks one cannot tell an independent marker from a hard-coded true.
-        var fills = new (string Section, Action Fill)[]
+        // Each takes the sheet rather than reaching for `ctx`, so no delegate here captures the
+        // test context. A closure over a disposable is what ReSharper flags, and the sheet is the
+        // only part these actually want.
+        var fills = new (string Section, Action<CharacterSheet> Fill)[]
         {
-            ("Abilities", () => ctx.Session.Sheet.AbilityRanks["might"] = 3),
-            ("Talents",   () => ctx.Session.Sheet.TalentRanks["covert"] = 3),
-            ("Powers",    () => ctx.Session.Sheet.SelectedPowers.Add(new SelectedPower("armor", 3))),
-            ("Perks",     () => ctx.Session.Sheet.Perks.Add(new SelectedPerk("contacts", 1, "A dispatcher"))),
-            ("Flaws",     () => ctx.Session.Sheet.Flaws.Add(new SelectedFlaw("enemy", "An old partner"))),
+            ("Abilities", sheet => sheet.AbilityRanks["might"] = 3),
+            ("Talents",   sheet => sheet.TalentRanks["covert"] = 3),
+            ("Powers",    sheet => sheet.SelectedPowers.Add(new SelectedPower("armor", 3))),
+            ("Perks",     sheet => sheet.Perks.Add(new SelectedPerk("contacts", 1, "A dispatcher"))),
+            ("Flaws",     sheet => sheet.Flaws.Add(new SelectedFlaw("enemy", "An old partner"))),
         };
 
         // **The marking is announced, not only drawn.** The ring is a shape, which survives a reader
@@ -216,7 +219,7 @@ public sealed class EmptyStateTests
 
         foreach (var (section, fill) in fills)
         {
-            fill();
+            fill(ctx.Session.Sheet);
             filled.Add(section);
 
             foreach (var (name, marked) in Marked(ctx))
