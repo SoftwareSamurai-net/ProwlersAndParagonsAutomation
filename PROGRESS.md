@@ -278,6 +278,35 @@ twice, the second under Chrome's `--force-prefers-reduced-motion`, **and every e
 — which is the half no source scan can reach. Re-run against both variants it catches both, and
 discriminates: the inverted gate fails checks 1 and 2, the dead timer fails only check 3.
 
+**Item 2 is parked, not done, and the reason is the instrument rather than the feature.** The
+counting figure was written and worked; bringing it to this repo's standard is what stopped it.
+`requestAnimationFrame` **does not fire under `--headless=new --dump-dom`** — a probe in one run
+reported `rAF=0` against `setTimeoutTicks=41` — so an rAF-driven count cannot be verified by the
+only browser instrument this project has, and CI has no other. The implementation is parked at
+`.claude/parked/` with its patch; whether it returns as an `element.animate()` count, whose
+timeline can be driven deterministically, is a decision rather than a repair.
+
+**Before it was parked, the harness written to test it was itself theatre — and it took reading a
+detail line to see it.** `proof-motion.html` linked no stylesheet, so `--enter` resolved to the
+empty string, `parseFloat` gave `NaN`, and `ppCount` took its "nothing to animate" path on every
+call. All four counting checks passed **without a single count running**, and the verdict said
+PASS. What gave it away was not the verdict but a detail string reading `showed 99 immediately` in
+a run where the count should still have been mid-flight. The harness now links `theme.css` and
+asserts its own precondition — `--enter resolves` — as a live check rather than a comment, because
+a comment does not fail.
+
+**The two theatre guards are now backed by a browser in CI.** `ubuntu-latest` ships Chrome, so the
+build workflow drives all five harnesses and requires each to *say* PASS in its `<title>`. Asserted
+on the positive: a harness whose script never ran leaves its resting text, which is neither
+verdict, so grepping for FAIL would call a broken harness green. Demonstrated on the same inverted
+gate as before — the source guard still reports `Passed!`, the browser check reports `MOTION: FAIL`
+with three of four checks down.
+
+**Four harnesses were missing, not one.** `proof-sticky`, `proof-measure`, `proof-narrow` and
+`proof-narrow-shell` were all uncommitted scratch. All four are generators now. The restored
+measurements: nothing overflows at 375px on either page, and all four chrome bands sit on the same
+column to 0.00px.
+
 The source guards are kept beside it. They are cheap, they run in CI where the browser does not, and
 what they now claim is only what they can support.
 

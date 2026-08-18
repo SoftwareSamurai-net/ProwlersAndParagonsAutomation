@@ -51,6 +51,69 @@ jobs:
         # rulebook, so a data edit that contradicts the book fails here.
         run: dotnet test --no-build --configuration Release -p:ContinuousIntegrationBuild=true
 
+
+      - name: Drive the proof harnesses in a browser
+        # **The only guards here that a source scan cannot fake.**
+        #
+        # Two guards in WebPresentationTests assert that motion.js *mentions* still() and
+        # setTimeout. Both pass against a script doing the opposite of what it says:
+        # `|| !still()) return` is one character and serves the animation to exactly the
+        # people who asked for none, and `setTimeout(() => {}, 1000)` is a failsafe that
+        # catches nothing. The property is behavioural, so the instrument has to run the code.
+        #
+        # ubuntu-latest ships Chrome, so this costs a step rather than a dependency.
+        #
+        # **Assert on the positive.** A harness whose script never ran leaves its resting text
+        # in place, which is neither verdict — so grepping for FAIL and finding none would call
+        # a broken harness green. Each page must *say* PASS.
+        run: |
+          set -euo pipefail
+
+          PP_PROOF=1 dotnet test tests/ProwlersAndParagons.Web.Tests \
+            --no-build --configuration Release
+
+          chrome="$(command -v google-chrome || command -v chromium-browser || command -v chromium)"
+          echo "Driving with $chrome"
+
+          root="$(pwd)/web/wwwroot"
+          failed=0
+
+          # page:expected-verdict:extra-chrome-flags
+          checks="
+          proof-sticky.html:STICKY: PASS:
+          proof-narrow.html:NARROW: PASS:
+          proof-narrow-shell.html:NARROW: PASS:
+          proof-measure.html:INSETS: PASS:
+          proof-motion.html:MOTION: PASS:
+          proof-motion.html:MOTION: PASS:--force-prefers-reduced-motion
+          "
+
+          while IFS= read -r line; do
+            [ -z "$(echo "$line" | tr -d '[:space:]')" ] && continue
+            page="${line%%:*}"; page="${page//[[:space:]]/}"
+            rest="${line#*:}"
+            want="${rest%:*}"; want="${want#"${want%%[![:space:]]*}"}"
+            flags="${rest##*:}"; flags="${flags//[[:space:]]/}"
+
+            dump="$(mktemp)"
+            "$chrome" --headless=new --no-sandbox --disable-gpu \
+              --allow-file-access-from-files --user-data-dir="$(mktemp -d)" \
+              --virtual-time-budget=8000 $flags \
+              --dump-dom "file://$root/$page" > "$dump" 2>/dev/null || true
+
+            # The <title> and not the body: both verdict strings appear in each harness's own
+            # script source, so a whole-document grep is satisfied by a page that never ran.
+            if grep -q "<title>$want" "$dump"; then
+              echo "  ok    $page ${flags:+($flags) }-> $want"
+            else
+              got="$(grep -o '<title>[^<]*' "$dump" | head -1 | sed 's|<title>||')"
+              echo "::error::$page ${flags:+($flags) }expected '$want', title was '${got:-<none>}'"
+              sed -n '/id="verdict"/,/<\/div>/p' "$dump" | head -12
+              failed=1
+            fi
+          done <<< "$checks"
+
+          exit "$failed"
       - name: Publish the browser front end
         # The static site is the deliverable for web/, and publishing exercises things a
         # plain build does not — chiefly staging data/rules into wwwroot.

@@ -44,6 +44,16 @@ window.ppMotion = {
         // throws, a handler that is disposed mid-flight — the page is left showing a still
         // image of itself with no way back. Releasing on a timer costs a transition that does
         // not animate; not releasing costs the app.
+        //
+        // **1000 is an infrastructure timeout, not a design duration — do not tokenise it.**
+        // Every other number about movement in this app is a token in theme.css, so the reflex
+        // on reading this line is to reach for `--enter`. That would be wrong twice over: this
+        // is not how long anything takes to move, it is how long the app waits before deciding
+        // a release is never coming, and it must stay comfortably longer than the animation it
+        // backstops rather than equal to it. Tying it to a design token would mean shortening
+        // the failsafe every time somebody made a transition quicker — and under
+        // prefers-reduced-motion the tokens collapse to 0.01ms, which would arm a failsafe that
+        // fires before the thing it protects has begun.
         guard = window.setTimeout(() => window.ppMotion.end(), 1000);
     },
 

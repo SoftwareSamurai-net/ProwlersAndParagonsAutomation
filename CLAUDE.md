@@ -103,6 +103,16 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 - `Program.cs` fetches every name in `RulesRepository.DataFileNames` **before the first render** and hands them to an `InMemoryRulesSource`. The engine is synchronous by design; a half-loaded repository throws.
 - **The rules are copied into `web/wwwroot/data/rules/` by the csproj, not committed there** (`wwwroot/data/` is gitignored). `Content Include` with `LinkBase` looks like it would do this and does not — the asset is registered against a content root the file is not under, so every request answers `200` with an empty body. Copy before static-asset discovery.
 - `CharacterSession` (scoped) owns the `CharacterSheet` and forwards to the calculators. **Anything resembling arithmetic in that file is a bug.**
+- **An animation may interpolate between two engine answers; it may never invent one.** The rule
+  above is about *authority*, not about every pixel: a frame part-way through a counting figure is
+  transient presentation, and the engine stays authoritative for any figure that **comes to rest,
+  is exported, or is read back**. So `ppCount` is allowed to draw the numbers between 105 and 118
+  because both ends are `CostCalculator` answers and the resting frame is **assigned rather than
+  computed** — the figure that settles is the engine's exactly, not a rounding of an interpolation.
+  What stays forbidden is the shape this permits people to reach for: counting *towards* a figure
+  the engine has not returned yet, easing a bar to a predicted width, or holding a stale number on
+  screen because the animation is still running. If an animation would show a number nobody asked
+  the engine for, it is the bug this rule has always been about.
 - `CharacterSession.TryCost` exists because the engine throws rather than guessing on an incomplete selection — a variable-cost Power with no variant. The editors never commit one, so this is only for the always-on budget bar.
 - **`CharacterStore` decides what a stored character is by asking the engine, not by checking its shape.** A saved sheet is nested several levels deep, and `System.Text.Json` will put a null at any of them without the type system objecting — so the guard costs and validates the sheet once and rejects a payload the engine cannot answer for. The first version stripped nulls level by level and missed `"Pros":[null]`, which restored cleanly and then took the app down on the first frame, because the budget bar renders on every route. **Do not replace this with a list of shapes**: the list goes stale the first time somebody adds a field. `InvalidOperationException` is deliberately not caught there — that is a half-finished character, not a corrupt one.
 - **Trimming is disabled on publish.** `RulesRepository` deserializes by reflection, so the trimmer can quietly remove model properties and leave the site running on empty rules. See `PROGRESS.md` item 5 before turning it back on.
