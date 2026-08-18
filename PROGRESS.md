@@ -331,6 +331,31 @@ A sixth mutation — deleting the assigned resting frame so the last value is in
 `Math.round(from + (to - from) * 1)` is already `to`. The mutation changes nothing observable. It
 is recorded because "a guard missed this" and "this mutation was a no-op" look identical in a
 
+
+**Item 2's last part: a row arriving in a chosen list lands, and `--ease-emphasised` arrives with
+it.** Phase 0 withheld that token deliberately — an overshoot curve wants something that should
+read as *landing*, and until now nothing did. A row moving from the picker into the character is
+the one thing that does, and it is the token's only user; an overshoot on a state change reads as
+a wobble.
+
+**Which row is new is decided by a `data-landed` mark in `motion.js`, not by a key in the
+component.** Blazor reuses DOM nodes, so the render tree does not answer that cheaply — and a mark
+survives something a key does not: a filter re-ordering the list is not twelve arrivals.
+`firstRender` is passed *through* rather than used to skip the call, so restoring a saved character
+marks its rows without playing a dozen animations at once, and the next genuine addition still
+lands alone. Both halves are asserted, and both were broken to prove it:
+
+| break | result |
+|---|---|
+| land on first render too | `a first render marks rows without landing them` fails, and so does `rows already present do not land again` — 2 animations where 0 belong |
+| hard-code the curve instead of reading the token | `effect easing "ease-in-out" vs token "cubic-bezier(0.34, 1.56, 0.64, 1)"` |
+
+The second is the one no CSS test could have caught: the animation is built in script, so a curve
+that drifts from the token is invisible to every stylesheet scan. The harness reads the easing back
+off the running effect and compares it against the computed token.
+
+`getAnimations()` is the positive control throughout — it asks the browser what is actually
+running rather than trusting a counter this code also owns.
 **The two source guards on `motion.js` are theatre and stay theatre, so a browser runs in CI.**
 They assert the script *mentions* `still()` and `setTimeout`, and both pass against
 `|| !still()) return`. `ubuntu-latest` ships Chrome, so the build workflow drives all five
