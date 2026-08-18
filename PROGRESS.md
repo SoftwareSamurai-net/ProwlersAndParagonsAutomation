@@ -332,6 +332,69 @@ A sixth mutation — deleting the assigned resting frame so the last value is in
 is recorded because "a guard missed this" and "this mutation was a no-op" look identical in a
 
 
+
+**The adversarial round: two reviewers, ten findings between them, every one demonstrated by
+mutation rather than argued.** Three were bugs in shipped code, not in the guards — the rate this
+project records for new guards ("a third to a half are theatre") held, and understated it.
+
+**What was wrong with the code:**
+
+- **`ppCount` leaked one live `Animation` per count.** `fill: "forwards"` keeps a finished
+  animation *relevant*, so it stayed attached to the single `<strong>` in the budget strip —
+  measured growing 1, 2, 3 … 10 over ten counts, for the life of a session. The cleanup now hangs
+  off `clock.finished` rather than the rAF pump, which also makes it *drivable*: frames are
+  exactly what `--virtual-time-budget` suppresses, so a tidy-up tied to the pump could not be
+  tested at all.
+- **An interrupted count could come to rest on a figure the engine no longer returns.** The
+  cancel sat below the early returns, so a call taking the immediate path left an older count
+  pumping — and a probe showed the abandoned count writing **100** after the newer one had settled
+  on **42**. That is the shape `CLAUDE.md` forbids in as many words. The cancel is above every
+  early return now.
+- **`motion.js` had quietly become load-bearing for navigation itself.** `OpenTransition` awaits
+  interop on *every* internal navigation and `ChosenList` on every render; a 404 or a parse error
+  would have thrown out of both. `Motion` swallows the script's failure — **a service rather than
+  a `try` at each call site, for the same reason `ReplayLibrary.LoadAsync` is a method**: a block
+  inside a component is where nothing can reach it.
+- **`HpBudgetBar` held an `@ref` to an element Villain mode does not render** and called interop
+  against it on every change. Blazor never clears an `@ref` when its element stops rendering, and
+  the call was absorbed by `ppCount`'s null guard — invisible, and load-bearing without anybody
+  having written that down.
+
+**What was wrong with the guards — eight of them:**
+
+| guard | it passed while… |
+|---|---|
+| the `LocationChanging` hook | the snapshot was taken from `LocationChanged` instead — **no cover at all**, suite and all six harnesses green |
+| `view-transition-name` uniqueness | one name sat on `.panel`; driven Chrome returns `InvalidStateError` and abandons every transition |
+| the reduced-motion gate | a new ungated entry point was added; its helper anchored on the first `animate(`, **which is in the file's header comment** |
+| the safety-timer ordering | it compared indices against that same comment |
+| the narrow harnesses | `overflow-x: clip` hid 352px of unreachable content; and leftward overflow is invisible to both measurements |
+| the insets harness | one band ran 96px short, printed in its own evidence |
+| the sticky harness | `position: fixed` reported as `sticky`, because `before` was measured and discarded |
+| every proof page | the app's own `<div id="app">` wrapper was missing, so ancestor-borne faults could not be seen |
+
+**The bUnit test written to close the worst of those passed against the mutation on its first
+attempt**, because it recorded the address from its own handler rather than correlating with the
+moment `Begin` ran. It counts interop calls already made when a `LocationChanging` handler fires,
+which is the only thing that separates the two hooks.
+
+**Two findings are recorded rather than fixed, and deliberately.**
+
+- **A held-open transition swallows pointer input.** Measured: `elementFromPoint` over a button
+  returns the `::view-transition` overlay rather than the button, for ~260ms normally and up to
+  1000ms if `end()` never arrives. `pointer-events: none` on the pseudo would let the click
+  through — **to the new page, while the visitor is still looking at a snapshot of the old one**,
+  which trades a dead click for a wrong one. 260ms of inert overlay is what every implementation
+  of this API does. Recorded with the numbers so the next session can weigh it rather than
+  rediscover it.
+- **There is no `aria-live` anywhere**, so the counting figure spams nothing — but crossing into
+  over-budget is announced to nobody either. Worth adding; **it must go on a sibling summary,
+  never on `.budget-figure strong`**, which `ppCount` rewrites up to 60×/s.
+
+One latent defect is also recorded: `_midTransition` is released by any render of `MainLayout`,
+not specifically the navigation's, so a render batch flushing in between would close the
+transition early and snapshot the old page twice. Not reachable today — no step-navigation path
+writes to the session before navigating — and it becomes live the first time one does.
 **Item 2's last part: a row arriving in a chosen list lands, and `--ease-emphasised` arrives with
 it.** Phase 0 withheld that token deliberately — an overshoot curve wants something that should
 read as *landing*, and until now nothing did. A row moving from the picker into the character is
