@@ -2994,6 +2994,64 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// <b>No component explains anything with a <c>title</c> attribute.</b>
+    ///
+    /// <para>This is the entire reason <c>Tooltip</c> is a component rather than an attribute.
+    /// <c>title</c> never appears on a touch screen, is unreliable for keyboard users, cannot be
+    /// styled, cannot be dismissed, and is announced inconsistently by screen readers — and none of
+    /// that is visible to a compiler, to a rendering test, or to somebody reading the markup and
+    /// finding it perfectly reasonable. It is the single easiest way to undo this work, because it
+    /// is the obvious thing to write.</para>
+    ///
+    /// <para><c>&lt;title&gt;</c> the element is a different thing and is not matched: the scan
+    /// requires the attribute form, an <c>=</c> after the name.</para>
+    /// </summary>
+    [Fact]
+    public void NoComponentExplainsAnythingWithATitleAttribute()
+    {
+        var attribute = Rx(@"(?<![\w-])title\s*=");
+
+        var offenders = RazorFiles
+            .Where(f => attribute.IsMatch(File.ReadAllText(f)))
+            .Select(Path.GetFileName)
+            .ToList();
+
+        Assert.True(
+            offenders.Count == 0,
+            "A title attribute is not a tooltip — no touch, unreliable by keyboard, unstyleable, "
+            + "not dismissable. Use the Tooltip component:\n  " + string.Join("\n  ", offenders));
+    }
+
+    /// <summary>
+    /// <b>A closed tip is invisible, and not by <c>display: none</c>.</b>
+    ///
+    /// <para>Two claims, and the second is the one that would rot silently. The accessible
+    /// description is read off that element by name whether or not it is showing, which is what
+    /// gives a screen-reader user the sentence without hovering for it — and it is why the element
+    /// stays in the document rather than being wrapped in an <c>@@if</c> like the budget breakdown.
+    /// Swapping the mechanism to <c>display: none</c> keeps every rendering test green and quietly
+    /// takes the description away.</para>
+    ///
+    /// <para>The first claim has no rendering test either: emptying <c>.tip</c> leaves the class on
+    /// the element and every assertion in the tooltip's own tests passing, with the sentence
+    /// permanently on screen beside the term.</para>
+    /// </summary>
+    [Fact]
+    public void AClosedTipIsInvisibleWithoutBeingRemoved()
+    {
+        Assert.Equal("hidden", EffectiveValue(ScreenHalfOfAppCss, ".tip", "visibility"));
+        Assert.Equal("0", EffectiveValue(ScreenHalfOfAppCss, ".tip", "opacity"));
+
+        // Not display:none, or the accessible description goes with it.
+        Assert.NotEqual("none", EffectiveValue(ScreenHalfOfAppCss, ".tip", "display"));
+
+        // ...and the open state reverses both, so the above is a closed default rather than a tip
+        // nobody can ever see.
+        Assert.Equal("visible", EffectiveValue(ScreenHalfOfAppCss, ".tip.shown", "visibility"));
+        Assert.Equal("1", EffectiveValue(ScreenHalfOfAppCss, ".tip.shown", "opacity"));
+    }
+
+    /// <summary>
     /// The normalised declarations of every rule in the whole stylesheet whose selector ends
     /// in <paramref name="target"/> — so a more specific rule further down, which is what
     /// actually wins the cascade, is read too. Asserting on "the first rule with this class in

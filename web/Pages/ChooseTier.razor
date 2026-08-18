@@ -111,6 +111,12 @@
                 @onclick="() => Session.UnlimitedBudget = !Session.UnlimitedBudget">
             @(Session.UnlimitedBudget ? "Building without a limit" : "Hold me to the tier's budget")
         </button>
+
+        @* The paragraph above already says what this does — the tip adds the rulebook's reason,
+           which is the sort of thing worth having available and not worth spending a paragraph
+           on. Nothing here is the only place anything is said. *@
+        <Tooltip Term="building without a limit"
+                 Text="Ch.9 builds Villains by exactly the Hero rules, so no budget was never a fact about Villains — it is a GM building to whatever the scene needs. Either kind of character can be built either way." />
     </Field>
 </Panel>
 

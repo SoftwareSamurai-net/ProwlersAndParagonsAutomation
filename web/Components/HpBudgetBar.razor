@@ -125,7 +125,12 @@
                 <span>Powers <b class="num">@Cost(() => Session.Costs.TotalPowersCost(Session.Sheet))</b></span>
                 <span>Perks <b class="num">@Cost(() => Session.Costs.TotalPerksCost(Session.Sheet))</b></span>
                 <span>Gear <b class="num">@Cost(() => Session.Costs.TotalGearCost(Session.Sheet))</b></span>
-                <span>Trait Cap <b class="num">@Session.TraitCap<span class="muted">d</span></b></span>
+                @* The one term in this row that is a rule rather than a heading. The others name
+                   sections of the sheet and explain themselves; this one is a limit whose
+                   consequence is not on screen anywhere near the figure. *@
+                <span>Trait Cap <b class="num">@Session.TraitCap<span class="muted">d</span></b><Tooltip
+                    Term="the Trait Cap"
+                    Text="The highest rank any single Trait may reach at this tier. It applies to Abilities, Talents and a Power's effective rank alike, and the GM review step names anything over it." /></span>
             </div>
         }
     </section>
