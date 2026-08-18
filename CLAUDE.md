@@ -65,6 +65,21 @@ stash turns out to be empty, it cost nothing; `git stash pop` afterwards is one 
 **Committing first is better still** where the work is in a committable state — a mutation
 experiment run against committed work has nothing to lose. Stash is for when it is not.
 
+**And the loss does not announce itself at the commit — it announces itself as a commit message
+that describes a change the commit does not contain.** That has now happened here too, to somebody
+who had read the paragraph above in the same session: a fix was written, the suite was run green,
+a mutation was applied *on top of it* to check a guard, and `git checkout -- <file>` reverted both.
+The staged razor and test files still looked like the change, `git commit` succeeded, and the
+stylesheet half was simply gone. Two habits catch it and neither is a judgement call:
+
+- **Re-run the suite *after* the revert, never only before it.** A green run taken before a
+  `checkout` says nothing about the tree being committed.
+- **Read `git show --stat HEAD` against what the message claims.** A missing file in that list is
+  the whole failure, visible in one line.
+
+The deeper rule is the one at the top of this section: a mutation belongs against *committed* work.
+If the fix had been committed before the guard was mutated, there would have been nothing to lose.
+
 
 **And when it goes wrong anyway, git has probably still got it.**
 
