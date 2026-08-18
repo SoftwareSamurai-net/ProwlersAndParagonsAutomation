@@ -327,17 +327,29 @@ public sealed class SheetRenderTests
     [Fact]
     public void TheFourthFigureAdaptsToTheMode()
     {
-        using var hero = new RenderContext().With(SheetMode.Hero);
-        var heroBox = hero.Render<SheetView>().FindAll(".stat-blocks.quad .stat-block")[3];
+        // **It adapts to the limit, not to the palette.** The two used to be the same question
+        // and are not any more: Ch.9 builds Villains by exactly the Hero rules, so what decides
+        // whether this box shows a denominator is whether the character is being held to a
+        // budget — which a Villain can be, and a Hero need not be.
+        using var budgeted = new RenderContext().With(SheetMode.Hero);
+        var budgetedBox = budgeted.Render<SheetView>().FindAll(".stat-blocks.quad .stat-block")[3];
 
-        Assert.Contains("Hero Points", heroBox.TextContent, StringComparison.Ordinal);
-        Assert.Contains("of 125", heroBox.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Hero Points", budgetedBox.TextContent, StringComparison.Ordinal);
+        Assert.Contains("of 125", budgetedBox.TextContent, StringComparison.Ordinal);
 
+        // A Villain held to a tier's points reads exactly the same, which is the half that would
+        // have been missed by simply swapping the trigger over.
         using var villain = new RenderContext().With(SheetMode.Villain);
         var villainBox = villain.Render<SheetView>().FindAll(".stat-blocks.quad .stat-block")[3];
 
-        Assert.Contains("Points Spent", villainBox.TextContent, StringComparison.Ordinal);
-        Assert.DoesNotContain(" of ", villainBox.TextContent, StringComparison.Ordinal);
+        Assert.Contains("of 125", villainBox.TextContent, StringComparison.Ordinal);
+
+        using var sandbox = new RenderContext().With(SheetMode.Hero);
+        sandbox.Session.UnlimitedBudget = true;
+        var sandboxBox = sandbox.Render<SheetView>().FindAll(".stat-blocks.quad .stat-block")[3];
+
+        Assert.Contains("Points Spent", sandboxBox.TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain(" of ", sandboxBox.TextContent, StringComparison.Ordinal);
     }
 
     /// <summary>

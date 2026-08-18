@@ -65,6 +65,7 @@ public sealed class RenderContext : BunitContext
         // renders that have nothing to do with the palette.
         Services.AddScoped<Commands>();
         Services.AddScoped<Shortcuts>();
+        Services.AddScoped<Theme>();
 
         // The mode switch and the sample loader both call into JS. Loose mode records the
         // calls and answers nothing, which is right here: what those calls do to the

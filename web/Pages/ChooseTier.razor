@@ -88,6 +88,32 @@
     }
 </OptionList>
 
+@* The sandbox, put where the budget is introduced rather than in the chrome — the tier is what
+   sets the figure, so this is where switching it off makes sense.
+
+   **It is not the Hero/Villain switch and must not become one again.** Ch.9 builds Villains by
+   exactly the Hero rules, so "no budget" was never a fact about Villains: it is a GM building to
+   whatever the scene needs, which a Hero campaign does too. Keeping them apart means a Villain
+   can be held to a tier's points and a Hero need not be. *@
+<Panel Title="Hero Point limit" Aside="Optional">
+    <p class="small muted">
+        The tier's Hero Points are a budget by default and the review step reports going over
+        it. Switch that off to build without a limit — the spend is still tracked and shown as
+        a running total, and everything else is still checked: Trait Caps, flaw counts, and
+        options that cannot go where they have been put.
+    </p>
+
+    <Field Class="inline">
+        @* aria-pressed as a string, for the reason recorded in CLAUDE.md: Blazor renders a true
+           bool as an empty attribute, which is invalid ARIA and announces the opposite. *@
+        <button type="button" class="btn"
+                aria-pressed="@(Session.UnlimitedBudget ? "true" : "false")"
+                @onclick="() => Session.UnlimitedBudget = !Session.UnlimitedBudget">
+            @(Session.UnlimitedBudget ? "Building without a limit" : "Hold me to the tier's budget")
+        </button>
+    </Field>
+</Panel>
+
 <Panel Title="Starting package" Aside="Optional">
     <p class="small muted">
         A package buys the ranks it grants, at a small discount — the Superhero Package is
@@ -161,17 +187,18 @@
     });
 
     /// <summary>
-    /// The palette has to be pushed through interop as well as set on the session: it lives
-    /// as a data-mode attribute on the document element, outside the component tree. Same
-    /// reason MainLayout's own switch does it that way.
+    /// <b>The palette is not pushed here any more.</b> It lives on the character, and the layout
+    /// applies it on the render after any change of character — so a sample brings its own
+    /// colours with it. A push here as well would be a second route to the same thing, and a
+    /// second route is where the two get to disagree.
     /// </summary>
     private Replacement Load(SheetMode mode) => new(
         mode == SheetMode.Hero ? "load the Hero" : "load the Villain",
-        async () =>
+        () =>
         {
             Session.LoadSample(mode);
             _loaded = Session.Sheet.Name;
-            await Js.InvokeVoidAsync("ppSetMode", mode == SheetMode.Hero ? "hero" : "villain");
+            return Task.CompletedTask;
         });
 
     /// <summary>Asks first, unless the sheet is empty and there is nothing to ask about.</summary>

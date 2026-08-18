@@ -786,8 +786,45 @@ public sealed class ReplayRenderTests
 
         Button(page, "Open ").Click();
 
+        // **The palette travels on the character now, not as a call from this page.** It used to
+        // push `ppSetMode` itself, and so did the tier page's samples and the header's switch —
+        // three routes to one attribute. The character carries it and the layout applies it, so
+        // what this page is responsible for is handing over a character that knows what it is.
         Assert.Equal(SheetMode.Villain, ctx.Session.Mode);
+        Assert.True(ctx.Session.Sheet.IsVillain);
+
+        // ...and this page no longer reaches for the document itself.
+        Assert.DoesNotContain(ctx.JSInterop.Invocations, i => i.Identifier == "ppSetMode");
+    }
+
+    /// <summary>
+    /// The layout is what puts the recorded character's palette on the document.
+    ///
+    /// <para><b>Asserted through the layout, because that is the only place it happens.</b> The
+    /// three call sites that used to do it are gone, and a test that only checked the character
+    /// would pass while nothing on screen changed colour — the palette would be right in the
+    /// session and wrong on the page.</para>
+    /// </summary>
+    [Fact]
+    public void TheLayoutDressesTheDocumentAsTheCharacter()
+    {
+        using var ctx = new RenderContext();
+        ctx.Session.LoadSample(SheetMode.Villain);
+
+        ctx.Render<MainLayout>();
+
         Assert.Contains(ctx.JSInterop.Invocations,
+            i => i.Identifier == "ppSetMode" && i.Arguments.Contains("villain"));
+
+        // The positive control: a Hero gets the other one, so this is reading the character
+        // rather than reporting whatever was asked for last.
+        using var hero = new RenderContext();
+        hero.Session.LoadSample(SheetMode.Hero);
+        hero.Render<MainLayout>();
+
+        Assert.Contains(hero.JSInterop.Invocations,
+            i => i.Identifier == "ppSetMode" && i.Arguments.Contains("hero"));
+        Assert.DoesNotContain(hero.JSInterop.Invocations,
             i => i.Identifier == "ppSetMode" && i.Arguments.Contains("villain"));
     }
 
