@@ -2794,7 +2794,12 @@ public sealed class WebPresentationTests
     public void TheAppsOwnScriptsAreCalledOnlyThroughMotion()
     {
         // Reached by a user action, not by rendering or navigating.
-        string[] byHand = ["ppSetMode", "ppStore", "ppDownload"];
+        // ppSetMode has left this list. It used to be a click and nothing else; the palette now
+        // follows the character, so the layout pushes it from OnAfterRenderAsync on every page,
+        // and an unguarded call there throws out of every render of the shell. It goes through
+        // Theme now. **The list shrinking is the point** — an entry here is a claim that the call
+        // is only ever reached by a user action, and this one stopped being true.
+        string[] byHand = ["ppStore", "ppDownload"];
 
         var offenders = new List<string>();
 

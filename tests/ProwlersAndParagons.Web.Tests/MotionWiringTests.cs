@@ -142,8 +142,12 @@ public sealed class MotionWiringTests
         var strip = ctx.Render<HpBudgetBar>();
         Assert.Contains("budget-figure", strip.Markup, StringComparison.Ordinal);
 
-        // Switch to a Villain: Ch.9 gives no budget, so the section stops rendering entirely.
-        await strip.InvokeAsync(() => ctx.Session.Mode = SheetMode.Villain);
+        // **Clearing the tier, not switching to a Villain.** This used to switch the palette,
+        // because a Villain had no budget and the section stopped rendering. It renders for a
+        // Villain now — and without a limit too, as a running total — so the one case where the
+        // `@ref` is left pointing at a detached node is a character with no tier at all. The
+        // defect this guards against is unchanged; only the way to reach it is.
+        await strip.InvokeAsync(() => ctx.Session.Sheet.SelectedTierId = null);
         strip.Render();
         Assert.DoesNotContain("budget-figure", strip.Markup, StringComparison.Ordinal);
 

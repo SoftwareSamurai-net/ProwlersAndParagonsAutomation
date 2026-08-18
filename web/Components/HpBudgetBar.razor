@@ -16,12 +16,18 @@
    along the strip's own bottom edge, and the breakdown is disclosed on request and remembers
    whether it was open. *@
 
-@if (Session.ShowBudget && Session.Sheet.SelectedTierId is not null)
+@* **It renders whenever a tier is chosen, budget or no budget.** Without a limit the strip is a
+   running total — the spend, the word "spent", and the same breakdown — because what a character
+   costs is a fact about it whether or not it is being held to a figure. An *absent* strip was the
+   old Villain behaviour and it took the breakdown with it, so somebody building without a limit
+   lost the one panel that says where the points went. No cap, no rail, no remaining figure. *@
+@if (Session.Sheet.SelectedTierId is not null)
 {
-    var budget = Session.Budget;
-    var spent  = CharacterSession.TryCost(() => Session.Spent);
+    var budget   = Session.Budget;
+    var spent    = CharacterSession.TryCost(() => Session.Spent);
+    var budgeted = Session.ShowBudget;
 
-    <section class="budget" aria-label="Hero Point budget">
+    <section class="budget" aria-label="@(budgeted ? "Hero Point budget" : "Hero Points spent")">
         @if (spent is null)
         {
             <div class="budget-strip">
@@ -32,18 +38,30 @@
         else
         {
             var remaining = budget - spent.Value;
-            var over      = remaining < 0;
+
+            // Nothing is over a limit that is not being applied. Guarded here rather than at
+            // each use, so the danger colour, the word "over" and the rail's own state cannot
+            // disagree about it.
+            var over      = budgeted && remaining < 0;
             var pct       = budget <= 0 ? 0 : Math.Min(100, spent.Value * 100 / budget);
 
             <div class="budget-strip">
                 @* The spend is the figure that moves, so it is the one set large; the budget
-                   is the constant it is measured against and reads as its denominator. *@
+                   is the constant it is measured against and reads as its denominator. Without
+                   a limit there is no denominator, and the unit goes there instead — the figure
+                   still has to say what it is a count of. *@
                 <span class="budget-figure">
-                    <strong class="num" @ref="_figure">@spent.Value</strong><span class="budget-of num">/ @budget</span>
+                    <strong class="num" @ref="_figure">@spent.Value</strong><span class="budget-of num">@(budgeted ? $"/ {budget}" : "HP spent")</span>
                 </span>
 
+                @if (!budgeted)
+                {
+                    @* Said in words rather than left blank. An empty space where a remaining
+                       figure usually sits reads as a figure that failed to load. *@
+                    <span class="budget-left num">No limit</span>
+                }
                 @* Never colour alone: over-budget says so in words as well as in --danger. *@
-                @if (over)
+                else if (over)
                 {
                     <span class="over-text num">@(-remaining) HP over</span>
                 }
@@ -81,6 +99,13 @@
 
                It also carries its own name: aria-label on the enclosing <section> names the
                section, not the progressbar inside it, which was left anonymous. *@
+            @* No rail without a limit: a progress bar is a proportion of something, and there is
+               nothing to be a proportion of. Drawing one against the tier's points would put the
+               limit back on screen that the person building has switched off — and a
+               `progressbar` with no meaningful maximum is a lie to a screen reader as well as a
+               stripe on a page. It is not rendered rather than hidden. *@
+            @if (budgeted)
+            {
             <div class="budget-rail" role="progressbar"
                  aria-label="Hero Points spent"
                  aria-valuenow="@Math.Min(spent.Value, budget)"
@@ -88,6 +113,7 @@
                  aria-valuetext="@($"{spent.Value} of {budget} Hero Points spent")">
                 <div class="budget-fill @(over ? "over" : "")" style="width:@(pct)%"></div>
             </div>
+            }
         }
 
         @if (_open)
@@ -153,7 +179,12 @@
         // interop call for an element the browser can no longer find. It was absorbed by
         // `ppCount`'s null guard rather than throwing — which made it invisible — but the round
         // trip was real and `_shown` advanced against nothing on screen.
-        if (!Session.ShowBudget || Session.Sheet.SelectedTierId is null) return;
+        //
+        // **The condition is now only the tier**, because the strip is drawn with or without a
+        // limit — a running total is still a figure that changes and should still count to it.
+        // Leaving `ShowBudget` in here would have stranded the same detached `@ref` the comment
+        // above is about, in the exact case the strip is now rendered for.
+        if (Session.Sheet.SelectedTierId is null) return;
 
         if (_figure is not { } figure) return;
 
