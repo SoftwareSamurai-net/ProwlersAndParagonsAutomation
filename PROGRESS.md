@@ -219,6 +219,33 @@ grip does not.
 
 ## Completed work
 
+### Phase 2 of the front-end plan: motion that carries meaning — **in progress**
+
+**The first thing found was that the guard this phase must not break did not exist.** The handover
+names `proof-sticky.html` as the measured check on the budget strip — the strip stays put only
+because its containing block is the document, and View Transitions is precisely the change that
+would wrap it. The file was on disk and **had never been committed**: no generator in `ProofPages`,
+`web/wwwroot/proof-*.html` is gitignored, and regenerating the proofs deleted it. So did
+`proof-measure.html`, `proof-narrow.html` and `proof-narrow-shell.html`, the three harnesses
+prerequisite 8 leans on for the 375px measurements. Four measured checks the handover treats as
+standing were one `PP_PROOF=1` run from gone, and absent entirely in a fresh worktree.
+
+`TheStickyStrip` is now a generator beside the others, so it survives a clean checkout, and
+`TheStickyHarnessMeasuresRatherThanAsserts` runs on every build — not under `PP_PROOF`, which is the
+mistake Phase 1's fix-audit found in the marker checks and would have reproduced exactly.
+
+**The harness states a verdict token rather than leaving it to the eye**, so the check is read out of
+a dumped DOM instead of a screenshot. The baseline measures `.budget` top at 117.0 before a scroll
+and **0.0** after, with `.steps` bottom at −483.0 — stuck, against a page that genuinely scrolled.
+
+**And the instruction for reading it was itself defeatable, which only looking at the dump showed.**
+The first version said to assert on `STICKY: PASS` in the page. That string appears **twice** in a
+dumped DOM — once as the verdict and once inside the harness's own script source — so the assertion
+passes on a harness whose script never fired, which is the failure mode being guarded against. The
+verdict is written to `document.title` as well, which the script alone writes and whose resting value
+is neither verdict, so the three states are distinguishable. `MustNotShow` refuses a hard-coded
+`say(true, …)`; a proof that cannot fail is worse than no proof, because it is read as evidence.
+
 ### Phase 1 of the front-end plan: density and hierarchy, which was mostly deletion
 
 Three of the plan's four items in full, the fourth split — see the end of this entry, which says
