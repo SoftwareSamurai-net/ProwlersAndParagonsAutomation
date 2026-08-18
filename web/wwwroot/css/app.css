@@ -1289,6 +1289,77 @@ label {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Tooltips — a sentence about a rulebook term, on demand.
+
+   The trigger is a real button so the tip is reachable by keyboard and by touch;
+   the tip lives inside the wrapper so that moving the pointer onto it keeps it
+   open, which WCAG 1.4.13 asks for.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.tip-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.tip-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15em;
+    height: 1.15em;
+    margin-left: var(--space-1);
+    padding: 0;
+    border: var(--rule-weight) solid var(--rule);
+    border-radius: var(--radius-pill);
+    background: var(--panel-sunk);
+    color: var(--muted);
+    font: inherit;
+    font-size: var(--text-xs);
+    line-height: 1;
+    cursor: help;
+}
+
+.tip-trigger:hover {
+    color: var(--heading);
+    border-color: var(--accent);
+}
+
+/* The tip. Hidden by default and shown by a class rather than by a `hidden`
+   attribute, because the description is read off this element by name whether or
+   not it is visible — see the note in the component. `visibility` rather than
+   `display: none` so the transition has something to animate. */
+.tip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    z-index: 30;
+    width: max-content;
+    max-width: 22rem;
+    transform: translateX(-50%);
+    margin-bottom: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: var(--rule-weight) solid var(--rule);
+    border-radius: var(--radius-small);
+    background: var(--panel);
+    color: var(--ink);
+    box-shadow: var(--shadow-2);
+    font-size: var(--text-sm);
+    font-weight: 400;
+
+    /* Not display:none — see above. Opacity and visibility together, so it is both
+       invisible and not a pointer target while closed. */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--swap) var(--ease), visibility var(--swap) var(--ease);
+}
+
+.tip.shown {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    The command palette — Ctrl-K, from anywhere.
 
    It sits above the page and below Blazor's error bar at 1000, in the same band
@@ -1439,6 +1510,9 @@ label {
        print triggered from the keyboard with it open would otherwise put a veil and a
        list of shortcuts over the sheet, which is the deliverable. */
     .palette-scrim,
+    /* A tooltip is a control for asking a question, and paper cannot be asked. The term it
+       explains prints; the button and the tip do not. */
+    .tip-wrap,
     .banner-link,
     .replay,
     .no-print,
