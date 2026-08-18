@@ -76,6 +76,15 @@
     @Body
 </main>
 
+@* Ctrl-K, from every route including the recordings. It is a sibling of the shell rather than
+   a child of it for the same reason the budget strip is one: it covers the window, and an
+   overlay bounded by a padded column is an overlay with a margin.
+
+   Rendered by the layout so the shortcut is reliable. A palette that existed on some steps and
+   not others would be worse than none — a reader stops reaching for a key that sometimes does
+   nothing, which costs the affordance everywhere rather than only where it is missing. *@
+<CommandPalette />
+
 @code {
     private string Pressed(SheetMode mode) => Session.Mode == mode ? "true" : "false";
 

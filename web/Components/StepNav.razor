@@ -1,6 +1,12 @@
 @* The six creation steps, in the order the CLI wizard runs them. Every step stays
    reachable at any time — the terminal wizard has back-navigation for the same reason,
-   and a browser that only moved forwards would be a step backwards from it. *@
+   and a browser that only moved forwards would be a step backwards from it.
+
+   **The list itself is not here.** It is beside the command palette's other commands, because
+   the palette offers these same six and two lists would drift: a palette that offered a step
+   this band does not have, or missed one it does, is worse than no palette, and nothing about
+   the two living in different files would have caught it. This band draws whatever that list
+   holds, so they cannot disagree. *@
 
 @* `.steps` is on the <nav>, which is the band, and the list inside it is the centred column.
    The class stayed on the outer element on purpose: the print block hides `.steps`, and moving
@@ -11,29 +17,15 @@
    nothing else closes the chrome there. See the comment on `.steps` in app.css. *@
 <nav class="steps" aria-label="Creation steps">
     <ul class="steps-list">
-        @for (var i = 0; i < Steps.Length; i++)
+        @for (var i = 0; i < Commands.Steps.Count; i++)
         {
-            var step = Steps[i];
+            var step = Commands.Steps[i];
             var index = i + 1;
             <li>
-                <NavLink class="" href="@step.Href" Match="NavLinkMatch.All" ActiveClass="active">
+                <NavLink class="" href="@step.Target" Match="NavLinkMatch.All" ActiveClass="active">
                     <span class="step-index">@index</span>@step.Label
                 </NavLink>
             </li>
         }
     </ul>
 </nav>
-
-@code {
-    private sealed record Step(string Href, string Label);
-
-    private static readonly Step[] Steps =
-    [
-        new("", "Tier"),
-        new("characteristics", "Characteristics"),
-        new("gear", "Gear"),
-        new("derived", "Derived stats"),
-        new("finishing", "Finishing touches"),
-        new("review", "GM review"),
-    ];
-}

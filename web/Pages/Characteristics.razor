@@ -1,6 +1,7 @@
 @page "/characteristics"
 @implements IDisposable
 @inject CharacterSession Session
+@inject Commands Commands
 
 <PageTitle>Characteristics — Prowlers &amp; Paragons</PageTitle>
 
@@ -62,10 +63,37 @@ else
     private string _tab = "abilities";
 
     // The tab strip counts what the tabs contain, so it has to redraw when one of them
-    // changes something — a Power added inside PowersTab moves the Powers count here.
-    protected override void OnInitialized() => Session.Changed += StateHasChanged;
+    // changes something — a Power added inside the Powers section moves the count here.
+    protected override void OnInitialized()
+    {
+        Session.Changed += StateHasChanged;
+        Commands.Changed += Asked;
 
-    public void Dispose() => Session.Changed -= StateHasChanged;
+        // Arriving here *because* somebody chose a Power in the palette. This runs on the
+        // navigation; the event above covers the other case, where they were already on this
+        // step and the address therefore did not change.
+        Asked();
+    }
+
+    /// <summary>
+    /// Somebody asked for a Power from the palette, so show the section that holds it.
+    ///
+    /// <para><b>This peeks rather than takes.</b> The section below is what opens the editor
+    /// and what clears the request; if this consumed it, the request would be gone before the
+    /// component that acts on it had rendered, and the palette would land the reader on the
+    /// right tab with nothing open — the failure that looks most like the feature working.</para>
+    /// </summary>
+    private void Asked()
+    {
+        if (Commands.RequestedPowerId is not null) _tab = "powers";
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Session.Changed -= StateHasChanged;
+        Commands.Changed -= Asked;
+    }
 
     /// <param name="Untouched">
     /// Whether this section has nothing in it yet, so the strip can say which sections are

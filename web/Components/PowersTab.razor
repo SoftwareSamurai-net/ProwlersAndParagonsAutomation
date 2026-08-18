@@ -1,4 +1,5 @@
 @inject CharacterSession Session
+@inject Commands Commands
 
 @if (_editing is { } editing)
 {
@@ -122,6 +123,24 @@ else
 
     private Editing? _editing;
     private string _category = "";
+
+    /// <summary>
+    /// Open the Power the palette was asked for, if there is one waiting.
+    ///
+    /// <para><b>Taken rather than read, and on parameters rather than on initialisation.</b>
+    /// Taking is what stops the editor reopening over whatever the reader moved on to, since
+    /// this runs again on every render of the step above. Initialisation would miss the case
+    /// where they were already looking at this section, because nothing is created then.</para>
+    ///
+    /// <para>It opens the same editor a click on the list opens. The palette is a way to reach
+    /// a control, never a second way to change a character: ranks, variants and the Pros and
+    /// Cons are still chosen in the one component that knows how to price them.</para>
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        if (Commands.TakeRequestedPower() is not { } id) return;
+        if (Session.Rules.GetPower(id) is { } power) Add(power);
+    }
 
     private IEnumerable<string> Categories =>
         Session.Rules.Powers.Select(p => p.Category).Distinct().Order();
