@@ -219,6 +219,12 @@ Not preferences — this is what the last few slices cost when they were skipped
 - **A check that never ran looks exactly like one that passed.** Do not pipe a verification through
   `grep` and read empty output as green; assert on the positive. A nested `$_` in a PowerShell
   `Where-Object` shadows the outer loop variable and will report everything missing.
+- **The authority on CI is CI.** `gh pr checks <n> --watch` runs the same strict flags on Linux and
+  needs no local daemon. Prefer it to a local Docker run when a branch is already pushed — and note
+  that a Docker run piped through `grep` while the daemon happens to be stopped exits **0** with an
+  empty output, which a hurried reader takes for green. Carried from
+  [#44](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/44); it was nearly lost
+  merging `master` into this branch, because this file had been rewritten on both sides.
 - **A crashed test process still prints `Passed!  -  Failed: 0`.** Removing the equality guard in
   `OptionList.OnAfterRender` produces the endless render loop its own comment describes. The run
   ends in `Catastrophic failure: Test process crashed with exit code -1073741571` — `0xC00000FD`,

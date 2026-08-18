@@ -20,7 +20,7 @@ var (pdfPath, outputDir) = (args[0], args[1]);
 
 // `--page <printed>` prints that page's lines in the order the reader puts them, marking each
 // heading. Diagnosing a scrambled section from the finished JSON is guesswork; this is not.
-if (args.Length >= 4 && args[2] == "--page")
+if (args is [_, _, "--page", _, ..])
 {
     using var one = PdfDocument.Open(pdfPath);
     var printedPage = int.Parse(args[3]);

@@ -17,12 +17,12 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3877 across two projects — 3663 on the engine, 214 rendering components with bUnit — run in CI at the same strictness as the build |
+| Tests | 3893 across two projects — 3668 on the engine, 225 rendering components with bUnit — run in CI at the same strictness as the build, plus five browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
-| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero |
+| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export, not assumed**: it had drifted to 3 on `master` and to 37 on the reconciled slices before this was checked |
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
 | Licence | MIT, in `LICENSE`, covering this repository's own code only. The game system is © LakeSide Games. `data/rules/` holds structured metadata and this project's own descriptions; `data/rulebook/` holds the book's text **by the author's permission to this repository's owner**, is not served by the public site, and does not travel with a fork |
 
@@ -1121,6 +1121,23 @@ source file was resolved by hand.
 engine. Predicted 3629 + 143; measured **3629 + 143 = 3772**, zero warnings, at
 `ContinuousIntegrationBuild=true`. A merge that silently dropped a test file would land under that
 number, and a merge that duplicated one would land over it.
+
+**The count is necessary and not sufficient, so each slice's flagship guard was re-run by mutation
+*on the merged tree*.** A test can survive a merge and stop biting: the count only says the method
+is still there, not that the assertion inside it still fails when it should. Five mutations, each
+confirmed applied with `git diff --numstat` before the suite was believed — A2's tier substitution
+in `SheetView` (4 red), A2's `Find` made case-sensitive (3 red), A2's `print-color-adjust: economy`
+(1 red), A1's substring matching restored in `Mentions` (8 red), A1's `ReadEverything` no longer
+reading the embedded guide (1 red), and A3's `DUPLICATE_PRO` reporting `ValidationSubject.Ability`
+(2 red). All still bite on the merged tree.
+
+**One near-miss worth recording, because the search for it is what should be copied.** Three
+`git stash` commits were left dangling on the A1 branch and one of them holds a test —
+`TheStartupCheckReadsTheEmbeddedGuideAndNotOnlyTheRules` — whose name appears nowhere in the merged
+tree. It had been **renamed**, not lost: it is `TheStartupCheckReadsTheGuideAndNotOnlyTheRules`, and
+deleting `_ = _guide().Length;` from `ReadEverything` turns it red. But a name comparison against
+dangling work is a cheap check that found the one thing worth checking, and `git fsck
+--lost-found` after a parallel-branch merge costs a minute.
 
 **Each entry below still quotes the count measured on its own branch**, deliberately — rewriting
 them to the reconciled figure would make three true statements into three false ones. The figure

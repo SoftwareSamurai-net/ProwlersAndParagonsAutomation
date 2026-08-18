@@ -1,5 +1,4 @@
 using UglyToad.PdfPig.Content;
-using UglyToad.PdfPig.Core;
 
 namespace ProwlersAndParagonsAutomation.Tools.RulebookExtractor;
 
@@ -50,7 +49,7 @@ public sealed class PageReader
     ];
 
     /// <summary>Strips the PDF subset prefix, e.g. "WQRANL+LeagueGothic-Regular".</summary>
-    internal static string Family(string? fontName)
+    private static string Family(string? fontName)
     {
         var name = fontName ?? "";
         return name.Length > 7 && name[6] == '+' ? name[7..] : name;

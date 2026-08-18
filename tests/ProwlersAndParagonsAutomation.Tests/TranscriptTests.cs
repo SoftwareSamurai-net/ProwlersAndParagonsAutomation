@@ -293,7 +293,7 @@ public sealed class TranscriptTests
 
     /// <summary>Roughly, sentences — enough to ask what each one opens with.</summary>
     private static IEnumerable<string> Sentences(string text) =>
-        Rx(@"[^.!?]+[.!?]*").Matches(text)
+        Rx("[^.!?]+[.!?]*").Matches(text)
             .Select(m => m.Value.Trim())
             .Where(s => s.Length > 0);
 
@@ -340,7 +340,7 @@ public sealed class TranscriptTests
         // And the wrapper again, this time stripped, so "First, could you please name her
         // Source" is read as "name her Source".
         var stripped = Rx(@"^\W*((please|kindly|first|then|now|also)\b\W*)*").Replace(lower, "");
-        var first = Rx(@"^[^a-z]*([a-z']+)").Match(stripped);
+        var first = Rx("^[^a-z]*([a-z']+)").Match(stripped);
 
         return first.Success && openers.Contains(first.Groups[1].Value, StringComparer.Ordinal);
     }
@@ -589,7 +589,7 @@ public sealed class TranscriptTests
             foreach (var figure in figures.Where(f => f >= smallest))
             {
                 var spellings = InWords(figure)
-                    .Select(System.Text.RegularExpressions.Regex.Escape)
+                    .Select(Regex.Escape)
                     .Prepend(figure.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
                 var quoted = Rx($@"\b({string.Join('|', spellings)})\b", RegexOptions.IgnoreCase);

@@ -424,7 +424,7 @@ public sealed class RulebookCorpusTests
     public void TheOptionalTraitCapRulesArePrintedOnThePageTheDataCites()
     {
         var overkill = All().Single(c => c.Number == 2).Sections
-            .Single(s => s.Heading == "OVERKILL" && s.PrintedPage == 52);
+            .Single(s => s is { Heading: "OVERKILL", PrintedPage: 52 });
 
         Assert.Contains("3 ranks", overkill.Text, StringComparison.Ordinal);
         Assert.Contains("never be lower than 9d", overkill.Text, StringComparison.Ordinal);

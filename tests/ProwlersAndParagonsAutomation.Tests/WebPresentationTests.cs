@@ -2240,7 +2240,7 @@ public sealed class WebPresentationTests
             Rx(@"([^{}]+)\{([^{}]*)\}").Matches(print)
                 .Where(r => r.Groups[1].Value.Contains("h3", StringComparison.Ordinal))
                 .Select(r => Normalise(r.Groups[2].Value)),
-            r => Assert.DoesNotMatch(Rx(@"background(-color)?:(none|transparent|#fff|white)"), r));
+            r => Assert.DoesNotMatch(Rx("background(-color)?:(none|transparent|#fff|white)"), r));
     }
 
     /// <summary>
@@ -2274,7 +2274,7 @@ public sealed class WebPresentationTests
     /// beside, which is the opposite of what this rule is for and exactly the weakness the
     /// neighbouring <see cref="ATraitSourceLineIsSetApartFromThePowersBelowIt"/> was hardened
     /// against and this one was not.</para>
-    /// </summary>
+    ///
     /// <para><b>Every rule that targets <c>.hp</c>, not the first one found.</b> Reading only
     /// the first is defeated without touching it: a more specific rule six lines below —
     /// <c>.power-entry .head .hp</c>, which is already in the file — wins the cascade and was
@@ -2326,8 +2326,8 @@ public sealed class WebPresentationTests
 
             // And never brought back into the body ink or out of small caps, which are the
             // other two halves of the separation.
-            Assert.All(Values(rule, @"(?<!-)color:([^;]+)"), v => Assert.Equal("var(--muted)", v));
-            Assert.All(Values(rule, @"text-transform:([^;]+)"), v => Assert.Equal("uppercase", v));
+            Assert.All(Values(rule, "(?<!-)color:([^;]+)"), v => Assert.Equal("var(--muted)", v));
+            Assert.All(Values(rule, "text-transform:([^;]+)"), v => Assert.Equal("uppercase", v));
         });
     }
 
@@ -2989,12 +2989,6 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
-    /// The declarations of the print rule whose selector list contains <paramref name="selector"/>,
-    /// or null. Selector-and-declaration have to be checked together: separately, "this
-    /// selector is mentioned" and "this declaration appears somewhere" are both satisfied by
-    /// a stylesheet that does the opposite of what is intended.
-    /// </summary>
-    /// <summary>
     /// The normalised declarations of every rule in the whole stylesheet whose selector ends
     /// in <paramref name="target"/> — so a more specific rule further down, which is what
     /// actually wins the cascade, is read too. Asserting on "the first rule with this class in
@@ -3009,6 +3003,12 @@ public sealed class WebPresentationTests
                 .Any(s => s.EndsWith(target, StringComparison.Ordinal)))
             .Select(rule => Normalise(rule.Groups[2].Value))];
 
+    /// <summary>
+    /// The declarations of the print rule whose selector list contains <paramref name="selector"/>,
+    /// or null. Selector-and-declaration have to be checked together: separately, "this
+    /// selector is mentioned" and "this declaration appears somewhere" are both satisfied by
+    /// a stylesheet that does the opposite of what is intended.
+    /// </summary>
     private static string? PrintRuleFor(string selector)
     {
         // Every rule that names the selector, not the first. A second rule setting something
