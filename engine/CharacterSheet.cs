@@ -123,6 +123,41 @@ public record SelectedGear(string Name)
 /// </summary>
 public class CharacterSheet
 {
+    /// <summary>
+    /// Whether this character is a Villain rather than a Hero. <b>Presentation only: no rules
+    /// code may read this, and there is a test that none does.</b>
+    ///
+    /// <para><b>Ch.9 builds Villains by exactly the Hero rules and prints no separate stat-block
+    /// format</b>, so this changes no cost, no rank, no derived figure and no verdict. It is here
+    /// rather than on a front end because a character that is a Villain should still be one after
+    /// it has been exported and read back, and a palette held outside the character is a palette
+    /// the file does not carry.</para>
+    ///
+    /// <para><b>This field replaces a rule that used to forbid it, and the reason it is now
+    /// allowed is worth keeping.</b> The old refusal was correct while "Villain" meant two things
+    /// at once — a palette <i>and</i> no Hero Point budget — because the second is mechanical and
+    /// a mechanical flag here would be the browser deciding a rule. The budget half has moved to
+    /// <see cref="UnlimitedBudget"/>, so what is left really is only a colour. Put a mechanic back
+    /// on this field and the old objection applies again in full.</para>
+    /// </summary>
+    public bool IsVillain { get; set; }
+
+    /// <summary>
+    /// Whether this character is being built without a Hero Point limit — the sandbox.
+    /// <b>Also presentation only, and held to the same test.</b>
+    ///
+    /// <para><b>It is independent of <see cref="IsVillain"/> on purpose.</b> A Hero can be built
+    /// in the sandbox and a Villain can be held to a budget; one control deciding the other is
+    /// exactly the conflation this pair was split to end.</para>
+    ///
+    /// <para><b>The validator is still never told, and still reports the budget.</b> A host
+    /// decides what to do with the finding: the browser shows a running total and no cap, while
+    /// <c>build --from</c> reports every finding the engine returns, because a report that
+    /// quietly dropped one on the strength of a flag in its own input would be worth less than no
+    /// report. The engine answers; hosts present.</para>
+    /// </summary>
+    public bool UnlimitedBudget { get; set; }
+
     /// <summary>Id of the selected tier, or null if not yet chosen.</summary>
     public string? SelectedTierId { get; set; }
 

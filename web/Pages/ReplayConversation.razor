@@ -203,11 +203,9 @@ else
         Session.Restore(copy, mode);
         Session.NotifyChanged();
 
-        // The palette lives as an attribute on the document element, outside the component
-        // tree, so it has to be pushed through interop — the same way the tier page's samples
-        // and the header's own switch do it.
-        await Js.InvokeVoidAsync("ppSetMode", Conversation.Villain ? "villain" : "hero");
-
+        // No palette push here. `Restore` records it on the character, and the layout applies it
+        // on the render that follows — the one route every change of character takes, whether it
+        // came from storage, a sample, or a recording.
         Nav.NavigateTo("review");
     }
 }

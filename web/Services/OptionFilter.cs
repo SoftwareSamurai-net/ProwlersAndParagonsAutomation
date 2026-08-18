@@ -39,19 +39,31 @@ public sealed record OptionFilter(string Query, OptionTally Tally, int Pass)
     {
         Tally.Total++;
 
-        if (Query.Length == 0)
-        {
-            Tally.Shown++;
-            return true;
-        }
+        if (!Matches(Query, text)) return false;
+
+        Tally.Shown++;
+        return true;
+    }
+
+    /// <summary>
+    /// The matching rule itself, with no tally and no render pass attached to it.
+    ///
+    /// <para><b>It is separate so that the command palette matches the way the lists match,
+    /// rather than growing a second rule that drifts.</b> A reader who has learnt that "plast"
+    /// finds Plasticity in the Powers list has learnt something about this app, and a palette
+    /// that answered differently would be teaching them it was about one list. The tallying
+    /// wrapper above stays, because a list counts what it drew and a palette does not.</para>
+    /// </summary>
+    /// <param name="query">What the reader has typed. Empty matches everything.</param>
+    /// <param name="text">Every field this row can be found by, printed or not.</param>
+    public static bool Matches(string query, params string?[] text)
+    {
+        if (query.Length == 0) return true;
 
         foreach (var candidate in text)
         {
             if (candidate is null) continue;
-            if (!candidate.Contains(Query, StringComparison.OrdinalIgnoreCase)) continue;
-
-            Tally.Shown++;
-            return true;
+            if (candidate.Contains(query, StringComparison.OrdinalIgnoreCase)) return true;
         }
 
         return false;

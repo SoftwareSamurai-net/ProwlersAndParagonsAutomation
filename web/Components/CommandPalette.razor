@@ -1,0 +1,256 @@
+@* The command palette: Ctrl-K from anywhere, type, press Enter.
+
+   It offers the six creation steps, and — once something has been typed — the Powers. What
+   it offers and in what order is decided in the service behind it, not here; this file is
+   the surface.
+
+   **It is rendered once, by the layout, rather than per page.** A palette that existed only
+   on some steps would be an affordance a reader could not rely on, and reliability is the
+   whole value of a keyboard shortcut. *@
+
+@implements IAsyncDisposable
+@inject Commands Commands
+@inject NavigationManager Nav
+@inject Shortcuts Keys
+
+@if (Commands.IsOpen)
+{
+    @* The scrim is the click-outside target. It carries no role and no label: it is not a
+       control, and announcing it would put a nameless element between the reader and the
+       box. Escape is the keyboard's way out, handled on the box below. *@
+    <div class="palette-scrim" @onclick="Close">
+        @* stopPropagation, or a click on the box itself closes the palette under the reader's
+           own cursor — which reads as the app falling over rather than as a mis-click. *@
+        <div class="palette" role="dialog" aria-modal="true" aria-label="Go to"
+             @onclick:stopPropagation="true">
+
+            @* The combobox pattern rather than roving focus: the caret stays in the box the
+               whole time, so typing never stops working, and which row is current is carried
+               by aria-activedescendant instead of by where focus is. That is what lets the
+               arrow keys and the letters share one control. *@
+            <input type="search"
+                   class="palette-box"
+                   role="combobox"
+                   aria-expanded="true"
+                   aria-controls="palette-results"
+                   aria-activedescendant="@ActiveId"
+                   aria-autocomplete="list"
+                   aria-label="Go to a step, or find a Power"
+                   placeholder="Go to a step, or find a Power"
+                   value="@_query"
+                   @oninput="Typed"
+                   @onkeydown="Key"
+                   @ref="_box" />
+
+            <ul class="palette-results" id="palette-results" role="listbox"
+                aria-label="Matches">
+                @for (var i = 0; i < _found.Count; i++)
+                {
+                    var index = i;
+                    var command = _found[i];
+                    <li id="@RowId(index)"
+                        role="option"
+                        class="@(index == _active ? "palette-row current" : "palette-row")"
+                        aria-selected="@(index == _active ? "true" : "false")"
+                        @onclick="() => Run(command)">
+                        <span class="palette-label">@command.Label</span>
+                        @if (command.Detail is not null)
+                        {
+                            <span class="palette-detail">@command.Detail</span>
+                        }
+                    </li>
+                }
+            </ul>
+
+            @if (_found.Count == 0)
+            {
+                <p class="palette-empty">Nothing here matches what you typed.</p>
+            }
+
+            @* The keys, written down where somebody meeting the palette will see them. A
+               shortcut nobody is told about is a shortcut for whoever wrote it.
+
+               Spans rather than the element that means "a key", which is banned across every
+               page here: it is monospace by default, and this app names two typefaces and no
+               third. The box around each one is drawn in the stylesheet. *@
+            <p class="palette-keys">
+                <span><span class="key">&uarr;</span><span class="key">&darr;</span> to move</span>
+                <span><span class="key">Enter</span> to go</span>
+                <span><span class="key">Esc</span> to close</span>
+            </p>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>The most Powers to offer. The six steps are never truncated.</summary>
+    private const int PowerLimit = 8;
+
+    private string _query = "";
+    private int _active;
+    private IReadOnlyList<Command> _found = [];
+    private ElementReference _box;
+
+    /// <summary>Whether the box still needs focus moving into it after this render.</summary>
+    private bool _entering;
+
+    /// <summary>The interop handle the key listener calls back through.</summary>
+    private DotNetObjectReference<CommandPalette>? _self;
+
+    private static string RowId(int index) => $"palette-row-{index}";
+
+    /// <summary>
+    /// Which row the reader is on, for assistive technology. Null when there is nothing to be
+    /// on — an empty result set has no current row, and naming one that is not rendered leaves
+    /// a reference pointing at nothing, the same fault as an unconditional aria-controls on
+    /// the budget breakdown.
+    /// </summary>
+    private string? ActiveId => _found.Count == 0 ? null : RowId(_active);
+
+    protected override void OnInitialized()
+    {
+        Commands.Changed += Refresh;
+        Recount();
+    }
+
+    /// <summary>
+    /// The palette opened or closed somewhere else — the key, or a row being chosen.
+    ///
+    /// <para>The query is cleared on the way <i>in</i> rather than on the way out, so that
+    /// re-opening always starts from an empty box. Clearing on close would do the same thing
+    /// until something closed the palette without coming through this component.</para>
+    /// </summary>
+    /// <remarks>
+    /// <b>The whole body is dispatched, not just the redraw.</b> This runs on whatever thread
+    /// raised the event, and one of the raisers is the key listener, which arrives from the
+    /// browser rather than from Blazor — touching component state from there is the kind of
+    /// race that shows up once in a hundred presses, and Blazor refuses it outright when it can
+    /// tell. The reset above the redraw is component state too, so it goes inside as well.
+    /// </remarks>
+    private void Refresh() => _ = InvokeAsync(() =>
+    {
+        if (Commands.IsOpen)
+        {
+            _query = "";
+            _active = 0;
+            _entering = true;
+            Recount();
+        }
+
+        StateHasChanged();
+    });
+
+    private void Recount() => _found = Commands.Matching(_query, PowerLimit);
+
+    private void Typed(ChangeEventArgs e)
+    {
+        _query = e.Value?.ToString() ?? "";
+        Recount();
+
+        // Back to the top on every keystroke. Keeping the position would leave the reader on
+        // whatever row happened to be fourth in a list they have just replaced.
+        _active = 0;
+    }
+
+    /// <summary>
+    /// The arrow keys, Enter and Escape.
+    ///
+    /// <para><b>Nothing here suppresses a default and nothing needs to.</b> Blazor decides
+    /// that at render time rather than per event, so a blanket suppression on this element
+    /// would stop the letters reaching the box and the palette could not be typed in. The
+    /// keys handled here have no default worth suppressing on a single-line box: Enter
+    /// submits nothing, because there is no form, and an arrow moves a caret on a line that
+    /// does not wrap.</para>
+    ///
+    /// <para>Movement wraps, because a list this short is a ring rather than a page: pressing
+    /// up from the first row means the last one.</para>
+    /// </summary>
+    private void Key(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "Escape":
+                Close();
+                return;
+
+            case "Enter":
+                if (_active >= 0 && _active < _found.Count) Run(_found[_active]);
+                return;
+
+            case "ArrowDown":
+                if (_found.Count > 0) _active = (_active + 1) % _found.Count;
+                return;
+
+            case "ArrowUp":
+                if (_found.Count > 0) _active = (_active - 1 + _found.Count) % _found.Count;
+                return;
+
+            default:
+                return;
+        }
+    }
+
+    /// <summary>
+    /// Do the thing on the row. A step is a navigation; a Power is a request, because the
+    /// editor that opens it is on another step and is the one place that knows how to price
+    /// what the reader chooses there.
+    /// </summary>
+    private void Run(Command command)
+    {
+        if (command.Kind == CommandKind.Power)
+        {
+            Commands.RequestPower(command.Target);
+            Nav.NavigateTo("characteristics");
+            return;
+        }
+
+        Commands.Close();
+        Nav.NavigateTo(command.Target);
+    }
+
+    private void Close() => Commands.Close();
+
+    /// <summary>
+    /// Focus follows the palette: into the box when it opens, back where it came from when it
+    /// closes. Both are interop, because focus is not something a render tree expresses.
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _self = DotNetObjectReference.Create(this);
+            await Keys.Listen(_self);
+        }
+
+        if (Commands.IsOpen && _entering)
+        {
+            _entering = false;
+            await Keys.Enter(_box);
+            return;
+        }
+
+        // Closed, and something may have been focused inside it. Putting focus back is what
+        // stops this being a keyboard trap; the call does nothing when there is nothing
+        // remembered, so an ordinary render costs one interop hop and no behaviour.
+        if (!Commands.IsOpen) await Keys.Leave();
+    }
+
+    /// <summary>
+    /// Called from the key listener. <c>InvokeAsync</c> because it arrives from outside
+    /// Blazor's synchronisation context, and touching component state from there is the kind
+    /// of race that shows up once in a hundred presses.
+    /// </summary>
+    [JSInvokable]
+    public Task Toggle() => InvokeAsync(() =>
+    {
+        Commands.Toggle();
+        return Task.CompletedTask;
+    });
+
+    public ValueTask DisposeAsync()
+    {
+        Commands.Changed -= Refresh;
+        _self?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

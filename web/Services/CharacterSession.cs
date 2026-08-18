@@ -47,13 +47,47 @@ public sealed class CharacterSession
 
     public CharacterSheet Sheet { get; private set; } = new();
 
-    private SheetMode _mode = SheetMode.Hero;
-
-    /// <summary>Hero or Villain. Changes the palette and nothing else.</summary>
+    /// <summary>
+    /// Hero or Villain. Changes the palette and nothing else.
+    ///
+    /// <para><b>It is the character's own answer now, not a field beside it.</b> A sheet for a
+    /// Villain opens wearing the Villain palette, and keeps it after being exported and read
+    /// back — which a mode held out here could not do, because it was never in the file. This
+    /// property is a reading of <c>Sheet.IsVillain</c> and stores nothing itself, so the two
+    /// cannot drift.</para>
+    ///
+    /// <para><b>Still only a palette.</b> Both samples are legal Standard-tier characters built
+    /// by identical rules, the validator is never told, and no cost or figure moves. The budget
+    /// used to live on this switch and does not any more — see <see cref="ShowBudget"/>.</para>
+    /// </summary>
     public SheetMode Mode
     {
-        get => _mode;
-        set { if (_mode == value) return; _mode = value; NotifyChanged(); }
+        get => Sheet.IsVillain ? SheetMode.Villain : SheetMode.Hero;
+        set
+        {
+            var villain = value == SheetMode.Villain;
+            if (Sheet.IsVillain == villain) return;
+            Sheet.IsVillain = villain;
+            NotifyChanged();
+        }
+    }
+
+    /// <summary>
+    /// Whether the character is being built in the sandbox — no Hero Point limit.
+    ///
+    /// <para><b>Independent of <see cref="Mode"/>, which is the whole point of the split.</b> A
+    /// Hero can be built in the sandbox and a Villain can be held to a budget. One control
+    /// deciding the other is the conflation this pair exists to end.</para>
+    /// </summary>
+    public bool UnlimitedBudget
+    {
+        get => Sheet.UnlimitedBudget;
+        set
+        {
+            if (Sheet.UnlimitedBudget == value) return;
+            Sheet.UnlimitedBudget = value;
+            NotifyChanged();
+        }
     }
 
     /// <summary>
@@ -75,13 +109,31 @@ public sealed class CharacterSession
         ArgumentNullException.ThrowIfNull(sheet);
 
         Sheet = sheet;
-        _mode = mode;
+
+        // **A one-way migration, and the only reason this still takes a mode.** The palette used
+        // to live in the storage envelope beside the character rather than on it. A character
+        // saved before that changed carries no `IsVillain`, so it deserializes as a Hero and
+        // somebody's Villain would come back wearing the wrong colours; the envelope is the only
+        // place the truth survives for those. It cannot lose anything either way round, because
+        // from here on the two are kept in step — `Mode` is a reading of the sheet.
+        if (mode == SheetMode.Villain) Sheet.IsVillain = true;
     }
 
-    /// <summary>Throws the character away. The tier page offers this; nothing else does.</summary>
+    /// <summary>
+    /// Throws the character away. The tier page offers this; nothing else does.
+    ///
+    /// <para><b>The palette and the sandbox setting survive it, and now have to be carried
+    /// deliberately.</b> Both used to sit beside the character and were untouched by a new one;
+    /// both are on the sheet now, so a bare <c>new()</c> would silently return a Villain builder
+    /// to Hero colours and switch the sandbox off. Neither is a fact about the character being
+    /// discarded — they are how the person is working.</para>
+    /// </summary>
     public void StartAgain()
     {
-        Sheet = new CharacterSheet();
+        var villain = Sheet.IsVillain;
+        var unlimited = Sheet.UnlimitedBudget;
+
+        Sheet = new CharacterSheet { IsVillain = villain, UnlimitedBudget = unlimited };
         NotifyChanged();
     }
 
@@ -96,7 +148,7 @@ public sealed class CharacterSession
     public void LoadSample(SheetMode mode)
     {
         Sheet = mode == SheetMode.Hero ? SampleCharacters.Hero() : SampleCharacters.Villain();
-        _mode = mode;
+        Sheet.IsVillain = mode == SheetMode.Villain;
         NotifyChanged();
     }
 
@@ -130,10 +182,20 @@ public sealed class CharacterSession
         : Rules.GetTier(Sheet.SelectedTierId)?.TraitCapRank ?? 0;
 
     /// <summary>
-    /// Whether to show the Hero Point budget at all. A Villain is built to whatever the
-    /// GM thinks the scene needs, so the bar and the over-budget error are a Hero concern.
+    /// Whether the Hero Point budget is a limit for this character.
+    ///
+    /// <para><b>This used to read <c>Mode == Hero</c>, and that was the conflation.</b> Ch.9
+    /// builds Villains by exactly the Hero rules, so "a Villain has no budget" was never a rule
+    /// about Villains — it was a GM building to whatever the scene needs, which is a way of
+    /// working rather than a kind of character. A Hero can be built that way too, and a Villain
+    /// can be held to a tier's points. So the question is now the sandbox toggle and the palette
+    /// has no opinion about it.</para>
+    ///
+    /// <para>False does not mean the budget is hidden. The strip shows a running total with no
+    /// cap, no rail and no remaining figure — a fact about the character, without a limit it is
+    /// not being held to.</para>
     /// </summary>
-    public bool ShowBudget => Mode == SheetMode.Hero;
+    public bool ShowBudget => !Sheet.UnlimitedBudget;
 
     public ValidationResult Validate() => Validator.Validate(Sheet);
 

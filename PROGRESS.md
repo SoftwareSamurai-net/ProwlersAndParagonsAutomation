@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3893 across two projects — 3668 on the engine, 225 rendering components with bUnit — run in CI at the same strictness as the build, plus five browser harnesses driven by headless Chrome |
+| Tests | 3914 across two projects — 3670 on the engine, 244 rendering components with bUnit — run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -218,6 +218,124 @@ grip does not.
 ---
 
 ## Completed work
+
+
+### The palette becomes the character's, and the Hero Point limit becomes its own toggle
+
+**Asked for by the repository's owner, and it reverses an entry in the settled list.** Villain used
+to mean two things at once — a colour scheme *and* no Hero Point budget — and `CLAUDE.md` refused a
+mode field on `CharacterSheet` for exactly that reason: the second half is mechanical, and a
+mechanical flag on the sheet is the browser deciding a rule. Splitting them is what makes the field
+defensible, and the split is the substance of this change rather than a side effect of it.
+
+**`IsVillain` and `UnlimitedBudget` are on the character, and nothing in the rules can see them.**
+The first is why: an exported sheet should still be a Villain when it is read back, which a palette
+held beside the character could never manage because it was never in the file. `PresentationFlagsTests`
+asserts that no file under `engine/` or `sheets/` so much as names either field — **with a positive
+control, which is not optional**, because a scan for two names is satisfied completely by two names
+that no longer exist. Both were proved by mutation: a `Lenient(sheet) => sheet.IsVillain` dropped
+into `CharacterValidator` was named and refused, and renaming a flag in the guard's own list failed
+the control.
+
+**Ch.9 builds Villains by exactly the Hero rules**, so "no budget" was never a fact about Villains —
+it is a GM building to whatever the scene needs, which a Hero campaign does too. The sandbox is an
+independent toggle on the tier page, where the budget is introduced. A Villain can be held to a
+tier's points; a Hero need not be. Three tests encoded the old conflation and were rewritten rather
+than deleted, including one whose *name* asserted the opposite of the new behaviour.
+
+**Without a limit the strip is a running total rather than absent.** Absent was the old behaviour
+and it took the breakdown with it, so somebody building without a limit lost the one panel that says
+where the points went. No cap, no remaining figure, and no rail — a `progressbar` needs a maximum to
+be a proportion of, and one drawn against the tier's points would put back on screen the limit that
+was just switched off, while announcing a figure to a screen reader that nothing is measured
+against.
+
+**The validator is still never told, and still reports the finding.** The browser shows a total and
+`build --from` reports everything the engine returns: a report that dropped a finding on the
+strength of a flag in its own input would be worth less than no report. The engine answers; hosts
+present.
+
+**One route puts the palette on the document, and the guard is what found that.** Three call sites
+used to push `ppSetMode` themselves — the tier page's samples, the replay hand-off, and the switch.
+The palette follows the character now, so the layout applies it on the render after any change of
+character, and the other three are gone. That made the call *render-reached*, at which point
+`TheAppsOwnScriptsAreCalledOnlyThroughMotion` failed: `ppSetMode` had been on its by-hand allow-list
+as a call only ever reached by a click, and that claim had just stopped being true. It goes through
+`Theme` now, guarded like `Motion` and `Shortcuts`; unguarded it would have thrown out of every
+render of the shell. **The allow-list shrinking is the point** — an entry on it is a claim, not a
+permission.
+
+**One mutation reported a false pass and had to be re-run.** The first attempt at the validator
+mutation used `perl -0pi`, which on this machine exits 0 and edits nothing; `git diff --numstat`
+printed no change and the guard "passed". `CLAUDE.md` records that exact trap. Check the numstat
+every time.
+
+
+### Phase 3 of the front-end plan, first slice: the command palette
+
+`Ctrl-K` from any route opens a box that offers the six creation steps and, once something has
+been typed, the Powers. It is the plan's own "single highest-leverage affordance" and the first
+of Phase 3's two slices; the pips-as-control, keyboard navigation inside the option lists,
+validation on the row where the mistake is made, and undo are the second.
+
+**The matching rule is the lists' rule.** `OptionFilter` grew a static `Matches` that its
+instance `Admits` now calls, so the palette and the five pickable lists cannot answer the same
+query differently — a reader who has learnt that "plast" finds Plasticity in the Powers list has
+learnt something about this app, not about one list. The tallying wrapper stays where it was,
+because a list counts what it drew and a palette does not.
+
+**The six steps moved out of the step band and into `Commands`, which both draw.** Two lists
+would drift, and a palette offering a step the band does not have — or missing one it does — is
+worse than no palette. The test compares what each actually renders rather than reading the
+source.
+
+**Choosing a Power requests it; it never adds it.** A Power needs ranks, variants and its Pros
+and Cons chosen, and the editor is the one component that knows how to price them, so the palette
+hands the Power over and changes nothing about the character. The request is **read once**: the
+step holding the editor re-renders on every keystroke elsewhere on it, and a request that stayed
+set would reopen the editor over whatever the reader had moved on to, repeatedly, with nothing on
+screen explaining why. The step above it *peeks* to decide which section to show and the section
+itself takes and clears — consuming it in the step would leave the reader on the right tab with
+nothing open, which is the failure that looks most like the feature working.
+
+**Interop goes through `Shortcuts`, the same bargain `Motion` makes.** All three calls are
+reached from a render, so a `palette.js` that 404s or fails to parse would otherwise throw out of
+`OnAfterRenderAsync` on every render of the layout, which is every page. A missing keyboard
+shortcut must not take the app with it: the six steps are still one click away in the band and
+every Power is still in the list on its own step.
+
+**The component dispatches its whole event handler, not just the redraw.** The key listener
+arrives from the browser rather than from Blazor, and Blazor refuses off-dispatcher state changes
+outright when it can tell — which is how this was found, as a real fragility rather than a test
+artefact.
+
+**Nine mutations, nine caught, and one defect found only by looking.** Six against the rendered
+component and its service — Powers offered to an empty box, arrows clamping instead of wrapping,
+`aria-selected` frozen while the ring still moved, the request peeked instead of taken, the band
+growing a step list of its own that had drifted, and the palette matching by a rule of its own —
+and three against the script, driven in Chrome: the chord no longer taking the key from the
+browser, the listener firing on any `k`, and focus dropped on the body instead of restored.
+
+The tenth finding had no test at all. **The current-row marking was a `--rule-weight` hairline,
+legible in Hero and very nearly invisible in Villain**, where `--accent` sits on a near-black
+ground — and that edge is the only thing on screen saying what Enter is about to do. It is now
+the 3px edge `.option` already marks a chosen row with. Found by screenshotting both palettes and
+opening both, which is the rule this project keeps re-learning.
+
+**A sixth browser harness, `proof-shortcut.html`, and it exists because bUnit cannot reach the
+door.** Ctrl-K is heard by a listener on the document, which no render tree contains, so every
+assertion about what the arrow keys do sat on top of an opening chord nothing checked — the exact
+shape of gap this repository has shipped four times. It drives the real `wwwroot/js/palette.js`
+with synthetic key events, asserts the negative cases (a bare `k`, a `Ctrl-J`, a second
+registration) because without them a listener that fires on every key passes the lot, and checks
+focus in both directions, since a palette that takes focus and does not give it back is a
+keyboard trap. `ppPaletteStats` is the positive control, asserted before anything that depends on
+it. It runs in CI beside the other five.
+
+**What it deliberately does not do.** No preventDefault inside the component: Blazor decides that
+at render time rather than per event, so a blanket suppression on the box would stop the letters
+reaching it and the palette could not be typed in. Nothing here computes a Hero Point, and the
+palette is a way to reach a control rather than a second place a character can be changed.
 
 
 ### Qodana's 32 findings on #46 — and two were real defects, not style

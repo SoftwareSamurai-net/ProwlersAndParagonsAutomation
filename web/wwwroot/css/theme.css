@@ -54,6 +54,10 @@
     --accent-soft:  color-mix(in srgb, var(--accent) 22%, var(--panel));
     --danger-soft:  color-mix(in srgb, var(--danger) 12%, var(--panel));
 
+    /* The veil behind the command palette. A ground, never behind text — nothing is
+       drawn on it. Built from --ink so it dims the page rather than tinting it. */
+    --scrim:        color-mix(in srgb, var(--ink) 45%, transparent);
+
     /* Three depths. See the elevation note further down: one shadow was doing the
        work of four different heights, so nothing on the page had a height. */
     --shadow-1:     0 1px 2px rgb(15 27 45 / 7%);
@@ -85,6 +89,10 @@
     --panel-sunk:   color-mix(in srgb, var(--panel) 80%, #000);
     --accent-soft:  color-mix(in srgb, var(--accent) 18%, var(--panel));
     --danger-soft:  color-mix(in srgb, var(--danger) 14%, var(--panel));
+
+    /* Heavier than the Hero veil for the same reason the shadows are: over a near-black
+       page a 45% dim is barely a change, and the palette has to read as being in front. */
+    --scrim:        color-mix(in srgb, #000 65%, transparent);
 
     /* Heavier at every step than the Hero palette's, for the reason the block
        comment above gives: a dark theme built by flipping a light one reads flat,
@@ -395,6 +403,7 @@
         --primary:      #FFFFFF;   /* a fill: on paper the banner is ruled       */
         --panel-sunk:   #FFFFFF;
         --danger-soft:  #FFFFFF;
+        --scrim:        #FFFFFF;   /* never printed; restated so nothing inherits a screen value */
 
         /* All three depths flatten. Paper has no elevation, and a box-shadow that
            survives into print is a grey smear along one edge of every box. Each is

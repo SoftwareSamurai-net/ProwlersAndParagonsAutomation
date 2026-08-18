@@ -11,9 +11,9 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3893 tests** — 3668 engine, 225 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3914 tests** — 3670 engine, 244 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
-browser app, `build --from character.json`, and an MCP server. **CI drives a browser too**: five
+browser app, `build --from character.json`, and an MCP server. **CI drives a browser too**: six
 proof harnesses on `ubuntu-latest`, each required to *say* `PASS` in its `<title>`.
 
 **Everything through Phase 2 is in `master`.** The mutation-audit reconciliation merged as
@@ -51,11 +51,22 @@ The plan is [`docs/FRONT-END-PLAN.md`](FRONT-END-PLAN.md) and it is the brief. *
 starting.** Phases 0–2 are done; three remain.
 
 **Phase 3 — the interactions that are still forms.** Two slices, risk medium-high. Where the app
-stops feeling like a document and starts feeling like a tool:
+stops feeling like a document and starts feeling like a tool.
 
-- **A `Ctrl-K` command palette** — jump to a step, find a Power, add one. The highest-leverage
-  item on the list and mostly built already: `OptionFilter.Admits` does the matching, and 141
-  Powers is exactly the catalogue a palette is for.
+**The first slice is done: the `Ctrl-K` command palette.** It offers the six steps and, once
+something is typed, the Powers; it matches by the lists' own rule, and it *requests* a Power
+rather than adding one, because only the editor knows how to price ranks and variants.
+`PROGRESS.md` has the account. Three things a later slice needs to know:
+
+- **The six steps now live in `Commands` and the step band draws them from there.** Do not give
+  either a list of its own.
+- **`OptionFilter.Matches` is the shared matching rule.** Anything that filters a list of options
+  calls it, or the app answers the same query two ways.
+- **`proof-shortcut.html` is the sixth CI harness**, and it exists because bUnit cannot dispatch
+  a document-level key event. Any new global key belongs in it.
+
+What remains in Phase 3:
+
 - **The pips become the control.** They are `aria-hidden` decoration beside a `+`/`−` stepper
   today; clicking the fifth pip should set 5d, with arrow keys and Home/End.
 - **Keyboard navigation in the option lists**, with the filter box keeping focus. Every list is
@@ -64,8 +75,12 @@ stops feeling like a document and starts feeling like a tool:
   surface at GM review. A Trait over the cap should say so on its own row.
 - **Undo.** Three buttons on the tier page can destroy twenty minutes behind a confirm dialogue.
 
-**This phase is not bUnit-shaped.** A palette and a pip control are new interaction surfaces and
-need real keyboard and screen-reader testing. Budget for that rather than discovering it.
+**This phase is not bUnit-shaped**, and the palette proved it exactly. bUnit drove the component's
+key handler fine and could not reach the listener that hears the chord at all, because that is an
+event on the document and no render tree contains one — so a driven harness had to be written
+beside it. The pip control is the same shape. Budget for that rather than discovering it, and
+note that screen-reader testing is still owed on both: `aria-activedescendant` is asserted to
+point at a row that exists, which is not the same as having been listened to.
 
 **Phase 4 — the sheet as the reward, not the exit.** Half a slice, risk low. A live preview column
 so the sheet is visible *while* building, which is nearly free — `SheetView` already takes a
@@ -91,6 +106,66 @@ Phase 2 item 3 — exit animations — is deferred by the plan itself.
 
 ---
 
+## Done since, outside the plan: the palette is the character's
+
+**The mode is `CharacterSheet.IsVillain` and the Hero Point limit is `UnlimitedBudget`, an
+independent toggle.** This reverses an entry in `CLAUDE.md`'s settled list, deliberately and with
+the reasoning rewritten there rather than deleted. `PROGRESS.md` has the full account. What a later
+slice needs to know:
+
+- **No rules code may name either field**, and `PresentationFlagsTests` enforces it with a positive
+  control. That test is the entire justification for the fields existing; do not weaken it.
+- **A Villain can be held to a budget and a Hero need not be.** If anything ever reads one flag to
+  decide the other, the split has been undone.
+- **One route puts the palette on the document**: `MainLayout`, on the render after any change of
+  character. `ppSetMode` has left the interop guard's by-hand allow-list and goes through `Theme`.
+- **The replay's Villain recording still shows its own budget finding**, driven by the recording's
+  own flag rather than by the visitor's toggle. That recording is *about* the difference, so it did
+  not inherit the new default. Check it deliberately if you touch this.
+
+---
+
+## Asked for, not yet built — two directions, both bigger than a slice
+
+Both were asked for by the repository's owner while the work above was in flight. They are recorded
+here rather than started, because each needs decisions taken before code.
+
+### One tool becomes two masters
+
+Today one app does two jobs and the chrome says so: "Watch one being built" and "Or start from a
+finished character" sit beside the thing somebody would actually use at a table. The direction is a
+split:
+
+- **A play aide** — the rules reference and the character sheet helper. The thing a player has open
+  during a session.
+- **A portfolio surface** — the recordings, the sample characters, and the demonstration of how the
+  engine was built. The thing that justifies the work to somebody evaluating it.
+
+Characters tie to accounts, which `PROGRESS.md` already anticipates for the rulebook reader
+("account-gated and comes after the front-end redesign"). **Questions to settle first:** whether the
+two are separate routes in one deployment or two; what an anonymous visitor sees; whether the
+account store replaces browser storage or sits beside it; and what happens to `/replay` and the two
+samples, which are load-bearing for the portfolio half and noise for the play half.
+
+Note the constraint that makes this cheap: `data/rulebook/` is already extracted and is deliberately
+**not** in the browser payload — one `ItemGroup` in `web/`'s csproj serves it. A rules reference has
+its content waiting.
+
+### Tooltips
+
+Asked for without detail, so the shape is open. The thing worth deciding before building: **a
+`title` attribute is not a tooltip.** It never appears on touch, is unreliable for keyboard users,
+cannot be styled, and is announced inconsistently by screen readers — so it fails the standard this
+app holds itself to everywhere else. A real one is a component with `aria-describedby`, hover *and*
+focus, and Escape to dismiss.
+
+**What they are for matters more than how they look.** A rules reference wants a Power's own text on
+hover — `data/rulebook/` has it, and it is not served yet. A form wants an explanation of a term.
+Those are different components and the second is nearly `Field`'s existing helper text. Settle which
+before writing either.
+
+---
+
 ## Prerequisites — run these before writing any code
 
 Each one has cost this project real time when skipped.
@@ -103,7 +178,7 @@ Each one has cost this project real time when skipped.
    ```bash
    dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
    ```
-   It must report **3668 + 225 = 3893** and zero warnings. **Warnings are errors only under that
+   It must report **3670 + 244 = 3914** and zero warnings. **Warnings are errors only under that
    flag**, so a plain `dotnet test` passes over things CI fails on.
 
    **Take the number from the run, not from a document, and update the document from the run.**
@@ -152,7 +227,7 @@ Each one has cost this project real time when skipped.
    checked by seeking** (`anim.currentTime = x`), never by waiting. This is why the counting figure
    is an `element.animate()` clock rather than a rAF loop, and a regression that hid behind exactly
    this property shipped once already.
-10. **The five browser harnesses run in CI**, so a change that breaks one fails the PR rather than
+10. **The six browser harnesses run in CI**, so a change that breaks one fails the PR rather than
     waiting for somebody to run it by hand. `gh pr checks <n> --watch` is the authority. Verify the
     step *ran* — the harness output names each page — because a step that silently did nothing
     looks exactly like one that passed.

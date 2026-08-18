@@ -1,7 +1,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject CharacterSession Session
-@inject IJSRuntime Js
+@inject Theme Theme
 @inject Motion Motion
 @inject NavigationManager Nav
 
@@ -76,6 +76,15 @@
     @Body
 </main>
 
+@* Ctrl-K, from every route including the recordings. It is a sibling of the shell rather than
+   a child of it for the same reason the budget strip is one: it covers the window, and an
+   overlay bounded by a padded column is an overlay with a margin.
+
+   Rendered by the layout so the shortcut is reliable. A palette that existed on some steps and
+   not others would be worse than none — a reader stops reaching for a key that sometimes does
+   nothing, which costs the affordance everywhere rather than only where it is missing. *@
+<CommandPalette />
+
 @code {
     private string Pressed(SheetMode mode) => Session.Mode == mode ? "true" : "false";
 
@@ -119,6 +128,9 @@
     /// <summary>Whether a transition is open and waiting on this render to finish.</summary>
     private bool _midTransition;
 
+    /// <summary>The palette last pushed onto the document element, or null before the first.</summary>
+    private SheetMode? _appliedPalette;
+
     /// <summary>
     /// Snapshot the page before Blazor swaps the step out from under the chrome.
     ///
@@ -151,7 +163,20 @@
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        _ = firstRender;
+        // **The palette follows the character, and not only on a click.** It lives on the sheet
+        // now, so it changes whenever *which character is being built* changes — restored from
+        // storage on the first render, loaded as a sample, taken out of a recording, or started
+        // again. `data-mode` is on the document element, outside the component tree, so nothing
+        // else can push it.
+        //
+        // Guarded on what was last pushed rather than on `firstRender`: first render alone
+        // misses the other three, and pushing on every render would send an interop call for
+        // each rank a reader clicks. The comparison is what makes it both complete and quiet.
+        if (_appliedPalette != Session.Mode)
+        {
+            _appliedPalette = Session.Mode;
+            await ApplyPalette();
+        }
 
         if (!_midTransition) return;
 
@@ -164,11 +189,27 @@
     /// rather than by re-rendering: it has to reach index.html's own markup, which is
     /// outside the component tree.
     /// </summary>
-    private async Task SetMode(SheetMode mode)
-    {
-        Session.Mode = mode;
-        await Js.InvokeVoidAsync("ppSetMode", mode == SheetMode.Hero ? "hero" : "villain");
-    }
+    /// <summary>
+    /// The switch. It records the choice on the character and stops there.
+    ///
+    /// <para><b>It deliberately does not push the palette itself.</b> Setting the mode raises the
+    /// session's change event, which redraws this component, which applies the palette on the way
+    /// out — the same path a restored character, a loaded sample and a character taken from a
+    /// recording all take. Pushing here as well would be a second route to the same thing, and a
+    /// second route is where the two get to disagree.</para>
+    /// </summary>
+    private void SetMode(SheetMode mode) => Session.Mode = mode;
+
+    /// <summary>
+    /// Push the character's own palette onto the document element.
+    ///
+    /// <para>Read from the session rather than passed in, so the two callers cannot disagree:
+    /// one is a click on the switch and the other is the first render after a character has been
+    /// restored, loaded as a sample, or arrived from a recording. Anything that changes which
+    /// character is being built has to come through here, or the colours are the last thing
+    /// somebody clicked rather than the character on screen.</para>
+    /// </summary>
+    private ValueTask ApplyPalette() => Theme.Apply(Session.Mode);
 
     public void Dispose()
     {

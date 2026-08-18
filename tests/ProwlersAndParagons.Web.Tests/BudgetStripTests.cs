@@ -1,3 +1,4 @@
+using ProwlersAndParagonsAutomation.Engine;
 using Bunit;
 using ProwlersAndParagonsAutomation.Web.Components;
 
@@ -8,21 +9,110 @@ namespace ProwlersAndParagons.Web.Tests;
 ///
 /// <para><b>It shipped with no rendering coverage at all</b> — the only thing referring to it
 /// outside the proofing harness was a source-reading assertion about its inline style, so the
-/// disclosure, the progress bar, the over-budget branch and the Villain hide were all
+/// disclosure, the progress bar, the over-budget branch and the no-limit shape were all
 /// unasserted. A fix-audit found three defects in it on first reading.</para>
 /// </summary>
 public sealed class BudgetStripTests
 {
     /// <summary>
-    /// Ch.9 gives a Villain no budget, so there is no strip — not a strip reading 0 of 0, and
-    /// not an over-budget warning against a budget that does not exist.
+    /// A Villain is held to the tier's budget like anybody else.
+    ///
+    /// <para><b>This test used to assert the opposite, and its old name said so.</b> Ch.9 builds
+    /// Villains by exactly the Hero rules and prints no separate stat-block format, so "no
+    /// budget" was never a fact about Villains — it was a GM building to whatever the scene
+    /// needs, which is a way of working and not a kind of character. The palette no longer
+    /// decides it; the sandbox toggle does, and either can apply to either.</para>
     /// </summary>
     [Fact]
-    public void AVillainHasNoBudgetStrip()
+    public void AVillainIsStillHeldToTheTiersBudget()
     {
         using var ctx = new RenderContext().With(SheetMode.Villain);
 
-        Assert.Empty(ctx.Render<HpBudgetBar>().FindAll(".budget"));
+        var strip = ctx.Render<HpBudgetBar>();
+
+        Assert.Single(strip.FindAll(".budget"));
+        Assert.Contains("left", strip.Find(".budget-left").TextContent, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Without a limit the strip is a running total: the spend, no denominator, no remaining
+    /// figure, and <b>no rail</b>.
+    ///
+    /// <para><b>The rail is the half worth asserting.</b> A <c>progressbar</c> needs a maximum to
+    /// be a proportion of, and drawing one against the tier's points would put the limit back on
+    /// screen that the person building has just switched off — while announcing a figure to a
+    /// screen reader that nothing is being measured against.</para>
+    /// </summary>
+    [Fact]
+    public void WithoutALimitTheStripIsARunningTotal()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        ctx.Session.UnlimitedBudget = true;
+
+        var strip = ctx.Render<HpBudgetBar>();
+
+        Assert.Single(strip.FindAll(".budget"));
+        Assert.Empty(strip.FindAll(".budget-rail"));
+        Assert.Empty(strip.FindAll(".over-text"));
+        Assert.Contains("HP spent", strip.Find(".budget-figure").TextContent, StringComparison.Ordinal);
+        Assert.Equal("No limit", strip.Find(".budget-left").TextContent.Trim());
+
+        // The breakdown still opens. Losing it was the real cost of the old behaviour: the strip
+        // was absent altogether, so somebody building without a limit lost the one panel that
+        // says where the points went.
+        Assert.Single(strip.FindAll(".budget-toggle"));
+    }
+
+    /// <summary>
+    /// The sandbox is independent of the palette, in both directions.
+    ///
+    /// <para>This is the whole point of the split, and it is the assertion that fails if anybody
+    /// re-couples them — which is easy to do by accident, since one of them used to imply the
+    /// other.</para>
+    /// </summary>
+    [Fact]
+    public async Task ThePaletteAndTheLimitAreIndependent()
+    {
+        await using var ctx = new RenderContext().With(SheetMode.Villain);
+
+        // A Villain held to a budget: rail present.
+        var strip = ctx.Render<HpBudgetBar>();
+        Assert.Single(strip.FindAll(".budget-rail"));
+
+        // Through the dispatcher, because the strip is already rendered and subscribed — the
+        // session raises Changed and the component redraws on it, which Blazor refuses from
+        // another thread.
+        await strip.InvokeAsync(() => ctx.Session.UnlimitedBudget = true);
+        strip.Render();
+
+        Assert.Empty(strip.FindAll(".budget-rail"));
+        Assert.Equal("No limit", strip.Find(".budget-left").TextContent.Trim());
+
+        // ...and the palette did not move while the limit did. Both directions matter: this is
+        // the assertion that fails if anybody re-couples them, which is easy to do by accident
+        // since one used to imply the other.
+        Assert.Equal(SheetMode.Villain, ctx.Session.Mode);
+        Assert.True(ctx.Session.Sheet.IsVillain);
+    }
+
+    /// <summary>
+    /// The palette is the character's own answer, so it survives being written out and read back.
+    ///
+    /// <para>That portability is the only reason the field is on the character rather than beside
+    /// it, so it is the thing worth asserting rather than the field's presence.</para>
+    /// </summary>
+    [Fact]
+    public void ThePaletteAndTheSandboxSurviveARoundTrip()
+    {
+        var sheet = SampleCharacters.Villain();
+        sheet.IsVillain = true;
+        sheet.UnlimitedBudget = true;
+
+        var back = CharacterSheetJson.Read(CharacterSheetJson.Write(sheet), strict: true);
+        Assert.NotNull(back);
+
+        Assert.True(back.IsVillain);
+        Assert.True(back.UnlimitedBudget);
     }
 
     [Fact]

@@ -86,6 +86,7 @@ jobs:
           proof-measure.html:INSETS: PASS:
           proof-motion.html:MOTION: PASS:
           proof-motion.html:MOTION: PASS:--force-prefers-reduced-motion
+          proof-shortcut.html:SHORTCUT: PASS:
           "
 
           while IFS= read -r line; do
