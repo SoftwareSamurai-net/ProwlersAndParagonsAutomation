@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3914 across two projects — 3670 on the engine, 244 rendering components with bUnit — run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
+| Tests | 3923 across two projects — 3672 on the engine, 251 rendering components with bUnit — run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -218,6 +218,58 @@ grip does not.
 ---
 
 ## Completed work
+
+
+### Tooltips, and the attribute that is not one
+
+**A `title` attribute is not a tooltip, and that is the whole reason this is a component.** It
+never appears on a touch screen, is unreliable for keyboard users, cannot be styled, cannot be
+dismissed, and is announced inconsistently by screen readers — and none of that is visible to a
+compiler, to a rendering test, or to somebody reading the markup and finding it perfectly
+reasonable. It is the easiest way to undo this work because it is the obvious thing to write, so
+there is a guard refusing the attribute outright across every component.
+
+**The trigger is a real button**, which is what makes the tip reachable without a mouse at all: a
+tap focuses it and focus opens it. A `<span>` with a mouse handler is a tooltip only for people
+using a mouse.
+
+**The handlers are on the wrapper, not the button.** WCAG 1.4.13 asks for hoverable, dismissable
+and persistent; a tip that vanishes when you move the pointer towards it fails the first. Escape
+covers the second — a tip that can only be closed by moving a pointer is not dismissable by
+somebody who is not using one.
+
+**The tip is always in the document, hidden by a class — deliberately the opposite of the budget
+breakdown.** There, `aria-controls` is written only while the target exists, because it genuinely
+does not. Here an `aria-describedby` pointing at nothing whenever the tip was closed would dangle
+for all but a moment, and a description a reader has to *hover* for is one a screen-reader user
+never gets. Hidden by `visibility` and `opacity`, never `display: none`, which would take the
+accessible description with it while leaving every rendering test green.
+
+**The id is derived from the term rather than generated.** A fresh one per render would break the
+replay's strongest guard, which renders one character twice and requires the two pages to be
+identical — it would report a difference on every run that is not one.
+
+**Both call sites are supplementary and a test says so.** The Trait Cap in the budget breakdown and
+the no-limit toggle on the tier page; the Trait Cap's *figure* is asserted still printed beside its
+tip, because the failure mode of adding a tooltip is quietly moving something into it, at which
+point the readers who cannot open it have lost something that used to be on the page.
+
+**Five mutations, five caught — after one false pass that exposed a real hole.** Moving the hover
+handlers onto the button reported as a survivor, because the mutation had only *added* them and
+left the wrapper's in place; `git diff --numstat` showed additions only. Applied properly it was
+caught — but only after the test was strengthened, because the original asserted enter and leave
+and never the structural fact that delivers the behaviour: `mouseenter` does not bubble, so what
+keeps the tip open under the pointer is that the tip is *inside* the element carrying the
+handlers. The test now asserts that containment.
+
+**And one defect no test could have found: the tip opened upward.** That is the conventional shape
+and it is wrong here — the budget breakdown hangs off a strip stuck to `top: 0`, so an upward tip
+is clipped by the window edge exactly where it is most likely to be opened. It opens downward now.
+Found by rendering one and looking at it.
+
+**Deliberately not built: a Power's rulebook text on hover.** `data/rulebook/` has the prose and is
+deliberately not in the browser payload, so that wants the reference surface rather than a tooltip
+parameter. See the handover.
 
 
 ### The palette becomes the character's, and the Hero Point limit becomes its own toggle

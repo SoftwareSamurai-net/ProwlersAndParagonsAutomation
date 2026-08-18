@@ -79,11 +79,25 @@ public sealed class TooltipTests
         using var ctx = new RenderContext();
         var tip = Render(ctx);
 
-        tip.Find(".tip-wrap").MouseEnter();
+        var wrap = tip.Find(".tip-wrap");
+
+        wrap.MouseEnter();
         Assert.Single(tip.FindAll(".tip.shown"));
 
         tip.Find(".tip-wrap").MouseLeave();
         Assert.Empty(tip.FindAll(".tip.shown"));
+
+        // **The structural half, and without it the name of this test is a claim rather than a
+        // check.** `mouseenter` does not bubble, so what keeps the tip open while the pointer is
+        // on it is that the tip is *inside* the element carrying the handlers. Moving those onto
+        // the button would leave the two assertions above passing on a tip that closes the moment
+        // you reach for it — which is the exact WCAG 1.4.13 failure this is named after. An
+        // adversarial pass found that hole by moving them.
+        Assert.NotNull(tip.Find(".tip-wrap .tip"));
+
+        // ...and the button is not the thing carrying them, which is the other way to say it.
+        var trigger = tip.Find(".tip-trigger");
+        Assert.Null(trigger.QuerySelector(".tip"));
     }
 
     /// <summary>

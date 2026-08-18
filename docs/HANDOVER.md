@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3914 tests** — 3670 engine, 244 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3923 tests** — 3672 engine, 251 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server. **CI drives a browser too**: six
 proof harnesses on `ubuntu-latest`, each required to *say* `PASS` in its `<title>`.
@@ -151,18 +151,23 @@ Note the constraint that makes this cheap: `data/rulebook/` is already extracted
 **not** in the browser payload — one `ItemGroup` in `web/`'s csproj serves it. A rules reference has
 its content waiting.
 
-### Tooltips
+### A Power's rulebook text on hover
 
-Asked for without detail, so the shape is open. The thing worth deciding before building: **a
-`title` attribute is not a tooltip.** It never appears on touch, is unreliable for keyboard users,
-cannot be styled, and is announced inconsistently by screen readers — so it fails the standard this
-app holds itself to everywhere else. A real one is a component with `aria-describedby`, hover *and*
-focus, and Escape to dismiss.
+**The form-explanation half of tooltips is built** — `Tooltip`, with two call sites; `PROGRESS.md`
+has the account, and the guard refusing a `title` attribute is the part not to undo.
 
-**What they are for matters more than how they look.** A rules reference wants a Power's own text on
-hover — `data/rulebook/` has it, and it is not served yet. A form wants an explanation of a term.
-Those are different components and the second is nearly `Field`'s existing helper text. Settle which
-before writing either.
+What is *not* built is the other half, and it is the more valuable one: a Power's own printed text
+where a player is choosing it. That is not a tooltip parameter — `data/rulebook/` has the prose, is
+already extracted, and is deliberately **not** in the browser payload, so serving it is one
+`ItemGroup` in `web/`'s csproj plus a decision about the public site. It belongs with the rules
+reference in the split above rather than with a component. Three things to know before starting:
+
+- **The corpus is generated.** Do not hand-edit `data/rulebook/`; regenerate with
+  `tools/RulebookExtractor`.
+- **Where the two disagree, `data/rules/` wins.** The corpus is the text; the mechanics are
+  structured and verified entry by entry.
+- **`Tooltip` is the wrong container for a paragraph.** It is sized and positioned for a sentence.
+  A Power's entry wants a panel or a disclosure, not a floating box.
 
 ---
 
@@ -178,7 +183,7 @@ Each one has cost this project real time when skipped.
    ```bash
    dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
    ```
-   It must report **3670 + 244 = 3914** and zero warnings. **Warnings are errors only under that
+   It must report **3672 + 251 = 3923** and zero warnings. **Warnings are errors only under that
    flag**, so a plain `dotnet test` passes over things CI fails on.
 
    **Take the number from the run, not from a document, and update the document from the run.**
