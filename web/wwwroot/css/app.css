@@ -1329,15 +1329,21 @@ label {
    attribute, because the description is read off this element by name whether or
    not it is visible — see the note in the component. `visibility` rather than
    `display: none` so the transition has something to animate. */
+/* **Downward, and that is not the default anybody reaches for first.** A tip above its trigger
+   is the conventional shape and it is wrong here: one of the two call sites is inside the budget
+   breakdown, which hangs off a strip stuck to `top: 0`, so an upward tip is clipped by the window
+   edge exactly where it is most likely to be opened. Found by rendering one and looking at it —
+   no test in this repository can see a box leaving the viewport. Downward can clip at the bottom
+   instead, which the page scrolls to fix and the sticky strip does not. */
 .tip {
     position: absolute;
-    bottom: 100%;
+    top: 100%;
     left: 50%;
     z-index: 30;
     width: max-content;
     max-width: 22rem;
     transform: translateX(-50%);
-    margin-bottom: var(--space-2);
+    margin-top: var(--space-2);
     padding: var(--space-2) var(--space-3);
     border: var(--rule-weight) solid var(--rule);
     border-radius: var(--radius-small);
