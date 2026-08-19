@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3935 tests** — 3672 engine, 263 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3968 tests** — 3672 engine, 296 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server. **CI drives a browser too**: six
 proof harnesses on `ubuntu-latest`, each required to *say* `PASS` in its `<title>`.
@@ -77,10 +77,13 @@ beside it. Two things a later slice needs:
   a known wart. The fix, if it is wanted, is a small interop shim like `palette.js`, not a
   Razor attribute.
 
+**The option lists are keyboard-driven too.** The box is a combobox, the rows are options of a
+listbox with `tabindex="-1"`, and Enter runs the row's own callback — carried back through
+`OptionTally.Record`, because the row is never focused so the browser cannot activate it and the
+list holds no reference to it. A list with no filter box is untouched and must stay that way.
+
 What remains in Phase 3:
 
-- **Keyboard navigation in the option lists**, with the filter box keeping focus. Every list is
-  mouse-only in practice.
 - **Validation where the mistake is made.** The engine answers continuously; the findings only
   surface at GM review. A Trait over the cap should say so on its own row.
 - **Undo.** Three buttons on the tier page can destroy twenty minutes behind a confirm dialogue.
@@ -140,7 +143,23 @@ slice needs to know:
 Both were asked for by the repository's owner while the work above was in flight. They are recorded
 here rather than started, because each needs decisions taken before code.
 
-### One tool becomes two masters
+### One tool becomes two masters — **the information architecture is done**
+
+`Areas.Of` decides which half an address is in; the tool draws the steps and the budget, the
+portfolio draws neither. The samples and the recordings are at `/portfolio`. `ICharacterStore` and
+`IIdentitySource` are the seam accounts will slot into, and everybody is anonymous today.
+`PROGRESS.md` has both accounts. Three things a later slice needs:
+
+- **The old `/replay` addresses must stay portfolio addresses.** A shared link that arrives wearing
+  the tool's chrome puts the visitor's own budget over somebody else's character.
+- **The anonymous storage key must stay `pp.character.v1`.** Changing it empties every returning
+  visitor's browser silently.
+- **`IIdentitySource` carries a key and a name and nothing else.** Do not grow it into an
+  authentication model before one has been chosen.
+
+What is left below is the part that needs a hosting decision rather than a slice.
+
+### Accounts, which the static deploy has no place for
 
 Today one app does two jobs and the chrome says so: "Watch one being built" and "Or start from a
 finished character" sit beside the thing somebody would actually use at a table. The direction is a
@@ -193,7 +212,7 @@ Each one has cost this project real time when skipped.
    ```bash
    dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
    ```
-   It must report **3672 + 263 = 3935** and zero warnings. **Warnings are errors only under that
+   It must report **3672 + 296 = 3968** and zero warnings. **Warnings are errors only under that
    flag**, so a plain `dotnet test` passes over things CI fails on.
 
    **Take the number from the run, not from a document, and update the document from the run.**

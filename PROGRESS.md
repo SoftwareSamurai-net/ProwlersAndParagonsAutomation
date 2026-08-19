@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3935 across two projects — 3672 on the engine, 263 rendering components with bUnit — run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
+| Tests | 3968 across two projects — 3672 on the engine, 296 rendering components with bUnit — run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -218,6 +218,61 @@ grip does not.
 ---
 
 ## Completed work
+
+
+### One site, two areas: the play aide and the portfolio
+
+**The first piece of actual reorganisation rather than polish**, asked for by the repository's
+owner, who observed — correctly — that Phases 0–3 improve what is on screen without ever asking
+whether the right things are on screen.
+
+The tool and the demonstrations *of* the tool were the same screens. Somebody who came to build a
+character walked past a recording of a stranger's conversation and a pair of pre-made characters to
+reach the tier list, and the chrome above every page was the character generator's: six numbered
+steps, one of them marked as the step you are on, offered to a portfolio visitor who is not taking
+any of them.
+
+- **`Areas.Of` answers which half an address is in**, from the first path segment, once, and
+  case-insensitively because Blazor's routing is. `MainLayout` draws the step band and the budget
+  strip only in the tool. The banner's cross-link points at the half you are *not* in — it used to
+  say "Watch one being built" from everywhere, so the only cross-link a player ever saw pointed
+  away from what they were doing.
+- **The two samples moved to `/portfolio`; "Start a new character" stayed**, because throwing away
+  the character you are building belongs to building. The recordings moved under
+  `/portfolio/replay`.
+- **The old `/replay` addresses are still portfolio addresses, and that is a fix rather than a
+  courtesy.** Moving the route made them Play, so the budget strip — the visitor's *own* character
+  — came back over somebody else's recorded one with nothing saying whose was whose, which is the
+  exact fault it was hidden there to prevent. A shared link that still works but arrives wearing
+  the wrong chrome is worse than one that breaks. It was caught by a test, not by looking.
+- **`HasSomethingToLose` moved onto the session.** Three pages now ask it before replacing a
+  character and two copies had already drifted apart by a field.
+
+**Three mutations, three caught** — dropping the legacy prefix, matching by `StartsWith` so
+"portfolios" would be captured, and an ordinal comparison so a capitalised link wears the wrong
+chrome. One first attempt was a no-op that passed and had to be re-applied properly.
+
+### The storage and identity seam
+
+**No accounts yet and no behaviour change** — every visitor is anonymous and the character is in
+this browser exactly as before. What changed is that the shape is now the one accounts need, which
+was the owner's explicit choice over building the split first and retrofitting later.
+
+`ICharacterStore` is the smallest thing every caller uses, so a server-backed store is a
+registration change. `IIdentitySource` answers who the character belongs to, asynchronously
+because a real one has to ask something — making it synchronous now would mean changing every
+caller later, which is the whole point of the seam. It carries a key and a name and deliberately
+no claims, token or expiry: **the wrong authentication model is harder to remove than none.**
+
+**The anonymous key stays `pp.character.v1` exactly**, which is the compatibility promise —
+suffixing it for consistency would empty every returning visitor's browser, silently, looking like
+storage cleared rather than a bug. An account's characters land beside it, so signing in on a
+shared browser cannot overwrite what the anonymous visitor was building, and clearing one slot
+leaves the other. Five tests pin it, with a positive control that the shipped identity really is
+anonymous.
+
+**Still not done, and it is the larger half:** accounts need auth and server-side storage, which
+the static Cloudflare Pages deploy has no place for. That is a hosting decision, not a slice.
 
 
 ### Phase 3, second slice: the pips become the control

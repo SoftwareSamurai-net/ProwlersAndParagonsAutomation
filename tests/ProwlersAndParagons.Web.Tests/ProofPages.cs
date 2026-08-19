@@ -60,6 +60,8 @@ public sealed class ProofPages
 
         Section(body, "The budget, as a strip of chrome", ctx.Render<HpBudgetBar>().Markup);
         Section(body, "Tier — a card grid", ctx.Render<ChooseTier>().Markup);
+        Section(body, "The portfolio — the demonstrations, out of the tool",
+            ctx.Render<Portfolio>().Markup);
         Section(body, "Abilities — the rulebook's word beside each rank",
             ctx.Render<AbilitiesTab>().Markup);
         Section(body, "Powers — one filter box, in the component every list shares",
