@@ -49,6 +49,7 @@ builder.Services.AddScoped<ApiCharacterStore>();
 builder.Services.AddScoped<AccountCharacterStore>();
 builder.Services.AddScoped<ICharacterStore>(s => s.GetRequiredService<AccountCharacterStore>());
 builder.Services.AddScoped<RulebookReader>();
+builder.Services.AddScoped<CharacterImport>();
 builder.Services.AddScoped<Motion>();
 builder.Services.AddScoped<Commands>();
 builder.Services.AddScoped<Shortcuts>();
