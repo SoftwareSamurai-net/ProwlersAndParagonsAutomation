@@ -52,7 +52,8 @@ public sealed class RenderContext : BunitContext
 
         // Resolves bUnit's own IJSRuntime, so a component that persists can be rendered and
         // the interop it asks for can be read back off JSInterop.Invocations.
-        Services.AddScoped<CharacterStore>();
+        Services.AddScoped<IIdentitySource, LocalIdentity>();
+        Services.AddScoped<ICharacterStore, CharacterStore>();
 
         // Every call into motion.js, with its failures swallowed. Registered here so a render
         // test exercises the same guarded path the app does rather than a bare IJSRuntime.
@@ -78,7 +79,7 @@ public sealed class RenderContext : BunitContext
         // half of persistence that matters: a save fires on every change, so anything that
         // clears storage is racing a write nobody awaits. Without the subscription a test
         // asserting on that ordering asserts on nothing.
-        var store = Services.GetRequiredService<CharacterStore>();
+        var store = Services.GetRequiredService<ICharacterStore>();
         Session.Changed += () => _ = store.SaveAsync(Session.Sheet, Session.Mode);
     }
 

@@ -46,7 +46,7 @@ public sealed class CharacterStoreTests
     private static (CharacterStore Store, FakeLocalStorage Storage) Fresh()
     {
         var storage = new FakeLocalStorage();
-        return (new CharacterStore(storage, Costs, Validator), storage);
+        return (new CharacterStore(storage, Costs, Validator, new LocalIdentity()), storage);
     }
 
     /// <summary>Wraps a Sheet body in a payload this build's version gate accepts.</summary>

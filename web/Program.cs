@@ -34,7 +34,8 @@ builder.Services.AddSingleton(validator);
 builder.Services.AddSingleton(new ProConApplicability(rules));
 builder.Services.AddSingleton(new SourceGrouping(rules));
 builder.Services.AddScoped<CharacterSession>();
-builder.Services.AddScoped<CharacterStore>();
+builder.Services.AddScoped<IIdentitySource, LocalIdentity>();
+builder.Services.AddScoped<ICharacterStore, CharacterStore>();
 builder.Services.AddScoped<Motion>();
 builder.Services.AddScoped<Commands>();
 builder.Services.AddScoped<Shortcuts>();
@@ -63,7 +64,7 @@ var host = builder.Build();
 // Nothing in this block may stop the app starting: a character saved by an older build, or
 // storage the browser refuses, both mean "no character", and CharacterStore returns null
 // rather than throwing. See its remarks.
-var store = host.Services.GetRequiredService<CharacterStore>();
+var store = host.Services.GetRequiredService<ICharacterStore>();
 var session = host.Services.GetRequiredService<CharacterSession>();
 
 // Both catches are deliberately total, and they are a backstop rather than the strategy:
