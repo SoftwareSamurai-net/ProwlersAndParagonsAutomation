@@ -33,8 +33,11 @@ as [#46](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/46)
 `claude/reconcile-a1-a3` — are far behind and must not be started from.
 
 **The most valuable reviewer, six sessions running, is the one pointed at the fixes rather than at
-the code.** On this one it would have caught what the author caught late: a mutation harness that
-ran only one of the two test suites and reported a caught rename as a survivor. Do not skip it.
+the code.** On this one it found that **six of nine fixes caught only the mutation they had been
+shown** — each had guarded the absence of one spelling rather than the property, and a variant
+reaching the same end state walked past it with every suite green. One of the six would have
+established a session while telling its owner they were not signed in. Do not skip it, and ask it
+for a *variant*, never a re-run.
 
 ---
 
