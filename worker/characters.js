@@ -96,15 +96,23 @@ export async function write(request, env, deps, user, id) {
 /**
  * Throw one character away.
  *
- * Somebody else's id and an id that never existed (or was already removed) both answer 404 —
- * the same reasoning as `read`: nothing here should say which of the two happened.
+ * **204 whether or not there was anything to delete**, unlike `read`. The end state the caller
+ * asked for is "that character is not there", and it is not there — so reporting 404 would report
+ * failure for something that succeeded. The cost of getting this wrong is concrete: a manager with
+ * two tabs open deletes in one, deletes in the other, and the second sees an error for a character
+ * that is already gone, retries, and sees it again while the app looks broken.
+ *
+ * Nothing is leaked by answering the same either way — that is the point of answering the same.
+ * Somebody else's id and an id that never existed are indistinguishable here, as they are in
+ * `read`; they are simply both successes rather than both failures.
+ *
+ * An ill-formed id is still 400. That is a malformed request, not an absent character.
  */
 export async function remove(request, env, deps, user, id) {
     if (!sameOrigin(request)) return fail(403, 'This request did not come from this site.');
     if (!ID_PATTERN.test(id)) return fail(400, 'That is not a character id this server uses.');
 
-    const removed = await db.deleteCharacter(env.DB, user.id, id);
-    if (!removed) return fail(404, 'This account has no character with that id.');
+    await db.deleteCharacter(env.DB, user.id, id);
 
     return noContent();
 }

@@ -31,6 +31,18 @@ Every one requires a session; without one, 401. All of them are scoped to the ca
 — an `id` belonging to somebody else answers 404, never 403, because "that exists but is not yours"
 is a fact about somebody else's account.
 
+**`DELETE` is the exception, and answers 204 whether or not there was anything to delete.** This
+document said 404 and that was wrong; the first implementation followed it faithfully, which is how
+it got noticed. The end state a caller asked for is "that character is not there", and it is not
+there — so a 404 reports failure for something that succeeded. The concrete cost is a manager with
+two tabs open: delete in one, delete in the other, and the second sees an error for a character that
+is already gone, retries, and sees it again while the app looks broken. Nothing is leaked either way,
+because 204-always distinguishes nothing.
+
+That also keeps the promise the single-character endpoint made before this change: *twice is not an
+error, the end state is what was asked for*. An ill-formed id is still 400 — that is a malformed
+request rather than an absent character.
+
 ### `GET /api/characters`
 
 ```json

@@ -63,10 +63,11 @@ test('one account cannot read, overwrite or delete another account’s character
     // Nothing of mine is reachable with your cookie…
     assert.equal((await app.call(`/api/characters/${id()}`, { cookie: yours.cookie })).status, 404);
 
-    // …deleting the same id from your account is 404, not a delete that happens to land on my
-    // row — there is nothing of yours under that id to remove.
+    // …and deleting the same id from your account succeeds, because from your side nothing is
+    // there — **but it must not land on my row.** The status is the weak half of this assertion;
+    // the strong half is the read after it.
     assert.equal((await app.call(`/api/characters/${id()}`,
-        { method: 'DELETE', cookie: yours.cookie })).status, 404);
+        { method: 'DELETE', cookie: yours.cookie })).status, 204);
     assert.equal((await app.call(`/api/characters/${id()}`, { cookie: mine.cookie })).status, 200,
         'mine must have survived a delete attempt from another account');
 
@@ -104,14 +105,38 @@ test('a saved character can be thrown away, and twice is not an error', async ()
     assert.equal((await app.call(`/api/characters/${id()}`, { cookie })).status, 404);
 });
 
-test('deleting an id nobody ever stored is 404, not 204', async () => {
-    // Distinct from the case above: this id was never written by anybody, so there is nothing
-    // ambiguous about "not found" here — unlike the single-character server, an id names a row
-    // that either exists or does not, and this server is not shy about which.
+test('deleting is idempotent — twice, and never, are both successes', async () => {
+    // **The contract said 404 here and it was wrong.** The end state asked for is "that character
+    // is not there", and it is not there. Reporting failure for that costs a manager with two tabs
+    // open: delete in one, delete in the other, and the second sees an error for a character that
+    // is already gone, retries, and sees it again while the app looks broken.
     const app = server();
     const { cookie } = await signIn(app, 'a@b.test');
 
-    assert.equal((await app.call(`/api/characters/${id(9)}`, { method: 'DELETE', cookie })).status, 404);
+    // Never stored by anybody.
+    assert.equal((await app.call(`/api/characters/${id(9)}`, { method: 'DELETE', cookie })).status, 204);
+
+    // Stored, then deleted twice.
+    await put(app, cookie, { label: 'Ninefold' });
+    assert.equal((await app.call(`/api/characters/${id()}`, { method: 'DELETE', cookie })).status, 204);
+    assert.equal((await app.call(`/api/characters/${id()}`, { method: 'DELETE', cookie })).status, 204);
+
+    // The positive control: it really is gone, so the 204s above are not a delete that never ran.
+    assert.equal((await app.call(`/api/characters/${id()}`, { cookie })).status, 404);
+});
+
+test('an ill-formed id is still refused, even to delete', async () => {
+    // 400 rather than 204: a malformed request is not an absent character, and answering "fine"
+    // to a request this server could not have acted on would hide a client bug for ever.
+    const app = server();
+    const { cookie } = await signIn(app, 'a@b.test');
+
+    for (const bad of ['nope', 'c_short', 'c_' + 'x'.repeat(23), '../../etc', 'c_with spaces here 1234']) {
+        const response = await app.call(`/api/characters/${encodeURIComponent(bad)}`,
+            { method: 'DELETE', cookie });
+
+        assert.equal(response.status, 400, bad);
+    }
 });
 
 test('saving again under the same id replaces rather than accumulating', async () => {
