@@ -134,6 +134,7 @@ The detail lives in its own file per domain, so this page stays something you ca
 | [**Code quality**](docs/CODE-QUALITY.md) | The analyzer contract, the two test projects, and what CI actually enforces |
 | [**Deploying the browser front end**](docs/DEPLOYING.md) | Cloudflare Pages, the generated security headers, and the payload |
 | [**Connecting the MCP server**](docs/MCP-SETUP.md) | Pointing your own Claude at the published binary |
+| [**Turning accounts on**](docs/ACCOUNTS-SETUP.md) | The database, the binding and the sending domain that sign-in needs — and why nothing breaks before they exist |
 | [**Rulebook coverage**](docs/RULEBOOK-COVERAGE.md) | Which chapters are extracted and verified, and which are deliberately not |
 | [**Extracting the rules**](docs/RULES_EXTRACTION_GUIDE.md) | How the rules data was read out of the PDF, if you need to redo it |
 

@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3972 across two projects — 3672 on the engine, 300 rendering components with bUnit — run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
+| Tests | 4052 across three suites — 3683 on the engine, 333 rendering components with bUnit, 36 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -219,6 +219,140 @@ grip does not.
 
 ## Completed work
 
+### Accounts: one character, one account, and the book behind a sign-in
+
+**The character used to live in one browser and nowhere else.** Close it on another machine and it
+was gone; the only way to share one was to download a file; and the rulebook's own text had no way
+to know who was reading it. This closes all three.
+
+**Cloudflare Pages Functions over D1, in the account the site already deploys to** — chosen over a
+hosted identity provider and over a "sync key" that would not have been an account at all. The
+deciding argument was the session cookie: an API on `workers.dev` is a different origin, so its
+cookie is a third-party cookie and Safari and Chrome's partitioning drop it. Same-origin Functions
+cost one directory and no new bill. **If the API is ever moved to its own hostname, sign-in stops
+working and nothing else does.**
+
+**A magic link, so there is no password anywhere.** Proving you can read the address is the whole
+of the check, so there is nothing to store, nothing to leak and nothing to reset. Two secrets are
+minted — the link's token and the session — and **neither is ever stored in the clear**: the
+database holds SHA-256 of each, so a dump of it lets nobody sign in as anybody. The session is an
+`HttpOnly` cookie, which means the WebAssembly app never holds a credential and an injected script
+cannot read one. That keeps true the claim the MCP server already made for this project: it handles
+no credentials.
+
+**Four things the server refuses, each because the alternative is a silent hole:**
+
+- **A link works once**, enforced by `UPDATE … WHERE used_at IS NULL … RETURNING` — one statement,
+  because read-then-write lets two requests both redeem the same link.
+- **Every sign-in refusal says the same thing**, whether the token was never issued, has expired or
+  is spent. Nothing legitimate needs the difference.
+- **Asking for a link always answers 204**, so the endpoint cannot be used to ask whether an
+  address has an account here, one address at a time. The rate limit is silent for the same reason,
+  and its window rolls inside the statement rather than in a read-modify-write — the alternative is
+  a limit that stops counting exactly when it is under load.
+- **A state-changing request must carry this site's own `Origin`**, and one with no `Origin` at all
+  is refused rather than allowed. `SameSite=Lax` already blocks the cross-site form post; this does
+  not depend on the visitor's browser having got that right.
+
+**The server never parses a character.** The payload arrives as JSON, is checked for being JSON and
+being under a quarter-megabyte, and is written down verbatim; a read hands the same bytes back. The
+engine is the authority on what a character costs and whether it is legal, it runs in the browser,
+and a second place that understood the shape would be a second place to keep in step. A test sends
+key order and spacing no serialiser would reproduce and requires them back unchanged.
+
+**One character per account, and `characters.user_id` is the primary key rather than a convention.**
+A list is a different interface and a different set of screens; it is much easier to get right once
+one character round-trips, and the handover said so explicitly.
+
+**The book is bundled into the server rather than copied into `wwwroot`, and that placement is the
+entire access control.** A file under `wwwroot` is a public URL, and no amount of checking sessions
+in the browser would make it not be one. Chapter 2 only — where the Powers are — because adding
+chapters is a decision about what an account is entitled to read and should not happen by a glob.
+The lookup needs no table of its own: it joins on the heading, which is the join
+`RulebookCorpusTests` already holds the corpus to across a hundred and sixteen entries.
+
+**`Tooltip` was the wrong container and is not used.** A Power's entry is several paragraphs to
+read, not a sentence to glance at, so it is a disclosure — and it renders **nothing at all** when
+there is nothing to show. That last part is most of the design: about a fifth of the 141 Powers
+have no printed entry of their own, because Super Senses' sixteen options share one between them,
+so a row of apologies would appear under Powers that are perfectly fine.
+
+**A missing server is a missing feature, never a blank page.** Identity is asked for before the
+first render, so every failure — no network, a 401, a five-second timeout — answers with the
+anonymous visitor. **Including the one that looks like success:** `_redirects` serves every
+unmatched path as `index.html` with a 200, so a deploy without its Functions answers `/api/me` with
+a page of HTML. The client parses the body rather than believing the status.
+
+**That property is also why the deploy is the only place the mistake is ever visible**, and it now
+checks: the routed function must exist before uploading, and `/api/me` must answer 401 *carrying
+JSON* afterwards. Without that second check, a site with no accounts API looks completely healthy
+and signs nobody in for ever.
+
+**`StoredCharacter` was extracted so the two stores cannot disagree.** Local storage and the server
+keep the character in very different places, and the temptation is to let each own its envelope —
+at which point a version bump or the null-repair lands in one of them and a character saved on a
+laptop restores wrongly on a phone.
+
+**Nothing about the rules learns any of this**, and `AccountsContractTests` enforces it the way
+`PresentationFlagsTests` enforces the Hero/Villain flag — with a positive control, because a scan
+for eight names is satisfied completely by eight names that no longer exist. It also asserts
+`engine/` and `sheets/` make no HTTP call at all, which is the form that would catch an account
+arriving under a name the scan does not know.
+
+**The two halves are written in different languages and both suites stay green while they
+disagree.** The server is JavaScript and the client is C#; each is tested thoroughly alone, and
+nothing but `AccountsContractTests` reads both. It compares the addresses the browser asks for
+against the ones the server routes, and the keys of the object `identityOf` actually returns
+against the names the client actually binds. **That last one was a `Contains` first and a mutation
+walked straight through it:** renaming the server's `displayName` to `display_name` left it green,
+because the word still occurred in `db.js` as a parameter name. Searching concatenated files for a
+word says nothing about where the word is.
+
+**Tested against real SQLite running the real migration**, through a D1-shaped shim — D1 *is*
+SQLite, so the two statements that close a race by being one statement are executed rather than
+described. A hand-written fake would have passed for either. **Thirteen mutations were applied and
+all thirteen caught**, but two of the first results were worthless: removing an `expires_at > ?`
+from a query left three parameters bound to two placeholders, so what went red was a broken
+statement rather than the missing check. Redone by binding `0` for the timestamp instead, which
+keeps the arity and changes only the answer.
+
+**And one "survivor" was a hole in the harness, not in the code.** The mutation script ran
+`dotnet test` and not the accounts suite, so a rename the Node tests caught was reported as
+surviving. A mutation harness that does not run every suite reports the wrong answer confidently.
+
+**Two faults were found by looking at a rendered page, and neither was visible to any test:**
+
+- The signed-in proof rendered the **signed-out form** under a heading saying "Signed in". Loading
+  a sample raises the session's change event, which saves the character, which asks who is here and
+  *remembers the answer* — so the harness had to sign in before loading. `SignInPageTests` exists
+  because of it.
+- The entry's left edge was `var(--rule-weight) solid var(--accent)`, which is **1px in Hero and
+  2px in Villain**, and gold on the light sunk ground **measured 1.57:1** — no edge at all. It
+  looked entirely deliberate in the Villain proof, where the same declaration measured 5.62:1. It
+  is now `3px solid var(--heading)`: 6.76:1 and 5.62:1, both measured, and 3px in both.
+
+**The contrast probe was wrong before it was right**, and the way it was wrong is worth recording:
+computed colours come back as `rgb(0–255)` *or* `color(srgb 0–1)`, and reading both on one scale
+measured everything against black and reported 1.00 for a pair that is plainly legible. It carries
+a white-on-black positive control now, which must read 21.
+
+**`CouldOverride` in `WebPresentationTests` had a real over-broad rule**, found by this slice
+needing it: `border-radius` starts with `border-`, so the helper reported that a radius was what
+the cascade resolved for a `border-left` and refused to answer about correct CSS. Four names are
+now excluded — radius, collapse, spacing and image are separate properties sharing a prefix. This
+*narrows* a guard, so the three real overrides were re-checked afterwards and all three still
+refuse.
+
+**What is not done, and needs the account owner rather than a commit:** none of it runs until a D1
+database, a binding named `DB`, a Resend key and the DNS records for a sending domain exist.
+[`docs/ACCOUNTS-SETUP.md`](docs/ACCOUNTS-SETUP.md) is the five steps, and a test asserts it names
+every environment variable the server actually reads — documentation of a configuration nobody in
+this repository can try out rots silently otherwise.
+
+**One cost, stated rather than hidden:** a failed save is silent. Local storage effectively cannot
+fail; a network can, and the character then exists only in that tab. The honest fix is telling
+somebody, which is the "Saved" feedback Phase 5 of the front-end plan already owes.
+
 
 ### One site, two areas: the play aide and the portfolio
 
@@ -271,8 +405,9 @@ shared browser cannot overwrite what the anonymous visitor was building, and cle
 leaves the other. Five tests pin it, with a positive control that the shipped identity really is
 anonymous.
 
-**Still not done, and it is the larger half:** accounts need auth and server-side storage, which
-the static Cloudflare Pages deploy has no place for. That is a hosting decision, not a slice.
+**The larger half is now done** — see [accounts](#accounts-one-character-one-account-and-the-book-behind-a-sign-in)
+below. The seam held: the two interfaces did not change shape, and the app's behaviour for a
+visitor with no account is byte-identical to what it was.
 
 
 ### Phase 3, second slice: the pips become the control

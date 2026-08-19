@@ -39,6 +39,10 @@ dotnet build --configuration Release -p:ContinuousIntegrationBuild=true
 
 # Run the tests (also run in CI, with the same strict flags)
 dotnet test
+
+# Run the accounts server's tests — a separate suite, because that server is JavaScript.
+# Uses local Node 22+ if there is one, Docker otherwise. Also run in CI.
+./scripts/test-worker.sh
 ```
 
 ## Two disciplines that are commands, not cautions
@@ -420,6 +424,41 @@ questions about the rules. It does not replace `build --from`; both call the sam
 - The tests live in `tests/ProwlersAndParagonsAutomation.Tests` beside `HeadlessBuildTests`,
   driven over a real pair of pipes with the SDK's own client. Only `web/` has a test project of
   its own, because rendering components needs one.
+
+### The accounts server
+
+`worker/` is a Cloudflare Pages Functions server over D1, reached through the one routed file
+`functions/api/[[path]].js`. It is JavaScript because Workers is, so it is invisible to
+`dotnet test` and has its own suite: `./scripts/test-worker.sh` (local Node 22+, or Docker).
+Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
+
+- **It holds no rules and must never gain one.** A character is stored as an opaque string it
+  never parses — the engine decides cost and legality and runs in the browser. A second place
+  that understood the shape of a character is a second place to keep in step.
+- **No password anywhere.** A magic link; the token and the session are both stored as SHA-256
+  and never in the clear, so a dump of the database lets nobody sign in as anybody. The session
+  is an `HttpOnly` cookie, so the WebAssembly app never holds a credential.
+- **Same origin is load-bearing.** Pages Functions rather than a Worker on `workers.dev`,
+  because a cookie set by another host is a third-party cookie that browsers now partition
+  away. Move the API to its own hostname and sign-in stops working and nothing else does.
+- **Every refusal to sign in says the same thing**, and asking for a link always answers 204 —
+  otherwise the endpoint is a way of asking whether an address has an account here.
+- **`wrangler pages deploy <dir>` bundles a `functions` directory found in the working
+  directory, not in the directory being uploaded.** There is no flag; the placement *is* the
+  configuration, and getting it wrong deploys a healthy-looking site that signs nobody in.
+- **A missing server is a missing feature, not a blank page** — and the shape that makes that
+  work is also the shape that hides the mistake. `_redirects` serves every unmatched path as
+  `index.html` with a 200, so a site without its Functions answers `/api/me` with HTML; the
+  client parses the body rather than trusting the status, and answers `Identity.Anonymous`. **So
+  the deploy is the only place the fault is ever visible**, and it checks for JSON there.
+- **`data/rulebook/` is bundled into the server and never staged into `wwwroot`.** A file under
+  `wwwroot` is a public URL; that placement is the entire access control, and there is a test on
+  both sides of the repository.
+- **The two halves are different languages and both suites stay green while they disagree.**
+  `AccountsContractTests` is the only thing that reads both — addresses asked for against
+  addresses routed, and the keys the server returns against the names the client binds. Do not
+  write a guard there with `Contains`: the first version was one, and a rename walked through it
+  because the same word occurred elsewhere in the server's own source.
 
 ### Hosting
 

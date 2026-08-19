@@ -23,6 +23,29 @@ data/rules/   →   engine/   →   sheets/   →   web/   ←   data/transcript
 
 Each is its own project, which is what makes the arrows above true at compile time. `engine/` and `sheets/` were part of the root executable until the browser front end needed them without Spectre.Console attached.
 
+## The one thing outside those layers: `worker/`
+
+There is a fifth directory, and it is deliberately not on the diagram: `worker/` is the accounts
+server — JavaScript, because Cloudflare Workers is — reached through the single routed file
+`functions/api/[[path]].js`. It sits **beside** the stack rather than on top of it, and the reason
+is a rule rather than a layout preference:
+
+**It contains no rules and cannot.** It stores a character as an opaque string it never parses,
+because the engine is the authority on what a character costs and whether it is legal, and the
+engine runs in the browser. So the arrow from `engine/` never reaches it, in either direction, and
+`AccountsContractTests` asserts that `engine/` and `sheets/` make no HTTP call at all.
+
+| | |
+|---|---|
+| `worker/` | Sign-in, sessions, one stored character per account, and the rulebook's text behind a session. Every SQL statement is in `db.js`; every route is in `index.js`. |
+| `functions/api/[[path]].js` | The only file Cloudflare routes. Two lines, so "what is exposed?" has one answer. |
+| `d1/` | The schema, as migrations, plus the config that applies them. Not at the repository root on purpose — see the comment in `d1/wrangler.toml`. |
+| `tests/worker/` | Driven against real SQLite running the real migration, since D1 *is* SQLite. Run with `./scripts/test-worker.sh`. |
+
+`data/rulebook/` is bundled **into** `worker/` and is never staged into `wwwroot`. That placement is
+the whole of the access control: a file under `wwwroot` is a public URL. Setting the server up is
+[`ACCOUNTS-SETUP.md`](ACCOUNTS-SETUP.md).
+
 ---
 
 ## Project Structure
