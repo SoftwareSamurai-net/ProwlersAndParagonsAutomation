@@ -150,6 +150,96 @@ public sealed class RulebookReaderTests
     }
 
     /// <summary>
+    /// <b>Signing out stops the book being readable in the same tab.</b>
+    ///
+    /// <para>This was a real leak, found by a reviewer and reproduced before it was fixed. The
+    /// cache's own comment claimed it was "per visit and per scope, so signing out and back in
+    /// re-asks" — and <b>Blazor WebAssembly has one DI scope for the life of the app</b>, so a
+    /// scoped service is a singleton here and signing out is pure SPA state with no reload. A
+    /// signed-in visitor on a shared machine could open a Power's entry, sign out, open the same
+    /// Power, and be handed the publisher's prose out of the dictionary without the server —
+    /// which would have refused — ever being asked.</para>
+    ///
+    /// <para>The positive control is the first assertion: the entry has to have been cached for
+    /// the second to mean anything. A reader that had stopped working at all would otherwise
+    /// satisfy this test perfectly.</para>
+    /// </summary>
+    [Fact]
+    public async Task SigningOutStopsTheBookBeingReadableInTheSameTab()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+        ctx.Api.Book["Armor"] = "the publisher's prose";
+
+        var accounts = ctx.Services.GetRequiredService<Accounts>();
+        var reader = ctx.Services.GetRequiredService<RulebookReader>();
+
+        Assert.NotNull(await reader.ForPowerAsync("Armor"));
+
+        ctx.Api.SignedIn = null;
+        await accounts.SignOutAsync();
+
+        Assert.Null(await reader.ForPowerAsync("Armor"));
+    }
+
+    /// <summary>
+    /// And one account's answers are not handed to the next one on the same machine.
+    ///
+    /// <para>The other half of the same fault: the cache is keyed to whoever it was filled for,
+    /// so a different account signing in on that tab starts empty rather than inheriting.</para>
+    /// </summary>
+    [Fact]
+    public async Task OneAccountDoesNotInheritAnothersAnswers()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+        ctx.Api.Book["Armor"] = "the publisher's prose";
+
+        var reader = ctx.Services.GetRequiredService<RulebookReader>();
+        Assert.NotNull(await reader.ForPowerAsync("Armor"));
+
+        var asked = ctx.Api.Asked.Count(a => a.Contains("Armor", StringComparison.Ordinal));
+
+        // A different account, and the book taken away from the server, so the only way to
+        // answer is out of the cache.
+        ctx.Api.SignedIn = ("acct-9", "somebody-else");
+        ctx.Api.Book.Clear();
+        await ctx.Services.GetRequiredService<Accounts>().CompleteSignInAsync("a-token");
+
+        Assert.Null(await reader.ForPowerAsync("Armor"));
+        Assert.True(ctx.Api.Asked.Count(a => a.Contains("Armor", StringComparison.Ordinal)) > asked,
+            "the server was never re-asked, so the answer came out of the other account's cache.");
+    }
+
+    /// <summary>
+    /// While the entry is closed, <c>aria-controls</c> names nothing.
+    ///
+    /// <para>The body renders inside an <c>@if</c>, so naming it unconditionally leaves a
+    /// dangling IDREF — the same trap the budget breakdown's disclosure records.
+    /// <c>aria-expanded</c> is what carries the state. Unguarded until a reviewer mutated the
+    /// attribute to be unconditional and all seven tests here stayed green.</para>
+    /// </summary>
+    [Fact]
+    public void WhileClosedTheDisclosureNamesNoElement()
+    {
+        using var ctx = SignedInWithTheBook();
+
+        var armor = Armor(ctx);
+        var editor = ctx.Render<PowerEditor>(p => p.Add(e => e.Power, armor));
+
+        var toggle = editor.Find(".book-toggle");
+
+        Assert.Null(toggle.GetAttribute("aria-controls"));
+
+        toggle.Click();
+
+        // …and once open it names an element that is actually there.
+        var named = editor.Find(".book-toggle").GetAttribute("aria-controls");
+        Assert.False(string.IsNullOrEmpty(named));
+        Assert.NotNull(editor.Find("#" + named));
+    }
+
+    /// <summary>
     /// Two renders of one Power produce identical markup, ids included.
     ///
     /// <para>The same trap <c>Tooltip</c> hit: an id generated per render breaks the replay

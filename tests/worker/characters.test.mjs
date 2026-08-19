@@ -113,3 +113,24 @@ test('a body that is not JSON, or is enormous, is refused', async () => {
     // The positive control: the same path accepts a real one.
     assert.equal((await send(JSON.stringify(character))).status, 204);
 });
+
+test('the size cap is bytes, not characters', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'a@b.test');
+
+    // **The cap counted UTF-16 code units and its comment said bytes**, found by a reviewer. An
+    // astral-plane character is two units and four bytes, so a body padded with them reached
+    // about twice the stated limit. The existing test padded with ASCII, where the two measures
+    // agree — which is exactly why it passed.
+    const emoji = '\u{1F600}';                         // four bytes, two code units
+    const padding = emoji.repeat(40 * 1024);           // 160 KB of bytes, 80K units
+
+    const under = '{"a":"' + padding + '"}';
+    const over = '{"a":"' + emoji.repeat(80 * 1024) + '"}';   // 320 KB of bytes
+
+    assert.ok(new TextEncoder().encode(over).byteLength > 256 * 1024);
+    assert.ok(over.length < 256 * 1024, 'the padding is not astral, so this proves nothing');
+
+    assert.equal((await app.call('/api/character', { method: 'PUT', raw: under, cookie })).status, 204);
+    assert.equal((await app.call('/api/character', { method: 'PUT', raw: over, cookie })).status, 400);
+});

@@ -58,6 +58,20 @@ export async function requestLink(request, env, deps) {
         return noContent();
     }
 
+    // **The link's domain comes from configuration, and this refuses rather than guessing.**
+    // It used to fall back to the origin of the request — which is derived from the host the
+    // request arrived on, and `sameOrigin` above checks the *Origin header against that host*
+    // rather than validating the host itself. So on a deployment where more than one hostname
+    // routes here (a Pages preview alias, a custom domain mid-change), a caller who could
+    // influence the effective host got a link minted for it — and the link carries the raw
+    // token, because that is the credential. Refusing costs a 500 and a clear message on a
+    // misconfigured deployment; guessing costs somebody their account.
+    if (!env.SITE_URL) {
+        console.error('SITE_URL is not set, so no sign-in link can be addressed. See docs/ACCOUNTS-SETUP.md.');
+
+        return fail(500, 'This site is not configured to send sign-in links.');
+    }
+
     const token = deps.newSecret();
     await db.putLoginToken(env.DB, {
         tokenHash: await hash(token),
@@ -65,8 +79,10 @@ export async function requestLink(request, env, deps) {
         expiresAt: now + TOKEN_LIFETIME_MS,
     });
 
-    const site = env.SITE_URL || new URL(request.url).origin;
-    await deps.sendSignInLink(env, { to: email, link: site + '/signin?t=' + token });
+    await deps.sendSignInLink(env, {
+        to: email,
+        link: env.SITE_URL.replace(/\/+$/, '') + '/signin?t=' + token,
+    });
 
     return noContent();
 }

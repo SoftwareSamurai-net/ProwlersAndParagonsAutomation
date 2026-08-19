@@ -70,13 +70,15 @@ public sealed class FakeApi : HttpMessageHandler
 
         return path switch
         {
-            "/api/me" => SignedIn is { } who
-                ? Json($$"""{"key":"{{who.Key}}","displayName":"{{who.DisplayName}}"}""")
-                : Status(HttpStatusCode.Unauthorized),
+            "/api/me" => Identity(),
 
             "/api/auth/request" => Status(LinkRequestAnswer),
 
-            "/api/auth/verify" => Json("""{"key":"acct-7","displayName":"player"}"""),
+            // **The same identity `/api/me` gives, not a hardcoded one.** It used to answer with a
+            // fixed key whatever `SignedIn` said, which made a test about two accounts on one
+            // machine quietly a test about one: the second sign-in returned the first one's key.
+            // A stub that answers something the real server never would is worse than no stub.
+            "/api/auth/verify" => Identity(),
 
             "/api/auth/signout" => Status(HttpStatusCode.NoContent),
 
@@ -87,6 +89,12 @@ public sealed class FakeApi : HttpMessageHandler
             _ => Status(HttpStatusCode.NotFound),
         };
     }
+
+    /// <summary>Whoever <see cref="SignedIn"/> says, or 401. One answer, so two routes agree.</summary>
+    private Task<HttpResponseMessage> Identity() =>
+        SignedIn is { } who
+            ? Json($$"""{"key":"{{who.Key}}","displayName":"{{who.DisplayName}}"}""")
+            : Status(HttpStatusCode.Unauthorized);
 
     private Task<HttpResponseMessage> Character(HttpRequestMessage request)
     {

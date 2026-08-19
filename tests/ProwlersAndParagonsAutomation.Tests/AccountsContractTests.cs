@@ -111,7 +111,12 @@ public sealed class AccountsContractTests
     {
         var routed = ServerSource();
 
-        var asked = Regex.Matches(BrowserSource(), @"""(api/[a-z/]+)(?:\?[^""]*)?""",
+        // **The character class was `[a-z/]` and a reviewer walked through it.** Renaming a route
+        // to `api/auth/verify-token` made the pattern fail to match the literal at all, so the
+        // address was silently dropped from the list and the test passed while the browser called
+        // something the server does not route — the exact drift this test exists for. A pattern
+        // that answers "not an address" when it means "I cannot read this" is worse than none.
+        var asked = Regex.Matches(BrowserSource(), @"""(api/[A-Za-z0-9/_.-]+)(?:\?[^""]*)?""",
                 RegexOptions.None, TimeSpan.FromSeconds(5))
             .Select(m => "/" + m.Groups[1].Value)
             .Distinct(StringComparer.Ordinal)
@@ -205,7 +210,7 @@ public sealed class AccountsContractTests
                 RegexOptions.None, TimeSpan.FromSeconds(5))
             .Select(m => m.Groups[1].Value);
 
-        var queried = Regex.Matches(browser, @"""api/[a-z/]+\?(\w+)=",
+        var queried = Regex.Matches(browser, @"""api/[A-Za-z0-9/_.-]+\?(\w+)=",
                 RegexOptions.None, TimeSpan.FromSeconds(5))
             .Select(m => m.Groups[1].Value);
 

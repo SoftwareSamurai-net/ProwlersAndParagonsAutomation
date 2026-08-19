@@ -4,10 +4,24 @@
 // SQL in among it, and the queries are reviewable as a set. Two of them do work that would be a
 // race if it were written as a read followed by a write, and both are called out below.
 
-/** Rows whose time is up, removed opportunistically. Cheap, indexed, and keeps the table small. */
+/**
+ * Rows whose time is up, removed opportunistically. Cheap, indexed, and keeps the tables small.
+ *
+ * **All three tables, and `login_attempts` was missed first time round.** Its rows are not
+ * expiries but rate-limiting windows, so nothing looked wrong: the counting stayed correct
+ * because the window rolls inside the statement. What grew was the table — one permanent row per
+ * address and per source ever seen, for ever, which is a slow leak rather than a fault and so
+ * would never have announced itself.
+ */
 export async function sweepExpired(db, now) {
     await db.prepare('DELETE FROM login_tokens WHERE expires_at < ?').bind(now).run();
     await db.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now).run();
+
+    // A window whose start is older than the longest window can only ever be reset on its next
+    // use, so the row carries no information. Seconds here, not milliseconds: that is the scale
+    // `countAttempt` writes in.
+    await db.prepare('DELETE FROM login_attempts WHERE window_start < ?')
+        .bind(Math.floor(now / 1000) - 24 * 60 * 60).run();
 }
 
 export async function userByEmail(db, email) {
@@ -15,10 +29,9 @@ export async function userByEmail(db, email) {
         .bind(email).first();
 }
 
-export async function userById(db, id) {
-    return await db.prepare('SELECT id, email, display_name FROM users WHERE id = ?')
-        .bind(id).first();
-}
+// A lookup by id used to live here and nothing called it. Every route that needs a user gets one
+// from the session join below, which is the only way a caller can name one — an id arriving from
+// anywhere else would be a caller nominating whose data to read.
 
 /**
  * The account for an address, made if there is not one.

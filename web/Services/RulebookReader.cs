@@ -36,22 +36,53 @@ public sealed class RulebookReader
         new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     private readonly HttpClient _http;
+    private readonly IIdentitySource _who;
 
     /// <summary>
     /// What has already been asked, including the misses.
     ///
     /// <para>Caching the misses is the point: without it, every render of a Power with no entry
-    /// of its own — about a fifth of them — is another round trip that will fail again. The
-    /// cache is per visit and per scope, so signing out and back in re-asks.</para>
+    /// of its own — about a fifth of them — is another round trip that will fail again.</para>
     /// </summary>
     private readonly Dictionary<string, PowerEntry?> _seen = new(StringComparer.OrdinalIgnoreCase);
 
-    public RulebookReader(HttpClient http) => _http = http;
+    /// <summary>
+    /// Whose answers <see cref="_seen"/> currently holds, or null before the first ask.
+    ///
+    /// <para><b>This is the whole of the fix for a real leak, and the comment it replaced claimed
+    /// the opposite.</b> It said the cache was "per visit and per scope, so signing out and back
+    /// in re-asks" — which is false: <b>Blazor WebAssembly has one DI scope for the life of the
+    /// app</b>, so a scoped service is a singleton here, and signing out is pure SPA state with
+    /// no reload. So a signed-in visitor who opened a Power's entry on a shared machine, then
+    /// signed out, could open the same Power again and be shown the publisher's prose from this
+    /// dictionary — never asking the server, which would have refused. Reproduced, then fixed.</para>
+    ///
+    /// <para><b>Comparing the key rather than listening for a change is deliberate.</b>
+    /// <see cref="Accounts"/> does raise an event, but a guarantee that depends on an event being
+    /// raised is a guarantee somebody can remove by editing another file. This cannot be wrong
+    /// about who is asking, because it asks.</para>
+    /// </summary>
+    private string? _cachedFor;
+
+    public RulebookReader(HttpClient http, IIdentitySource who)
+    {
+        _http = http;
+        _who = who;
+    }
 
     /// <summary>The entry for a Power by name, or null when there is not one to show.</summary>
     public async Task<PowerEntry?> ForPowerAsync(string powerName)
     {
         if (string.IsNullOrWhiteSpace(powerName)) return null;
+
+        // Emptied rather than partitioned by key: nothing wants yesterday's account's answers
+        // back, and leaving the book's text in memory after a sign-out is the thing to avoid.
+        var who = await _who.CurrentAsync();
+        if (_cachedFor != who.Key)
+        {
+            _seen.Clear();
+            _cachedFor = who.Key;
+        }
 
         if (_seen.TryGetValue(powerName, out var already)) return already;
 

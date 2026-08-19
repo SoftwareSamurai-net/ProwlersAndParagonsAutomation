@@ -89,15 +89,20 @@ export function sameOrigin(request) {
 /**
  * The request body as JSON, or null if it is not usable.
  *
- * <p>The cap is on the text rather than on Content-Length, which a caller writes and can lie
+ * The cap is on the body itself rather than on Content-Length, which a caller writes and can lie
  * about. A character is a few kilobytes; a quarter of a megabyte is room for a very elaborate
- * one and far short of anything worth storing by accident.</p>
+ * one and far short of anything worth storing by accident.
+ *
+ * **And it is counted in bytes, which is what this comment used to claim while the code counted
+ * something else.** `String.length` is UTF-16 code units, so a body padded with astral-plane
+ * characters — two units each, four bytes each — reached about twice the stated limit before
+ * tripping it. The existing test padded with ASCII, where the two measures agree, so it passed.
  */
 export const MAX_BODY_BYTES = 256 * 1024;
 
 export async function readJson(request) {
     const text = await request.text();
-    if (text.length > MAX_BODY_BYTES) return null;
+    if (new TextEncoder().encode(text).byteLength > MAX_BODY_BYTES) return null;
 
     try {
         const value = JSON.parse(text);

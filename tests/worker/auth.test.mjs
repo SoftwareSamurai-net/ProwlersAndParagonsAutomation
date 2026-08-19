@@ -3,7 +3,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { LINKS_PER_ADDRESS_PER_HOUR, SESSION_LIFETIME_MS, TOKEN_LIFETIME_MS } from '../../worker/auth.js';
+import {
+    LINKS_PER_ADDRESS_PER_HOUR, LINKS_PER_CLIENT_PER_HOUR, SESSION_LIFETIME_MS, TOKEN_LIFETIME_MS,
+} from '../../worker/auth.js';
 import { cookieFrom, everythingStored, ORIGIN, server, signIn, tokenFrom } from './harness.mjs';
 
 test('a link is mailed, spent, and leaves the caller signed in', async () => {
@@ -136,6 +138,87 @@ test('the rate limit stops the mail without changing the answer', async () => {
     app.now += 61 * 60 * 1000;
     await app.call('/api/auth/request', { method: 'POST', body: { email: 'a@b.test' } });
     assert.equal(app.sent.length, LINKS_PER_ADDRESS_PER_HOUR + 1);
+});
+
+test('one machine cannot mail a link to every address it knows', async () => {
+    // **This limit had no test at all**, found by a reviewer: deleting the `byClient` half of the
+    // guard left all 36 tests passing, because nothing in the suite ever set the header the limit
+    // is keyed on, so every call counted as the same `unknown` source. The address limit does not
+    // cover this — the whole point of it is a different address every time.
+    const app = server();
+    const from = { 'cf-connecting-ip': '203.0.113.9' };
+
+    for (let i = 0; i <= LINKS_PER_CLIENT_PER_HOUR; i++) {
+        const response = await app.call('/api/auth/request',
+            { method: 'POST', body: { email: `victim${i}@example.test` }, headers: from });
+
+        assert.equal(response.status, 204);
+    }
+
+    assert.equal(app.sent.length, LINKS_PER_CLIENT_PER_HOUR,
+        'the per-client limit did not bite, so this test is asserting nothing');
+
+    // The positive control, and the thing that makes this a *client* limit rather than a global
+    // one: another source is unaffected, on an address that has asked for nothing.
+    await app.call('/api/auth/request', {
+        method: 'POST',
+        body: { email: 'somebody@example.test' },
+        headers: { 'cf-connecting-ip': '198.51.100.4' },
+    });
+
+    assert.equal(app.sent.length, LINKS_PER_CLIENT_PER_HOUR + 1);
+});
+
+test('X-Forwarded-For is not trusted as the source', async () => {
+    // Anybody may write that header; only `CF-Connecting-IP` is set by Cloudflare's own edge.
+    // Reading the wrong one is a rate limit somebody can step around by varying a string.
+    const app = server();
+
+    for (let i = 0; i <= LINKS_PER_CLIENT_PER_HOUR + 1; i++) {
+        await app.call('/api/auth/request', {
+            method: 'POST',
+            body: { email: `victim${i}@example.test` },
+            headers: { 'x-forwarded-for': `203.0.113.${i}` },
+        });
+    }
+
+    assert.equal(app.sent.length, LINKS_PER_CLIENT_PER_HOUR,
+        'varying X-Forwarded-For got past the per-client limit, so it is being read as the source');
+});
+
+test('a site with no configured address sends nothing and says so', async () => {
+    // The link used to be addressed from the origin of the request, which is derived from the
+    // host it arrived on. Refusing is the safe direction: a link minted for a host somebody else
+    // controls carries a live token, because the token *is* the credential.
+    const app = server();
+    delete app.env.SITE_URL;
+
+    const response = await app.call('/api/auth/request',
+        { method: 'POST', body: { email: 'a@b.test' } });
+
+    assert.equal(response.status, 500);
+    assert.equal(app.sent.length, 0);
+
+    // And no token row was written for a link that could never be delivered.
+    assert.equal(app.db.raw.prepare('SELECT COUNT(*) AS n FROM login_tokens').all()[0].n, 0);
+});
+
+test('the rate-limit table does not grow for ever', async () => {
+    const app = server();
+
+    await app.call('/api/auth/request', { method: 'POST', body: { email: 'a@b.test' } });
+    assert.ok(app.db.raw.prepare('SELECT COUNT(*) AS n FROM login_attempts').all()[0].n > 0);
+
+    // A day later, somebody else asks. The old windows carry no information — the window rolls
+    // inside the statement — so they are swept. Nothing about the counting looked wrong while
+    // they accumulated, which is why this is a slow leak rather than a fault.
+    app.now += 25 * 60 * 60 * 1000;
+    await app.call('/api/auth/request', { method: 'POST', body: { email: 'c@d.test' } });
+
+    const keys = app.db.raw.prepare('SELECT key FROM login_attempts').all().map(r => r.key);
+
+    assert.ok(!keys.includes('email:a@b.test'), 'the stale window is still there: ' + keys.join(', '));
+    assert.ok(keys.includes('email:c@d.test'), 'the current window was swept too');
 });
 
 test('one address being rate limited does not lock out another', async () => {

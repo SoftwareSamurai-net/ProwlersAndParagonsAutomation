@@ -27,20 +27,11 @@ export async function hash(secret) {
     return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/**
- * Constant-time string comparison, for anywhere a secret is compared rather than looked up.
- *
- * Lookups by hash are already constant-time-ish because they are index probes on a value the
- * attacker cannot see; this exists for the cases that are not.
- */
-export function sameSecret(a, b) {
-    if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
-
-    let diff = 0;
-    for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-
-    return diff === 0;
-}
+// A constant-time comparison used to live here, and it is gone rather than kept "in case".
+// Nothing compares a secret in this server: both are looked up by their hash, which is an index
+// probe on a value the caller never sees. An unused security helper is worse than none — it
+// reads as though a comparison somewhere is protected, and it is the obvious thing to reach for
+// in the one place that would not need it. Write it back when something compares a secret.
 
 /** An opaque user id. Not derived from the address — see the schema's note on `users.id`. */
 export function newUserId() {
