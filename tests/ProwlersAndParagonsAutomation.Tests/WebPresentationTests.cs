@@ -2994,6 +2994,70 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// <b>No component explains anything with a <c>title</c> attribute.</b>
+    ///
+    /// <para>This is the entire reason <c>Tooltip</c> is a component rather than an attribute.
+    /// <c>title</c> never appears on a touch screen, is unreliable for keyboard users, cannot be
+    /// styled, cannot be dismissed, and is announced inconsistently by screen readers — and none of
+    /// that is visible to a compiler, to a rendering test, or to somebody reading the markup and
+    /// finding it perfectly reasonable. It is the single easiest way to undo this work, because it
+    /// is the obvious thing to write.</para>
+    ///
+    /// <para><c>&lt;title&gt;</c> the element is a different thing and is not matched: the scan
+    /// requires the attribute form, an <c>=</c> after the name.</para>
+    /// </summary>
+    [Fact]
+    public void NoComponentExplainsAnythingWithATitleAttribute()
+    {
+        var attribute = Rx(@"(?<![\w-])title\s*=");
+
+        var offenders = RazorFiles
+            .Where(f => attribute.IsMatch(File.ReadAllText(f)))
+            .Select(Path.GetFileName)
+            .ToList();
+
+        Assert.True(
+            offenders.Count == 0,
+            "A title attribute is not a tooltip — no touch, unreliable by keyboard, unstyleable, "
+            + "not dismissable. Use the Tooltip component:\n  " + string.Join("\n  ", offenders));
+    }
+
+    /// <summary>
+    /// <b>A closed tip takes no layout box at all — <c>display: none</c>, not
+    /// <c>visibility: hidden</c>.</b>
+    ///
+    /// <para><b>This assertion is the exact inverse of the one it replaces, and CI is why.</b> The
+    /// first version hid the tip with <c>visibility</c> so that the accessible description could
+    /// be read off it while closed, and this test required that it not be <c>display: none</c>.
+    /// A hidden element keeps its layout box: an absolutely-positioned tip up to 22rem wide then
+    /// contributed real horizontal overflow at 375px, while closed, on every page carrying one.
+    /// The narrow harness caught it in CI; the whole suite passed locally, because no rendering
+    /// test here can see a box leaving the viewport.</para>
+    ///
+    /// <para>The description now lives on a separate <c>sr-only</c> element — a clipped 1px box
+    /// that contributes no overflow — so the visible copy is free to leave layout entirely. Both
+    /// halves are asserted, because keeping only this one would allow the description to be
+    /// deleted and the tooltip to become decoration.</para>
+    /// </summary>
+    [Fact]
+    public void AClosedTipTakesNoLayoutBox()
+    {
+        Assert.Equal("none", EffectiveValue(ScreenHalfOfAppCss, ".tip", "display"));
+        Assert.Equal("block", EffectiveValue(ScreenHalfOfAppCss, ".tip.shown", "display"));
+
+        // visibility:hidden would put the overflow straight back. Named rather than left implied,
+        // since it is the spelling somebody reaches for when restoring a fade.
+        Assert.NotEqual("hidden", EffectiveValue(ScreenHalfOfAppCss, ".tip", "visibility"));
+
+        // And the described element is not the one that just left layout. The component points
+        // aria-describedby at an sr-only copy; a version that pointed it back at `.tip` would be
+        // naming a `display: none` element, which is exactly the description-loss this shape
+        // exists to avoid.
+        var tooltip = File.ReadAllText(Path.Combine(WebRoot, "Components", "Tooltip.razor"));
+        Assert.Matches(Rx(@"id=""@Id""\s+class=""sr-only"""), tooltip);
+    }
+
+    /// <summary>
     /// The normalised declarations of every rule in the whole stylesheet whose selector ends
     /// in <paramref name="target"/> — so a more specific rule further down, which is what
     /// actually wins the cascade, is read too. Asserting on "the first rule with this class in

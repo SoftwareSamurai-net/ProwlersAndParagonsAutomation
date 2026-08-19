@@ -1289,6 +1289,83 @@ label {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Tooltips — a sentence about a rulebook term, on demand.
+
+   The trigger is a real button so the tip is reachable by keyboard and by touch;
+   the tip lives inside the wrapper so that moving the pointer onto it keeps it
+   open, which WCAG 1.4.13 asks for.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.tip-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.tip-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15em;
+    height: 1.15em;
+    margin-left: var(--space-1);
+    padding: 0;
+    border: var(--rule-weight) solid var(--rule);
+    border-radius: var(--radius-pill);
+    background: var(--panel-sunk);
+    color: var(--muted);
+    font: inherit;
+    font-size: var(--text-xs);
+    line-height: 1;
+    cursor: help;
+}
+
+.tip-trigger:hover {
+    color: var(--heading);
+    border-color: var(--accent);
+}
+
+/* The tip: the *visible* copy only. The accessible description is a separate
+   sr-only element in the component, which is what lets this one leave layout
+   entirely when closed.
+
+   **`display: none`, not `visibility: hidden` — that was the first version and it
+   was wrong.** A hidden element keeps its layout box, so this absolutely
+   positioned box contributed real horizontal overflow at 375px while closed, on
+   every page carrying a tooltip. Both 375px harnesses went red in CI and the whole
+   local suite passed, because no rendering test here can see a box leaving the
+   viewport. Losing the fade is the price and it is not much of one.
+
+   **Downward, and that is not the default anybody reaches for first.** A tip above its trigger
+   is the conventional shape and it is wrong here: one of the two call sites is inside the budget
+   breakdown, which hangs off a strip stuck to `top: 0`, so an upward tip is clipped by the window
+   edge exactly where it is most likely to be opened. Found by rendering one and looking at it —
+   no test in this repository can see a box leaving the viewport. Downward can clip at the bottom
+   instead, which the page scrolls to fix and the sticky strip does not. */
+.tip {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    z-index: 30;
+    width: max-content;
+    max-width: min(22rem, 88vw);
+    transform: translateX(-50%);
+    margin-top: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: var(--rule-weight) solid var(--rule);
+    border-radius: var(--radius-small);
+    background: var(--panel);
+    color: var(--ink);
+    box-shadow: var(--shadow-2);
+    font-size: var(--text-sm);
+    font-weight: 400;
+
+    display: none;
+}
+
+.tip.shown { display: block; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
    The command palette — Ctrl-K, from anywhere.
 
    It sits above the page and below Blazor's error bar at 1000, in the same band
@@ -1439,6 +1516,9 @@ label {
        print triggered from the keyboard with it open would otherwise put a veil and a
        list of shortcuts over the sheet, which is the deliverable. */
     .palette-scrim,
+    /* A tooltip is a control for asking a question, and paper cannot be asked. The term it
+       explains prints; the button and the tip do not. */
+    .tip-wrap,
     .banner-link,
     .replay,
     .no-print,

@@ -1,0 +1,93 @@
+@* A term with an explanation available on demand.
+
+   **This is not a `title` attribute, and that is the whole reason it is a component.** `title`
+   never appears on a touch screen, is unreliable for keyboard users, cannot be styled, is
+   announced inconsistently by screen readers, and cannot be dismissed. Every one of those fails
+   the standard this app holds itself to elsewhere, and none of them is visible to a compiler or
+   to a test that only checks the text is present somewhere.
+
+   **It is supplementary and must stay so.** WCAG is explicit that information conveyed only by a
+   tooltip is information some readers do not get. Nothing here may be the only place something is
+   said — the tier cards still print their budget and their cap, the review step still prints every
+   finding. This adds a sentence about a rulebook term next to the term; it does not replace one. *@
+
+<span class="tip-wrap"
+      @onmouseenter="Show"
+      @onmouseleave="Hide">
+    @* The trigger is a real button, which is what makes this reachable at all by keyboard and by
+       touch: a tap focuses it, and focus shows the tip. A `<span>` with a mouse handler is a
+       tooltip only for people using a mouse.
+
+       aria-describedby rather than aria-label on the button, because the sentence is a
+       *description* of the term and the button's own name is what the button does. Giving the
+       button the sentence as its name would have a screen reader read the whole explanation
+       where it expects "Help". *@
+    <button type="button"
+            class="tip-trigger"
+            aria-describedby="@Id"
+            aria-expanded="@(_shown ? "true" : "false")"
+            @onfocus="Show"
+            @onblur="Hide"
+            @onkeydown="Key">
+        <span aria-hidden="true">?</span>
+        <span class="sr-only">What @Term means</span>
+    </button>
+
+    @* **The description and the visible tip are two elements, and that split is load-bearing.**
+
+       The description is what `aria-describedby` names. It is always in the document, so the
+       reference never dangles and a screen-reader user is given the sentence without having to
+       hover for it — deliberately unlike the budget breakdown, where `aria-controls` is written
+       only while its target exists because there the target genuinely does not.
+
+       **It is `sr-only` rather than the visible box hidden, and the narrow harness is why.** The
+       first version had one element hidden with `visibility: hidden`, which keeps its layout box
+       — so an absolutely-positioned tip up to 22rem wide contributed real horizontal overflow at
+       375px while closed, on every page carrying one. CI caught it; nothing local did. `sr-only`
+       is a clipped 1px box and contributes none. *@
+    <span id="@Id" class="sr-only">@Text</span>
+
+    @* The visible copy, and only that: `aria-hidden`, or the sentence is announced twice — once
+       as the button's description and again as text in the page.
+
+       It sits inside the wrapper rather than beside the button so that moving the pointer onto
+       the tip keeps it open. WCAG 1.4.13 asks for exactly that — hoverable, dismissable,
+       persistent — and a tip that vanishes when you reach for it fails the first. *@
+    <span class="@TipClass" role="tooltip" aria-hidden="true">@Text</span>
+</span>
+
+@code {
+    /// <summary>The term being explained. Used in the trigger's accessible name.</summary>
+    [Parameter, EditorRequired] public string Term { get; set; } = "";
+
+    /// <summary>The sentence. Supplementary — never the only place something is said.</summary>
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+
+    private bool _shown;
+
+    private void Show() => _shown = true;
+    private void Hide() => _shown = false;
+
+    /// <summary>
+    /// Escape dismisses it, which WCAG 1.4.13 requires and which the obvious implementation
+    /// leaves out — a tip that can only be closed by moving the pointer is not dismissable by
+    /// somebody who is not using a pointer.
+    /// </summary>
+    private void Key(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") Hide();
+    }
+
+    /// <summary>
+    /// <b>Derived from the term rather than generated.</b> A fresh identifier per render would be
+    /// enough to break the replay's strongest guard, which renders the same character twice and
+    /// requires the two pages to be byte-identical — a random id differs every time and would
+    /// report a difference that is not one. Two tooltips on one page explaining the same term
+    /// would share an id, which is the one collision worth having: the description is the same
+    /// sentence either way.
+    /// </summary>
+    private string Id => "tip-" + new string(
+        Term.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray());
+
+    private string TipClass => _shown ? "tip shown" : "tip";
+}
