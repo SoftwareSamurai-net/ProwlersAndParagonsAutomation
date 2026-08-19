@@ -14,7 +14,7 @@ That ordering is the whole point — see [`mcp/QUESTION-POLICY.md`](../mcp/QUEST
 which is what the `creation_guide` tool returns, so there is one copy and it cannot drift from
 what the assistant is taught.
 
-If you have no Claude of your own, the site has four recorded conversations at `/replay` that
+If you have no Claude of your own, the site has four recorded conversations at `/portfolio/replay` that
 show the same thing, with the engine costing and validating in your browser as you read.
 
 ---
