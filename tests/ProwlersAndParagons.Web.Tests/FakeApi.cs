@@ -26,8 +26,37 @@ public sealed class FakeApi : HttpMessageHandler
     /// <summary>Who the server says is signed in, or null for nobody.</summary>
     public (string Key, string DisplayName)? SignedIn { get; set; }
 
-    /// <summary>The account's stored character, exactly as the browser sent it.</summary>
-    public string? StoredCharacter { get; set; }
+    /// <summary>
+    /// Every account's stored character, keyed by account, exactly as the browser sent it.
+    ///
+    /// <para><b>Keyed, because one shared slot was a second lie of the same kind the verify route
+    /// used to tell.</b> A single field meant two signed-in accounts on one instance shared one
+    /// character — so any test about two accounts and their characters would have been quietly a
+    /// test about one, and would have passed against a server that had no notion of ownership at
+    /// all. Found by a fix audit against the unmodified stub; the real server's own tests do cover
+    /// this, which is why nothing was actually broken in production code.</para>
+    /// </summary>
+    public Dictionary<string, string> Characters { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The character of whoever is signed in. Convenience for the many tests with one account.
+    ///
+    /// <para>Setting it with nobody signed in is a test mistake rather than a state the server can
+    /// be in, so it throws rather than silently storing nothing.</para>
+    /// </summary>
+    public string? StoredCharacter
+    {
+        get => SignedIn is { } who ? Characters.GetValueOrDefault(who.Key) : null;
+        set
+        {
+            var who = SignedIn ?? throw new InvalidOperationException(
+                "Nobody is signed in, so there is no account for this character to belong to. "
+                + "Set SignedIn first.");
+
+            if (value is null) Characters.Remove(who.Key);
+            else Characters[who.Key] = value;
+        }
+    }
 
     /// <summary>A Power's entry, for whoever is allowed to read one.</summary>
     public Dictionary<string, string> Book { get; } = new(StringComparer.OrdinalIgnoreCase);
@@ -98,23 +127,27 @@ public sealed class FakeApi : HttpMessageHandler
 
     private Task<HttpResponseMessage> Character(HttpRequestMessage request)
     {
-        if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
+        // Scoped to whoever is asking, like the real server's `WHERE user_id = ?`. A stub that
+        // answered from one slot could not tell a working ownership check from a missing one.
+        if (SignedIn is not { } who) return Status(HttpStatusCode.Unauthorized);
 
         if (request.Method == HttpMethod.Put)
         {
             // Read as text and kept as text, because that is what the real server does: it
             // stores bytes it never parses, and what round-trips is exactly what was written.
-            StoredCharacter = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            Characters[who.Key] = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
             return Status(HttpStatusCode.NoContent);
         }
 
         if (request.Method == HttpMethod.Delete)
         {
-            StoredCharacter = null;
+            Characters.Remove(who.Key);
             return Status(HttpStatusCode.NoContent);
         }
 
-        return StoredCharacter is { } stored ? Json(stored) : Status(HttpStatusCode.NotFound);
+        return Characters.TryGetValue(who.Key, out var stored)
+            ? Json(stored)
+            : Status(HttpStatusCode.NotFound);
     }
 
     private Task<HttpResponseMessage> Entry(HttpRequestMessage request)

@@ -164,6 +164,45 @@ public sealed class AccountTests
         Assert.NotNull(app.Storage.Peek(AnonymousKey));
     }
 
+    /// <summary>
+    /// Two accounts on one machine do not share a character.
+    ///
+    /// <para><b>The server's own tests cover this and the browser's did not</b>, which a fix audit
+    /// found by noticing the stub had a single character slot for every account — so any test of
+    /// two accounts against the character store would have been quietly a test of one, and would
+    /// have passed against a server with no notion of ownership at all. Nothing in production was
+    /// wrong; what was missing was the ability to tell.</para>
+    /// </summary>
+    [Fact]
+    public async Task TwoAccountsOnOneMachineDoNotShareACharacter()
+    {
+        var app = Build();
+
+        app.Api.SignedIn = ("acct-7", "player");
+        var mine = SampleCharacters.Hero();
+        mine.Name = "Mine";
+        await app.Store.SaveAsync(mine, SheetMode.Hero);
+
+        // Somebody else signs in on the same browser. Their account has nothing in it.
+        app.Api.SignedIn = ("acct-9", "somebody-else");
+        await app.Who.CompleteSignInAsync("a-token");
+
+        Assert.Null(await app.Store.LoadAsync());
+        Assert.False(await app.Store.AccountHasCharacterAsync());
+
+        // And saving theirs does not land on top of the first.
+        var theirs = SampleCharacters.Villain();
+        theirs.Name = "Theirs";
+        await app.Store.SaveAsync(theirs, SheetMode.Villain);
+
+        app.Api.SignedIn = ("acct-7", "player");
+        await app.Who.CompleteSignInAsync("another-token");
+
+        var back = await app.Store.LoadAsync();
+        Assert.NotNull(back);
+        Assert.Equal("Mine", back!.Value.Sheet.Name);
+    }
+
     [Fact]
     public async Task AnAccountThatAlreadyHasACharacterIsNotOfferedAReplacement()
     {

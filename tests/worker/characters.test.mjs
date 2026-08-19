@@ -114,23 +114,37 @@ test('a body that is not JSON, or is enormous, is refused', async () => {
     assert.equal((await send(JSON.stringify(character))).status, 204);
 });
 
-test('the size cap is bytes, not characters', async () => {
+test('the size cap is bytes, whatever the characters are', async () => {
     const app = server();
     const { cookie } = await signIn(app, 'a@b.test');
 
-    // **The cap counted UTF-16 code units and its comment said bytes**, found by a reviewer. An
-    // astral-plane character is two units and four bytes, so a body padded with them reached
-    // about twice the stated limit. The existing test padded with ASCII, where the two measures
-    // agree — which is exactly why it passed.
-    const emoji = '\u{1F600}';                         // four bytes, two code units
-    const padding = emoji.repeat(40 * 1024);           // 160 KB of bytes, 80K units
+    // **The cap counted UTF-16 code units and its comment said bytes**, found by a reviewer: the
+    // original test padded with ASCII, where the two measures agree, which is exactly why it
+    // passed.
+    //
+    // **Then one padding character was not enough either.** A fix audit "corrected" the count by
+    // adding two per surrogate pair — right for emoji, wrong for every three-byte character in
+    // the basic plane — and stored 307 KB with all 42 tests green. So both shapes are asserted:
+    // four bytes over two code units, and three bytes over one.
+    const paddings = [
+        { name: 'astral (4 bytes, 2 units)', char: '\u{1F600}' },
+        { name: 'CJK (3 bytes, 1 unit)', char: '中' },
+    ];
 
-    const under = '{"a":"' + padding + '"}';
-    const over = '{"a":"' + emoji.repeat(80 * 1024) + '"}';   // 320 KB of bytes
+    for (const { name, char } of paddings) {
+        const bytes = new TextEncoder().encode(char).byteLength;
+        const over = '{"a":"' + char.repeat(Math.ceil((300 * 1024) / bytes)) + '"}';
 
-    assert.ok(new TextEncoder().encode(over).byteLength > 256 * 1024);
-    assert.ok(over.length < 256 * 1024, 'the padding is not astral, so this proves nothing');
+        assert.ok(new TextEncoder().encode(over).byteLength > 256 * 1024, name);
+        assert.ok(over.length < 256 * 1024,
+            name + ': the padding is not multi-byte per code unit, so this proves nothing');
 
+        assert.equal((await app.call('/api/character', { method: 'PUT', raw: over, cookie })).status,
+            400, name + ' got past the cap');
+    }
+
+    // The positive control: a body genuinely under the cap is still accepted, so the cap has not
+    // simply started refusing everything.
+    const under = '{"a":"' + '中'.repeat(1024) + '"}';
     assert.equal((await app.call('/api/character', { method: 'PUT', raw: under, cookie })).status, 204);
-    assert.equal((await app.call('/api/character', { method: 'PUT', raw: over, cookie })).status, 400);
 });

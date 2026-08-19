@@ -1445,6 +1445,13 @@ public sealed class WebPresentationTests
     /// </summary>
     private static bool CouldOverride(string property, string other)
     {
+        // **`all` resets every property there is, and this helper could not see it.** A fix audit
+        // put `.book-text { all: unset; display: block }` after the real rule: the whole suite
+        // stayed green while the box lost its background, its padding and its left edge in any
+        // real browser. It is one keyword that defeats every guard in this file at once, which
+        // makes it worth the first line rather than a case among the aliases below.
+        if (other == "all") return true;
+
         // A longhand: `border-bottom` is changed by `border-bottom-color`, `padding` by
         // `padding-left`. Also the other way round, since a shorthand resets a longhand.
         if (other.StartsWith($"{property}-", StringComparison.Ordinal)) return true;

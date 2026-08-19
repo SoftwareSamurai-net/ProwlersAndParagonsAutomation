@@ -35,6 +35,33 @@ test('a link is mailed, spent, and leaves the caller signed in', async () => {
     assert.equal(who.status, 200);
 });
 
+test('the identity carries a usable key, not just the right field names', async () => {
+    // **A contract on field names is not a contract.** `AccountsContractTests` compares the keys
+    // the server returns against the names the client binds, and a fix audit returned
+    // `{ key: null, displayName: … }` — same names, both suites green. The consequence is the
+    // worst-shaped one available: the server establishes the session and sets the cookie, and the
+    // client reads a null key as "nobody is signed in". A session that exists and is disowned.
+    const app = server();
+    const { identity, cookie } = await signIn(app, 'player@example.test');
+
+    assert.equal(typeof identity.key, 'string');
+    assert.ok(identity.key.length > 0, 'the key is empty');
+    assert.equal(typeof identity.displayName, 'string');
+
+    // And the same key comes back from the other route, so the two cannot answer differently
+    // about who somebody is.
+    const me = await (await app.call('/api/me', { cookie })).json();
+
+    assert.equal(me.key, identity.key);
+    assert.equal(me.displayName, identity.displayName);
+
+    // It is the account's own id — the row the session points at, not something reflected back
+    // from the request.
+    const stored = app.db.raw.prepare('SELECT id FROM users WHERE email = ?').all('player@example.test');
+    assert.equal(stored.length, 1);
+    assert.equal(identity.key, stored[0].id);
+});
+
 test('the cookie is HttpOnly, Secure and SameSite=Lax', async () => {
     const app = server();
     const { cookie } = await signIn(app, 'player@example.test');
@@ -169,21 +196,54 @@ test('one machine cannot mail a link to every address it knows', async () => {
     assert.equal(app.sent.length, LINKS_PER_CLIENT_PER_HOUR + 1);
 });
 
-test('X-Forwarded-For is not trusted as the source', async () => {
-    // Anybody may write that header; only `CF-Connecting-IP` is set by Cloudflare's own edge.
-    // Reading the wrong one is a rate limit somebody can step around by varying a string.
+test('no header a caller can write moves the rate-limit bucket', async () => {
+    // Only `CF-Connecting-IP` is set by Cloudflare's own edge; every header below can be written
+    // by whoever is calling. **Naming one of them was not enough**: a fix audit made the code
+    // trust `X-Real-IP` as well and mailed 26 links against a cap of 20 with all 42 tests green,
+    // because the guard only knew about `X-Forwarded-For`. So the whole family is varied at once
+    // and the limit still has to bite.
+    const spoofable =
+        ['x-forwarded-for', 'x-real-ip', 'x-client-ip', 'x-cluster-client-ip', 'forwarded',
+         'true-client-ip', 'x-original-forwarded-for', 'client-ip', 'remote-addr'];
+
     const app = server();
 
     for (let i = 0; i <= LINKS_PER_CLIENT_PER_HOUR + 1; i++) {
-        await app.call('/api/auth/request', {
-            method: 'POST',
-            body: { email: `victim${i}@example.test` },
-            headers: { 'x-forwarded-for': `203.0.113.${i}` },
-        });
+        // Every one of them different on every call, so any single header being read as the
+        // source gives this caller a fresh bucket each time.
+        const headers = Object.fromEntries(spoofable.map(h => [h, `203.0.113.${i}`]));
+
+        await app.call('/api/auth/request',
+            { method: 'POST', body: { email: `victim${i}@example.test` }, headers });
     }
 
     assert.equal(app.sent.length, LINKS_PER_CLIENT_PER_HOUR,
-        'varying X-Forwarded-For got past the per-client limit, so it is being read as the source');
+        'varying a caller-supplied header got past the per-client limit, so one of '
+        + spoofable.join('/') + ' is being read as the source');
+});
+
+test('the link is addressed to the configured site and nothing else can move it', async () => {
+    // **The refusal below is not enough on its own.** It only asks what happens when SITE_URL is
+    // missing; a fix audit added a second header the code trusted *in addition* — leaving the
+    // refusal intact — and mailed a link to `https://evil.attacker.test` with all 42 tests green.
+    // What has to be asserted is where the link points, not that a fallback was removed.
+    const app = server();
+
+    const hostile = {
+        'x-forwarded-host': 'evil.attacker.test',
+        'x-forwarded-proto': 'http',
+        'x-original-host': 'evil.attacker.test',
+        'x-host': 'evil.attacker.test',
+        forwarded: 'host=evil.attacker.test',
+        host: 'evil.attacker.test',
+    };
+
+    await app.call('/api/auth/request',
+        { method: 'POST', body: { email: 'a@b.test' }, headers: hostile });
+
+    assert.equal(app.sent.length, 1, 'nothing was sent, so this asserts nothing');
+    assert.equal(new URL(app.sent[0].link).origin, ORIGIN,
+        'the link was addressed somewhere other than SITE_URL: ' + app.sent[0].link);
 });
 
 test('a site with no configured address sends nothing and says so', async () => {
@@ -203,22 +263,37 @@ test('a site with no configured address sends nothing and says so', async () => 
     assert.equal(app.db.raw.prepare('SELECT COUNT(*) AS n FROM login_tokens').all()[0].n, 0);
 });
 
-test('the rate-limit table does not grow for ever', async () => {
+test('the rate-limit table does not grow for ever, in either kind of key', async () => {
     const app = server();
 
-    await app.call('/api/auth/request', { method: 'POST', body: { email: 'a@b.test' } });
-    assert.ok(app.db.raw.prepare('SELECT COUNT(*) AS n FROM login_attempts').all()[0].n > 0);
+    // **Both prefixes, because checking one was not enough**: a fix audit restricted the sweep to
+    // `key LIKE 'email:%'` and left fifty `ip:` rows behind with all 42 tests green. Every row in
+    // this table is one of the two, and a sweep that misses a kind is a sweep that does nothing
+    // for the kind there are most of.
+    await app.call('/api/auth/request', {
+        method: 'POST',
+        body: { email: 'a@b.test' },
+        headers: { 'cf-connecting-ip': '203.0.113.1' },
+    });
+
+    const before = app.db.raw.prepare('SELECT key FROM login_attempts').all().map(r => r.key);
+    assert.ok(before.some(k => k.startsWith('email:')), 'no address window was written');
+    assert.ok(before.some(k => k.startsWith('ip:')), 'no source window was written');
 
     // A day later, somebody else asks. The old windows carry no information — the window rolls
     // inside the statement — so they are swept. Nothing about the counting looked wrong while
     // they accumulated, which is why this is a slow leak rather than a fault.
     app.now += 25 * 60 * 60 * 1000;
-    await app.call('/api/auth/request', { method: 'POST', body: { email: 'c@d.test' } });
+    await app.call('/api/auth/request', {
+        method: 'POST',
+        body: { email: 'c@d.test' },
+        headers: { 'cf-connecting-ip': '198.51.100.2' },
+    });
 
     const keys = app.db.raw.prepare('SELECT key FROM login_attempts').all().map(r => r.key);
 
-    assert.ok(!keys.includes('email:a@b.test'), 'the stale window is still there: ' + keys.join(', '));
-    assert.ok(keys.includes('email:c@d.test'), 'the current window was swept too');
+    assert.deepEqual(keys.filter(k => k.startsWith('email:')), ['email:c@d.test']);
+    assert.deepEqual(keys.filter(k => k.startsWith('ip:')), ['ip:198.51.100.2']);
 });
 
 test('one address being rate limited does not lock out another', async () => {
