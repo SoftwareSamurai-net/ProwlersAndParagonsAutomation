@@ -53,6 +53,7 @@
         <button type="button" class="btn primary" @onclick="Print">Print this sheet</button>
         <button type="button" class="btn" @onclick="DownloadText">Download as text</button>
         <button type="button" class="btn" @onclick="DownloadJson">Download as data</button>
+        <button type="button" class="btn" @onclick="DownloadCharacter">Download to keep</button>
     </div>
     @* The web address, the date and the page number across the top of a printed page are
        the browser's own furniture, not part of the sheet — and no page can turn them off,
@@ -68,7 +69,9 @@
     </p>
     <p class="small muted">
         The text file is the same character for pasting into notes; the data file is for
-        other tools, and records every check above with its reference code.
+        other tools, and records every check above with its reference code. <b>Download to
+        keep</b> is the one to save if you want this character back later — it holds your
+        choices rather than the answers, so it can be loaded again.
     </p>
 </Panel>
 
@@ -107,6 +110,30 @@
 
     private Task DownloadJson() =>
         Download(".json", "application/json;charset=utf-8", CharacterSheetRenderer.RenderJson);
+
+    /// <summary>
+    /// The character as its own <em>inputs</em>, which is the only file anything can read back.
+    ///
+    /// <para><b>"Download as data" above cannot be re-imported and never could be.</b> It writes
+    /// the report — derived stats, costs and every finding — and reading that back would rebuild a
+    /// character from its own conclusions, which is why the strict reader refuses it and should.
+    /// So until this button existed the app could produce no file it could load, and none the
+    /// headless <c>build --from</c> command would accept either: a player could download their
+    /// character and then had nowhere to take it. Found by the agent that built the importer,
+    /// which noticed there was nothing for it to import.</para>
+    ///
+    /// <para>Deliberately two buttons rather than one changed in place. The report is a document
+    /// somebody reads; this is a file a program reads. Making one serve both would mean either
+    /// dropping the findings or teaching the reader to skip them.</para>
+    /// </summary>
+    private Task DownloadCharacter()
+    {
+        var name = CharacterSheetRenderer.BaseFileName(Session.Sheet, DateTime.Now) + ".character.json";
+
+        return Js.InvokeVoidAsync(
+            "ppDownload", name, "application/json;charset=utf-8",
+            CharacterSheetJson.Write(Session.Sheet)).AsTask();
+    }
 
     private delegate string Render(
         CharacterSheet sheet, RulesRepository rules, CostCalculator costs,

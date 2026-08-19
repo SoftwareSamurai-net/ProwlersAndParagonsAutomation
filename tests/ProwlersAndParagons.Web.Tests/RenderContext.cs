@@ -81,6 +81,7 @@ public sealed class RenderContext : BunitContext
         // is at least the loud kind of wrong.
         Services.AddScoped<SavedCharacters>();
         Services.AddScoped<ApiCharacterStore>();
+        Services.AddScoped<CharacterImport>();
         Services.AddScoped<AccountCharacterStore>();
         Services.AddScoped<ICharacterStore>(s => s.GetRequiredService<AccountCharacterStore>());
         Services.AddScoped<RulebookReader>();
