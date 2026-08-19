@@ -210,13 +210,42 @@ public sealed class ProofPages
     [Theory]
     [InlineData(SheetMode.Hero)]
     [InlineData(SheetMode.Villain)]
-    public void TheAccountSurfaces(SheetMode mode)
+    public async Task TheAccountSurfaces(SheetMode mode)
     {
         if (!Asked) return;
 
         var body = new StringBuilder();
 
+        // **The manager with characters in it**, because the empty state shows none of the rows and
+        // none of the per-row controls — which is most of the component. Proofing it empty is how a
+        // panel gets called verified without being seen, and the first two attempts at this did
+        // exactly that.
+        //
+        // Two things had to be got right, and both were got wrong first:
+        //
+        // * **Signed in before `.With(mode)`.** Loading a sample raises the session's change event,
+        //   which writes the character through, which asks who is here and *remembers the answer* —
+        //   so setting it afterwards left the manager reading the anonymous list and captioned "In
+        //   this browser". The same trap this file already documents twenty lines down.
+        // * **Saved through the account, not through local storage.** bUnit's JS interop here is
+        //   loose: `ppStore.save` is recorded and `ppStore.load` answers null, so nothing written to
+        //   local storage can be read back. `FakeApi` is a real in-memory store, so the account is
+        //   the only side that can actually hold a character for a proof to render.
+        using var holding = new RenderContext();
+        holding.Api.SignedIn = ("acct-7", "player");
+        holding.With(mode);
+
+        var account = holding.Services.GetRequiredService<ApiCharacterStore>();
+        await account.SaveAsync(
+            SavedCharacters.NewId(), "Ninth Precinct", SampleCharacters.Hero(), SheetMode.Hero);
+        await account.SaveAsync(
+            SavedCharacters.NewId(), "The Quiet Hour", SampleCharacters.Villain(), SheetMode.Villain);
+
+        Section(body, "Your characters — the top of the tier page, where a panel of one red button was",
+            holding.Render<CharacterManager>().Markup);
+
         using var anonymous = new RenderContext().With(mode);
+
         Section(body, "Signed out — one field, and no password anywhere",
             anonymous.Render<SignIn>().Markup);
 

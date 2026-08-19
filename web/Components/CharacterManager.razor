@@ -91,7 +91,13 @@
         }
         else
         {
-            <button type="button" class="btn danger" @onclick="AskNew">Start a new character</button>
+            @* **Only styled as destructive when it destroys something.** On an empty manager, or
+               on a sheet with nothing on it yet, this is the ordinary way to begin — and a red
+               button as the one action on an otherwise empty panel reads as a warning about
+               nothing. `HasSomethingToLose` is the same question the ask below uses, so the
+               colour and the confirmation can never disagree. *@
+            <button type="button" class="btn @(Session.HasSomethingToLose ? "danger" : "")"
+                    @onclick="AskNew">Start a new character</button>
         }
     </div>
 
@@ -104,8 +110,12 @@
     }
 
     @* Loading a file in is here rather than on the review step, because this is where somebody
-       looks for a character they already have. *@
-    <ImportCharacter OnImported="Imported" />
+       looks for a character they already have. Spaced off the buttons above: proofed without it,
+       the file picker sat flush under "Start a new character" and read as that button's own
+       caption. *@
+    <div class="spaced">
+        <ImportCharacter OnImported="Imported" />
+    </div>
 
     <p class="small muted">
         @if (_limit is { } limit)

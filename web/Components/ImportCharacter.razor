@@ -1,5 +1,11 @@
-@* Imports a character from a file somebody picked — the other half of "Download as data"
-   on the review step, which this app already writes and nothing yet reads back.
+@* Imports a character from a file somebody picked — the other half of **"Download to keep"** on
+   the review step.
+
+   Not "Download as data", which was what this comment first said: that button writes the *report*,
+   carrying derived stats, costs and every finding, and the strict reader refuses it — correctly,
+   since reading it back would rebuild a character from its own conclusions. "Download to keep"
+   exists because of this component: when it was written there was nothing in the app it could
+   accept, which nobody had noticed because each half was right on its own.
 
    Self-contained: the picker, the read, and the message for whichever of the three ways a
    file can fail to become a character. Nothing here decides where a successful import
