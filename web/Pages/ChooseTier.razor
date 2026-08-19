@@ -11,26 +11,22 @@
     Trait may reach. Everything after this is measured against those two numbers.
 </p>
 
-@* A finished character is the quickest way to see what a sheet looks like, and the only
-   way to see one without building it first. Both are legal Standard-tier characters —
-   there is a test that says so — and loading one replaces whatever is on the sheet. *@
-<Panel Title="Or start from a finished character"
-       Aside="Replaces anything already on the sheet"
-       NoPrint="true">
-    <p class="small muted">
-        Two characters written for this tool, filling in every section a sheet has. The
-        quickest way to see what you get at the end — and what a printed sheet looks like —
-        without spending twenty minutes building one first.
-    </p>
-    @* All three of these buttons throw the current character away, and the character is
-       kept in this browser between visits — so all three can destroy twenty minutes of work
-       that is written down nowhere else, and there is no undo behind any of them.
+@* **The two sample characters used to be here and are now in the portfolio.** They are a
+   demonstration — a way to see what a finished sheet looks like without building one — and a
+   demonstration is not a step in making your own character. Somebody who has come here to build
+   one had to walk past them first.
 
-       So all three ask first, in the page rather than in a browser dialogue, and only when
-       there is something to lose. On a fresh sheet they act on one click, which is the visit
-       where a player is most likely to want a sample and least likely to have anything at
-       stake. Guarding only the red one would have been the wrong half: loading a sample
-       overwrites the stored character just as completely, and reads as the safe option. *@
+   What stays is the one control that belongs to building: throwing this character away. *@
+<Panel Title="Starting over" Aside="There is no undo" NoPrint="true">
+    <p class="small muted">
+        Whatever you build is remembered in this browser, so you can close the tab and come back
+        to it. It is not sent anywhere and it is only on this device — download the sheet from the
+        last step if you want a copy that travels.
+    </p>
+
+    @* Asks first, in the page rather than in a browser dialogue, and only when there is
+       something to lose. On a fresh sheet it acts on one click, which is the visit where nobody
+       has anything at stake. *@
     <div class="inline">
         @if (_pending is { } pending)
         {
@@ -43,26 +39,12 @@
         }
         else
         {
-            <button type="button" class="btn" @onclick="() => Ask(Load(SheetMode.Hero))">
-                Load a Hero — Ninth Precinct
-            </button>
-            <button type="button" class="btn" @onclick="() => Ask(Load(SheetMode.Villain))">
-                Load a Villain — The Quiet Hour
-            </button>
             <button type="button" class="btn danger" @onclick="() => Ask(Discard())">
                 Start a new character
             </button>
-        }
-        @if (_loaded is not null)
-        {
-            <span class="small muted">Loaded <b>@_loaded</b> — see the GM review step.</span>
+            <NavLink class="btn" href="portfolio">Or start from a finished one</NavLink>
         }
     </div>
-    <p class="small muted spaced">
-        Whatever you build is remembered in this browser, so you can close the tab and come
-        back to it. It is not sent anywhere, and it is only on this device — download the
-        sheet from the last step if you want a copy that travels.
-    </p>
 </Panel>
 
 @* Six cards rather than six full-width rows. These are the one set of choices on the
@@ -169,7 +151,6 @@
              NextDisabled="@(Session.Sheet.SelectedTierId is null)" />
 
 @code {
-    private string? _loaded;
     private Replacement? _pending;
 
     /// <summary>Something that replaces the character, and what to call it when asking.</summary>
@@ -178,7 +159,6 @@
     private Replacement Discard() => new("discard this character", async () =>
     {
         Session.StartAgain();
-        _loaded = null;
 
         // Forget the stored copy too. Clearing only the session left the old character in
         // local storage, so it came back on the next visit — which reads as the button not
@@ -192,25 +172,10 @@
         await Store.ClearAsync();
     });
 
-    /// <summary>
-    /// <b>The palette is not pushed here any more.</b> It lives on the character, and the layout
-    /// applies it on the render after any change of character — so a sample brings its own
-    /// colours with it. A push here as well would be a second route to the same thing, and a
-    /// second route is where the two get to disagree.
-    /// </summary>
-    private Replacement Load(SheetMode mode) => new(
-        mode == SheetMode.Hero ? "load the Hero" : "load the Villain",
-        () =>
-        {
-            Session.LoadSample(mode);
-            _loaded = Session.Sheet.Name;
-            return Task.CompletedTask;
-        });
-
     /// <summary>Asks first, unless the sheet is empty and there is nothing to ask about.</summary>
     private async Task Ask(Replacement replacement)
     {
-        if (HasSomethingToLose) _pending = replacement;
+        if (Session.HasSomethingToLose) _pending = replacement;
         else await replacement.Run();
     }
 
@@ -219,17 +184,6 @@
         _pending = null;
         await replacement.Run();
     }
-
-    /// <summary>
-    /// Whether the sheet holds anything a player would mind losing. A tier on its own counts:
-    /// it is a decision, and it is the one every other choice is measured against.
-    /// </summary>
-    private bool HasSomethingToLose =>
-        Session.Sheet.SelectedTierId is not null
-        || Session.Sheet.SelectedPowers.Count > 0
-        || Session.Sheet.AbilityRanks.Count > 0
-        || Session.Sheet.TalentRanks.Count > 0
-        || !string.IsNullOrWhiteSpace(Session.Sheet.Name);
 
     /// <summary>
     /// What choosing this tier means, in one line.

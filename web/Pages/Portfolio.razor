@@ -1,0 +1,121 @@
+@page "/portfolio"
+@inject CharacterSession Session
+@inject ReplayLibrary Replays
+
+<PageTitle>How this was built — Prowlers &amp; Paragons</PageTitle>
+
+<h1>How this was built</h1>
+<p class="muted">
+    The other half of this site is a tool for use at a table. This half is about the tool: what
+    it does that is hard, and two ways to see it doing that without building a character first.
+</p>
+
+@* **This page is why the split exists.** Both of the things below are demonstrations — they
+   show somebody what the engine can do — and both used to sit in the middle of the character
+   generator, where somebody actually building a character had to walk past them. A recording of
+   a stranger's conversation and a pair of pre-made characters are not steps in making your own. *@
+
+<Panel Title="Recorded conversations">
+    <p class="small muted">
+        Conversations in which somebody described a character in ordinary words and got a costed,
+        checked one back. They are recordings — each was said once and plays back exactly as it
+        was. <b>The figures beside them are not recorded:</b> every Hero Point cost and every
+        finding is worked out in your browser, from the character the recording carries, as you
+        reveal it. If the rules and the recording ever disagreed, you would watch it happen.
+    </p>
+
+    @if (Replays.Problem is not null)
+    {
+        <p class="small">The recordings could not be loaded. What went wrong: @Replays.Problem</p>
+    }
+    else
+    {
+        <div class="inline">
+            <NavLink class="btn primary" href="portfolio/replay">Watch one being built</NavLink>
+            <span class="small muted">@Replays.Conversations.Count recordings</span>
+        </div>
+    }
+</Panel>
+
+<Panel Title="Two finished characters" Aside="Replaces anything already on the sheet">
+    <p class="small muted">
+        Two characters written for this tool, filling in every section a sheet has. The quickest
+        way to see what you get at the end — and what a printed sheet looks like — without
+        spending twenty minutes building one first. Both are legal Standard-tier characters, and
+        there is a test that says so.
+    </p>
+
+    @* Asks first, and only when there is something to lose. Loading a sample replaces the
+       character outright, and the character is kept in this browser between visits — so this
+       button can destroy work written down nowhere else, with no undo behind it. On an empty
+       sheet it acts on one click, which is the visit where somebody is most likely to want a
+       sample and least likely to have anything at stake. *@
+    <div class="inline">
+        @if (_pending is { } pending)
+        {
+            <button type="button" class="btn danger" @onclick="() => Do(pending)">
+                Yes, @pending.Verb
+            </button>
+            <button type="button" class="btn" @onclick="() => _pending = null">
+                Keep this character
+            </button>
+        }
+        else
+        {
+            <button type="button" class="btn" @onclick="() => Ask(Load(SheetMode.Hero))">
+                Load a Hero — Ninth Precinct
+            </button>
+            <button type="button" class="btn" @onclick="() => Ask(Load(SheetMode.Villain))">
+                Load a Villain — The Quiet Hour
+            </button>
+        }
+        @if (_loaded is not null)
+        {
+            <span class="small muted">Loaded <b>@_loaded</b> — it is on the sheet now.</span>
+        }
+    </div>
+
+    @if (_loaded is not null)
+    {
+        <div class="inline spaced">
+            <NavLink class="btn primary" href="review">See the sheet</NavLink>
+            <NavLink class="btn" href="">Back to building</NavLink>
+        </div>
+    }
+</Panel>
+
+@code {
+    private string? _loaded;
+    private Replacement? _pending;
+
+    /// <summary>Something that replaces the character, and what to call it when asking.</summary>
+    private sealed record Replacement(string Verb, Func<Task> Run);
+
+    /// <summary>
+    /// <b>The palette is not pushed here.</b> It lives on the character, and the layout applies it
+    /// on the render after any change of character — so a sample brings its own colours with it.
+    /// A push here as well would be a second route to the same thing, and a second route is where
+    /// the two get to disagree.
+    /// </summary>
+    private Replacement Load(SheetMode mode) => new(
+        mode == SheetMode.Hero ? "load the Hero" : "load the Villain",
+        () =>
+        {
+            Session.LoadSample(mode);
+            _loaded = Session.Sheet.Name;
+            return Task.CompletedTask;
+        });
+
+    /// <summary>Asks first, unless the sheet is empty and there is nothing to ask about.</summary>
+    private async Task Ask(Replacement replacement)
+    {
+        if (Session.HasSomethingToLose) _pending = replacement;
+        else await replacement.Run();
+    }
+
+    private async Task Do(Replacement replacement)
+    {
+        _pending = null;
+        await replacement.Run();
+    }
+}

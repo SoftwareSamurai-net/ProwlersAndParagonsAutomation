@@ -1,3 +1,4 @@
+@page "/portfolio/replay/{Id}"
 @page "/replay/{Id}"
 @inject ReplayLibrary Replays
 @inject CharacterSession Session
@@ -23,7 +24,7 @@ else if (Conversation is null)
 {
     <h1>No such recording</h1>
     <p class="muted">That address does not name one of the recorded conversations.</p>
-    <NavLink class="btn" href="replay">See the ones there are</NavLink>
+    <NavLink class="btn" href="portfolio/replay">See the ones there are</NavLink>
 }
 else
 {
@@ -105,7 +106,7 @@ else
                     <button type="button" class="btn primary" @onclick="Ask">
                         Open @DisplayName in the editor
                     </button>
-                    <NavLink class="btn" href="replay">Another recording</NavLink>
+                    <NavLink class="btn" href="portfolio/replay">Another recording</NavLink>
                 </div>
             }
         </Panel>
@@ -172,12 +173,8 @@ else
         return OpenIt();
     }
 
-    private bool HasSomethingToLose =>
-        Session.Sheet.SelectedTierId is not null
-        || Session.Sheet.SelectedPowers.Count > 0
-        || Session.Sheet.AbilityRanks.Count > 0
-        || Session.Sheet.TalentRanks.Count > 0
-        || !string.IsNullOrWhiteSpace(Session.Sheet.Name);
+    /// <summary>Asked of the session, so three pages cannot disagree about it.</summary>
+    private bool HasSomethingToLose => Session.HasSomethingToLose;
 
     /// <summary>
     /// Hands the recorded character to the editors and lands on the last step, which is where

@@ -154,6 +154,25 @@ public sealed class CharacterSession
 
     // ── Questions the shell asks constantly ───────────────────────────────
 
+    /// <summary>
+    /// Whether the sheet holds anything a player would mind losing.
+    ///
+    /// <para><b>Here rather than in the pages, because three of them ask it and they must not
+    /// disagree.</b> The tier page's samples, the portfolio's samples and the replay's "open this
+    /// character" all replace the character outright, all can destroy twenty minutes written down
+    /// nowhere else, and all decide whether to ask first by answering this. Two copies had already
+    /// drifted apart once by a field.</para>
+    ///
+    /// <para>A tier on its own counts: it is a decision, and it is the one every other choice is
+    /// measured against.</para>
+    /// </summary>
+    public bool HasSomethingToLose =>
+        Sheet.SelectedTierId is not null
+        || Sheet.SelectedPowers.Count > 0
+        || Sheet.AbilityRanks.Count > 0
+        || Sheet.TalentRanks.Count > 0
+        || !string.IsNullOrWhiteSpace(Sheet.Name);
+
     public int Spent => Costs.TotalCost(Sheet);
 
     /// <summary>
