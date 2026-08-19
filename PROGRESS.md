@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3923 across two projects — 3672 on the engine, 251 rendering components with bUnit — run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
+| Tests | 3935 across two projects — 3672 on the engine, 263 rendering components with bUnit — run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -218,6 +218,42 @@ grip does not.
 ---
 
 ## Completed work
+
+
+### Phase 3, second slice: the pips become the control
+
+They were `aria-hidden` decoration beside a `+`/`−` stepper, so the only way from 2d to 9d was
+seven clicks. Clicking the fifth pip sets 5d, the arrows move by one, Home and End go to the ends.
+
+**`role="slider"` rather than a radio group.** A rank is a value on a bounded, ordered range, and
+one focusable element beats twelve — eighteen Traits would otherwise add 216 tab stops. The stepper
+stays: it is discoverable, it is a bigger touch target, and a slider beside its own buttons is an
+ordinary pairing. The individual pips stay `aria-hidden`, because they are the slider's own
+rendering and a reader told "4d Noteworthy, slider" does not also want twelve unlabelled children.
+
+**The announced minimum is the package floor where there is one**, not the Trait's own 1d, because
+a package's granted ranks cannot be lowered below the package rank. A slider announcing a bound it
+will not go to tells a screen-reader user something untrue about the control in front of them, and
+clicking a pip below that floor clamps up rather than asking for a rank the validator would then
+report.
+
+**Nothing suppresses the browser's default on those keys, and that is a compromise rather than a
+preference.** Blazor fixes `preventDefault` at render time rather than per event, so suppressing it
+on this element would also swallow Tab and trap focus inside a rank row — much worse than what it
+would fix. Home and End therefore still scroll the document. Left and Right are the pair to reach
+for: the pips are horizontal and a CI harness holds this app to no horizontal overflow, so those
+two scroll nothing. A small interop shim would close it properly; a Razor attribute cannot.
+
+**Five mutations, five caught** — the minimum ignoring the package floor, the keys bypassing the
+clamp, a click off by one, the pips exposed as twelve children, and a handler answering every key.
+
+**And one defect found by measuring rather than by looking.** The same slice enlarged the click
+target by giving each pip padding, with `background-clip: content-box` intended to leave the fill
+as drawn. A probe reading `getBoundingClientRect` against the computed padding and border showed it
+had not: these are `border-box`, so the pip's box went 7px to 11px and its painted fill went 7px to
+5px, with the border no longer hugging it. That is a deliberate design quietly altered to fix a
+secondary concern, invisible to every test here and about two pixels to the eye. Reverted. If it is
+revisited, **measure the painted width rather than reasoning about the box model.**
 
 
 ### Tooltips, and the attribute that is not one
