@@ -36,7 +36,12 @@ public sealed class FakeApi : HttpMessageHandler
     /// all. Found by a fix audit against the unmodified stub; the real server's own tests do cover
     /// this, which is why nothing was actually broken in production code.</para>
     /// </summary>
-    public Dictionary<string, string> Characters { get; } = new(StringComparer.Ordinal);
+    /// <remarks>
+    /// Private: every test reaches it through <see cref="StoredCharacter"/> or through the routes,
+    /// and a public collection on a stub is an invitation to set up a state the real server could
+    /// never be in. Qodana caught it as public within minutes of it being written.
+    /// </remarks>
+    private readonly Dictionary<string, string> _characters = new(StringComparer.Ordinal);
 
     /// <summary>
     /// The character of whoever is signed in. Convenience for the many tests with one account.
@@ -46,15 +51,15 @@ public sealed class FakeApi : HttpMessageHandler
     /// </summary>
     public string? StoredCharacter
     {
-        get => SignedIn is { } who ? Characters.GetValueOrDefault(who.Key) : null;
+        get => SignedIn is { } who ? _characters.GetValueOrDefault(who.Key) : null;
         set
         {
             var who = SignedIn ?? throw new InvalidOperationException(
                 "Nobody is signed in, so there is no account for this character to belong to. "
                 + "Set SignedIn first.");
 
-            if (value is null) Characters.Remove(who.Key);
-            else Characters[who.Key] = value;
+            if (value is null) _characters.Remove(who.Key);
+            else _characters[who.Key] = value;
         }
     }
 
@@ -135,17 +140,17 @@ public sealed class FakeApi : HttpMessageHandler
         {
             // Read as text and kept as text, because that is what the real server does: it
             // stores bytes it never parses, and what round-trips is exactly what was written.
-            Characters[who.Key] = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            _characters[who.Key] = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
             return Status(HttpStatusCode.NoContent);
         }
 
         if (request.Method == HttpMethod.Delete)
         {
-            Characters.Remove(who.Key);
+            _characters.Remove(who.Key);
             return Status(HttpStatusCode.NoContent);
         }
 
-        return Characters.TryGetValue(who.Key, out var stored)
+        return _characters.TryGetValue(who.Key, out var stored)
             ? Json(stored)
             : Status(HttpStatusCode.NotFound);
     }
