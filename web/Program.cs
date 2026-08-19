@@ -34,8 +34,21 @@ builder.Services.AddSingleton(validator);
 builder.Services.AddSingleton(new ProConApplicability(rules));
 builder.Services.AddSingleton(new SourceGrouping(rules));
 builder.Services.AddScoped<CharacterSession>();
-builder.Services.AddScoped<IIdentitySource, LocalIdentity>();
-builder.Services.AddScoped<ICharacterStore, CharacterStore>();
+// Accounts. This is the whole of what changed when the app stopped being anonymous-only: one
+// identity source that can answer something other than "nobody", and a store that puts the
+// character where it belongs. Nothing else in the app asks who is signed in, and nothing in
+// engine/ or sheets/ can — see PresentationFlagsTests.
+//
+// Both concrete stores are registered as well as the interface, because AccountCharacterStore
+// takes them and the sign-in page needs the two operations that are not on ICharacterStore:
+// reading the anonymous slot specifically, and copying it up on request.
+builder.Services.AddScoped<Accounts>();
+builder.Services.AddScoped<IIdentitySource>(s => s.GetRequiredService<Accounts>());
+builder.Services.AddScoped<CharacterStore>();
+builder.Services.AddScoped<ApiCharacterStore>();
+builder.Services.AddScoped<AccountCharacterStore>();
+builder.Services.AddScoped<ICharacterStore>(s => s.GetRequiredService<AccountCharacterStore>());
+builder.Services.AddScoped<RulebookReader>();
 builder.Services.AddScoped<Motion>();
 builder.Services.AddScoped<Commands>();
 builder.Services.AddScoped<Shortcuts>();

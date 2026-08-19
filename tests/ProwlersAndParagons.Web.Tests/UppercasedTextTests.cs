@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.DependencyInjection;
+using ProwlersAndParagonsAutomation.Engine;
 using Bunit;
 using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Pages;
@@ -87,8 +89,21 @@ public sealed class UppercasedTextTests
         using var over = new RenderContext().With(SheetMode.Hero);
         over.Session.Sheet.SelectedTierId = "street_level";
 
+        // A Power editor belonging to somebody signed in, because the book's own entry — and so
+        // `.book-toggle` — renders for nobody else. Without this the selector is reachable on no
+        // page in the list, which this theory refuses rather than exempts: a guard that grows
+        // subjects without growing coverage is worth less each time.
+        using var signedIn = new RenderContext().With(SheetMode.Hero);
+        signedIn.Api.SignedIn = ("acct-7", "player");
+        signedIn.Api.Book["Armor"] = "Self • Half Toughness • 1 Hero Point per rank\n"
+            + "Armor reduces the damage you take, as described on p.21.";
+
+        var armor = signedIn.Services.GetRequiredService<RulesRepository>().Powers
+            .Single(p => p.Id == "armor");
+
         var pages = new List<IRenderedComponent<Microsoft.AspNetCore.Components.IComponent>>
         {
+            signedIn.Render<PowerEditor>(p => p.Add(e => e.Power, armor)),
             over.Render<HpBudgetBar>(),
             ctx.Render<ChooseTier>(),
             ctx.Render<AbilitiesTab>(),

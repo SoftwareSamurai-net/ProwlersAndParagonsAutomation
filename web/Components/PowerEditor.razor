@@ -28,6 +28,12 @@
         <p class="small muted">@Power.SourceRef</p>
     }
 
+    @* The book's own words, under the mechanics rather than instead of them: everything above
+       comes from data/rules, which is verified entry by entry and is what the engine costs
+       against. Renders nothing at all for a visitor with no account, and nothing for a Power
+       the book files under another heading. *@
+    <RulebookEntry PowerName="@Power.Name" />
+
     @if (NeedsBaselineTrait)
     {
         <Field For="pe-trait">

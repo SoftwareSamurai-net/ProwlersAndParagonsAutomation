@@ -1541,6 +1541,42 @@ label {
     margin-right: var(--space-1);
 }
 
+/* The book's own entry for a Power, shown under the mechanics rather than instead of
+   them. It is set apart the way a quotation is — sunk ground and a rule down the left
+   edge — because everything above it in the panel is this project's own text about the
+   rules, and this is the publisher's. Nothing on the page should leave the two looking
+   like one voice. */
+.book { margin-top: var(--space-3); }
+
+.book-toggle {
+    font: inherit;
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    background: none;
+    border: none;
+    border-bottom: var(--rule-weight) solid var(--rule);
+    color: var(--muted);
+    cursor: pointer;
+    transition: color var(--swap) var(--ease), border-color var(--swap) var(--ease);
+}
+
+/* --panel-sunk, not --accent-soft: this is a hover ground carrying text, and
+   --heading on --accent-soft measures 4.08:1 against the 4.5:1 that text needs. */
+.book-toggle:hover { color: var(--heading); border-color: var(--heading); }
+
+.book-text {
+    margin-top: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--panel-sunk);
+    border-left: var(--rule-weight) solid var(--accent);
+    border-radius: var(--radius-small);
+}
+
+.book-text p { margin: 0 0 var(--space-2); }
+.book-text p:last-child { margin-bottom: 0; }
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Print.
 
