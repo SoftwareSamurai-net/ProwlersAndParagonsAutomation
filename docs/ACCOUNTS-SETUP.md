@@ -68,8 +68,16 @@ Then create an API key and set it as a **secret** on the Pages project → **Set
 | `MAIL_FROM` | e.g. `no-reply@pp.softwaresamurai.net`, on the verified domain |
 | `SITE_URL` | e.g. `https://pp.softwaresamurai.net` — no trailing slash |
 
-`SITE_URL` is what sign-in links point at. Leave it unset and the server uses the origin the
-request arrived on, which is right for one domain and wrong the moment there are two.
+**All three are required, `SITE_URL` included.** It is what sign-in links point at, and the server
+**refuses to send one at all** without it — `/api/auth/request` answers 500 and writes nothing.
+
+That refusal is deliberate and replaced a fallback. The link used to be addressed from the origin
+of the request, which is derived from the host it arrived on — and the CSRF check compares the
+`Origin` header *against that host* rather than validating the host itself. So on a deployment
+where more than one hostname routes to the Function (a Pages preview alias, a custom domain
+mid-change), a caller who could influence the effective host received a link minted for it. The
+link carries the raw token, because the token *is* the credential. A misconfigured deployment that
+refuses costs one clear error in the logs; one that guesses costs somebody their account.
 
 ## 5. A cookie that works
 

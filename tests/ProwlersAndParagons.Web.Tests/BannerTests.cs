@@ -57,20 +57,22 @@ public sealed class BannerTests
     /// service that can change its mind rather than a value read once at startup.
     /// </summary>
     [Fact]
-    public void TheNameFollowsASignInWithoutAReload()
+    public async Task TheNameFollowsASignInWithoutAReload()
     {
-        using var ctx = new RenderContext();
+        await using var ctx = new RenderContext();
 
         var layout = ctx.Render<MainLayout>();
         Assert.Contains("Sign in", BannerLinks(layout));
 
         ctx.Api.SignedIn = ("acct-7", "dorian");
-        ctx.Render<MainLayout>();   // a second component, to prove the change is not per-instance
 
+        // Signed in through the real service, on the renderer's own thread, so what is exercised
+        // is the layout's subscription rather than a re-render that happens to read a new value.
         var accounts = ctx.Services.GetRequiredService<Accounts>();
-        layout.InvokeAsync(async () => await accounts.CompleteSignInAsync("a-token")).Wait();
+        await layout.InvokeAsync(async () => await accounts.CompleteSignInAsync("a-token"));
 
         Assert.Contains("dorian", BannerLinks(layout));
+        Assert.DoesNotContain("Sign in", BannerLinks(layout));
     }
 
     /// <summary>

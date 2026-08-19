@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4053 across three suites — 3683 on the engine, 333 rendering components with bUnit, 37 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
+| Tests | 4066 across three suites — 3683 on the engine, 341 rendering components with bUnit, 42 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -342,6 +342,45 @@ the cascade resolved for a `border-left` and refused to answer about correct CSS
 now excluded — radius, collapse, spacing and image are separate properties sharing a prefix. This
 *narrows* a guard, so the three real overrides were re-checked afterwards and all three still
 refuse.
+
+**Two reviewers who knew nothing about this found eight things, and one was a real leak.**
+
+- **The rulebook reader cached the book's text across a sign-out**, in the same tab. Its own
+  comment claimed the cache was "per visit and per scope, so signing out and back in re-asks" —
+  and **Blazor WebAssembly has one DI scope for the life of the app**, so a scoped service is a
+  singleton and signing out is SPA state with no reload. A signed-in visitor on a shared machine
+  could open a Power's entry, sign out, open the same Power, and be handed the publisher's prose
+  out of the dictionary with the server — which would have refused — never asked. Reproduced
+  first, then fixed by comparing the identity key rather than trusting an event to be raised: a
+  guarantee that depends on an event is one somebody can remove by editing another file.
+- **The magic link's domain came from the request's own host.** The CSRF check compares the
+  `Origin` header *against that host* rather than validating the host, so where more than one
+  hostname routes to the Function a caller who could influence it received a link minted for it —
+  carrying the raw token. `SITE_URL` is now required and the server refuses to send without it,
+  the same way `RulesLocation.Find` refuses rather than guessing.
+- **The body cap counted UTF-16 code units while its comment said bytes**, so a body padded with
+  astral-plane characters reached about twice the limit. The existing test padded with ASCII,
+  where the two measures agree, which is exactly why it passed.
+- **The per-client rate limit had no test at all** — deleting half the guard left all 36 passing,
+  because nothing in the suite set the header it keys on, so every call counted as one `unknown`
+  source. It has two tests now, and the second asserts `X-Forwarded-For` is *not* read: anybody
+  may write that header, and reading it would be a limit somebody steps around with a string.
+- **`login_attempts` was never swept** — one permanent row per address and per source ever seen.
+  Nothing looked wrong, because the counting stayed correct; what grew was the table.
+- **The banner's two controls were untested.** Hardcoding the account link to "Sign in" and
+  making `Pressed` always return `"true"` — both buttons announcing pressed, which is invalid
+  ARIA — each left all 333 tests green. The cause is worth recording: `Find(".banner-link")`
+  returns the **first** match, and `AreaTests` uses it for the link immediately before this one.
+- **`aria-controls` had no guard**, so making it unconditional — naming an element not in the
+  document while closed — passed. Now asserted absent when closed and resolvable when open.
+- **The address-contract regex had a character-class hole**: `[a-z/]` meant renaming a route to
+  `api/auth/verify-token` matched nothing, so it was dropped from the list and the test passed
+  while the two halves genuinely disagreed. A pattern that answers "not an address" when it means
+  "I cannot read this" is worse than none.
+
+**And one fault was in the test stub rather than the code**: `FakeApi`'s verify route answered a
+hardcoded identity whatever it was asked, so a test about two accounts on one machine was quietly
+a test about one. All seven new guards were then mutated and all seven bite.
 
 **What is not done, and needs the account owner rather than a commit:** none of it runs until a D1
 database, a binding named `DB`, a Resend key and the DNS records for a sending domain exist.
