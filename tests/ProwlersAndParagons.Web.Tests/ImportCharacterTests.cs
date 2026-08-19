@@ -140,7 +140,12 @@ public sealed class ImportCharacterTests
         cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText(oversized, "huge.json"));
 
         Assert.Empty(imported);
-        Assert.False(string.IsNullOrWhiteSpace(cut.Find("[role=alert]").TextContent));
+
+        // Specifically the size message, not merely "some message" — 3MB of the letter x
+        // is also not JSON, so a test that only checked for *a* message would pass just as
+        // well if the size limit were quietly removed and the pick fell through to that
+        // other, unrelated refusal.
+        Assert.Contains("too large", cut.Find("[role=alert]").TextContent, StringComparison.OrdinalIgnoreCase);
     }
 
     // ── The presentation rules this component is held to like every other ──────
