@@ -478,7 +478,9 @@ Cloudflare Pages at `pp.softwaresamurai.net`, by `.github/workflows/deploy.yml` 
 
 ### The two sample characters
 
-`SampleCharacters.Hero()` and `.Villain()` return finished Standard-tier sheets, offered on the tier page so a sheet can be previewed without building one. They fill every section a printed sheet has, which an empty sheet does not.
+`SampleCharacters.Hero()` and `.Villain()` return finished Standard-tier sheets, offered on **`/portfolio`** so a sheet can be previewed without building one. They fill every section a printed sheet has, which an empty sheet does not.
+
+**This entry said "on the tier page" for a while after they stopped being there.** They moved with the two-areas split, for a reason worth keeping: a demonstration is not a step in making your own character, and somebody who came to build one had to walk past them first. `AreaTests.TheSamplesAreOnThePortfolioAndNotOnTheTierPage` pins both halves.
 
 - **They are this project's own characters.** The published Ch.8 Heroes stay in the test suite, where they verify the engine against printed numbers. Shipping them in the app would redistribute the authors' content.
 - **`SampleCharacterTests` holds them to the rules** — legal, inside budget, fully priceable, every section filled, at least one Source heading, and both exports rendering. Writing them caught three real mistakes: ranks bought on rankless Powers (`invisibility`, `lightning_reflexes` are `max_rank: 0`), and Danger Sense and Resistance pushed over the Trait Cap because both take a **baseline equal to** an Ability rather than half it. Check `rank_type` and `prerequisite` before adding ranks to a sample.

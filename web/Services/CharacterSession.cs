@@ -157,8 +157,8 @@ public sealed class CharacterSession
     /// <summary>
     /// Whether the sheet holds anything a player would mind losing.
     ///
-    /// <para><b>Here rather than in the pages, because three of them ask it and they must not
-    /// disagree.</b> The tier page's samples, the portfolio's samples and the replay's "open this
+    /// <para><b>Here rather than in the pages, because several of them ask it and they must not
+    /// disagree.</b> The tier page's discard, the portfolio's samples and the replay's "open this
     /// character" all replace the character outright, all can destroy twenty minutes written down
     /// nowhere else, and all decide whether to ask first by answering this. Two copies had already
     /// drifted apart once by a field.</para>

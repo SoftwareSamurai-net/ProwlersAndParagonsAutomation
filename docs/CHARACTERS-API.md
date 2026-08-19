@@ -104,3 +104,29 @@ only once one character round-trips. It has, so this is that moment.
   character they were building rather than an empty manager.
 - **The cap applies to an account, not to this browser.** Local storage has no limit worth enforcing;
   a save that would exceed the account's cap fails at the server with 409 and the UI says so.
+
+## The manager replaces a panel that has tested behaviour, and that behaviour must survive
+
+The manager takes the place of the "Starting over" panel at the top of `web/Pages/ChooseTier.razor`.
+**Do not delete that panel and its tests together** — three properties are guarded there and each was
+worth a test:
+
+1. **It asks before discarding, in the page rather than in a browser dialogue** — and only when there
+   is something to lose. On an empty sheet it acts on one click, which is the visit where nobody has
+   anything at stake (`CharacterSession.HasSomethingToLose`). Deleting a row in the manager is the
+   same act and needs the same ask.
+2. **The clear lands *after* the save that emptying the sheet fires.** `Discard()` calls
+   `Session.StartAgain()` and then `await Store.ClearAsync()`, and the order is load-bearing: the
+   session's change event fires a fire-and-forget save, so clearing first races a write nobody
+   awaits. `StartAgainTests.TheClearLandsAfterTheSaveThatEmptyingTheSheetFires` asserts the interop
+   ordering. **Any delete in the manager has the same race.**
+3. **`AreaTests.TheSamplesAreOnThePortfolioAndNotOnTheTierPage`** asserts the tier page does *not*
+   offer "Load a Hero"/"Load a Villain" and *does* offer "Start a new character". The samples half
+   still holds; the second half is about this panel and has to be revisited deliberately rather than
+   by whichever text the new markup happens to contain.
+
+`StartAgainTests` locates its controls by exact text — `"Start a new character"`, `"Yes, discard"`,
+`"Keep this character"`. Changing that wording is allowed; changing it *by accident*, so the tests
+fail and get "fixed" by matching the new text, is how the behaviour above gets lost. If the wording
+changes, the tests change in the same commit and the *ordering* assertion has to keep asserting
+ordering.
