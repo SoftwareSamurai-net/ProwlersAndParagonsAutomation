@@ -33,13 +33,20 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- CharacterStore.Read is the failure-handling half of persistence: malformed
-             storage, an unknown schema version, a null where the declared type says there
-             cannot be one. It is internal because no host should call it, and visible to the
-             test project because that handling is the part most worth testing — a saved
-             character that stops the app booting is far worse than one that is forgotten.
-             The alternative was a public test-only round-trip helper shipped in the
-             WebAssembly payload, which is what this replaced. -->
+        <!-- **This comment named the wrong member for a while, so it is worth being exact.**
+             It cited CharacterStore.Read, and by the time anybody checked, nothing outside that
+             class called it: the store's tests write a malformed payload into a fake local
+             storage and go through LoadAsync, which drives the path the app runs rather than the
+             one method underneath it. Read is private now, and Qodana said so the moment the file
+             was touched.
+
+             What actually needs this is ReplayLibrary's internal fetch overload, which
+             ReplayLoadingTests hands a delegate to in order to make the fetch fail on demand —
+             a missing recording must leave the app running, and that is not reachable through
+             the UI. Removing this line fails four assertions in that file and nothing else;
+             measured, not assumed.
+
+             The alternative was a public test-only seam shipped in the WebAssembly payload. -->
         <InternalsVisibleTo Include="ProwlersAndParagons.Web.Tests" />
     </ItemGroup>
 
