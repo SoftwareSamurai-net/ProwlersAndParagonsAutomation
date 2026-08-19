@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using ProwlersAndParagonsAutomation.Web.Services;
 using System.Text;
 using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Pages;

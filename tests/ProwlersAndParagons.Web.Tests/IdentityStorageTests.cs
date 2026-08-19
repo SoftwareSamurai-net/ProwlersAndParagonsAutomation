@@ -1,5 +1,4 @@
 using ProwlersAndParagonsAutomation.Engine;
-using ProwlersAndParagonsAutomation.Web.Services;
 
 namespace ProwlersAndParagons.Web.Tests;
 

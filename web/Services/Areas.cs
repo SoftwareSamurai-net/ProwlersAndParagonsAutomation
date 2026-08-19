@@ -32,7 +32,7 @@ public enum Area
 public static class Areas
 {
     /// <summary>The first path segment that marks the portfolio.</summary>
-    public const string PortfolioPrefix = "portfolio";
+    private const string PortfolioPrefix = "portfolio";
 
     /// <summary>
     /// The address the recordings used to live at, before there was a portfolio to put them in.

@@ -3,7 +3,6 @@
 @inject ReplayLibrary Replays
 @inject CharacterSession Session
 @inject NavigationManager Nav
-@inject IJSRuntime Js
 
 <PageTitle>@(Conversation?.Title ?? "Recording") — Prowlers &amp; Paragons</PageTitle>
 
@@ -162,15 +161,10 @@ else
     /// between visits, so a button here can destroy twenty minutes of work written down
     /// nowhere else.
     /// </summary>
-    private Task Ask()
+    private void Ask()
     {
-        if (HasSomethingToLose)
-        {
-            _pending = true;
-            return Task.CompletedTask;
-        }
-
-        return OpenIt();
+        if (HasSomethingToLose) _pending = true;
+        else OpenIt();
     }
 
     /// <summary>Asked of the session, so three pages cannot disagree about it.</summary>
@@ -186,7 +180,7 @@ else
     /// character somebody had changed. Round-tripping it through the character's own JSON
     /// shape is the copy, and it is the same shape this app already stores.</para>
     /// </summary>
-    private async Task OpenIt()
+    private void OpenIt()
     {
         if (Conversation?.FinalCharacter is not { } settled) return;
 
