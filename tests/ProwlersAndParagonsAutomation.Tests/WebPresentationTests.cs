@@ -3120,7 +3120,7 @@ public sealed class WebPresentationTests
         Assert.Contains("var(--heading)", edge, StringComparison.Ordinal);
 
         // And a zero width is not a visible edge, whatever colour it names.
-        Assert.DoesNotMatch(Rx(@"^0(px)?[a-z]"), edge!);
+        Assert.DoesNotMatch(Rx("^0(px)?[a-z]"), edge!);
     }
 
     /// <summary>

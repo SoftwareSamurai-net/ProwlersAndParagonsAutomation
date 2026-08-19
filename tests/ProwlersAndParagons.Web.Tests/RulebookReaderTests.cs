@@ -39,7 +39,8 @@ public sealed class RulebookReaderTests
     {
         using var ctx = SignedInWithTheBook();
 
-        var editor = ctx.Render<PowerEditor>(p => p.Add(e => e.Power, Armor(ctx)));
+        var armor = Armor(ctx);
+        var editor = ctx.Render<PowerEditor>(p => p.Add(e => e.Power, armor));
 
         var toggle = editor.Find(".book-toggle");
         Assert.Contains("what the book says", toggle.TextContent, StringComparison.OrdinalIgnoreCase);
@@ -64,7 +65,8 @@ public sealed class RulebookReaderTests
     {
         using var ctx = SignedInWithTheBook();
 
-        var editor = ctx.Render<PowerEditor>(p => p.Add(e => e.Power, Armor(ctx)));
+        var armor = Armor(ctx);
+        var editor = ctx.Render<PowerEditor>(p => p.Add(e => e.Power, armor));
         editor.Find(".book-toggle").Click();
 
         var text = editor.Find(".book-text").TextContent;
@@ -86,7 +88,8 @@ public sealed class RulebookReaderTests
         using var ctx = new RenderContext();
         ctx.Api.Book["Armor"] = "Self • Half Toughness • 1 Hero Point per rank";
 
-        var editor = ctx.Render<PowerEditor>(p => p.Add(e => e.Power, Armor(ctx)));
+        var armor = Armor(ctx);
+        var editor = ctx.Render<PowerEditor>(p => p.Add(e => e.Power, armor));
 
         Assert.Empty(editor.FindAll(".book-toggle"));
         Assert.Empty(editor.FindAll(".book-text"));
@@ -119,7 +122,7 @@ public sealed class RulebookReaderTests
     [Fact]
     public async Task AMissIsAskedForOnceAndThenRemembered()
     {
-        using var ctx = SignedInWithTheBook();
+        await using var ctx = SignedInWithTheBook();
         var reader = ctx.Services.GetRequiredService<RulebookReader>();
 
         Assert.Null(await reader.ForPowerAsync("Nothing Like This"));
@@ -140,7 +143,7 @@ public sealed class RulebookReaderTests
     [Fact]
     public async Task APageOfHtmlIsNotAnEntry()
     {
-        using var ctx = new RenderContext();
+        await using var ctx = new RenderContext();
         ctx.Api.ServerNotDeployed = true;
 
         Assert.Null(await ctx.Services.GetRequiredService<RulebookReader>().ForPowerAsync("Armor"));
@@ -159,8 +162,10 @@ public sealed class RulebookReaderTests
         using var first = SignedInWithTheBook();
         using var second = SignedInWithTheBook();
 
-        var a = first.Render<PowerEditor>(p => p.Add(e => e.Power, Armor(first)));
-        var b = second.Render<PowerEditor>(p => p.Add(e => e.Power, Armor(second)));
+        var (one, two) = (Armor(first), Armor(second));
+
+        var a = first.Render<PowerEditor>(p => p.Add(e => e.Power, one));
+        var b = second.Render<PowerEditor>(p => p.Add(e => e.Power, two));
 
         a.Find(".book-toggle").Click();
         b.Find(".book-toggle").Click();

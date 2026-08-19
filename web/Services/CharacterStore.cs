@@ -108,11 +108,16 @@ public sealed class CharacterStore : ICharacterStore
     }
 
     /// <summary>
-    /// Reads a stored payload. Internal so the tests can feed it malformed storage — that
-    /// handling is the part most worth testing, because a saved character that stops the app
-    /// booting is far worse than one that is forgotten.
+    /// Reads a stored payload.
+    ///
+    /// <para><b>Private, and the doc comment here used to say it was internal "so the tests can
+    /// feed it malformed storage".</b> That stopped being true before this slice: the store's
+    /// tests write the malformed payload into <see cref="FakeLocalStorage"/> and call
+    /// <see cref="LoadAsync()"/>, which is strictly better — it drives the path the app runs
+    /// rather than the one method underneath it. Nothing outside this class had called it for
+    /// some time, and Qodana said so the moment the file was touched.</para>
     /// </summary>
-    internal (CharacterSheet Sheet, SheetMode Mode)? Read(string json) => _payload.Read(json);
+    private (CharacterSheet Sheet, SheetMode Mode)? Read(string json) => _payload.Read(json);
 
     /// <summary>
     /// Everything that can go wrong between here and the browser's storage. Every one means the
