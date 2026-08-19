@@ -157,7 +157,7 @@ public sealed class RulebookReaderTests
     /// re-asks" — and <b>Blazor WebAssembly has one DI scope for the life of the app</b>, so a
     /// scoped service is a singleton here and signing out is pure SPA state with no reload. A
     /// signed-in visitor on a shared machine could open a Power's entry, sign out, open the same
-    /// Power, and be handed the publisher's prose out of the dictionary without the server —
+    /// Power, and be handed the book's own text out of the dictionary without the server —
     /// which would have refused — ever being asked.</para>
     ///
     /// <para>The positive control is the first assertion: the entry has to have been cached for
@@ -169,7 +169,7 @@ public sealed class RulebookReaderTests
     {
         await using var ctx = new RenderContext();
         ctx.Api.SignedIn = ("acct-7", "player");
-        ctx.Api.Book["Armor"] = "the publisher's prose";
+        ctx.Api.Book["Armor"] = "the book's own text";
 
         var accounts = ctx.Services.GetRequiredService<Accounts>();
         var reader = ctx.Services.GetRequiredService<RulebookReader>();
@@ -193,7 +193,7 @@ public sealed class RulebookReaderTests
     {
         await using var ctx = new RenderContext();
         ctx.Api.SignedIn = ("acct-7", "player");
-        ctx.Api.Book["Armor"] = "the publisher's prose";
+        ctx.Api.Book["Armor"] = "the book's own text";
 
         var reader = ctx.Services.GetRequiredService<RulebookReader>();
         Assert.NotNull(await reader.ForPowerAsync("Armor"));

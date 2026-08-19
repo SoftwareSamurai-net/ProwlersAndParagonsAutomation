@@ -349,7 +349,7 @@ refuse.
   comment claimed the cache was "per visit and per scope, so signing out and back in re-asks" —
   and **Blazor WebAssembly has one DI scope for the life of the app**, so a scoped service is a
   singleton and signing out is SPA state with no reload. A signed-in visitor on a shared machine
-  could open a Power's entry, sign out, open the same Power, and be handed the publisher's prose
+  could open a Power's entry, sign out, open the same Power, and be handed the book's own text
   out of the dictionary with the server — which would have refused — never asked. Reproduced
   first, then fixed by comparing the identity key rather than trusting an event to be raised: a
   guarantee that depends on an event is one somebody can remove by editing another file.

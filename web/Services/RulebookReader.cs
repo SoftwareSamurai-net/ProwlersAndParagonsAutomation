@@ -15,7 +15,7 @@ public sealed record PowerEntry(string Heading, int PrintedPage, string Text, st
 /// The book's own words about a Power, for somebody who is signed in.
 ///
 /// <para><b>The text is not part of the site's payload and cannot be.</b> It is the publisher's
-/// prose, held in this repository by permission granted to its owner; it is bundled into the
+/// prose; it is bundled into the
 /// server rather than copied into <c>wwwroot</c>, because a file under <c>wwwroot</c> is a
 /// public URL and no amount of checking sessions in the browser would make it not be one. So
 /// this asks the server, every entry, and the server asks who is calling.</para>
@@ -54,7 +54,7 @@ public sealed class RulebookReader
     /// in re-asks" — which is false: <b>Blazor WebAssembly has one DI scope for the life of the
     /// app</b>, so a scoped service is a singleton here, and signing out is pure SPA state with
     /// no reload. So a signed-in visitor who opened a Power's entry on a shared machine, then
-    /// signed out, could open the same Power again and be shown the publisher's prose from this
+    /// signed out, could open the same Power again and be shown the book's own text from this
     /// dictionary — never asking the server, which would have refused. Reproduced, then fixed.</para>
     ///
     /// <para><b>Comparing the key rather than listening for a change is deliberate.</b>

@@ -1,8 +1,8 @@
 // The book's own text, and who is allowed to read it.
 //
-// Two separate claims, and the second is the one that carries a licence behind it: the corpus
-// is the publisher's prose, and it is not on the open web. It is bundled into the server rather
-// than copied into `wwwroot`, and the route asks who is calling before it answers.
+// Two separate claims: the reader answers only a signed-in caller, and the corpus is bundled
+// into the server rather than copied into `wwwroot`, which is what makes that gate the only
+// way in.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
