@@ -864,6 +864,18 @@ label {
 }
 .option:last-child { border-bottom: none; }
 .option:hover { background: var(--accent-soft); border-left-color: var(--accent); }
+
+/* Where the cursor in the filter box is pointing. **`--panel-sunk`, not `--accent-soft`** — the
+   hover ground above carries no `--muted` text, and this row does: `.option .caveat` is the
+   stat line, and `--muted` on `--accent-soft` is under the 4.5:1 text needs. The same fault
+   CLAUDE.md records shipping twice.
+
+   Ground *and* edge, never colour alone: this is the only thing on screen saying what Enter is
+   about to do, and around one man in twelve has some colour-vision deficiency. */
+.option.current {
+    background: var(--panel-sunk);
+    border-left-color: var(--accent);
+}
 .option .body { flex: 1 1 auto; min-width: 0; }
 .option .name { font-weight: 600; }
 .option .cost { font-variant-numeric: tabular-nums; white-space: nowrap; }

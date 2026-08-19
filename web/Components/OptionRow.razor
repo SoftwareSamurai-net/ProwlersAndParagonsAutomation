@@ -7,7 +7,23 @@
 
 @if (Admitted)
 {
-    <button type="button" class="@RowClass" @onclick="OnSelect">
+    @* Still a real button, so a click and the Enter key both work the way the element already
+       makes them work. What changes inside a keyboard-driven list is what it *announces* and
+       whether it is a tab stop:
+
+       - `role="option"` in a `listbox`, because that is what it is once the box above owns the
+         cursor. A button would have assistive technology offer 141 buttons where the reader
+         expects a list they can arrow through.
+       - `tabindex="-1"`, so 141 rows are not 141 tab stops. The filter box is the one stop, and
+         Tab from it leaves the whole list — which is the point of the pattern.
+
+       Outside such a list it stays exactly a button: the tier cards are six things to compare
+       and Tab through, not a catalogue to move a cursor through. *@
+    <button type="button" class="@RowClass" @onclick="OnSelect"
+            id="@RowId"
+            role="@(Navigable ? "option" : null)"
+            tabindex="@(Navigable ? "-1" : null)"
+            aria-selected="@AriaSelected">
         <span class="body">
             <span class="name">@Name@NameExtra</span>
             @if (Caveat is not null)
@@ -53,7 +69,25 @@
 
     [Parameter] public EventCallback OnSelect { get; set; }
 
-    private string RowClass => Selected ? "option selected" : "option";
+    private string RowClass =>
+        (Selected ? "option selected" : "option") + (IsCurrent ? " current" : "");
+
+    /// <summary>Whether the enclosing list is driving the keyboard.</summary>
+    private bool Navigable => Filter is { Navigable: true };
+
+    /// <summary>Where this row came in the order the filter let rows through, or −1.</summary>
+    private int Ordinal { get; set; } = -1;
+
+    /// <summary>Whether the cursor in the box above is on this row.</summary>
+    private bool IsCurrent => Navigable && Ordinal >= 0 && Filter!.ActiveIndex == Ordinal;
+
+    private string? RowId => Navigable ? $"{Filter!.ListId}-opt-{Ordinal}" : null;
+
+    /// <summary>
+    /// Written only inside a listbox. <c>aria-selected</c> on a bare button is meaningless and
+    /// some screen readers announce it anyway, so a row outside such a list says nothing.
+    /// </summary>
+    private string? AriaSelected => Navigable ? (IsCurrent ? "true" : "false") : null;
 
     [CascadingParameter] private OptionFilter? Filter { get; set; }
 
@@ -92,5 +126,14 @@
 
         _countedPass = Filter.Pass;
         Admitted = Filter.Admits([Name, Caveat, .. Keywords ?? []]);
+
+        // Where this row came among the ones let through. `Admits` increments `Shown` exactly
+        // once when it returns true — which is the invariant the count above it already depends
+        // on — so the row that has just been admitted is the (Shown − 1)th.
+        Ordinal = Admitted ? Filter.Tally.Shown - 1 : -1;
+
+        // And the row's own callback, in the same order, so the box above can run it on Enter
+        // without ever holding a reference to this component. See OptionTally.Record.
+        if (Admitted) Filter.Tally.Record(() => OnSelect.InvokeAsync());
     }
 }
