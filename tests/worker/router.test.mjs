@@ -63,6 +63,17 @@ test('a trailing slash is the same address', async () => {
     assert.equal((await app.call('/api/me/', { cookie })).status, 200);
 });
 
+test('the routed entry point actually loads', async () => {
+    // **Nothing else in this suite loads it.** Every other test imports `worker/index.js`
+    // directly, so a broken path in the one file Cloudflare routes — or a corpus import that
+    // does not resolve — would fail at deploy time and nowhere before it. Importing it here
+    // exercises the whole graph, including `corpus.js` pulling a 250KB JSON module in with an
+    // import attribute.
+    const mod = await import('../../functions/api/[[path]].js');
+
+    assert.equal(typeof mod.onRequest, 'function');
+});
+
 test('the routed file is a shim and holds no logic', async () => {
     // `functions/api/[[path]].js` is the only file Cloudflare routes. Everything reachable is
     // reachable through it, so it staying four lines is what keeps "what is exposed?" a

@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**4052 tests** — 3683 engine, 333 bUnit, 36 driving the accounts server — zero warnings at CI
+**4053 tests** — 3683 engine, 333 bUnit, 37 driving the accounts server — zero warnings at CI
 strictness, MIT in `LICENSE`, the site live on Cloudflare Pages. Five front ends on one engine
 assembly: the terminal wizard, the browser app, `build --from character.json`, an MCP server, and
 now an accounts server that holds no rules at all. **CI drives a browser too**: six proof harnesses
@@ -141,7 +141,7 @@ Each one has cost this project real time when skipped.
    ```bash
    ./scripts/test-worker.sh
    ```
-   They must report **3683 + 333** and **36**, and zero warnings. **Warnings are errors only under
+   They must report **3683 + 333** and **37**, and zero warnings. **Warnings are errors only under
    that flag**, so a plain `dotnet test` passes over things CI fails on.
 
    **Take the numbers from the runs, not from this document, and update this document from the
