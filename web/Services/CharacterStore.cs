@@ -112,7 +112,7 @@ public sealed class CharacterStore : ICharacterStore
     ///
     /// <para><b>Private, and the doc comment here used to say it was internal "so the tests can
     /// feed it malformed storage".</b> That stopped being true before this slice: the store's
-    /// tests write the malformed payload into <see cref="FakeLocalStorage"/> and call
+    /// tests write the malformed payload into a fake local storage and call
     /// <see cref="LoadAsync()"/>, which is strictly better — it drives the path the app runs
     /// rather than the one method underneath it. Nothing outside this class had called it for
     /// some time, and Qodana said so the moment the file was touched.</para>

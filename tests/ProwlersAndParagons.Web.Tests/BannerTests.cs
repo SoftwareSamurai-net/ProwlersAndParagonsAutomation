@@ -1,7 +1,6 @@
 using Bunit;
 using ProwlersAndParagonsAutomation.Web.Layout;
 using Microsoft.Extensions.DependencyInjection;
-using ProwlersAndParagonsAutomation.Engine;
 
 namespace ProwlersAndParagons.Web.Tests;
 
