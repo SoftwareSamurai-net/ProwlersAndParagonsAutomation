@@ -74,6 +74,12 @@ public sealed class RenderContext : BunitContext
         Services.AddScoped<Accounts>();
         Services.AddScoped<IIdentitySource>(s => s.GetRequiredService<Accounts>());
         Services.AddScoped<CharacterStore>();
+        // The plural browser-side store. Registered here as well as in Program.cs because
+        // ApiCharacterStore takes it — the account's store reads *which* character is open out of
+        // this browser, since that is a fact about the tab rather than something another device
+        // should decide. Leaving it out made every render test in the project fail at once, which
+        // is at least the loud kind of wrong.
+        Services.AddScoped<SavedCharacters>();
         Services.AddScoped<ApiCharacterStore>();
         Services.AddScoped<AccountCharacterStore>();
         Services.AddScoped<ICharacterStore>(s => s.GetRequiredService<AccountCharacterStore>());

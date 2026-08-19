@@ -105,8 +105,14 @@ public sealed class SavedCharacters
 
     /// <summary><c>c_</c> plus 22 URL-safe characters — 16 random bytes, base64url without
     /// padding. The server validates exactly this shape; see <c>docs/CHARACTERS-API.md</c>.
+    ///
+    /// <para>Internal rather than private because the account's store mints one too: an account
+    /// whose current-id pointer still says <see cref="LegacyId"/> has to adopt a real id before
+    /// its first save, since <c>legacy</c> is this browser's private name for a slot and not a
+    /// key the server will accept. One implementation, so the two cannot mint different shapes
+    /// and only one of them get refused.</para>
     /// </summary>
-    private static string NewId()
+    internal static string NewId()
     {
         Span<byte> bytes = stackalloc byte[16];
         RandomNumberGenerator.Fill(bytes);
