@@ -673,11 +673,16 @@ label {
     transition: background-color var(--step) var(--ease), border-color var(--step) var(--ease);
 }
 
-/* A pip is a click target, so it needs a target's size without changing how it looks — the
-   design is a 7px sliver and a 7px sliver is a miserable thing to hit. The box grows by its
-   own padding and the visible pip stays exactly as it was. */
-.pips .pip { background-clip: content-box; padding: 0 var(--space-0); width: 11px; }
+/* **The pip's own geometry is untouched, and an attempt to enlarge it was reverted.** A 7px
+   sliver is a poor mouse target, so the box was grown by its own padding with
+   `background-clip: content-box` meant to keep the fill as drawn. Measured, it did not: these
+   are `border-box`, so 2px of padding and 1px of border came *out* of the width and the painted
+   pip went from 7px to 5px — with the border no longer hugging the fill. A deliberate design
+   quietly altered to fix a secondary concern, and invisible to every test in this repository.
 
+   The keyboard is the good path now; a click that misses a pip lands in a 2px gap and does
+   nothing, which is recoverable. If this is revisited, measure the painted width rather than
+   reasoning about the box model. */
 .pips:hover .pip { border-color: var(--accent); }
 .pip.on { background: var(--accent); border-color: var(--accent); }
 .pip.package { background: var(--accent-soft); }
