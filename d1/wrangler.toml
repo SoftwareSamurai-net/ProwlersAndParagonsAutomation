@@ -1,0 +1,30 @@
+# Configuration for the D1 migrations, and for nothing else.
+#
+# **It is in this subdirectory on purpose, and must not be moved to the repository root.**
+# `wrangler pages deploy` reads a root `wrangler.toml` if one is there and then *requires*
+# `pages_build_output_dir`, which would change a deploy pipeline that works today and that
+# cannot be rehearsed without the account's credentials. Down here it is invisible to the
+# deploy and visible to migrations, which is the whole of what it is for:
+#
+#     wrangler --cwd d1 d1 migrations apply prowlers-and-paragons --remote
+#
+# The bindings the deployed site runs on are configured on the Pages project itself — see
+# docs/ACCOUNTS-SETUP.md. That is not a preference either: a direct-upload Pages project takes
+# its bindings and its secrets from the project, not from a file in the repository, which is
+# also why no secret is ever committed here.
+
+name = "prowlers-and-paragons-d1"
+
+# Required by wrangler's own schema; nothing in this file deploys anything.
+compatibility_date = "2026-01-01"
+
+[[d1_databases]]
+# The binding name the server reaches for as `env.DB`. It has to match the binding configured
+# on the Pages project, or every query throws and every request answers 500.
+binding = "DB"
+database_name = "prowlers-and-paragons"
+
+# Filled in by `wrangler d1 create prowlers-and-paragons`, which prints it. It is an
+# identifier rather than a credential — it names a database and grants nothing — so it is
+# committed once it exists rather than kept out of the repository.
+database_id = "REPLACE-ME-SEE-docs/ACCOUNTS-SETUP.md"

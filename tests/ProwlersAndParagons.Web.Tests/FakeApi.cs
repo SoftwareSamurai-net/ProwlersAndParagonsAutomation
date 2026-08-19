@@ -47,6 +47,16 @@ public sealed class FakeApi : HttpMessageHandler
     /// <summary>Every address asked for, in order, so a test can assert nothing was called.</summary>
     public List<string> Asked { get; } = [];
 
+    /// <summary>
+    /// What a request for a sign-in link answers. 204 by default.
+    ///
+    /// <para><b>A knob rather than a copy of the server's validation.</b> Whether something is an
+    /// address is the server's decision and is tested against the server; what is tested here is
+    /// the page's reaction to each answer, and a second validator in the tests would be a second
+    /// validator to keep in step.</para>
+    /// </summary>
+    public HttpStatusCode LinkRequestAnswer { get; set; } = HttpStatusCode.NoContent;
+
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -64,7 +74,7 @@ public sealed class FakeApi : HttpMessageHandler
                 ? Json($$"""{"key":"{{who.Key}}","displayName":"{{who.DisplayName}}"}""")
                 : Status(HttpStatusCode.Unauthorized),
 
-            "/api/auth/request" => Status(HttpStatusCode.NoContent),
+            "/api/auth/request" => Status(LinkRequestAnswer),
 
             "/api/auth/verify" => Json("""{"key":"acct-7","displayName":"player"}"""),
 

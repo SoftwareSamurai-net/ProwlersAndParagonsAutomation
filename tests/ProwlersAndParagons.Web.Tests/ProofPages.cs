@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using System.Text;
+using Bunit;
+using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Pages;
 using ProwlersAndParagonsAutomation.Web.Layout;
@@ -67,6 +69,39 @@ public sealed class ProofPages
             ctx.Render<PowersTab>().Markup);
         Section(body, "Derived — every figure shows the rule it came out of",
             ctx.Render<Derived>().Markup);
+
+        // Accounts, both states, because the interesting one is invisible from the other. A
+        // separate context: this one is signed in, and the sign-in page renders whichever half
+        // of itself applies — so a proof built from one context could only ever show one.
+        Section(body, "Sign in — no password, and nothing here holds a credential",
+            ctx.Render<SignIn>().Markup);
+
+        // **Signed in before the sample is loaded, and that order is load-bearing.** Loading a
+        // sample raises the session's change event, which writes the character through — which
+        // asks who is here and *remembers the answer*. Set afterwards, this proof rendered the
+        // signed-out form under a heading saying "Signed in", and looked entirely plausible.
+        using var signedIn = new RenderContext();
+        signedIn.Api.SignedIn = ("acct-7", "player");
+        signedIn.With(mode);
+        signedIn.Api.Book["Armor"] =
+            "Self • Half Toughness • 1 Hero Point per rank\n"
+            + "Armor represents protection against damage, whether it is a thick hide, a force "
+            + "field, or a suit of powered plate. Each rank reduces the damage you take.\n"
+            + "Armor does not stack with other Armor: only the highest rank applies.";
+
+        Section(body, "Signed in — the account, and what signing out leaves behind",
+            signedIn.Render<SignIn>().Markup);
+
+        var armor = signedIn.Services.GetRequiredService<RulesRepository>().Powers
+            .Single(p => p.Id == "armor");
+
+        // Opened, for the same reason the palette above is: a disclosure proofed shut shows an
+        // empty section and reads as a feature that works.
+        var editor = signedIn.Render<PowerEditor>(p => p.Add(e => e.Power, armor));
+        editor.Find(".book-toggle").Click();
+
+        Section(body, "A Power's printed entry — the book's voice, set apart from ours",
+            editor.Markup);
 
         Write($"proof-{Name(mode)}.html", Name(mode), body.ToString());
     }
@@ -157,6 +192,65 @@ public sealed class ProofPages
         var sheet = ctx.Render<SheetView>().Markup;
 
         Write($"proof-sheet-{Name(mode)}.html", Name(mode), sheet + sheet + sheet);
+    }
+
+    /// <summary>
+    /// Accounts, on a page of their own.
+    ///
+    /// <para><b>The screen proof carries these too, and that is not enough.</b> It runs to some
+    /// seven thousand pixels, so the three surfaces this slice added are a strip near the bottom
+    /// of an image nobody can read at a glance — and "verified by looking" at a page too big to
+    /// look at is how a chrome band with no bottom edge shipped once already. This is short
+    /// enough to actually see.</para>
+    ///
+    /// <para>Both palettes, because the entry sets the book's own prose on a sunk ground with a
+    /// rule in <c>--accent</c>, and Villain <c>--accent</c> is a different colour on a different
+    /// surface. A proof of one says nothing about the other.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void TheAccountSurfaces(SheetMode mode)
+    {
+        if (!Asked) return;
+
+        var body = new StringBuilder();
+
+        using var anonymous = new RenderContext().With(mode);
+        Section(body, "Signed out — one field, and no password anywhere",
+            anonymous.Render<SignIn>().Markup);
+
+        // **Signed in before the sample is loaded, and that order is load-bearing.** Loading a
+        // sample raises the session's change event, which writes the character through — which
+        // asks who is here and *remembers the answer*. Set afterwards, this proof rendered the
+        // signed-out form under a heading saying "Signed in", and looked entirely plausible.
+        using var signedIn = new RenderContext();
+        signedIn.Api.SignedIn = ("acct-7", "player");
+        signedIn.With(mode);
+        signedIn.Api.Book["Armor"] =
+            "Self • Half Toughness • 1 Hero Point per rank\n"
+            + "Armor represents protection against damage, whether it is a thick hide, a force "
+            + "field, or a suit of powered plate. Each rank reduces the damage you take.\n"
+            + "Armor does not stack with other Armor: only the highest rank applies.";
+
+        Section(body, "Signed in — and what signing out leaves behind",
+            signedIn.Render<SignIn>().Markup);
+
+        var armor = signedIn.Services.GetRequiredService<RulesRepository>().Powers
+            .Single(p => p.Id == "armor");
+
+        // Shut, then open, both on the page: the closed state is the one every reader meets
+        // first, and a proof of only the open one says nothing about whether the offer reads as
+        // an offer.
+        Section(body, "A Power, with the entry offered but not opened",
+            signedIn.Render<PowerEditor>(p => p.Add(e => e.Power, armor)).Markup);
+
+        var opened = signedIn.Render<PowerEditor>(p => p.Add(e => e.Power, armor));
+        opened.Find(".book-toggle").Click();
+
+        Section(body, "…and opened — the book's voice, set apart from ours", opened.Markup);
+
+        Write($"proof-accounts-{Name(mode)}.html", Name(mode), body.ToString());
     }
 
     private static string Name(SheetMode mode) => mode == SheetMode.Hero ? "hero" : "villain";

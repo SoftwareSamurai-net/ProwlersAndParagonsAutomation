@@ -1463,9 +1463,31 @@ public sealed class WebPresentationTests
             ["max-width"] = ["max-inline-size", "inline-size", "width"],
         };
 
+        // **Not everything spelled `border-…` is part of the `border` shorthand**, and reading it
+        // that way made the helper refuse to answer about correct CSS: `border-radius` after a
+        // `border-left` reported that the radius was what the cascade resolved for the edge, which
+        // is not a thing a radius can do. These four are separate properties that happen to share
+        // the prefix — `border` resets none of them and none of them resets `border`.
+        //
+        // The direction matters: this makes the helper answer where it used to refuse, so it is a
+        // narrowing of a guard rather than a widening. It is scoped to four names for that reason,
+        // rather than to a rule about prefixes.
+        if (NotPartOfTheBorderShorthand(other)) return false;
+
         return logical.TryGetValue(property, out var aliases)
                && aliases.Any(a => a == other || other.StartsWith($"{a}-", StringComparison.Ordinal));
     }
+
+    /// <summary>
+    /// Properties that begin <c>border-</c> and are not part of the <c>border</c> shorthand.
+    ///
+    /// <para>Matched on the whole name or a longhand of it, so <c>border-radius</c>,
+    /// <c>border-top-left-radius</c> and <c>border-image-source</c> are all covered.</para>
+    /// </summary>
+    private static bool NotPartOfTheBorderShorthand(string property) =>
+        property is "border-radius" or "border-collapse" or "border-spacing" or "border-image"
+        || property.EndsWith("-radius", StringComparison.Ordinal)
+        || property.StartsWith("border-image-", StringComparison.Ordinal);
 
     /// <summary>
     /// The stylesheet up to its print block, with the <c>@page</c> box removed. Comments stripped.
@@ -3058,6 +3080,47 @@ public sealed class WebPresentationTests
         // exists to avoid.
         var tooltip = File.ReadAllText(Path.Combine(WebRoot, "Components", "Tooltip.razor"));
         Assert.Matches(Rx(@"id=""@Id""\s+class=""sr-only"""), tooltip);
+    }
+
+    /// <summary>
+    /// The book's own words are marked as somebody else's, in a way that survives both palettes.
+    ///
+    /// <para><b>Both halves of this were wrong when written, and neither was visible to any
+    /// rendering test</b> — the class was on the element either way. The edge was
+    /// <c>var(--rule-weight) solid var(--accent)</c>, which is a different width in each palette
+    /// (1px Hero, 2px Villain) and, in Hero, gold on a near-white ground: measured at
+    /// <b>1.57:1</b>, which is no edge at all. It looked deliberate in the Villain proof, where
+    /// the same declaration measured 5.62:1.</para>
+    ///
+    /// <para>So the weight is a fixed length rather than a token that varies by mode, and the
+    /// colour is <c>--heading</c> — 6.76:1 and 5.62:1 on <c>--panel-sunk</c>, both measured. This
+    /// pins the decision rather than the numbers, because a contrast figure cannot be read out of
+    /// a stylesheet; re-measure if the palette moves.</para>
+    /// </summary>
+    [Fact]
+    public void ThePrintedEntryIsSetApartFromThisProjectsOwnWords()
+    {
+        var css = ScreenHalfOfAppCss;
+
+        Assert.Equal("var(--panel-sunk)", EffectiveValue(css, ".book-text", "background"));
+
+        var edge = EffectiveValue(css, ".book-text", "border-left");
+
+        Assert.NotNull(edge);
+
+        // Not --rule-weight: it is 1px in one palette and 2px in the other, so one declaration
+        // drew two different things.
+        Assert.DoesNotContain("--rule-weight", edge, StringComparison.Ordinal);
+
+        // Normalise strips the spaces, so the value reads "3pxsolidvar(--heading)".
+        Assert.Matches(Rx(@"^\d+px"), edge!);
+
+        // Not --accent, which is 1.57:1 on this ground in the Hero palette.
+        Assert.DoesNotContain("--accent", edge, StringComparison.Ordinal);
+        Assert.Contains("var(--heading)", edge, StringComparison.Ordinal);
+
+        // And a zero width is not a visible edge, whatever colour it names.
+        Assert.DoesNotMatch(Rx(@"^0(px)?[a-z]"), edge!);
     }
 
     /// <summary>

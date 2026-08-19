@@ -280,6 +280,75 @@ public sealed class AccountsContractTests
         Assert.Contains("RESEND_API_KEY", ServerSource(), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The setup document names every binding and secret the server actually reads.
+    ///
+    /// <para><b>Documentation of a configuration rots silently, and this one cannot be tried
+    /// out.</b> Every step in it needs the Cloudflare account's own credentials, so nobody
+    /// working in this repository can discover that a name has changed — and the failure it
+    /// produces is a site that deploys, works, and signs nobody in.</para>
+    ///
+    /// <para>The names are taken from the server rather than listed, so a new one has to be
+    /// documented on the day it is added. <c>McpSetupDocumentationTests</c> exists for the same
+    /// reason and caught two errors on its first run.</para>
+    /// </summary>
+    [Fact]
+    public void TheSetupDocumentNamesEverythingTheServerReadsFromItsEnvironment()
+    {
+        var doc = File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "docs", "ACCOUNTS-SETUP.md"));
+
+        // Everything reached for as env.SOMETHING: the D1 binding and the three settings.
+        var needed = Regex.Matches(ServerSource(), @"env\.([A-Z][A-Z0-9_]*)",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(needed.Count >= 4,
+            $"only {needed.Count} environment names found in the server ({string.Join(", ", needed)}); "
+            + "the pattern has stopped matching and this test is asserting nothing.");
+
+        var undocumented = needed
+            .Where(name => !doc.Contains(name, StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(undocumented.Count == 0,
+            "The server reads these from its environment and docs/ACCOUNTS-SETUP.md never names "
+            + "them, so nobody setting the site up would know to create them: "
+            + string.Join(", ", undocumented));
+
+        // And the migration command it gives really names the config that exists.
+        Assert.Contains("--cwd d1", doc, StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Combine(RulesFixture.RepoRoot, "d1", "wrangler.toml")),
+            "the document tells somebody to run wrangler against d1/wrangler.toml and it is not there.");
+    }
+
+    /// <summary>
+    /// The D1 binding is spelled the same in the server, the migration config and the document.
+    ///
+    /// <para>Three places, and getting it wrong in any one of them answers every request with a
+    /// 500 while the deploy reports success.</para>
+    /// </summary>
+    [Fact]
+    public void TheDatabaseBindingIsSpelledTheSameInAllThreePlaces()
+    {
+        var toml = File.ReadAllText(Path.Combine(RulesFixture.RepoRoot, "d1", "wrangler.toml"));
+
+        var bound = Regex.Match(toml, @"^\s*binding\s*=\s*""(\w+)""",
+            RegexOptions.Multiline, TimeSpan.FromSeconds(5));
+
+        Assert.True(bound.Success, "d1/wrangler.toml declares no binding name.");
+
+        var name = bound.Groups[1].Value;
+
+        Assert.Contains($"env.{name}", ServerSource(), StringComparison.Ordinal);
+        Assert.Contains($"`{name}`",
+            File.ReadAllText(Path.Combine(RulesFixture.RepoRoot, "docs", "ACCOUNTS-SETUP.md")),
+            StringComparison.Ordinal);
+    }
+
     private static string ServerSource() => string.Concat(ServerFiles().Select(File.ReadAllText));
 
     private static IEnumerable<string> ServerFiles() =>

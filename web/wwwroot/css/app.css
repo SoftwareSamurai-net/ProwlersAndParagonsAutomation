@@ -1546,7 +1546,10 @@ label {
    edge — because everything above it in the panel is this project's own text about the
    rules, and this is the publisher's. Nothing on the page should leave the two looking
    like one voice. */
-.book { margin-top: var(--space-3); }
+/* Space on both sides. With only a top margin the toggle sat flush against the "Ranks"
+   label below it and read as that field's own caption rather than as an offer about the
+   text above — visible in the proof, invisible to every test. */
+.book { margin: var(--space-3) 0 var(--space-4); }
 
 .book-toggle {
     font: inherit;
@@ -1570,7 +1573,14 @@ label {
     margin-top: var(--space-3);
     padding: var(--space-3) var(--space-4);
     background: var(--panel-sunk);
-    border-left: var(--rule-weight) solid var(--accent);
+
+    /* **Measured, not chosen.** This edge is the only thing marking the passage as somebody
+       else's words, so it has to be visible in both palettes. `--rule-weight` solid `--accent`
+       was neither: the token is 1px in Hero and 2px in Villain, so the same rule drew two
+       different things, and gold on the light sunk ground measured 1.57:1 — invisible, while
+       looking deliberate in the Villain proof where it measured 5.62:1. `--heading` measures
+       6.76:1 and 5.62:1 on that ground, and 3px is 3px in both. */
+    border-left: 3px solid var(--heading);
     border-radius: var(--radius-small);
 }
 
