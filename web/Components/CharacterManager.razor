@@ -1,0 +1,226 @@
+@implements IDisposable
+@inject AccountCharacterStore Store
+@inject CharacterSession Session
+@inject Accounts Accounts
+
+@* The characters this browser — or this account — is holding, and the way between them.
+
+   **It replaced a panel called "Starting over", which was the first thing on the page.** That
+   panel offered one destructive button and a link away to somebody else's finished character, which
+   is a strange greeting for somebody who came here to build one. What belongs at the top is what
+   you already have.
+
+   Two properties came across from it and both were tested there, so both are tested here:
+
+   * It asks before throwing a character away, in the page rather than in a browser dialogue, and
+     only when there is something to lose. On an empty sheet it acts on one click — that is the
+     visit where nobody has anything at stake.
+   * **The clear lands after the save that emptying the sheet fires.** Setting the session off
+     raises its change event, which starts a fire-and-forget write; clearing first races a
+     write nobody awaits. `StartAgainTests` asserts the interop ordering, not just the outcome. *@
+
+<Panel Title="Your characters" Aside="@Aside" NoPrint="true">
+    <ChildContent>
+
+    @if (_characters.Count == 0)
+    {
+        <p class="small muted">
+            Nothing saved yet. Whatever you build is remembered in this browser, so you can close
+            the tab and come back to it.
+        </p>
+    }
+    else
+    {
+        <ChosenList>
+            @foreach (var one in _characters)
+            {
+                <ChosenRow>
+                    <Body>
+                        @if (one.Id == _currentId)
+                        {
+                            <b>@one.Label</b>
+                            <span class="small muted">open now</span>
+                        }
+                        else
+                        {
+                            @one.Label
+                        }
+                    </Body>
+                    <Actions>
+                        @if (one.Id != _currentId)
+                        {
+                            <button type="button" class="btn" @onclick="() => Open(one.Id)">Open</button>
+                        }
+
+                        @* The same ask the old panel made, per row. `Replacement` carries the verb
+                           so the confirming button reads "Yes, discard this character" — the text
+                           StartAgainTests looks for, because the behaviour it guards is this one. *@
+                        @if (_pendingDelete == one.Id)
+                        {
+                            <button type="button" class="btn danger" @onclick="() => Delete(one.Id)">
+                                Yes, discard this character
+                            </button>
+                            <button type="button" class="btn" @onclick="() => _pendingDelete = null">
+                                Keep this character
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn danger" @onclick="() => AskDelete(one.Id)">
+                                Discard
+                            </button>
+                        }
+                    </Actions>
+                </ChosenRow>
+            }
+        </ChosenList>
+    }
+
+    <div class="inline spaced">
+        @* "Start a new character" keeps its exact wording. It is what the old panel called this and
+           what AreaTests asserts the tier page offers — and the act is the same act, so renaming it
+           would cost a reader the only continuity they have. *@
+        @if (_pendingNew)
+        {
+            <button type="button" class="btn danger" @onclick="StartNew">
+                Yes, discard this character
+            </button>
+            <button type="button" class="btn" @onclick="() => _pendingNew = false">
+                Keep this character
+            </button>
+        }
+        else
+        {
+            <button type="button" class="btn danger" @onclick="AskNew">Start a new character</button>
+        }
+    </div>
+
+    @if (_full)
+    {
+        <p class="small muted spaced" role="status">
+            Your account is holding as many characters as it can. Discard one to make room, or
+            keep building this one — it is still saved.
+        </p>
+    }
+
+    @* Loading a file in is here rather than on the review step, because this is where somebody
+       looks for a character they already have. *@
+    <ImportCharacter OnImported="Imported" />
+
+    <p class="small muted">
+        @if (_limit is { } limit)
+        {
+            <text>@_characters.Count of @limit on this account, and they follow you to any browser you sign in to.</text>
+        }
+        else
+        {
+            <text>
+                These are in this browser only — not sent anywhere. Sign in and they follow you
+                instead, or download one from the last step to keep a copy that travels.
+            </text>
+        }
+    </p>
+
+    </ChildContent>
+</Panel>
+
+@code {
+    private IReadOnlyList<SavedCharacterSummary> _characters = [];
+    private string? _currentId;
+    private int? _limit;
+    private bool _full;
+
+    private string? _pendingDelete;
+    private bool _pendingNew;
+
+    private string Aside => _limit is { } limit ? $"{_characters.Count} of {limit}" : "In this browser";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Accounts.Changed += Reload;
+        await Refresh();
+    }
+
+    /// <summary>
+    /// Re-reads the list. Called on every change so the row marked "open now" is the one that is.
+    /// </summary>
+    private async Task Refresh()
+    {
+        var listed = await Store.ListAsync();
+
+        _characters = listed.Characters;
+        _limit = listed.Limit;
+        _full = listed.Limit is not null && listed.IsFull;
+        _currentId = await Store.CurrentIdAsync();
+    }
+
+    private void Reload() => _ = InvokeAsync(async () =>
+    {
+        await Refresh();
+        StateHasChanged();
+    });
+
+    private async Task Open(string id)
+    {
+        if (await Store.OpenAsync(id) is { } opened) Session.Restore(opened.Sheet, opened.Mode);
+
+        _pendingDelete = null;
+        await Refresh();
+    }
+
+    /// <summary>
+    /// Asks first, unless there is nothing to lose — the same rule the old panel used, and the same
+    /// question, so the two cannot disagree about what "something to lose" means.
+    /// </summary>
+    private async Task AskDelete(string id)
+    {
+        if (id == _currentId && Session.HasSomethingToLose) { _pendingDelete = id; return; }
+
+        await Delete(id);
+    }
+
+    private async Task Delete(string id)
+    {
+        _pendingDelete = null;
+
+        // **Order matters and is asserted.** Emptying the session raises its change event, which
+        // fires a save nobody awaits; deleting first races that write. So the session is only
+        // emptied when the character being deleted is the one on screen, and only after.
+        if (id == _currentId)
+        {
+            Session.StartAgain();
+            await Store.ClearAsync();
+        }
+        else
+        {
+            await Store.DeleteAsync(id);
+        }
+
+        await Refresh();
+    }
+
+    private void AskNew()
+    {
+        if (Session.HasSomethingToLose) { _pendingNew = true; return; }
+
+        _ = StartNew();
+    }
+
+    private async Task StartNew()
+    {
+        _pendingNew = false;
+
+        Session.StartAgain();
+        await Store.ClearAsync();
+
+        await Refresh();
+    }
+
+    private async Task Imported((CharacterSheet Sheet, SheetMode Mode) character)
+    {
+        Session.Restore(character.Sheet, character.Mode);
+        await Refresh();
+    }
+
+    public void Dispose() => Accounts.Changed -= Reload;
+}

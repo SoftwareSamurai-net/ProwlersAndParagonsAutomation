@@ -42,7 +42,7 @@ public sealed class AccountTests
         var saved = new SavedCharacters(storage, Costs, Validator, who);
         var remote = new ApiCharacterStore(http, saved, Costs, Validator);
 
-        return new Wired(api, storage, who, new AccountCharacterStore(who, local, remote));
+        return new Wired(api, storage, who, new AccountCharacterStore(who, local, remote, saved));
     }
 
     [Fact]

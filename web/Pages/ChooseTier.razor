@@ -15,36 +15,12 @@
    demonstration is not a step in making your own character. Somebody who has come here to build
    one had to walk past them first.
 
-   What stays is the one control that belongs to building: throwing this character away. *@
-<Panel Title="Starting over" Aside="There is no undo" NoPrint="true">
-    <p class="small muted">
-        Whatever you build is remembered in this browser, so you can close the tab and come back
-        to it. It is not sent anywhere and it is only on this device — download the sheet from the
-        last step if you want a copy that travels.
-    </p>
-
-    @* Asks first, in the page rather than in a browser dialogue, and only when there is
-       something to lose. On a fresh sheet it acts on one click, which is the visit where nobody
-       has anything at stake. *@
-    <div class="inline">
-        @if (_pending is { } pending)
-        {
-            <button type="button" class="btn danger" @onclick="() => Do(pending)">
-                Yes, @pending.Verb
-            </button>
-            <button type="button" class="btn" @onclick="() => _pending = null">
-                Keep this character
-            </button>
-        }
-        else
-        {
-            <button type="button" class="btn danger" @onclick="() => Ask(Discard())">
-                Start a new character
-            </button>
-            <NavLink class="btn" href="portfolio">Or start from a finished one</NavLink>
-        }
-    </div>
-</Panel>
+   **And "Starting over" went the same way.** It was the first thing on this page: one red button
+   and a link away to somebody else's finished character. That is a strange greeting for a visitor
+   who arrived to build one — what belongs at the top is what they already have, which is what
+   `CharacterManager` shows. Discarding is still here; it is a row's own control now, plus the same
+   "Start a new character" it always was. *@
+<CharacterManager />
 
 @* Six cards rather than six full-width rows. These are the one set of choices on the
    whole app a reader is meant to compare against each other rather than search through,
