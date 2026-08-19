@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.JSInterop;
 using ProwlersAndParagonsAutomation.Engine;
 
@@ -14,126 +13,55 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// twenty minutes of work and landed on "Choose a tier first".</para>
 ///
 /// <para><b>What a stored character is lives in <see cref="StoredCharacter"/>, not here.</b>
-/// This class owns one thing: getting those bytes in and out of the browser. The account's
-/// store owns getting the same bytes in and out of a server, and the two share the envelope so
-/// a character saved on a laptop cannot restore wrongly on a phone.</para>
+/// This class owns one thing: which of the browser's <em>several</em> saved characters is the
+/// one currently open. <see cref="SavedCharacters"/> owns the storage underneath — the index,
+/// the id scheme, the legacy slot — and this class is now a thin single-character view onto
+/// it, kept because every existing caller (<see cref="AccountCharacterStore"/>,
+/// <c>Program.cs</c>'s boot restore, the autosave on every <see cref="CharacterSession"/>
+/// change) only ever needs "the one that is open", never the whole list.</para>
+///
+/// <para><b>A manager switching which character is open needs no change here.</b> Switching
+/// is <see cref="SavedCharacters.SetCurrentAsync(string)"/>, and this class always asks
+/// <see cref="SavedCharacters"/> which id is current before reading or writing — so the next
+/// autosave, and the next boot, land on whichever character was switched to.</para>
 ///
 /// <para><b>Nothing here may throw.</b> A browser that refuses local storage is the same case
 /// as no character at all, and restoring happens before the first render — so an exception is
-/// not a lost character but an app that does not start.</para>
+/// not a lost character but an app that does not start. <see cref="SavedCharacters"/> already
+/// guarantees this for every method it exposes, so nothing here needs its own guard on top.</para>
 /// </summary>
 public sealed class CharacterStore : ICharacterStore
 {
-    private const string StorageKey = "pp.character.v1";
-
-    private readonly IJSRuntime _js;
     private readonly IIdentitySource _who;
-    private readonly StoredCharacter _payload;
+    private readonly SavedCharacters _saved;
 
     public CharacterStore(
         IJSRuntime js, CostCalculator costs, CharacterValidator validator, IIdentitySource who)
     {
-        _js = js;
         _who = who;
-        _payload = new StoredCharacter(costs, validator);
+        _saved = new SavedCharacters(js, costs, validator, who);
     }
 
-    /// <summary>
-    /// Which slot in local storage belongs to whoever is here.
-    ///
-    /// <para><b>The anonymous visitor keeps the historical key exactly.</b> That key is the one
-    /// this store has been writing since it was written, so introducing identities does not
-    /// orphan a single saved character. Suffixing it "for consistency" would empty every
-    /// returning visitor's browser, silently, and look exactly like storage having been
-    /// cleared.</para>
-    ///
-    /// <para>An account's characters land beside it rather than on top of it, so signing in on a
-    /// shared browser cannot overwrite what the anonymous visitor was building — and signing out
-    /// cannot have eaten it.</para>
-    /// </summary>
-    private static string KeyFor(Identity who) =>
-        who.Key == Identity.Anonymous.Key ? StorageKey : $"{StorageKey}.{who.Key}";
+    /// <summary>Writes to whichever character is currently open. Failure is not worth reporting.</summary>
+    public async Task SaveAsync(CharacterSheet sheet, SheetMode mode) =>
+        await _saved.SaveCurrentAsync(await _who.CurrentAsync(), sheet, mode);
 
-    /// <summary>Writes the character to local storage. Failure is not worth reporting.</summary>
-    public async Task SaveAsync(CharacterSheet sheet, SheetMode mode)
-    {
-        try
-        {
-            await _js.InvokeVoidAsync(
-                "ppStore.save", KeyFor(await _who.CurrentAsync()), StoredCharacter.Write(sheet, mode));
-        }
-        catch (Exception e) when (IsStorageFailure(e)) { }
-    }
-
-    /// <summary>The stored character, or null if there is none this build can trust.</summary>
+    /// <summary>The currently open character, or null if there is none this build can trust.</summary>
     public async Task<(CharacterSheet Sheet, SheetMode Mode)?> LoadAsync() =>
         await LoadAsync(await _who.CurrentAsync());
 
     /// <summary>
-    /// The character in one particular slot, whoever is here now.
+    /// The currently open character in one particular identity's slot, whoever is here now.
     ///
     /// <para>Exists for one caller: the sign-in page, which offers to keep what the browser was
     /// holding <em>before</em> anybody signed in. By then the ordinary overload would answer for
     /// the account's own browser-side slot, which is empty and is not what was meant.</para>
     /// </summary>
-    internal async Task<(CharacterSheet Sheet, SheetMode Mode)?> LoadAsync(Identity who)
-    {
-        try
-        {
-            var json = await _js.InvokeAsync<string?>("ppStore.load", KeyFor(who));
-            if (string.IsNullOrWhiteSpace(json)) return null;
+    internal async Task<(CharacterSheet Sheet, SheetMode Mode)?> LoadAsync(Identity who) =>
+        await _saved.LoadCurrentAsync(who);
 
-            if (Read(json) is { } restored) return restored;
-
-            // Storage this build cannot use is removed rather than left. Left in place it is
-            // re-read and re-rejected on every visit, and if it ever gets past a guard the
-            // failure repeats forever with no way out from inside the app.
-            //
-            // The slot cleared is the slot read, which is why this takes the identity rather
-            // than asking again: an unreadable anonymous character would otherwise be answered
-            // by emptying whichever slot the *current* visitor happens to own.
-            await ClearAsync(who);
-            return null;
-        }
-        catch (Exception e) when (IsStorageFailure(e)) { return null; }
-    }
-
-    /// <summary>Forgets the stored character. What "Start a new character" actually does.</summary>
+    /// <summary>Forgets the currently open character. What "Start a new character" actually does.</summary>
     public async Task ClearAsync() => await ClearAsync(await _who.CurrentAsync());
 
-    private async Task ClearAsync(Identity who)
-    {
-        try { await _js.InvokeVoidAsync("ppStore.clear", KeyFor(who)); }
-        catch (Exception e) when (IsStorageFailure(e)) { }
-    }
-
-    /// <summary>
-    /// Reads a stored payload.
-    ///
-    /// <para><b>Private, and the doc comment here used to say it was internal "so the tests can
-    /// feed it malformed storage".</b> That stopped being true before this slice: the store's
-    /// tests write the malformed payload into a fake local storage and call
-    /// <see cref="LoadAsync()"/>, which is strictly better — it drives the path the app runs
-    /// rather than the one method underneath it. Nothing outside this class had called it for
-    /// some time, and Qodana said so the moment the file was touched.</para>
-    /// </summary>
-    private (CharacterSheet Sheet, SheetMode Mode)? Read(string json) => _payload.Read(json);
-
-    /// <summary>
-    /// Everything that can go wrong between here and the browser's storage. Every one means the
-    /// same thing: there is no saved character, carry on without one.
-    ///
-    /// <para>Named rather than a bare <c>catch</c> so the list is reviewable, and wider than the
-    /// obvious three because the alternative — an unobserved exception out of a
-    /// fire-and-forget save — stops persistence silently and tells nobody.</para>
-    /// </summary>
-    private static bool IsStorageFailure(Exception e) =>
-        e is JsonException                  // a character this build cannot even write down
-          or JSException                    // the browser refused, or ppStore is missing
-          or InvalidOperationException      // interop unavailable
-          or ObjectDisposedException        // the host is going away
-          or TaskCanceledException          // ditto, mid-call
-          or ArgumentException              // an id or key the payload invented
-          or OverflowException              // a number no build can hold
-          or NotSupportedException;         // a type the serializer cannot handle
+    private async Task ClearAsync(Identity who) => await _saved.ClearCurrentAsync(who);
 }

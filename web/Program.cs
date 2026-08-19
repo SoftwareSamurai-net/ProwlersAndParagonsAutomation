@@ -45,6 +45,12 @@ builder.Services.AddScoped<CharacterSession>();
 builder.Services.AddScoped<Accounts>();
 builder.Services.AddScoped<IIdentitySource>(s => s.GetRequiredService<Accounts>());
 builder.Services.AddScoped<CharacterStore>();
+// The plural store, registered separately from CharacterStore even though CharacterStore
+// builds its own instance internally (SavedCharacters is stateless — every method reads
+// storage fresh — so there is nothing to share). This registration is for a manager page:
+// list, switch, save-as and delete are not on ICharacterStore's single-character shape and
+// never will be, so a page that wants them asks for SavedCharacters directly.
+builder.Services.AddScoped<SavedCharacters>();
 builder.Services.AddScoped<ApiCharacterStore>();
 builder.Services.AddScoped<AccountCharacterStore>();
 builder.Services.AddScoped<ICharacterStore>(s => s.GetRequiredService<AccountCharacterStore>());
@@ -77,6 +83,12 @@ var host = builder.Build();
 // Nothing in this block may stop the app starting: a character saved by an older build, or
 // storage the browser refuses, both mean "no character", and CharacterStore returns null
 // rather than throwing. See its remarks.
+//
+// This still restores "the current character" and nothing more, unchanged by SavedCharacters
+// existing at all: CharacterStore.LoadAsync() asks SavedCharacters which id is open before
+// reading, so whichever character a manager page switched to is the one that comes back here.
+// A visitor who has never used a manager has never switched anything, so this restores the
+// bare pp.character.v1 slot exactly as it always did.
 var store = host.Services.GetRequiredService<ICharacterStore>();
 var session = host.Services.GetRequiredService<CharacterSession>();
 
