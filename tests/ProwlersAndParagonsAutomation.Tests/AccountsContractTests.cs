@@ -131,23 +131,99 @@ public sealed class AccountsContractTests
     }
 
     /// <summary>
-    /// The fields on the wire are spelled the same on both sides.
+    /// The identity on the wire is spelled the same at both ends.
     ///
-    /// <para>An identity is a key and a name; a sign-in request carries an address; a
-    /// verification carries a token; an entry is asked for by name. Each is one word, and each
-    /// is a word that would fail silently: <c>ReadFromJsonAsync</c> answers null for a property
-    /// it cannot find, which the client reads as "nobody is signed in".</para>
+    /// <para><b>This was a <c>Contains</c> first, and a mutation walked straight through it.</b>
+    /// Renaming the server's <c>displayName</c> to <c>display_name</c> left the guard green,
+    /// because the word still occurred elsewhere in the server's own source — as a parameter
+    /// name in <c>db.js</c>. Searching concatenated files for a word says nothing about where
+    /// the word is. So both ends are read structurally: the keys of the object the server
+    /// actually returns, and the names the client actually binds.</para>
+    ///
+    /// <para>The failure it guards against is silent in the worst way:
+    /// <c>ReadFromJsonAsync</c> answers null for a property it cannot find, and the client reads
+    /// null as "nobody is signed in". A working sign-in that signs nobody in.</para>
     /// </summary>
-    [Theory]
-    [InlineData("key")]
-    [InlineData("displayName")]
-    [InlineData("email")]
-    [InlineData("token")]
-    [InlineData("name")]
-    public void EveryFieldOnTheWireIsSpelledTheSameOnBothSides(string field)
+    [Fact]
+    public void TheIdentityOnTheWireIsSpelledTheSameAtBothEnds()
     {
-        Assert.Contains(field, ServerSource(), StringComparison.Ordinal);
-        Assert.Contains(field, BrowserSource(), StringComparison.Ordinal);
+        // The server: the object literal `identityOf` returns, and only that one.
+        var returned = Regex.Match(ServerSource(),
+            @"function identityOf\([^)]*\)\s*\{\s*return\s*\{(?<body>[^}]*)\}",
+            RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        Assert.True(returned.Success,
+            "worker/auth.js no longer has an identityOf returning an object literal, so this "
+            + "test cannot see what the server sends and would pass whatever it sent.");
+
+        var sends = Regex.Matches(returned.Groups["body"].Value, @"(\w+)\s*:",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+
+        // The client: the names it binds, off the record it deserializes into. Read from the
+        // source rather than by reflection, because this project may not reference web/ — the
+        // same reason WebPresentationTests reads that source too.
+        var record = Regex.Match(File.ReadAllText(
+                Path.Combine(RulesFixture.RepoRoot, "web", "Services", "Accounts.cs")),
+            @"record Wired\((?<body>[^;]*)\);",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(record.Success,
+            "Accounts.cs no longer declares a Wired record, so there is nothing to compare the "
+            + "server's answer against and this test would pass whatever the server sent.");
+
+        var reads = Regex.Matches(record.Groups["body"].Value, @"JsonPropertyName\(""(\w+)""\)",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(reads.Length == 2,
+            "the client binds " + reads.Length + " fields on an identity: " + string.Join(", ", reads));
+
+        Assert.True(sends.Length == 2,
+            "the server sends " + sends.Length + " fields on an identity: " + string.Join(", ", sends));
+
+        Assert.Equal(reads, sends);
+    }
+
+    /// <summary>
+    /// Every field the browser sends is a field the server reads.
+    ///
+    /// <para>Read off both sides rather than listed, for the reason above. The client's fields
+    /// are the properties of the anonymous objects it posts and the keys it puts in a query
+    /// string; the server's are what it pulls out of a parsed body or a search parameter.</para>
+    /// </summary>
+    [Fact]
+    public void EveryFieldTheBrowserSendsIsOneTheServerReads()
+    {
+        var browser = BrowserSource();
+
+        var posted = Regex.Matches(browser, @"PostAsJsonAsync\(""[^""]+"",\s*new\s*\{\s*(\w+)",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value);
+
+        var queried = Regex.Matches(browser, @"""api/[a-z/]+\?(\w+)=",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value);
+
+        var sends = posted.Concat(queried).Distinct(StringComparer.Ordinal).ToList();
+
+        Assert.True(sends.Count >= 3,
+            $"only {sends.Count} sent fields found in the browser's source; the patterns have "
+            + "stopped matching and this test is asserting nothing.");
+
+        var server = ServerSource();
+
+        var unread = sends
+            .Where(field => !server.Contains($"value?.{field}", StringComparison.Ordinal)
+                         && !server.Contains($"searchParams.get('{field}')", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(unread.Count == 0,
+            "The browser sends these and the server reads none of them: " + string.Join(", ", unread));
     }
 
     /// <summary>
