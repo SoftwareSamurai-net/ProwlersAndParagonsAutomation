@@ -21,7 +21,11 @@ test('the wrong method is refused and says what is allowed', async () => {
     assert.equal(got.status, 405);
     assert.equal(got.headers.get('allow'), 'POST');
 
-    const posted = await app.call('/api/character', { method: 'POST', body: {}, cookie });
+    // `/api/character` (singular) was the one-character-per-account address; the characters
+    // slice replaced it with `/api/characters/{id}`, so this now exercises the same "wrong
+    // method on a route that needs a user" shape at the new address.
+    const posted = await app.call('/api/characters/c_0000000000000000000000',
+        { method: 'POST', body: {}, cookie });
     assert.equal(posted.status, 405);
     assert.match(posted.headers.get('allow'), /PUT/);
 });

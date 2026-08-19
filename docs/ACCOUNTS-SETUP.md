@@ -121,6 +121,24 @@ whether or not it sent one — so the site cannot tell you, by design.
 
 ---
 
+## Raising one account's character limit
+
+Every account holds up to `users.character_limit` characters — **5** unless changed. Raising it
+for one address, say to make it a GM account, is one statement against the real database:
+
+```bash
+npx wrangler --cwd d1 d1 execute prowlers-and-paragons --remote \
+    --command "UPDATE users SET character_limit = 25 WHERE email = 'someone@example.test';"
+```
+
+Leave `--remote` off to run it against a local copy instead, same as the migrations above.
+
+**This is deliberately not self-service and there is no endpoint for it** — see
+`docs/CHARACTERS-API.md`. A cap somebody can raise on themselves is not a cap, so the only way to
+raise one is this command, run by hand by whoever administers the database.
+
+---
+
 ## What happens before any of this is done
 
 Nothing breaks, and that is the property worth keeping:

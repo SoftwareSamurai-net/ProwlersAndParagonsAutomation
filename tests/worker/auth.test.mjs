@@ -358,7 +358,9 @@ test('a state-changing request must come from this site', async () => {
         const asked = await app.call('/api/auth/request',
             { method: 'POST', body: { email: 'a@b.test' }, origin });
         const out = await app.call('/api/auth/signout', { method: 'POST', cookie, origin });
-        const saved = await app.call('/api/character',
+        // `/api/character` (singular) is gone; the characters slice's `/api/characters/{id}`
+        // is the state-changing address that needs the same origin check now.
+        const saved = await app.call('/api/characters/c_0000000000000000000000',
             { method: 'PUT', body: { any: 'thing' }, cookie, origin });
 
         assert.equal(asked.status, 403, 'origin ' + origin);

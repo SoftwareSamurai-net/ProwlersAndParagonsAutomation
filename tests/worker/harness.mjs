@@ -19,7 +19,13 @@ import { handle, production } from '../../worker/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-export const MIGRATION = join(here, '..', '..', 'd1', 'migrations', '0001_accounts.sql');
+// **Both migrations, in order** — a test running against only `0001` would pass against a
+// schema nobody deploys. Adding a third migration later means adding it to this list, not
+// discovering that the suite quietly stopped exercising it.
+export const MIGRATIONS = [
+    join(here, '..', '..', 'd1', 'migrations', '0001_accounts.sql'),
+    join(here, '..', '..', 'd1', 'migrations', '0002_characters_list.sql'),
+];
 
 export const ORIGIN = 'https://pp.example.test';
 
@@ -32,7 +38,7 @@ export const ORIGIN = 'https://pp.example.test';
  */
 export function database() {
     const sqlite = new DatabaseSync(':memory:');
-    sqlite.exec(readFileSync(MIGRATION, 'utf8'));
+    for (const migration of MIGRATIONS) sqlite.exec(readFileSync(migration, 'utf8'));
 
     const wrap = sql => {
         const statement = sqlite.prepare(sql);
