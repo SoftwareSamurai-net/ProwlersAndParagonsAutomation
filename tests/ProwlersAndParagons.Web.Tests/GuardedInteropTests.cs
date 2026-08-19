@@ -1,5 +1,3 @@
-using Bunit;
-using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 
@@ -79,7 +77,7 @@ public sealed class GuardedInteropTests
     [Fact]
     public async Task AWorkingRuntimeIsNotReportedAsMissing()
     {
-        using var ctx = new RenderContext();
+        await using var ctx = new RenderContext();
         var js = ctx.Services.GetRequiredService<IJSRuntime>();
 
         var theme = new Theme(js);
