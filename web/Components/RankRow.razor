@@ -11,11 +11,31 @@
         }
     </div>
 
-    <div class="pips" aria-hidden="true">
+    @* **The pips are the control, not a picture of one.** They were `aria-hidden` decoration
+       beside the stepper, which meant the only way from 2d to 9d was seven clicks on `+`.
+       Clicking the fifth pip sets 5d; the arrow keys move by one; Home and End go to the ends.
+
+       `role="slider"` rather than a radio group: a rank is a value on a range, the range is
+       bounded and ordered, and one focusable element beats twelve. The stepper stays — it is
+       discoverable, it is a bigger touch target, and a slider and its buttons are an ordinary
+       pairing.
+
+       **The individual pips stay `aria-hidden`.** They are the slider's own rendering, and a
+       reader told "4d Noteworthy, slider" does not also want twelve unlabelled children. *@
+    <div class="pips"
+         role="slider"
+         tabindex="0"
+         aria-label="@($"{Name} rank")"
+         aria-valuemin="@Min"
+         aria-valuemax="@Max"
+         aria-valuenow="@Rank"
+         aria-valuetext="@ValueText"
+         @onkeydown="Key">
         @for (var i = 1; i <= Max; i++)
         {
+            var rank = i;
             var cls = i <= PackageFloor ? "pip on package" : i <= Rank ? "pip on" : "pip";
-            <span class="@cls"></span>
+            <span class="@cls" aria-hidden="true" @onclick="() => Set(rank)"></span>
         }
     </div>
 
@@ -88,6 +108,41 @@
         }
     }
 
+    /// <summary>
+    /// The lowest rank this row can actually be set to: the Trait's own floor, or the package's
+    /// granted rank where that is higher, since a package's ranks "cannot be lowered below the
+    /// package rank". The same figure <see cref="Set"/> clamps to, read once so the announced
+    /// minimum and the enforced one cannot disagree.
+    /// </summary>
+    private int Min => Math.Max(Floor, PackageFloor);
+
+    /// <summary>
+    /// What a screen reader is told the value is. The bare number would be read as a quantity;
+    /// the rulebook's own word for the rung is the thing a player is choosing between, and it is
+    /// already on screen for everybody else.
+    /// </summary>
+    private string ValueText => Word is { } word ? $"{Rank}d {word}" : $"{Rank}d";
+
+    /// <summary>
+    /// The keys a slider is expected to answer to.
+    ///
+    /// <para><b>Nothing here suppresses the browser's default, and that is a compromise rather
+    /// than a preference.</b> Blazor fixes <c>preventDefault</c> at render time rather than per
+    /// event, so suppressing it on this element would also swallow Tab and trap focus inside a
+    /// rank row — much worse than what it would fix. The consequence is that Home and End still
+    /// scroll the document as well as moving the rank. Left and Right are the pair to reach for:
+    /// the pips are horizontal, and this app is held to no horizontal overflow by a harness in
+    /// CI, so those two scroll nothing.</para>
+    /// </summary>
+    private Task Key(KeyboardEventArgs e) => e.Key switch
+    {
+        "ArrowRight" or "ArrowUp" => Set(Rank + 1),
+        "ArrowLeft" or "ArrowDown" => Set(Rank - 1),
+        "Home" => Set(Min),
+        "End" => Set(Max),
+        _ => Task.CompletedTask,
+    };
+
     private Task Set(int value) =>
-        RankChanged.InvokeAsync(Math.Clamp(value, Math.Max(Floor, PackageFloor), Max));
+        RankChanged.InvokeAsync(Math.Clamp(value, Min, Max));
 }

@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**3923 tests** — 3672 engine, 251 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
+**3935 tests** — 3672 engine, 263 bUnit — zero warnings at CI strictness, MIT in `LICENSE`, the
 site live on Cloudflare Pages. Four front ends on one engine assembly: the terminal wizard, the
 browser app, `build --from character.json`, and an MCP server. **CI drives a browser too**: six
 proof harnesses on `ubuntu-latest`, each required to *say* `PASS` in its `<title>`.
@@ -65,10 +65,20 @@ rather than adding one, because only the editor knows how to price ranks and var
 - **`proof-shortcut.html` is the sixth CI harness**, and it exists because bUnit cannot dispatch
   a document-level key event. Any new global key belongs in it.
 
+**The pips are the control now too**, as `role="slider"` on the group with the stepper kept
+beside it. Two things a later slice needs:
+
+- **The announced minimum is the package floor where there is one**, because a package's granted
+  ranks cannot be lowered below the package rank. A slider announcing a bound it will not go to
+  lies to a screen-reader user about the control in front of them.
+- **Nothing suppresses the browser's default on those keys, and it cannot.** Blazor fixes
+  `preventDefault` at render time rather than per event, so suppressing it on the slider would
+  swallow Tab and trap focus in a rank row. Home and End therefore also scroll the document —
+  a known wart. The fix, if it is wanted, is a small interop shim like `palette.js`, not a
+  Razor attribute.
+
 What remains in Phase 3:
 
-- **The pips become the control.** They are `aria-hidden` decoration beside a `+`/`−` stepper
-  today; clicking the fifth pip should set 5d, with arrow keys and Home/End.
 - **Keyboard navigation in the option lists**, with the filter box keeping focus. Every list is
   mouse-only in practice.
 - **Validation where the mistake is made.** The engine answers continuously; the findings only
@@ -183,7 +193,7 @@ Each one has cost this project real time when skipped.
    ```bash
    dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
    ```
-   It must report **3672 + 251 = 3923** and zero warnings. **Warnings are errors only under that
+   It must report **3672 + 263 = 3935** and zero warnings. **Warnings are errors only under that
    flag**, so a plain `dotnet test` passes over things CI fails on.
 
    **Take the number from the run, not from a document, and update the document from the run.**

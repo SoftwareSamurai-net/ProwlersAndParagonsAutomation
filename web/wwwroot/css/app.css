@@ -650,7 +650,21 @@ label {
     font-weight: 700;
 }
 
-.pips { display: flex; gap: var(--space-0); }
+/* The pips are a slider now, so the group is focusable and has to show it. The ring goes on
+   the group rather than on a pip: the value is the whole row of them. */
+.pips {
+    display: flex;
+    gap: var(--space-0);
+    padding: var(--space-1);
+    border-radius: var(--radius-small);
+    cursor: pointer;
+}
+
+.pips:focus-visible {
+    outline: var(--rule-weight) solid var(--focus);
+    outline-offset: var(--space-0);
+}
+
 .pip {
     width: 7px; height: 14px;
     border-radius: var(--radius-hair);
@@ -658,6 +672,18 @@ label {
     border: 1px solid var(--rule);
     transition: background-color var(--step) var(--ease), border-color var(--step) var(--ease);
 }
+
+/* **The pip's own geometry is untouched, and an attempt to enlarge it was reverted.** A 7px
+   sliver is a poor mouse target, so the box was grown by its own padding with
+   `background-clip: content-box` meant to keep the fill as drawn. Measured, it did not: these
+   are `border-box`, so 2px of padding and 1px of border came *out* of the width and the painted
+   pip went from 7px to 5px — with the border no longer hugging the fill. A deliberate design
+   quietly altered to fix a secondary concern, and invisible to every test in this repository.
+
+   The keyboard is the good path now; a click that misses a pip lands in a 2px gap and does
+   nothing, which is recoverable. If this is revisited, measure the painted width rather than
+   reasoning about the box model. */
+.pips:hover .pip { border-color: var(--accent); }
 .pip.on { background: var(--accent); border-color: var(--accent); }
 .pip.package { background: var(--accent-soft); }
 
