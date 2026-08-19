@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**4066 tests** — 3683 engine, 341 bUnit, 42 driving the accounts server — zero warnings at CI
+**4069 tests** — 3683 engine, 342 bUnit, 44 driving the accounts server — zero warnings at CI
 strictness, MIT in `LICENSE`, the site live on Cloudflare Pages. Five front ends on one engine
 assembly: the terminal wizard, the browser app, `build --from character.json`, an MCP server, and
 now an accounts server that holds no rules at all. **CI drives a browser too**: six proof harnesses
@@ -32,7 +32,7 @@ as [#46](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/46)
 `PROGRESS.md` has the account of each. The old branches — `…-221eb7`, `…-c88220`,
 `claude/reconcile-a1-a3` — are far behind and must not be started from.
 
-**The most valuable reviewer, five sessions running, is the one pointed at the fixes rather than at
+**The most valuable reviewer, six sessions running, is the one pointed at the fixes rather than at
 the code.** On this one it would have caught what the author caught late: a mutation harness that
 ran only one of the two test suites and reported a caught rename as a survivor. Do not skip it.
 
@@ -141,7 +141,7 @@ Each one has cost this project real time when skipped.
    ```bash
    ./scripts/test-worker.sh
    ```
-   They must report **3683 + 341** and **42**, and zero warnings. **Warnings are errors only under
+   They must report **3683 + 342** and **44**, and zero warnings. **Warnings are errors only under
    that flag**, so a plain `dotnet test` passes over things CI fails on.
 
    **Take the numbers from the runs, not from this document, and update this document from the

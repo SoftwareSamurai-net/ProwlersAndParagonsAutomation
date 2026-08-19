@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4066 across three suites — 3683 on the engine, 341 rendering components with bUnit, 42 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
+| Tests | 4069 across three suites — 3683 on the engine, 342 rendering components with bUnit, 44 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -381,6 +381,33 @@ refuse.
 **And one fault was in the test stub rather than the code**: `FakeApi`'s verify route answered a
 hardcoded identity whatever it was asked, so a test about two accounts on one machine was quietly
 a test about one. All seven new guards were then mutated and all seven bite.
+
+**Then a third reviewer was pointed at the fixes rather than the code, and six of the nine did not
+hold.** This has been the highest-yield reviewer for six sessions running and it earned it again:
+every one of the six caught only the mutation it had been shown, and a *variant* reaching the same
+end state walked past it with every suite green. What was wrong was the same thing each time — the
+guard asserted the absence of one spelling instead of the property.
+
+| The fix | The variant that got past it | What it is now |
+|---|---|---|
+| `SITE_URL` required | trust `X-Forwarded-Host` *as well*, leaving the refusal intact — mailed a link to `evil.attacker.test` | the link's origin must **equal** `SITE_URL`, with six hostile host headers set |
+| the cap counts bytes | "correct" the count by +2 per surrogate pair — right for emoji, wrong for CJK — stored 307 KB | asserted with a three-byte character as well as a four-byte one |
+| `X-Forwarded-For` not trusted | trust `X-Real-IP` too — 26 links against a cap of 20 | nine spoofable headers varied at once |
+| `login_attempts` swept | restrict the `DELETE` to `key LIKE 'email:%'` — 51 stale `ip:` rows | both kinds of key asserted by name |
+| the identity contract | return `key: null` — same field names, so the name-comparison passed | the key must be the account's own id, and match `/api/me` |
+| `CouldOverride` narrowed | `all: unset` after the rule — the box lost background, padding and edge in any browser | `all` overrides everything, checked first |
+
+**The `key: null` one is the worst-shaped of the six**: the server would establish the session and
+set the cookie while the client read a null key as "nobody is signed in" — a live session its owner
+is told they do not have. A contract on field names is not a contract.
+
+**It also found a second lie in the stub, live and uncovered:** `FakeApi` had one character slot
+shared by every account, so any test of two accounts against the character store would have been a
+test of one — and would have passed against a server with no notion of ownership at all. The real
+server's own tests do cover ownership, so nothing in production was wrong; what was missing was the
+ability to tell. `TwoAccountsOnOneMachineDoNotShareACharacter` is that ability.
+
+All six variants were then re-run against the strengthened guards and all six now go red.
 
 **What is not done, and needs the account owner rather than a commit:** none of it runs until a D1
 database, a binding named `DB`, a Resend key and the DNS records for a sending domain exist.
