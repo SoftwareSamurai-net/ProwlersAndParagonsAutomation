@@ -16,169 +16,100 @@ site live on Cloudflare Pages. Four front ends on one engine assembly: the termi
 browser app, `build --from character.json`, and an MCP server. **CI drives a browser too**: six
 proof harnesses on `ubuntu-latest`, each required to *say* `PASS` in its `<title>`.
 
-**Everything through Phase 2 is in `master`.** The mutation-audit reconciliation merged as
-[#45](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/45); slice B and Phases
-0, 1 and 2 of the front-end plan merged as
-[#46](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/46). Start from `master`.
-The old branches — `…-221eb7`, `…-c88220`, `claude/reconcile-a1-a3` — are all behind it now and
-should not be started from.
+**Everything below is in `master` — start from it.** The front-end plan's Phases 0, 1 and 2 merged
+as [#46](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/46), and since then:
 
-**Slice B shipped all six items** — two self-hosted faces (Oswald and Public Sans, both SIL OFL
-with their licences), labels carrying the structure of the long forms, the tier choice as a card
-grid, the rule under each derived figure, the rulebook's word beside each rank, and one filter
-box in the component all five pickable lists share. The budget bar then became a sticky strip of
-chrome rather than a panel costing ~110px above every step.
+| | |
+|---|---|
+| [#49](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/49) | Phase 3's `Ctrl-K` command palette; the Hero/Villain mode became `CharacterSheet.IsVillain` and the budget limit an independent `UnlimitedBudget` toggle |
+| [#50](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/50) | `Tooltip`, and the guard refusing a `title` attribute anywhere |
+| [#51](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/51) | The rank pips became a real control (`role="slider"`) |
+| [#52](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/52) | **One site, two areas** — the play aide and `/portfolio` — plus the `ICharacterStore` / `IIdentitySource` seam this next slice slots into |
 
-**Phases 0, 1 and 2 are done.** The scales exist and are held by
-`NoScreenRuleNamesARawSpacingOrTypeLength`; the chrome is one band instead of three and six empty
-states name the next action; and motion carries meaning — the chrome persists across a step change
-through the View Transitions API, the budget figure counts to its new value, and a row arriving in
-a chosen list lands. No animation library: `wwwroot/js/motion.js` is the whole of it, **+3.5 KB
-brotli**, and the CSP is unchanged. `PROGRESS.md` has the full account.
+`PROGRESS.md` has the account of each. The old branches — `…-221eb7`, `…-c88220`,
+`claude/reconcile-a1-a3` — are far behind and must not be started from.
 
-**Three reviewers ran on Phase 2 and the third was worth more than the first two.** Two adversarial
-passes found three bugs in *shipped code* — an `Animation` leaked per count, an abandoned count
-could rest the strip on a figure the engine no longer returns, and `motion.js` had become
-load-bearing for navigation. The fix-audit then found that of ten fixes only three held, **and that
-one of them had shipped a bug worse than the one it closed**, found with no mutation applied at all.
-Do not skip that third reviewer.
+**The most valuable reviewer, four sessions running, is the one pointed at the fixes rather than at
+the code.** On the last few it found that mutations reported as caught were no-ops, that a commit
+message described a change the commit did not contain, and that a fix had shipped a bug worse than
+the one it closed. Do not skip it.
 
 ---
 
-## What the next session is for: Phases 3, 4 and 5
+## What the next session is for: characters that belong to an account
 
-The plan is [`docs/FRONT-END-PLAN.md`](FRONT-END-PLAN.md) and it is the brief. **Read it before
-starting.** Phases 0–2 are done; three remain.
+**This is the brief.** Everything before it is context; this is the work.
 
-**Phase 3 — the interactions that are still forms.** Two slices, risk medium-high. Where the app
-stops feeling like a document and starts feeling like a tool.
+A character lives in one browser's local storage and nowhere else. Close that browser on another
+machine and it is gone; there is no way to have two characters, no way to share one except by
+downloading a file, and no way for the rules reference to know who is reading it. Accounts are what
+fixes all four, and they are the last thing on the list that changes what this app *is* rather than
+how it looks.
 
-**The first slice is done: the `Ctrl-K` command palette.** It offers the six steps and, once
-something is typed, the Powers; it matches by the lists' own rule, and it *requests* a Power
-rather than adding one, because only the editor knows how to price ranks and variants.
-`PROGRESS.md` has the account. Three things a later slice needs to know:
+### What already exists, so do not rebuild it
 
-- **The six steps now live in `Commands` and the step band draws them from there.** Do not give
-  either a list of its own.
-- **`OptionFilter.Matches` is the shared matching rule.** Anything that filters a list of options
-  calls it, or the app answers the same query two ways.
-- **`proof-shortcut.html` is the sixth CI harness**, and it exists because bUnit cannot dispatch
-  a document-level key event. Any new global key belongs in it.
+The seam went in with the two-areas split and it is behaviour-preserving — everybody is anonymous
+today and the app behaves exactly as it did.
 
-**The pips are the control now too**, as `role="slider"` on the group with the stepper kept
-beside it. Two things a later slice needs:
+- **`ICharacterStore`** — save the inputs, load them back, throw them away. A server-backed store is
+  a registration change in `Program.cs`, not a rewrite. `CharacterStore` is the browser
+  implementation.
+- **`IIdentitySource`** — answers who the character belongs to, **asynchronously**, because a real
+  one has to ask something. `LocalIdentity` returns `Identity.Anonymous` and never fails.
+- **`Identity`** carries a key and a display name and **deliberately nothing else** — no claims, no
+  token, no expiry. The wrong authentication model is harder to remove than none, so it stays that
+  small until a real one is chosen.
+- Storage already partitions by identity key, and `IdentityStorageTests` pins the behaviour that
+  makes the transition safe.
 
-- **The announced minimum is the package floor where there is one**, because a package's granted
-  ranks cannot be lowered below the package rank. A slider announcing a bound it will not go to
-  lies to a screen-reader user about the control in front of them.
-- **Nothing suppresses the browser's default on those keys, and it cannot.** Blazor fixes
-  `preventDefault` at render time rather than per event, so suppressing it on the slider would
-  swallow Tab and trap focus in a rank row. Home and End therefore also scroll the document —
-  a known wart. The fix, if it is wanted, is a small interop shim like `palette.js`, not a
-  Razor attribute.
+### The decision that gates everything
 
-**The option lists are keyboard-driven too.** The box is a combobox, the rows are options of a
-listbox with `tabindex="-1"`, and Enter runs the row's own callback — carried back through
-`OptionTally.Record`, because the row is never focused so the browser cannot activate it and the
-list holds no reference to it. A list with no filter box is untouched and must stay that way.
+**The site is a static Cloudflare Pages deploy with no backend, and accounts need one.** That is not
+a detail to design around later — it decides the whole slice, and it costs the "static site" property
+the README advertises. Settle it before writing code. The shapes worth weighing:
 
-What remains in Phase 3:
+- **A hosted identity and data provider** (Cloudflare Access/D1 + Workers, Supabase, Firebase,
+  Auth0 + a small API). Fastest to a working sign-in; adds a service, a bill and a second place the
+  character exists.
+- **Cloudflare Workers + D1 in the same account**, so the deploy stays one pipeline and the data
+  stays where the site already is. More to write, least new surface.
+- **No server: an account is a sync key** — the character stays local and syncs through a
+  user-supplied endpoint or a file. Keeps the static property and is honest about it, but it is not
+  really an account and will not carry the rules reference's gating.
 
-- **Validation where the mistake is made.** The engine answers continuously; the findings only
-  surface at GM review. A Trait over the cap should say so on its own row.
-- **Undo.** Three buttons on the tier page can destroy twenty minutes behind a confirm dialogue.
+**What to ask before choosing:** is the goal genuinely multi-device characters, or is it gating the
+rulebook reader? Those want different things, and `PROGRESS.md` records the reader as
+"account-gated and comes after the front-end redesign" — which has now happened.
 
-**This phase is not bUnit-shaped**, and the palette proved it exactly. bUnit drove the component's
-key handler fine and could not reach the listener that hears the chord at all, because that is an
-event on the document and no render tree contains one — so a driven harness had to be written
-beside it. The pip control is the same shape. Budget for that rather than discovering it, and
-note that screen-reader testing is still owed on both: `aria-activedescendant` is asserted to
-point at a row that exists, which is not the same as having been listened to.
+### Rules this slice must not break
 
-**Phase 4 — the sheet as the reward, not the exit.** Half a slice, risk low. A live preview column
-so the sheet is visible *while* building, which is nearly free — `SheetView` already takes a
-character and there is one sheet component by design. **Phase 1's deferred fourth item lands here**,
-because they are one job: widening `--column` above a breakpoint, which every band follows
-automatically, but which also widens the sheet and the replay. Decide that deliberately rather than
-as a side effect. Watch the render cost — the sheet re-renders on every keystroke unless throttled.
+- **Nothing about the rules may branch on who is signed in.** A character is legal or not regardless
+  of who holds it. `PresentationFlagsTests` already enforces the same discipline for the
+  Hero/Villain flag; identity deserves the same guard before the first `if`.
+- **The anonymous storage key stays `pp.character.v1`.** Changing it empties every returning
+  visitor's browser, silently, looking like storage cleared rather than a bug.
+- **An account's characters land *beside* the anonymous slot, never on top of it.** Signing in on a
+  shared browser must not overwrite what somebody was building, and signing out must not have eaten
+  it.
+- **Nothing in `ICharacterStore` may throw.** Restoring happens before the first render, so an
+  exception is not a lost character but an app that does not start — and a network that is not
+  there is now one of the ways it can fail.
+- **No credentials, tokens or personal data in the repository or in a log.** The MCP server's own
+  note is the standard to hold: this project handles no credentials, and an account system is the
+  first thing that could quietly change that.
+- **The engine never learns any of this.** `engine/` and `sheets/` have no idea accounts exist and
+  must not gain one.
 
-**Phase 5 — the things that are simply missing.** A skip link and landmark roles; "Saved" feedback,
-since the character write-through is silent; and a print preview honest about the browser's own
-header, which no page can suppress.
+### The vertical slice worth taking first
 
-**Two Phase 2 findings are recorded rather than fixed, both measured** — see `PROGRESS.md`:
-
-- A held-open view transition **swallows pointer input** for ~260ms, up to 1000ms if the failsafe
-  fires. `pointer-events: none` on the pseudo would let the click through *to the new page while
-  the visitor still sees the old one*, trading a dead click for a wrong one.
-- **There is no `aria-live` anywhere**, so crossing into over-budget is announced to nobody. If you
-  add one it must go on a sibling summary, **never** on `.budget-figure strong`, which `ppCount`
-  rewrites up to 60×/s.
-
-Phase 2 item 3 — exit animations — is deferred by the plan itself.
-
----
-
-## Done since, outside the plan: the palette is the character's
-
-**The mode is `CharacterSheet.IsVillain` and the Hero Point limit is `UnlimitedBudget`, an
-independent toggle.** This reverses an entry in `CLAUDE.md`'s settled list, deliberately and with
-the reasoning rewritten there rather than deleted. `PROGRESS.md` has the full account. What a later
-slice needs to know:
-
-- **No rules code may name either field**, and `PresentationFlagsTests` enforces it with a positive
-  control. That test is the entire justification for the fields existing; do not weaken it.
-- **A Villain can be held to a budget and a Hero need not be.** If anything ever reads one flag to
-  decide the other, the split has been undone.
-- **One route puts the palette on the document**: `MainLayout`, on the render after any change of
-  character. `ppSetMode` has left the interop guard's by-hand allow-list and goes through `Theme`.
-- **The replay's Villain recording still shows its own budget finding**, driven by the recording's
-  own flag rather than by the visitor's toggle. That recording is *about* the difference, so it did
-  not inherit the new default. Check it deliberately if you touch this.
+One character, one account, end to end — sign in, the character follows you to another browser, sign
+out and the anonymous one is still there. Resist building a character *list* in the same slice: it
+changes `ICharacterStore` from "the character" to "characters", which is a different interface and a
+different set of screens, and it is much easier to get right once one character round-trips.
 
 ---
 
-## Asked for, not yet built — two directions, both bigger than a slice
-
-Both were asked for by the repository's owner while the work above was in flight. They are recorded
-here rather than started, because each needs decisions taken before code.
-
-### One tool becomes two masters — **the information architecture is done**
-
-`Areas.Of` decides which half an address is in; the tool draws the steps and the budget, the
-portfolio draws neither. The samples and the recordings are at `/portfolio`. `ICharacterStore` and
-`IIdentitySource` are the seam accounts will slot into, and everybody is anonymous today.
-`PROGRESS.md` has both accounts. Three things a later slice needs:
-
-- **The old `/replay` addresses must stay portfolio addresses.** A shared link that arrives wearing
-  the tool's chrome puts the visitor's own budget over somebody else's character.
-- **The anonymous storage key must stay `pp.character.v1`.** Changing it empties every returning
-  visitor's browser silently.
-- **`IIdentitySource` carries a key and a name and nothing else.** Do not grow it into an
-  authentication model before one has been chosen.
-
-What is left below is the part that needs a hosting decision rather than a slice.
-
-### Accounts, which the static deploy has no place for
-
-Today one app does two jobs and the chrome says so: "Watch one being built" and "Or start from a
-finished character" sit beside the thing somebody would actually use at a table. The direction is a
-split:
-
-- **A play aide** — the rules reference and the character sheet helper. The thing a player has open
-  during a session.
-- **A portfolio surface** — the recordings, the sample characters, and the demonstration of how the
-  engine was built. The thing that justifies the work to somebody evaluating it.
-
-Characters tie to accounts, which `PROGRESS.md` already anticipates for the rulebook reader
-("account-gated and comes after the front-end redesign"). **Questions to settle first:** whether the
-two are separate routes in one deployment or two; what an anonymous visitor sees; whether the
-account store replaces browser storage or sits beside it; and what happens to `/replay` and the two
-samples, which are load-bearing for the portfolio half and noise for the play half.
-
-Note the constraint that makes this cheap: `data/rulebook/` is already extracted and is deliberately
-**not** in the browser payload — one `ItemGroup` in `web/`'s csproj serves it. A rules reference has
-its content waiting.
+## Also asked for, not started
 
 ### A Power's rulebook text on hover
 
@@ -186,10 +117,10 @@ its content waiting.
 has the account, and the guard refusing a `title` attribute is the part not to undo.
 
 What is *not* built is the other half, and it is the more valuable one: a Power's own printed text
-where a player is choosing it. That is not a tooltip parameter — `data/rulebook/` has the prose, is
-already extracted, and is deliberately **not** in the browser payload, so serving it is one
-`ItemGroup` in `web/`'s csproj plus a decision about the public site. It belongs with the rules
-reference in the split above rather than with a component. Three things to know before starting:
+where a player is choosing it. `data/rulebook/` has the prose, is already extracted, and is
+deliberately **not** in the browser payload, so serving it is one `ItemGroup` in `web/`'s csproj
+plus a decision about the public site — which is now an account question rather than a component
+one. Three things to know before starting:
 
 - **The corpus is generated.** Do not hand-edit `data/rulebook/`; regenerate with
   `tools/RulebookExtractor`.
@@ -197,6 +128,40 @@ reference in the split above rather than with a component. Three things to know 
   structured and verified entry by entry.
 - **`Tooltip` is the wrong container for a paragraph.** It is sized and positioned for a sentence.
   A Power's entry wants a panel or a disclosure, not a floating box.
+
+### Visual regression, which nothing currently catches
+
+The six harnesses assert *measurements* — overflow, insets, whether an animation ran — and never
+appearance. Screenshots are generated and looked at once by whoever is working, then thrown away.
+Nothing catches drift between commits, and it has already cost: a pip silently went from 7px to 5px
+under `border-box` and only a hand-written probe found it, and a tooltip stacking bug was reported
+by a person rather than by CI.
+
+Golden PNGs of the proof pages with a per-pixel tolerance would close it. Two things make it viable
+here that usually do not: the fonts are self-hosted, and CI already drives Chrome at a fixed
+viewport. **Generate the goldens in CI on Linux, never from a Windows run** — antialiasing differs
+and every one will mismatch. The real cost is not the harness, it is reviewing golden updates; a
+lazy "accept new goldens" step makes the whole thing worthless.
+
+### What remains of the front-end plan
+
+Phase 3's last two items — validation on the row where the mistake is made, and undo — plus Phase 4
+(the sheet as a live preview column, which absorbs Phase 1's deferred `--column` widening) and
+Phase 5 (skip link and landmarks, "Saved" feedback, an honest print preview). The plan is
+[`docs/FRONT-END-PLAN.md`](FRONT-END-PLAN.md).
+
+**Two Phase 2 findings are recorded rather than fixed, both measured** — see `PROGRESS.md`: a
+held-open view transition swallows pointer input for ~260ms, and there is no `aria-live` anywhere,
+so crossing into over-budget is announced to nobody. If you add one it must go on a sibling summary,
+**never** on `.budget-figure strong`, which `ppCount` rewrites up to 60×/s.
+
+### Known warts, both deliberate
+
+- **Home and End on a rank slider also scroll the document.** Blazor fixes `preventDefault` at
+  render time rather than per event, so suppressing it there would swallow Tab and trap focus in a
+  rank row. The fix is a small interop shim like `palette.js`, not a Razor attribute.
+- **Screen-reader testing is owed** on the command palette and the pips. `aria-activedescendant` is
+  asserted to point at a row that exists, which is not the same as having been listened to.
 
 ---
 
@@ -206,8 +171,8 @@ Each one has cost this project real time when skipped.
 
 1. **Confirm the toolchain.** `dotnet --version` must report **10.0.x**; the 9.x SDK cannot build
    this. `global.json` pins `10.0.100` with `latestMinor`.
-2. **Start from `master`.** Everything through Phase 2 is merged. The old branches — `…-c88220`,
-   `…-221eb7`, `claude/reconcile-a1-a3` — are all behind it.
+2. **Start from `master`.** Everything through #52 is merged; the table above lists what that is.
+   The old branches — `…-c88220`, `…-221eb7`, `claude/reconcile-a1-a3` — are far behind it.
 3. **Establish the baseline before you change anything.**
    ```bash
    dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
