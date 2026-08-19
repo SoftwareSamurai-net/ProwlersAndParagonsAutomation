@@ -1289,7 +1289,7 @@ public sealed class WebPresentationTests
                 continue;
             }
 
-            if (Rx(@"^([0-9.]+)rem$").Match(value) is { Success: true } literal)
+            if (Rx("^([0-9.]+)rem$").Match(value) is { Success: true } literal)
             {
                 sizes.Add(double.Parse(literal.Groups[1].Value, CultureInfo.InvariantCulture));
                 continue;
@@ -1347,6 +1347,9 @@ public sealed class WebPresentationTests
     /// exemption records which selector has to carry its reason instead of accepting any that
     /// mentions it.</para>
     /// </param>
+    /// <param name="css">The stylesheet to read — normally the screen half of <c>app.css</c>.</param>
+    /// <param name="selector">The selector to look for, matched by suffix unless <c>exact</c>.</param>
+    /// <param name="property">The property whose winning value is wanted.</param>
     private static string? EffectiveValue(string css, string selector, string property, bool exact = false)
     {
         var rules = RulesFor(css, selector, exact);
@@ -1576,7 +1579,7 @@ public sealed class WebPresentationTests
     public void NoScriptSetsAThemeTokenOrNamesAFace()
     {
         var token = Rx(@"setProperty\s*\(\s*[""']--", RegexOptions.IgnoreCase);
-        var face = Rx(@"font-family|--font-", RegexOptions.IgnoreCase);
+        var face = Rx("font-family|--font-", RegexOptions.IgnoreCase);
         var colour = Rx(@"#[0-9A-Fa-f]{3,8}\b|\b(rgba?|hsla?|oklch)\s*\(", RegexOptions.IgnoreCase);
 
         Assert.NotEmpty(Scripts);

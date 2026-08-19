@@ -1,23 +1,32 @@
 using AngleSharp.Dom;
+using Microsoft.AspNetCore.Components;
 using Bunit;
 using ProwlersAndParagonsAutomation.Web.Pages;
 
 namespace ProwlersAndParagons.Web.Tests;
 
 /// <summary>
-/// The tier page carries the three controls that throw a character away: load a Hero, load a
-/// Villain, and start again. The character is kept in the browser between visits, so all
-/// three destroy work that is written down nowhere else, and there is no undo behind any of
-/// them.
+/// The three controls that throw a character away: load a Hero, load a Villain, and start again.
+/// The character is kept in the browser between visits, so all three destroy work written down
+/// nowhere else, and there is no undo behind any of them.
 ///
-/// <para>Guarding only the red one would have been the wrong half. Loading a sample overwrites
-/// the stored character just as completely — the write-through save fires on the same change —
-/// and it reads as the safe option, which is worse.</para>
+/// <para>Guarding only the red one would have been the wrong half. Loading a sample overwrites the
+/// stored character just as completely — the write-through save fires on the same change — and it
+/// reads as the safe option, which is worse.</para>
+///
+/// <para><b>They now live on two pages, and that is the point of the split.</b> Starting over
+/// belongs to the tool; the two samples are a demonstration and moved to the portfolio. So these
+/// tests take the page as a parameter rather than assuming one — the guarantee is about the
+/// control, not about where it happens to be drawn.</para>
 /// </summary>
 public sealed class StartAgainTests
 {
     private const string Discard = "Start a new character";
     private const string LoadHero = "Load a Hero";
+
+    /// <summary>Renders whichever page owns the named control.</summary>
+    private static IRenderedComponent<IComponent> PageFor(RenderContext ctx, string control) =>
+        control == Discard ? ctx.Render<ChooseTier>() : ctx.Render<Portfolio>();
 
     [Theory]
     [InlineData(Discard)]
@@ -25,7 +34,7 @@ public sealed class StartAgainTests
     public void OneClickDoesNotReplaceACharacterThereIsSomethingToLose(string control)
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
-        var page = ctx.Render<ChooseTier>();
+        var page = PageFor(ctx, control);
         var before = ctx.Session.Sheet.Name;
 
         Button(page, control).Click();
@@ -46,7 +55,7 @@ public sealed class StartAgainTests
     public void AnEmptySheetIsReplacedWithoutBeingAskedAbout()
     {
         using var ctx = new RenderContext();
-        var page = ctx.Render<ChooseTier>();
+        var page = ctx.Render<Portfolio>();
 
         Button(page, LoadHero).Click();
 
@@ -60,7 +69,7 @@ public sealed class StartAgainTests
     public void ChangingYourMindLeavesTheCharacterExactlyAsItWas(string control)
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
-        var page = ctx.Render<ChooseTier>();
+        var page = PageFor(ctx, control);
 
         var name = ctx.Session.Sheet.Name;
         var tier = ctx.Session.Sheet.SelectedTierId;
@@ -76,8 +85,8 @@ public sealed class StartAgainTests
         Assert.Equal(mode, ctx.Session.Mode);
         Assert.DoesNotContain(ctx.JSInterop.Invocations, i => i.Identifier == "ppStore.clear");
 
-        // And the three controls are back, rather than the page being left mid-question.
-        Assert.Contains(Discard, page.Markup, StringComparison.Ordinal);
+        // And the control is back, rather than the page being left mid-question.
+        Assert.Contains(control, page.Markup, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -123,6 +132,6 @@ public sealed class StartAgainTests
         Assert.Contains("ppStore.save", calls);
     }
 
-    private static IElement Button(IRenderedComponent<ChooseTier> page, string label) =>
+    private static IElement Button(IRenderedComponent<IComponent> page, string label) =>
         page.FindAll("button").First(b => b.TextContent.Contains(label, StringComparison.Ordinal));
 }

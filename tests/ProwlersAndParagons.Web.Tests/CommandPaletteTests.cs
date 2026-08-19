@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
-using ProwlersAndParagonsAutomation.Web.Services;
 
 namespace ProwlersAndParagons.Web.Tests;
 
@@ -18,13 +17,16 @@ namespace ProwlersAndParagons.Web.Tests;
 /// </summary>
 public sealed class CommandPaletteTests
 {
-    private static (RenderContext Ctx, Commands Commands) Opened()
+    /// <summary>A context whose palette is already open.</summary>
+    private static RenderContext Opened()
     {
         var ctx = new RenderContext().With(SheetMode.Hero);
-        var commands = ctx.Services.GetRequiredService<Commands>();
-        commands.Open();
-        return (ctx, commands);
+        ctx.Services.GetRequiredService<Commands>().Open();
+        return ctx;
     }
+
+    private static Commands CommandsOf(RenderContext ctx) =>
+        ctx.Services.GetRequiredService<Commands>();
 
     /// <summary>
     /// Closed, it renders nothing at all.
@@ -58,8 +60,7 @@ public sealed class CommandPaletteTests
     [Fact]
     public void AnEmptyBoxOffersTheStepsAlone()
     {
-        var (ctx, _) = Opened();
-        using var _ctx = ctx;
+        using var ctx = Opened();
 
         var page = ctx.Render<CommandPalette>();
 
@@ -77,8 +78,7 @@ public sealed class CommandPaletteTests
     [Fact]
     public void TypingFindsAPower()
     {
-        var (ctx, _) = Opened();
-        using var _ctx = ctx;
+        using var ctx = Opened();
 
         var page = ctx.Render<CommandPalette>();
         page.Find(".palette-box").Input("plast");
@@ -103,8 +103,7 @@ public sealed class CommandPaletteTests
     [Fact]
     public void TheArrowKeysMoveTheCurrentRowAndWrap()
     {
-        var (ctx, _) = Opened();
-        using var _ctx = ctx;
+        using var ctx = Opened();
 
         var page = ctx.Render<CommandPalette>();
         var box = page.Find(".palette-box");
@@ -135,8 +134,7 @@ public sealed class CommandPaletteTests
     [Fact]
     public void TheCurrentRowIsNamedByAnIdThatExists()
     {
-        var (ctx, _) = Opened();
-        using var _ctx = ctx;
+        using var ctx = Opened();
 
         var page = ctx.Render<CommandPalette>();
         var box = page.Find(".palette-box");
@@ -158,8 +156,7 @@ public sealed class CommandPaletteTests
     [Fact]
     public void WithNoMatchesItSaysSoAndNamesNoRow()
     {
-        var (ctx, _) = Opened();
-        using var _ctx = ctx;
+        using var ctx = Opened();
 
         var page = ctx.Render<CommandPalette>();
         page.Find(".palette-box").Input("qzqzqz");
@@ -173,8 +170,8 @@ public sealed class CommandPaletteTests
     [Fact]
     public void EscapeCloses()
     {
-        var (ctx, commands) = Opened();
-        using var _ctx = ctx;
+        using var ctx = Opened();
+        var commands = CommandsOf(ctx);
 
         var page = ctx.Render<CommandPalette>();
         Assert.True(commands.IsOpen);
@@ -196,8 +193,8 @@ public sealed class CommandPaletteTests
     [Fact]
     public void EnterOnAPowerRequestsItAndAddsNothing()
     {
-        var (ctx, commands) = Opened();
-        using var _ctx = ctx;
+        using var ctx = Opened();
+        var commands = CommandsOf(ctx);
 
         var before = ctx.Session.Sheet.SelectedPowers.Count;
 
@@ -270,8 +267,7 @@ public sealed class CommandPaletteTests
     [Fact]
     public void ThePaletteAndTheStepBandOfferTheSameSteps()
     {
-        var (ctx, _) = Opened();
-        using var _ctx = ctx;
+        using var ctx = Opened();
 
         var palette = ctx.Render<CommandPalette>();
         var band = ctx.Render<StepNav>();
@@ -303,8 +299,8 @@ public sealed class CommandPaletteTests
     [InlineData("PLAST", "Plasticity")]
     public void ItMatchesTheWayTheListsMatch(string query, string expected)
     {
-        var (ctx, commands) = Opened();
-        using var _ctx = ctx;
+        using var ctx = Opened();
+        var commands = CommandsOf(ctx);
 
         var found = commands.Matching(query, 8);
 
@@ -316,8 +312,8 @@ public sealed class CommandPaletteTests
     [Fact]
     public void ThePowersAreCappedAndTheStepsAreNot()
     {
-        var (ctx, commands) = Opened();
-        using var _ctx = ctx;
+        using var ctx = Opened();
+        var commands = CommandsOf(ctx);
 
         // "a" reaches most of the catalogue and every step label.
         var found = commands.Matching("a", 3);

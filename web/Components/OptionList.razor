@@ -12,22 +12,43 @@
     // before this one — see OnAfterRender.
     _pass++;
     var tally = new OptionTally();
-    var filter = new OptionFilter(_query, tally, _pass);
+
+    // The cursor is clamped to what the *last* pass let through, because that is the only count
+    // available while this pass is being built — the rows fill the tally afterwards. A filter
+    // that has just cut the list shorter than the cursor is caught on the next pass by
+    // OnAfterRender, which is where the count catches up anyway.
+    var active = Navigable ? Math.Min(_active, Math.Max(_shown - 1, 0)) : -1;
+
+    var filter = new OptionFilter(_query, tally, _pass, Navigable, active, ListId);
     _tally = tally;
 }
 
 <div class="options-wrap">
     @if (Filterable)
     {
+        @* The combobox pattern, the same one the command palette uses — so what a reader learns
+           about moving through one list of options here holds in the other. The caret never
+           leaves the box, which is what lets the arrow keys and the letters share one control:
+           narrow the list, arrow to the row, press Enter, keep typing. *@
         <div class="options-filter">
-            <input type="search" value="@_query" @oninput="Typed"
+            <input type="search" value="@_query" @oninput="Typed" @onkeydown="Key"
+                   role="combobox"
+                   aria-expanded="true"
+                   aria-controls="@ListId"
+                   aria-activedescendant="@ActiveDescendant"
+                   aria-autocomplete="list"
                    placeholder="@Placeholder" aria-label="@Placeholder" />
             <span class="options-count">@_shown of @_total</span>
         </div>
     }
 
     <CascadingValue Value="filter">
-        <div class="@ClassName">
+        @* A listbox only when something is driving it. Without the box above, these are buttons
+           in a div and should stay that way — announcing an empty-handed listbox would promise
+           a keyboard behaviour that is not there, which is worse than promising nothing. *@
+        <div class="@ClassName" id="@ListId"
+             role="@(Navigable ? "listbox" : null)"
+             aria-label="@(Navigable ? Placeholder : null)">
             @ChildContent
         </div>
     </CascadingValue>
@@ -71,7 +92,93 @@
 
     private string ClassName => string.IsNullOrEmpty(Class) ? "options" : $"options {Class}";
 
-    private void Typed(ChangeEventArgs e) => _query = e.Value?.ToString() ?? "";
+    private void Typed(ChangeEventArgs e)
+    {
+        _query = e.Value?.ToString() ?? "";
+
+        // Back to the top on every keystroke. Keeping the position would leave the reader on
+        // whatever happened to be fourth in a list they have just replaced.
+        _active = 0;
+    }
+
+    /// <summary>Whether this list is driving the keyboard: only a list with a box above it.</summary>
+    private bool Navigable => Filterable;
+
+    /// <summary>
+    /// The cursor, as an index among the rows the filter let through.
+    ///
+    /// <para>An index rather than a reference to a row, because the rows are rebuilt every pass
+    /// and a reference would be to a component that no longer exists.</para>
+    /// </summary>
+    private int _active;
+
+    /// <summary>
+    /// A stable id for this list, derived from what the box says it filters.
+    ///
+    /// <para><b>Derived rather than generated</b>, for the reason the tooltip's is: a fresh id
+    /// per render differs every time and breaks the replay guard that renders one character twice
+    /// and requires the two pages to be identical. Two lists filtering the same thing on one page
+    /// would collide, and none of the five do — each says what it holds.</para>
+    /// </summary>
+    private string ListId => "opts-" + new string(
+        Placeholder.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray());
+
+    /// <summary>
+    /// The row the box is pointing at, or nothing when there is no row to point at.
+    ///
+    /// <para>Null rather than an id when the list is empty: naming a row that is not rendered is
+    /// a reference to nothing, the same fault as an unconditional <c>aria-controls</c>.</para>
+    /// </summary>
+    private string? ActiveDescendant =>
+        !Navigable || _shown == 0 ? null : $"{ListId}-opt-{Math.Min(_active, _shown - 1)}";
+
+    /// <summary>
+    /// The arrow keys, Enter and Escape.
+    ///
+    /// <para><b>Enter runs the row's own callback</b>, handed over through the tally — the row is
+    /// never focused, so the browser cannot activate it. See <c>OptionTally.Record</c>.</para>
+    ///
+    /// <para>Nothing suppresses a browser default here, for the reason written up on the palette:
+    /// Blazor fixes that at render time, so a blanket suppression would stop the letters reaching
+    /// the box and the filter could not be typed in.</para>
+    /// </summary>
+    private async Task Key(KeyboardEventArgs e)
+    {
+        if (_shown == 0) return;
+
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                _active = (_active + 1) % _shown;
+                return;
+
+            case "ArrowUp":
+                _active = (_active - 1 + _shown) % _shown;
+                return;
+
+            case "Home":
+                _active = 0;
+                return;
+
+            case "End":
+                _active = _shown - 1;
+                return;
+
+            case "Escape":
+                // The query, not the cursor: Escape in a filter box means "show me everything
+                // again", and a reader who wanted to leave presses Tab.
+                _query = "";
+                _active = 0;
+                return;
+
+            case "Enter":
+                if (_tally?.At(Math.Min(_active, _shown - 1)) is { } activate) await activate();
+                return;
+
+            default:
+                return;
+        }
+    }
 
     /// <summary>
     /// The rows have now reported. If what they reported differs from what was drawn above

@@ -864,6 +864,18 @@ label {
 }
 .option:last-child { border-bottom: none; }
 .option:hover { background: var(--accent-soft); border-left-color: var(--accent); }
+
+/* Where the cursor in the filter box is pointing. **`--panel-sunk`, not `--accent-soft`** — the
+   hover ground above carries no `--muted` text, and this row does: `.option .caveat` is the
+   stat line, and `--muted` on `--accent-soft` is under the 4.5:1 text needs. The same fault
+   CLAUDE.md records shipping twice.
+
+   Ground *and* edge, never colour alone: this is the only thing on screen saying what Enter is
+   about to do, and around one man in twelve has some colour-vision deficiency. */
+.option.current {
+    background: var(--panel-sunk);
+    border-left-color: var(--accent);
+}
 .option .body { flex: 1 1 auto; min-width: 0; }
 .option .name { font-weight: 600; }
 .option .cost { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -1390,6 +1402,18 @@ label {
 }
 
 .tip.shown { display: block; }
+
+/* **A panel holding an open tip lifts above the panels after it.**
+   Measured, not guessed: `.panel` carries `animation: rise`, which applies a `transform` while
+   it runs — and a transformed element is a stacking context, so for those 260ms the tip's
+   `z-index: 30` is trapped inside its own panel and the *next* panel paints straight over it.
+   With the animation finished the transform is `none` and the tip is on top, which is why this
+   reads as intermittent and why a screenshot taken a moment later looks fine.
+
+   Raising the panel rather than the tip is what works in both states: a tip cannot escape an
+   ancestor's stacking context, so the ancestor has to win instead. `:has()` keeps it to the one
+   panel that needs it, so nothing else changes paint order. */
+.panel:has(.tip.shown) { position: relative; z-index: 1; }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    The command palette — Ctrl-K, from anywhere.

@@ -27,7 +27,7 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// "your character is gone" into "the app does not start", because restoring happens before
 /// the first render. <see cref="Usable"/> is where that is caught.</para>
 /// </summary>
-public sealed class CharacterStore
+public sealed class CharacterStore : ICharacterStore
 {
     /// <summary>
     /// Bumped when a change to <see cref="CharacterSheet"/> would make an older saved
@@ -41,12 +41,15 @@ public sealed class CharacterStore
     private readonly IJSRuntime _js;
     private readonly CostCalculator _costs;
     private readonly CharacterValidator _validator;
+    private readonly IIdentitySource _who;
 
-    public CharacterStore(IJSRuntime js, CostCalculator costs, CharacterValidator validator)
+    public CharacterStore(
+        IJSRuntime js, CostCalculator costs, CharacterValidator validator, IIdentitySource who)
     {
         _js = js;
         _costs = costs;
         _validator = validator;
+        _who = who;
     }
 
     /// <summary>
@@ -59,13 +62,28 @@ public sealed class CharacterStore
 
     private sealed record Saved(int Version, SheetMode Mode, CharacterSheet? Sheet);
 
+    /// <summary>
+    /// Which slot in local storage belongs to whoever is here.
+    ///
+    /// <para><b>The anonymous visitor keeps the historical key exactly.</b> Everybody is anonymous
+    /// today, and that key is the one this store has been writing since it was written — so
+    /// introducing identities does not orphan a single saved character. Suffixing it "for
+    /// consistency" would empty every returning visitor's browser, silently, and look exactly
+    /// like storage having been cleared.</para>
+    ///
+    /// <para>An account's characters land beside it rather than on top of it, so signing in on a
+    /// shared browser cannot overwrite what the anonymous visitor was building.</para>
+    /// </summary>
+    private static string KeyFor(Identity who) =>
+        who.Key == Identity.Anonymous.Key ? StorageKey : $"{StorageKey}.{who.Key}";
+
     /// <summary>Writes the character to local storage. Failure is not worth reporting.</summary>
     public async Task SaveAsync(CharacterSheet sheet, SheetMode mode)
     {
         try
         {
             var json = JsonSerializer.Serialize(new Saved(CurrentVersion, mode, sheet), Options);
-            await _js.InvokeVoidAsync("ppStore.save", StorageKey, json);
+            await _js.InvokeVoidAsync("ppStore.save", KeyFor(await _who.CurrentAsync()), json);
         }
         catch (Exception e) when (IsStorageFailure(e)) { }
     }
@@ -75,7 +93,7 @@ public sealed class CharacterStore
     {
         try
         {
-            var json = await _js.InvokeAsync<string?>("ppStore.load", StorageKey);
+            var json = await _js.InvokeAsync<string?>("ppStore.load", KeyFor(await _who.CurrentAsync()));
             if (string.IsNullOrWhiteSpace(json)) return null;
 
             if (Read(json) is { } restored) return restored;
@@ -92,7 +110,7 @@ public sealed class CharacterStore
     /// <summary>Forgets the stored character. What "Start a new character" actually does.</summary>
     public async Task ClearAsync()
     {
-        try { await _js.InvokeVoidAsync("ppStore.clear", StorageKey); }
+        try { await _js.InvokeVoidAsync("ppStore.clear", KeyFor(await _who.CurrentAsync())); }
         catch (Exception e) when (IsStorageFailure(e)) { }
     }
 

@@ -20,7 +20,24 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// <param name="Query">What the reader has typed. Empty means everything matches.</param>
 /// <param name="Tally">Where the rows record what happened; one per render pass.</param>
 /// <param name="Pass">Distinguishes this render's value from the last one. See above.</param>
-public sealed record OptionFilter(string Query, OptionTally Tally, int Pass)
+/// <param name="Navigable">
+/// Whether the enclosing list is driving the keyboard, so the rows should announce themselves as
+/// options of a listbox rather than as buttons. False for a list with no filter box — the tier
+/// cards are six things to compare, not a catalogue to move a cursor through — and false for a
+/// row rendered outside a list at all.
+/// </param>
+/// <param name="ActiveIndex">
+/// Which admitted row the reader is on, counted among the rows this pass actually let through.
+/// −1 for none.
+/// </param>
+/// <param name="ListId">Prefix for the rows' element ids, so the box can name the current one.</param>
+public sealed record OptionFilter(
+    string Query,
+    OptionTally Tally,
+    int Pass,
+    bool Navigable = false,
+    int ActiveIndex = -1,
+    string ListId = "")
 {
     /// <summary>
     /// Whether a row with this text survives the filter, counting it either way.
@@ -79,4 +96,24 @@ public sealed class OptionTally
 {
     public int Total { get; set; }
     public int Shown { get; set; }
+
+    private readonly List<Func<Task>> _activations = [];
+
+    /// <summary>
+    /// What to run if this row is chosen. Recorded by each row that survives the filter, in the
+    /// order they were drawn.
+    ///
+    /// <para><b>This is how Enter reaches a row without the list holding a reference to it.</b>
+    /// The caret stays in the filter box, so the row is never focused and cannot be activated by
+    /// the browser — something has to carry the row's own callback back to the component that
+    /// heard the key. The tally already is that channel: it is per-pass, mutable, filled by the
+    /// rows after the list has drawn itself, and read by the list on the pass after. The
+    /// alternative was interop clicking an element by id, which is a lot of machinery for an
+    /// Enter key.</para>
+    /// </summary>
+    public void Record(Func<Task> activate) => _activations.Add(activate);
+
+    /// <summary>The <paramref name="index"/>th admitted row's callback, or null if there is none.</summary>
+    public Func<Task>? At(int index) =>
+        index >= 0 && index < _activations.Count ? _activations[index] : null;
 }

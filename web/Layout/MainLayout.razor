@@ -13,13 +13,23 @@
   <div class="banner-inner">
     <div class="banner-title">
         Prowlers &amp; Paragons
-        <small>Character creation — @(Session.Mode == SheetMode.Hero ? "Hero" : "Villain")</small>
+        <small>@(Where == Area.Portfolio ? "How this was built" : $"Character creation — {(Session.Mode == SheetMode.Hero ? "Hero" : "Villain")}")</small>
     </div>
 
-    @* The way in to the recordings. It sits in the banner rather than in the step list
-       because it is not a step — somebody who watches one has not started building, and
-       somebody who is building does not want it numbered between two things they are doing. *@
-    <NavLink class="banner-link" href="replay">Watch one being built</NavLink>
+    @* The door between the two halves of the site, and it says which one you are not in.
+
+       It used to say "Watch one being built" from everywhere, which named a *demonstration*
+       from inside the tool — so the only cross-link a player ever saw pointed away from what
+       they were doing, at somebody else's conversation. Now the tool offers the portfolio and
+       the portfolio offers the tool, which is the one thing each half wants from the other. *@
+    @if (Where == Area.Portfolio)
+    {
+        <NavLink class="banner-link" href="">Build a character</NavLink>
+    }
+    else
+    {
+        <NavLink class="banner-link" href="portfolio">How this was built</NavLink>
+    }
 
     @* aria-pressed is written out as a string on purpose. Blazor drops a bool attribute
        when it is false and renders it as `aria-pressed=""` when it is true, and an empty
@@ -58,7 +68,15 @@
    exists to survive. Out here its containing block is the document, and it stays for the page.
 
    The nav also stops being inside `<main>`, which it should never have been. *@
-<StepNav />
+@* **The six steps belong to the tool and are drawn only there.** They were drawn everywhere,
+   including over a recording of somebody else's conversation — where a numbered list of steps
+   the reader is not taking, with one of them marked as the step they are on, is an offer to
+   continue something they are not doing. The budget strip below has always been hidden here for
+   the same reason; the band above it simply had not been. *@
+@if (Where == Area.Play)
+{
+    <StepNav />
+}
 
 @* The budget bar is the character being built, and it does not belong above a recording
    of somebody else's. Both are six labelled figures in the same format — Package, Abilities,
@@ -101,11 +119,17 @@
     /// bar over the top — the exact thing this exists to prevent, reachable by anybody who
     /// capitalised a shared link.</para>
     /// </summary>
-    private bool ShowingARecording =>
-        string.Equals(
-            Nav.ToBaseRelativePath(Nav.Uri).Split('/', '?', '#')[0],
-            "replay",
-            StringComparison.OrdinalIgnoreCase);
+    private bool ShowingARecording => Where == Area.Portfolio;
+
+    /// <summary>
+    /// Which of the two things this site is the reader is currently in.
+    ///
+    /// <para>Read from the address rather than passed down, because the shell renders the body and
+    /// cannot ask it anything. <see cref="Areas.Of"/> owns the matching, including the
+    /// case-insensitivity that Blazor's own routing has and an ordinal comparison here would
+    /// not.</para>
+    /// </summary>
+    private Area Where => Areas.Of(Nav.ToBaseRelativePath(Nav.Uri));
 
     protected override void OnInitialized()
     {
