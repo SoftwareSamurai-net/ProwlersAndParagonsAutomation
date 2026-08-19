@@ -650,7 +650,21 @@ label {
     font-weight: 700;
 }
 
-.pips { display: flex; gap: var(--space-0); }
+/* The pips are a slider now, so the group is focusable and has to show it. The ring goes on
+   the group rather than on a pip: the value is the whole row of them. */
+.pips {
+    display: flex;
+    gap: var(--space-0);
+    padding: var(--space-1);
+    border-radius: var(--radius-small);
+    cursor: pointer;
+}
+
+.pips:focus-visible {
+    outline: var(--rule-weight) solid var(--focus);
+    outline-offset: var(--space-0);
+}
+
 .pip {
     width: 7px; height: 14px;
     border-radius: var(--radius-hair);
@@ -658,6 +672,13 @@ label {
     border: 1px solid var(--rule);
     transition: background-color var(--step) var(--ease), border-color var(--step) var(--ease);
 }
+
+/* A pip is a click target, so it needs a target's size without changing how it looks — the
+   design is a 7px sliver and a 7px sliver is a miserable thing to hit. The box grows by its
+   own padding and the visible pip stays exactly as it was. */
+.pips .pip { background-clip: content-box; padding: 0 var(--space-0); width: 11px; }
+
+.pips:hover .pip { border-color: var(--accent); }
 .pip.on { background: var(--accent); border-color: var(--accent); }
 .pip.package { background: var(--accent-soft); }
 
