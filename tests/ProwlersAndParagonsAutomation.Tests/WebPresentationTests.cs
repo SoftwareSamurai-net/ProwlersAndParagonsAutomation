@@ -2038,6 +2038,18 @@ public sealed class WebPresentationTests
     /// <summary>
     /// Phrases that could only ever be prose. A player has no use for how the app is built
     /// or what it is built with.
+    ///
+    /// <para><b>The lower half of this list was added after the owner read four of them on the
+    /// screen and said so.</b> The rule they broke is one step past "no jargon": copy answers
+    /// what the reader came to do, and anything explaining <em>why the app is built this way</em>
+    /// belongs in a <c>@* *@</c> comment. The four were the sign-in page explaining that it will
+    /// not say whether an account exists (which also advertises the defence), the replay page
+    /// accounting for who would pay for the model, a sample character vouched for by "there is a
+    /// test that says so", and "nothing was pre-computed".</para>
+    ///
+    /// <para><b>This is a denylist and cannot be anything else</b> — there is no pattern that
+    /// separates a sentence about a character from a sentence about the program. It grows when
+    /// somebody reads the app. What it does do is stop the same phrase coming back.</para>
     /// </summary>
     [Theory]
     [InlineData("terminal wizard")]
@@ -2049,11 +2061,51 @@ public sealed class WebPresentationTests
     [InlineData("blazor")]
     [InlineData("webassembly")]
     [InlineData("command line")]
+    [InlineData("there is a test")]
+    [InlineData("pre-computed")]
+    [InlineData("precomputed")]
+    [InlineData("repository")]
+    [InlineData("source code")]
+    [InlineData("unit test")]
+    [InlineData("local storage")]
+    [InlineData("localstorage")]
+    [InlineData("costs anything to run")]
     public void NoPageExplainsItselfToADeveloper(string phrase) =>
         Assert.All(RazorFiles, f =>
             Assert.False(
                 VisibleText(File.ReadAllText(f)).Contains(phrase, StringComparison.OrdinalIgnoreCase),
                 $"{Path.GetFileName(f)} says \"{phrase}\" to the player. Keep it in a comment."));
+
+    /// <summary>
+    /// <b>No page points a reader at a file in this repository.</b>
+    ///
+    /// <para>Unlike the denylist above this one is structural, and it is the half that would have
+    /// caught the worst instance on its own: the replay page told a reader wanting the live
+    /// version that "the setup guide is in the project's repository, at docs/MCP-SETUP.md". That
+    /// is an accurate sentence, and it is an instruction to go and read a Markdown file in a
+    /// source tree — offered to somebody who came to look at a superhero.</para>
+    ///
+    /// <para>Matched on the extension rather than on a list of names, so a page naming
+    /// <c>powers.json</c>, <c>app.css</c> or <c>SKILL.md</c> fails the same way. The rulebook's
+    /// own page references — <c>Ch.2 p.29</c> — are a different thing entirely and are required
+    /// by the test below.</para>
+    /// </summary>
+    [Fact]
+    public void NoPagePointsAtAFileInThisRepository()
+    {
+        var path = Rx(@"\b[\w./-]+\.(md|json|txt|cs|razor|js|css|html|csproj|sln|ya?ml)\b",
+            RegexOptions.IgnoreCase);
+
+        foreach (var file in RazorFiles)
+        {
+            var found = path.Match(VisibleText(File.ReadAllText(file)));
+
+            Assert.False(found.Success,
+                $"{Path.GetFileName(file)} points the player at '{found.Value}'. A file in this "
+                + "repository is not something a reader of this app can be sent to; keep it in a "
+                + "@* *@ comment.");
+        }
+    }
 
     /// <summary>
     /// The other half of the same rule, and the reason it is not simply "delete the jargon":

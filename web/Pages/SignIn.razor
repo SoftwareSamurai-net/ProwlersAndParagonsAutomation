@@ -67,13 +67,16 @@ else
 
         @if (_sent)
         {
+            @* The wording stays vague about whether the address has an account — that is what
+               stops this page being a way of finding out, one address at a time. **The reason
+               belongs here and not on the screen**: it is a decision about how the page is
+               built, and a reader came to sign in. It said so out loud until somebody read it
+               back. *@
+            @* Kept on one line: SignInPageTests matches the phrase in the markup, so a wrap
+               between "its" and "way" fails it. *@
             <p>
-                If that address can have an account here, a sign-in link is on its way to it. The
-                link works once and expires in fifteen minutes.
-            </p>
-            <p class="small muted">
-                Nothing on this page can tell you whether an account exists — that would make it
-                a way of asking, one address at a time.
+                Check your inbox — if that address has an account here, a sign-in link is on its way.
+                The link works once and expires in fifteen minutes.
             </p>
         }
         else
