@@ -1541,6 +1541,52 @@ label {
     margin-right: var(--space-1);
 }
 
+/* The book's own entry for a Power, shown under the mechanics rather than instead of
+   them. It is set apart the way a quotation is — sunk ground and a rule down the left
+   edge — because everything above it in the panel is this project's own text about the
+   rules, and this is the publisher's. Nothing on the page should leave the two looking
+   like one voice. */
+/* Space on both sides. With only a top margin the toggle sat flush against the "Ranks"
+   label below it and read as that field's own caption rather than as an offer about the
+   text above — visible in the proof, invisible to every test. */
+.book { margin: var(--space-3) 0 var(--space-4); }
+
+.book-toggle {
+    font: inherit;
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    background: none;
+    border: none;
+    border-bottom: var(--rule-weight) solid var(--rule);
+    color: var(--muted);
+    cursor: pointer;
+    transition: color var(--swap) var(--ease), border-color var(--swap) var(--ease);
+}
+
+/* --panel-sunk, not --accent-soft: this is a hover ground carrying text, and
+   --heading on --accent-soft measures 4.08:1 against the 4.5:1 that text needs. */
+.book-toggle:hover { color: var(--heading); border-color: var(--heading); }
+
+.book-text {
+    margin-top: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--panel-sunk);
+
+    /* **Measured, not chosen.** This edge is the only thing marking the passage as somebody
+       else's words, so it has to be visible in both palettes. `--rule-weight` solid `--accent`
+       was neither: the token is 1px in Hero and 2px in Villain, so the same rule drew two
+       different things, and gold on the light sunk ground measured 1.57:1 — invisible, while
+       looking deliberate in the Villain proof where it measured 5.62:1. `--heading` measures
+       6.76:1 and 5.62:1 on that ground, and 3px is 3px in both. */
+    border-left: 3px solid var(--heading);
+    border-radius: var(--radius-small);
+}
+
+.book-text p { margin: 0 0 var(--space-2); }
+.book-text p:last-child { margin-bottom: 0; }
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Print.
 

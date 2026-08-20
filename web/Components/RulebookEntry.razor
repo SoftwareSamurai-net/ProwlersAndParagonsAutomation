@@ -1,0 +1,78 @@
+@inject RulebookReader Book
+
+@* What the book prints about this Power, for somebody who is signed in.
+
+   **It renders nothing at all when there is nothing to show**, and that is the whole of its
+   error handling. Not signed in, no account, the server not deployed, or a Power the book files
+   under another heading — Super Senses' sixteen options share one printed entry between them —
+   are all the same to a player, and a row of apologies under a fifth of the Powers would be
+   worse than silence. `RulebookReader` answers null for every one of them.
+
+   **A disclosure rather than a Tooltip.** A tooltip is sized and positioned for a sentence; a
+   Power's entry is several paragraphs, and it is something to read rather than to glance at.
+
+   The mechanics above it come from `data/rules`, which is verified entry by entry and is what
+   the engine costs against. This is the text beside them, never instead of them. *@
+
+@if (_entry is { } entry)
+{
+    <div class="book">
+        @* aria-expanded is written out as a string. Blazor drops a bool attribute when it is
+           false and renders `aria-expanded=""` when it is true, and empty is invalid ARIA that
+           assistive technology reads as *not* expanded — so the natural spelling announces the
+           opposite of the state in both directions. *@
+        <button type="button" class="book-toggle"
+                aria-expanded="@(_open ? "true" : "false")"
+                aria-controls="@(_open ? BodyId : null)"
+                @onclick="() => _open = !_open">
+            @(_open ? "Hide" : "Show") what the book says
+        </button>
+
+        @* Rendered only when open, so `aria-controls` above is only set then: naming an element
+           that is not in the document leaves a dangling IDREF, and `aria-expanded` is what
+           carries the state. Same rule as the budget breakdown. *@
+        @if (_open)
+        {
+            <div class="book-text" id="@BodyId">
+                @foreach (var paragraph in Paragraphs(entry.Text))
+                {
+                    <p>@paragraph</p>
+                }
+
+                <p class="small muted">@entry.SourceRef, printed p.@entry.PrintedPage</p>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>The Power to show the printed entry for, by the name the rules data gives it.</summary>
+    [Parameter, EditorRequired] public string PowerName { get; set; } = "";
+
+    private PowerEntry? _entry;
+    private bool _open;
+
+    /// <summary>
+    /// Derived from the Power's name rather than generated, so two renders of one Power produce
+    /// identical markup. A generated id differs per render, which breaks the replay guard
+    /// requiring two renders of one character to be the same — the trap `Tooltip` already hit.
+    /// </summary>
+    private string BodyId => "book-" + PowerName.ToLowerInvariant().Replace(' ', '-');
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Cleared first: the editor is reused for the next Power opened, and holding the last
+        // one's entry would print somebody else's rules under this Power's name.
+        _entry = null;
+        _open = false;
+
+        _entry = await Book.ForPowerAsync(PowerName);
+    }
+
+    /// <summary>
+    /// The entry's own paragraph breaks. The extractor keeps them; running them together would
+    /// turn a Power's entry into a wall.
+    /// </summary>
+    private static IEnumerable<string> Paragraphs(string text) =>
+        text.Split('\n').Select(line => line.Trim()).Where(line => line.Length > 0);
+}

@@ -1,0 +1,221 @@
+@page "/signin"
+@inject Accounts Accounts
+@inject AccountCharacterStore Store
+@inject CharacterSession Session
+@inject NavigationManager Nav
+@implements IDisposable
+
+@* Signing in, and the one place a link's token is spent.
+
+   **There is no password on this page and there is not going to be one.** What proves who
+   somebody is, is that they can read the address — so the form asks for one thing, the server
+   mails a link, and the link is spent here. Nothing on this page holds a credential: the session
+   is an HttpOnly cookie the browser keeps and no script can read.
+
+   The page has two jobs and knows which by its own address. Arriving with `?t=` is somebody
+   coming back from their mail, so the token is spent immediately; arriving without one is
+   somebody starting, so the form is shown. *@
+
+<PageTitle>Sign in — Prowlers &amp; Paragons</PageTitle>
+
+<h1>Your account</h1>
+
+@if (_who?.IsSignedIn == true)
+{
+    <Panel Title="Signed in">
+        <p>
+            You are signed in as <strong>@_who.DisplayName</strong>. Your character is kept with
+            your account, so it is there in any browser you sign in to.
+        </p>
+
+        @if (_offerToKeep)
+        {
+            @* Offered, never done by itself. This browser's anonymous character may not be
+               theirs at all — a shared machine is exactly where a silent copy would be worst —
+               and it is only offered when the account has none, so nothing is ever written over. *@
+            <p>
+                This browser was holding a character before you signed in
+                (<strong>@_anonymousName</strong>), and your account has none yet.
+            </p>
+            <p>
+                <button type="button" class="btn" @onclick="KeepAnonymous">
+                    Keep that character on this account
+                </button>
+            </p>
+        }
+
+        @if (_kept)
+        {
+            <p>Kept. It belongs to your account now, and the one in this browser is untouched.</p>
+        }
+
+        <p>
+            <button type="button" class="btn danger" @onclick="SignOut">Sign out</button>
+        </p>
+        <p class="small muted">
+            Signing out leaves the character this browser was building exactly where it was.
+        </p>
+    </Panel>
+}
+else
+{
+    <Panel Title="Sign in">
+        <p>
+            An account keeps one character with you rather than with this browser, and opens the
+            rulebook's own text where you are choosing a Power.
+        </p>
+
+        @if (_sent)
+        {
+            <p>
+                If that address can have an account here, a sign-in link is on its way to it. The
+                link works once and expires in fifteen minutes.
+            </p>
+            <p class="small muted">
+                Nothing on this page can tell you whether an account exists — that would make it
+                a way of asking, one address at a time.
+            </p>
+        }
+        else
+        {
+            <form @onsubmit="Ask" @onsubmit:preventDefault>
+                <Field For="signin-email">
+                    <LabelContent>Your email address</LabelContent>
+                    <ChildContent>
+                        <input id="signin-email" type="email" autocomplete="email"
+                               @bind="_email" @bind:event="oninput" />
+                    </ChildContent>
+                </Field>
+
+                <p>
+                    <button type="submit" class="btn" disabled="@_asking">
+                        @(_asking ? "Sending…" : "Email me a link")
+                    </button>
+                </p>
+            </form>
+
+            @if (_problem is { } problem)
+            {
+                <p role="alert">@problem</p>
+            }
+        }
+    </Panel>
+}
+
+@if (_spending)
+{
+    <Panel Title="Signing you in">
+        <p>Checking your link…</p>
+    </Panel>
+}
+
+@code {
+    [SupplyParameterFromQuery(Name = "t")] public string? Token { get; set; }
+
+    private Identity? _who;
+    private string _email = "";
+    private bool _asking;
+    private bool _sent;
+    private bool _spending;
+    private string? _problem;
+    private bool _offerToKeep;
+    private bool _kept;
+    private string? _anonymousName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Accounts.Changed += OnChanged;
+
+        if (!string.IsNullOrWhiteSpace(Token))
+        {
+            _spending = true;
+            StateHasChanged();
+
+            if (await Accounts.CompleteSignInAsync(Token))
+            {
+                // The character now belongs somewhere else, so it is read from there rather than
+                // left as whatever this browser was holding. A sign-in that left the anonymous
+                // character on screen under an account's name is the shape that gets somebody
+                // else's work saved to your account.
+                if (await Store.LoadAsync() is { } theirs) Session.Restore(theirs.Sheet, theirs.Mode);
+                else Session.StartAgain();
+
+                await OfferToKeepAnythingLeftBehind();
+            }
+            else
+            {
+                _problem = "That sign-in link is not usable. Ask for another.";
+            }
+
+            _spending = false;
+
+            // The token is taken out of the address bar either way. It is spent, so it is of no
+            // further use to anybody — but a URL in a history, a bookmark or a shared screenshot
+            // is exactly where a secret should not still be.
+            Nav.NavigateTo("signin", replace: true);
+        }
+
+        _who = await Accounts.CurrentAsync();
+    }
+
+    private async Task Ask()
+    {
+        _asking = true;
+        _problem = null;
+
+        var outcome = await Accounts.AskForLinkAsync(_email);
+
+        _asking = false;
+
+        // Accepted says nothing about whether an account exists, deliberately — see the note on
+        // the server's own endpoint. Only the two honest refusals get a message.
+        _sent = outcome == LinkRequest.Accepted;
+        _problem = outcome switch
+        {
+            LinkRequest.NotAnAddress => "That does not look like an email address.",
+            LinkRequest.Unavailable => "Could not reach the site just now. Try again in a moment.",
+            _ => null,
+        };
+    }
+
+    private async Task SignOut()
+    {
+        await Accounts.SignOutAsync();
+
+        // Back to whatever this browser was holding before, which signing in never touched.
+        if (await Store.LoadAsync() is { } local) Session.Restore(local.Sheet, local.Mode);
+        else Session.StartAgain();
+
+        _who = Identity.Anonymous;
+        _offerToKeep = false;
+        _kept = false;
+    }
+
+    private async Task OfferToKeepAnythingLeftBehind()
+    {
+        if (await Store.AccountHasCharacterAsync()) return;
+        if (await Store.LoadAnonymousAsync() is not { } left) return;
+
+        _anonymousName = string.IsNullOrWhiteSpace(left.Sheet.Name) ? "unnamed" : left.Sheet.Name;
+        _offerToKeep = true;
+    }
+
+    private async Task KeepAnonymous()
+    {
+        _kept = await Store.KeepAnonymousCharacterAsync();
+        _offerToKeep = false;
+
+        if (_kept && await Store.LoadAsync() is { } now) Session.Restore(now.Sheet, now.Mode);
+    }
+
+    // Not `async void`: an exception out of one of those is unobservable and takes the renderer
+    // down rather than the handler. InvokeAsync also puts the work on the renderer's own thread,
+    // which is where StateHasChanged has to be called from.
+    private void OnChanged() => _ = InvokeAsync(async () =>
+    {
+        _who = await Accounts.CurrentAsync();
+        StateHasChanged();
+    });
+
+    public void Dispose() => Accounts.Changed -= OnChanged;
+}

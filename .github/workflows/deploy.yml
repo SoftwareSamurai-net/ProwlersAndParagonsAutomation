@@ -20,6 +20,12 @@ on:
       # The recorded conversations the replay plays. They are staged into wwwroot by the
       # build like the rules, so a transcript edited alone still changes the published site.
       - 'data/transcripts/**'
+      # The accounts server and the book it serves. `functions/` is the one file Cloudflare
+      # routes; `worker/` is everything it imports, and the corpus is bundled into it — so a
+      # change to any of the three changes the deployed site even though none is under web/.
+      - 'functions/**'
+      - 'worker/**'
+      - 'data/rulebook/**'
       - 'scripts/write-cloudflare-headers.sh'
       - 'Directory.Build.props'
       - '.github/workflows/deploy.yml'
@@ -84,6 +90,24 @@ jobs:
             fi
           done
           exit "$missing"
+
+      - name: Check the accounts server is where wrangler will look for it
+        # `wrangler pages deploy <dir>` bundles a `functions` directory found in the *working
+        # directory*, not in the directory being uploaded — there is no flag for it, so the
+        # placement is the configuration. A deploy from a directory without one succeeds,
+        # uploads the site, and answers every /api/ address with the app's own index.html:
+        # a site that works, signs nobody in, and says nothing about why.
+        run: |
+          set -euo pipefail
+
+          [ -f functions/api/'[[path]]'.js ] || {
+            echo "::error::functions/api/[[path]].js is missing, so this deploy would ship a"
+            echo "::error::site with no accounts API. Every /api/ address would fall through"
+            echo "::error::to _redirects and answer with index.html."
+            exit 1
+          }
+
+          echo "Found the routed function; wrangler runs from $(pwd) and will bundle ./functions."
 
       - name: Ask Cloudflare which branch it treats as production
         # --branch is a label Cloudflare compares against the project's configured
@@ -150,3 +174,47 @@ jobs:
           echo "::error::project name in the CLOUDFLARE_PAGES_PROJECT variable, and that"
           echo "::error::the API token can read the project (Cloudflare Pages: Edit)."
           exit 1
+
+      - name: Confirm the accounts API answers
+        # **The only moment this failure is observable.** A Pages deploy whose functions were
+        # not bundled, or whose D1 binding is not configured, serves the site perfectly: every
+        # /api/ address falls through to _redirects and answers index.html with a 200. The app
+        # then starts, works, and signs nobody in for ever — because its client reads an
+        # unparseable answer as "anonymous", deliberately, so that a missing server is a missing
+        # feature rather than a blank page. Nothing else would ever report it.
+        #
+        # So the check is on the *shape* of the answer, not on the status alone: 401 carrying
+        # JSON is a working server saying nobody is signed in, which is exactly right here.
+        env:
+          PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT || 'prowlers-and-paragons' }}
+        run: |
+          set -uo pipefail
+
+          url="https://${PROJECT}.pages.dev/api/me"
+
+          # Assign, then replace on failure. `$(curl ... || echo)` concatenates curl's own
+          # output with the fallback, which is how "200000" gets reported as a status.
+          answer=$(curl -s -o /dev/null -w '%{http_code} %{content_type}' "$url") || answer='000 none'
+          status=${answer%% *}
+          type=${answer#* }
+
+          echo "$url -> $status ($type)"
+
+          case "$type" in
+            application/json*) ;;
+            *)
+              echo "::error::/api/me answered with '$type' rather than JSON, so the accounts API"
+              echo "::error::is not deployed: Pages served the app's own index.html through"
+              echo "::error::_redirects instead. Check that functions/ was bundled and that the"
+              echo "::error::Pages project has a D1 binding named DB — docs/ACCOUNTS-SETUP.md."
+              exit 1
+              ;;
+          esac
+
+          if [ "$status" != "401" ]; then
+            echo "::error::/api/me answered $status. With nobody signed in it must answer 401;"
+            echo "::error::anything else means the session check is not doing what it claims."
+            exit 1
+          fi
+
+          echo "The accounts API is answering."

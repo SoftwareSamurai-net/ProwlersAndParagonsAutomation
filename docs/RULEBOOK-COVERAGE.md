@@ -33,7 +33,7 @@ wrong on both figures and contradicted the resume marker four lines below it.)
 | | `data/rules/` | `data/rulebook/` |
 |---|---|---|
 | Holds | mechanics: ids, costs, ranges, rank types, and this project's own descriptions | the book's printed text, chapter by chapter |
-| Read by | the engine — every cost and every verdict | nothing yet; an account-gated reader is planned after the redesign |
+| Read by | the engine — every cost and every verdict | the accounts server, behind a sign-in: bundled into `worker/`, never staged into `wwwroot`, and served only to a session — see `docs/ACCOUNTS-SETUP.md` |
 | Served publicly | **yes**, copied into `wwwroot` by the web csproj | **no**, deliberately excluded |
 | On a disagreement | wins | loses |
 

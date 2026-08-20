@@ -52,6 +52,35 @@ jobs:
         run: dotnet test --no-build --configuration Release -p:ContinuousIntegrationBuild=true
 
 
+      - name: Set up Node
+        # Pinned rather than taken from the runner image: the accounts tests need `node:sqlite`
+        # and JSON import attributes, both of which are Node 22. A runner that happened to ship
+        # an older one would fail in a way that looks like a broken test.
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test the accounts API
+        # The accounts server is JavaScript, because Cloudflare Workers is — so it is invisible
+        # to `dotnet test` and needs its own step. It runs the real migration against real
+        # SQLite through `node:sqlite`, which is why the floor is Node 22.
+        #
+        # **Assert the count, not the exit code.** `node --test` with a glob that matches
+        # nothing exits 0 and reports zero tests, which reads exactly like a suite that passed.
+        run: |
+          set -euo pipefail
+
+          node --version
+          node --test "tests/worker/*.test.mjs" | tee /tmp/worker.tap
+
+          passed=$(grep -c '^ok ' /tmp/worker.tap || true)
+          echo "The accounts API's suite reported $passed passing tests."
+
+          if [ "${passed:-0}" -lt 30 ]; then
+            echo "::error::only $passed accounts tests ran; the glob has stopped matching."
+            exit 1
+          fi
+
       - name: Drive the proof harnesses in a browser
         # **The only guards here that a source scan cannot fake.**
         #

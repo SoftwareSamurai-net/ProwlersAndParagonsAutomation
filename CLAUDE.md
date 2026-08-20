@@ -39,6 +39,10 @@ dotnet build --configuration Release -p:ContinuousIntegrationBuild=true
 
 # Run the tests (also run in CI, with the same strict flags)
 dotnet test
+
+# Run the accounts server's tests — a separate suite, because that server is JavaScript.
+# Uses local Node 22+ if there is one, Docker otherwise. Also run in CI.
+./scripts/test-worker.sh
 ```
 
 ## Two disciplines that are commands, not cautions
@@ -152,7 +156,13 @@ The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestM
 - .NET analyzers run at `AnalysisLevel=latest-recommended` with `EnforceCodeStyleInBuild`. `TreatWarningsAsErrors` is conditional on `ContinuousIntegrationBuild`, so local builds stay warning-only while CI is strict. **Keep the CI build at zero warnings.**
 - Deliberate rule exceptions live in `.editorconfig` with an inline rationale — CA1305/CA1304 are off because all formatted output is human-facing terminal/sheet text, and CA1822 is a suggestion so `CostCalculator`/`DerivedStatsCalculator` keep a uniform instance API. Add rationale when adding an exception; do not add bare suppressions.
 - Qodana (`qodana.yaml`, `jetbrains/qodana-cdnet:2026.2`) runs ReSharper inspections in `.github/workflows/qodana_code_quality.yml`. Two non-obvious constraints: the `dotnet.solution` key is required (without it Qodana finds no project and reports nothing), and the **Community** linter (`cdnet`) is deliberate. **The release linter needs a Cloud licence, not just a token — and a token alone breaks `cdnet` too.** That was tried: with a `QODANA_TOKEN` secret set, both images linked the Cloud project and exited on "License request: token was declined by Qodana Cloud server", having inspected nothing. So the workflow deliberately does **not** pass a token: a scan cannot be broken by a credential it never reads. `cdnet` needs no token, no account and no licence.
-- **Qodana is the only thing that sees a Razor deprecation.** A `.razor` file sets a component parameter by string key rather than by referencing the property, so the C# compiler never sees an `[Obsolete]` attribute on it: `Router.NotFound` was deprecated in .NET 10 and `dotnet build` reported zero warnings with warnings-as-errors on. Do not read a clean build as a clean bill of health for the components.
+- **Qodana is the only thing that sees a Razor deprecation, and `.razor` files really are inspected — measured, not assumed.** A `.razor` file sets a component parameter by string key rather than by referencing the property, so the C# compiler never sees an `[Obsolete]` attribute on it: `Router.NotFound` was deprecated in .NET 10 and `dotnet build` reported zero warnings with warnings-as-errors on. Do not read a clean build as a clean bill of health for the components.
+
+  **Do not conclude the opposite from an empty SARIF, which is a mistake made here.** Four whole-tree scans in one slice produced no finding referencing any `.razor` file, and that was read as "Razor is not inspected at all" — a conclusion that would have condemned the whole tool. It is wrong: no *finding* in a file is not the same as the file not being analysed. Proved by planting the same unresolvable `<see cref="DoesNotExist"/>` in a `.razor` `@code` block and in a `.cs` file and scanning once: **both** reported `InvalidXmlDocComment`, and the SARIF named `web/Components/RulebookEntry.razor`. Razor `@code` blocks get `UnusedMember.Local` too.
+
+- **What Qodana does *not* catch is a doubled `<summary>` block, and this file used to imply it does.** The note further down cites, as a real bug no compiler sees, "a doc comment stranded on the wrong method by an insertion, so one member carried two `<summary>` blocks and a `<paramref>` for a parameter it did not have". Those are two different things and only the second fires: a `<paramref>` naming a parameter that is not there is `InvalidXmlDocComment`; **two `<summary>` blocks on one member is reported by nothing.** Measured both ways — planted in a `.cs` file and left in place in `MainLayout.razor`, where one has sat since before this slice; neither was reported, on a scan that found six other things. ReSharper ships duplicate-tag rules for `param` and `typeparam` and none for `summary`. So a stranded summary is found by reading, and by nothing else.
+
+  **Both of the above were established with a control that fires.** A probe that reports nothing tells you nothing unless something in the same run reports — which is why the cref pair is the instrument: the `.cs` half is known to fire, so the `.razor` half reporting or not is a real answer either way. And plant probes in a `git archive` export, then **strip `bin/` and `obj/` after checking they compile** — a probe that does not compile suppresses inspections and reads exactly like "not inspected".
 - **Qodana's counts on a pull request are not comparable to a scan of the whole tree.** It runs in PR mode — only changed files — so moving a file re-reports every finding in it as new. The Blazor slice moved `engine/` and `sheets/` into new projects and the count went from 144 to 249 without any of that code changing. Read the SARIF (`gh run download <run-id>`, then `qodana.sarif.json`) rather than the summary table before concluding anything moved.
 - **A whole-tree Qodana scan reports zero, and the config that gets it there is in `.editorconfig`, not `qodana.yaml`.** `qodana.yaml`'s `exclude:` list accepts an inspection *name* and silently ignores it — the .NET linter is ReSharper, which takes severities from EditorConfig. Only the path exclusions in `qodana.yaml` do anything. Each `resharper_*_highlighting = none` there is scoped as tightly as the tool allows and says why; nothing is baselined and there is no severity floor. Qodana runs in PR mode, so its count only covers changed files — to see the real number, run it over the whole tree yourself:
 
@@ -420,6 +430,41 @@ questions about the rules. It does not replace `build --from`; both call the sam
 - The tests live in `tests/ProwlersAndParagonsAutomation.Tests` beside `HeadlessBuildTests`,
   driven over a real pair of pipes with the SDK's own client. Only `web/` has a test project of
   its own, because rendering components needs one.
+
+### The accounts server
+
+`worker/` is a Cloudflare Pages Functions server over D1, reached through the one routed file
+`functions/api/[[path]].js`. It is JavaScript because Workers is, so it is invisible to
+`dotnet test` and has its own suite: `./scripts/test-worker.sh` (local Node 22+, or Docker).
+Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
+
+- **It holds no rules and must never gain one.** A character is stored as an opaque string it
+  never parses — the engine decides cost and legality and runs in the browser. A second place
+  that understood the shape of a character is a second place to keep in step.
+- **No password anywhere.** A magic link; the token and the session are both stored as SHA-256
+  and never in the clear, so a dump of the database lets nobody sign in as anybody. The session
+  is an `HttpOnly` cookie, so the WebAssembly app never holds a credential.
+- **Same origin is load-bearing.** Pages Functions rather than a Worker on `workers.dev`,
+  because a cookie set by another host is a third-party cookie that browsers now partition
+  away. Move the API to its own hostname and sign-in stops working and nothing else does.
+- **Every refusal to sign in says the same thing**, and asking for a link always answers 204 —
+  otherwise the endpoint is a way of asking whether an address has an account here.
+- **`wrangler pages deploy <dir>` bundles a `functions` directory found in the working
+  directory, not in the directory being uploaded.** There is no flag; the placement *is* the
+  configuration, and getting it wrong deploys a healthy-looking site that signs nobody in.
+- **A missing server is a missing feature, not a blank page** — and the shape that makes that
+  work is also the shape that hides the mistake. `_redirects` serves every unmatched path as
+  `index.html` with a 200, so a site without its Functions answers `/api/me` with HTML; the
+  client parses the body rather than trusting the status, and answers `Identity.Anonymous`. **So
+  the deploy is the only place the fault is ever visible**, and it checks for JSON there.
+- **`data/rulebook/` is bundled into the server and never staged into `wwwroot`.** A file under
+  `wwwroot` is a public URL; that placement is the entire access control, and there is a test on
+  both sides of the repository.
+- **The two halves are different languages and both suites stay green while they disagree.**
+  `AccountsContractTests` is the only thing that reads both — addresses asked for against
+  addresses routed, and the keys the server returns against the names the client binds. Do not
+  write a guard there with `Contains`: the first version was one, and a rename walked through it
+  because the same word occurred elsewhere in the server's own source.
 
 ### Hosting
 

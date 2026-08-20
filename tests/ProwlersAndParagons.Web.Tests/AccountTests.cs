@@ -1,0 +1,406 @@
+using ProwlersAndParagonsAutomation.Engine;
+
+namespace ProwlersAndParagons.Web.Tests;
+
+/// <summary>
+/// One character, one account, end to end — from the browser's side of the wire.
+///
+/// <para><b>What the server does is tested against the real server</b>, in
+/// <c>tests/worker</c>, driven over the real migration in real SQLite. What is tested here is
+/// the half a Node test cannot see: which store a character goes to, what happens when the
+/// server is not there, and that signing in never touches what this browser was holding.</para>
+///
+/// <para><b>The anonymous slot is the thing to break carefully.</b> Every visitor today is
+/// anonymous, so a mistake here does not lose an account's character — it empties the browser
+/// of everybody who has ever used the site, silently, looking exactly like storage having been
+/// cleared.</para>
+/// </summary>
+public sealed class AccountTests
+{
+    private static readonly RulesRepository Rules = RulesRepository.FromBasePath(RepoRoot());
+    private static readonly CostCalculator Costs = new(Rules);
+    private static readonly CharacterValidator Validator =
+        new(Rules, Costs, new DerivedStatsCalculator(Rules));
+
+    private const string AnonymousKey = "pp.character.v1";
+
+    /// <summary>The four pieces the app wires together, built the way <c>Program.cs</c> does.</summary>
+    private sealed record Wired(
+        FakeApi Api, FakeLocalStorage Storage, Accounts Who, AccountCharacterStore Store);
+
+    private static Wired Build()
+    {
+        var api = new FakeApi();
+        var storage = new FakeLocalStorage();
+        var http = new HttpClient(api) { BaseAddress = new Uri("https://pp.example.test/") };
+        var who = new Accounts(http);
+        var local = new CharacterStore(storage, Costs, Validator, who);
+        var remote = new ApiCharacterStore(http, Costs, Validator);
+
+        return new Wired(api, storage, who, new AccountCharacterStore(who, local, remote));
+    }
+
+    [Fact]
+    public async Task AVisitorWithNoAccountIsAnonymousAndKeepsTheirCharacterInThisBrowser()
+    {
+        var app = Build();
+
+        await app.Store.SaveAsync(SampleCharacters.Hero(), SheetMode.Hero);
+
+        Assert.False((await app.Who.CurrentAsync()).IsSignedIn);
+        Assert.NotNull(app.Storage.Peek(AnonymousKey));
+        Assert.Null(app.Api.StoredCharacter);
+    }
+
+    [Fact]
+    public async Task SomebodySignedInKeepsTheirCharacterWithTheirAccount()
+    {
+        var app = Build();
+        app.Api.SignedIn = ("acct-7", "player");
+
+        await app.Store.SaveAsync(SampleCharacters.Villain(), SheetMode.Villain);
+
+        Assert.NotNull(app.Api.StoredCharacter);
+
+        // …and nothing was written to this browser under any key at all.
+        Assert.Null(app.Storage.Peek(AnonymousKey));
+        Assert.Null(app.Storage.Peek(AnonymousKey + ".acct-7"));
+
+        var back = await app.Store.LoadAsync();
+
+        Assert.NotNull(back);
+        Assert.Equal(SheetMode.Villain, back!.Value.Mode);
+        Assert.Equal(SampleCharacters.Villain().Name, back.Value.Sheet.Name);
+    }
+
+    /// <summary>
+    /// The character follows the account, which is the whole slice.
+    ///
+    /// <para>Two browsers, one account: the second has its own empty local storage and finds the
+    /// character anyway. Asserted through <see cref="AccountCharacterStore"/> rather than by
+    /// reading the server, so it covers the routing as well as the transport.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACharacterFollowsItsAccountToAnotherBrowser()
+    {
+        var laptop = Build();
+        laptop.Api.SignedIn = ("acct-7", "player");
+
+        var mine = SampleCharacters.Hero();
+        mine.Name = "Ninefold";
+        await laptop.Store.SaveAsync(mine, SheetMode.Hero);
+
+        // A different browser: its own storage, its own client, the same account and server.
+        var phone = Build();
+        phone.Api.SignedIn = laptop.Api.SignedIn;
+        phone.Api.StoredCharacter = laptop.Api.StoredCharacter;
+
+        var there = await phone.Store.LoadAsync();
+
+        Assert.NotNull(there);
+        Assert.Equal("Ninefold", there!.Value.Sheet.Name);
+        Assert.Null(phone.Storage.Peek(AnonymousKey));
+    }
+
+    /// <summary>
+    /// Signing in on a shared browser leaves what somebody was building exactly where it was,
+    /// and signing out gives it back.
+    /// </summary>
+    [Fact]
+    public async Task SigningInAndOutNeverTouchesTheAnonymousCharacter()
+    {
+        var app = Build();
+
+        var beingBuilt = SampleCharacters.Hero();
+        beingBuilt.Name = "Anonymous work in progress";
+        await app.Store.SaveAsync(beingBuilt, SheetMode.Hero);
+
+        var untouched = app.Storage.Peek(AnonymousKey);
+        Assert.NotNull(untouched);
+
+        // Somebody signs in and saves a different character.
+        app.Api.SignedIn = ("acct-7", "player");
+        await app.Who.CompleteSignInAsync("a-token");
+        await app.Store.SaveAsync(SampleCharacters.Villain(), SheetMode.Villain);
+
+        Assert.Equal(untouched, app.Storage.Peek(AnonymousKey));
+
+        // …and signing out hands the first one back.
+        app.Api.SignedIn = null;
+        await app.Who.SignOutAsync();
+
+        var back = await app.Store.LoadAsync();
+
+        Assert.NotNull(back);
+        Assert.Equal("Anonymous work in progress", back!.Value.Sheet.Name);
+    }
+
+    /// <summary>
+    /// The anonymous character is copied up only when asked, and only into an empty account.
+    /// </summary>
+    [Fact]
+    public async Task WhatTheBrowserWasHoldingIsKeptOnlyOnRequest()
+    {
+        var app = Build();
+
+        var beingBuilt = SampleCharacters.Hero();
+        beingBuilt.Name = "Half-finished";
+        await app.Store.SaveAsync(beingBuilt, SheetMode.Hero);
+
+        app.Api.SignedIn = ("acct-7", "player");
+        await app.Who.CompleteSignInAsync("a-token");
+
+        // Nothing has happened by itself.
+        Assert.False(await app.Store.AccountHasCharacterAsync());
+        Assert.Null(app.Api.StoredCharacter);
+
+        Assert.True(await app.Store.KeepAnonymousCharacterAsync());
+
+        var now = await app.Store.LoadAsync();
+        Assert.NotNull(now);
+        Assert.Equal("Half-finished", now!.Value.Sheet.Name);
+
+        // And the browser's own copy is still there, not moved.
+        Assert.NotNull(app.Storage.Peek(AnonymousKey));
+    }
+
+    /// <summary>
+    /// Two accounts on one machine do not share a character.
+    ///
+    /// <para><b>The server's own tests cover this and the browser's did not</b>, which a fix audit
+    /// found by noticing the stub had a single character slot for every account — so any test of
+    /// two accounts against the character store would have been quietly a test of one, and would
+    /// have passed against a server with no notion of ownership at all. Nothing in production was
+    /// wrong; what was missing was the ability to tell.</para>
+    /// </summary>
+    [Fact]
+    public async Task TwoAccountsOnOneMachineDoNotShareACharacter()
+    {
+        var app = Build();
+
+        app.Api.SignedIn = ("acct-7", "player");
+        var mine = SampleCharacters.Hero();
+        mine.Name = "Mine";
+        await app.Store.SaveAsync(mine, SheetMode.Hero);
+
+        // Somebody else signs in on the same browser. Their account has nothing in it.
+        app.Api.SignedIn = ("acct-9", "somebody-else");
+        await app.Who.CompleteSignInAsync("a-token");
+
+        Assert.Null(await app.Store.LoadAsync());
+        Assert.False(await app.Store.AccountHasCharacterAsync());
+
+        // And saving theirs does not land on top of the first.
+        var theirs = SampleCharacters.Villain();
+        theirs.Name = "Theirs";
+        await app.Store.SaveAsync(theirs, SheetMode.Villain);
+
+        app.Api.SignedIn = ("acct-7", "player");
+        await app.Who.CompleteSignInAsync("another-token");
+
+        var back = await app.Store.LoadAsync();
+        Assert.NotNull(back);
+        Assert.Equal("Mine", back!.Value.Sheet.Name);
+    }
+
+    [Fact]
+    public async Task AnAccountThatAlreadyHasACharacterIsNotOfferedAReplacement()
+    {
+        var app = Build();
+        app.Api.SignedIn = ("acct-7", "player");
+        await app.Store.SaveAsync(SampleCharacters.Villain(), SheetMode.Villain);
+
+        Assert.True(await app.Store.AccountHasCharacterAsync());
+    }
+
+    /// <summary>
+    /// A server that cannot be asked answers "yes, there is one already".
+    ///
+    /// <para><b>The direction is the whole point.</b> This question exists only to decide whether
+    /// to offer to copy the browser's character up, and the two ways of being wrong are not
+    /// equal: answering "no" on a failed request offers to write over a character that may well
+    /// be there, and the offer is a button somebody will press. Declining to offer costs one
+    /// visit to the sign-in page.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnUnreachableServerIsAssumedToHaveACharacterRatherThanNotTo()
+    {
+        var app = Build();
+        app.Api.SignedIn = ("acct-7", "player");
+        await app.Who.CurrentAsync();
+
+        app.Api.Unreachable = true;
+
+        Assert.True(await app.Store.AccountHasCharacterAsync());
+    }
+
+    /// <summary>
+    /// A site whose server is not there still starts, still costs, still validates.
+    ///
+    /// <para>Three shapes of absence, and the third is the one that looks like success:
+    /// <c>_redirects</c> serves every unmatched path as <c>index.html</c> with a 200, so a
+    /// deploy without its API answers <c>/api/me</c> with a page of HTML. A client that believed
+    /// the status would hand the app an identity built from nothing.</para>
+    /// </summary>
+    [Fact]
+    public async Task NoServerMeansAnAnonymousVisitorRatherThanABlankPage()
+    {
+        foreach (var (name, arrange) in new (string, Action<FakeApi>)[]
+        {
+            ("no network", api => api.Unreachable = true),
+            ("not deployed", api => api.ServerNotDeployed = true),
+            ("signed out", _ => { }),
+        })
+        {
+            var app = Build();
+            arrange(app.Api);
+
+            var who = await app.Who.CurrentAsync();
+
+            Assert.False(who.IsSignedIn, name);
+            Assert.Equal(Identity.Anonymous.Key, who.Key);
+
+            // And the character generator carries on: the local slot answers, and nothing threw.
+            Assert.Null(await app.Store.LoadAsync());
+            await app.Store.SaveAsync(SampleCharacters.Hero(), SheetMode.Hero);
+
+            if (name != "no network") Assert.NotNull(app.Storage.Peek(AnonymousKey));
+        }
+    }
+
+    /// <summary>
+    /// A server that answers with something unusable loses the character rather than the app.
+    ///
+    /// <para>The same guarantee local storage already had, now over a wire: the payload is
+    /// costed and validated before the app is allowed to render against it, so a null at any
+    /// depth is a character that is not restored rather than a page that never draws.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("not json at all")]
+    [InlineData("{}")]
+    [InlineData("""{"Version":1}""")]
+    [InlineData("""{"Version":99,"Mode":0,"Sheet":{}}""")]
+    public async Task AnUnusableAnswerIsNoCharacterRatherThanNoApp(string payload)
+    {
+        var app = Build();
+        app.Api.SignedIn = ("acct-7", "player");
+        app.Api.StoredCharacter = payload;
+
+        Assert.Null(await app.Store.LoadAsync());
+    }
+
+    /// <summary>
+    /// A payload with a hole in it is repaired and kept, not thrown away.
+    ///
+    /// <para><b>The two directions are different rules and both matter.</b> The theory above is
+    /// about a payload the engine could not answer for at all, which has to be discarded because
+    /// the budget bar renders on every route and would take the app down on the first frame.
+    /// This is about a payload that is merely incomplete — a null where an entry belongs, an id
+    /// no build recognises — and there the answer is the opposite: a field removed in a later
+    /// build should cost a field, not somebody's character. <c>CharacterSheetJson.Repair</c> is
+    /// where the difference is decided, shared with the headless command.</para>
+    ///
+    /// <para>It is asserted over the wire as well as in local storage because the two stores now
+    /// share that reader, and sharing it is the only thing keeping a character saved on a laptop
+    /// from restoring differently on a phone.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("""{"Version":1,"Mode":0,"Sheet":{"Name":"Patched","SelectedPowers":[null]}}""")]
+    [InlineData("""{"Version":1,"Mode":0,"Sheet":{"Name":"Patched","AbilityRanks":{"not_an_ability":4}}}""")]
+    public async Task AnIncompleteAnswerIsRepairedRatherThanDiscarded(string payload)
+    {
+        var app = Build();
+        app.Api.SignedIn = ("acct-7", "player");
+        app.Api.StoredCharacter = payload;
+
+        var restored = await app.Store.LoadAsync();
+
+        Assert.NotNull(restored);
+        Assert.Equal("Patched", restored!.Value.Sheet.Name);
+    }
+
+    /// <summary>
+    /// A save that fails is silent, and that is a cost stated rather than hidden.
+    ///
+    /// <para>Nothing in <see cref="ICharacterStore"/> may throw — restoring happens before the
+    /// first render, so an exception there is a blank page rather than a lost character. The
+    /// honest fix for a failed save is telling somebody, which the front-end plan still owes.</para>
+    /// </summary>
+    [Fact]
+    public async Task NothingInTheStoreThrowsWhenTheServerIsGone()
+    {
+        var app = Build();
+        app.Api.SignedIn = ("acct-7", "player");
+        await app.Who.CurrentAsync();
+
+        app.Api.Unreachable = true;
+
+        await app.Store.SaveAsync(SampleCharacters.Hero(), SheetMode.Hero);
+        Assert.Null(await app.Store.LoadAsync());
+        await app.Store.ClearAsync();
+    }
+
+    /// <summary>
+    /// Signing out is local even when the server cannot be told.
+    ///
+    /// <para>Somebody who has asked to sign out on a shared machine must not be left signed in
+    /// because a request failed. The session's own expiry, and the server deleting the row when
+    /// it does hear, are what make that safe rather than merely polite.</para>
+    /// </summary>
+    [Fact]
+    public async Task SigningOutTakesEffectEvenIfTheServerCannotBeReached()
+    {
+        var app = Build();
+        app.Api.SignedIn = ("acct-7", "player");
+
+        Assert.True((await app.Who.CurrentAsync()).IsSignedIn);
+
+        app.Api.Unreachable = true;
+        await app.Who.SignOutAsync();
+
+        Assert.False((await app.Who.CurrentAsync()).IsSignedIn);
+    }
+
+    [Fact]
+    public async Task AskingForALinkTellsApartTheThreeThingsThatCanHappen()
+    {
+        var app = Build();
+        Assert.Equal(LinkRequest.Accepted, await app.Who.AskForLinkAsync("player@example.test"));
+
+        app.Api.Unreachable = true;
+        Assert.Equal(LinkRequest.Unavailable, await app.Who.AskForLinkAsync("player@example.test"));
+    }
+
+    /// <summary>
+    /// The identity that arrives over the wire carries a key and a name and nothing else.
+    ///
+    /// <para>Asserted by reflection rather than by naming the two, because the point is the
+    /// omissions: no claims, no token, no expiry, no email address. A field added to
+    /// <see cref="Identity"/> is a decision about what this project stores about people, and it
+    /// should not be possible to make it without this failing.</para>
+    /// </summary>
+    [Fact]
+    public void AnIdentityIsAKeyAndANameAndNothingElse()
+    {
+        var carried = typeof(Identity)
+            .GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+            .Select(p => p.Name)
+            .Where(name => name != "IsSignedIn")   // derived from DisplayName, stores nothing
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(["DisplayName", "Key"], carried);
+    }
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (dir.GetFiles("*.sln").Length > 0) return dir.FullName;
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate the repository root.");
+    }
+}

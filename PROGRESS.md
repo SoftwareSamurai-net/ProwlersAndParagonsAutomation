@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 3972 across two projects — 3672 on the engine, 300 rendering components with bUnit — run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
+| Tests | 4069 across three suites — 3683 on the engine, 342 rendering components with bUnit, 44 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -219,6 +219,206 @@ grip does not.
 
 ## Completed work
 
+### Accounts: one character, one account, and the book behind a sign-in
+
+**The character used to live in one browser and nowhere else.** Close it on another machine and it
+was gone; the only way to share one was to download a file; and the rulebook's own text had no way
+to know who was reading it. This closes all three.
+
+**Cloudflare Pages Functions over D1, in the account the site already deploys to** — chosen over a
+hosted identity provider and over a "sync key" that would not have been an account at all. The
+deciding argument was the session cookie: an API on `workers.dev` is a different origin, so its
+cookie is a third-party cookie and Safari and Chrome's partitioning drop it. Same-origin Functions
+cost one directory and no new bill. **If the API is ever moved to its own hostname, sign-in stops
+working and nothing else does.**
+
+**A magic link, so there is no password anywhere.** Proving you can read the address is the whole
+of the check, so there is nothing to store, nothing to leak and nothing to reset. Two secrets are
+minted — the link's token and the session — and **neither is ever stored in the clear**: the
+database holds SHA-256 of each, so a dump of it lets nobody sign in as anybody. The session is an
+`HttpOnly` cookie, which means the WebAssembly app never holds a credential and an injected script
+cannot read one. That keeps true the claim the MCP server already made for this project: it handles
+no credentials.
+
+**Four things the server refuses, each because the alternative is a silent hole:**
+
+- **A link works once**, enforced by `UPDATE … WHERE used_at IS NULL … RETURNING` — one statement,
+  because read-then-write lets two requests both redeem the same link.
+- **Every sign-in refusal says the same thing**, whether the token was never issued, has expired or
+  is spent. Nothing legitimate needs the difference.
+- **Asking for a link always answers 204**, so the endpoint cannot be used to ask whether an
+  address has an account here, one address at a time. The rate limit is silent for the same reason,
+  and its window rolls inside the statement rather than in a read-modify-write — the alternative is
+  a limit that stops counting exactly when it is under load.
+- **A state-changing request must carry this site's own `Origin`**, and one with no `Origin` at all
+  is refused rather than allowed. `SameSite=Lax` already blocks the cross-site form post; this does
+  not depend on the visitor's browser having got that right.
+
+**The server never parses a character.** The payload arrives as JSON, is checked for being JSON and
+being under a quarter-megabyte, and is written down verbatim; a read hands the same bytes back. The
+engine is the authority on what a character costs and whether it is legal, it runs in the browser,
+and a second place that understood the shape would be a second place to keep in step. A test sends
+key order and spacing no serialiser would reproduce and requires them back unchanged.
+
+**One character per account, and `characters.user_id` is the primary key rather than a convention.**
+A list is a different interface and a different set of screens; it is much easier to get right once
+one character round-trips, and the handover said so explicitly.
+
+**The book is bundled into the server rather than copied into `wwwroot`, and that placement is the
+entire access control.** A file under `wwwroot` is a public URL, and no amount of checking sessions
+in the browser would make it not be one. Chapter 2 only — where the Powers are — because adding
+chapters is a decision about what an account is entitled to read and should not happen by a glob.
+The lookup needs no table of its own: it joins on the heading, which is the join
+`RulebookCorpusTests` already holds the corpus to across a hundred and sixteen entries.
+
+**`Tooltip` was the wrong container and is not used.** A Power's entry is several paragraphs to
+read, not a sentence to glance at, so it is a disclosure — and it renders **nothing at all** when
+there is nothing to show. That last part is most of the design: about a fifth of the 141 Powers
+have no printed entry of their own, because Super Senses' sixteen options share one between them,
+so a row of apologies would appear under Powers that are perfectly fine.
+
+**A missing server is a missing feature, never a blank page.** Identity is asked for before the
+first render, so every failure — no network, a 401, a five-second timeout — answers with the
+anonymous visitor. **Including the one that looks like success:** `_redirects` serves every
+unmatched path as `index.html` with a 200, so a deploy without its Functions answers `/api/me` with
+a page of HTML. The client parses the body rather than believing the status.
+
+**That property is also why the deploy is the only place the mistake is ever visible**, and it now
+checks: the routed function must exist before uploading, and `/api/me` must answer 401 *carrying
+JSON* afterwards. Without that second check, a site with no accounts API looks completely healthy
+and signs nobody in for ever.
+
+**`StoredCharacter` was extracted so the two stores cannot disagree.** Local storage and the server
+keep the character in very different places, and the temptation is to let each own its envelope —
+at which point a version bump or the null-repair lands in one of them and a character saved on a
+laptop restores wrongly on a phone.
+
+**Nothing about the rules learns any of this**, and `AccountsContractTests` enforces it the way
+`PresentationFlagsTests` enforces the Hero/Villain flag — with a positive control, because a scan
+for eight names is satisfied completely by eight names that no longer exist. It also asserts
+`engine/` and `sheets/` make no HTTP call at all, which is the form that would catch an account
+arriving under a name the scan does not know.
+
+**The two halves are written in different languages and both suites stay green while they
+disagree.** The server is JavaScript and the client is C#; each is tested thoroughly alone, and
+nothing but `AccountsContractTests` reads both. It compares the addresses the browser asks for
+against the ones the server routes, and the keys of the object `identityOf` actually returns
+against the names the client actually binds. **That last one was a `Contains` first and a mutation
+walked straight through it:** renaming the server's `displayName` to `display_name` left it green,
+because the word still occurred in `db.js` as a parameter name. Searching concatenated files for a
+word says nothing about where the word is.
+
+**Tested against real SQLite running the real migration**, through a D1-shaped shim — D1 *is*
+SQLite, so the two statements that close a race by being one statement are executed rather than
+described. A hand-written fake would have passed for either. **Thirteen mutations were applied and
+all thirteen caught**, but two of the first results were worthless: removing an `expires_at > ?`
+from a query left three parameters bound to two placeholders, so what went red was a broken
+statement rather than the missing check. Redone by binding `0` for the timestamp instead, which
+keeps the arity and changes only the answer.
+
+**And one "survivor" was a hole in the harness, not in the code.** The mutation script ran
+`dotnet test` and not the accounts suite, so a rename the Node tests caught was reported as
+surviving. A mutation harness that does not run every suite reports the wrong answer confidently.
+
+**Two faults were found by looking at a rendered page, and neither was visible to any test:**
+
+- The signed-in proof rendered the **signed-out form** under a heading saying "Signed in". Loading
+  a sample raises the session's change event, which saves the character, which asks who is here and
+  *remembers the answer* — so the harness had to sign in before loading. `SignInPageTests` exists
+  because of it.
+- The entry's left edge was `var(--rule-weight) solid var(--accent)`, which is **1px in Hero and
+  2px in Villain**, and gold on the light sunk ground **measured 1.57:1** — no edge at all. It
+  looked entirely deliberate in the Villain proof, where the same declaration measured 5.62:1. It
+  is now `3px solid var(--heading)`: 6.76:1 and 5.62:1, both measured, and 3px in both.
+
+**The contrast probe was wrong before it was right**, and the way it was wrong is worth recording:
+computed colours come back as `rgb(0–255)` *or* `color(srgb 0–1)`, and reading both on one scale
+measured everything against black and reported 1.00 for a pair that is plainly legible. It carries
+a white-on-black positive control now, which must read 21.
+
+**`CouldOverride` in `WebPresentationTests` had a real over-broad rule**, found by this slice
+needing it: `border-radius` starts with `border-`, so the helper reported that a radius was what
+the cascade resolved for a `border-left` and refused to answer about correct CSS. Four names are
+now excluded — radius, collapse, spacing and image are separate properties sharing a prefix. This
+*narrows* a guard, so the three real overrides were re-checked afterwards and all three still
+refuse.
+
+**Two reviewers who knew nothing about this found eight things, and one was a real leak.**
+
+- **The rulebook reader cached the book's text across a sign-out**, in the same tab. Its own
+  comment claimed the cache was "per visit and per scope, so signing out and back in re-asks" —
+  and **Blazor WebAssembly has one DI scope for the life of the app**, so a scoped service is a
+  singleton and signing out is SPA state with no reload. A signed-in visitor on a shared machine
+  could open a Power's entry, sign out, open the same Power, and be handed the book's own text
+  out of the dictionary with the server — which would have refused — never asked. Reproduced
+  first, then fixed by comparing the identity key rather than trusting an event to be raised: a
+  guarantee that depends on an event is one somebody can remove by editing another file.
+- **The magic link's domain came from the request's own host.** The CSRF check compares the
+  `Origin` header *against that host* rather than validating the host, so where more than one
+  hostname routes to the Function a caller who could influence it received a link minted for it —
+  carrying the raw token. `SITE_URL` is now required and the server refuses to send without it,
+  the same way `RulesLocation.Find` refuses rather than guessing.
+- **The body cap counted UTF-16 code units while its comment said bytes**, so a body padded with
+  astral-plane characters reached about twice the limit. The existing test padded with ASCII,
+  where the two measures agree, which is exactly why it passed.
+- **The per-client rate limit had no test at all** — deleting half the guard left all 36 passing,
+  because nothing in the suite set the header it keys on, so every call counted as one `unknown`
+  source. It has two tests now, and the second asserts `X-Forwarded-For` is *not* read: anybody
+  may write that header, and reading it would be a limit somebody steps around with a string.
+- **`login_attempts` was never swept** — one permanent row per address and per source ever seen.
+  Nothing looked wrong, because the counting stayed correct; what grew was the table.
+- **The banner's two controls were untested.** Hardcoding the account link to "Sign in" and
+  making `Pressed` always return `"true"` — both buttons announcing pressed, which is invalid
+  ARIA — each left all 333 tests green. The cause is worth recording: `Find(".banner-link")`
+  returns the **first** match, and `AreaTests` uses it for the link immediately before this one.
+- **`aria-controls` had no guard**, so making it unconditional — naming an element not in the
+  document while closed — passed. Now asserted absent when closed and resolvable when open.
+- **The address-contract regex had a character-class hole**: `[a-z/]` meant renaming a route to
+  `api/auth/verify-token` matched nothing, so it was dropped from the list and the test passed
+  while the two halves genuinely disagreed. A pattern that answers "not an address" when it means
+  "I cannot read this" is worse than none.
+
+**And one fault was in the test stub rather than the code**: `FakeApi`'s verify route answered a
+hardcoded identity whatever it was asked, so a test about two accounts on one machine was quietly
+a test about one. All seven new guards were then mutated and all seven bite.
+
+**Then a third reviewer was pointed at the fixes rather than the code, and six of the nine did not
+hold.** This has been the highest-yield reviewer for six sessions running and it earned it again:
+every one of the six caught only the mutation it had been shown, and a *variant* reaching the same
+end state walked past it with every suite green. What was wrong was the same thing each time — the
+guard asserted the absence of one spelling instead of the property.
+
+| The fix | The variant that got past it | What it is now |
+|---|---|---|
+| `SITE_URL` required | trust `X-Forwarded-Host` *as well*, leaving the refusal intact — mailed a link to `evil.attacker.test` | the link's origin must **equal** `SITE_URL`, with six hostile host headers set |
+| the cap counts bytes | "correct" the count by +2 per surrogate pair — right for emoji, wrong for CJK — stored 307 KB | asserted with a three-byte character as well as a four-byte one |
+| `X-Forwarded-For` not trusted | trust `X-Real-IP` too — 26 links against a cap of 20 | nine spoofable headers varied at once |
+| `login_attempts` swept | restrict the `DELETE` to `key LIKE 'email:%'` — 51 stale `ip:` rows | both kinds of key asserted by name |
+| the identity contract | return `key: null` — same field names, so the name-comparison passed | the key must be the account's own id, and match `/api/me` |
+| `CouldOverride` narrowed | `all: unset` after the rule — the box lost background, padding and edge in any browser | `all` overrides everything, checked first |
+
+**The `key: null` one is the worst-shaped of the six**: the server would establish the session and
+set the cookie while the client read a null key as "nobody is signed in" — a live session its owner
+is told they do not have. A contract on field names is not a contract.
+
+**It also found a second lie in the stub, live and uncovered:** `FakeApi` had one character slot
+shared by every account, so any test of two accounts against the character store would have been a
+test of one — and would have passed against a server with no notion of ownership at all. The real
+server's own tests do cover ownership, so nothing in production was wrong; what was missing was the
+ability to tell. `TwoAccountsOnOneMachineDoNotShareACharacter` is that ability.
+
+All six variants were then re-run against the strengthened guards and all six now go red.
+
+**What is not done, and needs the account owner rather than a commit:** none of it runs until a D1
+database, a binding named `DB`, a Resend key and the DNS records for a sending domain exist.
+[`docs/ACCOUNTS-SETUP.md`](docs/ACCOUNTS-SETUP.md) is the five steps, and a test asserts it names
+every environment variable the server actually reads — documentation of a configuration nobody in
+this repository can try out rots silently otherwise.
+
+**One cost, stated rather than hidden:** a failed save is silent. Local storage effectively cannot
+fail; a network can, and the character then exists only in that tab. The honest fix is telling
+somebody, which is the "Saved" feedback Phase 5 of the front-end plan already owes.
+
 
 ### One site, two areas: the play aide and the portfolio
 
@@ -271,8 +471,9 @@ shared browser cannot overwrite what the anonymous visitor was building, and cle
 leaves the other. Five tests pin it, with a positive control that the shipped identity really is
 anonymous.
 
-**Still not done, and it is the larger half:** accounts need auth and server-side storage, which
-the static Cloudflare Pages deploy has no place for. That is a hosting decision, not a slice.
+**The larger half is now done** — see [accounts](#accounts-one-character-one-account-and-the-book-behind-a-sign-in)
+below. The seam held: the two interfaces did not change shape, and the app's behaviour for a
+visitor with no account is byte-identical to what it was.
 
 
 ### Phase 3, second slice: the pips become the control

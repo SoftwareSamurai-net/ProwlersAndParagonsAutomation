@@ -4,6 +4,7 @@
 @inject Theme Theme
 @inject Motion Motion
 @inject NavigationManager Nav
+@inject Accounts Accounts
 
 @* The fill runs the full width of the window; the contents sit on --column, like the two bands
    below it and the shell below them. That is one element rather than a `calc()` on the padding
@@ -30,6 +31,16 @@
     {
         <NavLink class="banner-link" href="portfolio">How this was built</NavLink>
     }
+
+    @* The account, in the one place it is visible from every page.
+
+       It names whoever is signed in rather than only offering a door, because the character on
+       screen belongs to somebody and a shared machine is where that matters. Anonymous is the
+       app's ordinary state, not a state to be nagged about, so the offer is a link and there is
+       no banner, no badge and no interruption. *@
+    <NavLink class="banner-link" href="signin">
+        @(_who?.IsSignedIn == true ? _who.DisplayName : "Sign in")
+    </NavLink>
 
     @* aria-pressed is written out as a string on purpose. Blazor drops a bool attribute
        when it is false and renders it as `aria-pressed=""` when it is true, and an empty
@@ -131,9 +142,28 @@
     /// </summary>
     private Area Where => Areas.Of(Nav.ToBaseRelativePath(Nav.Uri));
 
+    /// <summary>Who the banner names, or null until the first answer arrives.</summary>
+    private Identity? _who;
+
+    /// <summary>
+    /// The name in the banner follows a sign-in without a reload.
+    ///
+    /// <para>Asked once here and then re-asked when <see cref="Accounts"/> says it has changed —
+    /// which is the whole reason identity is a service that can change its mind rather than a
+    /// value fetched at startup.</para>
+    /// </summary>
+    protected override async Task OnInitializedAsync() => _who = await Accounts.CurrentAsync();
+
+    private void WhoChanged() => _ = InvokeAsync(async () =>
+    {
+        _who = await Accounts.CurrentAsync();
+        StateHasChanged();
+    });
+
     protected override void OnInitialized()
     {
         Session.Changed += StateHasChanged;
+        Accounts.Changed += WhoChanged;
 
         // The shell has to redraw on a navigation as well as on a change to the character:
         // walking from a recording back into the wizard has to bring the budget bar back.
@@ -238,6 +268,7 @@
     public void Dispose()
     {
         Session.Changed -= StateHasChanged;
+        Accounts.Changed -= WhoChanged;
         Nav.LocationChanged -= Moved;
         _leaving?.Dispose();
     }

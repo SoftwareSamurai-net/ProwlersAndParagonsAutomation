@@ -17,6 +17,14 @@ public sealed class RenderContext : BunitContext
 {
     public CharacterSession Session { get; }
 
+    /// <summary>
+    /// The accounts server this context's app is talking to.
+    ///
+    /// <para>Signed out until a test says otherwise. Reach for it to sign somebody in, to give
+    /// the account a character, or to take the server away entirely.</para>
+    /// </summary>
+    public FakeApi Api { get; } = new();
+
     /// <param name="recordingsProblem">
     /// Set to render the app as it is when the recordings could not be fetched — an empty
     /// library carrying the reason, which is what <c>web/Program.cs</c> registers when the
@@ -50,10 +58,26 @@ public sealed class RenderContext : BunitContext
             : new ReplayLibrary([], recordingsProblem));
         Services.AddScoped<CharacterSession>();
 
+        // The accounts server, as far as the browser can tell — see FakeApi. Signed out by
+        // default, which is the app every test written before accounts existed was written
+        // against: an anonymous visitor whose character is in this browser.
+        Services.AddSingleton(Api);
+        Services.AddScoped(_ => new HttpClient(Api) { BaseAddress = new Uri("https://pp.example.test/") });
+
         // Resolves bUnit's own IJSRuntime, so a component that persists can be rendered and
         // the interop it asks for can be read back off JSInterop.Invocations.
-        Services.AddScoped<IIdentitySource, LocalIdentity>();
-        Services.AddScoped<ICharacterStore, CharacterStore>();
+        //
+        // Registered exactly as web/Program.cs registers them. A context that wired identity or
+        // storage differently from the app would be a context in which the interesting half —
+        // which store a signed-in visitor's character goes to — is decided here rather than
+        // there.
+        Services.AddScoped<Accounts>();
+        Services.AddScoped<IIdentitySource>(s => s.GetRequiredService<Accounts>());
+        Services.AddScoped<CharacterStore>();
+        Services.AddScoped<ApiCharacterStore>();
+        Services.AddScoped<AccountCharacterStore>();
+        Services.AddScoped<ICharacterStore>(s => s.GetRequiredService<AccountCharacterStore>());
+        Services.AddScoped<RulebookReader>();
 
         // Every call into motion.js, with its failures swallowed. Registered here so a render
         // test exercises the same guarded path the app does rather than a bare IJSRuntime.
