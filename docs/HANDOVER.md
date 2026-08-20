@@ -25,6 +25,21 @@ at the apex would break the owner's personal mail.
 Landed since the last handover: #61 (the plural-characters restack), #62 and #63 (hosting docs
 and the Resend traps), #64 (Qodana to zero, plus a proof guard that mutation found).
 
+**Check whether [#65](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/65) has
+merged before starting, because it is the branch you are reading this on.** It carries three UI
+fixes, the contrast instrument described below, and this file. If it is still open, either merge it
+first or branch from it — **not from `master`**, which does not have the instrument the palette
+work depends on. Verify rather than assuming:
+
+```
+git ls-tree origin/master --name-only -r | grep -c WebPresentationTests
+git show origin/master:tests/ProwlersAndParagonsAutomation.Tests/WebPresentationTests.cs | grep -c ContrastRatio
+```
+
+A `0` from the second command means the instrument is not on `master` yet. This is the same shape
+as the #56 orphan recorded at the bottom of this file: work that exists, reads as landed, and is
+not where the next branch would look for it.
+
 ---
 
 ## The next slice: a visual redesign
