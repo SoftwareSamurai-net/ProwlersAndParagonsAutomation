@@ -53,7 +53,7 @@ public sealed class ImportCharacterTests
         using var ctx = NewContext();
 
         var imported = new List<(CharacterSheet Sheet, SheetMode Mode)>();
-        var cut = ctx.Render<ImportCharacter>(p => p.Add(x => x.OnImported, t => imported.Add(t)));
+        var cut = ctx.Render<ImportCharacter>(p => p.Add(x => x.OnImported, imported.Add));
 
         var sheet = SampleCharacters.Hero();
         var json = CharacterSheetJson.Write(sheet);
@@ -72,7 +72,7 @@ public sealed class ImportCharacterTests
         using var ctx = NewContext();
 
         var imported = new List<(CharacterSheet Sheet, SheetMode Mode)>();
-        var cut = ctx.Render<ImportCharacter>(p => p.Add(x => x.OnImported, t => imported.Add(t)));
+        var cut = ctx.Render<ImportCharacter>(p => p.Add(x => x.OnImported, imported.Add));
 
         cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("not a character", "notes.txt"));
 
@@ -114,7 +114,7 @@ public sealed class ImportCharacterTests
         ctx.Services.AddSingleton(new CharacterImport(costs, validator));
 
         var imported = new List<(CharacterSheet Sheet, SheetMode Mode)>();
-        var cut = ctx.Render<ImportCharacter>(p => p.Add(x => x.OnImported, t => imported.Add(t)));
+        var cut = ctx.Render<ImportCharacter>(p => p.Add(x => x.OnImported, imported.Add));
 
         cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText(json, "character.json"));
 
@@ -134,7 +134,7 @@ public sealed class ImportCharacterTests
         using var ctx = NewContext();
 
         var imported = new List<(CharacterSheet Sheet, SheetMode Mode)>();
-        var cut = ctx.Render<ImportCharacter>(p => p.Add(x => x.OnImported, t => imported.Add(t)));
+        var cut = ctx.Render<ImportCharacter>(p => p.Add(x => x.OnImported, imported.Add));
 
         var oversized = new string('x', 3 * 1024 * 1024);
         cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText(oversized, "huge.json"));

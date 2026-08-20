@@ -151,9 +151,18 @@ public sealed class ApiCharacterStore : ICharacterStore
     /// is the autosave path — it fires on every change and there is nobody to ask. A manager
     /// renaming a character calls <see cref="SaveAsync(string, string, CharacterSheet, SheetMode)"/>
     /// with the label it was given.</para>
+    ///
+    /// <para><b>The outcome is discarded on purpose, and the discard is written out rather than
+    /// implied.</b> This overload implements <c>ICharacterStore</c>, which may not throw and has
+    /// nowhere to report to — it runs before the first render, so an exception here is a blank
+    /// page rather than a lost character. A save that failed over the network therefore goes
+    /// unmentioned, which is a real gap: the character exists only in that tab and nobody is
+    /// told. Closing it needs somewhere on screen to say so, which is Phase 5's "Saved"
+    /// feedback — see <c>PROGRESS.md</c>. Until then <c>_ =</c> is the honest spelling, because
+    /// it distinguishes a result nobody wanted from one somebody forgot.</para>
     /// </summary>
     public async Task SaveAsync(CharacterSheet sheet, SheetMode mode) =>
-        await SaveAsync(await CurrentIdAsync(), LabelFor(sheet), sheet, mode);
+        _ = await SaveAsync(await CurrentIdAsync(), LabelFor(sheet), sheet, mode);
 
     /// <summary>The open character, or null.</summary>
     public async Task<(CharacterSheet Sheet, SheetMode Mode)?> LoadAsync() =>

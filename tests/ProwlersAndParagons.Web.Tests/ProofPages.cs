@@ -231,7 +231,7 @@ public sealed class ProofPages
         //   loose: `ppStore.save` is recorded and `ppStore.load` answers null, so nothing written to
         //   local storage can be read back. `FakeApi` is a real in-memory store, so the account is
         //   the only side that can actually hold a character for a proof to render.
-        using var holding = new RenderContext();
+        await using var holding = new RenderContext();
         holding.Api.SignedIn = ("acct-7", "player");
         holding.With(mode);
 
@@ -244,7 +244,7 @@ public sealed class ProofPages
         Section(body, "Your characters — the top of the tier page, where a panel of one red button was",
             holding.Render<CharacterManager>().Markup);
 
-        using var anonymous = new RenderContext().With(mode);
+        await using var anonymous = new RenderContext().With(mode);
 
         Section(body, "Signed out — one field, and no password anywhere",
             anonymous.Render<SignIn>().Markup);
@@ -253,7 +253,7 @@ public sealed class ProofPages
         // sample raises the session's change event, which writes the character through — which
         // asks who is here and *remembers the answer*. Set afterwards, this proof rendered the
         // signed-out form under a heading saying "Signed in", and looked entirely plausible.
-        using var signedIn = new RenderContext();
+        await using var signedIn = new RenderContext();
         signedIn.Api.SignedIn = ("acct-7", "player");
         signedIn.With(mode);
         signedIn.Api.Book["Armor"] =
@@ -275,7 +275,7 @@ public sealed class ProofPages
             signedIn.Render<PowerEditor>(p => p.Add(e => e.Power, armor)).Markup);
 
         var opened = signedIn.Render<PowerEditor>(p => p.Add(e => e.Power, armor));
-        opened.Find(".book-toggle").Click();
+        await opened.Find(".book-toggle").ClickAsync();
 
         Section(body, "…and opened — the book's voice, set apart from ours", opened.Markup);
 
@@ -1376,6 +1376,43 @@ public sealed class ProofPages
 
         var empty = Page("proof-empty.html", "hero", EmptyBody(fresh), wrap: true);
         AssertMarkers("proof-empty.html", empty);
+    }
+
+    /// <summary>
+    /// <b>The rulebook entry the accounts proof captions as opened is actually open.</b>
+    ///
+    /// <para>Found by mutation, and the reason it is worth its own test is that nothing caught it:
+    /// deleting the click from <see cref="TheAccountSurfaces"/> left the whole suite green while the
+    /// page captioned "…and opened" carried a shut entry. A reader would have taken it as evidence
+    /// that the open state had been looked at. That is the exact shape this file already documents
+    /// twice — a proof whose assertions hold trivially because the thing being proved never
+    /// happened.</para>
+    ///
+    /// <para><b>The positive control comes first.</b> The shut render is asserted to be shut before
+    /// the open one is asserted to be open, because a component that rendered no toggle at all
+    /// would otherwise satisfy a check for "not expanded" without ever having been openable — and
+    /// a signed-out visitor legitimately gets no toggle, so its absence is a real state rather than
+    /// an impossible one.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheOpenedRulebookEntryOnTheProofIsOpen()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+        ctx.With(SheetMode.Hero);
+        ctx.Api.Book["Armor"] = "Self • Half Toughness • 1 Hero Point per rank\nThe book's own words.";
+
+        var armor = ctx.Services.GetRequiredService<RulesRepository>().Powers.Single(p => p.Id == "armor");
+
+        var shut = ctx.Render<PowerEditor>(p => p.Add(e => e.Power, armor));
+        Assert.Equal("false", shut.Find(".book-toggle").GetAttribute("aria-expanded"));
+        Assert.DoesNotContain("The book's own words.", shut.Markup, StringComparison.Ordinal);
+
+        var opened = ctx.Render<PowerEditor>(p => p.Add(e => e.Power, armor));
+        await opened.Find(".book-toggle").ClickAsync();
+
+        Assert.Equal("true", opened.Find(".book-toggle").GetAttribute("aria-expanded"));
+        Assert.Contains("The book's own words.", opened.Markup, StringComparison.Ordinal);
     }
 
     /// <summary>
