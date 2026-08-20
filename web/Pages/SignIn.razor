@@ -190,22 +190,56 @@ else
         {
             LinkRequest.NotAnAddress => "That does not look like an email address.",
 
-            // **Only this one may advise trying again**, because it is the only one where
-            // nothing was reached and waiting might genuinely help.
+            // Nothing was reached at all, so waiting might genuinely help.
             LinkRequest.Unavailable => "Could not reach the site just now. Try again in a moment.",
 
-            // Reached, and broken at our end. Telling somebody to try again would be advice to
-            // keep doing the one thing that cannot work — which is what the old shared message
-            // did, because a 500 and a dead network were a single outcome. Saying the address is
-            // fine matters too: the natural reading of a failure here is that you typed it wrong.
-            LinkRequest.Failed => outcome.Reference is { Length: > 0 } reference
-                ? "Something went wrong at our end, so no link was sent. Nothing is wrong with "
-                  + $"your address. If you report this, quote reference {reference}."
-                : "Something went wrong at our end, so no link was sent. Nothing is wrong with "
-                  + "your address.",
+            // Reached, and broken at our end. What went wrong is not said — an internal message
+            // is both meaningless here and a disclosure — but *which part* went wrong is, because
+            // that is the difference between advice worth following and advice that cannot work.
+            LinkRequest.Failed => Because(outcome),
 
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// One sentence per category, plus the reference to quote.
+    ///
+    /// <para><b>Each names a subsystem and never a cause</b>, which is what makes it safe to say:
+    /// "the mail did not go" tells somebody the address was fine and the useful move is to wait
+    /// or report, without saying anything about the account behind it. The server pins that its
+    /// category cannot vary with whether an address is registered; this side must not invent a
+    /// difference either, so nothing below reads anything but the category.</para>
+    ///
+    /// <para><b>Configuration must never advise retrying.</b> Retrying cannot set an environment
+    /// variable, and telling somebody to keep doing the one thing that cannot work is what the
+    /// old single message did — it is the failure that prompted this whole design.</para>
+    /// </summary>
+    private static string Because(LinkOutcome outcome)
+    {
+        var said = outcome.Category switch
+        {
+            FailureCategory.Mail =>
+                "We could not send the email just now, so no link is on its way. Nothing is wrong "
+                + "with your address — try again in a few minutes, or report it.",
+
+            FailureCategory.Storage =>
+                "We could not save your request just now, so no link was sent. Nothing is wrong "
+                + "with your address — try again in a few minutes, or report it.",
+
+            FailureCategory.Configuration =>
+                "This site is not set up correctly, so no link was sent. Nothing is wrong with "
+                + "your address, and trying again will not help. Reporting this would help.",
+
+            // The honest default, and it says nothing about whether to try again — because
+            // nobody knows.
+            _ => "Something went wrong at our end, so no link was sent. Nothing is wrong with "
+                 + "your address.",
+        };
+
+        return outcome.Reference is { Length: > 0 } reference
+            ? said + $" If you report this, quote reference {reference}."
+            : said;
     }
 
     private async Task SignOut()

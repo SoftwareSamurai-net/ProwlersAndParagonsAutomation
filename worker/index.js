@@ -10,6 +10,10 @@ import * as auth from './auth.js';
 import * as characters from './characters.js';
 import { CHAPTERS } from './corpus.js';
 import { newInvitationId, newSecret, newUserId } from './crypto.js';
+import * as db from './db.js';
+import {
+    categoryOf, kindOf, redact, routePattern, taggedMail, taggedStorage,
+} from './errors.js';
 import { fail } from './http.js';
 import * as invitations from './invitations.js';
 import { sendSignInLink } from './mail.js';
@@ -28,14 +32,42 @@ export const production = {
     newUserId,
     newInvitationId,
     sendSignInLink,
+    newReference,
 };
+
+/**
+ * The six characters a report and a log line are joined up by.
+ *
+ * <p>Random rather than derived from the request: anything derived would encode the address or
+ * the path, which is the leak this whole design exists to prevent. Six base-36 characters is
+ * ~2 billion — plenty to tell apart the failures in one tail — and it is deliberately not a token
+ * and grants nothing, which is why `Math.random` is acceptable here and nowhere else in this
+ * directory. See the note in `crypto.js`.</p>
+ *
+ * <p>It is injected like the clock and the secrets so a test can hold it still. Two failures with
+ * different references are two different bodies, and one of this slice's tests is that the same
+ * subsystem failure produces byte-identical bodies for a registered and an unregistered
+ * address.</p>
+ */
+function newReference() {
+    return Math.random().toString(36).slice(2, 8);
+}
 
 /** Built once per isolate, not per request. */
 const entries = index(CHAPTERS);
 
 export async function handle(request, env, deps = production) {
+    // **The two subsystems are wrapped here, which is what makes a category a thing decided in
+    // one place.** `db.js` and `mail.js` know nothing about categories and must not learn: a
+    // category assigned per throw site becomes a description of the internals by enumeration,
+    // which is exactly the disclosure this design avoids. Everything that comes out of the
+    // database is `storage`, everything out of the mail provider is `mail`, a missing binding or
+    // setting is `configuration`, and anything else is honestly `unknown`.
+    const guarded = { ...env, DB: taggedStorage(env.DB) };
+    const guardedDeps = { ...deps, sendSignInLink: taggedMail(deps.sendSignInLink) };
+
     try {
-        const response = await route(request, env, deps);
+        const response = await route(request, guarded, guardedDeps);
 
         // Nothing this server says is cacheable: every answer either depends on who is asking
         // or is a one-shot. A shared cache holding one of these would hand somebody else's
@@ -44,25 +76,58 @@ export async function handle(request, env, deps = production) {
 
         return response;
     } catch (error) {
-        // **A reference, so a report and a log line can be joined up.**
+        // **A category and a reference, because the two audiences want opposite things.**
         //
         // The message itself is still not passed on: an exception from D1 or from the mail
         // provider can quote a query or an address, and this is the one place where such a
-        // string would be handed to whoever asked for it. But "something went wrong" with
-        // nothing else in it means somebody reporting a failure and somebody reading the logs
-        // have no way to find each other — and this server's only log is a live tail, so an
-        // error nobody was watching for is simply gone. A short id in both places costs
-        // nothing and is the difference between one grep and a guess.
+        // string would be handed to whoever asked for it. What the visitor gets instead is the
+        // category — enough to know whether to retry, wait, or report, and nothing else — and a
+        // reference, so a report and a recorded row can find each other.
         //
-        // Random rather than derived from the request: anything derived would encode the
-        // address or the path, which is the leak this whole branch exists to prevent. Six
-        // base-36 characters is ~2 billion — plenty to tell apart the failures in one tail,
-        // and it is deliberately not a token and grants nothing.
-        const reference = Math.random().toString(36).slice(2, 8);
+        // **The category names the subsystem, never the request.** Asking for a link always
+        // answers 204 precisely so the endpoint cannot be used to ask whether an address is
+        // registered; a category that appeared only for known addresses would put that oracle
+        // straight back through the error path. Nothing below reads the body, the address, or
+        // whether a user row exists — and there is a test that requires byte-identical bodies
+        // for a registered and an unregistered address failing the same way.
+        const category = categoryOf(error);
+        const reference = deps.newReference();
 
-        console.error(`Unhandled failure in the accounts API [${reference}]:`, error);
+        console.error(
+            `Unhandled failure in the accounts API [${reference}] (${category}):`, error);
 
-        return fail(500, 'Something went wrong at this end.', { reference });
+        await record(env, { category, request, error, reference, now: deps.now() });
+
+        return fail(500, 'Something went wrong at this end.', { reference, category });
+    }
+}
+
+/**
+ * Write the failure down for the owner, and never fail doing it.
+ *
+ * <p><b>The thing that just broke may well be the database this writes to.</b> A logger that
+ * could throw out of the catch above would turn a storage outage into no response at all — the
+ * visitor would lose the reference and the category that are the entire visitor-facing half of
+ * this design. So every part of it is inside one try, and the fallback is the live tail that was
+ * the only log before this table existed.</p>
+ *
+ * <p>The raw `env.DB` rather than the wrapped one: there is nothing left to classify here, and a
+ * tag applied on the way out of a logger that already swallows everything would be decoration.</p>
+ */
+async function record(env, { category, request, error, reference, now }) {
+    try {
+        if (!env || !env.DB || typeof env.DB.prepare !== 'function') return;
+
+        await db.recordFailure(env.DB, {
+            category,
+            route: routePattern(request),
+            kind: kindOf(error),
+            detail: redact(error && error.message),
+            reference,
+            now,
+        });
+    } catch (secondary) {
+        console.error(`Could not record the failure [${reference}]:`, secondary);
     }
 }
 
