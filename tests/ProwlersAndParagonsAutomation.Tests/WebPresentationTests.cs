@@ -190,20 +190,26 @@ public sealed class WebPresentationTests
     public void TheThemeIsStampedBeforeTheFirstPaint()
     {
         var html = IndexHtml;
-        var head = html[..html.IndexOf("</head>", StringComparison.Ordinal)];
 
-        Assert.Contains("js/theme.js", head, StringComparison.Ordinal);
+        // **Matched on the tag and located by its own offset, not by searching a slice of the
+        // file for the file name.** The first version of this took `html[..indexOf("</head>")]`
+        // and asked whether it contained "js/theme.js" — and passed with the script moved to the
+        // foot of the body, because a comment near the top of the file *mentions* the name. Two
+        // comments here do. A comment loads nothing.
+        var tag = Rx(@"<script[^>]*\bsrc=""js/theme\.js""[^>]*>").Match(html);
 
-        // ...and not merely somewhere as well: it is loaded once, and that once is in the head.
-        // Counted on the tag rather than on the file name, because two comments in this file
-        // name it and a comment loads nothing.
-        Assert.Equal(1, Rx(@"<script[^>]*js/theme\.js").Count(html));
+        Assert.True(tag.Success, "index.html does not load js/theme.js at all.");
+        Assert.Equal(1, Rx(@"<script[^>]*\bsrc=""js/theme\.js""").Count(html));
+
+        Assert.True(tag.Index < html.IndexOf("</head>", StringComparison.Ordinal),
+            "js/theme.js is loaded after </head>, so the boot screen is painted before the "
+            + "chosen theme is applied — a flash of the wrong palette for as long as the "
+            + "WebAssembly download takes, with every test in both suites green.");
 
         // Render-blocking. `defer` and `async` both hand the paint back before it has run,
         // which is the same flash by another route.
-        var tag = Rx(@"<script[^>]*js/theme\.js[^>]*>").Match(head).Value;
-        Assert.DoesNotContain("defer", tag, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("async", tag, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("defer", tag.Value, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("async", tag.Value, StringComparison.OrdinalIgnoreCase);
 
         var root = Rx(@"<html\b[^>]*>").Match(html).Value;
         Assert.Contains("data-mode=", root, StringComparison.Ordinal);
