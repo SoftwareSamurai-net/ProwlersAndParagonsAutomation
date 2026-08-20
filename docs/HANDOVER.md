@@ -1,115 +1,133 @@
 # Handover
 
-Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) first. `PROGRESS.md` is the
-single source of truth for what is done; this file is where the last session stopped and what
-the next one is for. **Delete this file when you have finished the work it describes.**
+**Read this whole file before touching anything. Treat every claim as hostile until you verify
+it against the repo, the deploy, or the running database.** The last session shipped three
+distinct mistakes and did not catch a fourth until the user pushed for a re-check. What follows
+names them and lists what to check.
+
+Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this file.
 
 ---
 
-## Two things to know before anything else
+## Four things wrong right now — verify these first
 
-**1. #56 (Characters, plural) is on `claude/characters-list-slice`, not on `master`.** It was
-stacked on `claude/accounts-slice-a4` and merged after #55 had landed, so it landed into an
-orphan. GitHub reports it merged; the code is not deployed. **First job: restack it onto master
-and open a fresh PR.**
+**1. `d1/wrangler.toml` on `master` has `REPLACE-ME` as the `database_id`.** The wrangler
+`d1 create` command was run in the user's terminal on 2026-08-20 and returned
+`57b6cdf2-300c-4cf4-8c19-8d2dcf9fcaed`. The commit landing that id went into the orphan
+`claude/accounts-slice-a4` branch; master never got it. Step 1 of `ACCOUNTS-SETUP.md` is not
+done on master until this branch (`claude/docs-post-deploy-fix`, PR [#58](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/58))
+merges. **Verify** by running `grep database_id d1/wrangler.toml` on master head after any
+merge; if it says `REPLACE-ME`, migration step 2 will fail.
 
-The conflict files are `worker/corpus.js`, `worker/characters.js`, `worker/db.js`,
-`worker/index.js` — all real dual edits:
+**2. #56 (Characters, plural) merged into an orphan and is not on master.** It was stacked on
+`claude/accounts-slice-a4`; #55 merged first, orphaning the base; GitHub reports #56 merged
+because the button was pressed on it, but it landed into a branch that no longer feeds master.
+The code is on `claude/characters-list-slice`. **First restack job:** open a fresh PR base=master,
+head=`claude/characters-list-slice`. Conflicts and resolution are in `worker/corpus.js`,
+`worker/characters.js`, `worker/db.js`, `worker/index.js` — see section below.
+**Verify** the code is not on master with:
+```
+git ls-tree origin/master --name-only | grep -E 'CharacterManager|SavedCharacters|CharacterImport'
+```
+Empty output means it is genuinely not there.
 
-- `worker/corpus.js` — the branch predates #57 and still does `import ... with { type: 'json' }`.
-  Take master's baked version (`scripts/inline-rulebook.mjs` writes it). Re-run the bake after
-  the merge in case `data/rulebook/ch02-characters.json` changes.
-- `worker/characters.js`, `worker/db.js`, `worker/index.js` — master has the single-character
-  routes (#55); the branch replaces them with the plural version. Take the branch's version
-  wholesale in each file; the migration on the branch removes the old rows on purpose.
+**3. Master's deploy failed after #55 merged**, because `worker/corpus.js` used
+`import ... with { type: 'json' }`. Wrangler 3.90.0's bundled esbuild refuses that syntax; Node
+22 runs it. Both suites and a whole-tree Qodana scan were green. Fixed by [#57](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/57):
+the corpus is baked (`scripts/inline-rulebook.mjs`) and CI runs `wrangler pages functions build`
+at the pinned version so a bundler difference fails the PR. **Verify by pulling master and
+running the same command CI runs**:
+```
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo" -w /repo node:22-alpine \
+  npx --yes wrangler@3.90.0 pages functions build --outfile=/tmp/w.js
+```
 
-**2. Accounts are ready for setup, not for use.** Master has all the code through #57. The five
-steps in [`ACCOUNTS-SETUP.md`](ACCOUNTS-SETUP.md) — every dashboard click named — turn it on:
+**4. #57's first push invented a non-existent flag** (`wrangler pages deploy --dry-run` — that
+flag exists for `wrangler deploy`, not for Pages). CI caught it. The fix was a second push
+using the real `pages functions build`. Nothing on master should reference `--dry-run`; verify:
+```
+grep -n "dry-run" .github/workflows/*.yml
+```
+Empty output means the mistake is fully gone.
 
-- **Step 1 (D1 database) — done.** `d1/wrangler.toml` on master has the id.
-- **Step 2 (migrations) — not applied to remote.** From a repo with Node 22:
+---
+
+## Where things stand on master (verify by running, do not trust)
+
+Take the numbers from the run, not from this document. Yesterday's numbers were on branches
+that were later merged elsewhere. **Baseline both suites before touching anything**:
+
+```
+dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
+./scripts/test-worker.sh
+```
+
+Prior to opening this file's PR, master reported **3683 engine + 342 bUnit + 45 accounts**.
+Once #58 merges (docs + the id fix), the numbers do not change; once #56 is restacked and
+merged, they rise. If your baseline disagrees with the run before your change, something
+is wrong with your assumption, not with the run.
+
+---
+
+## The account setup, honestly
+
+`ACCOUNTS-SETUP.md` names every dashboard click. Where things actually stand:
+
+- **Step 1 (D1 database) — created but its id is not on master** until PR #58 merges. The DB
+  itself exists on Cloudflare's side (`prowlers-and-paragons`, id
+  `57b6cdf2-300c-4cf4-8c19-8d2dcf9fcaed`); the repo just doesn't reference it yet on master.
+- **Step 2 (migrations) — not applied to remote.** After #58 merges:
   ```
   npx wrangler --cwd d1 d1 migrations apply prowlers-and-paragons --remote
   ```
-  Only `0001_accounts.sql` applies from master. `0002_characters_list.sql` is on the characters
-  branch and applies after that branch is restacked and merged.
-- **Steps 3–5** — Cloudflare dashboard + Resend. All click paths in `ACCOUNTS-SETUP.md`.
+  Only `0001_accounts.sql` applies from master. `0002_characters_list.sql` is on
+  `claude/characters-list-slice` and needs the restack (job 1 in this file) first.
+- **Steps 3–5** — Cloudflare dashboard + Resend + a redeploy. Click paths in `ACCOUNTS-SETUP.md`.
 
-Until steps 2–5 are done, nothing looks broken: visitors are anonymous, characters live in the
-browser under `pp.character.v1`, and the deploy fails unless `/api/me` answers 401 carrying JSON
-— the client parses the body rather than the status, so a missing server is a missing feature
-rather than a blank page.
+The deploy itself fails unless `/api/me` answers **401 carrying JSON** — that check on the
+deploy pipeline is the only thing that would notice a misconfigured DB binding or a missing
+`SITE_URL`. Trust it, not any local test.
 
 ---
 
-## Recent PRs
+## The restack conflict, resolved as far as possible on paper
 
-`PROGRESS.md` has the account of each. Everything through #57 is on master; #55, #56, #57 are
-what's changed since the last handover.
+`claude/characters-list-slice` predates #57's bake. Merging it onto master:
 
-- [#55](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/55) — Accounts: magic-link sign-in, one character per account, gated rulebook reader
-- [#56](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/56) — Characters, plural. **Closed as merged, but merged into an orphan** — see the top of this file.
-- [#57](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/57) — Hotfix: corpus baked, CI runs `wrangler pages functions build` at the pinned version
+- **`worker/corpus.js`** — take master's baked version. The branch's version still has the
+  `import ... with { type: 'json' }` that broke the deploy. Re-run `scripts/inline-rulebook.mjs`
+  after the merge in case the rulebook JSON drifted.
+- **`worker/characters.js`, `worker/db.js`, `worker/index.js`** — take the branch's plural
+  version. The migration on the branch removes the single-character routes and rows on purpose;
+  master's post-#55 versions are the ones being replaced.
+- Anything else conflicting — read both sides. Do not resolve without reading.
+
+**Do not trust a green suite as evidence of a correct merge.** #56's own PR was green when it
+merged into an orphan. The two things that catch merge damage independently are:
+
+1. `AccountsContractTests` in the engine suite — reads both language halves and refuses if the
+   addresses the browser asks for and the routes the server serves disagree. It was the only
+   thing that caught the `/api/character` → `/api/characters/{id}` rename during the original
+   slice.
+2. The CI `wrangler pages functions build` step, at the version pinned in `deploy.yml`.
+
+Run both. Read the SARIF, do not grep the summary.
 
 ---
 
 ## What the next session is for, in order
 
-### 1. Restack #56 onto master
-
-Base=master, head=`claude/characters-list-slice`. Resolve the four worker conflicts above,
-re-run the bake, then verify both suites and push. Once merged, apply
-`0002_characters_list.sql` to remote D1 (setup step 2 above).
-
-### 2. Finish setup and sign in for real
-
-Steps 3–5 of `ACCOUNTS-SETUP.md`. Then use the app end to end — sign in, save a character,
-sign in from a different browser and see it there. The manager's *"open now"* row marking is
-untested in a real browser: bUnit's loose JS interop answers null on `ppStore.load`, so the
-static proof cannot show it. Everything else has an automated test; this needs eyes.
-
-### 3. Read-only share links
-
-**The one place a bearer key is straightforwardly better than a session** — a viewer with no
-account should see a shared character without signing in as anyone. The
-`add-read-only-share-links` task carries the brief: `shares(sha256(key), character_id,
-expires_at)`; `GET /api/shares/{key}` answers the payload without a session; a `/shared/{key}`
-page renders through `SheetView` with no editing controls. Engine still costs and validates in
-the browser; `data/rulebook/` is still not on the open web.
-
-### 4. Pre-1.0 codebase audit — the last pass before tagging
-
-Two questions to answer in one pass, both cheapest to do together, both cheapest to delegate
-to no-context agents:
-
-- **Is the codebase as optimised as it should be?** Genuine dead code (marked as such in
-  `.claude/memory` for later removal), hot paths that touch the engine on every render,
-  bundler payload waste, and the token-cost side — files a subagent has to load before it can
-  do anything useful.
-- **Is it snapshotable for a fresh AI agent?** What can a new Claude session read to know what
-  this repo is and where the load-bearing pieces are, without re-tracing every past decision?
-  `CLAUDE.md` is the current answer; the audit's job is to say what would improve it — a
-  section per source of confusion, or a redraft, or a smaller pointer file for common tasks.
-
-**Do it as the last pass before 1.0**, once the API is stable enough that the audit's targets
-are not moving under it.
-
-### 5. Adopt SemVer + Conventional Commits at 1.0
-
-The README says truthfully: `data/rules/` and the character JSON are stable, but the HTTP API
-just moved (`/api/character` → `/api/characters/{id}`). The trigger for 1.0 is *"we do not
-break `/api/*` without a major"* being a promise this repo can keep — one or two slices from
-now. Tag `v1.0.0`, add `<VersionPrefix>` to `Directory.Build.props`, start `feat:` / `fix:`.
-
-### 6. Front-end plan, what remains
-
-Phase 3's last two — validation on the row where the mistake is made, and undo — plus Phase 4
-(sheet as live preview, absorbing Phase 1's `--column` widening) and Phase 5 (skip link,
-"Saved" feedback, honest print preview). Plan in [`docs/FRONT-END-PLAN.md`](FRONT-END-PLAN.md).
-
-**"Saved" feedback is now owed rather than merely wanted.** `ApiCharacterStore` swallows a
-failed save silently because nothing in `ICharacterStore` may throw — a network drop loses
-work the user is not told about.
+1. **Merge PR #58** (fixes 1 and 4 above; you are looking at this file on that branch).
+2. **Restack #56 onto master** — conflicts above. New PR, base=master, head=`claude/characters-list-slice`.
+3. **Apply migrations to remote D1** (setup step 2).
+4. **Steps 3–5 of `ACCOUNTS-SETUP.md`.** Then sign in for real: the manager's *"open now"* row
+   marking has no automated test in a real browser (bUnit's loose JS interop answers null on
+   `ppStore.load`).
+5. **Read-only share links.** The `add-read-only-share-links` task carries the brief.
+6. **Pre-1.0 codebase audit.** Not versioning ceremony — an actual audit of what a fresh AI
+   agent needs to be productive here, plus optimisation. See `PROGRESS.md`'s item 7.
+7. **Front-end plan, remaining phases** ([`docs/FRONT-END-PLAN.md`](FRONT-END-PLAN.md)). Not
+   blocked by any of the above; can start on master today, touches only `web/` and its tests.
 
 ### Known warts, all deliberate
 
@@ -118,3 +136,19 @@ work the user is not told about.
 - Screen-reader testing owed on the command palette, the pips, and the sign-in page.
 - The rulebook reader serves Chapter 2 only. Adding a chapter is one line in
   `scripts/inline-rulebook.mjs`, and a decision about what an account is entitled to read.
+
+---
+
+## What the previous session's tools got wrong, so you do not repeat them
+
+- **Stacked PRs need the base branch to survive.** Do not merge the top of a stack before the
+  bottom, and do not merge a stacked PR after its base has itself merged — GitHub will let you
+  do this and the result is an orphan merge.
+- **Any CLI flag written into a workflow gets `--help` at the pinned version first**, in Docker
+  if you do not have Node locally. I invented a flag; CI caught it, and only CI.
+- **Runtime version differences ship silently.** Wrangler 3.90.0's esbuild is older than Node
+  22's. If a test suite passes under Node 22 but the deploy runs under wrangler, run the deploy's
+  bundler locally before pushing. #57 added the CI step that does this; do not remove it.
+- **Local branch state can lie to you.** After a merge to master, my working tree still showed
+  the merged files present, so I claimed things were on master that were only on the (now
+  orphan) branch. Fetch master, `git ls-tree` it explicitly, and trust that over your worktree.
