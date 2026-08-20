@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4069 across three suites — 3683 on the engine, 342 rendering components with bUnit, 44 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
+| Tests | 4070 across three suites — 3683 on the engine, 342 rendering components with bUnit, 45 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -218,6 +218,27 @@ grip does not.
 ---
 
 ## Completed work
+
+### The deploy would parse this: the corpus baked, and the bundler on CI
+
+**The accounts slice landed and the deploy went red.** `worker/corpus.js` used the current spec
+JSON import: `import ... with { type: 'json' }`. Node 22 runs it. `cloudflare/wrangler-action@v3`
+pins wrangler at 3.90.0, whose bundled esbuild predates it — the older `assert { type: 'json' }`
+spelling would have worked there but is loudly deprecated in Node 22, so trading one broken
+pipeline for another. Both suites and a whole-tree Qodana scan were green.
+
+The corpus is now baked into `worker/corpus.js` as an object literal by
+`scripts/inline-rulebook.mjs`; two guards keep it honest:
+
+- `tests/worker/router.test.mjs` fails the PR if the bake goes stale against
+  `data/rulebook/ch02-characters.json`.
+- The build workflow runs **`wrangler pages functions build`** at the version pinned in
+  `deploy.yml` (read from a marker comment on the `cloudflare/wrangler-action@v3` line), so
+  anything only its bundler refuses fails the PR. This step needs no credentials and is safe
+  on `pull_request`.
+
+`CLAUDE.md` gained a compatibility note beside the accounts server section explaining both
+guards and the trap.
 
 ### Accounts: one character, one account, and the book behind a sign-in
 
