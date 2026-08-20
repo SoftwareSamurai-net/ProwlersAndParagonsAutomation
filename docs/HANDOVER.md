@@ -47,8 +47,8 @@ for a *variant*, never a re-run.
 **The code is deployed; the account system does nothing until five things exist that only the owner
 of the Cloudflare account can create.** [`ACCOUNTS-SETUP.md`](ACCOUNTS-SETUP.md) is the five steps:
 a D1 database, its migration applied, a binding named `DB`, a Resend key, and SPF/DKIM records on a
-domain that can send mail. **`pages.dev` cannot send mail**, so this is also the reason to attach
-`pp.softwaresamurai.net` if it is still not attached.
+domain that can send mail. **`pages.dev` cannot send mail** on its own, which is why the site
+answers at `superheroes.softwaresamurai.net` and mail is verified against that hostname.
 
 **Until then nothing is broken and nothing looks broken**, which is the property to be careful
 about. Every visitor is anonymous, the character lives in their browser under the historical key,

@@ -132,6 +132,7 @@ The detail lives in its own file per domain, so this page stays something you ca
 | [**Architecture**](docs/ARCHITECTURE.md) | The four layers and the no-upward-dependency rule, and what every directory in the repository is for |
 | [**The rules engine**](docs/RULES-ENGINE.md) | Power costs, rank types, baseline ranks, derived statistics, the tiers, the wizard's steps, and the JSON conventions the rules data follows |
 | [**Code quality**](docs/CODE-QUALITY.md) | The analyzer contract, the two test projects, and what CI actually enforces |
+| [**Hosting**](docs/HOSTING.md) | Where the running site lives — the DNS chain, the Pages project, the D1 database, the mail provider, and why each piece is where it is |
 | [**Deploying the browser front end**](docs/DEPLOYING.md) | Cloudflare Pages, the generated security headers, and the payload |
 | [**Connecting the MCP server**](docs/MCP-SETUP.md) | Pointing your own Claude at the published binary |
 | [**Turning accounts on**](docs/ACCOUNTS-SETUP.md) | The database, the binding and the sending domain that sign-in needs — and why nothing breaks before they exist |
