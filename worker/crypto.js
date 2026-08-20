@@ -38,6 +38,17 @@ export function newUserId() {
     return 'u_' + newSecret().slice(0, 22);
 }
 
+/**
+ * An opaque invitation id.
+ *
+ * <p>Not derived from the address either, and here the reason is narrower than it is for a
+ * user: this id travels in the URL of the request that withdraws an invitation, and an address
+ * in a URL is an address in every log, history and referrer between here and the browser.</p>
+ */
+export function newInvitationId() {
+    return 'i_' + newSecret().slice(0, 22);
+}
+
 function base64url(bytes) {
     return btoa(String.fromCharCode(...bytes))
         .replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
