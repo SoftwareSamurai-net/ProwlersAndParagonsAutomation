@@ -119,17 +119,33 @@ public sealed class ProofPages
     /// the bands shipped. A copy of the banner markup in this file would drift from the real one
     /// and would proof itself.</para>
     /// </summary>
+    /// <remarks>
+    /// <b>Four pages, because there are four palettes.</b> Light and dark are independent of
+    /// Hero and Villain, so proofing the two identities alone leaves half the app unlooked-at —
+    /// and the half that is new. The dark pair stamp <c>data-theme="dark"</c>, which is what an
+    /// explicit choice does; the light pair stamp nothing, which is the default.
+    /// </remarks>
     [Theory]
-    [InlineData(SheetMode.Hero)]
-    [InlineData(SheetMode.Villain)]
-    public void TheShell(SheetMode mode)
+    [InlineData(SheetMode.Hero, null)]
+    [InlineData(SheetMode.Hero, "dark")]
+    [InlineData(SheetMode.Villain, null)]
+    [InlineData(SheetMode.Villain, "dark")]
+    public void TheShell(SheetMode mode, string? theme)
     {
         if (!Asked) return;
 
         using var ctx = new RenderContext().With(mode);
 
-        WriteRaw($"proof-shell-{Name(mode)}.html", Name(mode), ShellBody(ctx));
+        WriteRaw(ShellPage(mode, theme), Name(mode), ShellBody(ctx), theme);
     }
+
+    /// <summary>
+    /// The file name for one of the four shell proofs. The light pair keep the names the sticky,
+    /// narrow and inset harnesses already point at — those measure geometry, which no palette
+    /// changes, so pointing them at a second copy would double the run for nothing.
+    /// </summary>
+    private static string ShellPage(SheetMode mode, string? theme) =>
+        theme is null ? $"proof-shell-{Name(mode)}.html" : $"proof-shell-{Name(mode)}-{theme}.html";
 
     /// <summary>
     /// The shell, with enough body to scroll against so the sticky band can be seen doing its job
@@ -301,8 +317,8 @@ public sealed class ProofPages
     /// layout's banner sits <em>outside</em> the shell, and wrapping it would put the one band
     /// that is supposed to run the full width of the window inside a 1100px column.
     /// </summary>
-    private static void WriteRaw(string file, string mode, string body) =>
-        WritePage(file, mode, Page(file, mode, body, wrap: false));
+    private static void WriteRaw(string file, string mode, string body, string? theme = null) =>
+        WritePage(file, mode, Page(file, mode, body, wrap: false, theme));
 
     /// <summary>
     /// Does the budget strip still stick? <b>A measured check, because nothing else can answer it.</b>
@@ -1539,6 +1555,17 @@ public sealed class ProofPages
         // non-inspection caused this phase's worst defect.
         Assert.Contains($"data-mode=\"{Name(mode)}\"", shell, StringComparison.Ordinal);
 
+        // ...and the theme reaches it too, in both directions. The dark page has to *say* dark
+        // and the light page has to say nothing at all: an attribute stamped on the default page
+        // would take it off `prefers-color-scheme` and pin it, which is a different palette from
+        // the one the app ships.
+        var dark = Page(ShellPage(mode, "dark"), Name(mode), ShellBody(ctx), wrap: false, "dark");
+        AssertMarkers($"proof-shell-{Name(mode)}.html", dark);
+
+        Assert.Contains("data-theme=\"dark\"", dark, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-theme=", shell, StringComparison.Ordinal);
+        Assert.NotEqual(shell, dark);
+
         using var fresh = new RenderContext();
         fresh.Session.Sheet.SelectedTierId = "standard";
 
@@ -1676,7 +1703,12 @@ public sealed class ProofPages
     /// The whole page, as a string. Separate from writing it so the marker test can assert on
     /// exactly what would be written without writing anything.
     /// </summary>
-    private static string Page(string file, string mode, string body, bool wrap)
+    /// <param name="theme">
+    /// <c>"dark"</c> or <c>"light"</c> to stamp an explicit choice, or null for the default —
+    /// which is the state that has <b>no attribute at all</b> and follows the system. Stamping
+    /// "system" would be a fourth value the stylesheet does not model.
+    /// </param>
+    private static string Page(string file, string mode, string body, bool wrap, string? theme = null)
     {
         _ = file;   // kept in the signature so a caller cannot pass a body for the wrong page
 
@@ -1689,13 +1721,15 @@ public sealed class ProofPages
         var inner = wrap ? $"<div class=\"shell\">{body}</div>" : body;
         inner = $"<div id=\"app\">{inner}</div>";
 
+        var chosen = theme is null ? "" : $" data-theme=\"{theme}\"";
+
         return $"""
             <!doctype html>
-            <html lang="en" data-mode="{mode}">
+            <html lang="en" data-mode="{mode}"{chosen}>
             <head>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1">
-              <title>Proof — {mode}</title>
+              <title>Proof — {mode}{(theme is null ? "" : $", {theme}")}</title>
               <link rel="stylesheet" href="css/theme.css">
               <link rel="stylesheet" href="css/app.css">
             </head>
