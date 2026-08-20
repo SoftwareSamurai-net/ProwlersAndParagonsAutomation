@@ -89,7 +89,7 @@ name means every request answers 500, and nothing on the deploy says so.
 ## 4. A way to send mail
 
 Two providers are involved and it does not matter which you do first, but you cannot skip either.
-The domain is the one the site is served from — **`pp.softwaresamurai.net`** if you have the
+The domain is the one the site is served from — **`superheroes.softwaresamurai.net`** if you have the
 custom domain attached, else the `*.pages.dev` address will not work because **`pages.dev` cannot
 send mail**. Attach the custom domain first if it is not attached yet: **Workers & Pages → your
 Pages project → Custom domains tab → Set up a custom domain**.
@@ -98,10 +98,29 @@ Pages project → Custom domains tab → Set up a custom domain**.
 
 Sign in to **[resend.com](https://resend.com)**. Then:
 
-1. **Domains → Add Domain →** enter `pp.softwaresamurai.net`. Resend shows you SPF, DKIM and an
+1. **Domains → Add Domain →** enter `superheroes.softwaresamurai.net`. Resend shows you SPF, DKIM and an
    MX record to add. Add them to that domain's DNS in the **Cloudflare dashboard**, under
-   **Websites → `softwaresamurai.net` → DNS → Records**. Wait for Resend to verify (usually a
-   few minutes; the row goes green).
+   **Websites → `softwaresamurai.net` → DNS → Records**, each with proxy status **DNS only**
+   (the grey cloud — proxying a `TXT` record breaks verification). Wait for Resend to verify
+   (usually a few minutes; the row goes green).
+
+   **Verify the subdomain, never the apex, and this is not a style preference.** The apex
+   `softwaresamurai.net` already carries a full Proton Mail configuration — the `MX` records that
+   receive the owner's personal mail, an SPF `TXT`, three DKIM `CNAME`s and a `_dmarc` `TXT` at
+   `p=quarantine`. Every record Resend asks for lands at `superheroes.softwaresamurai.net`
+   instead, which is a different DNS node, so none of them touches any of that: mail keeps
+   arriving at Proton because the apex `MX` is not involved.
+
+   **What would break it is a second SPF record at the apex.** SPF permits exactly one `TXT`
+   record per DNS name; two produce a `permerror` and every message the domain sends starts
+   failing authentication. So do not "add Resend to the existing SPF line" — the subdomain gets
+   its own, and the apex keeps Proton's untouched. (If the two ever genuinely had to share a
+   name they would be merged into one record with both `include:` mechanisms, but nothing here
+   requires that.)
+
+   DMARC works out without anything further: `_dmarc.softwaresamurai.net` carries no `sp=` tag,
+   so the subdomain inherits `p=quarantine`, and Resend's DKIM signature — issued for the
+   verified subdomain — aligns with the `From` domain under DMARC's default relaxed mode.
 2. **API Keys → Create API Key →** name it something like *Prowlers and Paragons production*,
    permission **Sending access**. Copy the key it shows once — you cannot see it again.
 
@@ -117,8 +136,8 @@ is a real credential):
 | Name | Value |
 |---|---|
 | `RESEND_API_KEY` | the key Resend gave you |
-| `MAIL_FROM` | `no-reply@pp.softwaresamurai.net` — or any address on the verified domain |
-| `SITE_URL` | `https://pp.softwaresamurai.net` — no trailing slash |
+| `MAIL_FROM` | `no-reply@superheroes.softwaresamurai.net` — or any address on the verified domain |
+| `SITE_URL` | `https://superheroes.softwaresamurai.net` — no trailing slash |
 
 **All three are required, `SITE_URL` included.** It is what sign-in links point at, and the server
 **refuses to send one at all** without it — `/api/auth/request` answers 500 and writes nothing.
@@ -162,7 +181,7 @@ deploy is the only place the mistake is ever visible.
 By hand:
 
 ```bash
-curl -i https://pp.softwaresamurai.net/api/me
+curl -i https://superheroes.softwaresamurai.net/api/me
 ```
 
 - **401** and `content-type: application/json` — working, nobody signed in.

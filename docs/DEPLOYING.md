@@ -1,7 +1,7 @@
 # Deploying the browser front end
 
 
-The site is **live on Cloudflare Pages** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed by [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) on every push to `master` that touches the app, the engine, the rules or the deploy itself. The custom domain `pp.softwaresamurai.net` is **not attached yet** — that is step 5 below.
+The site is **live on Cloudflare Pages** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `*.pages.dev` fallback at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev). Deployed by [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) on every push to `master` that touches the app, the engine, the rules or the deploy itself.
 
 There is no server-side component and no build step on Cloudflare's side: the workflow runs `dotnet publish`, writes the security headers, and uploads the result.
 
@@ -14,7 +14,7 @@ There is no server-side component and no build step on Cloudflare's side: the wo
    - Not the Global API Key, which can do anything to every zone on the account.
 3. **Add the repository secrets** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (Settings → Secrets and variables → Actions).
 4. **Deploy once and check it before touching DNS.** `gh workflow run deploy.yml --ref master`, then open the `*.pages.dev` URL. Attaching the domain first means debugging the site and the DNS at the same time.
-5. **Attach the custom domain.** Pages project → Custom domains → `pp.softwaresamurai.net`. Cloudflare creates the CNAME itself. It serves the **production** deployment, so get step 4 green first.
+5. **Attach the custom domain.** Pages project → Custom domains → `superheroes.softwaresamurai.net`. Cloudflare creates the CNAME itself. It serves the **production** deployment, so get step 4 green first.
 
 You do **not** need to line the project's production branch up with this repository's.
 
@@ -26,7 +26,7 @@ So the workflow asks the project what it calls production and deploys to that, a
 
 The site is static, has no backend, no accounts and no cookies, and nothing a visitor types leaves their browser — so there is very little to attack. What is worth getting right is the blast radius around it:
 
-- **A subdomain, not the apex.** The Pages project answers for `pp.softwaresamurai.net` only. Nothing about it touches routing for the rest of the domain, and a mistake in the Pages config cannot take the apex down with it.
+- **A subdomain, not the apex.** The Pages project answers for `superheroes.softwaresamurai.net` only. Nothing about it touches routing for the rest of the domain, and a mistake in the Pages config cannot take the apex down with it.
 - **The API token is scoped to Pages on one account.** If it ever leaked, the worst it can do is redeploy this one site. Rotate it in the Cloudflare dashboard and update the secret; nothing in the repository holds a copy.
 - **The workflow never runs on `pull_request`.** That trigger would execute a contributor's workflow changes with the token in scope. Deploys happen only from `master`, after a merge.
 - **Security headers ship with the site**, generated into `_headers` by [`scripts/write-cloudflare-headers.sh`](../scripts/write-cloudflare-headers.sh) and applied by Cloudflare to every response: a Content-Security-Policy that permits scripts only from this origin, plus `nosniff`, `Referrer-Policy: no-referrer`, `frame-ancestors 'none'` and a `Permissions-Policy` that turns off every device API the app does not use.
