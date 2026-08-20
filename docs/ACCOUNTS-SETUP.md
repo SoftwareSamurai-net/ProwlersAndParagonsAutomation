@@ -64,8 +64,14 @@ apply fails on the pull request rather than here.
 
 **In the dashboard**, click through:
 
-**Workers & Pages → your Pages project (`prowlers-and-paragons`) → Settings tab → Bindings
-section**
+**Workers & Pages → your Pages project → Settings tab → Bindings section**
+
+> **The Pages project and the D1 database do not have the same name, and this page used to say
+> they did.** On this deployment the database is `prowlers-and-paragons` and the Pages project is
+> **`prowlers-and-paragons-chargen`** — the repository variable `CLOUDFLARE_PAGES_PROJECT` is what
+> tells the deploy which. It costs nothing until you type one into a `wrangler` command meant for
+> the other, at which point you get *"Project not found"* about a project that is plainly there in
+> the dashboard. `npx wrangler pages project list` settles it.
 
 Then **Add binding → D1 database** and fill in:
 
@@ -320,7 +326,17 @@ nothing to read back, so an error nobody was watching for is gone. To see it, ta
 in one terminal and ask for a link in another:
 
 ```bash
-npx wrangler pages deployment tail --project-name prowlers-and-paragons
+# The deployment id comes from the list above it; a tail with no id refuses in a
+# non-interactive shell.
+npx wrangler pages deployment list --project-name prowlers-and-paragons-chargen
+npx wrangler pages deployment tail <deployment-id> --project-name prowlers-and-paragons-chargen
 ```
 
-The line to look for names the status: *The mail provider refused the send (HTTP 403).*
+The line to look for names the status **and the provider's own code for the refusal**:
+*The mail provider refused the send (HTTP 400, validation_error).* The code is what tells the
+four checks above apart — `missing_api_key` and `restricted_api_key` are numbers 2,
+`validation_error` is number 3, and a `403` about the domain is number 1.
+
+**`wrangler pages secret list --project-name prowlers-and-paragons-chargen` says which of the
+three variables exist**, without showing a value. It is the fastest way to rule out number 4: a
+variable added after the last deploy is missing from that list until the deploy that picks it up.

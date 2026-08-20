@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4135 across three suites — 3688 on the engine, 387 rendering components with bUnit, 60 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
+| Tests | 4140 across three suites — 3688 on the engine, 388 rendering components with bUnit, 64 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -134,12 +134,23 @@ sending subdomain: DKIM at `resend._domainkey.superheroes.softwaresamurai.net`, 
 `send.superheroes.softwaresamurai.net`. The apex keeps Proton's own MX and SPF untouched, as
 [`docs/ACCOUNTS-SETUP.md`](docs/ACCOUNTS-SETUP.md) requires.
 
-**What is not yet known is which refusal it is**, because the status is in a `console.error` and
-Pages Functions keep no log to read it back from — the failure is only visible in a live tail
-somebody is already watching. The three candidates, in order, are the domain not actually being
-verified in Resend, an API key scoped to a different domain (or belonging to a different Resend
-account), and a `MAIL_FROM` whose domain part is not the verified one. `docs/ACCOUNTS-SETUP.md`
-now carries the check for each.
+**It is `400 validation_error`**, read off a live tail of the production deployment while a
+request was made against it. That is the provider refusing the *body*, which rules out both of
+the likelier-sounding causes: a bad or wrongly scoped key is `401`/`403` and never reaches
+validation, and the domain is verified in Resend with every record present. All three variables
+exist on the Pages project — `wrangler pages secret list` shows `MAIL_FROM`, `RESEND_API_KEY` and
+`SITE_URL` — so what is left is the *value* of `MAIL_FROM`, which is encrypted and cannot be read
+back. Every other field in the request is built by `worker/mail.js` from the address that was
+typed, and that address is well formed.
+
+**So the next step is somebody opening `MAIL_FROM` in the dashboard and re-entering it** as
+`no-reply@superheroes.softwaresamurai.net` — no display name, no angle brackets, no trailing
+space, and nothing on the apex or on the `send.` subdomain. Then redeploy, because a variable
+changed after a deploy is not in the running Function.
+
+**Everything needed to confirm that in one line now exists**: the refusal carries the provider's
+own code, so the next tail reads *"(HTTP 400, validation_error)"* rather than *"(HTTP 400)"*, and
+`docs/ACCOUNTS-SETUP.md` maps each code to which of the four checks it means.
 
 **A second fault was masking this one and is fixed** — see the completed entry below. Every
 attempt was counted before the send, so five refusals spent the hourly allowance and every try
