@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | TBD_TEST_COUNTS |
+| Tests | 4250 across three suites — 3726 on the engine, 422 rendering components with bUnit, 102 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus seven browser harnesses driven by headless Chrome, one of them twice for reduced motion. Measured on the reconciled tree, not carried over: the three merged branches each claimed a different total and all three were stale |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -280,6 +280,60 @@ Do it once the HTTP API stops moving, so audit targets are not shifting under it
 ---
 
 ## Completed work
+
+### Three branches reconciled into one, and the four things that only collided
+
+`#67` (invitation list, and the send that was never made), `#68` (four palettes on two axes) and
+`#69` (categorised error reporting) were built in parallel off the same commit. Each was green on
+its own and all three reported `MERGEABLE` against `master`, which is a statement about *text*
+and says nothing about whether they agree. Four things only existed once they were in one tree.
+
+**Two migrations both numbered `0003`.** Different file names, so git merged them silently and the
+schema had two. The invitation table keeps `0003` and the error log became `0004_error_log.sql`,
+with `db.js`'s "has migration 0004 been applied?" and the harness's explicit list following it —
+appended rather than inserted, because `migration.test.mjs` indexes that list by position. Nothing
+would have failed; the two would simply have applied in alphabetical order for ever.
+
+**A misconfigured deployment named who was on the invitation list.** The gate was written above
+the `SITE_URL` check, so a missing setting answered an invited address with a 500 and a stranger
+with `204` — an oracle for list membership, available to anybody, on exactly the failure this site
+has actually had. It is the same property `#69` refuses for account existence, on the axis `#67`
+introduced, and neither branch could see it because neither contained both halves. The deployment
+check goes first now; `a broken deployment answers an invited and an uninvited address
+identically` pins it with byte-identical bodies and two positive controls. **Two channels stay
+open and are recorded rather than papered over**: an uninvited address does not wait on the mail
+provider, and while that provider refuses everything an invited address gets a 500 where a
+stranger still gets `204`. Closing either means mailing strangers or padding every refusal to the
+length of a send.
+
+**A test that passed for the wrong reason.** `an error log that cannot be pruned does not stop
+anybody signing in` asks for a link and asserts one was *sent*. It builds an `env` of its own, so
+it calls `handle` directly and misses the harness scaffolding that quietly invites the address a
+request names — and the new gate then answered `204` with no mail, which is the exact shape of the
+pass it was looking for. It invites by hand now.
+
+**The sign-in copy became false in both directions.** `#68` tightened "if that address *can have*
+an account here" to "*has* an account here" while `#67` made the site invitation-only. An invited
+address that has never signed in has no account row and still gets a link; an uninvited one gets
+the same sentence and no mail. "Can have" is the word that covers both, and the reason is in a
+comment rather than on screen.
+
+Beyond the collisions: a whole-tree Qodana scan of the merged tree found **six**, all in `#67`'s
+new files and none of them ever reported — that PR's Qodana check came back `NEUTRAL`, and CI runs
+Qodana in PR mode regardless, so no whole-tree number for the merged tree existed. Three were real
+and are fixed, two are the reflection-bound-DTO objection this repository already has a scoped
+name for, and the scan is back to a measured zero. `AddingAnAddressPutsItOnTheList` turned out not
+to check the list — deleting `await Reload()` left it green, because the page's own confirmation
+sentence satisfied an assertion against the whole markup; it reads the rows now, and the weakness
+predated the merge. Three documented claims had gone false: the settled list still said "two
+palettes", the setup guide listed six tables while naming only one of the two new ones, and the
+handover's error-reporting section named account existence as the only axis a category must not
+betray. And `publish/` is gitignored, which it should have been before — both workflows publish
+there, so reproducing the CI step that checks the Content-Security-Policy leaves 717 files of
+build output in the tree.
+
+**What was not done:** none of the three slices' own work was revisited or re-reviewed. Each was
+reviewed on its own PR; this reconciled only where they met.
 
 ### Four palettes on two axes, and the print bug that would have shipped with them
 
