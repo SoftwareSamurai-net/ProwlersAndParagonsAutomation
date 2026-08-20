@@ -186,52 +186,76 @@ public sealed class WebPresentationTests
     /// <para>The <b>values</b> are checked, not the presence of the token. Asserting only
     /// that <c>--ink</c> is declared lets it be declared white, and white ink on white paper
     /// prints blank pages that look like a printer fault rather than a bug.</para>
+    ///
+    /// <para><b>And it resolves the whole cascade rather than reading the print block, which
+    /// is a change the four palettes forced.</b> Reading the print block on its own answers
+    /// "does print declare white paper", and that was the same question until light and dark
+    /// became independent. A dark palette guarded by <c>:not([data-theme="light"])</c> is
+    /// specificity (0,3,0); the print block is (0,2,0) and <c>@media</c> contributes nothing to
+    /// specificity — so on paper the dark block wins, and every assertion below would still
+    /// hold while a reader in dark mode printed the full-bleed near-black page this test exists
+    /// to prevent. What stops it is <c>@media screen</c> on the dark half, and what would
+    /// notice its removal is asking, for each of the six states a reader can be in, what the
+    /// paper actually resolves to.</para>
     /// </summary>
     [Theory]
-    [InlineData("hero")]
-    [InlineData("villain")]
-    public void PrintKeepsThePaperWhiteAndTheInkReadable(string mode)
+    [InlineData("hero", null, false)]
+    [InlineData("hero", null, true)]
+    [InlineData("hero", "dark", false)]
+    [InlineData("villain", null, false)]
+    [InlineData("villain", null, true)]
+    [InlineData("villain", "dark", true)]
+    public void PrintKeepsThePaperWhiteAndTheInkReadable(string mode, string? chosen, bool systemIsDark)
     {
-        var print = OnlyPrintBlockOf(ThemeCss);
-
-        Assert.Contains($":root[data-mode=\"{mode}\"]", print, StringComparison.Ordinal);
-
-        // Resolved the way the cascade resolves it: the shared block first, then the mode's.
-        var palette = PrintPalette(print, mode);
+        var state = new ThemeState(mode, chosen, systemIsDark);
+        var palette = Palette(state, printing: true);
 
         // Paper, and anything that sits behind body text.
         foreach (var token in new[] { "--surface", "--panel", "--panel-sunk", "--primary", "--accent-soft" })
             Assert.True(Luminance(palette[token]) > 0.85,
-                $"print {token} darkens the paper in {mode} mode ({palette[token]}).");
+                $"print {token} darkens the paper for {state} ({palette[token]}).");
 
         // Ink. 0.45 is about a 4.5:1 contrast floor against white, which is what the small
         // print on this sheet needs.
         foreach (var token in new[] { "--ink", "--heading", "--rule", "--accent", "--on-primary", "--muted", "--danger" })
             Assert.True(Luminance(palette[token]) < 0.45,
-                $"print {token} is too pale to read on white in {mode} mode ({palette[token]}).");
+                $"print {token} is too pale to read on white for {state} ({palette[token]}).");
     }
 
     /// <summary>
-    /// Every token the two screen palettes declare has to be resolved by the print block for
-    /// each mode, whether from the shared rule or the mode's own. A token left out keeps its
-    /// screen value through the cascade, which is exactly how the near-black page happened.
+    /// Every token any screen palette declares has to be restated by the print block for each
+    /// mode, whether from the shared rule or the mode's own. A token left out keeps its screen
+    /// value through the cascade, which is exactly how the near-black page happened.
+    ///
+    /// <para><b>The list of tokens is collected by running the stylesheet's rules rather than
+    /// by pattern-matching a block, and that was not a tidy-up.</b> The regex this used to do
+    /// it with anchored on <c>data-mode="x"] {</c>, which cannot see
+    /// <c>:root[data-mode="x"]:not([data-theme="light"]) {</c> — so the moment the dark
+    /// palettes arrived, every token they declare would have been left out of the list and
+    /// print would not have been asked to restate any of them. A guard that silently stops
+    /// covering half the file is worse than one that fails.</para>
     /// </summary>
     [Theory]
     [InlineData("hero")]
     [InlineData("villain")]
     public void PrintRestatesEveryTokenTheScreenPalettesDeclare(string mode)
     {
-        // The two mode palettes only. The shape and motion tokens in the plain `:root` block
-        // are not colours and print has no reason to restate a transition duration.
-        var screen = ThemeCss[..ThemeCss.IndexOf("@media print", StringComparison.Ordinal)];
-
-        var declared = Rx(@"data-mode=""(hero|villain)""\s*\]?\s*\{([^}]*)\}", RegexOptions.Singleline)
-            .Matches(screen)
-            .SelectMany(m => Rx(@"(--[a-z-]+)\s*:").Matches(m.Groups[2].Value).Select(d => d.Groups[1].Value))
+        // The palette blocks only. The shape and motion tokens on the plain `:root` blocks are
+        // not colours, and print has no reason to restate a transition duration.
+        var declared = CssRules(ThemeCss)
+            .Where(r => !r.Media.Contains("print", StringComparison.Ordinal))
+            .Where(r => r.Selector.Contains("data-mode", StringComparison.Ordinal))
+            .SelectMany(r => Rx(@"(--[a-z0-9-]+)\s*:").Matches(r.Body).Select(d => d.Groups[1].Value))
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
         Assert.NotEmpty(declared);
+
+        // Both dark palettes are among them, or this is measuring the light half only.
+        Assert.Equal(4, CssRules(ThemeCss)
+            .Count(r => r.Selector.Contains("data-mode", StringComparison.Ordinal)
+                        && !r.Media.Contains("print", StringComparison.Ordinal)
+                        && (r.Media.Length > 0 || r.Selector.Contains("data-theme", StringComparison.Ordinal))));
 
         var palette = PrintPalette(OnlyPrintBlockOf(ThemeCss), mode);
 
@@ -282,7 +306,7 @@ public sealed class WebPresentationTests
 
             if (!appliesToMode) continue;
 
-            foreach (Match declaration in Rx(@"(--[a-z-]+)\s*:\s*([^;]+);").Matches(rule.Groups[2].Value))
+            foreach (Match declaration in Rx(@"(--[a-z0-9-]+)\s*:\s*([^;]+);").Matches(rule.Groups[2].Value))
                 palette[declaration.Groups[1].Value] = declaration.Groups[2].Value.Trim();
         }
 
@@ -662,26 +686,25 @@ public sealed class WebPresentationTests
     /// palette the three steps are three steps.</para>
     /// </summary>
     [Theory]
-    [InlineData("hero")]
-    [InlineData("villain")]
-    public void TheThreeElevationStepsAreThreeDifferentShadows(string mode)
+    [InlineData("hero-light")]
+    [InlineData("hero-dark")]
+    [InlineData("villain-light")]
+    [InlineData("villain-dark")]
+    public void TheThreeElevationStepsAreThreeDifferentShadows(string palette)
     {
-        var screen = ThemeCss[..ThemeCss.IndexOf("@media print", StringComparison.Ordinal)];
+        // Resolved for the state that reaches this palette, rather than read off one block:
+        // two of the four live inside a media query, and a block-shaped regex could not see
+        // them at all.
+        var resolved = Palette(StateFor(palette));
 
-        // The mode's own palette block. Hero is the unqualified :root as well as [data-mode=hero].
-        var block = Rx($@"data-mode=""{mode}""\s*\]\s*\{{([^}}]*)\}}", RegexOptions.Singleline)
-            .Match(WithoutCssComments(screen));
+        var shadows = new[] { "--shadow-1", "--shadow-2", "--shadow-3" }
+            .ToDictionary(name => name, name => Normalise(resolved.GetValueOrDefault(name, "")),
+                StringComparer.Ordinal);
 
-        Assert.True(block.Success, $"theme.css has no {mode} palette block.");
-
-        var shadows = Rx(@"(--shadow-[123])\s*:\s*([^;]+);")
-            .Matches(block.Groups[1].Value)
-            .ToDictionary(m => m.Groups[1].Value, m => Normalise(m.Groups[2].Value), StringComparer.Ordinal);
-
-        Assert.Equal(3, shadows.Count);
+        Assert.DoesNotContain("", shadows.Values);
         Assert.Equal(3, shadows.Values.Distinct(StringComparer.Ordinal).Count());
 
-        foreach (var name in new[] { "--shadow-1", "--shadow-2", "--shadow-3" })
+        foreach (var name in shadows.Keys)
             Assert.Contains($"var({name})", WithoutCssComments(AppCss), StringComparison.Ordinal);
     }
 
@@ -3193,15 +3216,15 @@ public sealed class WebPresentationTests
         return (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
     }
 
-    // ── The screen palettes' contrast, measured ────────────────────────────────────
+    // ── The four screen palettes' contrast, measured ───────────────────────────────
     //
     // **The print palette had a luminance test and the screen palettes had none**, so every
     // contrast claim in CLAUDE.md about the screen was a number somebody worked out once by
-    // hand and wrote down. Two of them are recorded there as *failures* — Villain --heading on
-    // --accent-soft, and --danger on --danger-soft — and nothing would have noticed if a change
-    // made a third.
+    // hand and wrote down. Two of them are recorded there as *failures* — villain-dark
+    // --heading on --accent-soft, and --danger on --danger-soft — and nothing would have
+    // noticed if a change made a third.
     //
-    // Two things had to be built before any of it could be checked:
+    // Three things had to be built before any of it could be checked:
     //
     // * **`Luminance` above is not WCAG relative luminance.** It weights the raw channel values
     //   and skips the sRGB gamma linearisation the standard requires, which is fine for the
@@ -3212,6 +3235,14 @@ public sealed class WebPresentationTests
     //   claims on them — --muted carries prose at 0.72rem and is supposed to hold 4.5:1 — and
     //   they were the two nothing could measure. `Resolve` walks `var()` and
     //   `color-mix(in srgb, A n%, B)` down to a triple.
+    // * **The palette is no longer one block per mode.** Light and dark are independent of Hero
+    //   and Villain, so there are six screen blocks in three shapes — bare, an OS-dark one
+    //   guarded by `:not([data-theme="light"])`, and an explicit `[data-theme="dark"]` one —
+    //   two of them inside media queries. Reading two blocks by regex cannot answer what any
+    //   of the four palettes actually resolves to, so `Palette` below **runs the cascade**:
+    //   brace-matched rules in source order, each admitted or refused by its media condition
+    //   and by its selector against a document element carrying a given `data-mode` and
+    //   `data-theme`.
     //
     // The positive control is `TheContrastInstrumentReproducesTheKnownFailures`, and it is not
     // optional: a resolver that quietly returned null for every mix would make every assertion
@@ -3239,24 +3270,176 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
-    /// One palette's declarations, the plain <c>:root</c> block first and then the mode's own,
-    /// so the cascade is resolved the way a browser resolves it.
+    /// One rule out of a stylesheet: the at-rule conditions enclosing it, its selector list,
+    /// and its declarations.
     /// </summary>
-    private static Dictionary<string, string> ScreenPalette(string mode)
-    {
-        var css = ThemeCss;
-        var screen = css[..css.IndexOf("@media print", StringComparison.Ordinal)];
+    private readonly record struct CssRule(string Media, string Selector, string Body);
 
+    /// <summary>
+    /// Every rule in a stylesheet, in source order, each carrying the at-rule conditions it sits
+    /// inside.
+    ///
+    /// <para><b>Brace-matched rather than pattern-matched, for the reason CLAUDE.md gives about
+    /// the last scan that was not:</b> a media-query scan that ended at the first newline-brace
+    /// could not see a query written on one line and swallowed its contents into the following
+    /// block. Nesting here is real — two of the six palettes live inside <c>@media</c> — so the
+    /// depth has to be counted rather than assumed.</para>
+    /// </summary>
+    private static List<CssRule> CssRules(string css)
+    {
+        var body = WithoutCssComments(css);
+        var rules = new List<CssRule>();
+        var conditions = new Stack<string>();
+        var prelude = new System.Text.StringBuilder();
+
+        for (var i = 0; i < body.Length;)
+        {
+            var c = body[i];
+
+            if (c == '}')
+            {
+                if (conditions.Count > 0) conditions.Pop();
+                prelude.Clear();
+                i++;
+                continue;
+            }
+
+            if (c != '{')
+            {
+                prelude.Append(c);
+                i++;
+                continue;
+            }
+
+            var head = Rx(@"\s+").Replace(prelude.ToString(), " ").Trim();
+            prelude.Clear();
+            i++;
+
+            // An at-rule opens a context its children are read inside; a plain rule is taken
+            // whole, to its own matching close.
+            if (head.StartsWith('@'))
+            {
+                conditions.Push(head);
+                continue;
+            }
+
+            var depth = 1;
+            var start = i;
+
+            while (i < body.Length && depth > 0)
+            {
+                if (body[i] == '{') depth++;
+                else if (body[i] == '}') depth--;
+                i++;
+            }
+
+            rules.Add(new CssRule(string.Join(" ", conditions.Reverse()), head, body[start..(i - 1)]));
+        }
+
+        return rules;
+    }
+
+    /// <summary>
+    /// One theme state a reader can actually be in: the identity, whether they have made an
+    /// explicit light/dark choice, and what their system asks for when they have not.
+    /// </summary>
+    private readonly record struct ThemeState(string Mode, string? Chosen, bool SystemIsDark)
+    {
+        /// <summary>Which of the four palettes this state should land on.</summary>
+        public string Palette => (Chosen ?? (SystemIsDark ? "dark" : "light")) == "dark"
+            ? $"{Mode}-dark"
+            : $"{Mode}-light";
+
+        public override string ToString() =>
+            $"{Mode}/{Chosen ?? "system"}/{(SystemIsDark ? "os-dark" : "os-light")}";
+    }
+
+    /// <summary>
+    /// Whether a rule applies to a document element in a given state, on a given medium.
+    ///
+    /// <para><b>It refuses a selector or a condition it does not model rather than guessing</b>,
+    /// the same bargain <c>EffectiveValue</c> makes elsewhere in this file: a resolver that
+    /// silently skipped a block it could not read would report a palette that is not the one on
+    /// screen, and every ratio measured from it would be fiction.</para>
+    /// </summary>
+    private static bool Admits(CssRule rule, ThemeState state, bool printing)
+    {
+        var condition = rule.Media;
+
+        if (condition.Length > 0)
+        {
+            var screenOnly = condition.Contains("screen", StringComparison.Ordinal);
+            var printOnly = condition.Contains("print", StringComparison.Ordinal);
+            var systemDark = condition.Contains("prefers-color-scheme: dark", StringComparison.Ordinal);
+
+            // Not a colour question, and no palette declares one. Refused rather than silently
+            // admitted, so a colour appearing inside one would show up as an unmodelled shape.
+            var motion = condition.Contains("prefers-reduced-motion", StringComparison.Ordinal);
+
+            Assert.True(screenOnly || printOnly || systemDark || motion,
+                $"the palette resolver does not model the at-rule `{condition}`.");
+
+            if (motion) return false;
+            if (printOnly && !printing) return false;
+            if (screenOnly && printing) return false;
+            if (systemDark && !state.SystemIsDark) return false;
+        }
+
+        return rule.Selector
+            .Split(',')
+            .Select(s => s.Trim())
+            .Any(s => Matches(s, state));
+
+        static bool Matches(string selector, ThemeState state)
+        {
+            Assert.StartsWith(":root", selector, StringComparison.Ordinal);
+
+            var rest = selector[":root".Length..];
+            var attributes = Rx(@"\[data-(mode|theme)=""([a-z]+)""\]");
+
+            // Everything the resolver understands, removed as it is read. Whatever is left
+            // over is a shape nobody modelled, and it fails rather than being ignored.
+            var negated = Rx(@":not\(\s*(\[data-(?:mode|theme)=""[a-z]+""\])\s*\)").Matches(rest);
+            var remainder = Rx(@":not\(\s*\[data-(?:mode|theme)=""[a-z]+""\]\s*\)").Replace(rest, "");
+            var required = attributes.Matches(remainder);
+            remainder = attributes.Replace(remainder, "").Trim();
+
+            Assert.True(remainder.Length == 0,
+                $"the palette resolver does not model the selector `{selector}`.");
+
+            foreach (Match one in required)
+                if (Attribute(state, one.Groups[1].Value) != one.Groups[2].Value) return false;
+
+            foreach (Match one in negated)
+            {
+                var inner = attributes.Match(one.Groups[1].Value);
+                if (Attribute(state, inner.Groups[1].Value) == inner.Groups[2].Value) return false;
+            }
+
+            return true;
+        }
+
+        static string? Attribute(ThemeState state, string name) =>
+            name == "mode" ? state.Mode : state.Chosen;
+    }
+
+    /// <summary>
+    /// The tokens a document element in this state actually resolves to, cascade run in source
+    /// order.
+    ///
+    /// <para>Every rule in this stylesheet is a <c>:root</c> rule of the same specificity class
+    /// except the dark ones, which carry one more attribute and are also later — so source order
+    /// alone gives the right answer here <em>and this is exactly the kind of thing that is true
+    /// until it is not</em>. <c>PrintKeepsThePaperWhiteAndTheInkReadable</c> is the check that
+    /// would notice: it asks what the paper resolves to across all four states rather than
+    /// reading the print block on its own.</para>
+    /// </summary>
+    private static Dictionary<string, string> Palette(ThemeState state, bool printing = false)
+    {
         var palette = new Dictionary<string, string>(StringComparer.Ordinal);
 
-        var blocks = new[]
-        {
-            Rx(@"^:root\s*\{([^}]*)\}", RegexOptions.Multiline | RegexOptions.Singleline).Match(screen),
-            Rx($@":root\[data-mode=""{mode}""\]\s*\{{([^}}]*)\}}", RegexOptions.Singleline).Match(screen),
-        };
-
-        foreach (var block in blocks.Where(b => b.Success))
-            foreach (Match declaration in Rx(@"(--[a-z-]+)\s*:\s*([^;]+);").Matches(block.Groups[1].Value))
+        foreach (var rule in CssRules(ThemeCss).Where(r => Admits(r, state, printing)))
+            foreach (Match declaration in Rx(@"(--[a-z0-9-]+)\s*:\s*([^;]+);").Matches(rule.Body))
                 palette[declaration.Groups[1].Value] = declaration.Groups[2].Value.Trim();
 
         return palette;
@@ -3290,7 +3473,7 @@ public sealed class WebPresentationTests
                     Convert.ToInt32(digits[4..], 16));
         }
 
-        var indirect = Rx(@"^var\(\s*(--[a-z-]+)\s*\)$").Match(value);
+        var indirect = Rx(@"^var\(\s*(--[a-z0-9-]+)\s*\)$").Match(value);
         if (indirect.Success)
         {
             // A cycle would otherwise recurse until the stack goes, which a crashed test
@@ -3319,28 +3502,43 @@ public sealed class WebPresentationTests
 
         static string Inner(string part)
         {
-            var named = Rx(@"var\(\s*(--[a-z-]+)\s*\)").Match(part);
+            var named = Rx(@"var\(\s*(--[a-z0-9-]+)\s*\)").Match(part);
             return named.Success ? named.Groups[1].Value : part.Trim();
         }
+    }
+
+    /// <summary>The state a reader is in when they are looking at one of the four palettes.</summary>
+    private static ThemeState StateFor(string palette)
+    {
+        var parts = palette.Split('-');
+        return new ThemeState(parts[0], parts[1], SystemIsDark: parts[1] == "dark");
     }
 
     /// <summary>
     /// <b>The contrast instrument is checked against figures somebody measured by hand.</b>
     ///
-    /// <para>CLAUDE.md records two Villain pairs as measured failures — <c>--heading</c> on
+    /// <para>CLAUDE.md records two villain-dark pairs as measured failures — <c>--heading</c> on
     /// <c>--accent-soft</c> at 4.08:1 and <c>--danger</c> on <c>--danger-soft</c> at 3.94:1 —
     /// and both are <c>color-mix()</c> grounds, so both are exactly what nothing here could
     /// read before. Reproducing them is what makes every other figure in this region worth
     /// reading.</para>
     ///
-    /// <para><b>It is a control, not a requirement that they stay bad.</b> If a redesign fixes
-    /// either pair this test is what should be updated, to whatever the new instrument-verified
-    /// figure is. What it must never do is quietly start returning null and pass.</para>
+    /// <para><b>It anchors on villain-dark specifically, and that is what makes it still a
+    /// control after the palette split.</b> Those values are unchanged by this slice, so the
+    /// two hand-measured figures still stand — and reaching them now requires the resolver to
+    /// run the cascade into a block nested inside a media query, which is the new thing it
+    /// does. The light villain palette clears both pairs comfortably, so anchoring there would
+    /// have retired the control rather than kept it.</para>
+    ///
+    /// <para><b>It is a control, not a requirement that they stay bad.</b> If a later change
+    /// fixes either pair this test is what should be updated, to whatever the new
+    /// instrument-verified figure is. What it must never do is quietly start returning null and
+    /// pass.</para>
     /// </summary>
     [Fact]
     public void TheContrastInstrumentReproducesTheKnownFailures()
     {
-        var villain = ScreenPalette("villain");
+        var villain = Palette(StateFor("villain-dark"));
 
         var heading = Resolve("--heading", villain);
         var accentSoft = Resolve("--accent-soft", villain);
@@ -3360,12 +3558,13 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
-    /// <b>Every pair the app actually puts together holds its WCAG floor, in both modes.</b>
+    /// <b>Every pair the app actually puts together holds its WCAG floor, in all four
+    /// palettes.</b>
     ///
     /// <para>4.5:1 for text, because all of these carry words. <c>--focus</c> is the one 3:1
     /// entry: a focus ring is a non-text indicator under WCAG 1.4.11, and it is a separate
-    /// token from <c>--accent</c> precisely because Hero <c>--accent</c> is 1.8:1 and invisible
-    /// as a ring.</para>
+    /// token from <c>--accent</c> precisely because hero-light <c>--accent</c> is 1.8:1 and
+    /// invisible as a ring.</para>
     ///
     /// <para><b>The pairs are the ones in use, not every combination.</b> Two tokens can
     /// contrast badly and be perfectly safe if no rule ever puts them together — which is the
@@ -3374,11 +3573,13 @@ public sealed class WebPresentationTests
     /// see at once.</para>
     /// </summary>
     [Theory]
-    [InlineData("hero")]
-    [InlineData("villain")]
+    [InlineData("hero-light")]
+    [InlineData("hero-dark")]
+    [InlineData("villain-light")]
+    [InlineData("villain-dark")]
     public void EveryScreenPairInUseHoldsItsContrastFloor(string mode)
     {
-        var palette = ScreenPalette(mode);
+        var palette = Palette(StateFor(mode));
 
         (string Fg, string Bg, double Floor)[] pairs =
         [
@@ -3410,5 +3611,82 @@ public sealed class WebPresentationTests
                 $"{mode}: {fg} on {bg} measures {ratio:0.00}:1 and needs {floor:0.0}:1. "
                 + "Re-measure with this test rather than adjusting by eye.");
         }
+    }
+
+    /// <summary>
+    /// <b>All six ways of arriving at a screen land on the palette they are supposed to.</b>
+    ///
+    /// <para>There are three theme states and not two — an explicit <c>light</c>, an explicit
+    /// <c>dark</c>, and no choice at all, where only <c>prefers-color-scheme</c> separates them
+    /// — so each identity has six routes in and four of them are the same two palettes reached
+    /// differently. The one that is easy to get wrong is <b>an explicit light choice on a dark
+    /// system</b>: it is the whole reason the OS block carries
+    /// <c>:not([data-theme="light"])</c>, and without that guard the system would beat the
+    /// person, silently and only for some readers.</para>
+    ///
+    /// <para>Asserted on <c>--surface</c> and <c>--heading</c> together rather than on either
+    /// alone: the four palettes share no surface and no heading, so a state landing on the
+    /// wrong one cannot agree on both by coincidence.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("hero", null, false, "hero-light")]
+    [InlineData("hero", null, true, "hero-dark")]
+    [InlineData("hero", "light", false, "hero-light")]
+    [InlineData("hero", "light", true, "hero-light")]     // the person beats the system
+    [InlineData("hero", "dark", false, "hero-dark")]      // ...in both directions
+    [InlineData("hero", "dark", true, "hero-dark")]
+    [InlineData("villain", null, false, "villain-light")]
+    [InlineData("villain", null, true, "villain-dark")]
+    [InlineData("villain", "light", false, "villain-light")]
+    [InlineData("villain", "light", true, "villain-light")]
+    [InlineData("villain", "dark", false, "villain-dark")]
+    [InlineData("villain", "dark", true, "villain-dark")]
+    public void EveryThemeStateResolvesToTheIntendedPalette(
+        string mode, string? chosen, bool systemIsDark, string expected)
+    {
+        var state = new ThemeState(mode, chosen, systemIsDark);
+        var reached = Palette(state);
+        var intended = Palette(StateFor(expected));
+
+        foreach (var token in new[] { "--surface", "--heading" })
+            Assert.True(
+                string.Equals(reached.GetValueOrDefault(token), intended.GetValueOrDefault(token),
+                    StringComparison.Ordinal),
+                $"{state} resolves {token} to {reached.GetValueOrDefault(token) ?? "nothing"} "
+                + $"and should be on {expected}, which is {intended.GetValueOrDefault(token)}.");
+    }
+
+    /// <summary>
+    /// <b>The two routes into a dark palette declare the same thing.</b>
+    ///
+    /// <para>A dark set is written twice — once inside <c>@media (prefers-color-scheme: dark)</c>
+    /// for a reader who has chosen nothing, once on <c>[data-theme="dark"]</c> for one who has —
+    /// because CSS has no way to name a set of declarations and apply it to two selectors when
+    /// one of them has to live inside a media query. Duplication is the cost; two places to
+    /// drift is the risk, and it would show up only for readers on one of the two routes.</para>
+    ///
+    /// <para>Compared as declarations rather than as text, so reordering or reformatting one
+    /// block is not a failure and changing a value is.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("hero")]
+    [InlineData("villain")]
+    public void TheTwoRoutesIntoDarkAgree(string mode)
+    {
+        var bySystem = Declarations(CssRules(ThemeCss).Single(r =>
+            r.Media.Contains("prefers-color-scheme: dark", StringComparison.Ordinal)
+            && r.Selector.Contains($@"[data-mode=""{mode}""]", StringComparison.Ordinal)));
+
+        var byChoice = Declarations(CssRules(ThemeCss).Single(r =>
+            r.Selector.Contains(@"[data-theme=""dark""]", StringComparison.Ordinal)
+            && r.Selector.Contains($@"[data-mode=""{mode}""]", StringComparison.Ordinal)));
+
+        Assert.NotEmpty(bySystem);
+        Assert.Equal(bySystem, byChoice);
+
+        static Dictionary<string, string> Declarations(CssRule rule) =>
+            Rx(@"(--[a-z0-9-]+)\s*:\s*([^;]+);").Matches(rule.Body)
+                .ToDictionary(m => m.Groups[1].Value, m => Normalise(m.Groups[2].Value),
+                    StringComparer.Ordinal);
     }
 }
