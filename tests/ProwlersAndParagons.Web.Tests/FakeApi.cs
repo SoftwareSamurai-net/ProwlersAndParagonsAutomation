@@ -231,7 +231,7 @@ public sealed class FakeApi : HttpMessageHandler
             : Status(HttpStatusCode.NotFound);
     }
 
-    private static string Quote(string text) => System.Text.Json.JsonSerializer.Serialize(text);
+    private static string Quote(string text) => JsonSerializer.Serialize(text);
 
     private Task<HttpResponseMessage> Entry(HttpRequestMessage request)
     {
@@ -242,7 +242,7 @@ public sealed class FakeApi : HttpMessageHandler
         return Book.TryGetValue(name, out var text)
             ? Json($$"""
                 {"heading":"{{name.ToUpperInvariant()}}","printedPage":21,
-                 "text":{{System.Text.Json.JsonSerializer.Serialize(text)}},
+                 "text":{{JsonSerializer.Serialize(text)}},
                  "sourceRef":"Ultimate Edition, Ch.2 Characters, pp.13-65"}
                 """)
             : Status(HttpStatusCode.NotFound);

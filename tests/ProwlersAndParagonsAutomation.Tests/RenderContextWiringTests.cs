@@ -73,9 +73,9 @@ public sealed class RenderContextWiringTests
     }
 
     /// <summary>
-    /// Every type named in an `AddScoped<…>`/`AddSingleton<…>` on either side, plus the ones
-    /// registered by factory as `AddScoped&lt;IFace&gt;(s =&gt; …)` — the interface *and* the concrete
-    /// type both count, because either can be the one a constructor asks for.
+    /// Every type named in an <c>AddScoped&lt;…&gt;</c>/<c>AddSingleton&lt;…&gt;</c> on either side,
+    /// plus the ones registered by factory as <c>AddScoped&lt;IFace&gt;(s =&gt; …)</c> — the interface
+    /// <em>and</em> the concrete type both count, because either can be the one a constructor asks for.
     /// </summary>
     private static HashSet<string> Registered(string source) =>
         [.. Regex.Matches(source, @"Add(?:Scoped|Singleton|Transient)<([^>(]+)>",

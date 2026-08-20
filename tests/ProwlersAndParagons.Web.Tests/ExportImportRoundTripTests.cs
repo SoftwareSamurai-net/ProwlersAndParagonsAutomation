@@ -2,7 +2,6 @@ using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Pages;
-using ProwlersAndParagonsAutomation.Web.Services;
 
 namespace ProwlersAndParagons.Web.Tests;
 

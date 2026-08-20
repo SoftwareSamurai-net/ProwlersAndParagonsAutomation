@@ -110,6 +110,28 @@ resharper_null_coalescing_condition_is_always_not_null_according_to_api_contract
 resharper_unused_auto_property_accessor_local_highlighting = none
 resharper_class_never_instantiated_local_highlighting = none
 
+[tests/ProwlersAndParagonsAutomation.Tests/RenderContextWiringTests.cs]
+# Deliberate is deliberately empty — the class comment says so. It is an exemption
+# list ready to be populated, read by TheTestContextRegistersEveryServiceTheAppDoes
+# and by the staleness guard TheGuardIsLookingAtSomething, so the shape has to stay.
+# Populating it just to satisfy the inspection would put a fake exemption into the
+# test that the staleness guard would then rightly refuse.
+resharper_collection_never_updated_local_highlighting = none
+
+[web/Services/ApiCharacterStore.cs]
+# The same objection as engine/Models and engine/TranscriptLibrary above, over
+# the wire this time: Wired, Listed and Sending are the shape of the accounts
+# API's JSON payloads, constructed and read only by System.Text.Json through
+# reflection. Every positional record parameter is a JsonPropertyName-bound
+# property that nothing in this class touches by name — the whole record either
+# serializes or deserializes and then is dropped.
+#
+# Acting on any of these would silently drop a field from the wire: a request
+# without its payload, or a listing that lost the label the manager renders.
+# Neither would fail to build; both would ship a broken account seam.
+resharper_not_accessed_positional_property_local_highlighting = none
+resharper_class_never_instantiated_local_highlighting = none
+
 [engine/CharacterValidator.cs]
 # Since the headless build command, this file's job includes checking a character
 # somebody else wrote — and a deserializer hands back null for a property whose
