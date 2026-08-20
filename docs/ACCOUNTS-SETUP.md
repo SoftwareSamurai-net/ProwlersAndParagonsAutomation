@@ -52,10 +52,10 @@ npx wrangler --cwd d1 d1 migrations apply prowlers-and-paragons --remote
 `--cwd d1` is what makes wrangler read `d1/wrangler.toml`; the migrations are the `.sql` files
 beside it. Leave `--remote` off to apply them to a local copy instead. You will be asked to
 confirm each migration; the tables it creates are `users`, `login_tokens`, `sessions`,
-`login_attempts`, `characters` and `error_log`.
+`login_attempts`, `characters`, `invitations` and `error_log`.
 
 **To sanity-check from the dashboard:** D1 SQL Database → the `prowlers-and-paragons` database →
-**Tables** tab. All six should be there and empty.
+**Tables** tab. All seven should be there and empty.
 
 **The schema is the thing the tests run against**, in real SQLite, so a migration that would not
 apply fails on the pull request rather than here.

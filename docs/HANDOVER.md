@@ -145,6 +145,16 @@ Every one is asserted, and all are load-bearing:
 > **The reasoning below is kept because it is the reasoning, not a plan.** Every constraint in it
 > is now load-bearing on shipped code — especially the one about a category never depending on
 > whether an account exists, which is the security property the whole taxonomy is shaped around.
+>
+> **And it has a second axis now.** The invitation list landed in the same reconciliation, so
+> "an account exists" is no longer the only thing a category could betray — "this address was
+> invited" is the other. Reconciling the two found one place it leaked: the gate had been written
+> above the `SITE_URL` check, so a misconfigured deployment answered an invited address with a
+> 500 and a stranger with `204`. The deployment check goes first now, and
+> `a broken deployment answers an invited and an uninvited address identically` pins it. Two
+> channels stay open and are recorded in the gate's own comment rather than papered over: an
+> uninvited address does not wait on the mail provider, and while that provider refuses
+> everything an invited address gets a 500 where a stranger still gets `204`.
 
 **Independent of the redesign and much smaller — a day, not a slice.** It touches `worker/` and
 one client message and nothing the redesign will move.
