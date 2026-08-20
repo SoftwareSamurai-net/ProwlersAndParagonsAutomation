@@ -3192,4 +3192,223 @@ public sealed class WebPresentationTests
 
         return (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
     }
+
+    // ── The screen palettes' contrast, measured ────────────────────────────────────
+    //
+    // **The print palette had a luminance test and the screen palettes had none**, so every
+    // contrast claim in CLAUDE.md about the screen was a number somebody worked out once by
+    // hand and wrote down. Two of them are recorded there as *failures* — Villain --heading on
+    // --accent-soft, and --danger on --danger-soft — and nothing would have noticed if a change
+    // made a third.
+    //
+    // Two things had to be built before any of it could be checked:
+    //
+    // * **`Luminance` above is not WCAG relative luminance.** It weights the raw channel values
+    //   and skips the sRGB gamma linearisation the standard requires, which is fine for the
+    //   one-sided "is the paper light / is the ink dark" checks the print test makes and useless
+    //   for a ratio. `RelativeLuminance` below does it properly, so the two coexist on purpose.
+    // * **`--muted` and `--accent-soft` are `color-mix()`**, not hex, so neither `Luminance` nor
+    //   any regex over the file could read them. They were the tokens with the *tightest*
+    //   claims on them — --muted carries prose at 0.72rem and is supposed to hold 4.5:1 — and
+    //   they were the two nothing could measure. `Resolve` walks `var()` and
+    //   `color-mix(in srgb, A n%, B)` down to a triple.
+    //
+    // The positive control is `TheContrastInstrumentReproducesTheKnownFailures`, and it is not
+    // optional: a resolver that quietly returned null for every mix would make every assertion
+    // below pass by measuring nothing.
+
+    /// <summary>WCAG 2.1 relative luminance, linearised per channel as the standard defines.</summary>
+    private static double RelativeLuminance((int R, int G, int B) rgb)
+    {
+        static double Channel(int raw)
+        {
+            var c = raw / 255.0;
+            return c <= 0.03928 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
+        }
+
+        return (0.2126 * Channel(rgb.R)) + (0.7152 * Channel(rgb.G)) + (0.0722 * Channel(rgb.B));
+    }
+
+    /// <summary>The WCAG contrast ratio between two resolved colours, 1:1 to 21:1.</summary>
+    private static double ContrastRatio((int R, int G, int B) a, (int R, int G, int B) b)
+    {
+        var (high, low) = (RelativeLuminance(a), RelativeLuminance(b));
+        if (low > high) (high, low) = (low, high);
+
+        return (high + 0.05) / (low + 0.05);
+    }
+
+    /// <summary>
+    /// One palette's declarations, the plain <c>:root</c> block first and then the mode's own,
+    /// so the cascade is resolved the way a browser resolves it.
+    /// </summary>
+    private static Dictionary<string, string> ScreenPalette(string mode)
+    {
+        var css = ThemeCss;
+        var screen = css[..css.IndexOf("@media print", StringComparison.Ordinal)];
+
+        var palette = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        var blocks = new[]
+        {
+            Rx(@"^:root\s*\{([^}]*)\}", RegexOptions.Multiline | RegexOptions.Singleline).Match(screen),
+            Rx($@":root\[data-mode=""{mode}""\]\s*\{{([^}}]*)\}}", RegexOptions.Singleline).Match(screen),
+        };
+
+        foreach (var block in blocks.Where(b => b.Success))
+            foreach (Match declaration in Rx(@"(--[a-z-]+)\s*:\s*([^;]+);").Matches(block.Groups[1].Value))
+                palette[declaration.Groups[1].Value] = declaration.Groups[2].Value.Trim();
+
+        return palette;
+    }
+
+    /// <summary>
+    /// A token resolved to a colour, following <c>var()</c> and mixing <c>color-mix(in srgb,
+    /// A n%, B)</c>. Returns null for anything it cannot model — never a guess, because a
+    /// guessed colour is a contrast figure nobody can trust.
+    /// </summary>
+    private static (int R, int G, int B)? Resolve(
+        string token, Dictionary<string, string> palette, HashSet<string>? seen = null)
+    {
+        seen ??= new HashSet<string>(StringComparer.Ordinal);
+
+        var value = token.StartsWith("--", StringComparison.Ordinal)
+            ? palette.GetValueOrDefault(token)
+            : token;
+
+        if (value is null) return null;
+        value = value.Trim();
+
+        var hex = Rx(@"^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$").Match(value);
+        if (hex.Success)
+        {
+            var digits = hex.Groups[1].Value;
+            if (digits.Length == 3) digits = string.Concat(digits.Select(c => new string(c, 2)));
+
+            return (Convert.ToInt32(digits[..2], 16),
+                    Convert.ToInt32(digits[2..4], 16),
+                    Convert.ToInt32(digits[4..], 16));
+        }
+
+        var indirect = Rx(@"^var\(\s*(--[a-z-]+)\s*\)$").Match(value);
+        if (indirect.Success)
+        {
+            // A cycle would otherwise recurse until the stack goes, which a crashed test
+            // process reports as a pass — see CLAUDE.md on `Catastrophic failure`.
+            if (!seen.Add(indirect.Groups[1].Value)) return null;
+
+            return Resolve(indirect.Groups[1].Value, palette, seen);
+        }
+
+        var mix = Rx(@"^color-mix\(\s*in\s+srgb\s*,\s*(.+?)\s+([\d.]+)%\s*,\s*(.+?)\s*\)$").Match(value);
+        if (mix.Success)
+        {
+            var first = Resolve(Inner(mix.Groups[1].Value), palette, new HashSet<string>(seen, StringComparer.Ordinal));
+            var second = Resolve(Inner(mix.Groups[3].Value), palette, new HashSet<string>(seen, StringComparer.Ordinal));
+
+            if (first is null || second is null) return null;
+
+            var weight = double.Parse(mix.Groups[2].Value, CultureInfo.InvariantCulture) / 100.0;
+
+            return ((int)Math.Round((first.Value.R * weight) + (second.Value.R * (1 - weight))),
+                    (int)Math.Round((first.Value.G * weight) + (second.Value.G * (1 - weight))),
+                    (int)Math.Round((first.Value.B * weight) + (second.Value.B * (1 - weight))));
+        }
+
+        return null;
+
+        static string Inner(string part)
+        {
+            var named = Rx(@"var\(\s*(--[a-z-]+)\s*\)").Match(part);
+            return named.Success ? named.Groups[1].Value : part.Trim();
+        }
+    }
+
+    /// <summary>
+    /// <b>The contrast instrument is checked against figures somebody measured by hand.</b>
+    ///
+    /// <para>CLAUDE.md records two Villain pairs as measured failures — <c>--heading</c> on
+    /// <c>--accent-soft</c> at 4.08:1 and <c>--danger</c> on <c>--danger-soft</c> at 3.94:1 —
+    /// and both are <c>color-mix()</c> grounds, so both are exactly what nothing here could
+    /// read before. Reproducing them is what makes every other figure in this region worth
+    /// reading.</para>
+    ///
+    /// <para><b>It is a control, not a requirement that they stay bad.</b> If a redesign fixes
+    /// either pair this test is what should be updated, to whatever the new instrument-verified
+    /// figure is. What it must never do is quietly start returning null and pass.</para>
+    /// </summary>
+    [Fact]
+    public void TheContrastInstrumentReproducesTheKnownFailures()
+    {
+        var villain = ScreenPalette("villain");
+
+        var heading = Resolve("--heading", villain);
+        var accentSoft = Resolve("--accent-soft", villain);
+        var danger = Resolve("--danger", villain);
+        var dangerSoft = Resolve("--danger-soft", villain);
+
+        Assert.True(heading is not null && accentSoft is not null,
+            "the resolver cannot read a color-mix() ground any more, so every contrast figure "
+            + "in this file is now measuring nothing. Fix Resolve, do not relax this.");
+        Assert.True(danger is not null && dangerSoft is not null,
+            "--danger / --danger-soft no longer resolve; see above.");
+
+        // Both to one decimal place: the hand-measured figures are 4.08 and 3.94, and a
+        // resolver that is right will land within rounding of them rather than exactly on.
+        Assert.Equal(4.1, Math.Round(ContrastRatio(heading!.Value, accentSoft!.Value), 1), 1);
+        Assert.Equal(3.9, Math.Round(ContrastRatio(danger!.Value, dangerSoft!.Value), 1), 1);
+    }
+
+    /// <summary>
+    /// <b>Every pair the app actually puts together holds its WCAG floor, in both modes.</b>
+    ///
+    /// <para>4.5:1 for text, because all of these carry words. <c>--focus</c> is the one 3:1
+    /// entry: a focus ring is a non-text indicator under WCAG 1.4.11, and it is a separate
+    /// token from <c>--accent</c> precisely because Hero <c>--accent</c> is 1.8:1 and invisible
+    /// as a ring.</para>
+    ///
+    /// <para><b>The pairs are the ones in use, not every combination.</b> Two tokens can
+    /// contrast badly and be perfectly safe if no rule ever puts them together — which is the
+    /// situation the two in the control above are in, since the hover grounds moved to
+    /// <c>--panel-sunk</c>. Asserting over the cross product would fail on colours nobody can
+    /// see at once.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("hero")]
+    [InlineData("villain")]
+    public void EveryScreenPairInUseHoldsItsContrastFloor(string mode)
+    {
+        var palette = ScreenPalette(mode);
+
+        (string Fg, string Bg, double Floor)[] pairs =
+        [
+            ("--ink",        "--surface",     4.5),
+            ("--ink",        "--panel",       4.5),
+            ("--ink",        "--panel-sunk",  4.5),
+            ("--muted",      "--panel",       4.5),   // prose at --text-xs; the tightest claim
+            ("--muted",      "--surface",     4.5),
+            ("--heading",    "--panel",       4.5),
+            ("--heading",    "--panel-sunk",  4.5),   // where the hover grounds moved to
+            ("--danger",     "--panel",       4.5),
+            ("--on-primary", "--primary",     4.5),
+            ("--focus",      "--surface",     3.0),   // WCAG 1.4.11, not 1.4.3
+        ];
+
+        foreach (var (fg, bg, floor) in pairs)
+        {
+            var foreground = Resolve(fg, palette);
+            var background = Resolve(bg, palette);
+
+            Assert.True(foreground is not null,
+                $"{mode}: {fg} does not resolve to a colour, so it is unmeasured rather than passing.");
+            Assert.True(background is not null,
+                $"{mode}: {bg} does not resolve to a colour, so it is unmeasured rather than passing.");
+
+            var ratio = ContrastRatio(foreground!.Value, background!.Value);
+
+            Assert.True(ratio >= floor,
+                $"{mode}: {fg} on {bg} measures {ratio:0.00}:1 and needs {floor:0.0}:1. "
+                + "Re-measure with this test rather than adjusting by eye.");
+        }
+    }
 }

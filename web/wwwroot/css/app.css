@@ -508,7 +508,8 @@ hr {
 h1[tabindex="-1"]:focus,
 h1[tabindex="-1"]:focus-visible { outline: none; }
 
-input[type="text"], input[type="number"], input[type="search"], select, textarea {
+input[type="text"], input[type="number"], input[type="search"], input[type="file"],
+select, textarea {
     font: inherit;
     color: var(--ink);
     background: var(--panel);
@@ -519,7 +520,47 @@ input[type="text"], input[type="number"], input[type="search"], select, textarea
     transition: border-color var(--swap) var(--ease);
 }
 input[type="text"]:hover, input[type="number"]:hover, input[type="search"]:hover,
-select:hover, textarea:hover { border-color: var(--heading); }
+input[type="file"]:hover, select:hover, textarea:hover { border-color: var(--heading); }
+
+/* **The file picker was the one control left rendering as the operating system drew
+   it** — a grey "Choose File" chip and the words "No file chosen", in the OS font, in
+   the middle of an app where every other control is themed. It was not an oversight in
+   the rules above so much as an omission from their selector list: `type="file"` was
+   simply never named, so it inherited nothing.
+
+   The native control is kept rather than replaced by a label-and-hidden-input, which is
+   the usual trick. Two reasons. `Field` already emits the `<label for>`, so a second
+   label would give one input two of them; and the hidden-input pattern moves the focus
+   ring off the thing that actually has focus, which then has to be put back with
+   `:focus-within` — more moving parts than the styling is worth.
+
+   `::file-selector-button` is the button inside the control, so it takes `.btn`'s
+   treatment: same border, radius, ground and transition. It cannot be given `.btn`
+   itself — it is a pseudo-element, not an element a class can reach. */
+input[type="file"] { cursor: pointer; }
+
+input[type="file"]::file-selector-button {
+    font: inherit;
+    padding: var(--space-1) var(--space-4);
+    margin-right: var(--space-3);
+    border: 1px solid var(--heading);
+    border-radius: var(--radius-small);
+    background: var(--panel);
+    color: var(--heading);
+    cursor: pointer;
+    transition: background-color var(--swap) var(--ease),
+                border-color var(--swap) var(--ease);
+}
+
+/* Hover is on the *control*, not the pseudo-element: the button is small and the
+   pointer spends most of its travel on the surrounding box, so lighting up only on
+   the chip itself reads as an unresponsive control. --panel-sunk rather than
+   --accent-soft for the reason measured on `.btn` above: Villain --heading on
+   Villain --accent-soft is 4.08:1, under what text needs. */
+input[type="file"]:hover:not(:disabled)::file-selector-button { background: var(--panel-sunk); }
+
+input[type="file"]:disabled { opacity: 0.45; cursor: not-allowed; }
+input[type="file"]:disabled::file-selector-button { cursor: not-allowed; }
 textarea { width: 100%; resize: vertical; }
 input[type="number"] { width: 5.5rem; }
 /* Item 2 of the redesign, and the place it actually earns its keep. A long form is
@@ -797,6 +838,20 @@ label {
        base rule does not set stays out of the file. */
     border-top: none;
     border-bottom: none;
+    /* **Panels space themselves and this is not a panel.** `.panel` carries
+       `margin-bottom: var(--space-5)`, so a column of panels is evenly spaced without the
+       page container doing anything — which means any *non*-panel child of `.shell` gets no
+       spacing at all. The tier grid is the one such child in the app, and it sat flush
+       against the "Hero Point limit" panel below it with the two borders touching.
+
+       Same token as `.panel`, so the gap above that panel matches every other gap on the
+       page rather than being a second, nearly-equal value.
+
+       The general fix is a `gap` on `.shell` with `.panel`'s margin removed — CLAUDE.md's
+       own "let layout do the spacing" rule — but `.shell` also holds the sticky budget
+       strip and its negative-margin bleed, so that change wants proofing on every route
+       rather than being made in passing. Recorded in the handover. */
+    margin-bottom: var(--space-5);
 }
 .options.cards .option {
     flex-direction: column;
