@@ -131,8 +131,15 @@ public sealed class AdminPageTests
         await page.Find("form").SubmitAsync();
 
         Assert.Contains("POST /api/admin/invitations", ctx.Api.Asked);
+
+        // **On the list, not merely on the page**, which is the whole claim in the name. The
+        // page also prints "added <address>" as its confirmation, so an assertion against the
+        // markup as a whole is satisfied by that sentence alone — and duly was: deleting the
+        // `await Reload()` from `Invite()`, so the address is posted and the list never refetched,
+        // left this test green. Reading the rows is what makes it the test it says it is.
         await page.WaitForAssertionAsync(() =>
-            Assert.Contains("newcomer@example.test", page.Markup, StringComparison.Ordinal));
+            Assert.Contains("newcomer@example.test",
+                page.FindAll("li strong").Select(row => row.TextContent.Trim())));
 
         // And the box is emptied, so a second click cannot re-send the first address.
         Assert.Equal("", page.Find("#invite-email").GetAttribute("value") ?? "");
