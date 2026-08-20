@@ -1379,6 +1379,43 @@ public sealed class ProofPages
     }
 
     /// <summary>
+    /// <b>The rulebook entry the accounts proof captions as opened is actually open.</b>
+    ///
+    /// <para>Found by mutation, and the reason it is worth its own test is that nothing caught it:
+    /// deleting the click from <see cref="TheAccountSurfaces"/> left the whole suite green while the
+    /// page captioned "…and opened" carried a shut entry. A reader would have taken it as evidence
+    /// that the open state had been looked at. That is the exact shape this file already documents
+    /// twice — a proof whose assertions hold trivially because the thing being proved never
+    /// happened.</para>
+    ///
+    /// <para><b>The positive control comes first.</b> The shut render is asserted to be shut before
+    /// the open one is asserted to be open, because a component that rendered no toggle at all
+    /// would otherwise satisfy a check for "not expanded" without ever having been openable — and
+    /// a signed-out visitor legitimately gets no toggle, so its absence is a real state rather than
+    /// an impossible one.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheOpenedRulebookEntryOnTheProofIsOpen()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+        ctx.With(SheetMode.Hero);
+        ctx.Api.Book["Armor"] = "Self • Half Toughness • 1 Hero Point per rank\nThe book's own words.";
+
+        var armor = ctx.Services.GetRequiredService<RulesRepository>().Powers.Single(p => p.Id == "armor");
+
+        var shut = ctx.Render<PowerEditor>(p => p.Add(e => e.Power, armor));
+        Assert.Equal("false", shut.Find(".book-toggle").GetAttribute("aria-expanded"));
+        Assert.DoesNotContain("The book's own words.", shut.Markup, StringComparison.Ordinal);
+
+        var opened = ctx.Render<PowerEditor>(p => p.Add(e => e.Power, armor));
+        await opened.Find(".book-toggle").ClickAsync();
+
+        Assert.Equal("true", opened.Find(".book-toggle").GetAttribute("aria-expanded"));
+        Assert.Contains("The book's own words.", opened.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The sticky harness measures rather than asserts — checked on every run, not only under
     /// <c>PP_PROOF</c>.
     ///
