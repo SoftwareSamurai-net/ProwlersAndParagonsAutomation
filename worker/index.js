@@ -42,12 +42,25 @@ export async function handle(request, env, deps = production) {
 
         return response;
     } catch (error) {
-        // The message is not passed on. An exception from D1 or from the mail provider can
-        // quote a query or an address, and this is the one place where such a string would be
-        // handed to whoever asked for it.
-        console.error('Unhandled failure in the accounts API:', error);
+        // **A reference, so a report and a log line can be joined up.**
+        //
+        // The message itself is still not passed on: an exception from D1 or from the mail
+        // provider can quote a query or an address, and this is the one place where such a
+        // string would be handed to whoever asked for it. But "something went wrong" with
+        // nothing else in it means somebody reporting a failure and somebody reading the logs
+        // have no way to find each other — and this server's only log is a live tail, so an
+        // error nobody was watching for is simply gone. A short id in both places costs
+        // nothing and is the difference between one grep and a guess.
+        //
+        // Random rather than derived from the request: anything derived would encode the
+        // address or the path, which is the leak this whole branch exists to prevent. Six
+        // base-36 characters is ~2 billion — plenty to tell apart the failures in one tail,
+        // and it is deliberately not a token and grants nothing.
+        const reference = Math.random().toString(36).slice(2, 8);
 
-        return fail(500, 'Something went wrong at this end.');
+        console.error(`Unhandled failure in the accounts API [${reference}]:`, error);
+
+        return fail(500, 'Something went wrong at this end.', { reference });
     }
 }
 

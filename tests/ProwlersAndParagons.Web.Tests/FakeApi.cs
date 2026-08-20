@@ -125,6 +125,16 @@ public sealed class FakeApi : HttpMessageHandler
     /// </summary>
     public HttpStatusCode LinkRequestAnswer { get; set; } = HttpStatusCode.NoContent;
 
+    /// <summary>
+    /// The failure reference the real server puts in a 500 body, or null for a server that
+    /// answered without one.
+    ///
+    /// <para>Both shapes are real and the client has to hold up in each: the reference exists
+    /// only on the path that catches an exception, and something in front of the app — a proxy,
+    /// an edge error page — can produce a failure with no JSON in it at all.</para>
+    /// </summary>
+    public string? LinkRequestReference { get; set; }
+
     protected override Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -140,7 +150,10 @@ public sealed class FakeApi : HttpMessageHandler
         {
             "/api/me" => Identity(),
 
-            "/api/auth/request" => Status(LinkRequestAnswer),
+            "/api/auth/request" => LinkRequestReference is null
+                ? Status(LinkRequestAnswer)
+                : Json($"{{\"error\":\"Something went wrong at this end.\","
+                       + $"\"reference\":{Quote(LinkRequestReference)}}}", LinkRequestAnswer),
 
             // **The same identity `/api/me` gives, not a hardcoded one.** It used to answer with a
             // fixed key whatever `SignedIn` said, which made a test about two accounts on one

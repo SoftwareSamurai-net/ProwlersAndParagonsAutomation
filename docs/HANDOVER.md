@@ -199,6 +199,97 @@ Every one of these is asserted by a test, and all of them are load-bearing:
 
 ---
 
+## Error reporting: two audiences, one failure
+
+**Independent of the redesign and much smaller — a day, not a slice.** Take it whenever; it
+touches `worker/` and one client message and nothing the redesign will move.
+
+**Scoped here rather than built**, because the shape is a decision and the privacy half is not
+reversible once a table exists. [#66](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/66)
+did the cheap half already — a 500 is no longer reported as an unreachable site, and it carries a
+six-character reference that is also written to the log line. What is left is the part that needs
+designing.
+
+**The problem is that the two audiences want opposite things.** A visitor needs to know whether to
+retry, wait, or report — and nothing else, because an internal message is both meaningless to them
+and a disclosure. The owner needs to know what actually threw. Today the visitor gets one flat
+sentence and the owner gets a live tail: close it and the error is gone, so any failure nobody
+happened to be watching for is unrecoverable.
+
+### The middle ground: a closed set of categories
+
+Not a free-text message on either side. **The catch classifies the failure into a small fixed
+set**, and each side renders that category its own way:
+
+| Category | What the visitor is told | Why it is safe to say |
+|---|---|---|
+| `mail` | "We could not send the email just now." | Names a subsystem, not a cause. Tells them the address was fine and the useful move is to try later or report it. |
+| `storage` | "We could not save that just now." | Same shape. Distinguishes "your work did not persist" from "your work was rejected", which is the difference they actually need. |
+| `configuration` | "This site is not set up correctly. Reporting this would help." | The one that must never say retry, because retrying cannot fix it. This is the category the sign-in failure would have landed in. |
+| `unknown` | "Something went wrong at our end." | The honest default. Anything unclassified lands here rather than being guessed at. |
+
+**Three constraints on the taxonomy, and the first is a security property rather than a style
+rule:**
+
+- **A category may never depend on whether an account exists.** Every refusal to sign in says the
+  same thing today, and asking for a link always answers 204, precisely so the endpoint cannot be
+  used to ask whether an address is registered. A category that appeared only for known addresses
+  would reintroduce that oracle through the error path. Categories describe the *subsystem that
+  failed*, never the request that reached it.
+- **The set is closed and small.** A category per throw site becomes a description of the internals
+  by enumeration, which is the disclosure this is meant to avoid.
+- **`unknown` must stay reachable.** A taxonomy with no default grows a category for every new
+  failure, and the pressure is then to classify by guessing.
+
+### The private half
+
+**A table in D1, read by hand in SQL. No admin endpoint.**
+
+- **No admin route, deliberately.** `Identity` carries a key and a name and no role — there is a
+  test asserting the wire identity holds nothing else — so "am I an admin" is not a question the
+  client can ask, and inventing a role to answer it is a much larger change than this needs. The
+  precedent is `users.character_limit`, which is raised by hand in SQL on the reasoning that a cap
+  you can raise on yourself is not one. Read errors the same way: `wrangler d1 execute`.
+- **Never the address, and there is precedent in the schema's own comments.**
+  `0001_accounts.sql` says an id that is an address "puts the address into every log". The same
+  applies here, more directly. Store the route, the category, the exception's *type*, a timestamp
+  and the reference — and if the message is stored at all, redact it.
+- **On redaction, be honest about what it buys.** `users.email` is in that database in the clear
+  already, by necessity, so an error row is not a new exposure *boundary*. What redaction protects
+  against is different and still worth having: the error log is the thing most likely to be read
+  aloud, pasted into an issue, or screenshotted. An exception from D1 or a mail provider can quote
+  a query or an address — `worker/index.js` says so where it refuses to pass the message on — so a
+  stored message needs the addresses and long random strings stripped, and the table should never
+  be treated as safe to publish.
+- **Cap the writes.** A failing dependency will throw on every request, and an unbounded log turns
+  one outage into a full database. Dedupe on `(category, route)` inside a window, or keep a count
+  against one row rather than inserting per occurrence. Whatever the mechanism, **log what was
+  dropped** — a silently truncated error log reads as a quiet period.
+- **Prune.** Decide a retention window and enforce it in the same statement that writes, or it
+  will not happen.
+
+### What the tests have to pin
+
+Two of these are the point of the slice, and both are the plant-and-assert-absence shape this
+repository already uses:
+
+- **Throw an exception whose message contains an address and a token-shaped string, then assert
+  neither reaches the stored row** — with a positive control that a row was written at all, or the
+  assertion passes against a logger that silently does nothing. That control is not optional; this
+  repository has shipped four guards that passed by measuring nothing.
+- **Assert the public body carries a category and a reference and no exception text**, on the same
+  provoked failure. `AccountsContractTests` is the place that can see both halves of the wire.
+- **Assert the category never varies with account existence** — provoke the same subsystem failure
+  for a registered and an unregistered address and require identical bodies.
+
+### What this is not
+
+- **Not a third-party error service.** Nothing about who somebody is currently leaves the
+  Cloudflare account this site already deploys to, and that property is worth more than a nicer
+  dashboard.
+- **Not stack traces to the client**, in any environment. There is no debug build of a deployed
+  site here, so a flag that turns them on is a flag that is one mistake from being on.
+
 ## The strongest feature idea on the table: a searchable rules index
 
 Raised by the owner, and it is worth its own slice because **the data is already extracted and
