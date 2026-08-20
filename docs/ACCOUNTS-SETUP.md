@@ -89,10 +89,9 @@ name means every request answers 500, and nothing on the deploy says so.
 ## 4. A way to send mail
 
 Two providers are involved and it does not matter which you do first, but you cannot skip either.
-The domain is the one the site is served from — **`superheroes.softwaresamurai.net`** if you have the
-custom domain attached, else the `*.pages.dev` address will not work because **`pages.dev` cannot
-send mail**. Attach the custom domain first if it is not attached yet: **Workers & Pages → your
-Pages project → Custom domains tab → Set up a custom domain**.
+The domain is the one the site is served from — **`superheroes.softwaresamurai.net`**, which is
+attached to the Pages project already. It has to be a domain you control: **`pages.dev` cannot
+send mail**, so the `*.pages.dev` address is not an option here even though the site answers on it.
 
 ### 4a. Resend
 
@@ -103,6 +102,19 @@ Sign in to **[resend.com](https://resend.com)**. Then:
    **Websites → `softwaresamurai.net` → DNS → Records**, each with proxy status **DNS only**
    (the grey cloud — proxying a `TXT` record breaks verification). Wait for Resend to verify
    (usually a few minutes; the row goes green).
+
+   **Cloudflare appends the zone to whatever you type in the Name field**, and that is the one
+   way this step fails silently. Resend prints each record's name in full —
+   `resend._domainkey.superheroes.softwaresamurai.net` — and pasting that whole string produces
+   `resend._domainkey.superheroes.softwaresamurai.net.softwaresamurai.net`, a record at an
+   address nothing will ever look up. Enter the part *before* the zone only:
+   `resend._domainkey.superheroes`. Cloudflare shows you the full name it will save; read it
+   before saving. There is no error and no warning — the row simply stays *Pending* for ever,
+   which reads as slow propagation rather than as a typo.
+
+   **`amazonses.com` in the values is not a mistake.** Resend sends through Amazon SES, so the
+   SPF `include:` and the bounce-handling `MX` both name Amazon hosts. Nothing has gone wrong
+   and nothing needs an AWS account.
 
    **Verify the subdomain, never the apex, and this is not a style preference.** The apex
    `softwaresamurai.net` already carries a full Proton Mail configuration — the `MX` records that
@@ -122,7 +134,12 @@ Sign in to **[resend.com](https://resend.com)**. Then:
    so the subdomain inherits `p=quarantine`, and Resend's DKIM signature — issued for the
    verified subdomain — aligns with the `From` domain under DMARC's default relaxed mode.
 2. **API Keys → Create API Key →** name it something like *Prowlers and Paragons production*,
-   permission **Sending access**. Copy the key it shows once — you cannot see it again.
+   permission **Sending access**, and scope it to the one **Domain** you just verified rather
+   than leaving it able to send for all of them. Copy the key it shows once — a `re_…` string —
+   because you cannot see it again, only replace it.
+
+   The key can be created before verification finishes if you would rather not wait, but a send
+   against an unverified domain is refused, so there is nothing to test until the row is green.
 
 ### 4b. Three variables on the Pages project
 
@@ -138,6 +155,10 @@ is a real credential):
 | `RESEND_API_KEY` | the key Resend gave you |
 | `MAIL_FROM` | `no-reply@superheroes.softwaresamurai.net` — or any address on the verified domain |
 | `SITE_URL` | `https://superheroes.softwaresamurai.net` — no trailing slash |
+
+**`MAIL_FROM` need not be a mailbox that exists.** Nothing ever delivers to it — it is the `From`
+line and nothing else, and Resend checks only that the domain part is one you verified. A reply to
+a sign-in email goes nowhere, which is the intent.
 
 **All three are required, `SITE_URL` included.** It is what sign-in links point at, and the server
 **refuses to send one at all** without it — `/api/auth/request` answers 500 and writes nothing.
