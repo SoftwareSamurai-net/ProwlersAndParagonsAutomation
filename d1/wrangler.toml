@@ -27,4 +27,4 @@ database_name = "prowlers-and-paragons"
 # Filled in by `wrangler d1 create prowlers-and-paragons`, which prints it. It is an
 # identifier rather than a credential — it names a database and grants nothing — so it is
 # committed once it exists rather than kept out of the repository.
-database_id = "REPLACE-ME-SEE-docs/ACCOUNTS-SETUP.md"
+database_id = "57b6cdf2-300c-4cf4-8c19-8d2dcf9fcaed"
