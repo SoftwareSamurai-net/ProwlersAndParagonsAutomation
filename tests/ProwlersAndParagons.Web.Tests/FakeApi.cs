@@ -296,7 +296,7 @@ public sealed class FakeApi : HttpMessageHandler
             var email = sent.RootElement.GetProperty("email").GetString() ?? "";
             var grants = sent.RootElement.TryGetProperty("grantsAdmin", out var g) && g.GetBoolean();
 
-            if (!Invited.Any(i => i.Email == email))
+            if (Invited.All(i => i.Email != email))
             {
                 Invited.Add(($"i_{Invited.Count:D22}", email, grants, false, true));
             }

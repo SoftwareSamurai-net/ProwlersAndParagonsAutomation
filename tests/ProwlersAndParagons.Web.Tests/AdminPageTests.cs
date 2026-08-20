@@ -124,16 +124,14 @@ public sealed class AdminPageTests
     [Fact]
     public async Task AddingAnAddressPutsItOnTheList()
     {
-        using var ctx = Managing();
+        await using var ctx = Managing();
 
         var page = ctx.Render<Admin>();
         page.Find("#invite-email").Input("newcomer@example.test");
-        page.Find("form").Submit();
-
-        await Task.Yield();
+        await page.Find("form").SubmitAsync();
 
         Assert.Contains("POST /api/admin/invitations", ctx.Api.Asked);
-        page.WaitForAssertion(() =>
+        await page.WaitForAssertionAsync(() =>
             Assert.Contains("newcomer@example.test", page.Markup, StringComparison.Ordinal));
 
         // And the box is emptied, so a second click cannot re-send the first address.

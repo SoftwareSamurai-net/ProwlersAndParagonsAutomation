@@ -14,6 +14,11 @@ qodana.sarif.json
 # Generated character sheets — user output, not source
 output/
 
+# The published browser front end. Both .github/workflows/build.yml and deploy.yml publish
+# here, so it appears in any checkout where somebody has reproduced a CI step locally — which
+# is the recommended way to check the Content-Security-Policy before pushing.
+publish/
+
 # The published MCP server. The README tells a stranger to publish it here and point their
 # client at the binary, so the directory appears in a checkout that has followed the setup.
 mcp-server/

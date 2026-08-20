@@ -132,6 +132,23 @@ resharper_collection_never_updated_local_highlighting = none
 resharper_not_accessed_positional_property_local_highlighting = none
 resharper_class_never_instantiated_local_highlighting = none
 
+[web/Services/Invitations.cs]
+# The same objection as web/Services/ApiCharacterStore.cs directly above, for the
+# other half of the accounts wire. Invitation is the shape of what GET
+# /api/admin/invitations answers with: System.Text.Json constructs it through
+# reflection, so ClassNeverInstantiated is simply wrong about it.
+#
+# CreatedAt is the one nothing reads yet. It is bound because the server sends it
+# — worker/invitations.js puts created_at on every row — and an admin list that
+# says when an address was added is the obvious next thing to show. Acting on the
+# inspection would delete the property, which does not fail to build and quietly
+# takes the field off the client side of the wire.
+#
+# .Global rather than .Local because the record is public: the page renders it, so
+# it cannot be private to the file that parses it.
+resharper_class_never_instantiated_global_highlighting = none
+resharper_not_accessed_positional_property_global_highlighting = none
+
 [engine/CharacterValidator.cs]
 # Since the headless build command, this file's job includes checking a character
 # somebody else wrote — and a deserializer hands back null for a property whose
