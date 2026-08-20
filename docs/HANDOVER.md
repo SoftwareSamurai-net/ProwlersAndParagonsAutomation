@@ -12,7 +12,7 @@ Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this 
 
 ## Where things stand
 
-**4186 tests** — 3721 engine, 407 bUnit, 58 accounts — zero warnings at CI strictness, and a
+**4189 tests** — 3722 engine, 409 bUnit, 58 accounts — zero warnings at CI strictness, and a
 whole-tree Qodana scan reporting **0 findings** (measured on a clean `git archive` export, not
 assumed). Seven browser harnesses driven by headless Chrome in the build workflow. Live at
 **superheroes.softwaresamurai.net**.
@@ -59,15 +59,22 @@ demonstration.
 
 ### Where to start
 
-**The Hero Point budget is the strongest candidate and it is nearly free.** It already recomputes
-live, it already has a breakdown, it already animates between two engine answers, and it is the
-number a player actually watches. Making *that* the hero moment is the closest thing this app has
-to the dice roller. Read the `ppCount` rule in `CLAUDE.md` before touching it: an animation may
-interpolate between two engine answers and may never invent one.
+**The Hero Point budget was the strongest candidate and a first pass on it is done** — see
+"The Hero Point budget becomes the hero moment" in `PROGRESS.md`. The sticky strip's spend figure
+is now the app's largest numeral (`--text-3xl`, matching the four figures on the derived-stats
+step and the sheet) rather than a step behind them, set in `--heading` rather than plain ink; the
+breakdown disclosure draws each of the six categories as a proportional meter on the same
+`--accent`/`--panel-sunk` pair the sticky rail already uses, so a reader sees where the points
+went rather than only reading six numbers. **This did not touch the animation** — `ppCount` and
+the count-up behaviour are unchanged, and the `ppCount` rule in `CLAUDE.md` still applies to
+anything that does.
 
-Then `docs/FRONT-END-PLAN.md` — Phase 3's last two items (validation on the row where the mistake
-is made, and undo) and Phase 4, the sheet as a live preview column. **Phase 4 overlaps this
-heavily; do not do them separately.**
+**What is still open, and is the larger half of "make the substance visible":** a first screen
+that demonstrates the mechanic rather than describing it — the tier page (`/`) is still six cards
+of description, and the budget strip only exists once a tier is chosen, so it cannot be that
+first demonstration on its own. Then `docs/FRONT-END-PLAN.md` — Phase 3's last two items
+(validation on the row where the mistake is made, and undo) and Phase 4, the sheet as a live
+preview column. **Phase 4 overlaps this heavily; do not do them separately.**
 
 ### What the slice must not break
 

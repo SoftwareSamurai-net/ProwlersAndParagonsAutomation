@@ -2491,6 +2491,36 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// The Hero Point figure on the sticky budget strip is the app's largest numeral, not a
+    /// caption beside one.
+    ///
+    /// <para><b>Why this is a stylesheet test and not a bUnit one.</b> Emptying
+    /// <c>.budget-figure strong</c>'s <c>font-size</c> back to a body-adjacent size leaves the
+    /// same markup, the same class, and the same digits on screen — every render test that
+    /// asserts the figure is present would still pass. The size is entirely typographic, the
+    /// same reason <see cref="AHeroPointCostIsSetApartFromTheNumbersAPlayerRolls"/> reads the
+    /// parsed rule for <c>.hp</c> rather than rendered markup.</para>
+    ///
+    /// <para><b>Anchored to the scale's own top rung, not a value chosen here.</b>
+    /// <c>DerivedStatBlocks</c> already sets Edge, Health, Resolve and the Hero Point total at
+    /// <c>--text-3xl</c> on the derived-stats step and on the sheet; asserting the same token
+    /// on the strip is what makes the number a player watches continuously the same size as the
+    /// numbers they see occasionally, rather than a full step behind them.</para>
+    /// </summary>
+    [Fact]
+    public void TheWatchedFigureIsTheAppsLargestNumeral()
+    {
+        var size = EffectiveValue(ScreenHalfOfAppCss, ".budget-figure strong", "font-size", exact: true);
+        Assert.Equal("var(--text-3xl)", size);
+
+        // Coloured as a heading, not left in body ink — the figure this app is actually about
+        // reads as the point of the screen. --heading on --panel already holds its own floor
+        // in EveryScreenPairInUseHoldsItsContrastFloor, so this introduces no unmeasured pair.
+        var color = EffectiveValue(ScreenHalfOfAppCss, ".budget-figure strong", "color", exact: true);
+        Assert.Equal("var(--heading)", color);
+    }
+
+    /// <summary>
     /// The <c>Abilities (…)</c> line that opens a Source group is set apart from the Powers
     /// under it. It is not a Power — no rank, no cost — and in the same face it reads as the
     /// first entry in the list, which is a misreading the markup cannot prevent: the class is

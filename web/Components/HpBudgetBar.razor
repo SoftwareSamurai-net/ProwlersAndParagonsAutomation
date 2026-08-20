@@ -3,8 +3,10 @@
 @inject Motion Motion
 
 @* The Hero Point budget, straight from CostCalculator — nothing here adds anything up.
-   Hidden entirely in Villain mode: Ch.9 gives Villains no budget, so a bar showing 0/0
-   and an over-budget error would both be wrong rather than merely unhelpful.
+   **Not hidden in Villain mode** — see the note below this one. It used to be: Ch.9 gives
+   Villains no budget in the same sense a Hero always has one, and that was read as "no strip"
+   rather than as the GM sandbox it actually is. A Villain is held to the tier's points exactly
+   like a Hero unless the sandbox toggle says otherwise, which either kind of character can set.
 
    **It is a strip of chrome rather than a panel of content.** A persistent budget is an
    ambient status indicator: it belongs where the banner is, not in the column the reader
@@ -119,18 +121,29 @@
         @if (_open)
         {
             <div id="budget-breakdown" class="breakdown">
-                <span>Package <b class="num">@Cost(() => Session.Costs.PackageCost(Session.Sheet))</b></span>
-                <span>Abilities <b class="num">@Cost(() => Session.Costs.AbilityCost(Session.Sheet))</b></span>
-                <span>Talents <b class="num">@Cost(() => Session.Costs.TalentCost(Session.Sheet))</b></span>
-                <span>Powers <b class="num">@Cost(() => Session.Costs.TotalPowersCost(Session.Sheet))</b></span>
-                <span>Perks <b class="num">@Cost(() => Session.Costs.TotalPerksCost(Session.Sheet))</b></span>
-                <span>Gear <b class="num">@Cost(() => Session.Costs.TotalGearCost(Session.Sheet))</b></span>
-                @* The one term in this row that is a rule rather than a heading. The others name
-                   sections of the sheet and explain themselves; this one is a limit whose
-                   consequence is not on screen anywhere near the figure. *@
-                <span>Trait Cap <b class="num">@Session.TraitCap<span class="muted">d</span></b><Tooltip
-                    Term="the Trait Cap"
-                    Text="The highest rank any single Trait may reach at this tier. It applies to Abilities, Talents and a Power's effective rank alike, and the GM review step names anything over it." /></span>
+                @* Six categories, as a share of the spend rather than only a number beside a
+                   label. **The bar is decoration, not information**: the numeral beside it
+                   already says the same thing in words, so the track is hidden from assistive
+                   technology rather than announced twice. Same fill on the same track as the
+                   rail above — this is that rail's own numbers, broken out rather than a new
+                   visual idiom. *@
+                <div class="breakdown-bars">
+                    @foreach (var (label, value) in BreakdownEntries)
+                    {
+                        <span class="label">@label</span>
+                        <span class="track" aria-hidden="true"><span class="fill" style="width:@(Share(value, spent))%"></span></span>
+                        <b class="num">@(value?.ToString() ?? "—")</b>
+                    }
+                </div>
+
+                @* The one entry here that is a rule rather than a spend. It carries no share of
+                   the meters above — a Trait Cap is not part of the total — so it sits apart
+                   the way the sheet sets a rule apart from a figure. *@
+                <div class="breakdown-note">
+                    <span>Trait Cap <b class="num">@Session.TraitCap<span class="muted">d</span></b></span>
+                    <Tooltip Term="the Trait Cap"
+                        Text="The highest rank any single Trait may reach at this tier. It applies to Abilities, Talents and a Power's effective rank alike, and the GM review step names anything over it." />
+                </div>
             </div>
         }
     </section>
@@ -204,8 +217,36 @@
         await Motion.Count(figure, from, spent.Value);
     }
 
-    private static string Cost(Func<int> cost) =>
-        CharacterSession.TryCost(cost)?.ToString() ?? "—";
+    /// <summary>
+    /// The six things a spend is made of, in the order the breakdown prints them — the same
+    /// six calls <see cref="ProwlersAndParagonsAutomation.Engine.CostCalculator.TotalCost"/>
+    /// itself sums, read individually so their shares can be drawn rather than only their
+    /// numbers. A category that cannot be costed comes back null rather than 0, same as the
+    /// strip's own figure — 0 would be a lie about a character this is not answerable for.
+    /// </summary>
+    private IEnumerable<(string Label, int? Value)> BreakdownEntries =>
+        new (string Label, Func<int> Cost)[]
+        {
+            ("Package",   () => Session.Costs.PackageCost(Session.Sheet)),
+            ("Abilities", () => Session.Costs.AbilityCost(Session.Sheet)),
+            ("Talents",   () => Session.Costs.TalentCost(Session.Sheet)),
+            ("Powers",    () => Session.Costs.TotalPowersCost(Session.Sheet)),
+            ("Perks",     () => Session.Costs.TotalPerksCost(Session.Sheet)),
+            ("Gear",      () => Session.Costs.TotalGearCost(Session.Sheet)),
+        }.Select(entry => (entry.Label, CharacterSession.TryCost(entry.Cost)));
+
+    /// <summary>
+    /// One category's share of the total spend, as a percentage of the meter's own width.
+    ///
+    /// <para>0 when nothing is spent yet, when the total itself could not be costed, or when
+    /// this one category could not be — never negative and never over 100 even if a Con
+    /// somewhere upstream priced something below zero. Both numbers are the engine's; nothing
+    /// here invents a share for a character it cannot answer for.</para>
+    /// </summary>
+    private static int Share(int? value, int? total) =>
+        value is null || total is null || total.Value <= 0
+            ? 0
+            : Math.Clamp(value.Value * 100 / total.Value, 0, 100);
 
     public void Dispose() => Session.Changed -= StateHasChanged;
 }

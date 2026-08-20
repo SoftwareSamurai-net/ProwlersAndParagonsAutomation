@@ -59,7 +59,12 @@ public sealed class ProofPages
             ctx.Render<CommandPalette>().Markup);
         ctx.Services.GetRequiredService<Commands>().Close();
 
-        Section(body, "The budget, as a strip of chrome", ctx.Render<HpBudgetBar>().Markup);
+        // The breakdown is disclosed on request and proofed shut shows nothing but the strip
+        // itself — the same trap as the palette above, and the one this section exists to
+        // avoid: the meters that show where the points went only render once opened.
+        var budget = ctx.Render<HpBudgetBar>();
+        budget.Find(".budget-toggle").Click();
+        Section(body, "The budget, as a strip of chrome", budget.Markup);
         Section(body, "Tier — a card grid", ctx.Render<ChooseTier>().Markup);
         Section(body, "The portfolio — the demonstrations, out of the tool",
             ctx.Render<Portfolio>().Markup);

@@ -213,4 +213,71 @@ public sealed class BudgetStripTests
         var spent = ctx.Session.Costs.TotalCost(ctx.Session.Sheet);
         Assert.Contains(spent.ToString(), rail.GetAttribute("aria-valuetext") ?? "", StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// The breakdown's six categories are shown as a share of the spend, not only as a number
+    /// beside a label — and the shares are the engine's own six figures, read independently
+    /// here rather than recomputed, so the test cannot agree with the component by sharing its
+    /// arithmetic.
+    ///
+    /// <para><b>Positive control first.</b> The Hero sample spends real Hero Points on at
+    /// least Abilities, Talents and Powers, so asserting a non-zero meter width for those three
+    /// is a check that the feature drew something, not merely that a zero-width bar failed to
+    /// look wrong.</para>
+    /// </summary>
+    [Fact]
+    public void TheBreakdownShowsEachCategorysShareOfTheSpend()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+
+        var strip = ctx.Render<HpBudgetBar>();
+        strip.Find(".budget-toggle").Click();
+
+        var labels = strip.FindAll(".breakdown-bars .label").Select(e => e.TextContent).ToList();
+        Assert.Equal(["Package", "Abilities", "Talents", "Powers", "Perks", "Gear"], labels);
+
+        var fills = strip.FindAll(".breakdown-bars .fill");
+        Assert.Equal(6, fills.Count);
+
+        var sheet = ctx.Session.Sheet;
+        var costs = ctx.Session.Costs;
+        int[] values =
+        [
+            costs.PackageCost(sheet), costs.AbilityCost(sheet), costs.TalentCost(sheet),
+            costs.TotalPowersCost(sheet), costs.TotalPerksCost(sheet), costs.TotalGearCost(sheet),
+        ];
+
+        // The six categories are what the total is made of — read from the calculator
+        // independently of the component, so this is not the component checking its own
+        // addition.
+        var total = costs.TotalCost(sheet);
+        Assert.Equal(total, values.Sum());
+
+        for (var i = 0; i < values.Length; i++)
+        {
+            var expected = Math.Clamp(values[i] * 100 / total, 0, 100);
+            var style = fills[i].GetAttribute("style") ?? "";
+            Assert.Contains($"width:{expected}%", style, StringComparison.Ordinal);
+        }
+
+        // The positive control: three categories the Hero sample is known to spend on actually
+        // drew a non-empty meter, rather than every bar being a plausible-looking zero.
+        Assert.True(values[1] > 0, "Abilities: nothing spent, so the meter proves nothing.");
+        Assert.True(values[2] > 0, "Talents: nothing spent, so the meter proves nothing.");
+        Assert.True(values[3] > 0, "Powers: nothing spent, so the meter proves nothing.");
+
+        // The numeral beside each meter is the same figure the meter draws, in words — the
+        // meter is decoration on top of an existing answer, not a second source of truth.
+        var numerals = strip.FindAll(".breakdown-bars .num").Select(e => e.TextContent).ToList();
+        for (var i = 0; i < values.Length; i++)
+            Assert.Equal(values[i].ToString(), numerals[i]);
+
+        // Decorative: the numeral already carries the information in words.
+        Assert.All(strip.FindAll(".breakdown-bars .track"),
+            track => Assert.Equal("true", track.GetAttribute("aria-hidden")));
+
+        // Trait Cap is a rule, not a spend, and is not one of the six meters.
+        Assert.Single(strip.FindAll(".breakdown-note"));
+        Assert.Contains("Trait Cap", strip.Find(".breakdown-note").TextContent, StringComparison.Ordinal);
+    }
 }

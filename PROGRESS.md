@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4187 across three suites — 3721 on the engine, 408 rendering components with bUnit, 58 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus seven browser harnesses driven by headless Chrome |
+| Tests | 4189 across three suites — 3722 on the engine, 409 rendering components with bUnit, 58 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus seven browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -303,6 +303,59 @@ visible rather than described — numbers as design material, the Hero Point bud
 moment, and a first screen that demonstrates the mechanic instead of listing features. That is the
 larger half of the brief and it is easier to build against four settled palettes than alongside
 them.
+
+### The Hero Point budget becomes the hero moment — a first step, not the whole brief
+
+**The handover named the Hero Point budget as the cheapest, strongest starting point for "make
+the substance visible", and this slice is that step alone** — not the first-screen dice-style
+demonstration, not Phase 3's validation-on-the-row or undo, not Phase 4's live sheet preview.
+Those stay open below.
+
+**The number a player watches continuously used to be a full step smaller than the numbers they
+see occasionally.** `DerivedStatBlocks` already sets Edge, Health, Resolve and the Hero Point
+total at `--text-3xl` on the derived-stats step and on the sheet; the sticky strip printed the
+same total at `--text-xl` in the one place it changes every few seconds while a character is
+being built. Raised to match — the app's largest numeral, not a caption beside one — and set in
+`--heading` rather than plain ink, the same role the tier cards and the active step already
+carry. Both are text roles already held to their 4.5:1 floor on `--panel` in all four palettes,
+so nothing new needed measuring.
+
+**The breakdown disclosure became a small bar chart, not only a row of numbers.** The six
+categories `TotalCost` sums — Package, Abilities, Talents, Powers, Perks, Gear — now each draw a
+meter sized to their own share of the spend, using the same `--accent` fill on `--panel-sunk`
+track the sticky rail above them already uses: one visual idiom applied twice, not a second one
+invented. Trait Cap is not a spend and carries no meter; it sits below the six as a rule, set
+apart the same way the sheet sets a rule apart from a figure. The meter is decoration — the
+numeral beside it already carries the same figure in words, so the track is `aria-hidden`.
+
+**Proved by breaking, on both the new engine-adjacent logic and the CSS no bUnit test can see.**
+`HpBudgetBar.Share` forced to return 0 failed `TheBreakdownShowsEachCategorysShareOfTheSpend`'s
+width assertions (`width:0%` where `width:38%` was expected) — restored, and the whole suite
+re-run green afterwards, not only before. `.budget-figure strong`'s `font-size` reverted to
+`--text-xl` failed `TheWatchedFigureIsTheAppsLargestNumeral` the same way, which is the test that
+exists precisely because a stylesheet-only regression is invisible to every rendered-markup
+assertion in the project.
+
+**A stale doc comment in the file was corrected in passing.** `HpBudgetBar.razor`'s own opening
+comment still claimed the strip was "Hidden entirely in Villain mode" — true before the sandbox
+toggle existed, and contradicted three paragraphs later in the same file and by
+`AVillainIsStillHeldToTheTiersBudget`. Left as found, it is exactly the kind of thing `CLAUDE.md`
+warns a stale note becomes: something the next reader trusts because it is close to the code.
+
+**Still open, and larger than this slice:**
+
+- **The first screen that demonstrates rather than describes.** pnpready's landing page rolls
+  dice and lays the arithmetic out before anybody signs up; this app's first screen (`/`, the
+  tier page) is still a description of six tiers. The budget strip only exists once a tier is
+  chosen, so it cannot itself be that first demonstration — something on the tier page, or a
+  worked example on `/portfolio`, still could be.
+- **Phase 3's validation-on-the-row and undo**, from `docs/FRONT-END-PLAN.md`.
+- **Phase 4, the sheet as a live preview column** — explicitly said to overlap this heavily and
+  not to be done separately, and not attempted here for that reason: it means widening
+  `--column` above a breakpoint, which the shell, the sheet and the replay all cap on, and that
+  is a decision of its own rather than a side effect of a budget-bar change.
+- **No visual regression testing**, unchanged from the last slice's handover — four palettes and
+  a proportional bar chart are more, not fewer, pixels nobody but a person is checking.
 
 ### Characters, plural: a manager, imports, and the export the app was not writing
 

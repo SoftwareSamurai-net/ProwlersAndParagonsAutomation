@@ -318,14 +318,25 @@ hr {
 }
 .budget-strip .spacer { margin-left: auto; }
 
-/* The figure that moves, and the constant it is measured against. */
+/* The figure that moves, and the constant it is measured against.
+
+   **This is the number a player actually watches, and it used to be quieter than the
+   figures it leads to.** `DerivedStatBlocks` sets the same total at --text-3xl on the
+   derived-stats step and on the sheet itself; the strip printed it at --text-xl, a full
+   step down, in the one place it changes every few seconds while the character is being
+   built. Raised to match — the app's largest numeral, not a caption beside one — and set
+   in --heading rather than plain ink, the same role the tier cards and the active step
+   already carry, so the figure this app is actually about reads as the point of the
+   screen. Both are text roles already held to 4.5:1 on --panel; nothing new to measure. */
 .budget-figure { display: inline-flex; align-items: baseline; gap: var(--space-1); }
 .budget-figure strong {
     font-family: var(--font-display);
     font-variant-numeric: tabular-nums;
-    font-size: var(--text-xl);
+    font-size: var(--text-3xl);
+    font-weight: 700;
     line-height: var(--display-leading);
     letter-spacing: var(--display-track);
+    color: var(--heading);
 }
 .budget-of {
     font-family: var(--font-display);
@@ -384,8 +395,8 @@ hr {
 
 .breakdown {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-3) var(--space-5);
+    flex-direction: column;
+    gap: var(--space-3);
     max-width: var(--column);
     margin: 0 auto;
     padding: var(--space-3) var(--space-6) var(--space-4);
@@ -394,6 +405,42 @@ hr {
     animation: rise var(--enter) var(--ease-out) both;
 }
 .breakdown b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* Where the points went, as a proportion of the spend rather than only a number beside a
+   label — six rows, three columns: the label, a meter sized to that category's own share,
+   and the number itself. **The meter is the rail above, broken out rather than reinvented**:
+   the same --accent fill on the same --panel-sunk track, so this is one visual idiom used
+   twice and not two. */
+.breakdown-bars {
+    display: grid;
+    grid-template-columns: minmax(6rem, auto) 1fr auto;
+    align-items: center;
+    column-gap: var(--space-3);
+    row-gap: var(--space-1);
+}
+.breakdown-bars .track {
+    display: block;
+    height: var(--space-2);
+    background: var(--panel-sunk);
+    border-radius: var(--radius-hair);
+    overflow: hidden;
+}
+.breakdown-bars .fill {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+    transition: width var(--enter) var(--ease-out);
+}
+
+/* Trait Cap is a rule, not a spend — it carries no share of the meters above it, so it sits
+   apart from them the way the sheet sets a rule apart from a figure. */
+.breakdown-note {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--rule);
+}
 
 /* ── Panels ──────────────────────────────────────────────────────────────── */
 
