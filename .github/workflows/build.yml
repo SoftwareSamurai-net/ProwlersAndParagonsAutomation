@@ -177,3 +177,25 @@ jobs:
           done
           [ "$missing" -eq 0 ] && echo "Published site is complete."
           exit "$missing"
+
+      - name: The deploy would parse this
+        # **The reason this step exists.** Wrangler's bundled esbuild is older than Node's, and
+        # for one week that difference shipped through both suites and a whole-tree Qodana scan
+        # to fail on the *deploy* — `import ... with { type: 'json' }` is Node-native and refused
+        # by the bundler. Nothing before this step ran the same command the deploy runs.
+        #
+        # `--dry-run` builds everything the deploy would build and stops before uploading, so it
+        # needs no Cloudflare credentials — safe for `pull_request`, which the deploy itself
+        # deliberately is not. Same wrangler version as the deploy action, or the point is lost.
+        run: |
+          # Assign, then replace on failure. `$(... || echo 3.90.0)` concatenates.
+          version=$(sed -n 's/^.*wrangler-action@v3.*# wrangler=\([0-9.]*\).*$/\1/p' .github/workflows/deploy.yml) || version=''
+          [ -n "$version" ] || version=3.90.0
+
+          echo "Dry-running the deploy with wrangler@$version, the same version as deploy.yml."
+
+          npx --yes wrangler@"$version" pages deploy publish/wwwroot \
+            --project-name=prowlers-and-paragons \
+            --branch=deploy-dry-run \
+            --commit-dirty=true \
+            --dry-run
