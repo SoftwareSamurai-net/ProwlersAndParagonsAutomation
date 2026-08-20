@@ -215,6 +215,21 @@ None of the 33 was a bug in the product. Every one was a **test that did not hol
 to hold**, which is a different and quieter problem: the suite's headline number goes up and its
 grip does not.
 
+### 7. The pre-1.0 audit
+
+The last pass before tagging `v1.0.0`, done as a separate slice, both halves cheapest to
+delegate to no-context agents:
+
+- **Is the codebase as optimised as it should be?** Dead code marked for removal, hot paths on
+  the engine, payload waste, and the token side — files a subagent has to load before it can
+  do anything useful.
+- **Is it snapshotable to a fresh AI agent?** What can a new session read to know what this
+  repo is and where the load-bearing pieces are, without re-tracing every past decision? The
+  audit's job is to say what would improve `CLAUDE.md` — a redraft, or smaller pointer files
+  for common tasks.
+
+Do it once the HTTP API stops moving, so audit targets are not shifting under it.
+
 ---
 
 ## Completed work
@@ -273,6 +288,13 @@ mutation, and one agent did 19 of them. That is the discipline that catches six-
 in the fix pass, but the demand has to be *scoped*: mutate the security and ordering guards,
 filter tests to affected classes, and let landing come before verification rather than block on
 it. See the memory note about it.
+
+### #57: bake the rulebook, bundle on CI
+
+Master's deploy went red after #55 landed — the wrangler pinned in `deploy.yml` predates JSON
+import attributes. The corpus is baked into `worker/corpus.js` by `scripts/inline-rulebook.mjs`,
+and CI now runs `wrangler pages functions build` at the pinned version so a bundler difference
+fails the PR. Details and both guards are in `CLAUDE.md`'s accounts-server section.
 
 ### Accounts: one character, one account, and the book behind a sign-in
 

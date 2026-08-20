@@ -67,6 +67,35 @@ test('a trailing slash is the same address', async () => {
     assert.equal((await app.call('/api/me/', { cookie })).status, 200);
 });
 
+test('the inlined rulebook is in step with data/rulebook/', async () => {
+    // **Baked, not imported.** `worker/corpus.js` inlines Chapter 2 as an object literal because
+    // both spec spellings of a JSON import broke somewhere: `with { type: 'json' }` is not
+    // understood by wrangler 3.90's bundled esbuild, so the deploy went red after this branch
+    // was already reviewed; the older `assert { type: 'json' }` is loudly deprecated in Node 22.
+    // See `scripts/inline-rulebook.mjs`.
+    //
+    // The trap is that a stale bake looks exactly like a fresh one until somebody reads the
+    // book. This asserts the bake is byte-for-byte what the extractor last produced, so a
+    // regenerated corpus that nobody re-baked fails on the PR rather than on the deploy after.
+    const { readFile } = await import('node:fs/promises');
+    const { fileURLToPath } = await import('node:url');
+    const { dirname, join } = await import('node:path');
+
+    const here = dirname(fileURLToPath(import.meta.url));
+    const repo = join(here, '..', '..');
+
+    const source = JSON.parse(
+        await readFile(join(repo, 'data', 'rulebook', 'ch02-characters.json'), 'utf8'));
+
+    const { CHAPTERS } = await import('../../worker/corpus.js');
+
+    assert.equal(CHAPTERS.length, 1);
+    assert.deepEqual(CHAPTERS[0], source,
+        'worker/corpus.js is out of step with data/rulebook/ch02-characters.json. '
+        + 'Re-run: node scripts/inline-rulebook.mjs');
+});
+
+
 test('the routed entry point actually loads', async () => {
     // **Nothing else in this suite loads it.** Every other test imports `worker/index.js`
     // directly, so a broken path in the one file Cloudflare routes — or a corpus import that

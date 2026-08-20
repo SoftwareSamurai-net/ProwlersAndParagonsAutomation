@@ -6,7 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -79,19 +79,7 @@ test('an expired session reads nothing either', async () => {
 test('the corpus is not in the browser payload', () => {
     // The whole access control is where the file is. A copy under wwwroot is a public URL, and
     // no amount of checking sessions in this directory would make it not be one.
-    //
-    // **`wwwroot/data` is staged by the build and is gitignored**, so on a checkout nobody has
-    // built it does not exist at all — which used to throw ENOENT and read as this guard failing.
-    // A missing directory genuinely satisfies the claim: nothing is staged, so the corpus is not.
-    // It is reported rather than silently passed, because "there was nothing to check" and "I
-    // checked and it was fine" are different answers and only one of them is evidence.
     const staged = join(root, 'web', 'wwwroot', 'data');
-
-    if (!existsSync(staged)) {
-        console.log('    (nothing staged into wwwroot yet — build web/ to make this a real check)');
-        return;
-    }
-
     const directories = readdirSync(staged, { withFileTypes: true })
         .filter(e => e.isDirectory()).map(e => e.name);
 
@@ -112,15 +100,20 @@ test('the index takes the first of two sections sharing a heading', () => {
     assert.equal(entries.get('ARMOR').text, 'the entry');
 });
 
-test('every chapter the server bundles is one the repository generated', () => {
-    // `corpus.js` names its imports one at a time on purpose — adding a chapter is a decision
-    // about what an account is entitled to read. This is what fails if one is added by hand
-    // rather than taken from the extractor's output.
-    const source = readFileSync(join(root, 'worker', 'corpus.js'), 'utf8');
-    const imported = [...source.matchAll(/'\.\.\/data\/rulebook\/([^']+)'/g)].map(m => m[1]);
+test('every chapter the bake reads is one the repository generated', () => {
+    // `scripts/inline-rulebook.mjs` reads one chapter file — adding a chapter is a decision about
+    // what an account is entitled to read, not a glob. This is what fails if a chapter is added
+    // by hand rather than taken from the extractor's output.
+    //
+    // (The point moved from `worker/corpus.js` to the bake script when the JSON stopped being
+    // *imported* and started being *inlined*, for the reasons in the sync test above. The claim
+    // and its guard are unchanged; only the file the claim lives in is different.)
+    const source = readFileSync(join(root, 'scripts', 'inline-rulebook.mjs'), 'utf8');
+    const named = [...source.matchAll(/['"]data\/rulebook\/([^'"]+)['"]|'data', 'rulebook', ['"]([^'"]+)['"]/g)]
+        .flatMap(m => [m[1], m[2]]).filter(Boolean);
 
-    assert.ok(imported.length > 0, 'the server bundles no rulebook at all');
+    assert.ok(named.length > 0, 'the bake script names no chapter at all');
 
     const onDisk = readdirSync(join(root, 'data', 'rulebook'));
-    for (const file of imported) assert.ok(onDisk.includes(file), file + ' is not in data/rulebook/');
+    for (const file of named) assert.ok(onDisk.includes(file), file + ' is not in data/rulebook/');
 });

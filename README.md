@@ -157,7 +157,12 @@ It is deliberately **not** summarised here. This section twice grew a numbered c
 
 ## Versioning
 
-This project follows [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/).
+Two things are stable across changes here and tested to stay that way: `data/rules/` and the
+character JSON (what a saved sheet, `.character.json` and `build --from` all depend on).
+
+The HTTP API is not stable yet — `/api/character` became `/api/characters/{id}` recently. When
+it stops moving this repo will adopt [Semantic Versioning](https://semver.org/) and
+[Conventional Commits](https://www.conventionalcommits.org/) at 1.0.
 
 ---
 
