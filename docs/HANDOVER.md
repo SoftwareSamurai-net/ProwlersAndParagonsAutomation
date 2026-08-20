@@ -10,7 +10,7 @@ Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this 
 
 ## Where things stand
 
-**4130 tests** — 3685 engine, 387 bUnit, 58 accounts — zero warnings at CI strictness, and a
+**4133 tests** — 3688 engine, 387 bUnit, 58 accounts — zero warnings at CI strictness, and a
 whole-tree Qodana scan reporting **0 findings** (measured on a clean `git archive` export, not
 assumed). Live at **superheroes.softwaresamurai.net**.
 
@@ -66,28 +66,63 @@ the validator names the rule you broke, there is a replay of real conversations,
 modelled on the published one, and an MCP server. A visitor sees none of that in the first
 screen. **The redesign's job is to make the substance visible, not to add decoration.**
 
-### The one decision to make before designing anything
+### The palette decision is made: two independent axes
 
-The user's own framing was *"hero/villain as light/dark modes"*. That is currently **not** how it
-works, and the difference is a real fork:
+**Light/dark × Hero/Villain, four token sets.** Chosen by the owner over the cheaper options,
+explicitly on quality grounds. Do not re-litigate it.
 
-- **Today:** `:root[data-mode="hero"]` and `:root[data-mode="villain"]` are two palettes of the
-  same lightness. There is no `prefers-color-scheme` anywhere in `web/wwwroot/css/` — grep it —
-  and no light/dark concept at all. A third palette exists inside `@media print`.
-- **Option A — Hero is light, Villain is dark.** One axis. Cheapest, and it makes the mode
-  switch dramatic. But it re-couples identity to theme, which this codebase deliberately
-  separated (`IsVillain` is presentation and nothing else), and it means a player who wants a
-  dark UI has to build a Villain.
-- **Option B — two independent axes:** light/dark × Hero/Villain, four token sets. Correct, and
-  what "dark mode" normally means. Four times the palette work and every contrast pair needs
-  re-measuring.
-- **Option C — commit to dark only**, as the reference does, keeping Hero/Villain as accent
-  identity within it. One palette to get right, the most confident look, and print is already a
-  separate palette so paper is unaffected.
+**First, correct the record about what exists today**, because the previous version of this file
+got it wrong and the mistake is instructive. It claimed the app has no light/dark concept, on the
+evidence that `prefers-color-scheme` appears nowhere in `web/wwwroot/css/`. That is true and
+irrelevant — it checks for the *mechanism* rather than reading the *values*:
 
-**Recommendation: C.** It is the least work of the three, it is the direction the comparison
-points at, and it does not put a mechanic back on `IsVillain`. Confirm with the owner before
-starting — this decides the whole slice.
+| | `--ink` | `--panel` |
+|---|---|---|
+| Hero | `#0F1B2D` | `#FFFFFF` |
+| Villain | `#EDE8E4` | `#1C1C22` |
+
+**Villain is already a dark theme.** Hero is dark-on-white, Villain is near-white on near-black.
+So today is effectively "Hero is light, Villain is dark" with no system-preference input. The
+slice is therefore not *introducing* dark — it is **decoupling** darkness from identity, which is
+the same separation `IsVillain` already has on the mechanical side.
+
+What that means concretely:
+
+- **Four palettes**, and the honest framing is that two of them exist and two do not: Hero-light
+  is today's Hero, Villain-dark is today's Villain. **Hero-dark and Villain-light are new**, and
+  Villain-light is the hard one — a crimson-and-gold identity on white, without becoming the
+  Hero palette in different hues.
+- **Three theme states, not two.** An explicit choice stamps `data-theme="light"` / `"dark"`;
+  the default stamps nothing, and only `prefers-color-scheme` separates the two. So each mode
+  needs: a bare block (light), a `@media (prefers-color-scheme: dark)` block guarded as
+  `:root[data-mode="x"]:not([data-theme="light"])`, and a `:root[data-theme="dark"][data-mode="x"]`
+  block so the toggle wins over the OS in both directions. Six blocks plus print.
+- **A theme control, and its state is not on the character.** Whether somebody prefers dark is a
+  fact about a person and a browser, not about a Hero — so it belongs in local storage beside the
+  existing preferences, never on `CharacterSheet`. `IsVillain` stays what it is. `Theme` already
+  applies `data-mode` from the character on the render after any change; extend it rather than
+  adding a second interop path, and keep it guarded the way `Motion` and `Shortcuts` are.
+- **The print palette is unaffected and must stay so.** It already restates every screen token,
+  and there is a test that it does. Paper is white in all four.
+
+**The instrument for this already exists now — use it.** `EveryScreenPairInUseHoldsItsContrastFloor`
+and `TheContrastInstrumentReproducesTheKnownFailures` in `WebPresentationTests` measure real WCAG
+ratios, resolve `var()` and `color-mix()`, and are `[Theory]`-shaped on mode. **Add the two new
+palettes as theory rows and let the test tell you what is unreadable** rather than adjusting by
+eye. Two things it already established that will bite:
+
+- Villain `--heading` on `--accent-soft` is **4.09:1** and `--danger` on `--danger-soft` is
+  **3.94:1** — both under the 4.5:1 text floor. They are safe *today* only because the hover
+  grounds moved to `--panel-sunk` so nothing shows either pair at once. A new palette that puts
+  them together resurrects a real bug.
+- `--focus` is held to 3:1, not 4.5:1, because a focus ring is a non-text indicator under WCAG
+  1.4.11. It is a separate token from `--accent` because Hero `--accent` is **1.84:1** and
+  invisible as a ring. Keep them separate in all four.
+
+And the gap the instrument does *not* close: it reads `theme.css` statically, so it cannot see a
+pair that only occurs because some component puts two tokens together. `--muted` on
+`--accent-soft` is not asserted because nothing currently does that; if the redesign introduces
+it, add the row.
 
 ### What the slice must not break
 
@@ -149,6 +184,41 @@ Every one of these is asserted by a test, and all of them are load-bearing:
 
 ---
 
+## The strongest feature idea on the table: a searchable rules index
+
+Raised by the owner, and it is worth its own slice because **the data is already extracted and
+nobody is reading it.** `data/rulebook/` holds the printed text of all ten chapters with the page
+each section came from, generated by `tools/RulebookExtractor` and guarded by tests. Today it is
+served one entry at a time, Chapter 2 only, beside a Power in the editor.
+
+Why it is the strongest candidate:
+
+- **It is useful at the table**, which nothing else here is. Character creation happens once;
+  looking a rule up happens every session. It is also what the comparison app leads its
+  navigation with — *Library*, and *"Search the rules"*.
+- **The expensive half is done.** Extraction was the hard, subtle part — two-column layout,
+  per-page gutter detection, watermark removal by font, headings by typeface. That is finished
+  and tested.
+- **It composes with the sign-in that now works.** The reader is already account-gated, and
+  `data/rulebook/` is deliberately not staged into `wwwroot` — that placement *is* the access
+  control, and there is a test on both sides of the repository.
+
+What a slice would actually involve:
+
+- **A decision about entitlement first, not last.** Serving all ten chapters to any account is a
+  different thing from serving Chapter 2 beside a Power. The corpus is the book's text, held here
+  by the author's permission to the repository owner — so who may read how much of it is the
+  owner's call and should be settled before any UI exists.
+- **Search that admits when it found nothing.** `search_powers` in the MCP server already solved
+  the harder version of this problem and the reasoning transfers directly: matching is word by
+  word with a shared-prefix rule rather than by substring, because substring matching answered
+  *"she bakes bread in the city"* with **Plasticity** — and a wrong match that looks plausible is
+  worse than no match. Read `Mentions` and its tests before writing a second search.
+- **Index server-side, not in the browser.** The corpus is ~250KB for one chapter; ten chapters
+  in the WebAssembly payload is not viable and would also put the book on the open web.
+- **Cite the page.** Every section carries its printed page number. A rules answer that names
+  "Ch.2 p.29" is checkable against the book on the table; one that does not is a claim.
+
 ## Not this slice, but still open
 
 - **Read-only share links.** The `add-read-only-share-links` task carries the brief:
@@ -167,7 +237,7 @@ Every one of these is asserted by a test, and all of them are load-bearing:
 
 ## What previous sessions got wrong, so you do not repeat it
 
-- **A green suite is not a working app.** Three visible defects survived 4130 tests. Anything
+- **A green suite is not a working app.** Three visible defects survived 4133 tests. Anything
   whose substance is *appearance* has no guard in this repository at all.
 - **Qodana's PR-mode count is not comparable to a whole-tree scan.** It reported "9 new problems"
   on a PR that changed one Markdown file. Run the scan yourself on a clean export.
