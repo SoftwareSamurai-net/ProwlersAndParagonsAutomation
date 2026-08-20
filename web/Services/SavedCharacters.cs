@@ -88,7 +88,7 @@ public sealed class SavedCharacters
     /// <see cref="CharacterStore"/> used to write to directly. Anonymous keeps the bare,
     /// historical key; an account gets its own beside it rather than on top of it.
     /// </summary>
-    internal static string PrefixFor(Identity who) =>
+    private static string PrefixFor(Identity who) =>
         who.Key == Identity.Anonymous.Key ? StorageKey : $"{StorageKey}.{who.Key}";
 
     private static string IndexKeyFor(string prefix) => $"{prefix}.index";
@@ -100,7 +100,7 @@ public sealed class SavedCharacters
     /// never moved, so a returning visitor finds it exactly where it always was; every other
     /// character gets a key of its own beside it.
     /// </summary>
-    internal static string PayloadKeyFor(string prefix, string id) =>
+    private static string PayloadKeyFor(string prefix, string id) =>
         id == LegacyId ? prefix : $"{prefix}.{id}";
 
     /// <summary><c>c_</c> plus 22 URL-safe characters — 16 random bytes, base64url without
@@ -256,7 +256,7 @@ public sealed class SavedCharacters
     /// </summary>
     public async Task<string> CurrentIdAsync() => await CurrentIdAsync(await _who.CurrentAsync());
 
-    internal async Task<string> CurrentIdAsync(Identity who)
+    private async Task<string> CurrentIdAsync(Identity who)
     {
         try
         {

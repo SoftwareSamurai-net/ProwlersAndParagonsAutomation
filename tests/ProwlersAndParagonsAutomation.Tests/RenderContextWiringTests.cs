@@ -78,7 +78,7 @@ public sealed class RenderContextWiringTests
     /// <em>and</em> the concrete type both count, because either can be the one a constructor asks for.
     /// </summary>
     private static HashSet<string> Registered(string source) =>
-        [.. Regex.Matches(source, @"Add(?:Scoped|Singleton|Transient)<([^>(]+)>",
+        [.. Regex.Matches(source, "Add(?:Scoped|Singleton|Transient)<([^>(]+)>",
                 RegexOptions.None, TimeSpan.FromSeconds(5))
             .SelectMany(m => m.Groups[1].Value.Split(','))
             .Select(name => name.Trim())
