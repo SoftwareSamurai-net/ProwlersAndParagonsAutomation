@@ -37,7 +37,7 @@ engine runs in the browser. So the arrow from `engine/` never reaches it, in eit
 
 | | |
 |---|---|
-| `worker/` | Sign-in, sessions, one stored character per account, and the rulebook's text behind a session. Every SQL statement is in `db.js`; every route is in `index.js`. |
+| `worker/` | Sign-in, sessions, an account's characters and the cap they are held to, and the rulebook's text behind a session. Every SQL statement is in `db.js`; every route is in `index.js`. |
 | `functions/api/[[path]].js` | The only file Cloudflare routes. Two lines, so "what is exposed?" has one answer. |
 | `d1/` | The schema, as migrations, plus the config that applies them. Not at the repository root on purpose — see the comment in `d1/wrangler.toml`. |
 | `tests/worker/` | Driven against real SQLite running the real migration, since D1 *is* SQLite. Run with `./scripts/test-worker.sh`. |

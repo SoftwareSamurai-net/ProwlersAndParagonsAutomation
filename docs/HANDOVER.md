@@ -11,7 +11,7 @@ sessions, not documentation.
 
 ## Where things stand
 
-**4069 tests** — 3683 engine, 342 bUnit, 44 driving the accounts server — zero warnings at CI
+**4128 tests** — 3685 engine, 386 bUnit, 57 driving the accounts server — zero warnings at CI
 strictness, MIT in `LICENSE`, the site live on Cloudflare Pages. Five front ends on one engine
 assembly: the terminal wizard, the browser app, `build --from character.json`, an MCP server, and
 now an accounts server that holds no rules at all. **CI drives a browser too**: six proof harnesses
@@ -27,7 +27,8 @@ as [#46](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/46)
 | [#51](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/51) | The rank pips became a real control (`role="slider"`) |
 | [#52](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/52) | **One site, two areas** — the play aide and `/portfolio` — plus the `ICharacterStore` / `IIdentitySource` seam |
 | [#54](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/54) | The README split into one file per domain |
-| *this slice* | **Accounts** — magic-link sign-in, one character per account following you between browsers, and the rulebook's own text behind the sign-in |
+| [#55](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/55) | **Accounts** — magic-link sign-in, one character per account following you between browsers, and the rulebook's own text behind the sign-in |
+| *this slice* | **Characters, plural** — import from a file, up to five per account (25 for a GM), and a manager panel replacing "Starting over" at the top of the tier page. Also: `Download to keep` on the review step, because the app was writing no file it could read back |
 
 `PROGRESS.md` has the account of each. The old branches — `…-221eb7`, `…-c88220`,
 `claude/reconcile-a1-a3` — are far behind and must not be started from.
@@ -81,17 +82,16 @@ a fixed viewport. **Generate the goldens in CI on Linux, never from a Windows ru
 differs and every one will mismatch. The real cost is not the harness, it is reviewing golden
 updates; a lazy "accept new goldens" step makes the whole thing worthless.
 
-### A character list — and read this before starting it
+### Read-only share links
 
-This slice deliberately stopped at one character, and the reason is worth keeping in view: it turns
-`ICharacterStore` from "the character" into "characters", which is a different interface and a
-different set of screens. The groundwork that makes it cheap is done — `characters.user_id` is a
-primary key, so widening it is a migration and a new interface rather than a rewrite of storage.
+**The one place a bearer key is straightforwardly better than a session** — a viewer with no
+account should be able to see a shared character without signing in as anyone. The
+`add-read-only-share-links` task carries the brief, with the design in outline:
+`shares(sha256(key), character_id, expires_at)`; `GET /api/shares/{key}` answers the payload
+without a session; a `/shared/{key}` page renders through `SheetView` with no editing controls.
 
-What to decide first, because it is not a storage question: what happens to the **anonymous**
-visitor, who has one slot and no account. A list for accounts and a single slot for everybody else
-is two behaviours in one app; the alternative is a list in local storage too, which is a second
-implementation of the same screens.
+The engine still costs and validates in the browser — the server just hands the bytes back — and
+`data/rulebook/` is still not on the open web, so a shared sheet does not open the reader.
 
 ### What remains of the front-end plan
 
@@ -144,7 +144,7 @@ Each one has cost this project real time when skipped.
    ```bash
    ./scripts/test-worker.sh
    ```
-   They must report **3683 + 342** and **44**, and zero warnings. **Warnings are errors only under
+   They must report **3685 + 386** and **57**, and zero warnings. **Warnings are errors only under
    that flag**, so a plain `dotnet test` passes over things CI fails on.
 
    **Take the numbers from the runs, not from this document, and update this document from the
