@@ -33,7 +33,7 @@ public sealed class AdminPageTests
     }
 
     [Fact]
-    public void AnAccountThisPageIsNotForIsToldSo_AndShownNothing()
+    public void AnAccountThisPageIsNotForIsToldSoAndShownNothing()
     {
         using var ctx = new RenderContext();
         ctx.Api.SignedIn = ("acct-2", "player");
