@@ -151,6 +151,8 @@ The root `.csproj` sits at the repository root, so it carries a `<Compile Remove
 
 The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestMinor` rollForward). The 9.x SDK cannot build it; install with `winget install --id Microsoft.DotNet.SDK.10`.
 
+**A crashed test process still prints `Passed! - Failed: 0`.** A stack overflow (e.g. an endless render loop) exits with `Catastrophic failure ... exit code -1073741571` — that is `0xC00000FD`; the process is dead, the summary line is a lie. CI notices via the exit code; a human tailing the log for `Passed!` does not. **Grep for `Catastrophic` and check the total moved.** `node --test` has the same trap in another spelling: an empty glob exits 0 reporting zero tests. Both suites' CI steps assert the count for this reason.
+
 ## Static analysis
 
 - .NET analyzers run at `AnalysisLevel=latest-recommended` with `EnforceCodeStyleInBuild`. `TreatWarningsAsErrors` is conditional on `ContinuousIntegrationBuild`, so local builds stay warning-only while CI is strict. **Keep the CI build at zero warnings.**

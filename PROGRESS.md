@@ -215,30 +215,31 @@ None of the 33 was a bug in the product. Every one was a **test that did not hol
 to hold**, which is a different and quieter problem: the suite's headline number goes up and its
 grip does not.
 
+### 7. The pre-1.0 audit
+
+The last pass before tagging `v1.0.0`, done as a separate slice, both halves cheapest to
+delegate to no-context agents:
+
+- **Is the codebase as optimised as it should be?** Dead code marked for removal, hot paths on
+  the engine, payload waste, and the token side — files a subagent has to load before it can
+  do anything useful.
+- **Is it snapshotable to a fresh AI agent?** What can a new session read to know what this
+  repo is and where the load-bearing pieces are, without re-tracing every past decision? The
+  audit's job is to say what would improve `CLAUDE.md` — a redraft, or smaller pointer files
+  for common tasks.
+
+Do it once the HTTP API stops moving, so audit targets are not shifting under it.
+
 ---
 
 ## Completed work
 
-### The deploy would parse this: the corpus baked, and the bundler on CI
+### #57: bake the rulebook, bundle on CI
 
-**The accounts slice landed and the deploy went red.** `worker/corpus.js` used the current spec
-JSON import: `import ... with { type: 'json' }`. Node 22 runs it. `cloudflare/wrangler-action@v3`
-pins wrangler at 3.90.0, whose bundled esbuild predates it — the older `assert { type: 'json' }`
-spelling would have worked there but is loudly deprecated in Node 22, so trading one broken
-pipeline for another. Both suites and a whole-tree Qodana scan were green.
-
-The corpus is now baked into `worker/corpus.js` as an object literal by
-`scripts/inline-rulebook.mjs`; two guards keep it honest:
-
-- `tests/worker/router.test.mjs` fails the PR if the bake goes stale against
-  `data/rulebook/ch02-characters.json`.
-- The build workflow runs **`wrangler pages functions build`** at the version pinned in
-  `deploy.yml` (read from a marker comment on the `cloudflare/wrangler-action@v3` line), so
-  anything only its bundler refuses fails the PR. This step needs no credentials and is safe
-  on `pull_request`.
-
-`CLAUDE.md` gained a compatibility note beside the accounts server section explaining both
-guards and the trap.
+Master's deploy went red after #55 landed — the wrangler pinned in `deploy.yml` predates JSON
+import attributes. The corpus is baked into `worker/corpus.js` by `scripts/inline-rulebook.mjs`,
+and CI now runs `wrangler pages functions build` at the pinned version so a bundler difference
+fails the PR. Details and both guards are in `CLAUDE.md`'s accounts-server section.
 
 ### Accounts: one character, one account, and the book behind a sign-in
 
