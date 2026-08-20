@@ -157,7 +157,19 @@ It is deliberately **not** summarised here. This section twice grew a numbered c
 
 ## Versioning
 
-This project follows [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/).
+**`data/rules/` and the character JSON are stable across changes here.** They are what a saved
+character, the `.character.json` export, and `build --from` all depend on — a renamed key or a
+changed cost strips information out of somebody's file, so it does not happen casually and is
+tested when it does.
+
+**The HTTP API is not stable yet.** `/api/character` became `/api/characters/{id}` in the week
+this note was written; the surface will stop moving after another slice or two, and this repo
+will adopt [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/)
+at 1.0 — when *"we do not break `/api/*` without a major"* is a promise it can keep.
+
+There are no tags yet. Nothing consumes a version field either, so cutting one before the API
+settles would be either aspirational (a `<VersionPrefix>` nobody reads) or dishonest (bumping
+majors for cosmetic route renames). It is worth waiting.
 
 ---
 
