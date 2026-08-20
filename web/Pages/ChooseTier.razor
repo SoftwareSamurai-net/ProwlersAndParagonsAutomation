@@ -68,11 +68,14 @@
             @(Session.UnlimitedBudget ? "Building without a limit" : "Hold me to the tier's budget")
         </button>
 
-        @* The paragraph above already says what this does — the tip adds the rulebook's reason,
-           which is the sort of thing worth having available and not worth spending a paragraph
-           on. Nothing here is the only place anything is said. *@
+        @* **The tip answers the reader's question, not the designer's.** It used to explain why
+           this control is not the Hero/Villain switch — which is a fact about how this app
+           changed, and the reader was never told the old behaviour to be confused by it. What
+           somebody actually hesitates over here is whether switching the budget off stops the
+           tool checking their character at all, since that is what "without a limit" sounds
+           like. That reasoning belongs in the comment above; this belongs on screen. *@
         <Tooltip Term="building without a limit"
-                 Text="Ch.9 builds Villains by exactly the Hero rules, so no budget was never a fact about Villains — it is a GM building to whatever the scene needs. Either kind of character can be built either way." />
+                 Text="Only the points budget stops being enforced. Trait Caps, flaw limits and where a Pro or Con is allowed are all still checked, and the review step still lists anything wrong. Useful for a GM building to whatever a scene needs." />
     </Field>
 </Panel>
 
