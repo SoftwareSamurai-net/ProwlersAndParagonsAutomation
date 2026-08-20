@@ -97,7 +97,18 @@ public sealed class AdminPageTests
     [Fact]
     public void YourOwnAndTheDeploymentsAddressCarryNoWithdrawButton()
     {
-        using var ctx = Managing();
+        // **Your own row has to carry an id, or this test cannot tell the two cases apart.**
+        // It did not: the fixture's administrator was also the deployment's address, whose row has
+        // no id at all — so a page offering a button on every row with an id passed, because the
+        // one row it would have wrongly offered was excluded by the other half of the condition.
+        // Found by mutation, which is the only thing that could have found it.
+        using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-1", "deputy");
+        ctx.Api.ManagesInvitations = true;
+        ctx.Api.You = "deputy@example.test";
+        ctx.Api.Invited.Add((null, "boss@example.test", true, true, false));
+        ctx.Api.Invited.Add(("i_deputy", "deputy@example.test", true, true, true));
+        ctx.Api.Invited.Add(("i_guest", "guest@example.test", false, false, true));
         ctx.Api.Invited.Add(("i_other", "other@example.test", false, true, true));
 
         var page = ctx.Render<Admin>();

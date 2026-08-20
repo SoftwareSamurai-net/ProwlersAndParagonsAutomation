@@ -17,11 +17,11 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4140 across three suites — 3688 on the engine, 388 rendering components with bUnit, 64 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
+| Tests | 4169 across three suites — 3688 on the engine, 401 rendering components with bUnit, 80 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
-| Accounts | **On, except the mail.** D1 migrations applied to the remote database, the `DB` binding is in place and `/api/me` answers `401` with JSON — the deploy's own pass condition. **No sign-in link has ever been delivered:** the live `/api/auth/request` answers `500` on an address with allowance left, so the mail provider is refusing the send. See [item 8](#8-the-mail-provider-is-refusing-every-send) |
+| Accounts | **Invitation only, and the mail is still refused.** D1 migrations applied to the remote database, the `DB` binding is in place and `/api/me` answers `401` with JSON — the deploy's own pass condition. **No sign-in link has ever been delivered:** the live `/api/auth/request` answers `500` on an address with allowance left, so the mail provider is refusing the send. See [item 8](#8-the-mail-provider-is-refusing-every-send) |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
 | Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export, not assumed**: it had drifted to 3 on `master` and to 37 on the reconciled slices before this was checked |
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
@@ -280,6 +280,49 @@ Do it once the HTTP API stops moving, so audit targets are not shifting under it
 ---
 
 ## Completed work
+
+### Only invited addresses, and a page that says which
+
+The site could mail a sign-in link to any address anybody typed into it. That is the ordinary
+shape for a public sign-up and it is not what this site is — an account is what puts the
+rulebook's own text on screen, and who may read that belongs to the owner and to people he has
+named. So there is a list, and a page that manages it.
+
+**The gate is silent, and it has to be.** An address that is not on the list gets the same `204`
+a sent link gets, for the same reason a rate-limited request does: any other answer makes the
+endpoint a way of asking who is on the list, one address at a time. It is checked again when a
+link is spent, because fifteen minutes is long enough to be withdrawn in.
+
+**The first invitation cannot come from the list**, since managing it needs an account and an
+account needs an invitation. `ADMIN_EMAIL` breaks that circle: the address in it is always
+allowed, always an administrator, and has no row, so no click can remove it. **Nothing is seeded
+into the database** — a committed address would be this repository owner's own on every fork, and
+a deployment with neither the variable nor a row allows nobody, which is the safe direction.
+
+**Withdrawing ends the sessions that address is holding and keeps its characters.** Deleting the
+row alone is a gesture against somebody holding a month-long cookie; deleting their work would
+make one button on an administration page the most dangerous control here.
+
+**The page holds no claim about who is reading it.** `Identity` still carries a key and a name
+and no role — the decision recorded when accounts were built — so the server answers an ordinary
+account with the same `404` an unrouted address gets, and the page is reached by its address
+rather than by a button that appears for some people. `/admin` is a third `Area` for the reason
+the recordings are the second: the six creation steps and a running Hero Point total mean nothing
+above a list of email addresses.
+
+**Sixteen tests on the server and nine on the page, and two things were found by mutating them.**
+Five deletions in the server — the gate, the gate on spending a link, who may reach the page,
+ending a withdrawn address's sessions, and the refusal to withdraw your own — each turn a named
+test red. The browser's five found one guard that was not guarding: the fixture's administrator
+was *also* the deployment's address, whose row has no id, so a page offering a withdrawal on every
+row with an id passed. The fixture now has four rows and tells the two cases apart. The other is
+recorded in the harness: nearly every test in the accounts suite predates the list, so the harness
+invites the address a request names — and there is a test that this scaffolding is really doing
+something, because a bypass that had stopped working would leave the whole suite passing for the
+wrong reason.
+
+**What is still not proven is a link arriving.** The provider refusal above is unchanged by any of
+this, and no invitation is worth anything until somebody can receive one.
 
 ### A refused send spent the allowance that would have reported it
 

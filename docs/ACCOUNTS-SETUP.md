@@ -294,6 +294,29 @@ There is a test for each, and one that asserts all three together: `AccountTests
 
 ---
 
+## Who can sign in
+
+**Nobody, until you say so.** This site is not a sign-up: an address that is not on the invitation
+list can ask for a link all day and nothing happens, and nothing on the page says so — the answer
+is identical to a link being sent, because a page that distinguished them would be a way of asking
+who is on the list.
+
+- **The address in `ADMIN_EMAIL` is always allowed and always an administrator.** It has no row,
+  so nothing on the page can remove it; changing it is a dashboard edit and a redeploy.
+- **Everyone else is added at [`/admin`](https://superheroes.softwaresamurai.net/admin)** by
+  somebody already signed in who may manage the list. There is no link to it in the site's
+  navigation and no button that appears only for administrators — the browser holds no claim about
+  who anybody is, so the page is reached by its address and refuses politely if it is not yours.
+- **Adding an address sends nothing.** It lets that person ask for a link when they want one; the
+  account is made the first time they sign in.
+- **Withdrawing an invitation ends any session that address is holding**, so somebody signed in on
+  another machine is signed out rather than left there for the rest of the month. **Their
+  characters are untouched** — adding the address again gives them back exactly what they had.
+- **You cannot withdraw your own**, and the page does not offer it: the next request would be
+  refused, including the request to put it back.
+
+---
+
 ## When no mail arrives
 
 **The site cannot tell you why, and it is not being coy.** `/api/auth/request` answers `204`
