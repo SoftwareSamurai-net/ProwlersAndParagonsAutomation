@@ -177,6 +177,20 @@ The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestM
   The report is `results/qodana.sarif.json`; the summary counts by rule, never by file, so group it yourself.
 
   **Run it on a clean export of the commit, not on your working directory.** That command mounts the directory as it is, `bin/` and `obj/` included, and a tree that has been built a few times scans very differently: the same commit reported **0** from `git archive HEAD | tar -x -C <tmp>` and **1471** in place — including `.CSharpErrors`, which is *compile* errors, on test files that build clean. Do not read a number off an in-place scan and conclude anything about the change; export first, and scan the parent commit the same way if you want a comparison.
+
+### Do not run that command by hand. Run `./scripts/qodana-scan.sh`
+
+```bash
+./scripts/qodana-scan.sh
+```
+
+**Because a scan that never ran is indistinguishable from a clean one, and the by-hand version has now produced exactly that.** `qodana` exits **0** when it cannot find a project to inspect — it prints its own `--help` and one line of error at the end of a long log, writes no SARIF, and every `grep` for a summary line comes back empty, which reads as "nothing found". The script closes the three traps that make a by-hand scan worthless, each with a control that fires:
+
+- **Docker Desktop cannot see Git Bash's `/tmp`.** The paragraph above says to export to `<tmp>`, and taking that literally is what went wrong: `-v /tmp/export:/data/project/` mounts an **empty directory** inside the Docker VM, so the container finds no `qodana.yaml` and exits 0 having inspected nothing. Every host path must go through `pwd -W`, and the script exports under the repository (`.qodana-scan/`, gitignored) rather than `/tmp` so the question does not arise. It then **proves the mount** by looking for `qodana.yaml` from inside a container before starting the scan.
+- **The exit code is not evidence.** The script requires `qodana.sarif.json` to exist and to parse, and exits non-zero with the tail of the log when it does not. A zero it prints is a zero from a report that exists.
+- **The export needs its own control.** A `git archive` that produced nothing scans an empty tree, which is trap one again; the script checks `qodana.yaml` is in the export before mounting anything.
+
+It also groups the findings by file, which the tool's own summary never does — that summary counts by rule.
 - What is silenced and why, in one line each: `engine/Models/*.cs` exists to be deserialized by reflection (four inspections), the test transcription records document a rulebook page rather than being read, a `[Theory]` body asserting on its parameter is not a precondition guard, `JsonValue.Create(...)!` is load-bearing (removing it fails the warnings-as-errors build), and this codebase writes explicit constructors and named backing fields on purpose.
 - `data/rules/*.json` is copied to the output directory by the csproj, so a published build works without the repo checked out.
 

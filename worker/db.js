@@ -27,8 +27,20 @@ export async function sweepExpired(db, now) {
     // investigating. The row count is already bounded by the primary key — see the migration —
     // so this is about the table being *readable*, not about it being large: a year of
     // long-mended faults at the top of a `SELECT *` is how nobody reads the log at all.
-    await db.prepare('DELETE FROM error_log WHERE last_at < ?')
-        .bind(now - ERROR_RETENTION_MS).run();
+    //
+    // **Guarded, unlike the three above, and the asymmetry is deliberate.** This runs on the
+    // sign-in path, and `error_log` is the newest table — so a deploy that outran its migration
+    // would answer *every* sign-in with a 500 because the diagnostics could not be tidied. The
+    // whole error-logging subsystem is built so it cannot take a request down with it; a prune is
+    // part of that subsystem and gets the same treatment as the write in `index.js`. It is not
+    // silent about it, which is the other half of the rule: a prune that does not happen must say
+    // so rather than look like a prune that found nothing.
+    try {
+        await db.prepare('DELETE FROM error_log WHERE last_at < ?')
+            .bind(now - ERROR_RETENTION_MS).run();
+    } catch (error) {
+        console.error('Could not prune the error log. Has migration 0003 been applied?', error);
+    }
 }
 
 /**

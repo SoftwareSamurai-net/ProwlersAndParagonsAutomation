@@ -457,6 +457,24 @@ test('a failure the log itself cannot record still answers the visitor', async (
     assert.equal(body.reference, app.reference);
 });
 
+test('an error log that cannot be pruned does not stop anybody signing in', async () => {
+    // **The failure this guards is a deploy that outran its migration.** The prune runs on the
+    // sign-in path, so an `error_log` that is not there yet would answer every sign-in with a 500
+    // — diagnostics taking down authentication, which is the wrong way round by a long way.
+    const app = server();
+    app.env = {
+        ...app.env,
+        DB: failingOn(app.db, 'DELETE FROM error_log', 'no such table: error_log'),
+    };
+
+    const response = await handle(
+        request('/api/auth/request', { method: 'POST', body: { email: 'a@b.test' } }),
+        app.env, app.deps);
+
+    assert.equal(response.status, 204, 'a prune that could not run refused a sign-in');
+    assert.equal(app.sent.length, 1, 'no link was sent, so the request did not really succeed');
+});
+
 test('a session that works is not recorded as a failure', async () => {
     // The negative control for the whole table: an ordinary visit writes nothing. A logger that
     // recorded every request would pass most of the tests above and be useless.
