@@ -271,3 +271,56 @@ There is a test for each, and one that asserts all three together: `AccountTests
   not carry a role field either, so "am I a GM" is not a question the client can ask.
 - **No rules on the server.** The engine runs in the browser and is the authority on what a
   character costs and whether it is legal. The server stores bytes it never parses.
+
+---
+
+## When no mail arrives
+
+**The site cannot tell you why, and it is not being coy.** `/api/auth/request` answers `204`
+whether a link went out or the address has no account, deliberately — anything else makes it a way
+of asking whether somebody has an account here, one address at a time. So "a sign-in link is on
+its way" is not a claim that one was sent.
+
+What does distinguish the cases is the status, which the browser's network tab shows and the page
+turns into a sentence:
+
+| What you see | What it means |
+|---|---|
+| `500`, and "something went wrong at our end" | The mail provider refused the send. Quote the reference; the causes are below |
+| `204`, and no mail | Either the send worked and the mail is elsewhere — spam, a slow relay — or the hourly allowance is spent |
+| "Could not reach the site" | A network problem, not this site's |
+
+**A `500` here is always this end.** The send is the last thing `requestLink` does, so a `500`
+means the rate-limit row and the login token were both written: the Function is live, the `DB`
+binding is right, and `SITE_URL` is set. Only the provider call is left. Check, in this order:
+
+1. **Is the domain verified in Resend?** *Domains* → the row for
+   `superheroes.softwaresamurai.net` must be **Verified**, not *Pending*. Correct DNS is not the
+   same as a verified domain — the records can all be right while nobody has clicked *Verify DNS
+   Records* — and a send against an unverified domain is refused with a `403` that leaves no
+   trace at all in the *Emails* list.
+2. **Is the API key for that domain, in that account?** *API Keys* → the key's permission is
+   *Sending access* and its domain scope is the verified one. A key scoped to another domain, or
+   copied from a second Resend account, is refused with a `401` or `403` and again logs nothing
+   you can see.
+3. **Is `MAIL_FROM`'s domain part exactly the verified domain?**
+   `no-reply@superheroes.softwaresamurai.net` is right; the apex, a typo, or the `send.`
+   subdomain are all refused.
+4. **Has there been a deploy since the variables were added?** A variable added after the last
+   deploy is not in the running Function — step 5 above.
+
+**A refused send is reported every time, not five times.** It used to spend the hourly allowance,
+and since a rate-limited request answers with the same `204` a sent link gets, the sixth attempt
+began reporting success and kept doing so for an hour. Retrying was therefore the one thing that
+silenced the error. It no longer is — but the allowance is real, so five *successful* sends to one
+address in an hour will still go quiet, which is not the same fault.
+
+**The status the provider gave is in the log, and the log is a live tail.** Pages Functions keep
+nothing to read back, so an error nobody was watching for is gone. To see it, tail the deployment
+in one terminal and ask for a link in another:
+
+```bash
+npx wrangler pages deployment tail --project-name prowlers-and-paragons
+```
+
+The line to look for names the status: *The mail provider refused the send (HTTP 403).*
