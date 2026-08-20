@@ -12,9 +12,18 @@ import { CATEGORIES, redact, routePattern } from '../../worker/errors.js';
 import { ERROR_RETENTION_MS } from '../../worker/db.js';
 import { cookieFrom, errorRows, request, server, signIn, ORIGIN } from './harness.mjs';
 
-/** An address and a token, of the shapes that really turn up in a provider's own error text. */
-const ADDRESS = 'dorian.sheiles@cckguava.com';
-const TOKEN = 'S3cr3tT0k3n_kQ9wZ2xR7vB4nM6pL1jH8gF5dS0aY3uI';
+/**
+ * An address and a token, of the shapes that really turn up in a provider's own error text.
+ *
+ * **Both are obviously fake, and that is a requirement rather than a preference.** These are
+ * printed to stderr by the server's own `console.error` on every provoked failure, so they land
+ * in the CI log of a public repository verbatim — a real address used here would be published by
+ * the very test that exists to stop addresses being published. `example.test` is reserved by
+ * RFC 6761 and cannot belong to anybody. The first version of this file used a real address; it
+ * is the mistake this comment exists to stop somebody repeating.
+ */
+const ADDRESS = 'someone.real@example.test';
+const TOKEN = 'NotARealToken_kQ9wZ2xR7vB4nM6pL1jH8gF5dS0aY3uI';
 
 /**
  * A database that fails only on the statements a needle matches, and works for everything else.
@@ -84,8 +93,8 @@ test('a stored failure keeps neither the address nor the token out of the messag
 
     assert.ok(!rows[0].detail.includes(ADDRESS), rows[0].detail);
     assert.ok(!rows[0].detail.includes(TOKEN), rows[0].detail);
-    assert.ok(!rows[0].detail.includes('cckguava'), rows[0].detail);
-    assert.ok(!rows[0].detail.includes('dorian'), rows[0].detail);
+    assert.ok(!rows[0].detail.includes('example.test'), rows[0].detail);
+    assert.ok(!rows[0].detail.includes('someone.real'), rows[0].detail);
 });
 
 test('nothing anywhere in the database holds the address or the token from a failure', async () => {

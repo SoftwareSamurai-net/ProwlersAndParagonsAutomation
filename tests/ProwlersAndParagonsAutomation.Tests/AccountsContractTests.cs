@@ -232,6 +232,84 @@ public sealed class AccountsContractTests
     }
 
     /// <summary>
+    /// Every email address written down in the accounts surface is one nobody can own.
+    ///
+    /// <para><b>Because these get published, and by the very code that exists to stop addresses
+    /// being published.</b> The server's `console.error` prints the whole exception on every
+    /// failure, so a test that provokes one puts its fixture address verbatim into the CI log of
+    /// a public repository. The first version of `errors.test.mjs` used a real address and did
+    /// exactly that — the redaction test published an address on its way to proving addresses are
+    /// redacted.</para>
+    ///
+    /// <para>The reserved names are RFC 6761 and RFC 2606: `.test`, `.example`, `.invalid`,
+    /// `.localhost`, and the `example.com` family. None can be registered by anybody, so none can
+    /// be somebody's real address — which is the property wanted here, rather than "looks
+    /// fake".</para>
+    /// </summary>
+    [Fact]
+    public void EveryAddressWrittenIntoTheAccountsSurfaceIsUnownable()
+    {
+        var files = ServerFiles()
+            .Concat(Directory.EnumerateFiles(
+                Path.Combine(RulesFixture.RepoRoot, "tests", "worker"), "*.mjs"))
+            .Append(Path.Combine(RulesFixture.RepoRoot, "docs", "ACCOUNTS-SETUP.md"))
+            .Where(File.Exists)
+            .OrderBy(f => f, StringComparer.Ordinal)
+            .ToList();
+
+        // The domain only. Matching a whole address would also match the *source of the address
+        // regexes* in errors.js, which is character classes rather than anybody's address.
+        var domains = new Regex(@"@(([A-Za-z0-9-]+\.)+[A-Za-z]{2,})",
+            RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        var found = files
+            .SelectMany(f => domains.Matches(File.ReadAllText(f))
+                .Select(m => (File: Path.GetFileName(f), Domain: m.Groups[1].Value)))
+            .ToList();
+
+        // The positive control: these files really are full of addresses, so a scan finding
+        // nothing would mean the pattern had stopped matching rather than that all is well.
+        Assert.True(found.Count >= 5,
+            $"only {found.Count} email domains found across {files.Count} files; the pattern has "
+            + "stopped matching and this test is asserting nothing.");
+
+        // **One exemption, and it is a sender rather than a person.** `MAIL_FROM` has to be an
+        // address on the domain Resend has verified, so the setup document naming the site's own
+        // no-reply address is the document doing its job. It is also never printed by the server:
+        // the rule this test exists for is about *fixtures*, which end up in a public CI log.
+        const string sender = "superheroes.softwaresamurai.net";
+
+        // The exemption is asserted to still have a subject. One whose target has been renamed
+        // away permits that domain everywhere and reports nothing — the shape `.editorconfig`
+        // exemptions in this repository are held to for the same reason.
+        Assert.Contains($"no-reply@{sender}",
+            File.ReadAllText(Path.Combine(RulesFixture.RepoRoot, "docs", "ACCOUNTS-SETUP.md")),
+            StringComparison.OrdinalIgnoreCase);
+
+        var ownable = found
+            .Where(hit => !IsUnownable(hit.Domain)
+                       && !hit.Domain.Equals(sender, StringComparison.OrdinalIgnoreCase))
+            .Select(hit => $"{hit.File} names @{hit.Domain}")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        Assert.True(ownable.Count == 0,
+            "These are addresses somebody could actually own, and the server prints the whole "
+            + "exception to a public CI log on every provoked failure. Use a reserved domain "
+            + "(RFC 6761/2606) instead:\n  " + string.Join("\n  ", ownable));
+    }
+
+    /// <summary>A domain no registry will ever sell — so no message can reach a real person.</summary>
+    private static bool IsUnownable(string domain) =>
+        domain.EndsWith(".test", StringComparison.OrdinalIgnoreCase)
+        || domain.EndsWith(".example", StringComparison.OrdinalIgnoreCase)
+        || domain.EndsWith(".invalid", StringComparison.OrdinalIgnoreCase)
+        || domain.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase)
+        || domain.Equals("example.com", StringComparison.OrdinalIgnoreCase)
+        || domain.Equals("example.org", StringComparison.OrdinalIgnoreCase)
+        || domain.Equals("example.net", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// The failure categories are spelled the same at both ends.
     ///
     /// <para><b>The whole point of a category is that one side names it and the other renders
