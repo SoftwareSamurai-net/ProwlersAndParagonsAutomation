@@ -23,13 +23,21 @@ public sealed class AccountCharacterStore : ICharacterStore
     private readonly IIdentitySource _who;
     private readonly CharacterStore _inThisBrowser;
     private readonly ApiCharacterStore _inTheAccount;
+    private readonly SavedCharacters _local;
 
     public AccountCharacterStore(
-        IIdentitySource who, CharacterStore inThisBrowser, ApiCharacterStore inTheAccount)
+        IIdentitySource who, CharacterStore inThisBrowser, ApiCharacterStore inTheAccount,
+        SavedCharacters local)
     {
         _who = who;
         _inThisBrowser = inThisBrowser;
         _inTheAccount = inTheAccount;
+
+        // The browser's plural store, for the list and for the current-character pointer. The
+        // pointer is local for *both* sides: which of your characters is on screen is a fact about
+        // this tab, and syncing it would mean opening a laptop and having a phone decide what you
+        // are looking at.
+        _local = local;
     }
 
     public async Task SaveAsync(CharacterSheet sheet, SheetMode mode) =>
@@ -68,6 +76,62 @@ public sealed class AccountCharacterStore : ICharacterStore
 
         return true;
     }
+
+    // ── The list, for the manager ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Every character on this side of the wire, and the cap if there is one.
+    ///
+    /// <para><b>An account's list comes from the server; everybody else's comes from this
+    /// browser.</b> Same choice the single-character methods make, for the same reason — and it is
+    /// why the manager asks this rather than either store: a page that picked a source itself would
+    /// be a second place deciding where a character lives.</para>
+    ///
+    /// <para><b>A visitor with no account has no cap</b>, so the limit is null for them. That is
+    /// not "unlimited" being asserted anywhere; local storage simply has no limit worth enforcing,
+    /// and the browser is not the thing the cap exists to bound.</para>
+    /// </summary>
+    public async Task<AccountCharacters> ListAsync() =>
+        (await _who.CurrentAsync()).IsSignedIn
+            ? await _inTheAccount.ListAsync()
+            : new AccountCharacters(null, await _local.ListAsync());
+
+    /// <summary>Open one of them. Null when it is not there, or not one this build can read.</summary>
+    public async Task<(CharacterSheet Sheet, SheetMode Mode)?> OpenAsync(string id)
+    {
+        var who = await _who.CurrentAsync();
+
+        var opened = who.IsSignedIn
+            ? await _inTheAccount.LoadAsync(id)
+            : await _local.LoadAsync(id);
+
+        // The pointer moves only if there was something to move to. Switching to a character that
+        // could not be read would leave the app pointed at nothing, and the next autosave would
+        // write the character on screen over an id the visitor did not choose.
+        if (opened is not null) await _local.SetCurrentAsync(id);
+
+        return opened;
+    }
+
+    /// <summary>
+    /// Throw one away, wherever it lives.
+    ///
+    /// <para><b>Not the one that is open unless it is asked for by id.</b> The single-character
+    /// <see cref="ClearAsync()"/> is what "start a new character" calls, and this is a row in a
+    /// list; conflating them is how a manager deletes the wrong thing.</para>
+    /// </summary>
+    public async Task DeleteAsync(string id)
+    {
+        if ((await _who.CurrentAsync()).IsSignedIn) await _inTheAccount.DeleteAsync(id);
+
+        // Always locally too: a signed-in visitor's browser may still hold a copy under the same
+        // id from before they signed in, and leaving it would resurrect the character on the next
+        // visit while they were signed out.
+        await _local.DeleteAsync(id);
+    }
+
+    /// <summary>Which character the app currently has open, whoever is here.</summary>
+    public Task<string> CurrentIdAsync() => _local.CurrentIdAsync();
 
     private async Task<ICharacterStore> ChosenAsync() =>
         (await _who.CurrentAsync()).IsSignedIn ? _inTheAccount : _inThisBrowser;

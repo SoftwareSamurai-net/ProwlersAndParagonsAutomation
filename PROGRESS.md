@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4070 across three suites — 3683 on the engine, 342 rendering components with bUnit, 45 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
+| Tests | 4128 across three suites — 3685 on the engine, 386 rendering components with bUnit, 57 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev), deployed from `master` by GitHub Actions; `pp.softwaresamurai.net` not yet attached |
@@ -234,6 +234,61 @@ Do it once the HTTP API stops moving, so audit targets are not shifting under it
 
 ## Completed work
 
+### Characters, plural: a manager, imports, and the export the app was not writing
+
+**The accounts slice deliberately stopped at one character**, and this closes it. Up to five per
+account (25 for a GM, `users.character_limit`), a list with per-row Open/Discard, and an import
+affordance folded into the same panel. Both halves the old panel was tested for came across: it
+asks before discarding, only when there is something to lose, and the clear still lands after the
+save that emptying the sheet fires.
+
+**"Download to keep" is the reason the whole slice is not smaller than it looked.** The importer
+was written against the strict inputs shape — which is what `build --from` reads and what a
+character actually is — and the app's existing "Download as data" writes the *report*: derived
+stats, costs, findings. The strict reader refuses it, correctly, because reading it back would
+rebuild a character from its own conclusions. Both halves were right on their own and the pair was
+useless: a player could download their character and had nowhere to take it. Found by the import
+agent, which noticed there was nothing for it to import.
+
+**Which character is open is a local pointer, and that had to be, for a reason a test caught after
+it went wrong.** A fresh browser signing in has no such pointer, and minting a new id there asked
+the server for a character that could not exist — the visitor started on an empty sheet while
+theirs sat on the server under an id this browser had never heard of, which is the feature broken
+in the case it exists for. `ApiCharacterStore` now lists first and adopts the most recent one.
+
+**The identity/role tension held.** `Identity` is still a key and a name — no claims, no token, no
+role — so "am I a GM" is not a question the client can ask. What the UI needs is a *number*, and
+that rides on the list response as `limit`. The cap is set by hand in SQL, with no self-service
+endpoint, on the reasoning that a cap you can raise on yourself is not one.
+
+**The fan-out earned itself three times on things no single agent could see**, and this is worth
+recording because the pattern is expensive if wielded badly:
+
+- The character silently stopped following you to another browser — the local-pointer trap above,
+  caught by `ACharacterFollowsItsAccountToAnotherBrowser`.
+- The importer had nothing to import — the export gap above, caught by
+  `ExportImportRoundTripTests`.
+- `RenderContext` claimed to wire the same services as `Program.cs` and was false twice in one
+  afternoon. That fails as *every* render test at once on "Unable to resolve service", loud about
+  everything and silent about the one missing line. `RenderContextWiringTests` now compares the
+  two, and its own positive control caught my first exemption list being wrong.
+
+**`AccountsContractTests` earned its keep for the third time**: it went red the moment the server
+dropped `/api/character` while the browser still asked for it, with both language suites green.
+Nothing but that one test can see across the seam.
+
+**One honest caveat.** The manager's "open now" row marking resolves through `ppStore`, and
+bUnit's loose interop answers null, so a static render can't show it. It works in a real browser;
+the proof carried a note saying so rather than claiming I saw it.
+
+**One deliberate blast radius the fan-out cost, recorded rather than glossed.** Three build
+agents at 24–37 minutes each; the fix-audit reviewer 30 more. The mutation-verification demand in
+each brief drove most of that — "break every guard and re-run the full suite" is about 50s per
+mutation, and one agent did 19 of them. That is the discipline that catches six-of-nine theatre
+in the fix pass, but the demand has to be *scoped*: mutate the security and ordering guards,
+filter tests to affected classes, and let landing come before verification rather than block on
+it. See the memory note about it.
+
 ### #57: bake the rulebook, bundle on CI
 
 Master's deploy went red after #55 landed — the wrangler pinned in `deploy.yml` predates JSON
@@ -284,7 +339,8 @@ key order and spacing no serialiser would reproduce and requires them back uncha
 
 **One character per account, and `characters.user_id` is the primary key rather than a convention.**
 A list is a different interface and a different set of screens; it is much easier to get right once
-one character round-trips, and the handover said so explicitly.
+one character round-trips, and the handover said so explicitly. *(The next slice does that widening
+— see the entry above.)*
 
 **The book is bundled into the server rather than copied into `wwwroot`, and that placement is the
 entire access control.** A file under `wwwroot` is a public URL, and no amount of checking sessions

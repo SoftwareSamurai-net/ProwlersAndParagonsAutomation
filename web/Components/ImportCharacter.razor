@@ -1,0 +1,81 @@
+@* Imports a character from a file somebody picked — the other half of **"Download to keep"** on
+   the review step.
+
+   Not "Download as data", which was what this comment first said: that button writes the *report*,
+   carrying derived stats, costs and every finding, and the strict reader refuses it — correctly,
+   since reading it back would rebuild a character from its own conclusions. "Download to keep"
+   exists because of this component: when it was written there was nothing in the app it could
+   accept, which nobody had noticed because each half was right on its own.
+
+   Self-contained: the picker, the read, and the message for whichever of the three ways a
+   file can fail to become a character. Nothing here decides where a successful import
+   goes — that is the hosting page's job, through OnImported — and nothing here can take
+   the page down: CharacterImport never throws, so a bad file is an ordinary outcome shown
+   right here rather than a page that stops rendering. *@
+
+@inject CharacterImport Import
+
+<Field Label="Import a character" For="import-character-file">
+    <InputFile id="import-character-file" accept=".json,application/json"
+               disabled="@_busy" OnChange="HandleSelected" />
+</Field>
+
+@if (_busy)
+{
+    <p class="small muted">Reading…</p>
+}
+else if (_message is not null)
+{
+    <p role="alert">@_message</p>
+}
+
+@code {
+    // A character's own data is a few kilobytes even with every Power on the list bought.
+    // This is headroom against a mistaken pick, not a target — the read fails politely
+    // either way, so there is nothing to gain by being generous here.
+    private const long MaxFileBytes = 2 * 1024 * 1024;
+
+    private bool _busy;
+    private string? _message;
+
+    /// <summary>
+    /// Raised once a file has become a character the rules can answer for. What happens to
+    /// it — held, saved, replacing whatever is on screen — is the hosting page's decision,
+    /// never this component's.
+    /// </summary>
+    [Parameter] public EventCallback<(CharacterSheet Sheet, SheetMode Mode)> OnImported { get; set; }
+
+    private async Task HandleSelected(InputFileChangeEventArgs e)
+    {
+        _busy = true;
+        _message = null;
+
+        try
+        {
+            string text;
+
+            // The stream is read fully before the reader that could throw for an oversized
+            // pick has a chance to leave a half-read file behind for the next attempt.
+            await using (var stream = e.File.OpenReadStream(MaxFileBytes))
+            using (var reader = new StreamReader(stream))
+                text = await reader.ReadToEndAsync();
+
+            var result = Import.Read(text);
+
+            if (result.Imported is { } imported)
+                await OnImported.InvokeAsync(imported);
+            else
+                _message = result.Message;
+        }
+        catch (IOException)
+        {
+            // OpenReadStream's own refusal for a pick over MaxFileBytes. Not a
+            // CharacterImport outcome because there is no text yet to hand it.
+            _message = "That file is too large to be a character exported from this app.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

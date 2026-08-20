@@ -478,9 +478,10 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   the deploy. **So the corpus is baked into `worker/corpus.js` as an object literal by
   `scripts/inline-rulebook.mjs`**, and both are guarded: `tests/worker/router.test.mjs` asserts
   the bake is byte-for-byte the JSON on disk, and the build workflow runs
-  `wrangler pages deploy --dry-run` at the same version the deploy uses (read out of
+  `wrangler pages functions build` at the same version the deploy uses (read out of
   `.github/workflows/deploy.yml`'s marker comment), so a wrangler-vs-Node parse difference
   fails the PR rather than the way to production. That marker comment is load-bearing — see it.
+
 
 ### Hosting
 
@@ -494,7 +495,9 @@ Cloudflare Pages at `pp.softwaresamurai.net`, by `.github/workflows/deploy.yml` 
 
 ### The two sample characters
 
-`SampleCharacters.Hero()` and `.Villain()` return finished Standard-tier sheets, offered on the tier page so a sheet can be previewed without building one. They fill every section a printed sheet has, which an empty sheet does not.
+`SampleCharacters.Hero()` and `.Villain()` return finished Standard-tier sheets, offered on **`/portfolio`** so a sheet can be previewed without building one. They fill every section a printed sheet has, which an empty sheet does not.
+
+**This entry said "on the tier page" for a while after they stopped being there.** They moved with the two-areas split, for a reason worth keeping: a demonstration is not a step in making your own character, and somebody who came to build one had to walk past them first. `AreaTests.TheSamplesAreOnThePortfolioAndNotOnTheTierPage` pins both halves.
 
 - **They are this project's own characters.** The published Ch.8 Heroes stay in the test suite, where they verify the engine against printed numbers. Shipping them in the app would redistribute the authors' content.
 - **`SampleCharacterTests` holds them to the rules** — legal, inside budget, fully priceable, every section filled, at least one Source heading, and both exports rendering. Writing them caught three real mistakes: ranks bought on rankless Powers (`invisibility`, `lightning_reflexes` are `max_rank: 0`), and Danger Sense and Resistance pushed over the Trait Cap because both take a **baseline equal to** an Ability rather than half it. Check `rank_type` and `prerequisite` before adding ranks to a sample.

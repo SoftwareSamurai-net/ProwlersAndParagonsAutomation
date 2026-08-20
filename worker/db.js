@@ -91,20 +91,69 @@ export async function deleteSession(db, idHash) {
     await db.prepare('DELETE FROM sessions WHERE id_hash = ?').bind(idHash).run();
 }
 
-export async function getCharacter(db, userId) {
-    return await db.prepare('SELECT payload, updated_at FROM characters WHERE user_id = ?')
+/** One character's payload, scoped to its owner. Somebody else's id and no such id look the
+ * same here — both come back null — which is what lets the route above answer both with 404. */
+export async function getCharacter(db, userId, id) {
+    return await db.prepare('SELECT payload FROM characters WHERE user_id = ? AND id = ?')
+        .bind(userId, id).first();
+}
+
+/** An account's characters, most recently touched first — what a manager list wants. */
+export async function listCharacters(db, userId) {
+    const result = await db.prepare(
+        'SELECT id, label, updated_at FROM characters WHERE user_id = ? ORDER BY updated_at DESC')
+        .bind(userId).all();
+
+    return result.results;
+}
+
+/** This account's cap. Null only if the user row itself does not exist, which a live session
+ * never points at. */
+export async function characterLimit(db, userId) {
+    const row = await db.prepare('SELECT character_limit FROM users WHERE id = ?')
         .bind(userId).first();
+
+    return row?.character_limit ?? null;
 }
 
-export async function putCharacter(db, { userId, payload, now }) {
-    await db.prepare(
-        'INSERT INTO characters (user_id, payload, updated_at) VALUES (?, ?, ?) '
-        + 'ON CONFLICT (user_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at')
-        .bind(userId, payload, now).run();
+/**
+ * Create or replace a character, refusing only when the account is at its cap *and* this id is
+ * not already one of its own.
+ *
+ * <p><b>One statement, because it has to be — the same reasoning as `spendLoginToken` and
+ * `countAttempt` above.</b> A read that counted the account's characters, followed by a write
+ * that trusted the count was still true, would let two PUTs arriving together both see room
+ * under the cap and both insert — landing the account one over the limit it was just checked
+ * against. The `WHERE` on this `INSERT … SELECT` is the check, not a guard in front of it: it
+ * lets the literal row through when the id already belongs to this account (so a replace is
+ * never refused, however full the account is) or when the account is still under its
+ * `character_limit`, and lets nothing through otherwise. `ON CONFLICT` then does the replace
+ * when the id was already there, and `RETURNING` is how the caller learns which happened —
+ * a row back means stored, nothing back means refused.</p>
+ */
+export async function putCharacter(db, { userId, id, label, payload, now }) {
+    const row = await db.prepare(
+        'INSERT INTO characters (user_id, id, label, payload, updated_at) '
+        + 'SELECT ?, ?, ?, ?, ? '
+        + 'WHERE EXISTS (SELECT 1 FROM characters WHERE user_id = ? AND id = ?) '
+        + '   OR (SELECT COUNT(*) FROM characters WHERE user_id = ?) '
+        + '       < (SELECT character_limit FROM users WHERE id = ?) '
+        + 'ON CONFLICT (user_id, id) DO UPDATE SET '
+        + '  label = excluded.label, payload = excluded.payload, updated_at = excluded.updated_at '
+        + 'RETURNING id')
+        .bind(userId, id, label, payload, now, userId, id, userId, userId)
+        .first();
+
+    return row !== null;
 }
 
-export async function deleteCharacter(db, userId) {
-    await db.prepare('DELETE FROM characters WHERE user_id = ?').bind(userId).run();
+/** Throw one character away. True if a row was actually removed — absent is not this
+ * function's business, it is the caller's to turn into 404 or 204. */
+export async function deleteCharacter(db, userId, id) {
+    const row = await db.prepare('DELETE FROM characters WHERE user_id = ? AND id = ? RETURNING id')
+        .bind(userId, id).first();
+
+    return row !== null;
 }
 
 /**

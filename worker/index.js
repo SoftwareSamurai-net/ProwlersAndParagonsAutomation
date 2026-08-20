@@ -62,7 +62,7 @@ async function route(request, env, deps) {
 
     // Everything below needs somebody to be signed in, and asks once. A route that fetched its
     // own user would be a route that could forget to.
-    if (path === '/api/character' || path === '/api/rulebook/power') {
+    if (path === '/api/characters' || path.startsWith('/api/characters/') || path === '/api/rulebook/power') {
         const user = await auth.currentUser(request, env, deps);
         if (!user) return fail(401, 'Sign in first.');
 
@@ -70,9 +70,18 @@ async function route(request, env, deps) {
             return only('GET', method, () => power(request, entries));
         }
 
-        if (method === 'GET') return characters.read(request, env, deps, user);
-        if (method === 'PUT') return characters.write(request, env, deps, user);
-        if (method === 'DELETE') return characters.remove(request, env, deps, user);
+        if (path === '/api/characters') {
+            return only('GET', method, () => characters.list(request, env, deps, user));
+        }
+
+        // Everything past the prefix is the id, unvalidated here — each handler below checks
+        // its shape, because a 400 for a malformed id and a 404 for a missing one both come
+        // from knowing what a real id looks like, and only the handler needs to know that.
+        const id = path.slice('/api/characters/'.length);
+
+        if (method === 'GET') return characters.read(request, env, deps, user, id);
+        if (method === 'PUT') return characters.write(request, env, deps, user, id);
+        if (method === 'DELETE') return characters.remove(request, env, deps, user, id);
 
         return methodNotAllowed('GET, PUT, DELETE');
     }

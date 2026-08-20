@@ -1,6 +1,5 @@
 @page "/"
 @inject CharacterSession Session
-@inject ICharacterStore Store
 
 <PageTitle>Tier — Prowlers &amp; Paragons</PageTitle>
 
@@ -15,36 +14,12 @@
    demonstration is not a step in making your own character. Somebody who has come here to build
    one had to walk past them first.
 
-   What stays is the one control that belongs to building: throwing this character away. *@
-<Panel Title="Starting over" Aside="There is no undo" NoPrint="true">
-    <p class="small muted">
-        Whatever you build is remembered in this browser, so you can close the tab and come back
-        to it. It is not sent anywhere and it is only on this device — download the sheet from the
-        last step if you want a copy that travels.
-    </p>
-
-    @* Asks first, in the page rather than in a browser dialogue, and only when there is
-       something to lose. On a fresh sheet it acts on one click, which is the visit where nobody
-       has anything at stake. *@
-    <div class="inline">
-        @if (_pending is { } pending)
-        {
-            <button type="button" class="btn danger" @onclick="() => Do(pending)">
-                Yes, @pending.Verb
-            </button>
-            <button type="button" class="btn" @onclick="() => _pending = null">
-                Keep this character
-            </button>
-        }
-        else
-        {
-            <button type="button" class="btn danger" @onclick="() => Ask(Discard())">
-                Start a new character
-            </button>
-            <NavLink class="btn" href="portfolio">Or start from a finished one</NavLink>
-        }
-    </div>
-</Panel>
+   **And "Starting over" went the same way.** It was the first thing on this page: one red button
+   and a link away to somebody else's finished character. That is a strange greeting for a visitor
+   who arrived to build one — what belongs at the top is what they already have, which is what
+   `CharacterManager` shows. Discarding is still here; it is a row's own control now, plus the same
+   "Start a new character" it always was. *@
+<CharacterManager />
 
 @* Six cards rather than six full-width rows. These are the one set of choices on the
    whole app a reader is meant to compare against each other rather than search through,
@@ -150,40 +125,6 @@
              NextDisabled="@(Session.Sheet.SelectedTierId is null)" />
 
 @code {
-    private Replacement? _pending;
-
-    /// <summary>Something that replaces the character, and what to call it when asking.</summary>
-    private sealed record Replacement(string Verb, Func<Task> Run);
-
-    private Replacement Discard() => new("discard this character", async () =>
-    {
-        Session.StartAgain();
-
-        // Forget the stored copy too. Clearing only the session left the old character in
-        // local storage, so it came back on the next visit — which reads as the button not
-        // having worked, on the control where that matters most.
-        //
-        // After emptying the sheet, not before: emptying it fires the write-through save,
-        // and the clear has to land second. In WebAssembly the save's interop call against a
-        // synchronous JS function completes before StartAgain returns, so it does. If that
-        // ever stopped holding — a storage API that returns a promise — the worst case is a
-        // stored empty character, which restores to exactly what this button produces.
-        await Store.ClearAsync();
-    });
-
-    /// <summary>Asks first, unless the sheet is empty and there is nothing to ask about.</summary>
-    private async Task Ask(Replacement replacement)
-    {
-        if (Session.HasSomethingToLose) _pending = replacement;
-        else await replacement.Run();
-    }
-
-    private async Task Do(Replacement replacement)
-    {
-        _pending = null;
-        await replacement.Run();
-    }
-
     /// <summary>
     /// What choosing this tier means, in one line.
     ///

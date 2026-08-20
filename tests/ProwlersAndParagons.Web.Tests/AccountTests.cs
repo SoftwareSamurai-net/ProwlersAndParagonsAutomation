@@ -35,9 +35,14 @@ public sealed class AccountTests
         var http = new HttpClient(api) { BaseAddress = new Uri("https://pp.example.test/") };
         var who = new Accounts(http);
         var local = new CharacterStore(storage, Costs, Validator, who);
-        var remote = new ApiCharacterStore(http, Costs, Validator);
 
-        return new Wired(api, storage, who, new AccountCharacterStore(who, local, remote));
+        // The account's store reads the current-id pointer out of the browser, so it needs the
+        // same SavedCharacters the local store is built on — which of your characters is open is a
+        // fact about this tab, not something an account should decide from another device.
+        var saved = new SavedCharacters(storage, Costs, Validator, who);
+        var remote = new ApiCharacterStore(http, saved, Costs, Validator);
+
+        return new Wired(api, storage, who, new AccountCharacterStore(who, local, remote, saved));
     }
 
     [Fact]
