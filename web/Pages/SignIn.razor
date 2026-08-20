@@ -171,12 +171,26 @@ else
         _asking = false;
 
         // Accepted says nothing about whether an account exists, deliberately — see the note on
-        // the server's own endpoint. Only the two honest refusals get a message.
-        _sent = outcome == LinkRequest.Accepted;
-        _problem = outcome switch
+        // the server's own endpoint. Only the honest refusals get a message.
+        _sent = outcome.Result == LinkRequest.Accepted;
+        _problem = outcome.Result switch
         {
             LinkRequest.NotAnAddress => "That does not look like an email address.",
+
+            // **Only this one may advise trying again**, because it is the only one where
+            // nothing was reached and waiting might genuinely help.
             LinkRequest.Unavailable => "Could not reach the site just now. Try again in a moment.",
+
+            // Reached, and broken at our end. Telling somebody to try again would be advice to
+            // keep doing the one thing that cannot work — which is what the old shared message
+            // did, because a 500 and a dead network were a single outcome. Saying the address is
+            // fine matters too: the natural reading of a failure here is that you typed it wrong.
+            LinkRequest.Failed => outcome.Reference is { Length: > 0 } reference
+                ? "Something went wrong at our end, so no link was sent. Nothing is wrong with "
+                  + $"your address. If you report this, quote reference {reference}."
+                : "Something went wrong at our end, so no link was sent. Nothing is wrong with "
+                  + "your address.",
+
             _ => null,
         };
     }
