@@ -440,6 +440,29 @@ questions about the rules. It does not replace `build --from`; both call the sam
 `dotnet test` and has its own suite: `./scripts/test-worker.sh` (local Node 22+, or Docker).
 Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
 
+- **It is an allow-list, not a sign-up, and the refusal is silent.** Only an address on the
+  invitation list may ask for a sign-in link; every other address gets the same `204` a sent link
+  gets, because anything else makes the endpoint a way of asking who is on the list, one address
+  at a time. **The bootstrap is `ADMIN_EMAIL`, an environment variable, and nothing is seeded into
+  the database** — a committed address would be this repository owner's own, silently making him
+  the administrator of every fork. A deployment with neither the variable nor a row allows nobody,
+  which is the direction this should fail in. **What the list does not hide is time**: an invited
+  address waits on a call to the mail provider and an uninvited one returns at once. Recorded
+  rather than padded, because padding trades the real defence for the look of one.
+- **Withdrawing an invitation ends that address's sessions and keeps its characters.** Deleting
+  the row alone is a gesture — the person is holding a month-long cookie — and deleting their work
+  would make one button on an administration page the most dangerous control in the application.
+  Adding the address back gives them everything as they left it.
+- **The administrator's page is reached by its address, not by a link that appears for some
+  people.** `Identity` still carries a key and a name and no role, deliberately, so the browser
+  holds no claim about who somebody is; the server checks on every request and answers an
+  ordinary account with the same `404` an unrouted address gets, so the page cannot be discovered
+  by trying. The link on the account panel is therefore shown to everybody signed in, and an
+  account it is not for is told so plainly.
+- **`/admin` is a third `Area`, and the reason is the one recorded for the recordings.** Six
+  numbered creation steps and a running Hero Point total above a list of email addresses are an
+  offer to continue something the reader is not doing, and the budget is a different subject in
+  the same six-label format. `Areas.Of` answers it; `MainLayout` draws neither there.
 - **It holds no rules and must never gain one.** A character is stored as an opaque string it
   never parses — the engine decides cost and legality and runs in the browser. A second place
   that understood the shape of a character is a second place to keep in step.

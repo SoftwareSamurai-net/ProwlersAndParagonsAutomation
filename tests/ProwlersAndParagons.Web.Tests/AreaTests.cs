@@ -23,6 +23,9 @@ public sealed class AreaTests
     [InlineData("portfolio", Area.Portfolio)]
     [InlineData("portfolio/replay", Area.Portfolio)]
     [InlineData("portfolio/replay/the-conductor", Area.Portfolio)]
+    [InlineData("admin", Area.Account)]
+    [InlineData("Admin", Area.Account)]
+    [InlineData("administrators", Area.Play)]
     public void AnAddressKnowsWhichHalfOfTheSiteItIsIn(string path, Area expected) =>
         Assert.Equal(expected, Areas.Of(path));
 
@@ -77,6 +80,7 @@ public sealed class AreaTests
     [InlineData("portfolio", false)]
     [InlineData("portfolio/replay/the-conductor", false)]
     [InlineData("replay", false)]
+    [InlineData("admin", false)]
     public void TheStepsAndTheBudgetBelongToTheToolAlone(string path, bool expected)
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);

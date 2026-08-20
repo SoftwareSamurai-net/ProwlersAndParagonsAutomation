@@ -1,6 +1,6 @@
 namespace ProwlersAndParagonsAutomation.Web.Services;
 
-/// <summary>Which of the two things this site is you are currently in.</summary>
+/// <summary>Which part of this site you are currently in.</summary>
 public enum Area
 {
     /// <summary>
@@ -14,6 +14,17 @@ public enum Area
     /// that shows somebody what was built, rather than helping them build.
     /// </summary>
     Portfolio,
+
+    /// <summary>
+    /// Looking after the site rather than using it: who may have an account here.
+    ///
+    /// <para><b>A third area, added because the chrome is wrong on it for exactly the reason it
+    /// is wrong on a recording.</b> Six numbered creation steps and a running Hero Point total
+    /// are the character generator's, and above a list of email addresses they are an offer to
+    /// continue something the reader is not doing. The budget is worse than meaningless there:
+    /// it is a different subject entirely, in the same six-label format.</para>
+    /// </summary>
+    Account,
 }
 
 /// <summary>
@@ -46,6 +57,9 @@ public static class Areas
     /// </summary>
     private const string LegacyReplayPrefix = "replay";
 
+    /// <summary>The first path segment that marks the administration page.</summary>
+    private const string AccountPrefix = "admin";
+
     /// <summary>
     /// The area a base-relative path belongs to.
     ///
@@ -62,9 +76,14 @@ public static class Areas
 
         var first = relativePath.Split('/', '?', '#')[0];
 
-        return string.Equals(first, PortfolioPrefix, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(first, LegacyReplayPrefix, StringComparison.OrdinalIgnoreCase)
-                ? Area.Portfolio
-                : Area.Play;
+        if (string.Equals(first, PortfolioPrefix, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(first, LegacyReplayPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return Area.Portfolio;
+        }
+
+        return string.Equals(first, AccountPrefix, StringComparison.OrdinalIgnoreCase)
+            ? Area.Account
+            : Area.Play;
     }
 }

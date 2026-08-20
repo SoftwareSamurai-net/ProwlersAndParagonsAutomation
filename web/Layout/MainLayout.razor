@@ -112,13 +112,14 @@
 }
 
 @* The budget bar is the character being built, and it does not belong above a recording
-   of somebody else's. Both are six labelled figures in the same format — Package, Abilities,
+   of somebody else's — nor above the page that says who may have an account, which is not a
+   character at all. Both are six labelled figures in the same format — Package, Abilities,
    Talents, Powers, Perks, Gear — so a visitor part-way through their own character met
    "105 of 125 spent, 20 remaining" directly above a recorded character costed at 136, with
    nothing on the page saying whose was whose. Worse on the Villain recording, which
    deliberately shows no budget of its own: the only budget on the screen belonged to a
    different character entirely. *@
-@if (!ShowingARecording)
+@if (Where == Area.Play)
 {
     <HpBudgetBar />
 }
@@ -152,21 +153,6 @@
     /// route into each and neither has two.</para>
     /// </summary>
     private Task SetTheme(ThemeChoice choice) => Theme.Choose(choice).AsTask();
-
-    /// <summary>
-    /// Whether the page under the shell is a recording rather than the character being built.
-    ///
-    /// <para>Read from the address rather than passed down, because the shell renders the body
-    /// and cannot ask it anything. Matched on the path's first segment so that both
-    /// <c>/replay</c> and <c>/replay/anything</c> count, and so that a future page whose name
-    /// merely begins with those letters does not.</para>
-    ///
-    /// <para><b>Case-insensitively</b>, because Blazor's own route matching is: <c>/Replay/…</c>
-    /// serves the recording, and an ordinal comparison here served it with the visitor's budget
-    /// bar over the top — the exact thing this exists to prevent, reachable by anybody who
-    /// capitalised a shared link.</para>
-    /// </summary>
-    private bool ShowingARecording => Where == Area.Portfolio;
 
     /// <summary>
     /// Which of the two things this site is the reader is currently in.

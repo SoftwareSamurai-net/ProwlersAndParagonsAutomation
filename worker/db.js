@@ -177,3 +177,95 @@ export async function countAttempt(db, { key, now, windowSeconds }) {
 
     return row?.count ?? 0;
 }
+
+/**
+ * Give an attempt back, because it caused nothing.
+ *
+ * <p><b>The limit is on mail, not on requests.</b> `countAttempt` runs before the send, which is
+ * what makes it a bound on how many messages one address or one machine can cause — but a send
+ * the provider refused caused no message, so leaving the count spent charges somebody for
+ * something that never happened. That is not a tidiness point: five refused attempts used to
+ * leave the sixth silently rate limited, and a rate-limited answer is deliberately identical to
+ * a successful one, so a broken mail provider stopped reporting itself after five tries and
+ * started reporting success instead.</p>
+ *
+ * <p>`count > 0` rather than a floor afterwards: the update is the guard, so two refunds racing
+ * cannot take a count below zero and hand somebody an extra attempt.</p>
+ */
+export async function refundAttempt(db, key) {
+    await db.prepare('UPDATE login_attempts SET count = count - 1 WHERE key = ? AND count > 0')
+        .bind(key).run();
+}
+
+/**
+ * The invitation for an address, or null.
+ *
+ * <p>Asked on the way into a sign-in and again on every administrator's request, so it is a
+ * primary-key probe by design: `invitations.email` is unique, and the address is normalised to
+ * lower case before it ever reaches here.</p>
+ */
+export async function invitationFor(db, email) {
+    return await db.prepare(
+        'SELECT id, email, grants_admin, invited_by, created_at FROM invitations WHERE email = ?')
+        .bind(email).first();
+}
+
+/** One invitation by its own id — what a withdrawal names, so that no address is in a URL. */
+export async function invitationById(db, id) {
+    return await db.prepare(
+        'SELECT id, email, grants_admin, invited_by, created_at FROM invitations WHERE id = ?')
+        .bind(id).first();
+}
+
+/**
+ * Every invitation, oldest first, and whether each address has become an account.
+ *
+ * <p>Oldest first rather than newest: this list is short and mostly unchanging, and a stable
+ * order means a row does not move under the cursor of somebody about to withdraw it.</p>
+ *
+ * <p>The join is what lets the page tell "invited" from "signed in" — an address that has never
+ * been used is one whose link may simply not have arrived, and that is the state worth showing
+ * on a site whose mail has already gone wrong once.</p>
+ */
+export async function listInvitations(db) {
+    const result = await db.prepare(
+        'SELECT i.id, i.email, i.grants_admin, i.invited_by, i.created_at, u.id AS user_id '
+        + 'FROM invitations i LEFT JOIN users u ON u.email = i.email '
+        + 'ORDER BY i.created_at ASC, i.email ASC')
+        .all();
+
+    return result.results;
+}
+
+/**
+ * Let one address have an account, and hand back the row.
+ *
+ * <p>`RETURNING` rather than an insert followed by a read: the caller wants the row it just
+ * made, and two statements would let a withdrawal in between turn a successful add into a
+ * null nobody expected.</p>
+ */
+export async function addInvitation(db, { id, email, grantsAdmin, invitedBy, now }) {
+    return await db.prepare(
+        'INSERT INTO invitations (id, email, grants_admin, invited_by, created_at) '
+        + 'VALUES (?, ?, ?, ?, ?) '
+        + 'RETURNING id, email, grants_admin, invited_by, created_at')
+        .bind(id, email, grantsAdmin, invitedBy, now).first();
+}
+
+export async function removeInvitation(db, id) {
+    await db.prepare('DELETE FROM invitations WHERE id = ?').bind(id).run();
+}
+
+/**
+ * End every session an address is holding.
+ *
+ * <p>By address rather than by user id, because the caller is holding an invitation and an
+ * invitation names an address — and because an address with no account yet has no sessions,
+ * which this answers correctly by deleting none. Withdrawing permission has to close the door
+ * that is already open, or it is a rule about future requests only.</p>
+ */
+export async function deleteSessionsFor(db, email) {
+    await db.prepare(
+        'DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email = ?)')
+        .bind(email).run();
+}

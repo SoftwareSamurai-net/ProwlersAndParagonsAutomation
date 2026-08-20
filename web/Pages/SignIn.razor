@@ -49,6 +49,15 @@
             <p>Kept. It belongs to your account now, and the one in this browser is untouched.</p>
         }
 
+        @* **Offered to everybody signed in, not only to whoever it is for.** Which account
+           may manage the list is the server's answer and it is checked on every request there;
+           showing this link conditionally would mean the browser holding a claim about who
+           somebody is, which is the one thing identity here deliberately does not carry. So an
+           account it is not for follows it once and is told so plainly. *@
+        <p class="small muted">
+            If you look after who can sign in to this site, <a href="admin">that list is here</a>.
+        </p>
+
         <p>
             <button type="button" class="btn danger" @onclick="SignOut">Sign out</button>
         </p>
@@ -67,7 +76,11 @@ else
 
         @if (_sent)
         {
-            @* The wording stays vague about whether the address has an account — that is what
+            @* "Can have" rather than "has", because under an invitation list there are two
+               things this must stay vague about and one of them is new: whether the address is
+               on the list at all, and whether it has got as far as an account. An invited
+               address that has never signed in has no account row yet and still gets a link;
+               an uninvited one gets this same sentence and no mail. That is what
                stops this page being a way of finding out, one address at a time. **The reason
                belongs here and not on the screen**: it is a decision about how the page is
                built, and a reader came to sign in. It said so out loud until somebody read it
@@ -75,7 +88,7 @@ else
             @* Kept on one line: SignInPageTests matches the phrase in the markup, so a wrap
                between "its" and "way" fails it. *@
             <p>
-                Check your inbox — if that address has an account here, a sign-in link is on its way.
+                Check your inbox — if that address can have an account here, a sign-in link is on its way.
                 The link works once and expires in fifteen minutes.
             </p>
         }

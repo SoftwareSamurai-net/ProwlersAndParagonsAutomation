@@ -9,8 +9,9 @@
 import * as auth from './auth.js';
 import * as characters from './characters.js';
 import { CHAPTERS } from './corpus.js';
-import { newSecret, newUserId } from './crypto.js';
+import { newInvitationId, newSecret, newUserId } from './crypto.js';
 import { fail } from './http.js';
+import * as invitations from './invitations.js';
 import { sendSignInLink } from './mail.js';
 import { index, power } from './rulebook.js';
 
@@ -25,6 +26,7 @@ export const production = {
     now: () => Date.now(),
     newSecret,
     newUserId,
+    newInvitationId,
     sendSignInLink,
 };
 
@@ -97,6 +99,31 @@ async function route(request, env, deps) {
         if (method === 'DELETE') return characters.remove(request, env, deps, user, id);
 
         return methodNotAllowed('GET, PUT, DELETE');
+    }
+
+    // **Managing the allow-list, and a wrong answer here is the whole site.** Everything
+    // under this prefix is refused with the same 404 an unrouted address gets, rather than a
+    // 403, so that an ordinary account cannot learn there is an administrator's page at all.
+    // The check is a database read on every request rather than a claim on the session, because
+    // withdrawing somebody's flag has to take effect on their next request and not when their
+    // month-old cookie expires.
+    if (path === '/api/admin/invitations' || path.startsWith('/api/admin/invitations/')) {
+        const user = await auth.currentUser(request, env, deps);
+        if (!user) return fail(401, 'Sign in first.');
+        if (!await invitations.isAdministrator(env, user)) return fail(404, 'No such address.');
+
+        if (path === '/api/admin/invitations') {
+            if (method === 'GET') return invitations.list(request, env, deps, user);
+            if (method === 'POST') return invitations.add(request, env, deps, user);
+
+            return methodNotAllowed('GET, POST');
+        }
+
+        const id = path.slice('/api/admin/invitations/'.length);
+
+        if (method === 'DELETE') return invitations.remove(request, env, deps, user, id);
+
+        return methodNotAllowed('DELETE');
     }
 
     return fail(404, 'No such address.');

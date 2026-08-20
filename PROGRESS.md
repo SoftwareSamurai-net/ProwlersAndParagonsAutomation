@@ -17,11 +17,11 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4189 across three suites — 3722 on the engine, 409 rendering components with bUnit, 58 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus seven browser harnesses driven by headless Chrome |
+| Tests | TBD_TEST_COUNTS |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
-| Accounts | **On.** D1 migrations applied to the remote database, the `DB` binding is in place and `/api/me` answers `401` with JSON — the deploy's own pass condition. Sign-in itself is untested by anything automated; somebody has to receive a link |
+| Accounts | **Invitation only, and the mail is still refused.** D1 migrations applied to the remote database, the `DB` binding is in place and `/api/me` answers `401` with JSON — the deploy's own pass condition. **No sign-in link has ever been delivered:** the live `/api/auth/request` answers `500` on an address with allowance left, so the mail provider is refusing the send. See [item 8](#8-the-mail-provider-is-refusing-every-send) |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
 | Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export, not assumed**: it had drifted to 3 on `master` and to 37 on the reconciled slices before this was checked |
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
@@ -111,6 +111,52 @@ The invented per-Power lists are gone — see the completed item below. What is 
 Enforcing them would need roughly seven booleans on each of the 141 Powers — about a thousand fresh judgements against the book. That is worth doing only if something downstream actually needs it, and the obvious candidate was assisted creation, where a model proposing a character benefits from the engine ruling out illegal combinations.
 
 **Assisted creation has now shipped without them, and did not need them** — see the completed item below. A caveat is shown to whoever is proposing and left to the GM, which is what Ch.2 says it is. So this stays open with no consumer asking for it, and the caveat remains honest where the guess would not be.
+
+### 8. The mail provider is refusing every send
+
+**Nobody can sign in to the live site, and this is the only thing standing in the way.** The
+plumbing either side of it is proven: `/api/me` answers 401 with JSON, so the Function and its
+D1 binding are live; `/api/auth/request` gets far enough to write a rate-limit row and a login
+token, so the database is writable; and it answers `500` rather than the "not configured"
+refusal, so `SITE_URL` is set. What fails is the one call after that — the POST to Resend, which
+`worker/mail.js` turns into a throw.
+
+Measured against the live site on 20 August 2026, from the site's own origin:
+
+| Address | Answer | Time |
+|---|---|---|
+| One with allowance left | `500` and a reference | ~750 ms — a real round trip to the provider |
+| One already over the hourly limit | `204` | ~400 ms — no provider call at all |
+
+**The DNS is not the problem.** Every record Resend asks for is present and correct on the
+sending subdomain: DKIM at `resend._domainkey.superheroes.softwaresamurai.net`, and
+`v=spf1 include:amazonses.com ~all` with `10 feedback-smtp.ap-northeast-1.amazonses.com` at
+`send.superheroes.softwaresamurai.net`. The apex keeps Proton's own MX and SPF untouched, as
+[`docs/ACCOUNTS-SETUP.md`](docs/ACCOUNTS-SETUP.md) requires.
+
+**It is `400 validation_error`**, read off a live tail of the production deployment while a
+request was made against it. That is the provider refusing the *body*, which rules out both of
+the likelier-sounding causes: a bad or wrongly scoped key is `401`/`403` and never reaches
+validation, and the domain is verified in Resend with every record present. All three variables
+exist on the Pages project — `wrangler pages secret list` shows `MAIL_FROM`, `RESEND_API_KEY` and
+`SITE_URL` — so what is left is the *value* of `MAIL_FROM`, which is encrypted and cannot be read
+back. Every other field in the request is built by `worker/mail.js` from the address that was
+typed, and that address is well formed.
+
+**So the next step is somebody opening `MAIL_FROM` in the dashboard and re-entering it** as
+`no-reply@superheroes.softwaresamurai.net` — no display name, no angle brackets, no trailing
+space, and nothing on the apex or on the `send.` subdomain. Then redeploy, because a variable
+changed after a deploy is not in the running Function.
+
+**Everything needed to confirm that in one line now exists**: the refusal carries the provider's
+own code, so the next tail reads *"(HTTP 400, validation_error)"* rather than *"(HTTP 400)"*, and
+`docs/ACCOUNTS-SETUP.md` maps each code to which of the four checks it means.
+
+**A second fault was masking this one and is fixed** — see the completed entry below. Every
+attempt was counted before the send, so five refusals spent the hourly allowance and every try
+after that answered the same cheerful `204` a sent link gets. That is why the site said a link
+was on its way, Resend's dashboard showed nothing and Cloudflare showed nothing: by then nothing
+was being attempted.
 
 ### 2. What the sheet still cannot say
 
@@ -356,6 +402,77 @@ warns a stale note becomes: something the next reader trusts because it is close
   is a decision of its own rather than a side effect of a budget-bar change.
 - **No visual regression testing**, unchanged from the last slice's handover — four palettes and
   a proportional bar chart are more, not fewer, pixels nobody but a person is checking.
+
+### Only invited addresses, and a page that says which
+
+The site could mail a sign-in link to any address anybody typed into it. That is the ordinary
+shape for a public sign-up and it is not what this site is — an account is what puts the
+rulebook's own text on screen, and who may read that belongs to the owner and to people he has
+named. So there is a list, and a page that manages it.
+
+**The gate is silent, and it has to be.** An address that is not on the list gets the same `204`
+a sent link gets, for the same reason a rate-limited request does: any other answer makes the
+endpoint a way of asking who is on the list, one address at a time. It is checked again when a
+link is spent, because fifteen minutes is long enough to be withdrawn in.
+
+**The first invitation cannot come from the list**, since managing it needs an account and an
+account needs an invitation. `ADMIN_EMAIL` breaks that circle: the address in it is always
+allowed, always an administrator, and has no row, so no click can remove it. **Nothing is seeded
+into the database** — a committed address would be this repository owner's own on every fork, and
+a deployment with neither the variable nor a row allows nobody, which is the safe direction.
+
+**Withdrawing ends the sessions that address is holding and keeps its characters.** Deleting the
+row alone is a gesture against somebody holding a month-long cookie; deleting their work would
+make one button on an administration page the most dangerous control here.
+
+**The page holds no claim about who is reading it.** `Identity` still carries a key and a name
+and no role — the decision recorded when accounts were built — so the server answers an ordinary
+account with the same `404` an unrouted address gets, and the page is reached by its address
+rather than by a button that appears for some people. `/admin` is a third `Area` for the reason
+the recordings are the second: the six creation steps and a running Hero Point total mean nothing
+above a list of email addresses.
+
+**Sixteen tests on the server and nine on the page, and two things were found by mutating them.**
+Five deletions in the server — the gate, the gate on spending a link, who may reach the page,
+ending a withdrawn address's sessions, and the refusal to withdraw your own — each turn a named
+test red. The browser's five found one guard that was not guarding: the fixture's administrator
+was *also* the deployment's address, whose row has no id, so a page offering a withdrawal on every
+row with an id passed. The fixture now has four rows and tells the two cases apart. The other is
+recorded in the harness: nearly every test in the accounts suite predates the list, so the harness
+invites the address a request names — and there is a test that this scaffolding is really doing
+something, because a bypass that had stopped working would leave the whole suite passing for the
+wrong reason.
+
+**What is still not proven is a link arriving.** The provider refusal above is unchanged by any of
+this, and no invitation is worth anything until somebody can receive one.
+
+### A refused send spent the allowance that would have reported it
+
+The first person to try signing in to the live site got "a sign-in link is on its way to it", no
+mail, and nothing in either dashboard to say why. Both halves of that were this repository's doing.
+
+**The rate limit counted attempts, not messages.** `requestLink` counts against the address and
+against the source before it calls the provider, and a refused send left the count spent. The
+limit is five an hour, and the two answers this endpoint gives are deliberately identical — a
+rate-limited request and a sent link are both `204`, so that nobody can use it to ask whether an
+address has an account. So the sixth attempt stopped reporting the failure and started reporting
+success, for the rest of the hour. **The shape hides itself**: somebody retries *because* no mail
+arrived, and retrying is the one action that silences the error naming the fault.
+
+The fix is `db.refundAttempt`, called on the failure path only: an attempt is spent on a message
+rather than on a request, so the limit still bounds the mail one address or one machine can cause.
+What it no longer bounds is requests against a provider that is refusing all of them — which is
+the trade, and it buys back the only signal there is that something at this end is broken.
+
+Two tests, one per bucket. The second is not redundant: nothing in that suite sets
+`CF-Connecting-IP` unless a test says so, so a refund written for the address alone would pass
+every assertion about the address. Both were confirmed by deleting the two refund calls from the
+committed fix and watching them go red, and each carries the positive control that the limit still
+bites on mail that was actually sent — a refund that had broken the counting outright would
+otherwise look like a pass.
+
+**It did not fix sign-in**, and the open item above says what is still wrong: the provider is
+still refusing. What it fixed is that the site now says so every time instead of five times.
 
 ### Characters, plural: a manager, imports, and the export the app was not writing
 

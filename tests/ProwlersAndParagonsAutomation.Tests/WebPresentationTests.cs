@@ -1127,9 +1127,10 @@ public sealed class WebPresentationTests
     /// argument that the budget strip directly beneath carries the edge for both — and the strip
     /// is absent on three whole classes of screen: <b>every page in Villain mode</b>, since Ch.9
     /// gives Villains no budget and the component renders nothing at all; <b>the tier page before
-    /// a tier is chosen</b>, which is the first screen a new visitor sees; and <b>every
-    /// <c>/replay</c> route</b>, where the layout hides it deliberately. On all three the step
-    /// chips sat on the page ground with nothing under them.</para>
+    /// a tier is chosen</b>, which is the first screen a new visitor sees; <b>every
+    /// <c>/replay</c> route</b>, where the layout hides it deliberately; and <b><c>/admin</c></b>,
+    /// which hides it for the same reason a recording does — the page is not a character. On all
+    /// four the step chips sat on the page ground with nothing under them.</para>
     ///
     /// <para>So the requirement is on the band that is always there. The three conditions are
     /// asserted as well as the edge, because they are the *reason* for it: if the strip ever
@@ -1160,7 +1161,12 @@ public sealed class WebPresentationTests
 
         Assert.Contains("Session.ShowBudget", strip, StringComparison.Ordinal);
         Assert.Contains("SelectedTierId is not null", strip, StringComparison.Ordinal);
-        Assert.Contains("!ShowingARecording", layout, StringComparison.Ordinal);
+        // The strip renders on the character generator's own routes and nowhere else. Read as
+        // the whole condition rather than as a word inside it: `Where == Area.Play` is what makes
+        // it conditional, and an assertion on some fragment of that would survive the day it
+        // becomes unconditional.
+        Assert.Contains("@if (Where == Area.Play)\r\n{\r\n    <HpBudgetBar />",
+            layout.ReplaceLineEndings("\r\n"), StringComparison.Ordinal);
     }
 
     /// <summary>

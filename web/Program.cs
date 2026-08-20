@@ -43,6 +43,7 @@ builder.Services.AddScoped<CharacterSession>();
 // takes them and the sign-in page needs the two operations that are not on ICharacterStore:
 // reading the anonymous slot specifically, and copying it up on request.
 builder.Services.AddScoped<Accounts>();
+builder.Services.AddScoped<Invitations>();
 builder.Services.AddScoped<IIdentitySource>(s => s.GetRequiredService<Accounts>());
 builder.Services.AddScoped<CharacterStore>();
 // The plural store, registered separately from CharacterStore even though CharacterStore

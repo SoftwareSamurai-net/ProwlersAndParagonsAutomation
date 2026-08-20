@@ -6,6 +6,8 @@
 
 import { hash } from './crypto.js';
 import * as db from './db.js';
+import { normaliseEmail } from './email.js';
+import { mayHaveAnAccount } from './invitations.js';
 import {
     clearSessionCookie, fail, json, noContent, readJson, sameOrigin, sessionCookie,
     setSessionCookie,
@@ -48,15 +50,35 @@ export async function requestLink(request, env, deps) {
     await db.sweepExpired(env.DB, now);
 
     const seconds = Math.floor(now / 1000);
+    const addressKey = 'email:' + email;
+    const clientKey = 'ip:' + clientAddress(request);
     const byAddress = await db.countAttempt(env.DB,
-        { key: 'email:' + email, now: seconds, windowSeconds: HOUR_SECONDS });
+        { key: addressKey, now: seconds, windowSeconds: HOUR_SECONDS });
     const byClient = await db.countAttempt(env.DB,
-        { key: 'ip:' + clientAddress(request), now: seconds, windowSeconds: HOUR_SECONDS });
+        { key: clientKey, now: seconds, windowSeconds: HOUR_SECONDS });
 
     // Silently, for the reason above: a caller must not be able to tell a limit from a send.
     if (byAddress > LINKS_PER_ADDRESS_PER_HOUR || byClient > LINKS_PER_CLIENT_PER_HOUR) {
         return noContent();
     }
+
+    // **An address nobody invited gets the same answer as one that was, and no mail.**
+    // This site is not a sign-up: an account is what puts the rulebook's own text on screen, so
+    // who may have one is a decision rather than a form. The answer is `204` either way for the
+    // same reason a rate-limited request is — anything else makes this endpoint a way of asking
+    // who is on the list, one address at a time.
+    //
+    // **It is deliberately above the deployment check below.** A stranger probing a site whose
+    // `SITE_URL` is missing would otherwise get a 500 where an invited address gets one too,
+    // which says nothing about the list — but the reverse ordering also means the owner of a
+    // broken deployment is told about it whichever address he tries, and that is worth more.
+    //
+    // **What this does not hide is time.** An invited address waits on a call to the mail
+    // provider and an uninvited one returns immediately, so somebody willing to measure can
+    // still tell them apart. Closing that would mean padding every refusal to the length of a
+    // send, which trades a real defence — the list itself — for the appearance of one. Recorded
+    // rather than fixed.
+    if (!await mayHaveAnAccount(env, email)) return noContent();
 
     // **The link's domain comes from configuration, and this refuses rather than guessing.**
     // It used to fall back to the origin of the request — which is derived from the host the
@@ -79,10 +101,33 @@ export async function requestLink(request, env, deps) {
         expiresAt: now + TOKEN_LIFETIME_MS,
     });
 
-    await deps.sendSignInLink(env, {
-        to: email,
-        link: env.SITE_URL.replace(/\/+$/, '') + '/signin?t=' + token,
-    });
+    try {
+        await deps.sendSignInLink(env, {
+            to: email,
+            link: env.SITE_URL.replace(/\/+$/, '') + '/signin?t=' + token,
+        });
+    } catch (error) {
+        // **A send that failed has to give the attempt back, or the failure stops being
+        // reported.** The two answers this endpoint gives are deliberately indistinguishable:
+        // rate limited and sent are both 204, so that nobody can ask it whether an address has
+        // an account here. That is right, and it is also what turns a broken mail provider into
+        // a lie — five refusals spend the allowance, and every try after that answers "a link
+        // is on its way" for the rest of the hour while nothing has been sent all day. It is
+        // the shape that hides itself: somebody retries *because* nothing arrived, and
+        // retrying is what silences the 500 that would have named the fault. It cost this
+        // deployment its first sign-in, and neither the mail provider nor Cloudflare had
+        // anything to show for it, because by then nothing was being attempted.
+        //
+        // So an attempt is spent on a message, not on a request. The limit still bounds the
+        // mail one address or one machine can cause, because a message that was caused is a
+        // message the provider accepted. What it no longer bounds is requests against a
+        // provider refusing all of them — which cost a write and a refused API call each, and
+        // buy back the only signal there is that something at this end is broken.
+        await db.refundAttempt(env.DB, addressKey);
+        await db.refundAttempt(env.DB, clientKey);
+
+        throw error;
+    }
 
     return noContent();
 }
@@ -104,6 +149,14 @@ export async function verify(request, env, deps) {
     const now = deps.now();
     const email = await db.spendLoginToken(env.DB, { tokenHash: await hash(token), now });
     if (!email) return fail(401, 'That sign-in link is not usable. Ask for another.');
+
+    // **Asked again here, and not only when the link was sent.** A link lasts fifteen minutes,
+    // which is long enough for an invitation to be withdrawn in — and the token is spent by the
+    // statement above whether or not this passes, so a withdrawn address cannot hold a live link
+    // in reserve. The refusal is the same sentence every other one on this route gives.
+    if (!await mayHaveAnAccount(env, email)) {
+        return fail(401, 'That sign-in link is not usable. Ask for another.');
+    }
 
     const user = await db.upsertUser(env.DB, {
         id: deps.newUserId(),
@@ -176,25 +229,6 @@ export async function currentUser(request, env, deps) {
  */
 function identityOf(user) {
     return { key: user.id, displayName: user.display_name };
-}
-
-/**
- * An address, normalised, or null.
- *
- * Deliberately permissive. The address is validated by mailing it — anything stricter than "one
- * @, something either side, no spaces" starts rejecting addresses that work, and the flow
- * already proves deliverability in a way no pattern can.
- */
-function normaliseEmail(value) {
-    if (typeof value !== 'string') return null;
-
-    const email = value.trim().toLowerCase();
-    if (email.length < 3 || email.length > 254) return null;
-    if (/\s/.test(email)) return null;
-
-    const at = email.indexOf('@');
-
-    return at > 0 && at === email.lastIndexOf('@') && at < email.length - 1 ? email : null;
 }
 
 /**
