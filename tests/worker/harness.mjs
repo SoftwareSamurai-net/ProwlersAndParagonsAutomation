@@ -19,12 +19,14 @@ import { handle, production } from '../../worker/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-// **Both migrations, in order** — a test running against only `0001` would pass against a
-// schema nobody deploys. Adding a third migration later means adding it to this list, not
-// discovering that the suite quietly stopped exercising it.
+// **Every migration, in order** — a test running against only `0001` would pass against a
+// schema nobody deploys. Adding a migration later means adding it to this list, not discovering
+// that the suite quietly stopped exercising it. `migration.test.mjs` indexes into this by
+// position, so append rather than insert.
 export const MIGRATIONS = [
     join(here, '..', '..', 'd1', 'migrations', '0001_accounts.sql'),
     join(here, '..', '..', 'd1', 'migrations', '0002_characters_list.sql'),
+    join(here, '..', '..', 'd1', 'migrations', '0003_error_log.sql'),
 ];
 
 export const ORIGIN = 'https://pp.example.test';
@@ -84,6 +86,11 @@ export function server({ now = Date.parse('2026-08-19T10:00:00Z') } = {}) {
         now,
         sent,
         db,
+        // The failure reference, held still for the same reason the clock is. Production mints a
+        // random one per failure, which would make two otherwise identical 500 bodies differ for
+        // a reason that has nothing to do with what a test is asking — and one test here requires
+        // two bodies to be identical byte for byte.
+        reference: 'aa11bb',
         env: {
             DB: db,
             SITE_URL: ORIGIN,
@@ -95,6 +102,7 @@ export function server({ now = Date.parse('2026-08-19T10:00:00Z') } = {}) {
     state.deps = {
         ...production,
         now: () => state.now,
+        newReference: () => state.reference,
         sendSignInLink: async (env, message) => {
             sent.push(message);
         },
@@ -150,6 +158,11 @@ export async function signIn(state, email) {
     if (verified.status !== 200) throw new Error('Could not verify: ' + verified.status);
 
     return { cookie: cookieFrom(verified), identity: await verified.json() };
+}
+
+/** Every recorded failure, newest first. The owner's half of the wire, as they would read it. */
+export function errorRows(db) {
+    return db.raw.prepare('SELECT * FROM error_log ORDER BY last_at DESC').all();
 }
 
 /** Every value in the database, as one string, for asking what is stored in the clear. */

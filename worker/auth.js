@@ -6,6 +6,7 @@
 
 import { hash } from './crypto.js';
 import * as db from './db.js';
+import { configurationFailure } from './errors.js';
 import {
     clearSessionCookie, fail, json, noContent, readJson, sameOrigin, sessionCookie,
     setSessionCookie,
@@ -66,10 +67,16 @@ export async function requestLink(request, env, deps) {
     // influence the effective host got a link minted for it — and the link carries the raw
     // token, because that is the credential. Refusing costs a 500 and a clear message on a
     // misconfigured deployment; guessing costs somebody their account.
+    //
+    // **Thrown rather than answered here, so it is classified where every other failure is.** It
+    // used to return its own 500 with its own sentence, no category and no reference — which made
+    // the one failure this site has actually had the only one a visitor could not report and the
+    // owner could not find afterwards. `configuration` is the category that must never advise
+    // retrying, and this is what it was named for: no amount of trying again sets an environment
+    // variable.
     if (!env.SITE_URL) {
-        console.error('SITE_URL is not set, so no sign-in link can be addressed. See docs/ACCOUNTS-SETUP.md.');
-
-        return fail(500, 'This site is not configured to send sign-in links.');
+        throw configurationFailure(
+            'SITE_URL is not set, so no sign-in link can be addressed. See docs/ACCOUNTS-SETUP.md.');
     }
 
     const token = deps.newSecret();

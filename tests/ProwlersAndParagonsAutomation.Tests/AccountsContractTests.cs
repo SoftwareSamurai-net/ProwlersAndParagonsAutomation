@@ -232,6 +232,164 @@ public sealed class AccountsContractTests
     }
 
     /// <summary>
+    /// The failure categories are spelled the same at both ends.
+    ///
+    /// <para><b>The whole point of a category is that one side names it and the other renders
+    /// it</b>, and both suites stay green while the two lists disagree — the server's tests drive
+    /// the server and the browser's drive a stub of it. A category the client does not recognise
+    /// falls to the honest default, so the failure is not a crash: it is every mail failure on
+    /// the deployed site rendering as "something went wrong", which is precisely the flat sentence
+    /// this design replaced.</para>
+    /// </summary>
+    [Fact]
+    public void TheFailureCategoriesAreSpelledTheSameAtBothEnds()
+    {
+        var declared = Regex.Match(File.ReadAllText(WorkerFile("errors.js")),
+            @"CATEGORIES\s*=\s*Object\.freeze\(\[(?<body>[^\]]*)\]",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(declared.Success,
+            "worker/errors.js no longer declares a frozen CATEGORIES list, so this test cannot "
+            + "see the server's set and would pass whatever it sent.");
+
+        var sends = Regex.Matches(declared.Groups["body"].Value, @"'(\w+)'",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(sends.Length == 4,
+            "the server declares " + sends.Length + " categories: " + string.Join(", ", sends));
+
+        // The client: the wire names its switch matches, plus the default everything else falls
+        // to. `unknown` is never matched by name because it is what an unrecognised name becomes.
+        var accounts = File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "web", "Services", "Accounts.cs"));
+
+        var named = Regex.Match(accounts,
+            @"CategoryNamed\(string\?\s*wire\)\s*=>\s*wire\s*switch\s*\{(?<body>[^}]*)\}",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(named.Success,
+            "Accounts.cs no longer maps a wire name to a category in a switch, so there is "
+            + "nothing to compare the server's set against.");
+
+        var reads = Regex.Matches(named.Groups["body"].Value, @"""(\w+)""\s*=>",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .Append("unknown")
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(sends, reads);
+
+        // And the default really is unknown rather than a guess at the nearest one.
+        Assert.Contains("_ => FailureCategory.Unknown", named.Groups["body"].Value,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Every category the server can send is rendered as its own sentence.
+    ///
+    /// <para>Without this the enum can grow a member that no branch prints, which renders as the
+    /// default — a category that exists, arrives, and says nothing more than the flat message it
+    /// was introduced to replace.</para>
+    /// </summary>
+    [Fact]
+    public void EveryFailureCategoryIsRenderedAsItsOwnSentence()
+    {
+        var razor = File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "web", "Pages", "SignIn.razor"));
+
+        foreach (var category in new[] { "Mail", "Storage", "Configuration" })
+        {
+            Assert.True(razor.Contains($"FailureCategory.{category} =>", StringComparison.Ordinal),
+                $"SignIn.razor has no sentence for FailureCategory.{category}, so it renders as "
+                + "the default and the category buys the visitor nothing.");
+        }
+
+        // And the default arm is there, so an unrecognised category is still a sentence.
+        Assert.Contains("_ => \"Something went wrong at our end", razor, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The configuration sentence never advises retrying, and the others still do.
+    ///
+    /// <para><b>This is the one category where retrying cannot help</b>, because no amount of
+    /// trying again sets an environment variable. Telling somebody to keep doing the one thing
+    /// that cannot work is exactly what the old single message did, and it cost three sign-in
+    /// attempts against a deployment whose settings predated it.</para>
+    ///
+    /// <para>"trying again will not help" is deliberately allowed and deliberately pinned: it is
+    /// the denial, not the advice, and a scan that refused it would push the sentence into saying
+    /// nothing about retrying at all.</para>
+    /// </summary>
+    [Fact]
+    public void TheConfigurationSentenceNeverAdvisesRetrying()
+    {
+        var razor = File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "web", "Pages", "SignIn.razor"));
+
+        var configuration = CategoryArm(razor, "Configuration");
+        var mail = CategoryArm(razor, "Mail");
+
+        // **The positive control, and it carries this test.** Every assertion below is an
+        // absence, and an absence is satisfied completely by a regex that captured nothing. The
+        // mail arm is known to advise retrying, so the same scan finding it there is what proves
+        // the scan can see retry advice at all.
+        Assert.True(RetryAdvice.IsMatch(mail),
+            "the mail sentence no longer advises retrying, so the scan below is not known to be "
+            + "able to see retry advice and the configuration assertion proves nothing. Mail arm: "
+            + mail);
+
+        Assert.False(RetryAdvice.IsMatch(configuration),
+            "the configuration sentence advises retrying, and retrying cannot set an environment "
+            + "variable: " + configuration);
+
+        // And it still says so, rather than saying nothing about it.
+        Assert.Contains("will not help", configuration, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Advice to try again, in the spellings this page could plausibly use.
+    ///
+    /// <para><c>trying again</c> does not match <c>try again</c> — the first is the denial the
+    /// configuration sentence carries, the second is the advice it must not.</para>
+    /// </summary>
+    private static readonly Regex RetryAdvice = new(
+        @"\btry again\b|\bretry\b|\btry later\b|\btry once more\b|\bin a moment\b|\bin a few minutes\b",
+        RegexOptions.IgnoreCase, TimeSpan.FromSeconds(5));
+
+    /// <summary>
+    /// The sentence one arm of the category switch renders.
+    ///
+    /// <para><b>The string literals only, not the source of the arm.</b> Reading the source read
+    /// the *next* arm's comment too — which explains why the default says nothing about trying
+    /// again, and so contains the very words being scanned for. The rule is about what a visitor
+    /// is told, and that is the literals; a comment is not on the screen.</para>
+    /// </summary>
+    private static string CategoryArm(string razor, string category)
+    {
+        var arm = Regex.Match(razor,
+            $@"FailureCategory\.{category}\s*=>(?<body>(?:(?!FailureCategory\.|_\s*=>|\}};).)*)",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(arm.Success,
+            $"SignIn.razor has no FailureCategory.{category} arm, so this test reads nothing.");
+
+        var sentence = string.Concat(
+            Regex.Matches(arm.Groups["body"].Value, @"""([^""]*)""",
+                    RegexOptions.None, TimeSpan.FromSeconds(5))
+                .Select(m => m.Groups[1].Value));
+
+        Assert.True(sentence.Length > 20,
+            $"the FailureCategory.{category} arm renders only \"{sentence}\", so the pattern has "
+            + "stopped matching and any assertion on it is worthless.");
+
+        return sentence;
+    }
+
+    /// <summary>
     /// The book is not in the browser payload, checked from this side of the repository too.
     ///
     /// <para><c>web/</c>'s csproj stages <c>data/rules</c> and <c>data/transcripts</c> into
@@ -353,6 +511,9 @@ public sealed class AccountsContractTests
             File.ReadAllText(Path.Combine(RulesFixture.RepoRoot, "docs", "ACCOUNTS-SETUP.md")),
             StringComparison.Ordinal);
     }
+
+    private static string WorkerFile(string name) =>
+        Path.Combine(RulesFixture.RepoRoot, "worker", name);
 
     private static string ServerSource() => string.Concat(ServerFiles().Select(File.ReadAllText));
 

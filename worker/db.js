@@ -22,6 +22,59 @@ export async function sweepExpired(db, now) {
     // `countAttempt` writes in.
     await db.prepare('DELETE FROM login_attempts WHERE window_start < ?')
         .bind(Math.floor(now / 1000) - 24 * 60 * 60).run();
+
+    // A fault nobody has seen for the whole retention window is not a fault anybody is still
+    // investigating. The row count is already bounded by the primary key — see the migration —
+    // so this is about the table being *readable*, not about it being large: a year of
+    // long-mended faults at the top of a `SELECT *` is how nobody reads the log at all.
+    await db.prepare('DELETE FROM error_log WHERE last_at < ?')
+        .bind(now - ERROR_RETENTION_MS).run();
+}
+
+/**
+ * How long a recorded failure is worth keeping.
+ *
+ * <p>Long enough that a fault which happens once a fortnight is still visible next to itself,
+ * short enough that the table is about what is wrong now. It is used twice and must be: once to
+ * sweep a stale row away, and once *inside* the write below to reset a row rather than continue
+ * an old count into a new outage.</p>
+ */
+export const ERROR_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Record that something failed, folding it into the row for its (category, route).
+ *
+ * <p><b>One statement, and the retention window rolls inside it — the same shape as
+ * `countAttempt` above and for the same two reasons.</b> A read that found the row and a write
+ * that trusted it was still there would let two failures arriving together both insert; and a
+ * prune written as a separate pass is a prune that does not happen, because the only thing that
+ * reliably runs on a failing system is the failure path. So a row whose last failure is older
+ * than the window is reset here — count back to 1, `first_at` moved forward — rather than
+ * continuing last month's total into this morning's outage.</p>
+ *
+ * <p><b>Only the most recent occurrence's detail survives, and `occurrences` is what says so.</b>
+ * A failing dependency throws on every request; keeping each one would turn one outage into a
+ * full database. Keeping the latest `kind`, `detail` and `reference` together means the three
+ * describe the same failure rather than being assembled from different ones.</p>
+ */
+export async function recordFailure(db, { category, route, kind, detail, reference, now }) {
+    const cutoff = now - ERROR_RETENTION_MS;
+
+    await db.prepare(
+        'INSERT INTO error_log '
+        + '  (category, route, kind, detail, reference, occurrences, first_at, last_at) '
+        + 'VALUES (?, ?, ?, ?, ?, 1, ?, ?) '
+        + 'ON CONFLICT (category, route) DO UPDATE SET '
+        + '  occurrences = CASE WHEN error_log.last_at < ? THEN 1 '
+        + '                     ELSE error_log.occurrences + 1 END, '
+        + '  first_at    = CASE WHEN error_log.last_at < ? THEN excluded.first_at '
+        + '                     ELSE error_log.first_at END, '
+        + '  kind        = excluded.kind, '
+        + '  detail      = excluded.detail, '
+        + '  reference   = excluded.reference, '
+        + '  last_at     = excluded.last_at')
+        .bind(category, route, kind, detail, reference, now, now, cutoff, cutoff)
+        .run();
 }
 
 export async function userByEmail(db, email) {
