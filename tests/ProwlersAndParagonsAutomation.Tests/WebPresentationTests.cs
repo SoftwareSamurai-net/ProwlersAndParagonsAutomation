@@ -3355,14 +3355,30 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
-    /// Whether a rule applies to a document element in a given state, on a given medium.
+    /// How strongly a rule applies to a document element in a given state on a given medium, or
+    /// null if it does not apply at all.
+    ///
+    /// <para><b>It returns a specificity rather than a yes, and that is not a refinement — it is
+    /// the whole thing this resolver exists to model.</b> The first version answered a bool and
+    /// applied the winners in source order, which is what a stylesheet of same-weight rules
+    /// resolves to and is <em>wrong here</em>: <c>@media</c> contributes nothing to specificity,
+    /// so a dark palette block at (0,3,0) beats the later print block at (0,2,0). That version
+    /// was mutation-tested by removing <c>screen</c> from the OS-dark media query — the exact
+    /// change that reinstates the near-black printed page — and it passed all 148 tests. A
+    /// source-order resolver cannot see a specificity bug, and a specificity bug is the only
+    /// kind this arrangement has.</para>
+    ///
+    /// <para>Counted the way the standard counts it, for the shapes this stylesheet uses: one
+    /// for <c>:root</c>, one for each attribute selector, and <c>:not(X)</c> contributing X's.
+    /// There are no id or type selectors anywhere in theme.css, so a single number is the whole
+    /// of it.</para>
     ///
     /// <para><b>It refuses a selector or a condition it does not model rather than guessing</b>,
     /// the same bargain <c>EffectiveValue</c> makes elsewhere in this file: a resolver that
     /// silently skipped a block it could not read would report a palette that is not the one on
     /// screen, and every ratio measured from it would be fiction.</para>
     /// </summary>
-    private static bool Admits(CssRule rule, ThemeState state, bool printing)
+    private static int? Admits(CssRule rule, ThemeState state, bool printing)
     {
         var condition = rule.Media;
 
@@ -3379,16 +3395,25 @@ public sealed class WebPresentationTests
             Assert.True(screenOnly || printOnly || systemDark || motion,
                 $"the palette resolver does not model the at-rule `{condition}`.");
 
-            if (motion) return false;
-            if (printOnly && !printing) return false;
-            if (screenOnly && printing) return false;
-            if (systemDark && !state.SystemIsDark) return false;
+            if (motion) return null;
+            if (printOnly && !printing) return null;
+            if (screenOnly && printing) return null;
+            if (systemDark && !state.SystemIsDark) return null;
         }
 
-        return rule.Selector
+        // A selector list is weighed selector by selector, so the one that matches most
+        // strongly is the rule's weight for this element.
+        var weights = rule.Selector
             .Split(',')
             .Select(s => s.Trim())
-            .Any(s => Matches(s, state));
+            .Where(s => Matches(s, state))
+            .Select(Specificity)
+            .ToList();
+
+        return weights.Count == 0 ? null : weights.Max();
+
+        static int Specificity(string selector) =>
+            1 + Rx(@"\[data-(?:mode|theme)=""[a-z]+""\]").Matches(selector).Count;
 
         static bool Matches(string selector, ThemeState state)
         {
@@ -3424,25 +3449,38 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
-    /// The tokens a document element in this state actually resolves to, cascade run in source
-    /// order.
+    /// The tokens a document element in this state actually resolves to: the cascade run by
+    /// specificity first and source order second, which is the order a browser runs it in.
     ///
-    /// <para>Every rule in this stylesheet is a <c>:root</c> rule of the same specificity class
-    /// except the dark ones, which carry one more attribute and are also later — so source order
-    /// alone gives the right answer here <em>and this is exactly the kind of thing that is true
-    /// until it is not</em>. <c>PrintKeepsThePaperWhiteAndTheInkReadable</c> is the check that
-    /// would notice: it asks what the paper resolves to across all four states rather than
-    /// reading the print block on its own.</para>
+    /// <para>See <see cref="Admits"/> for why the second half alone is not enough, and for the
+    /// mutation that proved it.</para>
     /// </summary>
     private static Dictionary<string, string> Palette(ThemeState state, bool printing = false)
     {
-        var palette = new Dictionary<string, string>(StringComparer.Ordinal);
+        var winners = new Dictionary<string, (int Weight, int Order, string Value)>(StringComparer.Ordinal);
+        var order = 0;
 
-        foreach (var rule in CssRules(ThemeCss).Where(r => Admits(r, state, printing)))
+        foreach (var rule in CssRules(ThemeCss))
+        {
+            var weight = Admits(rule, state, printing);
+            order++;
+
+            if (weight is not { } strength) continue;
+
             foreach (Match declaration in Rx(@"(--[a-z0-9-]+)\s*:\s*([^;]+);").Matches(rule.Body))
-                palette[declaration.Groups[1].Value] = declaration.Groups[2].Value.Trim();
+            {
+                var token = declaration.Groups[1].Value;
+                var standing = winners.GetValueOrDefault(token);
 
-        return palette;
+                if (winners.ContainsKey(token)
+                    && (standing.Weight > strength
+                        || (standing.Weight == strength && standing.Order > order))) continue;
+
+                winners[token] = (strength, order, declaration.Groups[2].Value.Trim());
+            }
+        }
+
+        return winners.ToDictionary(e => e.Key, e => e.Value.Value, StringComparer.Ordinal);
     }
 
     /// <summary>
