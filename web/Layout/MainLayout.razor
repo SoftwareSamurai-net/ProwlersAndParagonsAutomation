@@ -54,6 +54,28 @@
                 aria-pressed="@Pressed(SheetMode.Villain)"
                 @onclick="() => SetMode(SheetMode.Villain)">Villain</button>
     </div>
+
+    @* Light or dark, beside the identity switch because both are the palette and a reader
+       looking for one will look here for the other.
+
+       **Three buttons rather than a two-state toggle**, because there are three states and the
+       third is not "off": following the system is a live setting that changes with the machine,
+       and a toggle can only ever land somebody on whichever value their system held at the
+       moment they touched it. "Auto" is the word for it on the screen; `system` is the word
+       everywhere else, and they are the same state.
+
+       aria-pressed is a string here for the reason the switch above gives. *@
+    <div class="theme-switch" role="group" aria-label="Light or dark">
+        <button type="button"
+                aria-pressed="@Chose(ThemeChoice.Light)"
+                @onclick="() => SetTheme(ThemeChoice.Light)">Light</button>
+        <button type="button"
+                aria-pressed="@Chose(ThemeChoice.Dark)"
+                @onclick="() => SetTheme(ThemeChoice.Dark)">Dark</button>
+        <button type="button"
+                aria-pressed="@Chose(ThemeChoice.System)"
+                @onclick="() => SetTheme(ThemeChoice.System)">Auto</button>
+    </div>
   </div>
 </header>
 
@@ -117,6 +139,20 @@
 @code {
     private string Pressed(SheetMode mode) => Session.Mode == mode ? "true" : "false";
 
+    /// <summary>Whether the light/dark control shows this choice as the current one.</summary>
+    private string Chose(ThemeChoice choice) => Theme.Choice == choice ? "true" : "false";
+
+    /// <summary>
+    /// The light/dark switch.
+    ///
+    /// <para>Unlike <see cref="SetMode"/> this does push to the document itself, and the
+    /// difference is real rather than an inconsistency: the palette follows the <em>character</em>
+    /// and so has to be applied on any render that changes which character is being built, while
+    /// the theme follows the <em>reader</em> and changes on nothing but this click. There is one
+    /// route into each and neither has two.</para>
+    /// </summary>
+    private Task SetTheme(ThemeChoice choice) => Theme.Choose(choice).AsTask();
+
     /// <summary>
     /// Whether the page under the shell is a recording rather than the character being built.
     ///
@@ -152,7 +188,18 @@
     /// which is the whole reason identity is a service that can change its mind rather than a
     /// value fetched at startup.</para>
     /// </summary>
-    protected override async Task OnInitializedAsync() => _who = await Accounts.CurrentAsync();
+    /// <summary>
+    /// Who the banner names, and which light/dark choice its control shows as current.
+    ///
+    /// <para>The theme itself is already on the document by now — <c>js/theme.js</c> stamped it
+    /// before the first paint, seconds before this ran. What is read here is only what the
+    /// <em>control</em> should show, which is why nothing flickers when it arrives.</para>
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        _who = await Accounts.CurrentAsync();
+        await Theme.ReadChoice();
+    }
 
     private void WhoChanged() => _ = InvokeAsync(async () =>
     {
@@ -239,12 +286,11 @@
     }
 
     /// <summary>
-    /// The palette is a data-mode attribute on the document element, set through interop
-    /// rather than by re-rendering: it has to reach index.html's own markup, which is
-    /// outside the component tree.
-    /// </summary>
-    /// <summary>
-    /// The switch. It records the choice on the character and stops there.
+    /// The Hero/Villain switch. It records the choice on the character and stops there.
+    ///
+    /// <para>The palette is a <c>data-mode</c> attribute on the document element, set through
+    /// interop rather than by re-rendering: it has to reach index.html's own markup, which is
+    /// outside the component tree. <see cref="ApplyPalette"/> is where that happens.</para>
     ///
     /// <para><b>It deliberately does not push the palette itself.</b> Setting the mode raises the
     /// session's change event, which redraws this component, which applies the palette on the way

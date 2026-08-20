@@ -1,5 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<!-- data-mode is stamped here rather than only by the app, because the palette blocks in
+     theme.css all name it and the app takes seconds to boot: without it the boot screen
+     matches no palette block at all, so a reader who has chosen dark gets a light one until
+     WebAssembly lands. Hero is the default identity; the layout replaces this from the
+     character on the first render after one is restored. data-theme is *not* here — it is
+     absent by design when nothing has been chosen, and js/theme.js stamps it if it has. -->
+<html lang="en" data-mode="hero">
 
 <head>
     <meta charset="utf-8" />
@@ -14,6 +20,11 @@
          per-component stylesheet is where that discipline would start to leak. Blazor only
          emits the bundle when a .razor.css file exists, so linking it now would be a 404. -->
     <script type="importmap"></script>
+    <!-- In <head>, and render-blocking, unlike every other script in this file. It stamps the
+         chosen light/dark theme before the first paint; deferred to the foot of <body> like the
+         others it would run after the boot screen had already been painted in the wrong one,
+         and read from C# it would run seconds after that. See the file's own note. -->
+    <script src="js/theme.js"></script>
 </head>
 
 <body>

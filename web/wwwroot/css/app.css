@@ -177,14 +177,16 @@ hr {
 
 /* ── Mode switch ─────────────────────────────────────────────────────────── */
 
-.mode-switch {
+.mode-switch,
+.theme-switch {
     display: flex;
     gap: 0;
     border: 1px solid var(--on-primary);
     border-radius: var(--radius-pill);
     overflow: hidden;
 }
-.mode-switch button {
+.mode-switch button,
+.theme-switch button {
     background: transparent;
     color: var(--on-primary);
     border: none;
@@ -197,13 +199,29 @@ hr {
     text-transform: uppercase;
     transition: background-color var(--swap) var(--ease), color var(--swap) var(--ease);
 }
-.mode-switch button:hover:not([aria-pressed="true"]) {
+.mode-switch button:hover:not([aria-pressed="true"]),
+.theme-switch button:hover:not([aria-pressed="true"]) {
     background: color-mix(in srgb, var(--on-primary) 22%, transparent);
 }
-.mode-switch button[aria-pressed="true"] {
+.mode-switch button[aria-pressed="true"],
+.theme-switch button[aria-pressed="true"] {
     background: var(--on-primary);
     color: var(--primary);
     font-weight: 700;
+}
+
+/* The light/dark control is the same pill as the identity one — every rule above names both —
+   with one difference: three buttons rather than two, on a banner that now holds two links and
+   five buttons. The padding comes in a step so the pair fits without the banner wrapping at
+   widths it did not wrap at before.
+
+   **The shape is shared by selector list rather than by a shared class**, and that is not a
+   style preference. `.mode-switch` names the Hero/Villain control; putting it on this one too
+   made `.mode-switch button` match five buttons, so the identity switch reported three pressed
+   states at once. Its own test caught it within a minute. A class that names a shape and a
+   class that names a control are different things, and this file has one of each here. */
+.theme-switch button {
+    padding: var(--space-1) var(--space-3);
 }
 
 /* ── Step navigation ─────────────────────────────────────────────────────── */
@@ -1663,6 +1681,11 @@ label {
     .budget,
     .tabs,
     .mode-switch,
+    /* Both palette controls, and the second is named separately rather than sharing a class
+       with the first: they are one shape and two controls, and a class that meant "the pill in
+       the banner" would have made `.mode-switch button` five buttons wide — which it briefly
+       was, and which the banner's own test caught. */
+    .theme-switch,
     /* Open only while somebody is using it, so it should never meet a printer — but a
        print triggered from the keyboard with it open would otherwise put a veil and a
        list of shortcuts over the sheet, which is the deliverable. */

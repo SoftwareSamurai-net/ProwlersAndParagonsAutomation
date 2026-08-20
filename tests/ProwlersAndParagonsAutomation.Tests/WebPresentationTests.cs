@@ -75,6 +75,9 @@ public sealed class WebPresentationTests
     /// <summary>The projects whose type names must never reach the page.</summary>
     private static readonly string[] ProjectsWithTypes = ["engine", "sheets"];
 
+    /// <summary>The three elevation steps, named once so a palette cannot be checked for two.</summary>
+    private static readonly string[] ElevationSteps = ["--shadow-1", "--shadow-2", "--shadow-3"];
+
     /// <summary>
     /// Every way to make an element invisible while leaving its class and its text in place.
     ///
@@ -162,6 +165,49 @@ public sealed class WebPresentationTests
 
         stripped = Rx("&#x?[0-9A-Fa-f]+;").Replace(stripped, " ");
         return Rx(@"\bcolor-mix\s*\(", RegexOptions.IgnoreCase).Replace(stripped, "MIX(");
+    }
+
+    /// <summary>
+    /// <b>The chosen light/dark theme is stamped before the first paint, and nothing else in
+    /// this repository can tell you whether it still is.</b>
+    ///
+    /// <para>Every other script in <c>index.html</c> is at the foot of <c>&lt;body&gt;</c>, which
+    /// is the right place for all of them and the wrong place for this one. The WebAssembly
+    /// payload is ~27 MiB and there is a boot screen on the page while it downloads: a theme
+    /// applied from C# lands seconds late, and a theme applied from the foot of the body lands
+    /// after the boot screen has already been painted. Both look like a flash of the wrong
+    /// colours to a reader who asked for dark, and <b>both leave every test in both suites
+    /// green</b> — a render test cannot see a paint, and the attribute ends up correct either
+    /// way.</para>
+    ///
+    /// <para>Also asserted: <c>data-mode</c> is on the markup and <c>data-theme</c> is not.
+    /// The first because every palette block names it, so a boot screen without it matches no
+    /// palette at all; the second because <em>absent</em> is what the system state is — the dark
+    /// blocks are written <c>:not([data-theme="light"])</c>, and a value stamped here would
+    /// override a reader's stored choice with a default on every visit.</para>
+    /// </summary>
+    [Fact]
+    public void TheThemeIsStampedBeforeTheFirstPaint()
+    {
+        var html = IndexHtml;
+        var head = html[..html.IndexOf("</head>", StringComparison.Ordinal)];
+
+        Assert.Contains("js/theme.js", head, StringComparison.Ordinal);
+
+        // ...and not merely somewhere as well: it is loaded once, and that once is in the head.
+        // Counted on the tag rather than on the file name, because two comments in this file
+        // name it and a comment loads nothing.
+        Assert.Equal(1, Rx(@"<script[^>]*js/theme\.js").Count(html));
+
+        // Render-blocking. `defer` and `async` both hand the paint back before it has run,
+        // which is the same flash by another route.
+        var tag = Rx(@"<script[^>]*js/theme\.js[^>]*>").Match(head).Value;
+        Assert.DoesNotContain("defer", tag, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("async", tag, StringComparison.OrdinalIgnoreCase);
+
+        var root = Rx(@"<html\b[^>]*>").Match(html).Value;
+        Assert.Contains("data-mode=", root, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-theme=", root, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -697,7 +743,7 @@ public sealed class WebPresentationTests
         // them at all.
         var resolved = Palette(StateFor(palette));
 
-        var shadows = new[] { "--shadow-1", "--shadow-2", "--shadow-3" }
+        var shadows = ElevationSteps
             .ToDictionary(name => name, name => Normalise(resolved.GetValueOrDefault(name, "")),
                 StringComparer.Ordinal);
 
@@ -3413,7 +3459,7 @@ public sealed class WebPresentationTests
         return weights.Count == 0 ? null : weights.Max();
 
         static int Specificity(string selector) =>
-            1 + Rx(@"\[data-(?:mode|theme)=""[a-z]+""\]").Matches(selector).Count;
+            1 + Rx(@"\[data-(?:mode|theme)=""[a-z]+""\]").Count(selector);
 
         static bool Matches(string selector, ThemeState state)
         {
