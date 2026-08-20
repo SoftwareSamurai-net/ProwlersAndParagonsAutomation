@@ -466,6 +466,20 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   write a guard there with `Contains`: the first version was one, and a rename walked through it
   because the same word occurred elsewhere in the server's own source.
 
+- **Wrangler's bundled esbuild is older than Node's, and both suites plus a whole-tree Qodana
+  scan will happily ship an incompatibility to the deploy.** This has happened once:
+  `import ... with { type: 'json' }` in `worker/corpus.js` ran under Node 22 (both the accounts
+  suite and my local `npx wrangler`) and failed on the deploy pipeline with
+  *"Expected ';' but found 'with'"* — because `cloudflare/wrangler-action@v3` pins wrangler at
+  **3.90.0**, whose bundled esbuild predates JSON import attributes. `assert { type: 'json' }`
+  is the older spelling and is deprecated in Node 22; that trade breaks the tests instead of
+  the deploy. **So the corpus is baked into `worker/corpus.js` as an object literal by
+  `scripts/inline-rulebook.mjs`**, and both are guarded: `tests/worker/router.test.mjs` asserts
+  the bake is byte-for-byte the JSON on disk, and the build workflow runs
+  `wrangler pages deploy --dry-run` at the same version the deploy uses (read out of
+  `.github/workflows/deploy.yml`'s marker comment), so a wrangler-vs-Node parse difference
+  fails the PR rather than the way to production. That marker comment is load-bearing — see it.
+
 ### Hosting
 
 Cloudflare Pages at `pp.softwaresamurai.net`, by `.github/workflows/deploy.yml` on push to `master`. Direct upload, not Cloudflare's Git integration — two deploy paths can disagree.
