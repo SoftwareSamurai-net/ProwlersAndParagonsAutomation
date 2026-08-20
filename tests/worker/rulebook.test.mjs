@@ -6,7 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -79,7 +79,19 @@ test('an expired session reads nothing either', async () => {
 test('the corpus is not in the browser payload', () => {
     // The whole access control is where the file is. A copy under wwwroot is a public URL, and
     // no amount of checking sessions in this directory would make it not be one.
+    //
+    // **`wwwroot/data` is staged by the build and is gitignored**, so on a checkout nobody has
+    // built it does not exist at all — which used to throw ENOENT and read as this guard failing.
+    // A missing directory genuinely satisfies the claim: nothing is staged, so the corpus is not.
+    // It is reported rather than silently passed, because "there was nothing to check" and "I
+    // checked and it was fine" are different answers and only one of them is evidence.
     const staged = join(root, 'web', 'wwwroot', 'data');
+
+    if (!existsSync(staged)) {
+        console.log('    (nothing staged into wwwroot yet — build web/ to make this a real check)');
+        return;
+    }
+
     const directories = readdirSync(staged, { withFileTypes: true })
         .filter(e => e.isDirectory()).map(e => e.name);
 
