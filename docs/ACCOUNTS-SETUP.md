@@ -52,10 +52,10 @@ npx wrangler --cwd d1 d1 migrations apply prowlers-and-paragons --remote
 `--cwd d1` is what makes wrangler read `d1/wrangler.toml`; the migrations are the `.sql` files
 beside it. Leave `--remote` off to apply them to a local copy instead. You will be asked to
 confirm each migration; the tables it creates are `users`, `login_tokens`, `sessions`,
-`login_attempts` and `characters`.
+`login_attempts`, `characters` and `error_log`.
 
 **To sanity-check from the dashboard:** D1 SQL Database → the `prowlers-and-paragons` database →
-**Tables** tab. All five should be there and empty.
+**Tables** tab. All six should be there and empty.
 
 **The schema is the thing the tests run against**, in real SQLite, so a migration that would not
 apply fails on the pull request rather than here.
@@ -237,6 +237,54 @@ something else.
 [`docs/CHARACTERS-API.md`](CHARACTERS-API.md). A cap somebody can raise on themselves is not a
 cap, so the only way to raise one is this command, run by hand by whoever administers the
 database.
+
+---
+
+## Reading what has gone wrong
+
+When somebody reports a failure they will quote a six-character reference. Every failure is also
+written to `error_log`, which is read the same way the cap above is set — by hand, in SQL:
+
+```bash
+npx wrangler --cwd d1 d1 execute prowlers-and-paragons --remote \
+    --command "SELECT category, route, kind, occurrences, detail, reference, datetime(last_at/1000, 'unixepoch') AS last FROM error_log ORDER BY last_at DESC;"
+```
+
+**There is no admin endpoint and there is not going to be one.** `Identity` carries a key and a
+name and no role — there is a test asserting the wire identity holds nothing else — so "am I an
+admin" is not a question the client can ask, and inventing a role to answer it is a far larger
+change than reading a table by hand. Same reasoning as the cap above.
+
+**One row per `(category, route)`, counted rather than appended.** A failing dependency throws on
+every request, so a log with a row per occurrence would turn one outage into a full database.
+`occurrences` is how many failures the row stands for and `detail` is the most recent of them —
+a row saying four thousand occurrences since `first_at` *is* the outage. **A reference that does
+not match the row is one of the occurrences folded into it**; the row is a bucket, not a receipt.
+
+The four categories are the closed set in `worker/errors.js`:
+
+| Category | What it means | What the visitor is told |
+|---|---|---|
+| `mail` | The mail provider refused or could not be reached. | The email did not go; the address is fine; try later or report it. |
+| `storage` | D1 refused or could not be reached. | It did not save; try later or report it. |
+| `configuration` | A binding or setting is missing — the deployment is wrong. | The site is not set up correctly. **Never advises retrying**, because retrying cannot help. |
+| `unknown` | Anything unclassified. The honest default. | Something went wrong at our end. |
+
+**A category names the subsystem that failed, never the request that reached it.** Asking for a
+link always answers 204 precisely so the endpoint cannot be used to ask whether an address is
+registered, and a category that appeared only for known addresses would put that oracle straight
+back through the error path. There is a test requiring byte-identical bodies for a registered and
+an unregistered address failing the same way.
+
+**`detail` is redacted and the table is still not safe to publish.** Addresses and any run of
+twenty or more token-alphabet characters are taken out and the message is capped, because an
+exception from D1 or a mail provider can quote a query or an address. `users.email` is in this
+database in the clear anyway, so this is not a new exposure *boundary* — what redaction buys is
+that the error log, which is the artefact most likely to be pasted into an issue or
+screenshotted, does not carry somebody's address with it.
+
+Rows nobody has written to for thirty days are swept away on the next sign-in request, beside the
+expired tokens and sessions.
 
 ---
 

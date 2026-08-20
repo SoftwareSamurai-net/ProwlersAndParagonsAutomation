@@ -201,14 +201,22 @@ Every one of these is asserted by a test, and all of them are load-bearing:
 
 ## Error reporting: two audiences, one failure
 
-**Independent of the redesign and much smaller — a day, not a slice.** Take it whenever; it
-touches `worker/` and one client message and nothing the redesign will move.
+> **Built.** [#66](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/66) did the
+> cheap half — a 500 stopped being reported as an unreachable site and gained a reference — and
+> the rest landed as designed below: the four categories in `worker/errors.js`, the `error_log`
+> table read by hand, and one sentence per category on the sign-in page. See the completed entry
+> in [`PROGRESS.md`](../PROGRESS.md) for what the mutation pass found, and
+> [`docs/ACCOUNTS-SETUP.md`](ACCOUNTS-SETUP.md) for how to read the log.
+>
+> **The reasoning below is kept because it is the reasoning, not a plan.** Every constraint in it
+> is now load-bearing on shipped code — especially the one about a category never depending on
+> whether an account exists, which is the security property the whole taxonomy is shaped around.
+
+**Independent of the redesign and much smaller — a day, not a slice.** It touches `worker/` and
+one client message and nothing the redesign will move.
 
 **Scoped here rather than built**, because the shape is a decision and the privacy half is not
-reversible once a table exists. [#66](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/66)
-did the cheap half already — a 500 is no longer reported as an unreachable site, and it carries a
-six-character reference that is also written to the log line. What is left is the part that needs
-designing.
+reversible once a table exists.
 
 **The problem is that the two audiences want opposite things.** A visitor needs to know whether to
 retry, wait, or report — and nothing else, because an internal message is both meaningless to them

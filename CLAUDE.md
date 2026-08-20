@@ -454,6 +454,57 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
 - **`wrangler pages deploy <dir>` bundles a `functions` directory found in the working
   directory, not in the directory being uploaded.** There is no flag; the placement *is* the
   configuration, and getting it wrong deploys a healthy-looking site that signs nobody in.
+- **A failure is classified into four categories, and the set is closed.** `mail`, `storage`,
+  `configuration`, `unknown`, in `worker/errors.js`. The visitor gets the category and a
+  reference and nothing else; the owner gets a row in `error_log`, read by hand with
+  `wrangler d1 execute` — **there is no admin endpoint and there must not be one**, because
+  `Identity` carries a key and a name and no role, and inventing one to answer "am I an admin"
+  is a far larger change. Precedent: `users.character_limit`, raised by hand in SQL.
+  - **A category is assigned where a failure is caught, never at a throw site.** `handle()`
+    wraps the two subsystems on the way in — `taggedStorage` round the D1 binding,
+    `taggedMail` round the send — so `db.js` and `mail.js` know nothing about any of it. A
+    category per throw site becomes a description of the internals by enumeration, which is the
+    disclosure this exists to avoid. The first tag wins: a storage failure raised *inside* the
+    mail call stays `storage`, because the innermost boundary is the one that knows.
+  - **`unknown` must stay reachable.** A taxonomy with no default grows a category for every new
+    failure, and the pressure is then to classify by guessing.
+  - **A category may never depend on whether an account exists**, and this is a security property
+    rather than a style rule. Asking for a link always answers 204 precisely so the endpoint
+    cannot be used to ask whether an address is registered; a category that appeared only for
+    known addresses would put that oracle straight back through the error path. `errors.test.mjs`
+    provokes the same subsystem failure for a registered and an unregistered address and requires
+    **byte-identical** bodies — which is also why the reference is injected through `deps` like
+    the clock, since a random one per failure makes every body differ for an unrelated reason.
+  - **`configuration` must never advise retrying**, because retrying cannot set an environment
+    variable. That is the category the one failure this site has actually had would have landed
+    in. `AccountsContractTests` scans the sentence — and note that *"trying again will not help"*
+    is deliberately allowed and deliberately pinned: it is the denial, not the advice. The scan
+    carries a positive control on the `mail` sentence, which is known to advise retrying, or an
+    absence-only assertion would pass against a regex that captured nothing.
+  - **The row is bounded by construction, not by a cap somebody remembers to enforce.** The
+    primary key is `(category, route)` and `route` is a *pattern* from a closed list, so
+    `/api/characters/{id}` is one row however many ids a caller invents — otherwise the error log
+    is a table anybody passing by can fill, with a caller-chosen string in it. Occurrences are
+    counted against the one row rather than appended: **`occurrences` is the record of what was
+    dropped**, because a silently truncated log reads as a quiet period.
+  - **The retention window rolls inside the write statement**, the same shape as `countAttempt`,
+    so a stale row starts a fresh count rather than continuing last month's into this morning's
+    outage. A prune written as a separate pass is a prune that does not happen.
+  - **The logger may never throw.** The thing that just broke is often the database it writes to,
+    and a logger that threw out of the catch would cost the visitor the reference and category
+    that are the entire visitor-facing half of the design.
+  - **Redaction buys less than it looks like and is still worth having.** `users.email` is in
+    that database in the clear already, so an error row is not a new exposure *boundary*; what it
+    protects is that the log — the artefact most likely to be pasted into an issue — does not
+    carry an address. It over-redacts on purpose: any run of twenty or more token-alphabet
+    characters goes, with no test for randomness, because a session secret is 43 base64url
+    characters and a hash is 64 hex ones and neither is guaranteed to contain a digit.
+  - **The absence tests all carry a positive control, and it is not optional.** Every assertion
+    about redaction is an absence, and an absence is satisfied completely by a logger that writes
+    nothing — the failure shape this repository has shipped four times. Each asserts a row was
+    written *and* that the message still says what happened, since a `redact` returning the empty
+    string would satisfy every absence while destroying the column.
+
 - **A missing server is a missing feature, not a blank page** — and the shape that makes that
   work is also the shape that hides the mistake. `_redirects` serves every unmatched path as
   `index.html` with a 200, so a site without its Functions answers `/api/me` with HTML; the

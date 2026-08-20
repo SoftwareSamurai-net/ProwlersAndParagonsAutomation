@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4133 across three suites — 3688 on the engine, 387 rendering components with bUnit, 58 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
+| Tests | 4157 across three suites — 3691 on the engine, 388 rendering components with bUnit, 78 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -234,6 +234,92 @@ Do it once the HTTP API stops moving, so audit targets are not shifting under it
 ---
 
 ## Completed work
+
+### Error reporting: four categories, a recorded row, and a message with the addresses out
+
+**One failure, two audiences that want opposite things.** A visitor needs to know whether to
+retry, wait or report — and nothing else, because an internal message is both meaningless to them
+and a disclosure. The owner needs to know what threw. Before this the visitor got one flat
+sentence and the owner got a live tail: close it and the error was gone, so any failure nobody
+happened to be watching for was unrecoverable. [#66](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/66)
+did the cheap half — a 500 stopped being reported as an unreachable site, and gained a reference.
+This is the rest, scoped in `docs/HANDOVER.md` before it was built.
+
+**A closed set of four — `mail`, `storage`, `configuration`, `unknown` — in `worker/errors.js`.**
+Each side renders the same category its own way: the 500 body carries `{ error, reference,
+category }` and `SignIn.razor` maps the category to a sentence, replacing the single
+`LinkRequest.Failed` message with one per category.
+
+- **The category is assigned where a failure is caught, never at a throw site.** `handle()` wraps
+  the two subsystems on the way in — `taggedStorage` round the D1 binding, `taggedMail` round the
+  send — so `db.js` and `mail.js` know nothing about categories and one file says how a failure is
+  classified. A category per throw site would be a description of the internals by enumeration,
+  which is the disclosure the design exists to avoid. The first tag wins, so a storage failure
+  raised *inside* the mail call stays `storage`.
+- **`configuration` never advises retrying**, because retrying cannot set an environment variable.
+  That is the category the sign-in failure that prompted all of this would have landed in — and
+  `SITE_URL` missing now throws rather than answering with its own bare 500, so the one failure
+  this site has actually had is the one a visitor could not report and the owner could not find
+  afterwards. It can be both now.
+- **`unknown` stays reachable and is the default at both ends**, including for a category the
+  client does not recognise. A taxonomy with no default grows a category for every new failure,
+  and the pressure is then to classify by guessing.
+
+**The owner's half is one D1 table read by hand, and there is no admin endpoint.** `Identity`
+carries a key and a name and no role — there is a test asserting the wire identity holds nothing
+else — so "am I an admin" is not a question the client can ask, and inventing a role to answer it
+is a far larger change than this needed. The precedent is `users.character_limit`, raised by hand
+in SQL on the reasoning that a cap you can raise on yourself is not one. `docs/ACCOUNTS-SETUP.md`
+carries the `wrangler d1 execute` command and the table of what each category means.
+
+**Bounded by construction rather than by a cap somebody remembers to enforce.** The primary key is
+`(category, route)` and `route` is a *pattern* from a closed list, so `/api/characters/{id}` is
+one row however many ids a caller invents — otherwise the error log is a table anybody passing by
+can fill, with a caller-chosen string in it. Occurrences count against the one row: **the count is
+the record of what was dropped**, because a silently truncated log reads as a quiet period. The
+retention window rolls inside the write statement, the same shape as `countAttempt`, so a stale
+row starts a fresh count rather than continuing last month's into this morning's outage; a prune
+written as a separate pass is a prune that does not happen.
+
+**On redaction, what it buys and what it does not.** `users.email` is in that database in the
+clear already, by necessity, so an error row is not a new exposure *boundary*. What it protects is
+that the error log — the artefact most likely to be read aloud, pasted into an issue or
+screenshotted — does not carry somebody's address. It over-redacts on purpose: any run of twenty
+or more token-alphabet characters goes, with no test for whether it looks random, because a
+session secret is 43 base64url characters and a hash is 64 hex ones and neither is guaranteed to
+contain a digit. **The table is still never safe to publish.**
+
+**The three tests that were the point, and one property that is security rather than style:**
+
+| Pinned | How |
+|---|---|
+| Nothing anybody should read twice reaches the row | An exception quoting an address and a token-shaped string, provoked through the real mail boundary — **with a positive control that a row was written at all**, and a second that the message still says what happened, since a `redact` returning `""` satisfies every absence while destroying the column |
+| The public body carries a category and a reference and no exception text | The same provoked failure, asserting the body has exactly the three keys and none of `Resend`, `422`, the address or the token |
+| **The category never varies with account existence** | The same subsystem failure for a registered and an unregistered address, requiring **byte-identical** bodies. Asking for a link always answers 204 precisely so the endpoint cannot be used to ask whether an address is registered, and a category that appeared only for known addresses would put that oracle back through the error path |
+
+That last one is why the failure reference is injected through `deps` like the clock: a random one
+per failure makes every body differ for a reason that has nothing to do with the question.
+
+**Every guard was broken and watched go red — seventeen mutations, all seventeen red**, and the
+suites re-run after the reverts rather than only before. The ones worth naming: a logger that
+silently writes nothing (11 red — the shape this repository has shipped four times), redaction
+that keeps addresses (4), that keeps long random strings (3), and that returns the empty string
+(2); `unknown` defaulting to `storage`; the route stored as the arrived path; occurrences frozen at
+one; the retention cutoff never firing; nothing pruning; the logger rethrowing out of the catch;
+the category dropped from the body; **the category made to depend on whether the address had an
+account** (11); a client wire name renamed off the server's; the configuration sentence advising a
+retry; *no* sentence advising a retry, which fires the positive control rather than the assertion;
+a rendered category deleted; and the server growing a fifth category.
+
+Five of the first twelve came out **inert** on the first pass — a multi-line `perl` substitution
+that matched nothing — and were rewritten line-based until they bit. An inert mutation reads
+exactly like a guard that held; it is worth checking that the file actually changed before
+believing a green run.
+
+Not done, and deliberately: **no third-party error service** — nothing about who somebody is
+currently leaves the Cloudflare account, and that is worth more than a nicer dashboard — and **no
+stack traces to the client in any environment**, since there is no debug build of a deployed site
+and a flag that turns them on is a flag one mistake from being on.
 
 ### Characters, plural: a manager, imports, and the export the app was not writing
 
