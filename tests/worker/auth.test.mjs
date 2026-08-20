@@ -167,6 +167,71 @@ test('the rate limit stops the mail without changing the answer', async () => {
     assert.equal(app.sent.length, LINKS_PER_ADDRESS_PER_HOUR + 1);
 });
 
+test('a send the provider refuses does not spend the allowance that hides it', async () => {
+    // **The failure this is about reported itself five times and then started reporting
+    // success.** A refused send is a 500, which says so; but the attempt was counted before the
+    // send, so the sixth try was rate limited — and a rate-limited answer is deliberately the
+    // same 204 a sent link gets. Somebody retrying because no mail arrived was therefore doing
+    // the one thing that could silence the error, and after five tries the site told them a link
+    // was on its way for the rest of the hour. Nothing was in the mail provider's dashboard and
+    // nothing was in Cloudflare's logs, because by then nothing was being attempted.
+    const app = server();
+    app.deps.sendSignInLink = async () => { throw new Error('the provider refused (HTTP 403).'); };
+
+    // Well past the limit, so the old shape has every chance to latch.
+    for (let i = 0; i < LINKS_PER_ADDRESS_PER_HOUR + 3; i++) {
+        const response = await app.call('/api/auth/request',
+            { method: 'POST', body: { email: 'a@b.test' } });
+
+        assert.equal(response.status, 500,
+            `attempt ${i + 1} answered ${response.status}: a refused send must keep saying so`);
+    }
+
+    // The positive control the assertion above cannot give: the provider comes back, and the
+    // very next try sends. A refund that had instead broken the counting would show up here as
+    // an allowance that was never spent at all — so the limit is exercised too, on mail that
+    // was actually caused.
+    app.deps.sendSignInLink = async (env, message) => { app.sent.push(message); };
+
+    for (let i = 0; i < LINKS_PER_ADDRESS_PER_HOUR; i++) {
+        assert.equal((await app.call('/api/auth/request',
+            { method: 'POST', body: { email: 'a@b.test' } })).status, 204);
+    }
+
+    assert.equal(app.sent.length, LINKS_PER_ADDRESS_PER_HOUR,
+        'the refunded attempts did not come back, so the failures still cost somebody their links');
+
+    const over = await app.call('/api/auth/request', { method: 'POST', body: { email: 'a@b.test' } });
+
+    assert.equal(over.status, 204);
+    assert.equal(app.sent.length, LINKS_PER_ADDRESS_PER_HOUR,
+        'the limit stopped biting, so the refund has undone the rate limit rather than the charge');
+});
+
+test('a refused send does not spend the machine’s allowance either', async () => {
+    // The same claim for the other bucket, and it needs its own test for the reason the
+    // per-client limit needed one: nothing in this suite sets the header it is keyed on unless a
+    // test says so, so a refund written for the address alone would pass every assertion above.
+    const app = server();
+    const from = { 'cf-connecting-ip': '203.0.113.9' };
+    app.deps.sendSignInLink = async () => { throw new Error('the provider refused (HTTP 403).'); };
+
+    for (let i = 0; i < LINKS_PER_CLIENT_PER_HOUR + 3; i++) {
+        const response = await app.call('/api/auth/request',
+            { method: 'POST', body: { email: `victim${i}@example.test`, }, headers: from });
+
+        assert.equal(response.status, 500, `attempt ${i + 1} answered ${response.status}`);
+    }
+
+    app.deps.sendSignInLink = async (env, message) => { app.sent.push(message); };
+
+    const after = await app.call('/api/auth/request',
+        { method: 'POST', body: { email: 'somebody@example.test' }, headers: from });
+
+    assert.equal(after.status, 204);
+    assert.equal(app.sent.length, 1,
+        'the machine is still locked out by attempts that never became mail');
+});
 test('one machine cannot mail a link to every address it knows', async () => {
     // **This limit had no test at all**, found by a reviewer: deleting the `byClient` half of the
     // guard left all 36 tests passing, because nothing in the suite ever set the header the limit

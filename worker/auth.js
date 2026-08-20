@@ -48,10 +48,12 @@ export async function requestLink(request, env, deps) {
     await db.sweepExpired(env.DB, now);
 
     const seconds = Math.floor(now / 1000);
+    const addressKey = 'email:' + email;
+    const clientKey = 'ip:' + clientAddress(request);
     const byAddress = await db.countAttempt(env.DB,
-        { key: 'email:' + email, now: seconds, windowSeconds: HOUR_SECONDS });
+        { key: addressKey, now: seconds, windowSeconds: HOUR_SECONDS });
     const byClient = await db.countAttempt(env.DB,
-        { key: 'ip:' + clientAddress(request), now: seconds, windowSeconds: HOUR_SECONDS });
+        { key: clientKey, now: seconds, windowSeconds: HOUR_SECONDS });
 
     // Silently, for the reason above: a caller must not be able to tell a limit from a send.
     if (byAddress > LINKS_PER_ADDRESS_PER_HOUR || byClient > LINKS_PER_CLIENT_PER_HOUR) {
@@ -79,10 +81,33 @@ export async function requestLink(request, env, deps) {
         expiresAt: now + TOKEN_LIFETIME_MS,
     });
 
-    await deps.sendSignInLink(env, {
-        to: email,
-        link: env.SITE_URL.replace(/\/+$/, '') + '/signin?t=' + token,
-    });
+    try {
+        await deps.sendSignInLink(env, {
+            to: email,
+            link: env.SITE_URL.replace(/\/+$/, '') + '/signin?t=' + token,
+        });
+    } catch (error) {
+        // **A send that failed has to give the attempt back, or the failure stops being
+        // reported.** The two answers this endpoint gives are deliberately indistinguishable:
+        // rate limited and sent are both 204, so that nobody can ask it whether an address has
+        // an account here. That is right, and it is also what turns a broken mail provider into
+        // a lie — five refusals spend the allowance, and every try after that answers "a link
+        // is on its way" for the rest of the hour while nothing has been sent all day. It is
+        // the shape that hides itself: somebody retries *because* nothing arrived, and
+        // retrying is what silences the 500 that would have named the fault. It cost this
+        // deployment its first sign-in, and neither the mail provider nor Cloudflare had
+        // anything to show for it, because by then nothing was being attempted.
+        //
+        // So an attempt is spent on a message, not on a request. The limit still bounds the
+        // mail one address or one machine can cause, because a message that was caused is a
+        // message the provider accepted. What it no longer bounds is requests against a
+        // provider refusing all of them — which cost a write and a refused API call each, and
+        // buy back the only signal there is that something at this end is broken.
+        await db.refundAttempt(env.DB, addressKey);
+        await db.refundAttempt(env.DB, clientKey);
+
+        throw error;
+    }
 
     return noContent();
 }

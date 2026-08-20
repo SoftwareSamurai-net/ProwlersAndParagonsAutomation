@@ -177,3 +177,22 @@ export async function countAttempt(db, { key, now, windowSeconds }) {
 
     return row?.count ?? 0;
 }
+
+/**
+ * Give an attempt back, because it caused nothing.
+ *
+ * <p><b>The limit is on mail, not on requests.</b> `countAttempt` runs before the send, which is
+ * what makes it a bound on how many messages one address or one machine can cause — but a send
+ * the provider refused caused no message, so leaving the count spent charges somebody for
+ * something that never happened. That is not a tidiness point: five refused attempts used to
+ * leave the sixth silently rate limited, and a rate-limited answer is deliberately identical to
+ * a successful one, so a broken mail provider stopped reporting itself after five tries and
+ * started reporting success instead.</p>
+ *
+ * <p>`count > 0` rather than a floor afterwards: the update is the guard, so two refunds racing
+ * cannot take a count below zero and hand somebody an extra attempt.</p>
+ */
+export async function refundAttempt(db, key) {
+    await db.prepare('UPDATE login_attempts SET count = count - 1 WHERE key = ? AND count > 0')
+        .bind(key).run();
+}
