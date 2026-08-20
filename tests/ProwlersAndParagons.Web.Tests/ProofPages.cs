@@ -1703,11 +1703,15 @@ public sealed class ProofPages
     /// The whole page, as a string. Separate from writing it so the marker test can assert on
     /// exactly what would be written without writing anything.
     /// </summary>
-    /// <param name="theme">
-    /// <c>"dark"</c> or <c>"light"</c> to stamp an explicit choice, or null for the default —
-    /// which is the state that has <b>no attribute at all</b> and follows the system. Stamping
-    /// "system" would be a fourth value the stylesheet does not model.
-    /// </param>
+    /// <summary>
+    /// One proof page: the real stylesheets, the document element dressed as the app dresses it,
+    /// and a body of rendered markup.
+    ///
+    /// <para><c>theme</c> takes <c>"dark"</c> or <c>"light"</c> to stamp an explicit choice, and
+    /// <b>null for the default — which is the state that has no attribute at all</b> and follows
+    /// <c>prefers-color-scheme</c>. Stamping "system" would be a fourth value the stylesheet does
+    /// not model, matching neither the light path nor <c>:not([data-theme="light"])</c>.</para>
+    /// </summary>
     private static string Page(string file, string mode, string body, bool wrap, string? theme = null)
     {
         _ = file;   // kept in the signature so a caller cannot pass a body for the wrong page

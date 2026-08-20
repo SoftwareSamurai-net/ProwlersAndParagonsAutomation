@@ -127,7 +127,7 @@ public sealed class Theme(IJSRuntime js)
     }
 
     /// <summary>The wire name for a choice — the same three words the script and the stylesheet use.</summary>
-    public static string Name(ThemeChoice choice) => choice switch
+    private static string Name(ThemeChoice choice) => choice switch
     {
         ThemeChoice.Light => "light",
         ThemeChoice.Dark => "dark",

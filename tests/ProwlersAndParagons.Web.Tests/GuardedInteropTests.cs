@@ -143,8 +143,13 @@ public sealed class GuardedInteropTests
 
         // And the script really does branch on all three of them, rather than on two and a
         // fall-through that happens to agree today.
-        var script = File.ReadAllText(Path.Combine(
-            RepoRoot(), "web", "wwwroot", "js", "theme.js"));
+        // Async with the test's own token, because the two analyzers want different things here:
+        // Qodana asks for the async overload and xUnit1051 asks any call taking a token to take
+        // this one. Both are satisfied; neither is suppressed. Qualified, because bUnit declares a
+        // TestContext of its own and `using Bunit` is at the top of this file.
+        var script = await File.ReadAllTextAsync(
+            Path.Combine(RepoRoot(), "web", "wwwroot", "js", "theme.js"),
+            Xunit.TestContext.Current.CancellationToken);
 
         Assert.Contains($"\"{wire}\"", script, StringComparison.Ordinal);
     }

@@ -1,8 +1,10 @@
 # Handover
 
-**The next slice is a visual redesign, and it is the first slice in this project's history
-where the brief is not "make the rules right".** The rules are right. What is wrong is that
-nothing on screen shows it.
+**The palettes are done. The half of the redesign that matters is not.**
+
+The last slice settled light/dark × Hero/Villain into four measured token sets and gave the app
+a theme control. That was the tractable half. What the brief was actually about — *make the
+substance visible, not add decoration* — is still open and is the next slice.
 
 Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this file.
 
@@ -10,192 +12,117 @@ Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this 
 
 ## Where things stand
 
-**4133 tests** — 3688 engine, 387 bUnit, 58 accounts — zero warnings at CI strictness, and a
+**4186 tests** — 3721 engine, 407 bUnit, 58 accounts — zero warnings at CI strictness, and a
 whole-tree Qodana scan reporting **0 findings** (measured on a clean `git archive` export, not
-assumed). Live at **superheroes.softwaresamurai.net**.
+assumed). Seven browser harnesses driven by headless Chrome in the build workflow. Live at
+**superheroes.softwaresamurai.net**.
 
 **Accounts are on.** The D1 migrations are applied to the remote database, the `DB` binding
-exists, and `/api/me` answers `401` carrying JSON — which is the deploy's own pass condition and
-the only thing that would notice a broken binding. What is *not* verified is a sign-in from end
-to end: that needs somebody to receive a link, and no test can do it. Resend is configured
-against `superheroes.softwaresamurai.net` as a subdomain, deliberately, because the apex carries
-Proton Mail's records — see [`ACCOUNTS-SETUP.md`](ACCOUNTS-SETUP.md) for why a second SPF record
-at the apex would break the owner's personal mail.
+exists, and `/api/me` answers `401` carrying JSON. What is *still* not verified is a sign-in from
+end to end: that needs somebody to receive a link, and no test can do it. Resend is configured
+against `superheroes.softwaresamurai.net` as a subdomain, deliberately — see
+[`ACCOUNTS-SETUP.md`](ACCOUNTS-SETUP.md) for why a second SPF record at the apex would break the
+owner's personal mail.
 
-Landed since the last handover: #61 (the plural-characters restack), #62 and #63 (hosting docs
-and the Resend traps), #64 (Qodana to zero, plus a proof guard that mutation found).
-
-**Check whether [#65](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/65) has
-merged before starting, because it is the branch you are reading this on.** It carries three UI
-fixes, the contrast instrument described below, and this file. If it is still open, either merge it
-first or branch from it — **not from `master`**, which does not have the instrument the palette
-work depends on. Verify rather than assuming:
-
-```
-git ls-tree origin/master --name-only -r | grep -c WebPresentationTests
-git show origin/master:tests/ProwlersAndParagonsAutomation.Tests/WebPresentationTests.cs | grep -c ContrastRatio
-```
-
-A `0` from the second command means the instrument is not on `master` yet. This is the same shape
-as the #56 orphan recorded at the bottom of this file: work that exists, reads as landed, and is
-not where the next branch would look for it.
+**Four palettes, on two independent axes.** hero-light and villain-dark are the two that always
+existed, values unchanged; hero-dark and villain-light are new. The theme is `data-theme` on the
+document element with **three states** — an explicit `light`, an explicit `dark`, and no attribute
+at all, which follows `prefers-color-scheme`. The preference is `pp.theme.v1` in local storage:
+per-browser, not on `CharacterSheet` and not on the account.
 
 ---
 
-## The next slice: a visual redesign
+## The next slice: make the substance visible
 
-### Why, stated honestly
+### The gap, restated
 
-The app looks like a printout. That is not an accident — the printed sheet **is** the
-deliverable, the screen design was derived from it, and the palette is white paper with navy
-ink because that is what a character sheet is. Judged as a document it is fine.
-
-Judged against what people now expect of a companion app for this game, it is not close.
-**[pnpready.com](https://www.pnpready.com/) is the comparison, and it should be studied before
-anything is designed here.** What follows was measured off that page, not eyeballed:
-
-| | P&P Ready | This app |
-|---|---|---|
-| Ground | `oklch(0.1549 0.017 252.63)` — near-black navy, with three lighter elevation steps above it | white paper |
-| Display face | Bebas Neue, **112px** for the page's one headline, uppercase, tracked | Oswald, 2.15rem |
-| Accents | gold `oklch(0.84 0.16 88)` and crimson, on the dark | one navy, one crimson |
-| Numerals | huge, with tiny uppercase labels beneath — the number *is* the graphic | same size as body text |
-| First screen | an interactive dice roller that teaches the core mechanic | a paragraph explaining tiers |
-
-**The colour is the least important row in that table.** Three things matter more:
+[pnpready.com](https://www.pnpready.com/) is the comparison and it is still worth studying. The
+difference is not colour and never was:
 
 1. **They demonstrate the mechanic; we describe features.** Their landing page rolls six dice,
-   colours each by what it contributes (gold six = +2, cream even = +1, grey odd = nothing),
-   lays the arithmetic out as a formula in large numerals, and tags the outcome band with
-   *"YOU'RE HERE"*. Then offers **Roll Again**. A reader learns how the game works by touching
-   it. Our equivalent surface is prose.
-2. **Numbers are design material.** This app computes Edge, Health, Resolve and a Hero Point
-   total that are the whole point of it, and sets them at the same size as a sentence. The `.hp`
-   treatment deliberately makes costs *quieter* — right for a printed form, wrong for a screen
-   where the total is the thing the player is watching.
-3. **The copy is editorial.** "You're up." / "Your players go left. You're already there." Ours
-   says "Choose a tier". Both are honest; only one is written.
+   colours each by what it contributes, lays the arithmetic out as a formula in large numerals,
+   and tags the outcome band with *"YOU'RE HERE"*. Then offers **Roll Again**. A reader learns how
+   the game works by touching it. Our equivalent surface is a paragraph about tiers.
+2. **Numbers are design material.** This app computes Edge, Health, Resolve and a Hero Point total
+   that are the whole point of it, and sets them at the same size as a sentence. Their one
+   headline is **128px**; our largest type is `--text-3xl` at 2.15rem. The `.hp` treatment
+   deliberately makes costs *quieter* — right for a printed form, wrong for a screen where the
+   total is the thing the player is watching.
+3. **Our real advantages are invisible in the first screen** — an engine verified against the book
+   field by field, a validator that names the rule you broke, a replay of real conversations, a
+   printed sheet modelled on the published one, an MCP server.
 
-**Our real advantages are invisible.** The engine is verified against the book field by field,
-the validator names the rule you broke, there is a replay of real conversations, a printed sheet
-modelled on the published one, and an MCP server. A visitor sees none of that in the first
-screen. **The redesign's job is to make the substance visible, not to add decoration.**
-
-### The palette decision is made: two independent axes
-
-**Light/dark × Hero/Villain, four token sets.** Chosen by the owner over the cheaper options,
-explicitly on quality grounds. Do not re-litigate it.
-
-**First, correct the record about what exists today**, because the previous version of this file
-got it wrong and the mistake is instructive. It claimed the app has no light/dark concept, on the
-evidence that `prefers-color-scheme` appears nowhere in `web/wwwroot/css/`. That is true and
-irrelevant — it checks for the *mechanism* rather than reading the *values*:
-
-| | `--ink` | `--panel` |
-|---|---|---|
-| Hero | `#0F1B2D` | `#FFFFFF` |
-| Villain | `#EDE8E4` | `#1C1C22` |
-
-**Villain is already a dark theme.** Hero is dark-on-white, Villain is near-white on near-black.
-So today is effectively "Hero is light, Villain is dark" with no system-preference input. The
-slice is therefore not *introducing* dark — it is **decoupling** darkness from identity, which is
-the same separation `IsVillain` already has on the mechanical side.
-
-What that means concretely:
-
-- **Four palettes**, and the honest framing is that two of them exist and two do not: Hero-light
-  is today's Hero, Villain-dark is today's Villain. **Hero-dark and Villain-light are new**, and
-  Villain-light is the hard one — a crimson-and-gold identity on white, without becoming the
-  Hero palette in different hues.
-- **Three theme states, not two.** An explicit choice stamps `data-theme="light"` / `"dark"`;
-  the default stamps nothing, and only `prefers-color-scheme` separates the two. So each mode
-  needs: a bare block (light), a `@media (prefers-color-scheme: dark)` block guarded as
-  `:root[data-mode="x"]:not([data-theme="light"])`, and a `:root[data-theme="dark"][data-mode="x"]`
-  block so the toggle wins over the OS in both directions. Six blocks plus print.
-- **A theme control, and its state is not on the character.** Whether somebody prefers dark is a
-  fact about a person and a browser, not about a Hero — so it belongs in local storage beside the
-  existing preferences, never on `CharacterSheet`. `IsVillain` stays what it is. `Theme` already
-  applies `data-mode` from the character on the render after any change; extend it rather than
-  adding a second interop path, and keep it guarded the way `Motion` and `Shortcuts` are.
-- **The print palette is unaffected and must stay so.** It already restates every screen token,
-  and there is a test that it does. Paper is white in all four.
-
-**The instrument for this already exists now — use it.** `EveryScreenPairInUseHoldsItsContrastFloor`
-and `TheContrastInstrumentReproducesTheKnownFailures` in `WebPresentationTests` measure real WCAG
-ratios, resolve `var()` and `color-mix()`, and are `[Theory]`-shaped on mode. **Add the two new
-palettes as theory rows and let the test tell you what is unreadable** rather than adjusting by
-eye. Two things it already established that will bite:
-
-- Villain `--heading` on `--accent-soft` is **4.09:1** and `--danger` on `--danger-soft` is
-  **3.94:1** — both under the 4.5:1 text floor. They are safe *today* only because the hover
-  grounds moved to `--panel-sunk` so nothing shows either pair at once. A new palette that puts
-  them together resurrects a real bug.
-- `--focus` is held to 3:1, not 4.5:1, because a focus ring is a non-text indicator under WCAG
-  1.4.11. It is a separate token from `--accent` because Hero `--accent` is **1.84:1** and
-  invisible as a ring. Keep them separate in all four.
-
-And the gap the instrument does *not* close: it reads `theme.css` statically, so it cannot see a
-pair that only occurs because some component puts two tokens together. `--muted` on
-`--accent-soft` is not asserted because nothing currently does that; if the redesign introduces
-it, add the row.
-
-### What the slice must not break
-
-Every one of these is asserted by a test, and all of them are load-bearing:
-
-- **No component names a colour, a typeface, or a raw length.** Checked by hex, keyword,
-  `rgb()`/`hsl()`/`oklch()` function syntax, `font-family` *and* `font:` shorthand. All values
-  come from tokens in `theme.css`; `app.css` may not declare a custom property at all.
-- **`--primary` is a fill and `--heading` is text, and they must stay apart.** Villain
-  `--primary` measures 2.0:1 on its surface and is unreadable as type.
-- **Contrast is measured, not eyeballed.** `--muted` is held to 4.5:1 because it carries prose at
-  0.72rem, and `--text-xs` is pinned at 0.72rem *because that is the size the ratio was measured
-  at*. `--focus` is a separate token from `--accent` because a focus ring needs 3:1 and Hero
-  `--accent` is 1.8:1. A dark ground invalidates **every one of these measurements** — re-measure
-  the lot, and note that the print palette has a luminance test while the screen palette does
-  not. Consider adding one.
-- **The print stylesheet stays white paper and dark ink** whatever the screen does. It restates
-  every token the screen palettes declare; one left out keeps its screen value through the
-  cascade, which is exactly how a full-bleed ink dump shipped once.
-- **`prefers-reduced-motion` turns every animation off** by setting three duration tokens to
-  `0.01ms`, not `0`.
-- **The sheet still prints on one page.** Judge it by the PDF, never the screen — the harness for
-  rendering `SheetView` to a real printed page is in `CLAUDE.md`.
+**One correction to the previous handover's reading of that site.** Its *app* palette is light —
+`--color-background: oklch(98.47% .002 247.84)` — and only the marketing page sits on the
+near-black navy. Do not take "they went dark" as the lesson; the lesson is the numerals and the
+demonstration.
 
 ### Where to start
 
-1. **Look at the running app.** Three defects were found in one screenshot of the tier page
-   during this session — an unstyled OS file picker, a card grid flush against the panel below
-   it, and a tooltip explaining a design decision instead of answering a question. **The whole
-   suite was green through all three**, because every guard in this repository reads source or
-   markup and none of them looks at a page. Fixed in `fix/ui-papercuts`; the lesson is the
-   reason they existed.
-2. **Then read `docs/FRONT-END-PLAN.md`.** Phase 3's last two items (validation on the row where
-   the mistake is made, and undo) and Phases 4–5 are still open, and Phase 4 — the sheet as a
-   live preview column — overlaps the redesign heavily. Do not do them separately.
-3. **Pick the one screen that should demonstrate rather than describe.** The strongest candidate
-   is the Hero Point budget: it already recomputes live, it already has a breakdown, and it is
-   the number a player actually watches. Making *that* the hero moment is the closest thing this
-   app has to the dice roller.
+**The Hero Point budget is the strongest candidate and it is nearly free.** It already recomputes
+live, it already has a breakdown, it already animates between two engine answers, and it is the
+number a player actually watches. Making *that* the hero moment is the closest thing this app has
+to the dice roller. Read the `ppCount` rule in `CLAUDE.md` before touching it: an animation may
+interpolate between two engine answers and may never invent one.
+
+Then `docs/FRONT-END-PLAN.md` — Phase 3's last two items (validation on the row where the mistake
+is made, and undo) and Phase 4, the sheet as a live preview column. **Phase 4 overlaps this
+heavily; do not do them separately.**
+
+### What the slice must not break
+
+Every one is asserted, and all are load-bearing:
+
+- **No component names a colour, a typeface, or a raw length.** `app.css` may not declare a custom
+  property at all.
+- **Four palettes now, not two.** `EveryScreenPairInUseHoldsItsContrastFloor` is a `[Theory]` over
+  all four and measures real WCAG ratios, resolving `var()` and `color-mix()`. **Add the row and
+  let the test tell you** — do not adjust by eye, do not weaken a floor. If a new surface puts two
+  tokens together that no rule currently does, that pair is unasserted until you add it;
+  `--muted` on `--accent-soft` is the obvious one.
+- **`--primary` is a fill and `--heading` is text.** Villain `--primary` is 2.0:1 on its surface.
+- **The print stylesheet stays white paper and dark ink in all four**, and the guard for it
+  resolves the whole cascade rather than reading the print block. See below.
+- **`prefers-reduced-motion` turns every animation off** via three duration tokens at `0.01ms`.
+- **The sheet still prints on one page.** Judge it by the PDF, never the screen.
+
+### What this slice learned, that the next one needs
+
+- **`@media` contributes nothing to specificity, and that nearly shipped a bug.** A dark palette
+  block guarded by `:not([data-theme="light"])` is (0,3,0); the print block is (0,2,0). Left
+  unscoped the dark blocks would have outranked print, and a reader in dark mode would have
+  printed a full-bleed near-black page — with every existing guard green. `@media screen` on the
+  dark half is the fix. **If you add a screen rule that print must override, check the
+  specificity, not the source order.**
+- **A guard that has never failed is a claim.** The cascade-resolving replacement for that guard
+  applied rules in *source order* and passed with the bug re-introduced. It weighs specificity
+  now. An earlier, wider mutation had appeared to catch it and had not — it tripped the
+  resolver's refusal to model an unknown at-rule, which reads exactly like a catch.
+- **A C# guard cannot see a JavaScript property.** Deleting the `localStorage.setItem` from
+  `theme.js` — so the theme is forgotten on reload — left all 4,115 tests green. Anything whose
+  substance is in a script needs a browser harness; there are seven now.
+- **Copy answers what the reader came to do.** Four places explained the app to a developer and
+  the owner found all four by reading it, not by any test. The rule and its two guards are in
+  `CLAUDE.md`; the short version is that design rationale goes in a `@* *@` comment.
+- **Headless Chrome here reports `prefers-color-scheme: dark`**, so an un-stamped proof page
+  renders the dark palette. Force `data-theme="light"` on the harness to judge a light one.
 
 ### Known gaps that belong to this slice
 
 - **`.shell` spaces its children by `.panel`'s `margin-bottom`**, so any non-panel child gets no
-  spacing. Patched for the one case that exists; the real fix is a `gap` on `.shell` with the
-  margin removed, but `.shell` also holds the sticky budget strip and its negative-margin bleed,
-  so it needs proofing on every route.
-- **No visual regression testing**, and this slice makes that gap acute. Golden PNGs of the proof
-  pages with a per-pixel tolerance would close it. Two things make it viable: the fonts are
-  self-hosted, and CI already drives Chrome at a fixed viewport. **Generate the goldens in CI on
-  Linux, never from a Windows run** — antialiasing differs and every one will mismatch.
-- **No `aria-live` anywhere**, so crossing into over-budget is announced to nobody. If you add
-  one it must go on a sibling summary, **never** on `.budget-figure strong`, which `ppCount`
-  rewrites up to 60×/s.
-- **Screen-reader testing is owed** on the command palette, the pips and the sign-in page.
-  `aria-expanded` being asserted as the string `"true"` is not the same as having been listened
-  to.
-- **Home and End on a rank slider also scroll the document.** The fix is a small interop shim
-  like `palette.js`, not a Razor attribute.
+  spacing. The real fix is a `gap` on `.shell` with the margin removed, but `.shell` also holds
+  the sticky budget strip, so it needs proofing on every route.
+- **No visual regression testing**, and this slice makes that gap acute — four palettes now, and
+  every screenshot is judged by eye. Golden PNGs of the proof pages with a per-pixel tolerance
+  would close it; the fonts are self-hosted and CI already drives Chrome at a fixed viewport.
+  **Generate the goldens in CI on Linux, never from a Windows run** — antialiasing differs.
+- **No `aria-live` anywhere**, so crossing into over-budget is announced to nobody. If you add one
+  it must go on a sibling summary, **never** on `.budget-figure strong`, which `ppCount` rewrites
+  up to 60×/s.
+- **Screen-reader testing is owed** on the command palette, the pips, the sign-in page and now the
+  light/dark control. `aria-pressed` asserted as the string `"true"` is not the same as having
+  been listened to.
+- **Home and End on a rank slider also scroll the document.** The fix is a small interop shim.
 
 ---
 
@@ -252,8 +179,9 @@ What a slice would actually involve:
 
 ## What previous sessions got wrong, so you do not repeat it
 
-- **A green suite is not a working app.** Three visible defects survived 4133 tests. Anything
-  whose substance is *appearance* has no guard in this repository at all.
+- **A green suite is not a working app.** Three visible defects survived 4133 tests, and four
+  pieces of developer jargon on screen survived 4186 — both found by a person looking at the app.
+  Anything whose substance is *appearance* or *wording* has almost no guard here.
 - **Qodana's PR-mode count is not comparable to a whole-tree scan.** It reported "9 new problems"
   on a PR that changed one Markdown file. Run the scan yourself on a clean export.
 - **Stacked PRs need the base branch to survive.** Do not merge the top of a stack before the

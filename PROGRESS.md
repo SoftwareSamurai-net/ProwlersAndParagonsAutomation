@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4133 across three suites — 3688 on the engine, 387 rendering components with bUnit, 58 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
+| Tests | 4186 across three suites — 3721 on the engine, 407 rendering components with bUnit, 58 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus seven browser harnesses driven by headless Chrome |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -234,6 +234,75 @@ Do it once the HTTP API stops moving, so audit targets are not shifting under it
 ---
 
 ## Completed work
+
+### Four palettes on two axes, and the print bug that would have shipped with them
+
+**Light/dark is now independent of Hero/Villain.** The two used to be one switch — Hero was a
+light theme, Villain a dark one — so somebody who wanted a dark screen had to make their Hero a
+Villain to get it. There are four token sets now: hero-light and villain-dark are the two that
+always existed, with their values unchanged, and hero-dark and villain-light are new.
+
+**Villain-light was the one with a real risk in it** — a crimson-and-gold identity on white that
+does not just become Hero in different hues — and what made it tractable is that a villain-on-white
+already existed and nobody had noticed: the *print* palette, whose crimson and brass had been
+measured as ink on paper years of commits ago. It is those, on a warm oyster ground rather than
+Hero's cool near-white, keeping villain-dark's 2px rules and tight heading tracking. Identity
+survives the change of ground by weight as much as by hue. Both candidates — warm paper and cool
+— were built as proof pages and looked at side by side before one was chosen.
+
+**The slice's real finding is a print bug that every existing guard would have missed.** The
+handover prescribed `:root[data-theme="dark"][data-mode="x"]` blocks so an explicit choice beats
+the system. That is specificity (0,3,0); the print block is (0,2,0), and `@media` contributes
+nothing to specificity. So a reader in dark mode would have printed the full-bleed near-black
+page the print block exists to prevent — with `PrintKeepsThePaperWhiteAndTheInkReadable` green,
+because it read the print block's own declarations rather than resolving the cascade against the
+screen blocks. Measured in a browser before any CSS was written, not reasoned about. The fix is
+`@media screen` on the dark half: they do not apply on paper at all.
+
+**And the guard built to catch it did not, at first.** Its replacement resolves the whole
+stylesheet for a given state — but the first version applied admitted rules in **source order**,
+which is not the cascade, and passed with `screen` deleted from the OS-dark media query. That was
+the mutation that mattered: an earlier, wider mutation (`@media all`) had *appeared* to be caught
+and was not — it tripped the resolver's refusal to model an unknown at-rule, which is an honest
+refusal and not the catch it looked like. Weighing specificity, the same mutation fails on exactly
+the three states where a dark system reaches paper, and names it.
+
+One defect found in the contrast instrument itself, inherited from #65: its token-name regex was
+`--[a-z-]+`, which does not match `--shadow-1`. Every shadow, space and type token was silently
+dropped from every palette it resolved.
+
+**The preference is per-browser and attached to nothing else** — `pp.theme.v1` in local storage,
+never sent to the server, not on `CharacterSheet` and not on the account. A theme on the sheet
+would travel through an export and change the screen of whoever imported somebody else's
+character; one on the account would let a signed-in reader on a shared machine impose it on the
+next. `js/theme.js` is loaded from `<head>` and is the only render-blocking script in the app,
+because the payload is ~27 MiB and a theme applied from C# lands seconds after the reader has
+already seen the wrong one.
+
+**Persistence turned out to have no guard at all, and could not have a C# one.** Deleting the
+`localStorage.setItem` — so a choice applies for the visit and is forgotten on reload — left all
+4,115 tests green: the C# side checks that the right word goes out and that a stored value is read
+back, and both are true of a script that stores nothing. `proof-theme.html` drives the shipped
+file in a browser and re-executes the module, which is what a reload does; it is in the build
+workflow beside the other harnesses. Its own positive control was wrong first — re-executing the
+module re-declares `ppThemeStats`, so the counter *resets* rather than going up, and asserting the
+reset is what makes it a control.
+
+**Separately, four places on screen explained the app to a developer**, all found by the owner
+reading it. The sign-in page explained that it would not say whether an address has an account —
+noise to somebody signing in, and an advertisement of the defence. The replay page accounted for
+who would pay for the model, in a sentence that had also stopped being true ("no accounts, no
+server"), and sent a reader wanting the live version to `docs/MCP-SETUP.md`. A sample character
+was vouched for by "there is a test that says so". A panel said "nothing was pre-computed". All
+four behave identically; the reasoning moved into `@* *@` comments. Two guards hold it:
+`NoPageExplainsItselfToADeveloper` grew eight phrases, and `NoPagePointsAtAFileInThisRepository`
+is structural.
+
+**Still open from the redesign brief, and deliberately not in this slice:** making the substance
+visible rather than described — numbers as design material, the Hero Point budget as the hero
+moment, and a first screen that demonstrates the mechanic instead of listing features. That is the
+larger half of the brief and it is easier to build against four settled palettes than alongside
+them.
 
 ### Characters, plural: a manager, imports, and the export the app was not writing
 

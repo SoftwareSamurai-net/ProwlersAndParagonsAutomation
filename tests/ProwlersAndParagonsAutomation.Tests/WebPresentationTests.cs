@@ -3449,11 +3449,6 @@ public sealed class WebPresentationTests
     /// </summary>
     private readonly record struct ThemeState(string Mode, string? Chosen, bool SystemIsDark)
     {
-        /// <summary>Which of the four palettes this state should land on.</summary>
-        public string Palette => (Chosen ?? (SystemIsDark ? "dark" : "light")) == "dark"
-            ? $"{Mode}-dark"
-            : $"{Mode}-light";
-
         public override string ToString() =>
             $"{Mode}/{Chosen ?? "system"}/{(SystemIsDark ? "os-dark" : "os-light")}";
     }
@@ -3604,7 +3599,7 @@ public sealed class WebPresentationTests
         if (value is null) return null;
         value = value.Trim();
 
-        var hex = Rx(@"^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$").Match(value);
+        var hex = Rx("^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$").Match(value);
         if (hex.Success)
         {
             var digits = hex.Groups[1].Value;
