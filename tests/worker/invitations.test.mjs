@@ -353,3 +353,41 @@ test('one reading of what an address is, shared by the gate and the key', async 
             `${file} does not import the shared reading of an address`);
     }
 });
+
+test('a broken deployment answers an invited and an uninvited address identically', async () => {
+    // **The one place the two slices that met here genuinely disagreed.** The gate was written
+    // above the `SITE_URL` check, so on a deployment with that setting missing an invited address
+    // got a 500 and an uninvited one got `204` — which makes every misconfiguration a way of
+    // reading the list, one address at a time. It is the same oracle the error slice refuses for
+    // account existence, on the axis this file's feature added.
+    //
+    // Asserted as byte-identical bodies rather than as equal statuses, for the reason that slice
+    // gives: a category, a reference or a sentence that differed would be the leak wearing a
+    // different hat. The reference is held still by the harness, so two failures differ only if
+    // something about *them* differs.
+    const app = gated();
+    delete app.env.SITE_URL;
+
+    app.invite('invited@example.test');
+
+    const invited = await ask(app, 'invited@example.test');
+    const stranger = await ask(app, 'nobody@example.test');
+
+    assert.equal(invited.status, stranger.status,
+        'a missing setting told the caller whether the address was on the list');
+    const invitedBody = await invited.text();
+    assert.equal(invitedBody, await stranger.text());
+
+    // The positive control: this passes trivially if the deployment is not actually broken, or if
+    // the gate has stopped gating. So the failure has to be the configuration one, and the
+    // stranger has to still be refused when the deployment is sound.
+    assert.equal(invited.status, 500, 'the deployment was not broken, so this asserts nothing');
+    assert.equal(JSON.parse(invitedBody).category, 'configuration');
+    assert.equal(app.sent.length, 0, 'a link was mailed by a site that cannot address one');
+
+    const sound = gated();
+    sound.invite('invited@example.test');
+    await ask(sound, 'invited@example.test');
+    await ask(sound, 'nobody@example.test');
+    assert.equal(sound.sent.length, 1, 'the gate is not gating, so the comparison above is empty');
+});

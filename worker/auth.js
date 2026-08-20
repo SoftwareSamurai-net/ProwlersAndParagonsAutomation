@@ -63,24 +63,6 @@ export async function requestLink(request, env, deps) {
         return noContent();
     }
 
-    // **An address nobody invited gets the same answer as one that was, and no mail.**
-    // This site is not a sign-up: an account is what puts the rulebook's own text on screen, so
-    // who may have one is a decision rather than a form. The answer is `204` either way for the
-    // same reason a rate-limited request is — anything else makes this endpoint a way of asking
-    // who is on the list, one address at a time.
-    //
-    // **It is deliberately above the deployment check below.** A stranger probing a site whose
-    // `SITE_URL` is missing would otherwise get a 500 where an invited address gets one too,
-    // which says nothing about the list — but the reverse ordering also means the owner of a
-    // broken deployment is told about it whichever address he tries, and that is worth more.
-    //
-    // **What this does not hide is time.** An invited address waits on a call to the mail
-    // provider and an uninvited one returns immediately, so somebody willing to measure can
-    // still tell them apart. Closing that would mean padding every refusal to the length of a
-    // send, which trades a real defence — the list itself — for the appearance of one. Recorded
-    // rather than fixed.
-    if (!await mayHaveAnAccount(env, email)) return noContent();
-
     // **The link's domain comes from configuration, and this refuses rather than guessing.**
     // It used to fall back to the origin of the request — which is derived from the host the
     // request arrived on, and `sameOrigin` above checks the *Origin header against that host*
@@ -96,10 +78,37 @@ export async function requestLink(request, env, deps) {
     // owner could not find afterwards. `configuration` is the category that must never advise
     // retrying, and this is what it was named for: no amount of trying again sets an environment
     // variable.
+    //
+    // **Deliberately above the invitation gate, and the two slices that met here disagreed about
+    // that.** The gate landed first and was written above this check, on the reasoning that a
+    // stranger probing a broken deployment should not be told anything. But the effect is the
+    // reverse: with the gate first, a missing `SITE_URL` answers an invited address with a 500
+    // and an uninvited one with `204`, which turns every misconfiguration into a way of reading
+    // the list one address at a time. `SITE_URL` is a fact about the deployment and has nothing
+    // to do with who is asking, so answering it first is what keeps the `configuration` category
+    // independent of the address — the same rule the error slice states for account existence,
+    // applied to the axis the invitation list added. It is also what the gate's own comment said
+    // was worth more: the owner of a broken deployment finds out whichever address he tries.
     if (!env.SITE_URL) {
         throw configurationFailure(
             'SITE_URL is not set, so no sign-in link can be addressed. See docs/ACCOUNTS-SETUP.md.');
     }
+
+    // **An address nobody invited gets the same answer as one that was, and no mail.**
+    // This site is not a sign-up: an account is what puts the rulebook's own text on screen, so
+    // who may have one is a decision rather than a form. The answer is `204` either way for the
+    // same reason a rate-limited request is — anything else makes this endpoint a way of asking
+    // who is on the list, one address at a time.
+    //
+    // **What this does not hide is time, and one thing louder than time.** An invited address
+    // waits on a call to the mail provider and an uninvited one returns immediately, so somebody
+    // willing to measure can still tell them apart; and while the provider is refusing every
+    // send, an invited address gets a 500 where an uninvited one still gets `204`. Closing
+    // either would mean attempting a send for addresses nobody invited, or padding every refusal
+    // to the length of one — which trades a real defence, the list itself, for the appearance of
+    // one. Recorded rather than fixed. What *is* fixed is the case above, because a deployment
+    // setting is not a fact about the address and never needed to be behind the gate.
+    if (!await mayHaveAnAccount(env, email)) return noContent();
 
     const token = deps.newSecret();
     await db.putLoginToken(env.DB, {
