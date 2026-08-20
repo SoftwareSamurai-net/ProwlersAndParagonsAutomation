@@ -1,3 +1,4 @@
+using System.Net;
 using ProwlersAndParagonsAutomation.Engine;
 
 namespace ProwlersAndParagons.Web.Tests;
@@ -370,10 +371,55 @@ public sealed class AccountTests
     public async Task AskingForALinkTellsApartTheThreeThingsThatCanHappen()
     {
         var app = Build();
-        Assert.Equal(LinkRequest.Accepted, await app.Who.AskForLinkAsync("player@example.test"));
+        Assert.Equal(LinkRequest.Accepted, (await app.Who.AskForLinkAsync("player@example.test")).Result);
 
         app.Api.Unreachable = true;
-        Assert.Equal(LinkRequest.Unavailable, await app.Who.AskForLinkAsync("player@example.test"));
+        Assert.Equal(LinkRequest.Unavailable, (await app.Who.AskForLinkAsync("player@example.test")).Result);
+    }
+
+    /// <summary>
+    /// <b>A server that answered is not a server that could not be reached.</b>
+    ///
+    /// <para>Written because the two were one outcome, and it cost real time: three sign-in
+    /// attempts against a deployment whose environment variables predated it were all reported
+    /// as "could not reach the site just now, try again in a moment", while the server was
+    /// answering promptly with a 500. The advice was wrong in both halves — nothing was
+    /// unreachable, and trying again could not help — so the search went to the network instead
+    /// of to the server's own configuration.</para>
+    ///
+    /// <para>The reference is asserted in both shapes, because both are real: the server mints
+    /// one only on the path that catches an exception, and something in front of the app can
+    /// answer with a failure whose body is not JSON at all. A client that threw while reading
+    /// the second would turn a reported failure into an unreported one.</para>
+    /// </summary>
+    [Fact]
+    public async Task AFailureFromTheServerIsNotAFailureToReachIt()
+    {
+        var app = Build();
+
+        // Reached, broken, carrying a reference to quote.
+        app.Api.LinkRequestAnswer = HttpStatusCode.InternalServerError;
+        app.Api.LinkRequestReference = "7f3a91";
+
+        var reported = await app.Who.AskForLinkAsync("player@example.test");
+
+        Assert.Equal(LinkRequest.Failed, reported.Result);
+        Assert.Equal("7f3a91", reported.Reference);
+
+        // Reached, broken, no reference — still a failure, still not a network problem.
+        app.Api.LinkRequestReference = null;
+
+        var bare = await app.Who.AskForLinkAsync("player@example.test");
+
+        Assert.Equal(LinkRequest.Failed, bare.Result);
+        Assert.Null(bare.Reference);
+
+        // The positive control: unreachable still reads as unreachable. Without it this test
+        // would pass just as well against a client that called every outcome Failed.
+        app.Api.Unreachable = true;
+
+        Assert.Equal(LinkRequest.Unavailable,
+            (await app.Who.AskForLinkAsync("player@example.test")).Result);
     }
 
     /// <summary>

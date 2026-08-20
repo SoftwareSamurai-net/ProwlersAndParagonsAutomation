@@ -23,8 +23,12 @@ export function noContent(headers = {}) {
  * the status is the contract. In particular a sign-in failure says the same thing whatever
  * went wrong, so the endpoint cannot be used to ask whether an address has an account.</p>
  */
-export function fail(status, message) {
-    return json({ error: message }, { status });
+export function fail(status, message, extra) {
+    // `extra` carries a reference id on the one path that mints one — see the catch in
+    // `index.js`. Spread rather than named, so this stays the single shape every refusal takes:
+    // `{ error }`, plus whatever the caller could add without saying anything about what went
+    // wrong. Nothing passed here may carry a message from an exception.
+    return json({ error: message, ...extra }, { status });
 }
 
 /**

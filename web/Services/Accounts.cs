@@ -14,9 +14,32 @@ public enum LinkRequest
     /// <summary>What was typed is not an address. The only refusal worth showing.</summary>
     NotAnAddress,
 
-    /// <summary>The site could not be reached, or answered with something unexpected.</summary>
+    /// <summary>The site could not be reached at all — no network, or no server there.</summary>
     Unavailable,
+
+    /// <summary>
+    /// The site was reached and answered with a failure.
+    ///
+    /// <para><b>Kept apart from <see cref="Unavailable"/> because they are somebody else's
+    /// problem each.</b> Both used to be this enum's one failure, so a misconfigured server
+    /// rendered as "could not reach the site" — which is a sentence about the reader's network,
+    /// and sent the owner of a 500 looking at their wifi. Once cost real time: three sign-in
+    /// attempts against a deployment whose environment variables predated it, all reported as
+    /// unreachable while the server was answering perfectly promptly with a 500.</para>
+    /// </summary>
+    Failed,
 }
+
+/// <summary>
+/// What asking for a link did, and the reference to quote if it failed.
+///
+/// <para><b>The reference is the whole reason this is not just the enum.</b> This server's only
+/// log is a live tail — nothing is persisted, so an error nobody was watching for is gone. The
+/// id lets somebody paste six characters into a report and have it match a line in the log,
+/// which is the difference between one grep and a guess. It is null for every outcome except a
+/// failure that carried one, and it says nothing about what went wrong.</para>
+/// </summary>
+public readonly record struct LinkOutcome(LinkRequest Result, string? Reference = null);
 
 /// <summary>
 /// Who is signed in, and the three things that change it.
@@ -79,7 +102,7 @@ public sealed class Accounts : IIdentitySource
     }
 
     /// <summary>Ask for a sign-in link. See <see cref="LinkRequest"/> for what it can say.</summary>
-    public async Task<LinkRequest> AskForLinkAsync(string email)
+    public async Task<LinkOutcome> AskForLinkAsync(string email)
     {
         try
         {
@@ -87,12 +110,44 @@ public sealed class Accounts : IIdentitySource
 
             return response.StatusCode switch
             {
-                HttpStatusCode.NoContent => LinkRequest.Accepted,
-                HttpStatusCode.BadRequest => LinkRequest.NotAnAddress,
-                _ => LinkRequest.Unavailable,
+                HttpStatusCode.NoContent => new LinkOutcome(LinkRequest.Accepted),
+                HttpStatusCode.BadRequest => new LinkOutcome(LinkRequest.NotAnAddress),
+
+                // Reached and refused. The reference is read out of the body when the server
+                // minted one; a server that did not is still a failure and still not a
+                // network problem, so the outcome does not depend on finding it.
+                _ => new LinkOutcome(LinkRequest.Failed, await ReferenceIn(response)),
             };
         }
-        catch (Exception e) when (IsUnreachable(e)) { return LinkRequest.Unavailable; }
+        // Genuinely could not get there: no network, DNS, or nothing listening. The only case
+        // where telling somebody to try again in a moment is honest advice.
+        catch (Exception e) when (IsUnreachable(e)) { return new LinkOutcome(LinkRequest.Unavailable); }
+    }
+
+    /// <summary>
+    /// The failure reference the server put in the body, or null.
+    ///
+    /// <para><b>Nothing here may throw.</b> This runs while reporting a failure, so a body that
+    /// is not the JSON expected — an HTML error page from something in front of the app, an
+    /// empty response — must produce a missing reference rather than a second exception on top
+    /// of the first. That is also why it does not use the typed reader: the shape is whatever
+    /// arrived, not whatever was meant to.</para>
+    /// </summary>
+    private static async Task<string?> ReferenceIn(HttpResponseMessage response)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+            return document.RootElement.TryGetProperty("reference", out var reference)
+                   && reference.ValueKind == JsonValueKind.String
+                ? reference.GetString()
+                : null;
+        }
+        catch (Exception e) when (e is JsonException or HttpRequestException or InvalidOperationException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
