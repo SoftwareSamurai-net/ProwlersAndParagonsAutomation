@@ -49,6 +49,15 @@
             <p>Kept. It belongs to your account now, and the one in this browser is untouched.</p>
         }
 
+        @* **Offered to everybody signed in, not only to whoever it is for.** Which account
+           may manage the list is the server's answer and it is checked on every request there;
+           showing this link conditionally would mean the browser holding a claim about who
+           somebody is, which is the one thing identity here deliberately does not carry. So an
+           account it is not for follows it once and is told so plainly. *@
+        <p class="small muted">
+            If you look after who can sign in to this site, <a href="admin">that list is here</a>.
+        </p>
+
         <p>
             <button type="button" class="btn danger" @onclick="SignOut">Sign out</button>
         </p>

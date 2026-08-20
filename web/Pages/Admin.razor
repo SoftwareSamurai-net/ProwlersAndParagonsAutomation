@@ -1,0 +1,226 @@
+@page "/admin"
+@inject Invitations Invitations
+
+@* Who may have an account here.
+
+   **This site is not a sign-up.** An account is what keeps somebody's characters with them and
+   what opens the rulebook's own text, so who may have one is a decision rather than a form —
+   and this page is where that decision is made and unmade.
+
+   **The page decides nothing itself.** Every answer on it comes from the server, which checks on
+   every single request whether the person asking may manage this list; the browser holds no
+   claim, no role and no flag it could get wrong. So it is reached by its address rather than by
+   a button that appears for some people — an ordinary account that finds its way here is told,
+   politely, that it is not theirs, and could learn nothing by trying. *@
+
+<PageTitle>Who can sign in — Prowlers &amp; Paragons</PageTitle>
+
+<h1>Who can sign in</h1>
+
+@if (_state == ListRequest.Loaded)
+{
+    <Panel Title="Invited" Aside="@Counted">
+        <p>
+            Everyone here can ask for a sign-in link. Nobody else can — asking from any other
+            address does nothing at all, and says so to nobody.
+        </p>
+
+        <ChosenList>
+            @foreach (var one in _invitations)
+            {
+                <ChosenRow>
+                    <Body>
+                        <strong>@one.Email</strong>
+                        <span class="small muted">@Notes(one)</span>
+                    </Body>
+                    <Actions>
+                        @if (one is { Removable: true, Id: { } id } && one.Email != _you)
+                        {
+                            <button type="button" class="btn danger"
+                                    disabled="@(_working == id)"
+                                    @onclick="() => Withdraw(id)">
+                                @(_working == id ? "Withdrawing…" : "Withdraw")
+                            </button>
+                        }
+                    </Actions>
+                </ChosenRow>
+            }
+        </ChosenList>
+
+        @if (_problem is { } problem)
+        {
+            <p role="alert">@problem</p>
+        }
+    </Panel>
+
+    <Panel Title="Invite somebody">
+        <p>
+            Adding an address lets that person ask for a sign-in link. It sends them nothing —
+            they sign in from the sign-in page when they want to, and the account is made the
+            first time they do.
+        </p>
+
+        <form @onsubmit="Invite" @onsubmit:preventDefault>
+            <Field For="invite-email">
+                <LabelContent>Their email address</LabelContent>
+                <ChildContent>
+                    <input id="invite-email" type="email" autocomplete="off"
+                           @bind="_email" @bind:event="oninput" />
+                </ChildContent>
+            </Field>
+
+            <Field>
+                <LabelContent>
+                    <input type="checkbox" @bind="_grantsAdmin" />
+                    Let them manage this list too
+                </LabelContent>
+            </Field>
+
+            <p>
+                <button type="submit" class="btn" disabled="@(_inviting || _email.Length == 0)">
+                    @(_inviting ? "Adding…" : "Add")
+                </button>
+            </p>
+        </form>
+
+        @if (_added is { } added)
+        {
+            <p role="status">@added can sign in now.</p>
+        }
+    </Panel>
+
+    <Panel Title="What withdrawing does">
+        <p>
+            It stops that address asking for another link, and ends any session it is already
+            holding — so somebody signed in on another machine is signed out rather than left
+            there until their month runs out.
+        </p>
+        <p>
+            <strong>Their characters are untouched.</strong> Withdrawing is about who may sign in,
+            not about anybody's work; adding the address again gives them back everything exactly
+            as they left it.
+        </p>
+        <p class="small muted">
+            Your own address is not offered here, because withdrawing it would take this page with
+            it. The address set on the deployment itself is not offered either — that one is
+            changed where the rest of the site's settings are.
+        </p>
+    </Panel>
+}
+else if (_state == ListRequest.NotSignedIn)
+{
+    <Panel Title="Sign in first">
+        <p>This page needs an account. <a href="signin">Sign in</a>, then come back.</p>
+    </Panel>
+}
+else if (_state == ListRequest.Unavailable)
+{
+    <Panel Title="Could not reach the site">
+        <p>Nothing was reached just now. Try again in a moment.</p>
+    </Panel>
+}
+else if (_state == ListRequest.NotForYou)
+{
+    <Panel Title="Not this account">
+        <p>
+            This page is for whoever looks after who can sign in here, and that is not this
+            account. Nothing is wrong — there is simply nothing here for you.
+        </p>
+        <p><a href="">Back to the character generator</a></p>
+    </Panel>
+}
+else
+{
+    <Panel Title="Who can sign in">
+        <p>Looking…</p>
+    </Panel>
+}
+
+@code {
+    private ListRequest? _state;
+    private IReadOnlyList<Invitation> _invitations = [];
+    private string? _you;
+
+    private string _email = "";
+    private bool _grantsAdmin;
+    private bool _inviting;
+    private string? _added;
+    private string? _problem;
+
+    /// <summary>The id being withdrawn, so one button reads as busy rather than all of them.</summary>
+    private string? _working;
+
+    private string Counted =>
+        _invitations.Count == 1 ? "1 address" : $"{_invitations.Count} addresses";
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        var answer = await Invitations.ListAsync();
+
+        _state = answer.Result;
+        _invitations = answer.Invitations;
+        _you = answer.You;
+    }
+
+    private async Task Invite()
+    {
+        _inviting = true;
+        _problem = null;
+        _added = null;
+
+        var email = _email.Trim();
+
+        if (await Invitations.AddAsync(email, _grantsAdmin))
+        {
+            _added = email;
+            _email = "";
+            _grantsAdmin = false;
+            await Reload();
+        }
+        else
+        {
+            // The server's own refusals are a malformed address and nothing else, so this is the
+            // one sentence worth saying. It deliberately does not advise trying again: the same
+            // address would be refused the same way.
+            _problem = "That was not added. Check it is an email address.";
+        }
+
+        _inviting = false;
+    }
+
+    private async Task Withdraw(string id)
+    {
+        _working = id;
+        _problem = null;
+        _added = null;
+
+        if (!await Invitations.RemoveAsync(id))
+        {
+            _problem = "That was not withdrawn. Reload the page and try again.";
+        }
+
+        await Reload();
+        _working = null;
+    }
+
+    /// <summary>
+    /// What is true of one address beyond the address itself.
+    ///
+    /// <para>Whether it has been used matters on this site more than it would on most: the mail
+    /// that carries a sign-in link has already failed here once, silently, so "invited and never
+    /// signed in" is a state somebody looking at this page needs to be able to see.</para>
+    /// </summary>
+    private string Notes(Invitation one)
+    {
+        var notes = new List<string>();
+
+        if (one.GrantsAdmin) notes.Add("manages this list");
+        if (!one.Removable) notes.Add("set on the deployment");
+        if (one.Email == _you) notes.Add("you");
+        notes.Add(one.HasSignedIn ? "has signed in" : "has not signed in yet");
+
+        return string.Join(" · ", notes);
+    }
+}

@@ -161,12 +161,26 @@ is a real credential):
 | `RESEND_API_KEY` | the key Resend gave you |
 | `MAIL_FROM` | `no-reply@superheroes.softwaresamurai.net` — or any address on the verified domain |
 | `SITE_URL` | `https://superheroes.softwaresamurai.net` — no trailing slash |
+| `ADMIN_EMAIL` | your own address — the one account that can always sign in and manage the rest |
 
 **`MAIL_FROM` need not be a mailbox that exists.** Nothing ever delivers to it — it is the `From`
 line and nothing else, and Resend checks only that the domain part is one you verified. A reply to
 a sign-in email goes nowhere, which is the intent.
 
-**All three are required, `SITE_URL` included.** It is what sign-in links point at, and the server
+**`ADMIN_EMAIL` is what makes anybody able to sign in at all.** This site is not a
+sign-up: only addresses on the invitation list may ask for a link, and that list is managed at
+[`/admin`](https://superheroes.softwaresamurai.net/admin) by somebody who is already signed in.
+So the first entry cannot come from the list — managing it needs an account, an account needs an
+invitation, and an invitation needs somebody to have added one. This variable is what breaks that
+circle: the address in it is always allowed, always an administrator, and has no row of its own,
+so it cannot be removed by a click.
+
+**A deployment with no `ADMIN_EMAIL` allows nobody**, which is deliberate. Nothing is seeded into
+the database, because a committed address would be this repository owner's own — silently making
+him the administrator of every fork. A site that signs nobody in is visibly broken; one that lets a
+stranger in is not.
+
+**All four are required, `SITE_URL` included.** It is what sign-in links point at, and the server
 **refuses to send one at all** without it — `/api/auth/request` answers 500 and writes nothing.
 
 That refusal is deliberate and replaced a fallback. The link used to be addressed from the origin
