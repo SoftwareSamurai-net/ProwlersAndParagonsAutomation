@@ -527,6 +527,13 @@ public sealed class ProofPages
           window.ppTheme.set('dark');
           document.documentElement.removeAttribute('data-theme');
 
+          // Four set() calls have run since the file did, so the counter stands at five. The
+          // module declares `ppThemeStats` fresh, so a re-execution puts it *back to one* —
+          // which is what makes this a control rather than a hope. The first version asserted
+          // the counter had gone **up**, and failed on working code: the harness caught its own
+          // control being wrong, which is the only reason this one is right.
+          const beforeReload = window.ppThemeStats.stamps;
+
           const again = document.createElement('script');
           again.src = 'js/theme.js';
           again.onload = () => {
@@ -534,9 +541,10 @@ public sealed class ProofPages
                   stamped() === 'dark',
                   `data-theme = ${stamped()} after re-executing the module`);
 
-            check('...and the re-execution really happened (positive control)',
-                  window.ppThemeStats.stamps > 3,
-                  `stamps = ${window.ppThemeStats.stamps}`);
+            check('...and the module really re-executed (positive control)',
+                  beforeReload === 5 && window.ppThemeStats.stamps === 1,
+                  `stamps went ${beforeReload} → ${window.ppThemeStats.stamps}; a reset to 1 is `
+                  + 'only reachable by the file running again');
 
             // Leave the browser profile as it was found.
             try { localStorage.removeItem(KEY); } catch { /* nothing to do */ }
@@ -1488,6 +1496,19 @@ public sealed class ProofPages
             "activeElement", "keyboard trap",
             "SHORTCUT: PASS", "SHORTCUT: FAIL", "measuring", "document.title",
         ],
+        // The light/dark preference, and the only check anywhere that it survives a reload.
+        // `ppThemeStats` is the positive control twice over: the read-back half re-executes the
+        // module, and a second execution that never happened would leave every assertion about
+        // the stamped attribute holding for the wrong reason. The key is named because "it is
+        // stored somewhere" is not the property — "it is stored where the app looks" is.
+        ["proof-theme.html"] =
+        [
+            "js/theme.js", "ppTheme.set", "ppThemeStats", "positive control",
+            "pp.theme.v1", "localStorage", "data-theme",
+            "removes the value rather than storing a third word",
+            "with nothing calling it",
+            "THEME: PASS", "THEME: FAIL", "measuring", "document.title",
+        ],
     };
 
     /// <summary>
@@ -1593,6 +1614,7 @@ public sealed class ProofPages
     {
         AssertMarkers("proof-motion.html", MotionHarness());
         AssertMarkers("proof-shortcut.html", ShortcutHarness());
+        AssertMarkers("proof-theme.html", ThemeHarness());
     }
 
     /// <summary>
