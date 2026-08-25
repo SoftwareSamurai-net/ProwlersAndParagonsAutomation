@@ -35,15 +35,23 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
  * its own. Surrounding quotes are stripped **and reported**, because a value pasted with them is
  * one of the things this probe exists to catch — a quoted `MAIL_FROM` is refused by the provider
  * as a malformed address, and the quotes are invisible in a dashboard field.</p>
+ *
+ * <p><b>`PP_DEV_VARS` points it somewhere else, and exists because of a real loss.</b> Testing
+ * this probe meant writing a throwaway `.dev.vars` in the repository root — which silently
+ * overwrote the owner's, holding the one Resend key that had just been proved to work, and the
+ * cleanup afterwards deleted it. The file is gitignored, so there was nothing to recover and
+ * the key could not be read back from the provider either. Anything exercising this script
+ * points the variable at a scratch file instead of writing to the path a person keeps a
+ * credential at.</p>
  */
 function readDevVars() {
-    const path = join(ROOT, '.dev.vars');
+    const path = process.env.PP_DEV_VARS ?? join(ROOT, '.dev.vars');
     let text;
 
     try {
         text = readFileSync(path, 'utf8');
     } catch {
-        fail(`No .dev.vars in ${ROOT}.`,
+        fail(`No dev vars file at ${path}.`,
             'Create one with RESEND_API_KEY and MAIL_FROM — docs/ACCOUNTS-SETUP.md has the shape.');
     }
 
