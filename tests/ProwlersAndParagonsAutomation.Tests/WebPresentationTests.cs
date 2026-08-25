@@ -3253,6 +3253,74 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// <b>A row's description appears on hover <i>and</i> on focus, and takes no layout box when
+    /// it does not.</b>
+    ///
+    /// <para>The whole substance of this is in the stylesheet. Emptying the rule leaves the class
+    /// on the element, the sentence in the document and every one of the nine rendered assertions
+    /// in <c>RowDescriptionTests</c> passing — with the descriptions invisible to everybody. That
+    /// is the failure shape this file exists for.</para>
+    ///
+    /// <para><b>Focus as well as hover, asserted separately.</b> A hover-only rule is the obvious
+    /// thing to write and makes the feature a mouse feature, which is the objection to a
+    /// <c>title</c> attribute restated in CSS.</para>
+    ///
+    /// <para><b>And <c>display</c> rather than <c>visibility</c>, for the reason recorded on
+    /// <see cref="AClosedTipTakesNoLayoutBox"/>:</b> a hidden element keeps its box, and an
+    /// absolutely-positioned tip that keeps its box put real horizontal overflow into CI once
+    /// already.</para>
+    /// </summary>
+    [Fact]
+    public void ARowsDescriptionOpensOnHoverAndOnFocusAndIsOtherwiseAbsent()
+    {
+        // `exact`, because suffix matching would let `.option:hover .row-tip` answer for the bare
+        // selector — and that rule says `block`, so the closed state would report itself open.
+        Assert.Equal("none",
+            EffectiveValue(ScreenHalfOfAppCss, ".row-tip", "display", exact: true));
+
+        Assert.Equal("block",
+            EffectiveValue(ScreenHalfOfAppCss, ".option:hover .row-tip", "display", exact: true));
+        Assert.Equal("block",
+            EffectiveValue(ScreenHalfOfAppCss, ".option:focus-visible .row-tip", "display", exact: true));
+
+        // The Trait rows, where the trigger is the name rather than the whole row.
+        Assert.Equal("block",
+            EffectiveValue(ScreenHalfOfAppCss, ".rank-name:hover .row-tip", "display", exact: true));
+        Assert.Equal("block",
+            EffectiveValue(ScreenHalfOfAppCss, ".trait-term:focus-visible ~ .row-tip", "display", exact: true));
+
+        // visibility:hidden would put the overflow straight back. Named rather than left implied,
+        // since it is the spelling somebody reaches for when restoring a fade.
+        Assert.NotEqual("hidden",
+            EffectiveValue(ScreenHalfOfAppCss, ".row-tip", "visibility", exact: true));
+
+        // Escape has to beat hover, or the dismissal is a flag nothing reads.
+        Assert.Equal("none", EffectiveValue(
+            ScreenHalfOfAppCss, ".option.tip-dismissed:hover .row-tip", "display", exact: true));
+        Assert.Equal("none", EffectiveValue(
+            ScreenHalfOfAppCss, ".rank-name:hover .row-tip.dismissed", "display", exact: true));
+    }
+
+    /// <summary>
+    /// <b>The Trait name that carries a description is marked as carrying one.</b>
+    ///
+    /// <para>A control that looks exactly like plain text is a control nobody finds. The row's
+    /// name is a button with no button styling — deliberately, since it is a term and not an
+    /// action — so the only thing saying there is something here is the underline.</para>
+    /// </summary>
+    [Fact]
+    public void ATraitNameThatExplainsItselfLooksLikeIt()
+    {
+        var decoration = EffectiveValue(ScreenHalfOfAppCss, ".trait-term", "text-decoration");
+
+        Assert.NotNull(decoration);
+        Assert.Contains("dotted", decoration!, StringComparison.Ordinal);
+
+        // A colour token rather than a named colour, like everything else in this file.
+        Assert.Contains("var(--", decoration, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The book's own words are marked as somebody else's, in a way that survives both palettes.
     ///
     /// <para><b>Both halves of this were wrong when written, and neither was visible to any

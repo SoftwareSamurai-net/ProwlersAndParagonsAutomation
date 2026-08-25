@@ -73,8 +73,18 @@ else
                         {
                             @if (_passage is { } passage)
                             {
-                                <p class="rulebook-text">@passage.Text</p>
-                                <p class="small muted">@passage.SourceRef</p>
+                                @* The same treatment a Power's entry gets beside the editor —
+                                   one idiom for the book's own words, not a second one for the
+                                   same text on another page. *@
+                                <div class="book-text">
+                                    @foreach (var paragraph in Paragraphs(passage.Text))
+                                    {
+                                        <p>@paragraph</p>
+                                    }
+                                    <p class="small muted">
+                                        @passage.SourceRef, printed p.@passage.PrintedPage
+                                    </p>
+                                </div>
                             }
                             else
                             {
@@ -209,6 +219,13 @@ else
     private string NothingFound => _results is { Terms.Count: > 0 } results
         ? $"Nothing in the book uses {string.Join(" or ", results.Terms)}. Try the word the rules would use."
         : "Type a word or two the rules would use.";
+
+    /// <summary>
+    /// The passage's own paragraph breaks, which the extractor keeps. Running them together
+    /// turns a page of the book into a wall.
+    /// </summary>
+    private static IEnumerable<string> Paragraphs(string text) =>
+        text.Split('\n').Select(line => line.Trim()).Where(line => line.Length > 0);
 
     private static string Counted(int n, string one, string many) =>
         FormattableString.Invariant($"{n} {(n == 1 ? one : many)}");

@@ -23,7 +23,11 @@
             id="@RowId"
             role="@(Navigable ? "option" : null)"
             tabindex="@(Navigable ? "-1" : null)"
-            aria-selected="@AriaSelected">
+            aria-selected="@AriaSelected"
+            aria-describedby="@DescriptionId"
+            @onkeydown="Key"
+            @onmouseleave="Restore"
+            @onblur="Restore">
         <span class="body">
             <span class="name">@Name@NameExtra</span>
             @if (Caveat is not null)
@@ -34,6 +38,27 @@
         @if (Cost is not null)
         {
             <span class="cost">@Cost</span>
+        }
+
+        @* What this option actually does, on hover and on focus.
+
+           **The row is already a button, so this needs no trigger of its own.** `Tooltip` puts a
+           `?` beside a term in prose because prose has nowhere else to hang one; a row is a
+           control that can be hovered and focused already, and adding 141 extra tab stops to a
+           list whose whole design is one tab stop would undo `OptionList`'s keyboard model.
+
+           **Never a `title` attribute** — the rule the app already lives by. It never appears on
+           a touch screen, cannot be styled or dismissed, and is announced inconsistently.
+
+           The description is always in the document and `sr-only`, so `aria-describedby` never
+           dangles and a screen reader is given the sentence without hovering for it. `sr-only`
+           rather than the visible box hidden, because a hidden box keeps its layout and an
+           absolutely-positioned tip contributed real horizontal overflow at 375px the last time
+           this was got wrong. *@
+        @if (Description is not null)
+        {
+            <span id="@DescriptionId" class="sr-only">@Description</span>
+            <span class="@TipClass" role="tooltip" aria-hidden="true">@Description</span>
         }
     </button>
 }
@@ -46,6 +71,17 @@
 
     /// <summary>The quiet second line — a stat line, a description, an applicability note.</summary>
     [Parameter] public string? Caveat { get; set; }
+
+    /// <summary>
+    /// What this option does, in the rules' own terms, shown on hover and on focus.
+    ///
+    /// <para><b>Supplementary and never the only place something is said.</b> WCAG is explicit
+    /// that information carried only by a tooltip is information some readers do not get — so the
+    /// row still prints its name, its price and its stat line, and this adds what the option is
+    /// for beside them. A row whose <see cref="Caveat"/> already says it should pass nothing
+    /// here rather than say it twice.</para>
+    /// </summary>
+    [Parameter] public string? Description { get; set; }
 
     /// <summary>Right-hand column: a price, or a category where there is no price.</summary>
     [Parameter] public string? Cost { get; set; }
@@ -70,7 +106,41 @@
     [Parameter] public EventCallback OnSelect { get; set; }
 
     private string RowClass =>
-        (Selected ? "option selected" : "option") + (IsCurrent ? " current" : "");
+        (Selected ? "option selected" : "option")
+        + (IsCurrent ? " current" : "")
+        + (_dismissed ? " tip-dismissed" : "");
+
+    /// <summary>
+    /// Whether Escape has closed the description for now.
+    ///
+    /// <para><b>Dismissable is a requirement, not a nicety</b> — WCAG 1.4.13 asks for hoverable,
+    /// dismissable and persistent, and a tip that can only be closed by moving the pointer is not
+    /// dismissable by somebody who is not using one. Reset on leaving the row, so it is a
+    /// dismissal rather than a setting.</para>
+    ///
+    /// <para><b>Showing is CSS and only the dismissal is state.</b> Tracking hover in C# would
+    /// re-render a row on every pointer crossing, and there are 141 of them in one list.</para>
+    /// </summary>
+    private bool _dismissed;
+
+    private void Key(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") _dismissed = true;
+    }
+
+    private void Restore() => _dismissed = false;
+
+    /// <summary>
+    /// <b>Derived from the row's name rather than generated.</b> A fresh identifier per render
+    /// would break the replay guard that renders one character twice and requires the two pages
+    /// to be identical — the trap <c>Tooltip</c> already hit.
+    /// </summary>
+    private string? DescriptionId => Description is null
+        ? null
+        : "opt-" + new string(
+            Name.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray());
+
+    private string TipClass => "row-tip";
 
     /// <summary>Whether the enclosing list is driving the keyboard.</summary>
     private bool Navigable => Filter is { Navigable: true };

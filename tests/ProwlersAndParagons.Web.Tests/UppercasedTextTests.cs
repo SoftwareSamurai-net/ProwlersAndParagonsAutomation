@@ -118,7 +118,12 @@ public sealed class UppercasedTextTests
             ctx.Render<Characteristics>(),
             ctx.Render<SheetView>(),
             ctx.Render<HpBudgetBar>(),
-            ctx.Render<StepNav>()
+            ctx.Render<StepNav>(),
+
+            // The front door. It is rendered from a context with a character already on the
+            // sheet, because that is the branch carrying a figure — the empty one shows a
+            // catalogue count and would leave the spend's label unexercised.
+            over.Render<Home>(),
         };
 
         var seen = 0;

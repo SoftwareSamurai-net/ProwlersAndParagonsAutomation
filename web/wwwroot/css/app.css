@@ -1707,6 +1707,169 @@ label {
 .book-text p { margin: 0 0 var(--space-2); }
 .book-text p:last-child { margin-bottom: 0; }
 
+/* ── What an option does, on hover and on focus ──────────────────────────── */
+
+/* The row is already the trigger, so this hangs off it rather than off a `?` of its own — see
+   the comment in OptionRow. The row needs a positioning context for it; `.option` is a flex
+   button and adding `position: relative` changes nothing else about it. */
+.option { position: relative; }
+
+/* Above its neighbours while open, or the next row's ground covers the tip's own. */
+.option:hover, .option:focus-visible { z-index: 2; }
+
+.row-tip {
+    position: absolute;
+    left: var(--space-4);
+    right: var(--space-4);
+    top: 100%;
+    z-index: 3;
+
+    /* Downward, like `Tooltip`. An upward tip is clipped by the window edge on the first row of
+       a scrolled list, which is exactly where a reader meets one. */
+    margin-top: var(--space-0);
+
+    background: var(--panel-sunk);
+    border: var(--rule-weight) solid var(--rule);
+    border-left: 3px solid var(--heading);
+    border-radius: var(--radius-small);
+    padding: var(--space-3) var(--space-4);
+
+    font-family: var(--font-body);
+    font-size: var(--text-xs);
+    font-weight: 400;
+    line-height: 1.45;
+    text-transform: none;
+    letter-spacing: normal;
+    text-align: left;
+    color: var(--ink);
+    white-space: normal;
+
+    /* **`display: none`, not `visibility: hidden`, and the precedent is exact.** `Tooltip` hid
+       its tip with `visibility` so the description could be read off it while closed, and a
+       hidden element keeps its layout box — an absolutely-positioned tip then contributed real
+       horizontal overflow at 375px, while closed, on every page carrying one. The narrow harness
+       in CI caught it and the whole local suite passed, because no rendering test can see a box
+       leave the viewport.
+
+       Taking the description with it is exactly what would go wrong here too, which is why there
+       is a separate `sr-only` copy: a clipped 1px box that contributes no overflow, always in the
+       document, and the one `aria-describedby` actually names. */
+    display: none;
+}
+
+.option:hover .row-tip,
+.option:focus-visible .row-tip { display: block; }
+
+/* Escape closes it, and moving off the row brings it back. WCAG 1.4.13 asks for dismissable, and
+   a tip that can only be closed by moving the pointer is not dismissable by somebody who is not
+   using one. It has to beat the two rules above, so it is written after them and carries one
+   more class. */
+.option.tip-dismissed .row-tip,
+.option.tip-dismissed:hover .row-tip,
+.option.tip-dismissed:focus-visible .row-tip { display: none; }
+
+/* The same treatment on an Ability or Talent row, where the trigger is the Trait's name rather
+   than the whole row: that row is a slider and two steppers, and making all of it the trigger
+   would open a description every time somebody reached for the `+`. */
+.rank-name { position: relative; }
+.trait-term {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: help;
+    text-align: left;
+
+    /* Marked as carrying something, quietly. A dotted underline is the long-standing convention
+       for a term with an explanation and reads as neither a link nor a control. */
+    text-decoration: underline dotted var(--rule);
+    text-underline-offset: 3px;
+}
+.rank-name:hover .row-tip,
+.trait-term:focus-visible ~ .row-tip { display: block; }
+.rank-name .row-tip.dismissed,
+.rank-name:hover .row-tip.dismissed { display: none; }
+
+/* ── The front door ──────────────────────────────────────────────────────── */
+
+/* The wordmark is a link home. It carries no underline and no colour of its own — it *is* the
+   banner's title, and marking it as a link would make the largest thing in the strip compete
+   with the two avenues beside it, which are the controls a reader is meant to find. */
+.banner-home {
+    color: inherit;
+    text-decoration: none;
+}
+.banner-home:hover { text-decoration: underline; }
+
+/* Both avenues, offered from everywhere.
+
+   It replaces one link that flipped its own label to name whichever half you were not in. That
+   works for two rooms and fails for three: it tells you where you are not, which identifies a
+   destination only while there is exactly one such place. */
+.avenue-nav {
+    display: flex;
+    gap: var(--space-5);
+    align-items: center;
+}
+
+/* The current section, still a link. A reader who clicks the section they are in expects the
+   top of it, not a dead control — so this is weight and not `pointer-events: none`. */
+.avenue-nav .active { font-weight: 700; }
+
+/* The two things this site does, on the page whose whole job is to offer them.
+
+   **Not `.grid.two`.** That is an even split of equal things, and these are not equal: the
+   assumption is that somebody arriving is here to build a character, and looking a rule up is
+   what they come back for. The lead avenue takes the wider column at the width where there are
+   two, and the natural order is preserved when there is one. */
+.avenues {
+    display: grid;
+    gap: var(--space-5);
+    align-items: start;
+    margin-bottom: var(--space-6);
+}
+@media screen and (min-width: 52rem) {
+    .avenues { grid-template-columns: 3fr 2fr; }
+}
+
+.avenue {
+    border: var(--rule-weight) solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--panel);
+    padding: var(--space-6);
+}
+.avenue h2 { margin-top: 0; }
+.avenue p:last-of-type { margin-bottom: var(--space-4); }
+
+/* The figure, in the same face, size and ink as the four derived stats and the budget strip's
+   spend. One numeral treatment in this app, used wherever a number is the point of the screen
+   — a second one here would make the front door's figures read as a different kind of thing
+   from the ones the rest of the app answers with. They are the same engine's answers. */
+.figure {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-2);
+}
+.figure strong {
+    font-family: var(--font-display);
+    font-variant-numeric: tabular-nums;
+    font-size: var(--text-3xl);
+    font-weight: 700;
+    line-height: var(--display-leading);
+    letter-spacing: var(--display-track);
+    color: var(--heading);
+}
+.figure-label {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    color: var(--muted);
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Print.
 

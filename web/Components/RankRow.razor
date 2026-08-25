@@ -3,8 +3,31 @@
    so those pips are already paid for — CostCalculator only charges for the rest. *@
 
 <div class="rank-row">
+    @* What this Trait is, on hover and on focus.
+
+       **The name is the trigger and it is a real button**, unlike the option rows, where the row
+       itself is already one. A `<span>` with a mouse handler is a tooltip only for people using a
+       mouse, and Abilities and Talents are the one surface in the app where a reader most often
+       does not know what the word means — Presence and Willpower are not self-explanatory, and
+       nothing on this row has ever said.
+
+       It is not a `title` attribute, for the reasons the app already records: never on a touch
+       screen, unstyleable, undismissable, announced inconsistently. *@
     <div class="rank-name">
-        @Name
+        @if (Description is not null)
+        {
+            <button type="button" class="trait-term"
+                    aria-describedby="@DescriptionId"
+                    @onkeydown="DismissKey"
+                    @onmouseleave="Restore"
+                    @onblur="Restore">@Name</button>
+            <span id="@DescriptionId" class="sr-only">@Description</span>
+            <span class="row-tip @(_dismissed ? "dismissed" : "")" role="tooltip" aria-hidden="true">@Description</span>
+        }
+        else
+        {
+            @Name
+        }
         @if (Sub is not null)
         {
             <small>@Sub</small>
@@ -58,6 +81,36 @@
 @code {
     [Parameter, EditorRequired] public string Name { get; set; } = "";
     [Parameter] public string? Sub { get; set; }
+
+    /// <summary>
+    /// What this Trait is, in the rules' own terms, shown on hover and on focus.
+    ///
+    /// <para><b>Supplementary and never the only place something is said</b> — WCAG is explicit
+    /// that information carried only by a tooltip is information some readers do not get. The row
+    /// still prints the name, the rank and the rulebook's word for it; this adds what the Trait
+    /// covers, which nothing on the row has ever said.</para>
+    /// </summary>
+    [Parameter] public string? Description { get; set; }
+
+    /// <summary>Whether Escape has closed the description for now. See <c>OptionRow</c>.</summary>
+    private bool _dismissed;
+
+    private void DismissKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") _dismissed = true;
+    }
+
+    private void Restore() => _dismissed = false;
+
+    /// <summary>
+    /// Derived from the Trait's name rather than generated, so two renders of one character
+    /// produce identical markup — the replay guard requires exactly that.
+    /// </summary>
+    private string? DescriptionId => Description is null
+        ? null
+        : "trait-" + new string(
+            Name.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray());
+
     [Parameter] public int Rank { get; set; }
     [Parameter] public int Max { get; set; }
 
