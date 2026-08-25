@@ -85,6 +85,11 @@ test('the corpus is not in the browser payload', () => {
     // A missing directory genuinely satisfies the claim: nothing is staged, so the corpus is not.
     // It is reported rather than silently passed, because "there was nothing to check" and "I
     // checked and it was fine" are different answers and only one of them is evidence.
+    //
+    // **Only `rules` now.** The recordings used to be staged here too — this test asserted
+    // `['rules', 'transcripts']` — until they moved behind `/api/transcripts` for the same reason
+    // the book is behind `/api/rulebook/`: a file under `wwwroot` is a public URL whatever pages
+    // in front of it check. `transcripts.test.mjs` carries this same assertion for that store.
     const staged = join(root, 'web', 'wwwroot', 'data');
 
     if (!existsSync(staged)) {
@@ -95,9 +100,9 @@ test('the corpus is not in the browser payload', () => {
     const directories = readdirSync(staged, { withFileTypes: true })
         .filter(e => e.isDirectory()).map(e => e.name);
 
-    assert.deepEqual(directories.sort(), ['rules', 'transcripts'],
-        'something has staged another data directory into the site; if it is the rulebook, '
-        + 'the book is now on the open web');
+    assert.deepEqual(directories.sort(), ['rules'],
+        'something has staged another data directory into the site; if it is the rulebook or '
+        + 'the recordings, that store is now on the open web');
 });
 
 test('the index takes the first of two sections sharing a heading', () => {

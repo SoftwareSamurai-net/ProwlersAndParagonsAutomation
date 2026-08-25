@@ -1,5 +1,5 @@
 @page "/admin/portfolio/replay"
-@inject ReplayLibrary Replays
+@inject ReplayLoader Loader
 
 <PageTitle>Recorded conversations — Prowlers &amp; Paragons</PageTitle>
 
@@ -17,35 +17,44 @@
     is worked out on the page, from the character the recording carries, as you reveal it.
 </p>
 
-@if (Replays.Problem is not null)
+@if (_library is null)
 {
-    <Panel Title="The recordings did not load" NoPrint="true">
-        <p class="small">
-            Nothing else on this site is affected — you can build a character normally. What
-            went wrong: @Replays.Problem
-        </p>
+    <Panel Title="One moment" NoPrint="true">
+        <p>Looking…</p>
     </Panel>
 }
-
-<div class="grid replay-list">
-    @foreach (var conversation in Replays.Conversations)
+else
+{
+    @if (_library.Problem is not null)
     {
-        <Panel Title="@conversation.Title" NoPrint="true">
-            <Head>
-                @if (conversation.Villain)
-                {
-                    <span class="tag warn">Villain</span>
-                }
-            </Head>
-            <ChildContent>
-                <p class="small muted">@conversation.Blurb</p>
-                <NavLink class="btn primary" href="@($"admin/portfolio/replay/{conversation.Id}")">
-                    Play it
-                </NavLink>
-            </ChildContent>
+        <Panel Title="The recordings did not load" NoPrint="true">
+            <p class="small">
+                Nothing else on this site is affected — you can build a character normally.
+                What went wrong: @_library.Problem
+            </p>
         </Panel>
     }
-</div>
+
+    <div class="grid replay-list">
+        @foreach (var conversation in _library.Conversations)
+        {
+            <Panel Title="@conversation.Title" NoPrint="true">
+                <Head>
+                    @if (conversation.Villain)
+                    {
+                        <span class="tag warn">Villain</span>
+                    }
+                </Head>
+                <ChildContent>
+                    <p class="small muted">@conversation.Blurb</p>
+                    <NavLink class="btn primary" href="@($"admin/portfolio/replay/{conversation.Id}")">
+                        Play it
+                    </NavLink>
+                </ChildContent>
+            </Panel>
+        }
+    </div>
+}
 
 <Panel Title="Why these are recordings and not a conversation you can have" NoPrint="true">
     @* **The reason this site does not answer you back is a hosting bill, and it used to say
@@ -66,3 +75,9 @@
     </p>
 </Panel>
 </AdminOnly>
+
+@code {
+    private ReplayLibrary? _library;
+
+    protected override async Task OnInitializedAsync() => _library = await Loader.LoadAsync();
+}

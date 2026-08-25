@@ -10,9 +10,9 @@
 
    **What this wraps is a demonstration, not a secret.** The recordings and the two sample
    characters are things to show somebody; they moved behind this because a visitor who came to
-   build a character had to walk past them, not because reading one would matter. The transcripts
-   themselves are still ordinary files the browser fetches, so this is a front door rather than a
-   lock — see PROGRESS.md for what making it a lock would take. *@
+   build a character had to walk past them, not because reading one would matter. The recordings
+   themselves are gated too now — served from the worker at api/transcripts to a signed-in caller
+   and nobody else — so this page and that address agree about who may see them. *@
 
 @if (_state == ListRequest.Loaded)
 {

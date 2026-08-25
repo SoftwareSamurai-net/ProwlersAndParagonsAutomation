@@ -1,6 +1,6 @@
 @page "/admin/portfolio"
 @inject CharacterSession Session
-@inject ReplayLibrary Replays
+@inject ReplayLoader Loader
 
 <PageTitle>How this was built — Prowlers &amp; Paragons</PageTitle>
 
@@ -26,15 +26,19 @@
         reveal it. If the rules and the recording ever disagreed, you would watch it happen.
     </p>
 
-    @if (Replays.Problem is not null)
+    @if (_library is null)
     {
-        <p class="small">The recordings could not be loaded. What went wrong: @Replays.Problem</p>
+        <p class="small muted">Looking…</p>
+    }
+    else if (_library.Problem is not null)
+    {
+        <p class="small">The recordings could not be loaded. What went wrong: @_library.Problem</p>
     }
     else
     {
         <div class="inline">
             <NavLink class="btn primary" href="admin/portfolio/replay">Watch one being built</NavLink>
-            <span class="small muted">@Replays.Conversations.Count recordings</span>
+            <span class="small muted">@_library.Conversations.Count recordings</span>
         </div>
     }
 </Panel>
@@ -88,8 +92,11 @@
 </AdminOnly>
 
 @code {
+    private ReplayLibrary? _library;
     private string? _loaded;
     private Replacement? _pending;
+
+    protected override async Task OnInitializedAsync() => _library = await Loader.LoadAsync();
 
     /// <summary>Something that replaces the character, and what to call it when asking.</summary>
     private sealed record Replacement(string Verb, Func<Task> Run);

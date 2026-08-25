@@ -43,7 +43,7 @@
              What actually needs this is ReplayLibrary's internal fetch overload, which
              ReplayLoadingTests hands a delegate to in order to make the fetch fail on demand —
              a missing recording must leave the app running, and that is not reachable through
-             the UI. Removing this line fails four assertions in that file and nothing else;
+             the UI. Removing this line fails several assertions in that file and nothing else;
              measured, not assumed.
 
              The alternative was a public test-only seam shipped in the WebAssembly payload. -->
@@ -58,14 +58,16 @@
          `Content Include="..\data\rules\*.json" LinkBase="wwwroot\data\rules"` looks like it
          should do this and does not: the static web asset gets a content root of wwwroot/
          while the file stays outside it, so every request answers 200 with an empty body and
-         the engine reports the rules as malformed JSON. Copy first, then register. -->
+         the engine reports the rules as malformed JSON. Copy first, then register.
+
+         The recorded conversations the replay plays are deliberately NOT staged here any more.
+         They used to be, the same way — every visitor's browser fetched all four before its
+         first render, whether or not that visitor could ever reach the gated pages that play
+         them back. They are bundled into the worker now, the same way the rulebook corpus is,
+         and served only to a signed-in caller at api/transcripts; a copy under wwwroot would be
+         a public URL and undo that. See worker/transcripts-corpus.js and ReplayLoader. -->
     <ItemGroup>
         <RulesDataFile Include="..\data\rules\*.json" />
-
-        <!-- The recorded conversations the replay plays, staged the same way. They are not
-             rules, and the site starts without them — see the comment in Program.cs — but a
-             build that quietly shipped none would be a demonstration nobody could reach. -->
-        <TranscriptDataFile Include="..\data\transcripts\*.json" />
     </ItemGroup>
 
     <Target Name="StageRulesDataInWwwroot" BeforeTargets="ResolveProjectStaticWebAssets">
@@ -74,14 +76,9 @@
              Better to fail the build. -->
         <Error Condition="'@(RulesDataFile)' == ''"
                Text="No rules files found at ..\data\rules\*.json. The browser build serves these; without them the site cannot start." />
-        <Error Condition="'@(TranscriptDataFile)' == ''"
-               Text="No transcripts found at ..\data\transcripts\*.json. The browser build serves these; without them the replay has nothing to play." />
 
         <Copy SourceFiles="@(RulesDataFile)"
               DestinationFolder="$(MSBuildProjectDirectory)\wwwroot\data\rules"
-              SkipUnchangedFiles="true" />
-        <Copy SourceFiles="@(TranscriptDataFile)"
-              DestinationFolder="$(MSBuildProjectDirectory)\wwwroot\data\transcripts"
               SkipUnchangedFiles="true" />
 
         <!-- Added here rather than in an evaluation-time ItemGroup because the files do not
@@ -89,7 +86,6 @@
              published site without its rules. -->
         <ItemGroup>
             <Content Include="wwwroot\data\rules\*.json" Exclude="@(Content)" />
-            <Content Include="wwwroot\data\transcripts\*.json" Exclude="@(Content)" />
         </ItemGroup>
     </Target>
 

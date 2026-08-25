@@ -474,25 +474,29 @@ public sealed class AccountsContractTests
     }
 
     /// <summary>
-    /// The book is not in the browser payload, checked from this side of the repository too.
+    /// Neither the book nor the recordings are in the browser payload, checked from this side
+    /// of the repository too.
     ///
-    /// <para><c>web/</c>'s csproj stages <c>data/rules</c> and <c>data/transcripts</c> into
-    /// <c>wwwroot</c> and nothing else. Adding <c>data/rulebook</c> there is one
-    /// <c>ItemGroup</c>, it would look exactly like the two above it, and it would put the
-    /// publisher's prose on the open web with no sign-in in front of it.</para>
+    /// <para><c>web/</c>'s csproj stages <c>data/rules</c> into <c>wwwroot</c> and nothing
+    /// else. <c>data/rulebook</c> and <c>data/transcripts</c> are both bundled into the worker
+    /// instead and answered only to a signed-in caller — adding either to this csproj is one
+    /// <c>ItemGroup</c>, it would look exactly like the one that is there, and it would put the
+    /// publisher's prose or the recorded conversations on the open web with no sign-in in front
+    /// of them.</para>
     /// </summary>
     [Fact]
-    public void TheRulebookIsNotStagedIntoTheSite()
+    public void NeitherTheRulebookNorTheRecordingsAreStagedIntoTheSite()
     {
         var csproj = File.ReadAllText(
             Path.Combine(RulesFixture.RepoRoot, "web", "ProwlersAndParagons.Web.csproj"));
 
         Assert.DoesNotContain("data\\rulebook", csproj, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("data/rulebook", csproj, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data\\transcripts", csproj, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data/transcripts", csproj, StringComparison.OrdinalIgnoreCase);
 
-        // The positive control: it does stage the two that are meant to be public.
+        // The positive control: it does stage the one that is meant to be public.
         Assert.Contains("data\\rules", csproj, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("data\\transcripts", csproj, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
