@@ -4025,4 +4025,86 @@ public sealed class WebPresentationTests
                 .ToDictionary(m => m.Groups[1].Value, m => Normalise(m.Groups[2].Value),
                     StringComparer.Ordinal);
     }
+
+    /// <summary>
+    /// <b>Every page with a route can be clicked to from somewhere else.</b>
+    ///
+    /// <para>This is the guard that was missing when the front door was built. The recordings and
+    /// the sample characters moved to <c>/admin/portfolio</c>, the banner cross-link that had been
+    /// the only way in was replaced by the new navigation in the same change, and nothing was put
+    /// back — so the page existed, rendered, was tested, and could not be reached by anybody who
+    /// did not already know the address. An audit found it.</para>
+    ///
+    /// <para><b>No rendering test could have.</b> The suite renders these pages by type and asks
+    /// what chrome an address gets once you are already on it; whether a person can get there at
+    /// all is a question about every <i>other</i> file. So this reads the routes out of the
+    /// <c>page</c> directives and looks for each one in somebody's <c>href</c> — and deliberately
+    /// does not count a link a page makes to itself, because a portfolio pointing at its own
+    /// sub-pages is exactly how this escaped.</para>
+    /// </summary>
+    [Fact]
+    public void EveryRoutedPageIsReachableFromAnotherPage()
+    {
+        var pages = Directory.EnumerateFiles(Path.Combine(WebRoot, "Pages"), "*.razor").ToList();
+        Assert.True(pages.Count > 5, $"only {pages.Count} pages found; this test is reading nothing.");
+
+        var links = new List<(string File, string Target)>();
+        var linkPattern = Rx(@"(?:href=""|NavigateTo\(""|Next=""|Back="")([A-Za-z0-9/_-]*)""");
+
+        foreach (var file in Directory.EnumerateFiles(WebRoot, "*.razor", SearchOption.AllDirectories)
+                     .Concat(Directory.EnumerateFiles(WebRoot, "*.cs", SearchOption.AllDirectories))
+                     .Where(NotBuildArtefact))
+        {
+            foreach (Match m in linkPattern.Matches(File.ReadAllText(file)))
+            {
+                links.Add((Path.GetFileName(file), m.Groups[1].Value.Trim('/')));
+            }
+        }
+
+        Assert.True(links.Count > 10,
+            $"only {links.Count} links found; the pattern has stopped matching and this test is "
+            + "asserting nothing.");
+
+        // Reached by the router rather than by a link, and named here so the exemption is a
+        // decision rather than a silence. `App.razor` passes it as `Router`'s `NotFoundPage`, and
+        // the file's own comment says so — a page that is *supposed* to have no way in.
+        string[] reachedWithoutALink = ["NotFoundPage.razor"];
+
+        var unreachable = new List<string>();
+
+        foreach (var page in pages)
+        {
+            var name = Path.GetFileName(page);
+
+            if (reachedWithoutALink.Contains(name, StringComparer.Ordinal)) continue;
+
+            var routes = Rx(@"@page ""/([^""]*)""").Matches(File.ReadAllText(page))
+                .Select(m => m.Groups[1].Value.Trim('/'))
+                // A parameterised route is reached with an id the linking page builds, which this
+                // cannot match textually. Its parent listing is checked instead.
+                .Where(r => !r.Contains('{', StringComparison.Ordinal))
+                .ToList();
+
+            if (routes.Count == 0) continue;
+
+            var reached = routes.Any(route => links.Any(link =>
+                string.Equals(link.Target, route, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(link.File, name, StringComparison.Ordinal)));
+
+            if (!reached)
+            {
+                unreachable.Add($"{name} ({string.Join(", ", routes.Select(r => "/" + r))})");
+            }
+        }
+
+        Assert.True(unreachable.Count == 0,
+            "These pages have a route and nothing outside themselves links to it, so nobody who "
+            + "does not already know the address can reach them:\n  "
+            + string.Join("\n  ", unreachable));
+    }
+
+    /// <summary>Not a build artefact — obj/ and bin/ hold generated copies of every component.</summary>
+    private static bool NotBuildArtefact(string path) =>
+        !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+        && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
 }

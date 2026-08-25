@@ -97,6 +97,26 @@
         }
     </Panel>
 
+    @* The way to the demonstrations, and without it there is none.
+
+       **They were unreachable from anywhere in the app.** The recordings and the two sample
+       characters moved to `/admin/portfolio` when the front door was built, and the banner's old
+       cross-link — the one thing that had ever pointed at them — was replaced in the same change
+       by the Build/Rules nav. Nothing was put back, so even the one audience allowed to see the
+       page had to know the address by heart. Every link into it came from inside it.
+
+       It belongs here rather than in the banner: it is a thing to show somebody, and this is the
+       page for looking after the site rather than using it. An audit found it; no test could,
+       because the suite renders these pages by type and asserts what chrome an address gets once
+       you are already there — never whether anybody can click their way in. *@
+    <Panel Title="Showing it to somebody">
+        <p>
+            Four recorded conversations, and two finished characters that fill in every section a
+            sheet has. Quicker than building one when you want to show what this does.
+        </p>
+        <NavLink class="btn" href="admin/portfolio">Open the demonstrations</NavLink>
+    </Panel>
+
     <Panel Title="What withdrawing does">
         <p>
             It stops that address asking for another link, and ends any session it is already
