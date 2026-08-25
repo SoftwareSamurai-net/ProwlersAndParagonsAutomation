@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4303 across three suites — 3730 on the engine, 449 rendering components with bUnit, 124 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on `master` at `9ff148e`, re-run after the merge rather than carried across from the branch.** This row has been wrong twice: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
+| Tests | 4305 across three suites — 3732 on the engine, 449 rendering components with bUnit, 124 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on this branch after adding the two `search_powers` evaluation tests in [item 4](#4-search_powers-ranks-ties-alphabetically)**, which is why the engine figure moved by exactly 2 from the `9ff148e` count this row previously recorded. This row has been wrong twice before that: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -225,6 +225,42 @@ The guide teaches all three.
 Closing it properly needs a set of descriptions with expected answers — twenty or thirty, written
 from the Powers rather than from the scorer — and then a scoring change measured against them.
 That is a slice of its own, and until somebody wants it, an honest label beats a tuned guess.
+
+**The set now exists, and the baseline is measured: `search_powers` meets 24 of the 33 labelled
+expectations.** `PowerSearchExpectations.cs` holds 33 sentences a player might actually say, each
+written by opening `data/rules/powers.json`, reading a Power's own printed `description`, and
+writing the sentence — never by running the search first and recording what came back, which
+would measure the scorer against itself rather than against the rulebook. The two exceptions are
+quoted directly from this entry rather than discovered by searching: "walks through walls" (wants
+Phasing in the top 3; today it lands 11th of 22, matching this entry's own reproduction) and "he
+shoots fire from his hands" (wants Blast; today it is never returned at all, also as recorded
+above). Both fail, as expected going in.
+
+`PowerSearchEvaluationTests.cs` is two tests over that set, deliberately not one:
+
+- **`ReportTheCurrentScore` is a measurement and never fails.** It runs every expectation against
+  the live `search_powers`, prints a table — met/unmet, the position found, the query, the wanted
+  id(s), and the top five ids actually returned — and asserts only that it evaluated every
+  expectation in the set (a positive control on the measurement itself, not on the scorer).
+  Asserting the score here would be a test that starts red and stays red until somebody tunes the
+  scorer, which is not what a measurement is for.
+- **`TheScoreNeverGetsWorse` is the gate.** It asserts the met count stays at or above 24. This is
+  the ratchet the closing work needs: a future scoring change is judged by whether this number
+  goes up, rather than by the two examples above the way the reverted attempt was.
+
+**Broken and watched to fail.** Forcing `search_powers`'s internal row count to 1 regardless of
+the caller's own `limit` argument (the shape a truncation bug would take) drove the measured score
+from 24 of 33 to 16 of 33, and `TheScoreNeverGetsWorse` failed with that exact count in its
+message. Restored immediately afterwards; `git diff` against `mcp/CharacterTools.cs` was empty
+before committing, confirming nothing of the mutation shipped.
+
+Of the 9 that fail today, most are exactly the tie-ordering problem this item is about: a
+description-only match with no distinctive word scores the same 2 points as every other
+description-only match, so a real answer sits behind a wall of coincidences at the same score.
+"He moves faster than anyone can follow" is a clean example — Super Speed's description shares no
+distinctive word with the sentence, and four Powers with a closer *coincidental* wording (`aura`,
+`running`, `tracer`, `animal_mimicry`) outrank it. That is the shape a scoring change should fix;
+this set is what would show whether one did.
 
 ### 5. The browser payload is large — a characteristic, not a defect
 
