@@ -1,6 +1,7 @@
 using Bunit;
 using ProwlersAndParagonsAutomation.Web.Layout;
 using Microsoft.Extensions.DependencyInjection;
+using ProwlersAndParagonsAutomation.Engine;
 
 namespace ProwlersAndParagons.Web.Tests;
 
@@ -108,5 +109,98 @@ public sealed class BannerTests
             .ToList();
 
         Assert.All(notPressed, b => Assert.Equal("false", b.GetAttribute("aria-pressed")));
+    }
+
+    /// <summary>
+    /// <b>The light/dark control has three buttons and exactly one of them is pressed.</b>
+    ///
+    /// <para>Three, because there are three states and the third is not "off": following the
+    /// system is a live setting, and a two-state toggle can only land somebody on whichever
+    /// value their system held at the moment they touched it.</para>
+    ///
+    /// <para>Asserted as a set for the reason the mode switch above gives — the mutation that
+    /// got through there made every button say <c>"true"</c>, which each button on its own
+    /// satisfies.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("light", "Light")]
+    [InlineData("dark", "Dark")]
+    [InlineData(null, "Auto")]
+    public void ExactlyOneThemeButtonAnnouncesItselfAsPressed(string? stored, string expected)
+    {
+        using var ctx = new RenderContext();
+        ctx.JSInterop.Setup<string?>("ppTheme.current").SetResult(stored);
+
+        var layout = ctx.Render<MainLayout>();
+
+        var buttons = layout.FindAll(".theme-switch button");
+        Assert.Equal(3, buttons.Count);
+
+        Assert.Equal(
+            [expected],
+            buttons.Where(b => b.GetAttribute("aria-pressed") == "true")
+                   .Select(b => b.TextContent.Trim())
+                   .ToList());
+
+        Assert.All(buttons.Where(b => b.TextContent.Trim() != expected),
+            b => Assert.Equal("false", b.GetAttribute("aria-pressed")));
+    }
+
+    /// <summary>
+    /// <b>Clicking a theme button sends the choice to the script, and the control moves.</b>
+    ///
+    /// <para>Both halves, because either alone is satisfied by a bug: a handler that pushes and
+    /// never updates leaves the reader looking at the state they did not choose, and one that
+    /// updates and never pushes changes the buttons and nothing else on the page.</para>
+    /// </summary>
+    [Fact]
+    public void ChoosingAThemePushesItAndMovesTheControl()
+    {
+        using var ctx = new RenderContext();
+
+        var layout = ctx.Render<MainLayout>();
+        var dark = layout.FindAll(".theme-switch button").Single(b => b.TextContent.Trim() == "Dark");
+
+        dark.Click();
+
+        Assert.Contains(ctx.JSInterop.Invocations,
+            i => i.Identifier == "ppTheme.set" && i.Arguments.Contains("dark"));
+
+        Assert.Equal("true",
+            layout.FindAll(".theme-switch button")
+                  .Single(b => b.TextContent.Trim() == "Dark")
+                  .GetAttribute("aria-pressed"));
+    }
+
+    /// <summary>
+    /// <b>The light/dark choice never reaches the character.</b>
+    ///
+    /// <para>It is a fact about a person and a browser, not about a Hero — the same argument
+    /// that made <c>UnlimitedBudget</c> a token beside <c>IsVillain</c> rather than a meaning
+    /// inside it. A theme on the sheet would travel through an export and change the screen of
+    /// whoever imported somebody else's character.</para>
+    ///
+    /// <para>Asserted by round-tripping the sheet through the reader the app and the headless
+    /// command share, rather than by naming fields: a field list goes stale, and this notices
+    /// however the leak is spelled.</para>
+    /// </summary>
+    [Fact]
+    public void ChoosingAThemeChangesNothingAboutTheCharacter()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Villain);
+
+        var before = CharacterSheetJson.Write(ctx.Session.Sheet);
+
+        var layout = ctx.Render<MainLayout>();
+        layout.FindAll(".theme-switch button").Single(b => b.TextContent.Trim() == "Dark").Click();
+        layout.FindAll(".theme-switch button").Single(b => b.TextContent.Trim() == "Light").Click();
+
+        Assert.Equal(before, CharacterSheetJson.Write(ctx.Session.Sheet));
+
+        // The positive control: the *other* switch does change it, so this is a fact about the
+        // theme rather than about a sheet that ignores the banner entirely.
+        layout.FindAll(".mode-switch button").Single(b => b.TextContent.Trim() == "Hero").Click();
+
+        Assert.NotEqual(before, CharacterSheetJson.Write(ctx.Session.Sheet));
     }
 }

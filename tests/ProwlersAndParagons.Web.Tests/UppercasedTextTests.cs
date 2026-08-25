@@ -158,6 +158,7 @@ public sealed class UppercasedTextTests
             ".banner-title", // MainLayout, which needs a Body fragment and a router.
             ".banner-link",  // ditto.
             ".mode-switch button", // ditto.
+            ".theme-switch button", // ditto — the light/dark control sits beside it in the banner.
             ".replay-who",   // a recorded turn; ReplayRenderTests covers that surface.
             ".sheet-footer", // print-only; `display: none` on screen.
             ".panel.replay-label b:first-child", // the replay notice; same surface as above.

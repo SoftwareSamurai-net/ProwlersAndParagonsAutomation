@@ -35,9 +35,49 @@ export async function sendSignInLink(env, { to, link }) {
     });
 
     if (!response.ok) {
-        // The provider's body can echo the address, so it is not put in the message. The status
-        // is what somebody reading logs needs; the rest is in Resend's own dashboard.
-        throw new Error('The mail provider refused the send (HTTP ' + response.status + ').');
+        // **The status alone was not enough, and the one time it mattered it cost a day.** A
+        // refused send used to be reported as "HTTP 400" and nothing else, on the reasoning that
+        // the provider's body can echo the address and the rest is in their dashboard. Both
+        // halves of that are true and the conclusion was still wrong: a 400 is a validation
+        // error, which is a sentence about *which field* the provider would not take — and a
+        // refusal at validation never reaches the dashboard at all, so the place the reader was
+        // sent to is empty precisely when this fires.
+        //
+        // So the provider's own code for the refusal goes in the message, and nothing else does.
+        // `refusalName` is what keeps that promise: it takes the `name` field only, and only when
+        // it looks like a code rather than like data. That is not a formatting nicety — an
+        // address cannot pass it, because an address contains an `@` and a dot and the pattern
+        // admits neither.
+        const name = await refusalName(response);
+
+        throw new Error('The mail provider refused the send (HTTP ' + response.status
+            + (name ? ', ' + name : '') + ').');
+    }
+}
+
+/**
+ * The provider's own code for a refusal, or null.
+ *
+ * <p>Resend answers a refusal with `{ name, message, statusCode }`, where `name` is a fixed
+ * machine code — `validation_error`, `missing_api_key`, `restricted_api_key` — and `message` is
+ * prose that can quote what was sent. Only the first is taken, and only when it matches the
+ * shape of a code: lower-case letters and underscores, and short. Anything else is dropped
+ * rather than trimmed, because a value that is not a code is data, and data is the thing that
+ * must not reach a log line.</p>
+ *
+ * <p><b>Nothing here may throw.</b> It runs while reporting a failure, so a body that is not
+ * JSON, or is empty, or has already been read, has to produce a missing code — not a second
+ * exception on top of the first, which would replace a diagnosable refusal with a stack trace
+ * about parsing.</p>
+ */
+async function refusalName(response) {
+    try {
+        const body = await response.json();
+        const name = body?.name;
+
+        return typeof name === 'string' && /^[a-z][a-z_]{0,63}$/.test(name) ? name : null;
+    } catch {
+        return null;
     }
 }
 

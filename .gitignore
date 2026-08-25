@@ -7,9 +7,17 @@ riderModule.iml
 # Qodana local scan cache and reports
 .qodana/
 qodana.sarif.json
+# scripts/qodana-scan.sh's export and results. Under the repository rather than /tmp on purpose —
+# Docker Desktop cannot see Git Bash's /tmp, and a mount it cannot see is an empty directory.
+.qodana-scan/
 
 # Generated character sheets — user output, not source
 output/
+
+# The published browser front end. Both .github/workflows/build.yml and deploy.yml publish
+# here, so it appears in any checkout where somebody has reproduced a CI step locally — which
+# is the recommended way to check the Content-Security-Policy before pushing.
+publish/
 
 # The published MCP server. The README tells a stranger to publish it here and point their
 # client at the binary, so the directory appears in a checkout that has followed the setup.

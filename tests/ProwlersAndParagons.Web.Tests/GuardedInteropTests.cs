@@ -1,3 +1,4 @@
+using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 
@@ -62,8 +63,107 @@ public sealed class GuardedInteropTests
         var theme = new Theme(new NoScripts());
 
         await theme.Apply(SheetMode.Villain);
+        await theme.ReadChoice();
+        await theme.Choose(ThemeChoice.Dark);
 
         Assert.True(theme.ScriptIsMissing);
+    }
+
+    /// <summary>
+    /// <b>A click on the light/dark control still moves the control, even when the script that
+    /// would apply it is not there.</b>
+    ///
+    /// <para>The swallow above says the app does not fall over. This says the button does not lie
+    /// about what was pressed: <c>Choose</c> records the choice before it calls out, so a reader
+    /// on a broken deployment sees the state they clicked rather than one that springs back under
+    /// their finger. Recorded separately from <c>ScriptIsMissing</c> because the two are
+    /// independent — a version that assigned after the call would satisfy the swallow and fail
+    /// this.</para>
+    /// </summary>
+    [Fact]
+    public async Task AChoiceIsRecordedEvenWhenItCannotBeApplied()
+    {
+        var theme = new Theme(new NoScripts());
+
+        await theme.Choose(ThemeChoice.Dark);
+
+        Assert.Equal(ThemeChoice.Dark, theme.Choice);
+        Assert.True(theme.ScriptIsMissing);
+    }
+
+    /// <summary>
+    /// <b>An unreadable stored value leaves the reader on their system's setting.</b>
+    ///
+    /// <para>A key edited by hand, or written by an older build, must not be a third palette or
+    /// a guess. The only honest answer is the default — which is also the state of somebody who
+    /// has never chosen, and which follows the system as it changes.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(null, ThemeChoice.System)]
+    [InlineData("system", ThemeChoice.System)]
+    [InlineData("", ThemeChoice.System)]
+    [InlineData("DARK", ThemeChoice.System)]
+    [InlineData("midnight", ThemeChoice.System)]
+    [InlineData("light", ThemeChoice.Light)]
+    [InlineData("dark", ThemeChoice.Dark)]
+    public async Task AStoredChoiceIsReadOrFallsBackToTheSystem(string? stored, ThemeChoice expected)
+    {
+        await using var ctx = new RenderContext();
+        ctx.JSInterop.Setup<string?>("ppTheme.current").SetResult(stored);
+
+        var theme = new Theme(ctx.Services.GetRequiredService<IJSRuntime>());
+        await theme.ReadChoice();
+
+        Assert.Equal(expected, theme.Choice);
+        Assert.False(theme.ScriptIsMissing);
+    }
+
+    /// <summary>
+    /// The wire name is the word the stylesheet and the script both use, in both directions.
+    ///
+    /// <para><b>Three spellings of one state is how the default gets a palette nobody designed.</b>
+    /// <c>data-theme</c> is <em>absent</em> for the system state — the dark blocks are written
+    /// <c>:not([data-theme="light"])</c>, so an attribute reading "system" matches neither path.
+    /// The script is what removes it; what this pins is that C# asks for the same three words
+    /// the script branches on.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(ThemeChoice.System, "system")]
+    [InlineData(ThemeChoice.Light, "light")]
+    [InlineData(ThemeChoice.Dark, "dark")]
+    public async Task TheChoiceGoesOutUnderTheNameTheScriptBranchesOn(ThemeChoice choice, string wire)
+    {
+        await using var ctx = new RenderContext();
+
+        var theme = new Theme(ctx.Services.GetRequiredService<IJSRuntime>());
+        await theme.Choose(choice);
+
+        Assert.Contains(ctx.JSInterop.Invocations,
+            i => i.Identifier == "ppTheme.set" && i.Arguments.Contains(wire));
+
+        // And the script really does branch on all three of them, rather than on two and a
+        // fall-through that happens to agree today.
+        // Async with the test's own token, because the two analyzers want different things here:
+        // Qodana asks for the async overload and xUnit1051 asks any call taking a token to take
+        // this one. Both are satisfied; neither is suppressed. Qualified, because bUnit declares a
+        // TestContext of its own and `using Bunit` is at the top of this file.
+        var script = await File.ReadAllTextAsync(
+            Path.Combine(RepoRoot(), "web", "wwwroot", "js", "theme.js"),
+            Xunit.TestContext.Current.CancellationToken);
+
+        Assert.Contains($"\"{wire}\"", script, StringComparison.Ordinal);
+    }
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (dir.GetFiles("*.sln").Length > 0) return dir.FullName;
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate the repository root.");
     }
 
     /// <summary>

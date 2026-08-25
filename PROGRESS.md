@@ -17,11 +17,11 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4133 across three suites — 3688 on the engine, 387 rendering components with bUnit, 58 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus six browser harnesses driven by headless Chrome |
+| Tests | 4250 across three suites — 3726 on the engine, 422 rendering components with bUnit, 102 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus seven browser harnesses driven by headless Chrome, one of them twice for reduced motion. Measured on the reconciled tree, not carried over: the three merged branches each claimed a different total and all three were stale |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
-| Accounts | **On.** D1 migrations applied to the remote database, the `DB` binding is in place and `/api/me` answers `401` with JSON — the deploy's own pass condition. Sign-in itself is untested by anything automated; somebody has to receive a link |
+| Accounts | **Invitation only, and the mail is still refused.** D1 migrations applied to the remote database, the `DB` binding is in place and `/api/me` answers `401` with JSON — the deploy's own pass condition. **No sign-in link has ever been delivered:** the live `/api/auth/request` answers `500` on an address with allowance left, so the mail provider is refusing the send. See [item 8](#8-the-mail-provider-is-refusing-every-send) |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
 | Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export, not assumed**: it had drifted to 3 on `master` and to 37 on the reconciled slices before this was checked |
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
@@ -111,6 +111,52 @@ The invented per-Power lists are gone — see the completed item below. What is 
 Enforcing them would need roughly seven booleans on each of the 141 Powers — about a thousand fresh judgements against the book. That is worth doing only if something downstream actually needs it, and the obvious candidate was assisted creation, where a model proposing a character benefits from the engine ruling out illegal combinations.
 
 **Assisted creation has now shipped without them, and did not need them** — see the completed item below. A caveat is shown to whoever is proposing and left to the GM, which is what Ch.2 says it is. So this stays open with no consumer asking for it, and the caveat remains honest where the guess would not be.
+
+### 8. The mail provider is refusing every send
+
+**Nobody can sign in to the live site, and this is the only thing standing in the way.** The
+plumbing either side of it is proven: `/api/me` answers 401 with JSON, so the Function and its
+D1 binding are live; `/api/auth/request` gets far enough to write a rate-limit row and a login
+token, so the database is writable; and it answers `500` rather than the "not configured"
+refusal, so `SITE_URL` is set. What fails is the one call after that — the POST to Resend, which
+`worker/mail.js` turns into a throw.
+
+Measured against the live site on 20 August 2026, from the site's own origin:
+
+| Address | Answer | Time |
+|---|---|---|
+| One with allowance left | `500` and a reference | ~750 ms — a real round trip to the provider |
+| One already over the hourly limit | `204` | ~400 ms — no provider call at all |
+
+**The DNS is not the problem.** Every record Resend asks for is present and correct on the
+sending subdomain: DKIM at `resend._domainkey.superheroes.softwaresamurai.net`, and
+`v=spf1 include:amazonses.com ~all` with `10 feedback-smtp.ap-northeast-1.amazonses.com` at
+`send.superheroes.softwaresamurai.net`. The apex keeps Proton's own MX and SPF untouched, as
+[`docs/ACCOUNTS-SETUP.md`](docs/ACCOUNTS-SETUP.md) requires.
+
+**It is `400 validation_error`**, read off a live tail of the production deployment while a
+request was made against it. That is the provider refusing the *body*, which rules out both of
+the likelier-sounding causes: a bad or wrongly scoped key is `401`/`403` and never reaches
+validation, and the domain is verified in Resend with every record present. All three variables
+exist on the Pages project — `wrangler pages secret list` shows `MAIL_FROM`, `RESEND_API_KEY` and
+`SITE_URL` — so what is left is the *value* of `MAIL_FROM`, which is encrypted and cannot be read
+back. Every other field in the request is built by `worker/mail.js` from the address that was
+typed, and that address is well formed.
+
+**So the next step is somebody opening `MAIL_FROM` in the dashboard and re-entering it** as
+`no-reply@superheroes.softwaresamurai.net` — no display name, no angle brackets, no trailing
+space, and nothing on the apex or on the `send.` subdomain. Then redeploy, because a variable
+changed after a deploy is not in the running Function.
+
+**Everything needed to confirm that in one line now exists**: the refusal carries the provider's
+own code, so the next tail reads *"(HTTP 400, validation_error)"* rather than *"(HTTP 400)"*, and
+`docs/ACCOUNTS-SETUP.md` maps each code to which of the four checks it means.
+
+**A second fault was masking this one and is fixed** — see the completed entry below. Every
+attempt was counted before the send, so five refusals spent the hourly allowance and every try
+after that answered the same cheerful `204` a sent link gets. That is why the site said a link
+was on its way, Resend's dashboard showed nothing and Cloudflare showed nothing: by then nothing
+was being attempted.
 
 ### 2. What the sheet still cannot say
 
@@ -234,6 +280,339 @@ Do it once the HTTP API stops moving, so audit targets are not shifting under it
 ---
 
 ## Completed work
+
+### Three branches reconciled into one, and the four things that only collided
+
+`#67` (invitation list, and the send that was never made), `#68` (four palettes on two axes) and
+`#69` (categorised error reporting) were built in parallel off the same commit. Each was green on
+its own and all three reported `MERGEABLE` against `master`, which is a statement about *text*
+and says nothing about whether they agree. Four things only existed once they were in one tree.
+
+**Two migrations both numbered `0003`.** Different file names, so git merged them silently and the
+schema had two. The invitation table keeps `0003` and the error log became `0004_error_log.sql`,
+with `db.js`'s "has migration 0004 been applied?" and the harness's explicit list following it —
+appended rather than inserted, because `migration.test.mjs` indexes that list by position. Nothing
+would have failed; the two would simply have applied in alphabetical order for ever.
+
+**A misconfigured deployment named who was on the invitation list.** The gate was written above
+the `SITE_URL` check, so a missing setting answered an invited address with a 500 and a stranger
+with `204` — an oracle for list membership, available to anybody, on exactly the failure this site
+has actually had. It is the same property `#69` refuses for account existence, on the axis `#67`
+introduced, and neither branch could see it because neither contained both halves. The deployment
+check goes first now; `a broken deployment answers an invited and an uninvited address
+identically` pins it with byte-identical bodies and two positive controls. **Two channels stay
+open and are recorded rather than papered over**: an uninvited address does not wait on the mail
+provider, and while that provider refuses everything an invited address gets a 500 where a
+stranger still gets `204`. Closing either means mailing strangers or padding every refusal to the
+length of a send.
+
+**A test that passed for the wrong reason.** `an error log that cannot be pruned does not stop
+anybody signing in` asks for a link and asserts one was *sent*. It builds an `env` of its own, so
+it calls `handle` directly and misses the harness scaffolding that quietly invites the address a
+request names — and the new gate then answered `204` with no mail, which is the exact shape of the
+pass it was looking for. It invites by hand now.
+
+**The sign-in copy became false in both directions.** `#68` tightened "if that address *can have*
+an account here" to "*has* an account here" while `#67` made the site invitation-only. An invited
+address that has never signed in has no account row and still gets a link; an uninvited one gets
+the same sentence and no mail. "Can have" is the word that covers both, and the reason is in a
+comment rather than on screen.
+
+Beyond the collisions: a whole-tree Qodana scan of the merged tree found **six**, all in `#67`'s
+new files and none of them ever reported — that PR's Qodana check came back `NEUTRAL`, and CI runs
+Qodana in PR mode regardless, so no whole-tree number for the merged tree existed. Three were real
+and are fixed, two are the reflection-bound-DTO objection this repository already has a scoped
+name for, and the scan is back to a measured zero. `AddingAnAddressPutsItOnTheList` turned out not
+to check the list — deleting `await Reload()` left it green, because the page's own confirmation
+sentence satisfied an assertion against the whole markup; it reads the rows now, and the weakness
+predated the merge. Three documented claims had gone false: the settled list still said "two
+palettes", the setup guide listed six tables while naming only one of the two new ones, and the
+handover's error-reporting section named account existence as the only axis a category must not
+betray. And `publish/` is gitignored, which it should have been before — both workflows publish
+there, so reproducing the CI step that checks the Content-Security-Policy leaves 717 files of
+build output in the tree.
+
+**What was not done:** none of the three slices' own work was revisited or re-reviewed. Each was
+reviewed on its own PR; this reconciled only where they met.
+
+### Four palettes on two axes, and the print bug that would have shipped with them
+
+**Light/dark is now independent of Hero/Villain.** The two used to be one switch — Hero was a
+light theme, Villain a dark one — so somebody who wanted a dark screen had to make their Hero a
+Villain to get it. There are four token sets now: hero-light and villain-dark are the two that
+always existed, with their values unchanged, and hero-dark and villain-light are new.
+
+**Villain-light was the one with a real risk in it** — a crimson-and-gold identity on white that
+does not just become Hero in different hues — and what made it tractable is that a villain-on-white
+already existed and nobody had noticed: the *print* palette, whose crimson and brass had been
+measured as ink on paper years of commits ago. It is those, on a warm oyster ground rather than
+Hero's cool near-white, keeping villain-dark's 2px rules and tight heading tracking. Identity
+survives the change of ground by weight as much as by hue. Both candidates — warm paper and cool
+— were built as proof pages and looked at side by side before one was chosen.
+
+**The slice's real finding is a print bug that every existing guard would have missed.** The
+handover prescribed `:root[data-theme="dark"][data-mode="x"]` blocks so an explicit choice beats
+the system. That is specificity (0,3,0); the print block is (0,2,0), and `@media` contributes
+nothing to specificity. So a reader in dark mode would have printed the full-bleed near-black
+page the print block exists to prevent — with `PrintKeepsThePaperWhiteAndTheInkReadable` green,
+because it read the print block's own declarations rather than resolving the cascade against the
+screen blocks. Measured in a browser before any CSS was written, not reasoned about. The fix is
+`@media screen` on the dark half: they do not apply on paper at all.
+
+**And the guard built to catch it did not, at first.** Its replacement resolves the whole
+stylesheet for a given state — but the first version applied admitted rules in **source order**,
+which is not the cascade, and passed with `screen` deleted from the OS-dark media query. That was
+the mutation that mattered: an earlier, wider mutation (`@media all`) had *appeared* to be caught
+and was not — it tripped the resolver's refusal to model an unknown at-rule, which is an honest
+refusal and not the catch it looked like. Weighing specificity, the same mutation fails on exactly
+the three states where a dark system reaches paper, and names it.
+
+One defect found in the contrast instrument itself, inherited from #65: its token-name regex was
+`--[a-z-]+`, which does not match `--shadow-1`. Every shadow, space and type token was silently
+dropped from every palette it resolved.
+
+**The preference is per-browser and attached to nothing else** — `pp.theme.v1` in local storage,
+never sent to the server, not on `CharacterSheet` and not on the account. A theme on the sheet
+would travel through an export and change the screen of whoever imported somebody else's
+character; one on the account would let a signed-in reader on a shared machine impose it on the
+next. `js/theme.js` is loaded from `<head>` and is the only render-blocking script in the app,
+because the payload is ~27 MiB and a theme applied from C# lands seconds after the reader has
+already seen the wrong one.
+
+**Persistence turned out to have no guard at all, and could not have a C# one.** Deleting the
+`localStorage.setItem` — so a choice applies for the visit and is forgotten on reload — left all
+4,115 tests green: the C# side checks that the right word goes out and that a stored value is read
+back, and both are true of a script that stores nothing. `proof-theme.html` drives the shipped
+file in a browser and re-executes the module, which is what a reload does; it is in the build
+workflow beside the other harnesses. Its own positive control was wrong first — re-executing the
+module re-declares `ppThemeStats`, so the counter *resets* rather than going up, and asserting the
+reset is what makes it a control.
+
+**Separately, four places on screen explained the app to a developer**, all found by the owner
+reading it. The sign-in page explained that it would not say whether an address has an account —
+noise to somebody signing in, and an advertisement of the defence. The replay page accounted for
+who would pay for the model, in a sentence that had also stopped being true ("no accounts, no
+server"), and sent a reader wanting the live version to `docs/MCP-SETUP.md`. A sample character
+was vouched for by "there is a test that says so". A panel said "nothing was pre-computed". All
+four behave identically; the reasoning moved into `@* *@` comments. Two guards hold it:
+`NoPageExplainsItselfToADeveloper` grew eight phrases, and `NoPagePointsAtAFileInThisRepository`
+is structural.
+
+**Still open from the redesign brief, and deliberately not in this slice:** making the substance
+visible rather than described — numbers as design material, the Hero Point budget as the hero
+moment, and a first screen that demonstrates the mechanic instead of listing features. That is the
+larger half of the brief and it is easier to build against four settled palettes than alongside
+them.
+
+### The Hero Point budget becomes the hero moment — a first step, not the whole brief
+
+**The handover named the Hero Point budget as the cheapest, strongest starting point for "make
+the substance visible", and this slice is that step alone** — not the first-screen dice-style
+demonstration, not Phase 3's validation-on-the-row or undo, not Phase 4's live sheet preview.
+Those stay open below.
+
+**The number a player watches continuously used to be a full step smaller than the numbers they
+see occasionally.** `DerivedStatBlocks` already sets Edge, Health, Resolve and the Hero Point
+total at `--text-3xl` on the derived-stats step and on the sheet; the sticky strip printed the
+same total at `--text-xl` in the one place it changes every few seconds while a character is
+being built. Raised to match — the app's largest numeral, not a caption beside one — and set in
+`--heading` rather than plain ink, the same role the tier cards and the active step already
+carry. Both are text roles already held to their 4.5:1 floor on `--panel` in all four palettes,
+so nothing new needed measuring.
+
+**The breakdown disclosure became a small bar chart, not only a row of numbers.** The six
+categories `TotalCost` sums — Package, Abilities, Talents, Powers, Perks, Gear — now each draw a
+meter sized to their own share of the spend, using the same `--accent` fill on `--panel-sunk`
+track the sticky rail above them already uses: one visual idiom applied twice, not a second one
+invented. Trait Cap is not a spend and carries no meter; it sits below the six as a rule, set
+apart the same way the sheet sets a rule apart from a figure. The meter is decoration — the
+numeral beside it already carries the same figure in words, so the track is `aria-hidden`.
+
+**Proved by breaking, on both the new engine-adjacent logic and the CSS no bUnit test can see.**
+`HpBudgetBar.Share` forced to return 0 failed `TheBreakdownShowsEachCategorysShareOfTheSpend`'s
+width assertions (`width:0%` where `width:38%` was expected) — restored, and the whole suite
+re-run green afterwards, not only before. `.budget-figure strong`'s `font-size` reverted to
+`--text-xl` failed `TheWatchedFigureIsTheAppsLargestNumeral` the same way, which is the test that
+exists precisely because a stylesheet-only regression is invisible to every rendered-markup
+assertion in the project.
+
+**A stale doc comment in the file was corrected in passing.** `HpBudgetBar.razor`'s own opening
+comment still claimed the strip was "Hidden entirely in Villain mode" — true before the sandbox
+toggle existed, and contradicted three paragraphs later in the same file and by
+`AVillainIsStillHeldToTheTiersBudget`. Left as found, it is exactly the kind of thing `CLAUDE.md`
+warns a stale note becomes: something the next reader trusts because it is close to the code.
+
+**Still open, and larger than this slice:**
+
+- **The first screen that demonstrates rather than describes.** pnpready's landing page rolls
+  dice and lays the arithmetic out before anybody signs up; this app's first screen (`/`, the
+  tier page) is still a description of six tiers. The budget strip only exists once a tier is
+  chosen, so it cannot itself be that first demonstration — something on the tier page, or a
+  worked example on `/portfolio`, still could be.
+- **Phase 3's validation-on-the-row and undo**, from `docs/FRONT-END-PLAN.md`.
+- **Phase 4, the sheet as a live preview column** — explicitly said to overlap this heavily and
+  not to be done separately, and not attempted here for that reason: it means widening
+  `--column` above a breakpoint, which the shell, the sheet and the replay all cap on, and that
+  is a decision of its own rather than a side effect of a budget-bar change.
+- **No visual regression testing**, unchanged from the last slice's handover — four palettes and
+  a proportional bar chart are more, not fewer, pixels nobody but a person is checking.
+
+### Only invited addresses, and a page that says which
+
+The site could mail a sign-in link to any address anybody typed into it. That is the ordinary
+shape for a public sign-up and it is not what this site is — an account is what puts the
+rulebook's own text on screen, and who may read that belongs to the owner and to people he has
+named. So there is a list, and a page that manages it.
+
+**The gate is silent, and it has to be.** An address that is not on the list gets the same `204`
+a sent link gets, for the same reason a rate-limited request does: any other answer makes the
+endpoint a way of asking who is on the list, one address at a time. It is checked again when a
+link is spent, because fifteen minutes is long enough to be withdrawn in.
+
+**The first invitation cannot come from the list**, since managing it needs an account and an
+account needs an invitation. `ADMIN_EMAIL` breaks that circle: the address in it is always
+allowed, always an administrator, and has no row, so no click can remove it. **Nothing is seeded
+into the database** — a committed address would be this repository owner's own on every fork, and
+a deployment with neither the variable nor a row allows nobody, which is the safe direction.
+
+**Withdrawing ends the sessions that address is holding and keeps its characters.** Deleting the
+row alone is a gesture against somebody holding a month-long cookie; deleting their work would
+make one button on an administration page the most dangerous control here.
+
+**The page holds no claim about who is reading it.** `Identity` still carries a key and a name
+and no role — the decision recorded when accounts were built — so the server answers an ordinary
+account with the same `404` an unrouted address gets, and the page is reached by its address
+rather than by a button that appears for some people. `/admin` is a third `Area` for the reason
+the recordings are the second: the six creation steps and a running Hero Point total mean nothing
+above a list of email addresses.
+
+**Sixteen tests on the server and nine on the page, and two things were found by mutating them.**
+Five deletions in the server — the gate, the gate on spending a link, who may reach the page,
+ending a withdrawn address's sessions, and the refusal to withdraw your own — each turn a named
+test red. The browser's five found one guard that was not guarding: the fixture's administrator
+was *also* the deployment's address, whose row has no id, so a page offering a withdrawal on every
+row with an id passed. The fixture now has four rows and tells the two cases apart. The other is
+recorded in the harness: nearly every test in the accounts suite predates the list, so the harness
+invites the address a request names — and there is a test that this scaffolding is really doing
+something, because a bypass that had stopped working would leave the whole suite passing for the
+wrong reason.
+
+**What is still not proven is a link arriving.** The provider refusal above is unchanged by any of
+this, and no invitation is worth anything until somebody can receive one.
+
+### A refused send spent the allowance that would have reported it
+
+The first person to try signing in to the live site got "a sign-in link is on its way to it", no
+mail, and nothing in either dashboard to say why. Both halves of that were this repository's doing.
+
+**The rate limit counted attempts, not messages.** `requestLink` counts against the address and
+against the source before it calls the provider, and a refused send left the count spent. The
+limit is five an hour, and the two answers this endpoint gives are deliberately identical — a
+rate-limited request and a sent link are both `204`, so that nobody can use it to ask whether an
+address has an account. So the sixth attempt stopped reporting the failure and started reporting
+success, for the rest of the hour. **The shape hides itself**: somebody retries *because* no mail
+arrived, and retrying is the one action that silences the error naming the fault.
+
+The fix is `db.refundAttempt`, called on the failure path only: an attempt is spent on a message
+rather than on a request, so the limit still bounds the mail one address or one machine can cause.
+What it no longer bounds is requests against a provider that is refusing all of them — which is
+the trade, and it buys back the only signal there is that something at this end is broken.
+
+Two tests, one per bucket. The second is not redundant: nothing in that suite sets
+`CF-Connecting-IP` unless a test says so, so a refund written for the address alone would pass
+every assertion about the address. Both were confirmed by deleting the two refund calls from the
+committed fix and watching them go red, and each carries the positive control that the limit still
+bites on mail that was actually sent — a refund that had broken the counting outright would
+otherwise look like a pass.
+
+**It did not fix sign-in**, and the open item above says what is still wrong: the provider is
+still refusing. What it fixed is that the site now says so every time instead of five times.
+
+### Error reporting: four categories, a recorded row, and a message with the addresses out
+
+**One failure, two audiences that want opposite things.** A visitor needs to know whether to
+retry, wait or report — and nothing else, because an internal message is both meaningless to them
+and a disclosure. The owner needs to know what threw. Before this the visitor got one flat
+sentence and the owner got a live tail: close it and the error was gone, so any failure nobody
+happened to be watching for was unrecoverable. [#66](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/66)
+did the cheap half — a 500 stopped being reported as an unreachable site, and gained a reference.
+This is the rest, scoped in `docs/HANDOVER.md` before it was built.
+
+**A closed set of four — `mail`, `storage`, `configuration`, `unknown` — in `worker/errors.js`.**
+Each side renders the same category its own way: the 500 body carries `{ error, reference,
+category }` and `SignIn.razor` maps the category to a sentence, replacing the single
+`LinkRequest.Failed` message with one per category.
+
+- **The category is assigned where a failure is caught, never at a throw site.** `handle()` wraps
+  the two subsystems on the way in — `taggedStorage` round the D1 binding, `taggedMail` round the
+  send — so `db.js` and `mail.js` know nothing about categories and one file says how a failure is
+  classified. A category per throw site would be a description of the internals by enumeration,
+  which is the disclosure the design exists to avoid. The first tag wins, so a storage failure
+  raised *inside* the mail call stays `storage`.
+- **`configuration` never advises retrying**, because retrying cannot set an environment variable.
+  That is the category the sign-in failure that prompted all of this would have landed in — and
+  `SITE_URL` missing now throws rather than answering with its own bare 500, so the one failure
+  this site has actually had is the one a visitor could not report and the owner could not find
+  afterwards. It can be both now.
+- **`unknown` stays reachable and is the default at both ends**, including for a category the
+  client does not recognise. A taxonomy with no default grows a category for every new failure,
+  and the pressure is then to classify by guessing.
+
+**The owner's half is one D1 table read by hand, and there is no admin endpoint.** `Identity`
+carries a key and a name and no role — there is a test asserting the wire identity holds nothing
+else — so "am I an admin" is not a question the client can ask, and inventing a role to answer it
+is a far larger change than this needed. The precedent is `users.character_limit`, raised by hand
+in SQL on the reasoning that a cap you can raise on yourself is not one. `docs/ACCOUNTS-SETUP.md`
+carries the `wrangler d1 execute` command and the table of what each category means.
+
+**Bounded by construction rather than by a cap somebody remembers to enforce.** The primary key is
+`(category, route)` and `route` is a *pattern* from a closed list, so `/api/characters/{id}` is
+one row however many ids a caller invents — otherwise the error log is a table anybody passing by
+can fill, with a caller-chosen string in it. Occurrences count against the one row: **the count is
+the record of what was dropped**, because a silently truncated log reads as a quiet period. The
+retention window rolls inside the write statement, the same shape as `countAttempt`, so a stale
+row starts a fresh count rather than continuing last month's into this morning's outage; a prune
+written as a separate pass is a prune that does not happen.
+
+**On redaction, what it buys and what it does not.** `users.email` is in that database in the
+clear already, by necessity, so an error row is not a new exposure *boundary*. What it protects is
+that the error log — the artefact most likely to be read aloud, pasted into an issue or
+screenshotted — does not carry somebody's address. It over-redacts on purpose: any run of twenty
+or more token-alphabet characters goes, with no test for whether it looks random, because a
+session secret is 43 base64url characters and a hash is 64 hex ones and neither is guaranteed to
+contain a digit. **The table is still never safe to publish.**
+
+**The three tests that were the point, and one property that is security rather than style:**
+
+| Pinned | How |
+|---|---|
+| Nothing anybody should read twice reaches the row | An exception quoting an address and a token-shaped string, provoked through the real mail boundary — **with a positive control that a row was written at all**, and a second that the message still says what happened, since a `redact` returning `""` satisfies every absence while destroying the column |
+| The public body carries a category and a reference and no exception text | The same provoked failure, asserting the body has exactly the three keys and none of `Resend`, `422`, the address or the token |
+| **The category never varies with account existence** | The same subsystem failure for a registered and an unregistered address, requiring **byte-identical** bodies. Asking for a link always answers 204 precisely so the endpoint cannot be used to ask whether an address is registered, and a category that appeared only for known addresses would put that oracle back through the error path |
+
+That last one is why the failure reference is injected through `deps` like the clock: a random one
+per failure makes every body differ for a reason that has nothing to do with the question.
+
+**Every guard was broken and watched go red — seventeen mutations, all seventeen red**, and the
+suites re-run after the reverts rather than only before. The ones worth naming: a logger that
+silently writes nothing (11 red — the shape this repository has shipped four times), redaction
+that keeps addresses (4), that keeps long random strings (3), and that returns the empty string
+(2); `unknown` defaulting to `storage`; the route stored as the arrived path; occurrences frozen at
+one; the retention cutoff never firing; nothing pruning; the logger rethrowing out of the catch;
+the category dropped from the body; **the category made to depend on whether the address had an
+account** (11); a client wire name renamed off the server's; the configuration sentence advising a
+retry; *no* sentence advising a retry, which fires the positive control rather than the assertion;
+a rendered category deleted; and the server growing a fifth category.
+
+Five of the first twelve came out **inert** on the first pass — a multi-line `perl` substitution
+that matched nothing — and were rewritten line-based until they bit. An inert mutation reads
+exactly like a guard that held; it is worth checking that the file actually changed before
+believing a green run.
+
+Not done, and deliberately: **no third-party error service** — nothing about who somebody is
+currently leaves the Cloudflare account, and that is worth more than a nicer dashboard — and **no
+stack traces to the client in any environment**, since there is no debug build of a deployed site
+and a flag that turns them on is a flag one mistake from being on.
 
 ### Characters, plural: a manager, imports, and the export the app was not writing
 

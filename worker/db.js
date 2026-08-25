@@ -22,6 +22,71 @@ export async function sweepExpired(db, now) {
     // `countAttempt` writes in.
     await db.prepare('DELETE FROM login_attempts WHERE window_start < ?')
         .bind(Math.floor(now / 1000) - 24 * 60 * 60).run();
+
+    // A fault nobody has seen for the whole retention window is not a fault anybody is still
+    // investigating. The row count is already bounded by the primary key — see the migration —
+    // so this is about the table being *readable*, not about it being large: a year of
+    // long-mended faults at the top of a `SELECT *` is how nobody reads the log at all.
+    //
+    // **Guarded, unlike the three above, and the asymmetry is deliberate.** This runs on the
+    // sign-in path, and `error_log` is the newest table — so a deploy that outran its migration
+    // would answer *every* sign-in with a 500 because the diagnostics could not be tidied. The
+    // whole error-logging subsystem is built so it cannot take a request down with it; a prune is
+    // part of that subsystem and gets the same treatment as the write in `index.js`. It is not
+    // silent about it, which is the other half of the rule: a prune that does not happen must say
+    // so rather than look like a prune that found nothing.
+    try {
+        await db.prepare('DELETE FROM error_log WHERE last_at < ?')
+            .bind(now - ERROR_RETENTION_MS).run();
+    } catch (error) {
+        console.error('Could not prune the error log. Has migration 0004 been applied?', error);
+    }
+}
+
+/**
+ * How long a recorded failure is worth keeping.
+ *
+ * <p>Long enough that a fault which happens once a fortnight is still visible next to itself,
+ * short enough that the table is about what is wrong now. It is used twice and must be: once to
+ * sweep a stale row away, and once *inside* the write below to reset a row rather than continue
+ * an old count into a new outage.</p>
+ */
+export const ERROR_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Record that something failed, folding it into the row for its (category, route).
+ *
+ * <p><b>One statement, and the retention window rolls inside it — the same shape as
+ * `countAttempt` above and for the same two reasons.</b> A read that found the row and a write
+ * that trusted it was still there would let two failures arriving together both insert; and a
+ * prune written as a separate pass is a prune that does not happen, because the only thing that
+ * reliably runs on a failing system is the failure path. So a row whose last failure is older
+ * than the window is reset here — count back to 1, `first_at` moved forward — rather than
+ * continuing last month's total into this morning's outage.</p>
+ *
+ * <p><b>Only the most recent occurrence's detail survives, and `occurrences` is what says so.</b>
+ * A failing dependency throws on every request; keeping each one would turn one outage into a
+ * full database. Keeping the latest `kind`, `detail` and `reference` together means the three
+ * describe the same failure rather than being assembled from different ones.</p>
+ */
+export async function recordFailure(db, { category, route, kind, detail, reference, now }) {
+    const cutoff = now - ERROR_RETENTION_MS;
+
+    await db.prepare(
+        'INSERT INTO error_log '
+        + '  (category, route, kind, detail, reference, occurrences, first_at, last_at) '
+        + 'VALUES (?, ?, ?, ?, ?, 1, ?, ?) '
+        + 'ON CONFLICT (category, route) DO UPDATE SET '
+        + '  occurrences = CASE WHEN error_log.last_at < ? THEN 1 '
+        + '                     ELSE error_log.occurrences + 1 END, '
+        + '  first_at    = CASE WHEN error_log.last_at < ? THEN excluded.first_at '
+        + '                     ELSE error_log.first_at END, '
+        + '  kind        = excluded.kind, '
+        + '  detail      = excluded.detail, '
+        + '  reference   = excluded.reference, '
+        + '  last_at     = excluded.last_at')
+        .bind(category, route, kind, detail, reference, now, now, cutoff, cutoff)
+        .run();
 }
 
 export async function userByEmail(db, email) {
@@ -176,4 +241,96 @@ export async function countAttempt(db, { key, now, windowSeconds }) {
         .bind(key, now, cutoff, cutoff, now).first();
 
     return row?.count ?? 0;
+}
+
+/**
+ * Give an attempt back, because it caused nothing.
+ *
+ * <p><b>The limit is on mail, not on requests.</b> `countAttempt` runs before the send, which is
+ * what makes it a bound on how many messages one address or one machine can cause — but a send
+ * the provider refused caused no message, so leaving the count spent charges somebody for
+ * something that never happened. That is not a tidiness point: five refused attempts used to
+ * leave the sixth silently rate limited, and a rate-limited answer is deliberately identical to
+ * a successful one, so a broken mail provider stopped reporting itself after five tries and
+ * started reporting success instead.</p>
+ *
+ * <p>`count > 0` rather than a floor afterwards: the update is the guard, so two refunds racing
+ * cannot take a count below zero and hand somebody an extra attempt.</p>
+ */
+export async function refundAttempt(db, key) {
+    await db.prepare('UPDATE login_attempts SET count = count - 1 WHERE key = ? AND count > 0')
+        .bind(key).run();
+}
+
+/**
+ * The invitation for an address, or null.
+ *
+ * <p>Asked on the way into a sign-in and again on every administrator's request, so it is a
+ * primary-key probe by design: `invitations.email` is unique, and the address is normalised to
+ * lower case before it ever reaches here.</p>
+ */
+export async function invitationFor(db, email) {
+    return await db.prepare(
+        'SELECT id, email, grants_admin, invited_by, created_at FROM invitations WHERE email = ?')
+        .bind(email).first();
+}
+
+/** One invitation by its own id — what a withdrawal names, so that no address is in a URL. */
+export async function invitationById(db, id) {
+    return await db.prepare(
+        'SELECT id, email, grants_admin, invited_by, created_at FROM invitations WHERE id = ?')
+        .bind(id).first();
+}
+
+/**
+ * Every invitation, oldest first, and whether each address has become an account.
+ *
+ * <p>Oldest first rather than newest: this list is short and mostly unchanging, and a stable
+ * order means a row does not move under the cursor of somebody about to withdraw it.</p>
+ *
+ * <p>The join is what lets the page tell "invited" from "signed in" — an address that has never
+ * been used is one whose link may simply not have arrived, and that is the state worth showing
+ * on a site whose mail has already gone wrong once.</p>
+ */
+export async function listInvitations(db) {
+    const result = await db.prepare(
+        'SELECT i.id, i.email, i.grants_admin, i.invited_by, i.created_at, u.id AS user_id '
+        + 'FROM invitations i LEFT JOIN users u ON u.email = i.email '
+        + 'ORDER BY i.created_at ASC, i.email ASC')
+        .all();
+
+    return result.results;
+}
+
+/**
+ * Let one address have an account, and hand back the row.
+ *
+ * <p>`RETURNING` rather than an insert followed by a read: the caller wants the row it just
+ * made, and two statements would let a withdrawal in between turn a successful add into a
+ * null nobody expected.</p>
+ */
+export async function addInvitation(db, { id, email, grantsAdmin, invitedBy, now }) {
+    return await db.prepare(
+        'INSERT INTO invitations (id, email, grants_admin, invited_by, created_at) '
+        + 'VALUES (?, ?, ?, ?, ?) '
+        + 'RETURNING id, email, grants_admin, invited_by, created_at')
+        .bind(id, email, grantsAdmin, invitedBy, now).first();
+}
+
+export async function removeInvitation(db, id) {
+    await db.prepare('DELETE FROM invitations WHERE id = ?').bind(id).run();
+}
+
+/**
+ * End every session an address is holding.
+ *
+ * <p>By address rather than by user id, because the caller is holding an invitation and an
+ * invitation names an address — and because an address with no account yet has no sessions,
+ * which this answers correctly by deleting none. Withdrawing permission has to close the door
+ * that is already open, or it is a rule about future requests only.</p>
+ */
+export async function deleteSessionsFor(db, email) {
+    await db.prepare(
+        'DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email = ?)')
+        .bind(email).run();
 }

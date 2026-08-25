@@ -52,10 +52,10 @@ npx wrangler --cwd d1 d1 migrations apply prowlers-and-paragons --remote
 `--cwd d1` is what makes wrangler read `d1/wrangler.toml`; the migrations are the `.sql` files
 beside it. Leave `--remote` off to apply them to a local copy instead. You will be asked to
 confirm each migration; the tables it creates are `users`, `login_tokens`, `sessions`,
-`login_attempts` and `characters`.
+`login_attempts`, `characters`, `invitations` and `error_log`.
 
 **To sanity-check from the dashboard:** D1 SQL Database → the `prowlers-and-paragons` database →
-**Tables** tab. All five should be there and empty.
+**Tables** tab. All seven should be there and empty.
 
 **The schema is the thing the tests run against**, in real SQLite, so a migration that would not
 apply fails on the pull request rather than here.
@@ -64,8 +64,14 @@ apply fails on the pull request rather than here.
 
 **In the dashboard**, click through:
 
-**Workers & Pages → your Pages project (`prowlers-and-paragons`) → Settings tab → Bindings
-section**
+**Workers & Pages → your Pages project → Settings tab → Bindings section**
+
+> **The Pages project and the D1 database do not have the same name, and this page used to say
+> they did.** On this deployment the database is `prowlers-and-paragons` and the Pages project is
+> **`prowlers-and-paragons-chargen`** — the repository variable `CLOUDFLARE_PAGES_PROJECT` is what
+> tells the deploy which. It costs nothing until you type one into a `wrangler` command meant for
+> the other, at which point you get *"Project not found"* about a project that is plainly there in
+> the dashboard. `npx wrangler pages project list` settles it.
 
 Then **Add binding → D1 database** and fill in:
 
@@ -155,12 +161,26 @@ is a real credential):
 | `RESEND_API_KEY` | the key Resend gave you |
 | `MAIL_FROM` | `no-reply@superheroes.softwaresamurai.net` — or any address on the verified domain |
 | `SITE_URL` | `https://superheroes.softwaresamurai.net` — no trailing slash |
+| `ADMIN_EMAIL` | your own address — the one account that can always sign in and manage the rest |
 
 **`MAIL_FROM` need not be a mailbox that exists.** Nothing ever delivers to it — it is the `From`
 line and nothing else, and Resend checks only that the domain part is one you verified. A reply to
 a sign-in email goes nowhere, which is the intent.
 
-**All three are required, `SITE_URL` included.** It is what sign-in links point at, and the server
+**`ADMIN_EMAIL` is what makes anybody able to sign in at all.** This site is not a
+sign-up: only addresses on the invitation list may ask for a link, and that list is managed at
+[`/admin`](https://superheroes.softwaresamurai.net/admin) by somebody who is already signed in.
+So the first entry cannot come from the list — managing it needs an account, an account needs an
+invitation, and an invitation needs somebody to have added one. This variable is what breaks that
+circle: the address in it is always allowed, always an administrator, and has no row of its own,
+so it cannot be removed by a click.
+
+**A deployment with no `ADMIN_EMAIL` allows nobody**, which is deliberate. Nothing is seeded into
+the database, because a committed address would be this repository owner's own — silently making
+him the administrator of every fork. A site that signs nobody in is visibly broken; one that lets a
+stranger in is not.
+
+**All four are required, `SITE_URL` included.** It is what sign-in links point at, and the server
 **refuses to send one at all** without it — `/api/auth/request` answers 500 and writes nothing.
 
 That refusal is deliberate and replaced a fallback. The link used to be addressed from the origin
@@ -240,6 +260,54 @@ database.
 
 ---
 
+## Reading what has gone wrong
+
+When somebody reports a failure they will quote a six-character reference. Every failure is also
+written to `error_log`, which is read the same way the cap above is set — by hand, in SQL:
+
+```bash
+npx wrangler --cwd d1 d1 execute prowlers-and-paragons --remote \
+    --command "SELECT category, route, kind, occurrences, detail, reference, datetime(last_at/1000, 'unixepoch') AS last FROM error_log ORDER BY last_at DESC;"
+```
+
+**There is no admin endpoint and there is not going to be one.** `Identity` carries a key and a
+name and no role — there is a test asserting the wire identity holds nothing else — so "am I an
+admin" is not a question the client can ask, and inventing a role to answer it is a far larger
+change than reading a table by hand. Same reasoning as the cap above.
+
+**One row per `(category, route)`, counted rather than appended.** A failing dependency throws on
+every request, so a log with a row per occurrence would turn one outage into a full database.
+`occurrences` is how many failures the row stands for and `detail` is the most recent of them —
+a row saying four thousand occurrences since `first_at` *is* the outage. **A reference that does
+not match the row is one of the occurrences folded into it**; the row is a bucket, not a receipt.
+
+The four categories are the closed set in `worker/errors.js`:
+
+| Category | What it means | What the visitor is told |
+|---|---|---|
+| `mail` | The mail provider refused or could not be reached. | The email did not go; the address is fine; try later or report it. |
+| `storage` | D1 refused or could not be reached. | It did not save; try later or report it. |
+| `configuration` | A binding or setting is missing — the deployment is wrong. | The site is not set up correctly. **Never advises retrying**, because retrying cannot help. |
+| `unknown` | Anything unclassified. The honest default. | Something went wrong at our end. |
+
+**A category names the subsystem that failed, never the request that reached it.** Asking for a
+link always answers 204 precisely so the endpoint cannot be used to ask whether an address is
+registered, and a category that appeared only for known addresses would put that oracle straight
+back through the error path. There is a test requiring byte-identical bodies for a registered and
+an unregistered address failing the same way.
+
+**`detail` is redacted and the table is still not safe to publish.** Addresses and any run of
+twenty or more token-alphabet characters are taken out and the message is capped, because an
+exception from D1 or a mail provider can quote a query or an address. `users.email` is in this
+database in the clear anyway, so this is not a new exposure *boundary* — what redaction buys is
+that the error log, which is the artefact most likely to be pasted into an issue or
+screenshotted, does not carry somebody's address with it.
+
+Rows nobody has written to for thirty days are swept away on the next sign-in request, beside the
+expired tokens and sessions.
+
+---
+
 ## What happens before any of this is done
 
 Nothing breaks, and that is the property worth keeping:
@@ -271,3 +339,89 @@ There is a test for each, and one that asserts all three together: `AccountTests
   not carry a role field either, so "am I a GM" is not a question the client can ask.
 - **No rules on the server.** The engine runs in the browser and is the authority on what a
   character costs and whether it is legal. The server stores bytes it never parses.
+
+---
+
+## Who can sign in
+
+**Nobody, until you say so.** This site is not a sign-up: an address that is not on the invitation
+list can ask for a link all day and nothing happens, and nothing on the page says so — the answer
+is identical to a link being sent, because a page that distinguished them would be a way of asking
+who is on the list.
+
+- **The address in `ADMIN_EMAIL` is always allowed and always an administrator.** It has no row,
+  so nothing on the page can remove it; changing it is a dashboard edit and a redeploy.
+- **Everyone else is added at [`/admin`](https://superheroes.softwaresamurai.net/admin)** by
+  somebody already signed in who may manage the list. There is no link to it in the site's
+  navigation and no button that appears only for administrators — the browser holds no claim about
+  who anybody is, so the page is reached by its address and refuses politely if it is not yours.
+- **Adding an address sends nothing.** It lets that person ask for a link when they want one; the
+  account is made the first time they sign in.
+- **Withdrawing an invitation ends any session that address is holding**, so somebody signed in on
+  another machine is signed out rather than left there for the rest of the month. **Their
+  characters are untouched** — adding the address again gives them back exactly what they had.
+- **You cannot withdraw your own**, and the page does not offer it: the next request would be
+  refused, including the request to put it back.
+
+---
+
+## When no mail arrives
+
+**The site cannot tell you why, and it is not being coy.** `/api/auth/request` answers `204`
+whether a link went out or the address has no account, deliberately — anything else makes it a way
+of asking whether somebody has an account here, one address at a time. So "a sign-in link is on
+its way" is not a claim that one was sent.
+
+What does distinguish the cases is the status, which the browser's network tab shows and the page
+turns into a sentence:
+
+| What you see | What it means |
+|---|---|
+| `500`, and "something went wrong at our end" | The mail provider refused the send. Quote the reference; the causes are below |
+| `204`, and no mail | Either the send worked and the mail is elsewhere — spam, a slow relay — or the hourly allowance is spent |
+| "Could not reach the site" | A network problem, not this site's |
+
+**A `500` here is always this end.** The send is the last thing `requestLink` does, so a `500`
+means the rate-limit row and the login token were both written: the Function is live, the `DB`
+binding is right, and `SITE_URL` is set. Only the provider call is left. Check, in this order:
+
+1. **Is the domain verified in Resend?** *Domains* → the row for
+   `superheroes.softwaresamurai.net` must be **Verified**, not *Pending*. Correct DNS is not the
+   same as a verified domain — the records can all be right while nobody has clicked *Verify DNS
+   Records* — and a send against an unverified domain is refused with a `403` that leaves no
+   trace at all in the *Emails* list.
+2. **Is the API key for that domain, in that account?** *API Keys* → the key's permission is
+   *Sending access* and its domain scope is the verified one. A key scoped to another domain, or
+   copied from a second Resend account, is refused with a `401` or `403` and again logs nothing
+   you can see.
+3. **Is `MAIL_FROM`'s domain part exactly the verified domain?**
+   `no-reply@superheroes.softwaresamurai.net` is right; the apex, a typo, or the `send.`
+   subdomain are all refused.
+4. **Has there been a deploy since the variables were added?** A variable added after the last
+   deploy is not in the running Function — step 5 above.
+
+**A refused send is reported every time, not five times.** It used to spend the hourly allowance,
+and since a rate-limited request answers with the same `204` a sent link gets, the sixth attempt
+began reporting success and kept doing so for an hour. Retrying was therefore the one thing that
+silenced the error. It no longer is — but the allowance is real, so five *successful* sends to one
+address in an hour will still go quiet, which is not the same fault.
+
+**The status the provider gave is in the log, and the log is a live tail.** Pages Functions keep
+nothing to read back, so an error nobody was watching for is gone. To see it, tail the deployment
+in one terminal and ask for a link in another:
+
+```bash
+# The deployment id comes from the list above it; a tail with no id refuses in a
+# non-interactive shell.
+npx wrangler pages deployment list --project-name prowlers-and-paragons-chargen
+npx wrangler pages deployment tail <deployment-id> --project-name prowlers-and-paragons-chargen
+```
+
+The line to look for names the status **and the provider's own code for the refusal**:
+*The mail provider refused the send (HTTP 400, validation_error).* The code is what tells the
+four checks above apart — `missing_api_key` and `restricted_api_key` are numbers 2,
+`validation_error` is number 3, and a `403` about the domain is number 1.
+
+**`wrangler pages secret list --project-name prowlers-and-paragons-chargen` says which of the
+three variables exist**, without showing a value. It is the fastest way to rule out number 4: a
+variable added after the last deploy is missing from that list until the deploy that picks it up.

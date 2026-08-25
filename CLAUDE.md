@@ -177,6 +177,20 @@ The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestM
   The report is `results/qodana.sarif.json`; the summary counts by rule, never by file, so group it yourself.
 
   **Run it on a clean export of the commit, not on your working directory.** That command mounts the directory as it is, `bin/` and `obj/` included, and a tree that has been built a few times scans very differently: the same commit reported **0** from `git archive HEAD | tar -x -C <tmp>` and **1471** in place — including `.CSharpErrors`, which is *compile* errors, on test files that build clean. Do not read a number off an in-place scan and conclude anything about the change; export first, and scan the parent commit the same way if you want a comparison.
+
+### Do not run that command by hand. Run `./scripts/qodana-scan.sh`
+
+```bash
+./scripts/qodana-scan.sh
+```
+
+**Because a scan that never ran is indistinguishable from a clean one, and the by-hand version has now produced exactly that.** `qodana` exits **0** when it cannot find a project to inspect — it prints its own `--help` and one line of error at the end of a long log, writes no SARIF, and every `grep` for a summary line comes back empty, which reads as "nothing found". The script closes the three traps that make a by-hand scan worthless, each with a control that fires:
+
+- **A Git Bash path handed to `-v` unconverted mounts an empty directory.** `-v /tmp/export:/data/project/` gives Docker Desktop a path that means nothing inside the VM, so the container finds no `qodana.yaml`, exits 0, and inspects nothing. That is what went wrong. **The fix is `pwd -W`, not avoiding `/tmp`** — measured both ways: with `pwd -W` an export under `/tmp` scans perfectly, and without it the same export scans nothing. The script converts every host path and additionally stages under the repository (`.qodana-scan/`, gitignored), which is belt to that brace rather than the fix. It then **proves the mount** by looking for `qodana.yaml` from inside a container before starting the scan — and that guard has been watched to fire: an unconverted path exits 1 naming the path, rather than scanning nothing and reporting zero.
+- **The exit code is not evidence.** The script requires `qodana.sarif.json` to exist and to parse, and exits non-zero with the tail of the log when it does not. A zero it prints is a zero from a report that exists. Watched to fire too: with no report written it exits 1 saying `NOTHING WAS INSPECTED` and reports that the container's own status was 0, which is the whole trap in one line.
+- **The export needs its own control.** A `git archive` that produced nothing scans an empty tree, which is trap one again; the script checks `qodana.yaml` is in the export before mounting anything.
+
+It also groups the findings by file, which the tool's own summary never does — that summary counts by rule.
 - What is silenced and why, in one line each: `engine/Models/*.cs` exists to be deserialized by reflection (four inspections), the test transcription records document a rulebook page rather than being read, a `[Theory]` body asserting on its parameter is not a precondition guard, `JsonValue.Create(...)!` is load-bearing (removing it fails the warnings-as-errors build), and this codebase writes explicit constructors and named backing fields on purpose.
 - `data/rules/*.json` is copied to the output directory by the csproj, so a published build works without the repo checked out.
 
@@ -440,6 +454,29 @@ questions about the rules. It does not replace `build --from`; both call the sam
 `dotnet test` and has its own suite: `./scripts/test-worker.sh` (local Node 22+, or Docker).
 Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
 
+- **It is an allow-list, not a sign-up, and the refusal is silent.** Only an address on the
+  invitation list may ask for a sign-in link; every other address gets the same `204` a sent link
+  gets, because anything else makes the endpoint a way of asking who is on the list, one address
+  at a time. **The bootstrap is `ADMIN_EMAIL`, an environment variable, and nothing is seeded into
+  the database** — a committed address would be this repository owner's own, silently making him
+  the administrator of every fork. A deployment with neither the variable nor a row allows nobody,
+  which is the direction this should fail in. **What the list does not hide is time**: an invited
+  address waits on a call to the mail provider and an uninvited one returns at once. Recorded
+  rather than padded, because padding trades the real defence for the look of one.
+- **Withdrawing an invitation ends that address's sessions and keeps its characters.** Deleting
+  the row alone is a gesture — the person is holding a month-long cookie — and deleting their work
+  would make one button on an administration page the most dangerous control in the application.
+  Adding the address back gives them everything as they left it.
+- **The administrator's page is reached by its address, not by a link that appears for some
+  people.** `Identity` still carries a key and a name and no role, deliberately, so the browser
+  holds no claim about who somebody is; the server checks on every request and answers an
+  ordinary account with the same `404` an unrouted address gets, so the page cannot be discovered
+  by trying. The link on the account panel is therefore shown to everybody signed in, and an
+  account it is not for is told so plainly.
+- **`/admin` is a third `Area`, and the reason is the one recorded for the recordings.** Six
+  numbered creation steps and a running Hero Point total above a list of email addresses are an
+  offer to continue something the reader is not doing, and the budget is a different subject in
+  the same six-label format. `Areas.Of` answers it; `MainLayout` draws neither there.
 - **It holds no rules and must never gain one.** A character is stored as an opaque string it
   never parses — the engine decides cost and legality and runs in the browser. A second place
   that understood the shape of a character is a second place to keep in step.
@@ -454,6 +491,57 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
 - **`wrangler pages deploy <dir>` bundles a `functions` directory found in the working
   directory, not in the directory being uploaded.** There is no flag; the placement *is* the
   configuration, and getting it wrong deploys a healthy-looking site that signs nobody in.
+- **A failure is classified into four categories, and the set is closed.** `mail`, `storage`,
+  `configuration`, `unknown`, in `worker/errors.js`. The visitor gets the category and a
+  reference and nothing else; the owner gets a row in `error_log`, read by hand with
+  `wrangler d1 execute` — **there is no admin endpoint and there must not be one**, because
+  `Identity` carries a key and a name and no role, and inventing one to answer "am I an admin"
+  is a far larger change. Precedent: `users.character_limit`, raised by hand in SQL.
+  - **A category is assigned where a failure is caught, never at a throw site.** `handle()`
+    wraps the two subsystems on the way in — `taggedStorage` round the D1 binding,
+    `taggedMail` round the send — so `db.js` and `mail.js` know nothing about any of it. A
+    category per throw site becomes a description of the internals by enumeration, which is the
+    disclosure this exists to avoid. The first tag wins: a storage failure raised *inside* the
+    mail call stays `storage`, because the innermost boundary is the one that knows.
+  - **`unknown` must stay reachable.** A taxonomy with no default grows a category for every new
+    failure, and the pressure is then to classify by guessing.
+  - **A category may never depend on whether an account exists**, and this is a security property
+    rather than a style rule. Asking for a link always answers 204 precisely so the endpoint
+    cannot be used to ask whether an address is registered; a category that appeared only for
+    known addresses would put that oracle straight back through the error path. `errors.test.mjs`
+    provokes the same subsystem failure for a registered and an unregistered address and requires
+    **byte-identical** bodies — which is also why the reference is injected through `deps` like
+    the clock, since a random one per failure makes every body differ for an unrelated reason.
+  - **`configuration` must never advise retrying**, because retrying cannot set an environment
+    variable. That is the category the one failure this site has actually had would have landed
+    in. `AccountsContractTests` scans the sentence — and note that *"trying again will not help"*
+    is deliberately allowed and deliberately pinned: it is the denial, not the advice. The scan
+    carries a positive control on the `mail` sentence, which is known to advise retrying, or an
+    absence-only assertion would pass against a regex that captured nothing.
+  - **The row is bounded by construction, not by a cap somebody remembers to enforce.** The
+    primary key is `(category, route)` and `route` is a *pattern* from a closed list, so
+    `/api/characters/{id}` is one row however many ids a caller invents — otherwise the error log
+    is a table anybody passing by can fill, with a caller-chosen string in it. Occurrences are
+    counted against the one row rather than appended: **`occurrences` is the record of what was
+    dropped**, because a silently truncated log reads as a quiet period.
+  - **The retention window rolls inside the write statement**, the same shape as `countAttempt`,
+    so a stale row starts a fresh count rather than continuing last month's into this morning's
+    outage. A prune written as a separate pass is a prune that does not happen.
+  - **The logger may never throw.** The thing that just broke is often the database it writes to,
+    and a logger that threw out of the catch would cost the visitor the reference and category
+    that are the entire visitor-facing half of the design.
+  - **Redaction buys less than it looks like and is still worth having.** `users.email` is in
+    that database in the clear already, so an error row is not a new exposure *boundary*; what it
+    protects is that the log — the artefact most likely to be pasted into an issue — does not
+    carry an address. It over-redacts on purpose: any run of twenty or more token-alphabet
+    characters goes, with no test for randomness, because a session secret is 43 base64url
+    characters and a hash is 64 hex ones and neither is guaranteed to contain a digit.
+  - **The absence tests all carry a positive control, and it is not optional.** Every assertion
+    about redaction is an absence, and an absence is satisfied completely by a logger that writes
+    nothing — the failure shape this repository has shipped four times. Each asserts a row was
+    written *and* that the message still says what happened, since a `redact` returning the empty
+    string would satisfy every absence while destroying the column.
+
 - **A missing server is a missing feature, not a blank page** — and the shape that makes that
   work is also the shape that hides the mistake. `_redirects` serves every unmatched path as
   `index.html` with a 200, so a site without its Functions answers `/api/me` with HTML; the
@@ -571,6 +659,8 @@ All four are asserted by `WebPresentationTests`, which reads the source because 
    **Nor a typeface.** `--font-display` (Oswald) and `--font-body` (Public Sans) are declared in `theme.css` and nothing else names a family; `font:` shorthand is checked as well as `font-family`, because the shorthand carries a family too and `font: inherit` is everywhere. **Both faces are self-hosted under `web/wwwroot/fonts/` and both are SIL OFL, so the licence text ships beside them** — this repository redistributes them on every deploy and every fork, which is a condition rather than a courtesy, and there is a test. **A missing font file fails silently**: the stacks name system fallbacks on purpose, so a renamed file degrades the whole app to them with every other test green — which is why one test reads the bytes on disk. They are `.ttf` and would be ~40% smaller as `.woff2`; converting them is a one-line change per face.
 2. **Nothing on screen names an internal type or a build command.** Asserted on the *prose*, which `VisibleText` derives by stripping `@* *@` comments, the `@code` block, every tag (and so every attribute) and every Razor expression — so `@PowerFormatter.StatLine(p)` is fine and the same characters in a paragraph are not. The rule is general: no compound PascalCase type declared in `engine/` or `sheets/` may appear. The reverse is asserted too — `Ch.6`, `Ch.9`, `Trait Cap` and `Hero Point` must still appear *in the prose*, since deleting the rulebook references would satisfy a naive reading of this rule and ruin the app. (Asserted against the raw file, that test passed while `Ch.6` survived only in a comment.)
 
+   **And the rule is one step wider than "no jargon": copy answers what the reader came to do, and anything explaining *why the app is built this way* belongs in a `@* *@` comment.** Four places broke that and the owner found all four by reading the app — the sign-in page explaining that it will not say whether an address has an account (noise to somebody signing in, and an advertisement of the defence), the replay page accounting for who would pay for the model in a sentence that had also stopped being true, a sample character vouched for by "there is a test that says so", and "nothing was pre-computed". `NoPageExplainsItselfToADeveloper` is a denylist and cannot be anything else — no pattern separates a sentence about a character from a sentence about the program — so it grows when somebody reads the app. `NoPagePointsAtAFileInThisRepository` is the structural half: any `.md`/`.json`/`.cs`/`.razor`/`.css` path in visible prose fails, whatever it is called. That one would have caught the worst instance on its own, which sent a reader wanting the live version to `docs/MCP-SETUP.md`.
+
    **The validator's messages are the other half of this surface**, and `web/`'s tests cannot see them — they are engine strings, printed verbatim on the GM review step and in both exports. `ValidationMessageTests` provokes them from real sheets and holds them to the same rule: no file name, no internal flag, no bare id where the rulebook has a name, no `flaw(s)`, and every message a sentence.
 3. **One component owns each repeated class.** `Panel`, `Field`, `SheetSection`, `StatBlock`, `DerivedStatBlocks`, `OptionList`/`OptionRow`, `ChosenList`/`ChosenRow`, `Tooltip`. Writing `class="panel"` by hand anywhere else fails a test.
 
@@ -617,16 +707,27 @@ Two Razor traps this surface has already hit:
 - **Blazor will not mix implicit child content with a named fragment.** Once any child is written as a named element the rest must be too — so `<Panel>` with a `<Head>` also needs an explicit `<ChildContent>`, and `ChosenRow` names both its slots `Body` and `Actions`. Implicit content on its own is fine, which is why most `<Panel>` call sites do not write `<ChildContent>`.
 - **A `true` bool bound to an `aria-*` attribute renders as `aria-pressed=""`.** Blazor drops the attribute when the value is false and emits an empty string when it is true — and empty is invalid ARIA that assistive technology reads as *not* pressed, so the obvious spelling announces the opposite of the state in both directions. Bind a `"true"`/`"false"` string.
 
-### Hero and Villain are one app with two palettes
+### Hero and Villain are one app with four palettes, on two independent axes
 
 Ch.9 builds Villains exactly like Heroes and prints no separate stat-block format, so the mode is presentation and nothing else.
 
+**Identity and darkness are separate questions.** Hero-or-Villain is a fact about the character; light-or-dark is a fact about a person and a browser. They used to be one switch — Hero was a light theme and Villain a dark one — so somebody who wanted a dark screen had to make their Hero a Villain to get it. There are now four sets: hero-light, hero-dark, villain-light, villain-dark. Hero-light and villain-dark are the two that always existed and their values are unchanged.
+
+- Six screen blocks in three shapes per identity, in `web/wwwroot/css/theme.css`: a bare one (light), an OS-dark one guarded by `:not([data-theme="light"])` so an explicit light choice beats the system, and a `:root[data-theme="dark"][data-mode="x"]` one so an explicit dark choice beats a light system. **Three theme states, not two** — the default stamps no attribute at all, because a `data-theme="system"` would match neither path.
+- **The dark half is scoped to `@media screen`, and that is load-bearing.** `@media` contributes nothing to specificity, so a dark block at (0,3,0) beats the print block at (0,2,0) — on paper, in dark mode, you would print the full-bleed near-black page the print block exists to prevent. Measured in a browser, not reasoned about. `screen` means the dark palettes do not apply on paper at all, which is truer and cheaper than padding the print selectors with repeated `:root`s.
+- **The guard for that had to become a cascade resolver, and the first attempt at it was wrong in a way only mutation showed.** `PrintKeepsThePaperWhiteAndTheInkReadable` used to read the print block's own declarations, which cannot see a screen block outranking it. Its replacement resolves the whole stylesheet for a given state — but the first version applied rules in **source order** and passed with `screen` deleted from the OS-dark query, because source order is not the cascade. It weighs specificity now. `EveryThemeStateResolvesToTheIntendedPalette` pins all twelve routes in, and `TheTwoRoutesIntoDarkAgree` holds the deliberately duplicated dark blocks together.
+- **The theme preference is per-browser and is not on the character**, and not on the account either: `pp.theme.v1` in local storage, read and stamped by `js/theme.js`. A theme on `CharacterSheet` would travel through an export and change the screen of whoever imported somebody else's character; a theme on the account would let somebody signed in on a shared machine impose it on the next reader. `localStorage` over a cookie because a cookie rides on every asset request to a server with no use for it.
+- **`js/theme.js` is loaded from `<head>` and is the only render-blocking script in the app.** The payload is ~27 MiB, so there are seconds of boot screen: a theme applied from C# lands after the reader has already seen the wrong one, and so does one applied from the foot of `<body>`. Both leave every test in both suites green. `TheThemeIsStampedBeforeTheFirstPaint` reads the tag's **offset** against `</head>` — its first version searched the head slice for the file name and passed with the script moved, because a comment near the top of `index.html` mentions it.
+- **Persistence has no C# guard and cannot have one.** Deleting the `localStorage.setItem` — so a choice applies for the visit and is forgotten on reload — left all 4,115 tests green: the C# side checks that the right word goes out and that a stored value is read back, and both are true of a script that stores nothing. `proof-theme.html` drives the shipped file in a browser and re-executes the module, which is what a reload does. It is in the build workflow beside the other harnesses.
 - Both palettes are CSS custom properties on `:root[data-mode="hero"]` and `[data-mode="villain"]` in `web/wwwroot/css/theme.css`. **No component ever names a colour** — that is what keeps the switch a one-attribute change, and there is a grep in the PR notes proving it holds.
+- **`--[a-z-]+` does not match `--shadow-1`.** The contrast instrument's token regex was written that way and silently dropped every shadow, space and type token from every palette it resolved. It is `--[a-z0-9-]+` now. A palette resolver that skips tokens reports a palette nobody is looking at.
+- **Headless Chrome here reports `prefers-color-scheme: dark`**, so an un-stamped proof page renders the *dark* palette. Correct behaviour; it means judging a light palette from a screenshot needs an explicit `data-theme="light"` on the harness.
 - `--primary` is a **fill** and `--heading` is **text**. They coincide in the Hero theme and must still be kept apart: Villain `--primary` measures 2.0:1 on its surface and is unreadable as type. Hero `--accent` is 1.8:1 for the same reason. Re-measure if you restyle; do not eyeball it.
 - **The mode is `CharacterSheet.IsVillain`, and no rules code may read it.** This entry used to say the opposite — do not add the flag — and the reason it changed is the whole point. The refusal was correct while "Villain" meant a palette *and* no Hero Point budget: the second half is mechanical, and a mechanical flag on the sheet is the browser deciding a rule. The budget half is now `UnlimitedBudget`, an independent toggle, so what is left really is only a colour, and it belongs on the character because an exported sheet should still be a Villain when it is read back. **`PresentationFlagsTests` asserts nothing under `engine/` or `sheets/` so much as names either field, with a positive control** — a scan for two names is satisfied completely by two names that no longer exist. Put a mechanic back on `IsVillain` and the old objection applies again in full.
 - **`UnlimitedBudget` is not a Villain thing.** Ch.9 builds Villains by exactly the Hero rules, so "no budget" was never a fact about Villains — it is a GM building to whatever the scene needs, which a Hero campaign does too. A Villain can be held to a tier's points and a Hero need not be; the toggle is on the tier page, where the budget is introduced. The validator is still never told, and still reports `HP_BUDGET_EXCEEDED` — the browser shows a running total and `build --from` reports every finding, because a report that dropped one on the strength of a flag in its own input would be worth less than no report.
 - **Without a limit the strip is a running total, not an absence.** Absent was the old Villain behaviour and it took the breakdown with it, so somebody building without a limit lost the one panel saying where the points went. No cap, no remaining figure, and **no rail** — a `progressbar` needs a maximum to be a proportion of, and one drawn against the tier's points would put back the limit that was just switched off.
-- **One route puts the palette on the document.** `MainLayout` applies it from the character on the render after any change of character — restored, sampled, taken from a recording, switched by hand. Three call sites used to push `ppSetMode` themselves. That made it render-reached, so it left the interop guard's by-hand allow-list and goes through `Theme`, guarded like `Motion` and `Shortcuts`; unguarded it would throw out of every render of the shell.
+- **One route puts the palette on the document.** `MainLayout` applies it from the character on the render after any change of character — restored, sampled, taken from a recording, switched by hand. Three call sites used to push `ppSetMode` themselves. That made it render-reached, so it left the interop guard's by-hand allow-list and goes through `Theme`, guarded like `Motion` and `Shortcuts`; unguarded it would throw out of every render of the shell. The **theme** switch is different and deliberately so: it pushes from the click, because it follows the reader rather than the character and changes on nothing else.
+- **`.mode-switch` names the Hero/Villain control, not the pill shape.** The light/dark control briefly carried the same class, which made `.mode-switch button` match five buttons and the identity switch report three pressed states at once. The shape is shared by selector list; `BannerTests` caught it in under a minute.
 - Only the palette differs. If a layout change seems necessary for one mode, the layout is wrong for both.
 
 ### Key engine types
@@ -841,7 +942,7 @@ Settled rules questions:
 - A rankless Power's **default rank** comes from its Source and applies **only** against other Powers — it is not its effective rank
 - Sheets group Powers under Source headings; an Ability's or Talent's Source prints as a line **inside** a Power group, never as a marking on the Abilities block, and it is **not** derivable from rank
 - The Iconic tier's "200+" is explicitly a bare minimum, so it is GM discretion rather than missing data
-- Hero and Villain are **one app with two palettes**. The mode *is* a field on `CharacterSheet` — `IsVillain` — and no rules code may read it, which a test enforces. That reverses an earlier entry, and only because the budget moved off the switch: "a Villain has no Hero Point budget" was never a rule about Villains, and is now `UnlimitedBudget`, an independent toggle either kind of character can carry
+- Hero and Villain are **one app with four palettes**, since light/dark became an axis of its own — Hero/Villain is an identity and light/dark is a reader's preference, and neither is derivable from the other. The mode *is* a field on `CharacterSheet` — `IsVillain` — and no rules code may read it, which a test enforces. That reverses an earlier entry, and only because the budget moved off the switch: "a Villain has no Hero Point budget" was never a rule about Villains, and is now `UnlimitedBudget`, an independent toggle either kind of character can carry
 - `engine/`, `sheets/`, `cli/` and `web/` are **separate projects**, so the dependency arrows hold at compile time rather than by convention
 - Assisted creation *in this repository, for somebody with it checked out*, is a **non-interactive command plus a skill** — and the model proposes while the engine decides, never the other way round. **For somebody else, connecting their own Claude, it is an MCP server**, which is the mechanism built for exactly that and lets us handle no credentials at all. The two are not in tension and both call the same engine; the earlier flat "not an MCP server" note was scoped to the first case and is superseded
 - **A visitor to the site cannot bring their own Claude, and that is settled — do not re-investigate it.** A claude.ai subscription cannot be lent to a third-party site, the API is separate billing with no dependable free tier, and custom connectors are gated to paid plans. The answer is `/portfolio/replay`: real conversations recorded, with the engine run for real in the visitor's browser. A proxy funded by the owner was rejected — it costs money, invites abuse, and breaks the static-site property the README advertises

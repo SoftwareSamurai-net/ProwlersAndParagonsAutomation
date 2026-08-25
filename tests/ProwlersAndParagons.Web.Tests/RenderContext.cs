@@ -72,6 +72,7 @@ public sealed class RenderContext : BunitContext
         // which store a signed-in visitor's character goes to — is decided here rather than
         // there.
         Services.AddScoped<Accounts>();
+        Services.AddScoped<Invitations>();
         Services.AddScoped<IIdentitySource>(s => s.GetRequiredService<Accounts>());
         Services.AddScoped<CharacterStore>();
         // The plural browser-side store. Registered here as well as in Program.cs because

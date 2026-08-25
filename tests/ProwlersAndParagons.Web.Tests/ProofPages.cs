@@ -59,7 +59,12 @@ public sealed class ProofPages
             ctx.Render<CommandPalette>().Markup);
         ctx.Services.GetRequiredService<Commands>().Close();
 
-        Section(body, "The budget, as a strip of chrome", ctx.Render<HpBudgetBar>().Markup);
+        // The breakdown is disclosed on request and proofed shut shows nothing but the strip
+        // itself — the same trap as the palette above, and the one this section exists to
+        // avoid: the meters that show where the points went only render once opened.
+        var budget = ctx.Render<HpBudgetBar>();
+        budget.Find(".budget-toggle").Click();
+        Section(body, "The budget, as a strip of chrome", budget.Markup);
         Section(body, "Tier — a card grid", ctx.Render<ChooseTier>().Markup);
         Section(body, "The portfolio — the demonstrations, out of the tool",
             ctx.Render<Portfolio>().Markup);
@@ -119,17 +124,33 @@ public sealed class ProofPages
     /// the bands shipped. A copy of the banner markup in this file would drift from the real one
     /// and would proof itself.</para>
     /// </summary>
+    /// <remarks>
+    /// <b>Four pages, because there are four palettes.</b> Light and dark are independent of
+    /// Hero and Villain, so proofing the two identities alone leaves half the app unlooked-at —
+    /// and the half that is new. The dark pair stamp <c>data-theme="dark"</c>, which is what an
+    /// explicit choice does; the light pair stamp nothing, which is the default.
+    /// </remarks>
     [Theory]
-    [InlineData(SheetMode.Hero)]
-    [InlineData(SheetMode.Villain)]
-    public void TheShell(SheetMode mode)
+    [InlineData(SheetMode.Hero, null)]
+    [InlineData(SheetMode.Hero, "dark")]
+    [InlineData(SheetMode.Villain, null)]
+    [InlineData(SheetMode.Villain, "dark")]
+    public void TheShell(SheetMode mode, string? theme)
     {
         if (!Asked) return;
 
         using var ctx = new RenderContext().With(mode);
 
-        WriteRaw($"proof-shell-{Name(mode)}.html", Name(mode), ShellBody(ctx));
+        WriteRaw(ShellPage(mode, theme), Name(mode), ShellBody(ctx), theme);
     }
+
+    /// <summary>
+    /// The file name for one of the four shell proofs. The light pair keep the names the sticky,
+    /// narrow and inset harnesses already point at — those measure geometry, which no palette
+    /// changes, so pointing them at a second copy would double the run for nothing.
+    /// </summary>
+    private static string ShellPage(SheetMode mode, string? theme) =>
+        theme is null ? $"proof-shell-{Name(mode)}.html" : $"proof-shell-{Name(mode)}-{theme}.html";
 
     /// <summary>
     /// The shell, with enough body to scroll against so the sticky band can be seen doing its job
@@ -301,8 +322,8 @@ public sealed class ProofPages
     /// layout's banner sits <em>outside</em> the shell, and wrapping it would put the one band
     /// that is supposed to run the full width of the window inside a 1100px column.
     /// </summary>
-    private static void WriteRaw(string file, string mode, string body) =>
-        WritePage(file, mode, Page(file, mode, body, wrap: false));
+    private static void WriteRaw(string file, string mode, string body, string? theme = null) =>
+        WritePage(file, mode, Page(file, mode, body, wrap: false, theme));
 
     /// <summary>
     /// Does the budget strip still stick? <b>A measured check, because nothing else can answer it.</b>
@@ -416,6 +437,161 @@ public sealed class ProofPages
 
         WritePage("proof-shortcut.html", "hero", ShortcutHarness());
     }
+
+    /// <summary>
+    /// <b>Does the light/dark choice survive a reload?</b> Nothing in either .NET suite can
+    /// answer that, and the gap was found by mutation rather than by reading.
+    ///
+    /// <para>Deleting the <c>localStorage.setItem</c> from <c>theme.js</c> — so a choice applies
+    /// for the visit and is forgotten the moment the tab is closed — left <b>all 4,115 tests
+    /// green</b>. The C# side is guarded properly: it is checked that <c>Choose</c> sends the
+    /// right word to <c>ppTheme.set</c>, and that a stored value is read back into the control.
+    /// Both of those are true of a script that stores nothing. <em>Persistence happens entirely
+    /// inside the script</em>, and only a browser can see it.</para>
+    ///
+    /// <para>So this drives the shipped file and asserts the whole loop: that a choice is
+    /// written to durable storage under the key the app claims, that returning to the default
+    /// removes it rather than storing a third word, and — by executing the module a second
+    /// time, which is what a reload does — that a stored choice is stamped on the document at
+    /// load with nobody calling anything.</para>
+    ///
+    /// <para><b>The preference is deliberately not attached to an account.</b> It is a fact
+    /// about a person and a browser: somebody signed in on a shared machine should not impose
+    /// their theme on the next reader, and somebody with no account should still keep theirs.
+    /// <c>localStorage</c> over a cookie because a cookie is sent with every request — every
+    /// font, every framework asset — to a server that has no use for it.</para>
+    ///
+    /// <code>
+    /// chrome … --dump-dom file:///…/web/wwwroot/proof-theme.html
+    /// </code>
+    /// </summary>
+    [Fact]
+    public void TheThemePreference()
+    {
+        if (!Asked) return;
+
+        WritePage("proof-theme.html", "hero", ThemeHarness());
+    }
+
+    private static string ThemeHarness() =>
+        """
+        <!doctype html>
+        <!-- Generated by ProofPages.TheThemePreference. Do not edit: rewritten on every
+             PP_PROOF run. Drives the real wwwroot/js/theme.js. -->
+        <html lang="en" data-mode="hero">
+        <head>
+          <meta charset="utf-8">
+          <title>Proof — does the light/dark choice survive a reload?</title>
+          <style>
+            body { margin: 0; font: 14px monospace; background: #111; color: #eee; padding: 12px }
+            #verdict { white-space: pre }
+            .bad { color: #f66 }
+          </style>
+          <!-- Loaded here, as index.html loads it, so what runs is the shipped file in the
+               position it actually occupies. -->
+          <script src="js/theme.js"></script>
+        </head>
+        <body>
+        <div id="verdict">measuring…</div>
+        <script>
+        (() => {
+          const box = document.getElementById('verdict');
+          const checks = [];
+          const check = (name, ok, detail) => checks.push({ name, ok, detail });
+
+          const KEY = 'pp.theme.v1';
+          const stored = () => { try { return localStorage.getItem(KEY); } catch (e) { return 'THREW: ' + e.name; } };
+          const stamped = () => document.documentElement.getAttribute('data-theme');
+
+          // **The positive control, before anything that depends on it.** Every check below
+          // asserts an outcome, and an outcome is satisfied by a script that never ran — this
+          // file could have thrown on load and the "nothing is stamped" cases would all hold.
+          check('the script ran at all (positive control)',
+                window.ppThemeStats && window.ppThemeStats.stamps === 1,
+                `stamps = ${window.ppThemeStats && window.ppThemeStats.stamps}`);
+
+          // Storage has to be reachable, or every assertion about it is about an exception.
+          try { localStorage.setItem(KEY + '.probe', '1'); localStorage.removeItem(KEY + '.probe'); }
+          catch (e) { check('local storage is usable in this harness', false, e.name); }
+
+          try { localStorage.removeItem(KEY); } catch { /* reported above */ }
+
+          // ── The write half ────────────────────────────────────────────────────────────
+          window.ppTheme.set('dark');
+          check('choosing dark stores it under the key the app claims',
+                stored() === 'dark',
+                `${KEY} = ${stored()}`);
+          check('...and stamps it on the document',
+                stamped() === 'dark',
+                `data-theme = ${stamped()}`);
+
+          window.ppTheme.set('light');
+          check('choosing light replaces it rather than adding to it',
+                stored() === 'light' && stamped() === 'light',
+                `${KEY} = ${stored()}, data-theme = ${stamped()}`);
+
+          // Returning to the default stores *nothing*. A third word here would match neither
+          // the light path nor `:not([data-theme="light"])`, which is a palette nobody designed.
+          window.ppTheme.set('system');
+          check('returning to Auto removes the value rather than storing a third word',
+                stored() === null,
+                `${KEY} = ${stored()}`);
+          check('...and removes the attribute rather than setting it to "system"',
+                stamped() === null,
+                `data-theme = ${stamped()}`);
+
+          // ── The read half, which is the one that survives a reload ────────────────────
+          //
+          // Executing the module a second time is what a fresh page load does: the file is an
+          // IIFE that reads storage and stamps the attribute at the bottom. Nothing calls set()
+          // here, so a script that stores but never reads back fails exactly here.
+          window.ppTheme.set('dark');
+          document.documentElement.removeAttribute('data-theme');
+
+          // Four set() calls have run since the file did, so the counter stands at five. The
+          // module declares `ppThemeStats` fresh, so a re-execution puts it *back to one* —
+          // which is what makes this a control rather than a hope. The first version asserted
+          // the counter had gone **up**, and failed on working code: the harness caught its own
+          // control being wrong, which is the only reason this one is right.
+          const beforeReload = window.ppThemeStats.stamps;
+
+          const again = document.createElement('script');
+          again.src = 'js/theme.js';
+          again.onload = () => {
+            check('a fresh load of the script stamps the stored choice, with nothing calling it',
+                  stamped() === 'dark',
+                  `data-theme = ${stamped()} after re-executing the module`);
+
+            check('...and the module really re-executed (positive control)',
+                  beforeReload === 5 && window.ppThemeStats.stamps === 1,
+                  `stamps went ${beforeReload} → ${window.ppThemeStats.stamps}; a reset to 1 is `
+                  + 'only reachable by the file running again');
+
+            // Leave the browser profile as it was found.
+            try { localStorage.removeItem(KEY); } catch { /* nothing to do */ }
+
+            const ok = checks.every((c) => c.ok);
+            document.title = ok ? 'THEME: PASS' : 'THEME: FAIL';
+            box.className = ok ? '' : 'bad';
+            box.textContent =
+              (ok ? 'THEME: PASS' : 'THEME: FAIL') + '\n' +
+              checks.map((c) => `  ${c.ok ? 'ok  ' : 'FAIL'} ${c.name} — ${c.detail}`).join('\n');
+          };
+
+          // A script that fails to load leaves the verdict at its resting value, which is
+          // neither PASS nor FAIL — the same three-state convention the sticky harness uses.
+          again.onerror = () => {
+            document.title = 'THEME: FAIL';
+            box.className = 'bad';
+            box.textContent = 'THEME: FAIL\n  FAIL js/theme.js could not be loaded a second time';
+          };
+
+          document.head.appendChild(again);
+        })();
+        </script>
+        </body>
+        </html>
+        """;
 
     private static string ShortcutHarness() =>
         """
@@ -1341,6 +1517,19 @@ public sealed class ProofPages
             "activeElement", "keyboard trap",
             "SHORTCUT: PASS", "SHORTCUT: FAIL", "measuring", "document.title",
         ],
+        // The light/dark preference, and the only check anywhere that it survives a reload.
+        // `ppThemeStats` is the positive control twice over: the read-back half re-executes the
+        // module, and a second execution that never happened would leave every assertion about
+        // the stamped attribute holding for the wrong reason. The key is named because "it is
+        // stored somewhere" is not the property — "it is stored where the app looks" is.
+        ["proof-theme.html"] =
+        [
+            "js/theme.js", "ppTheme.set", "ppThemeStats", "positive control",
+            "pp.theme.v1", "localStorage", "data-theme",
+            "removes the value rather than storing a third word",
+            "with nothing calling it",
+            "THEME: PASS", "THEME: FAIL", "measuring", "document.title",
+        ],
     };
 
     /// <summary>
@@ -1370,6 +1559,17 @@ public sealed class ProofPages
         // the villain proof would come out a copy of the hero one — on the very file whose
         // non-inspection caused this phase's worst defect.
         Assert.Contains($"data-mode=\"{Name(mode)}\"", shell, StringComparison.Ordinal);
+
+        // ...and the theme reaches it too, in both directions. The dark page has to *say* dark
+        // and the light page has to say nothing at all: an attribute stamped on the default page
+        // would take it off `prefers-color-scheme` and pin it, which is a different palette from
+        // the one the app ships.
+        var dark = Page(ShellPage(mode, "dark"), Name(mode), ShellBody(ctx), wrap: false, "dark");
+        AssertMarkers($"proof-shell-{Name(mode)}.html", dark);
+
+        Assert.Contains("data-theme=\"dark\"", dark, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-theme=", shell, StringComparison.Ordinal);
+        Assert.NotEqual(shell, dark);
 
         using var fresh = new RenderContext();
         fresh.Session.Sheet.SelectedTierId = "standard";
@@ -1446,6 +1646,7 @@ public sealed class ProofPages
     {
         AssertMarkers("proof-motion.html", MotionHarness());
         AssertMarkers("proof-shortcut.html", ShortcutHarness());
+        AssertMarkers("proof-theme.html", ThemeHarness());
     }
 
     /// <summary>
@@ -1507,7 +1708,16 @@ public sealed class ProofPages
     /// The whole page, as a string. Separate from writing it so the marker test can assert on
     /// exactly what would be written without writing anything.
     /// </summary>
-    private static string Page(string file, string mode, string body, bool wrap)
+    /// <summary>
+    /// One proof page: the real stylesheets, the document element dressed as the app dresses it,
+    /// and a body of rendered markup.
+    ///
+    /// <para><c>theme</c> takes <c>"dark"</c> or <c>"light"</c> to stamp an explicit choice, and
+    /// <b>null for the default — which is the state that has no attribute at all</b> and follows
+    /// <c>prefers-color-scheme</c>. Stamping "system" would be a fourth value the stylesheet does
+    /// not model, matching neither the light path nor <c>:not([data-theme="light"])</c>.</para>
+    /// </summary>
+    private static string Page(string file, string mode, string body, bool wrap, string? theme = null)
     {
         _ = file;   // kept in the signature so a caller cannot pass a body for the wrong page
 
@@ -1520,13 +1730,15 @@ public sealed class ProofPages
         var inner = wrap ? $"<div class=\"shell\">{body}</div>" : body;
         inner = $"<div id=\"app\">{inner}</div>";
 
+        var chosen = theme is null ? "" : $" data-theme=\"{theme}\"";
+
         return $"""
             <!doctype html>
-            <html lang="en" data-mode="{mode}">
+            <html lang="en" data-mode="{mode}"{chosen}>
             <head>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1">
-              <title>Proof — {mode}</title>
+              <title>Proof — {mode}{(theme is null ? "" : $", {theme}")}</title>
               <link rel="stylesheet" href="css/theme.css">
               <link rel="stylesheet" href="css/app.css">
             </head>

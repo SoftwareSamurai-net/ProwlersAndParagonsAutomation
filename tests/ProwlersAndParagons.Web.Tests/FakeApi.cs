@@ -116,6 +116,31 @@ public sealed class FakeApi : HttpMessageHandler
     public List<string> Asked { get; } = [];
 
     /// <summary>
+    /// Whether the signed-in account may manage who can sign in.
+    ///
+    /// <para><b>False by default, which is the interesting case.</b> Most accounts are not
+    /// administrators, and what the page does for one of those — say so, and show nothing — is
+    /// the behaviour worth being sure of. The real server answers such an account with the same
+    /// 404 it gives an address it does not route, so that is what this answers too.</para>
+    /// </summary>
+    public bool ManagesInvitations { get; set; }
+
+    /// <summary>Who may have an account, as the list endpoint reports them.</summary>
+    /// <remarks>
+    /// A list rather than a canned body, so a test can add a row and assert the page redraws.
+    /// Each entry is exactly the shape the server sends; the contract between the two is pinned
+    /// by <c>AccountsContractTests</c> and not by this.
+    /// </remarks>
+    public List<(string? Id, string Email, bool GrantsAdmin, bool HasSignedIn, bool Removable)>
+        Invited { get; } = [];
+
+    /// <summary>The address the server calls "you" in that list. The signed-in account's.</summary>
+    public string You { get; set; } = "you@example.test";
+
+    /// <summary>Set to have an invitation refuse to be added or withdrawn.</summary>
+    public bool RefuseInvitationChanges { get; set; }
+
+    /// <summary>
     /// What a request for a sign-in link answers. 204 by default.
     ///
     /// <para><b>A knob rather than a copy of the server's validation.</b> Whether something is an
@@ -168,6 +193,10 @@ public sealed class FakeApi : HttpMessageHandler
                 Character(request, p["/api/characters/".Length..]),
 
             "/api/rulebook/power" => Entry(request),
+
+            "/api/admin/invitations" => InvitationList(request),
+            var p when p.StartsWith("/api/admin/invitations/", StringComparison.Ordinal) =>
+                Invitation(request, p["/api/admin/invitations/".Length..]),
 
             _ => Status(HttpStatusCode.NotFound),
         };
@@ -243,6 +272,61 @@ public sealed class FakeApi : HttpMessageHandler
             ? Json(stored.Payload)
             : Status(HttpStatusCode.NotFound);
     }
+
+    /// <summary>
+    /// Who may have an account, or the refusal.
+    ///
+    /// <para>401 for nobody signed in and 404 for an account that may not manage the list — the
+    /// two the real server gives, and they are different questions. The second is deliberately
+    /// the same answer an unrouted address gets, so that an ordinary account cannot learn the
+    /// page exists.</para>
+    /// </summary>
+    private Task<HttpResponseMessage> InvitationList(HttpRequestMessage request)
+    {
+        if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
+        if (!ManagesInvitations) return Status(HttpStatusCode.NotFound);
+
+        if (request.Method == HttpMethod.Post)
+        {
+            if (RefuseInvitationChanges) return Status(HttpStatusCode.BadRequest);
+
+            var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var sent = JsonDocument.Parse(body);
+
+            var email = sent.RootElement.GetProperty("email").GetString() ?? "";
+            var grants = sent.RootElement.TryGetProperty("grantsAdmin", out var g) && g.GetBoolean();
+
+            if (Invited.All(i => i.Email != email))
+            {
+                Invited.Add(($"i_{Invited.Count:D22}", email, grants, false, true));
+            }
+
+            return Json("""{"alreadyAllowed":false}""");
+        }
+
+        var rows = Invited.Select(i => $$"""
+            {"id":{{(i.Id is null ? "null" : Quote(i.Id))}},"email":{{Quote(i.Email)}},
+             "grantsAdmin":{{Lower(i.GrantsAdmin)}},"hasSignedIn":{{Lower(i.HasSignedIn)}},
+             "createdAt":0,"removable":{{Lower(i.Removable)}}}
+            """);
+
+        return Json($$"""{"you":{{Quote(You)}},"invitations":[{{string.Join(",", rows)}}]}""");
+    }
+
+    /// <summary>Withdraw one, unless this stub has been told to refuse.</summary>
+    private Task<HttpResponseMessage> Invitation(HttpRequestMessage request, string id)
+    {
+        if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
+        if (!ManagesInvitations) return Status(HttpStatusCode.NotFound);
+        if (request.Method != HttpMethod.Delete) return Status(HttpStatusCode.MethodNotAllowed);
+        if (RefuseInvitationChanges) return Status(HttpStatusCode.Conflict);
+
+        Invited.RemoveAll(i => i.Id == id);
+
+        return Status(HttpStatusCode.NoContent);
+    }
+
+    private static string Lower(bool value) => value ? "true" : "false";
 
     private static string Quote(string text) => JsonSerializer.Serialize(text);
 

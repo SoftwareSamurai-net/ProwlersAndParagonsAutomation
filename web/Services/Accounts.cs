@@ -31,15 +31,60 @@ public enum LinkRequest
 }
 
 /// <summary>
-/// What asking for a link did, and the reference to quote if it failed.
+/// Which subsystem failed, as the server classified it.
 ///
-/// <para><b>The reference is the whole reason this is not just the enum.</b> This server's only
-/// log is a live tail — nothing is persisted, so an error nobody was watching for is gone. The
-/// id lets somebody paste six characters into a report and have it match a line in the log,
-/// which is the difference between one grep and a guess. It is null for every outcome except a
-/// failure that carried one, and it says nothing about what went wrong.</para>
+/// <para><b>A closed set of four, and it is the server's set — see <c>worker/errors.js</c>.</b>
+/// Two audiences want opposite things from one failure: a visitor needs to know whether to
+/// retry, wait, or report, and nothing else, because an internal message is both meaningless to
+/// them and a disclosure. So the server sends a category and this side renders a sentence for
+/// it. A category per throw site would be a description of the server's internals by
+/// enumeration, which is the disclosure the whole design avoids.</para>
+///
+/// <para><b><see cref="Unknown"/> is first so it is <c>default</c>.</b> A category this side does
+/// not recognise — an older client against a newer server, a body that is not what was meant —
+/// lands here rather than being guessed at, and the sentence for it is the honest one.</para>
+///
+/// <para><b>A category never depends on whether an account exists.</b> Asking for a link always
+/// answers 204 precisely so the endpoint cannot be used to ask whether an address is registered;
+/// the server pins that with a test requiring byte-identical bodies for a registered and an
+/// unregistered address failing the same way. Nothing on this side may reintroduce the
+/// difference either.</para>
 /// </summary>
-public readonly record struct LinkOutcome(LinkRequest Result, string? Reference = null);
+public enum FailureCategory
+{
+    /// <summary>Unclassified, and honestly so. The default in both directions.</summary>
+    Unknown,
+
+    /// <summary>The mail provider. The address was fine and nothing was sent.</summary>
+    Mail,
+
+    /// <summary>The database. What was asked for did not persist, rather than being refused.</summary>
+    Storage,
+
+    /// <summary>
+    /// The deployment is wrong.
+    ///
+    /// <para><b>The one that must never advise retrying</b>, because retrying cannot fix it. This
+    /// is the category the sign-in failure that prompted all of this would have landed in.</para>
+    /// </summary>
+    Configuration,
+}
+
+/// <summary>
+/// What asking for a link did, the reference to quote if it failed, and which subsystem failed.
+///
+/// <para><b>The reference is the whole reason this is not just the enum.</b> The id lets somebody
+/// paste six characters into a report and have it match a recorded row, which is the difference
+/// between one grep and a guess. It is null for every outcome except a failure that carried one,
+/// and it says nothing about what went wrong.</para>
+///
+/// <para>The category is <see cref="FailureCategory.Unknown"/> for everything that is not a
+/// failure the server classified, which includes every outcome that never reached the server.</para>
+/// </summary>
+public readonly record struct LinkOutcome(
+    LinkRequest Result,
+    string? Reference = null,
+    FailureCategory Category = FailureCategory.Unknown);
 
 /// <summary>
 /// Who is signed in, and the three things that change it.
@@ -113,10 +158,10 @@ public sealed class Accounts : IIdentitySource
                 HttpStatusCode.NoContent => new LinkOutcome(LinkRequest.Accepted),
                 HttpStatusCode.BadRequest => new LinkOutcome(LinkRequest.NotAnAddress),
 
-                // Reached and refused. The reference is read out of the body when the server
-                // minted one; a server that did not is still a failure and still not a
-                // network problem, so the outcome does not depend on finding it.
-                _ => new LinkOutcome(LinkRequest.Failed, await ReferenceIn(response)),
+                // Reached and refused. The reference and the category are read out of the body
+                // when the server sent them; a server that did not is still a failure and still
+                // not a network problem, so the outcome does not depend on finding either.
+                _ => await FailureIn(response),
             };
         }
         // Genuinely could not get there: no network, DNS, or nothing listening. The only case
@@ -125,30 +170,57 @@ public sealed class Accounts : IIdentitySource
     }
 
     /// <summary>
-    /// The failure reference the server put in the body, or null.
+    /// The reference and the category the server put in the body, as a failure outcome.
     ///
     /// <para><b>Nothing here may throw.</b> This runs while reporting a failure, so a body that
     /// is not the JSON expected — an HTML error page from something in front of the app, an
-    /// empty response — must produce a missing reference rather than a second exception on top
-    /// of the first. That is also why it does not use the typed reader: the shape is whatever
-    /// arrived, not whatever was meant to.</para>
+    /// empty response — must produce a bare failure rather than a second exception on top of the
+    /// first. That is also why it does not use the typed reader: the shape is whatever arrived,
+    /// not whatever was meant to.</para>
+    ///
+    /// <para><b>The message in the body is deliberately never read.</b> The server does not put
+    /// one there — an exception from D1 or from a mail provider can quote a query or an address —
+    /// and reading it if it appeared would be this side undoing that decision.</para>
     /// </summary>
-    private static async Task<string?> ReferenceIn(HttpResponseMessage response)
+    private static async Task<LinkOutcome> FailureIn(HttpResponseMessage response)
     {
         try
         {
             using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var body = document.RootElement;
 
-            return document.RootElement.TryGetProperty("reference", out var reference)
-                   && reference.ValueKind == JsonValueKind.String
-                ? reference.GetString()
+            var reference = body.TryGetProperty("reference", out var found)
+                            && found.ValueKind == JsonValueKind.String
+                ? found.GetString()
                 : null;
+
+            var category = body.TryGetProperty("category", out var said)
+                           && said.ValueKind == JsonValueKind.String
+                ? CategoryNamed(said.GetString())
+                : FailureCategory.Unknown;
+
+            return new LinkOutcome(LinkRequest.Failed, reference, category);
         }
         catch (Exception e) when (e is JsonException or HttpRequestException or InvalidOperationException)
         {
-            return null;
+            return new LinkOutcome(LinkRequest.Failed);
         }
     }
+
+    /// <summary>
+    /// One of the server's four names, or <see cref="FailureCategory.Unknown"/>.
+    ///
+    /// <para>Matched by name rather than parsed, so the wire spelling is decided here and not by
+    /// how the enum happens to be capitalised. Anything unrecognised is unknown — a newer server
+    /// with a fifth category must degrade to the honest sentence, not to a wrong one.</para>
+    /// </summary>
+    private static FailureCategory CategoryNamed(string? wire) => wire switch
+    {
+        "mail" => FailureCategory.Mail,
+        "storage" => FailureCategory.Storage,
+        "configuration" => FailureCategory.Configuration,
+        _ => FailureCategory.Unknown,
+    };
 
     /// <summary>
     /// Spend a link's token. True when somebody is now signed in.
