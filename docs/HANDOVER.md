@@ -38,9 +38,13 @@ dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
 ./scripts/test-worker.sh
 ```
 
-**A whole-tree Qodana scan last reported 0**, on the reconciled tree before the last three merges —
-so that figure is *not* current for `master`. `./scripts/qodana-scan.sh` is the way to find out;
-do not repeat the zero without re-running it, which is a rule this repository has broken twice.
+**A whole-tree Qodana scan reports 0**, measured on `44e8c90` — the head of this branch — from a
+report that exists rather than from an exit code. It got there by being run three times: 23 on the
+first pass, all in code this slice added; 2 after fixing them; 0 after the last two.
+
+**Do not repeat that zero without re-running `./scripts/qodana-scan.sh`**, which is a rule this
+repository has broken twice. It needs Docker Desktop running; without it the script exits non-zero
+saying so, rather than reporting a clean scan of nothing.
 
 **Sign-in works end to end, and that sentence has never been true before.** A link was requested
 on the live site, arrived, and signed somebody in. Every handover before this one said the same
