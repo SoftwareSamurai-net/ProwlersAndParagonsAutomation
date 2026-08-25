@@ -33,7 +33,7 @@ public sealed class StartAgainTests
     [InlineData(LoadHero)]
     public void OneClickDoesNotReplaceACharacterThereIsSomethingToLose(string control)
     {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
+        using var ctx = new RenderContext().AsAdministrator().With(SheetMode.Hero);
         var page = PageFor(ctx, control);
         var before = ctx.Session.Sheet.Name;
 
@@ -54,7 +54,7 @@ public sealed class StartAgainTests
     [Fact]
     public void AnEmptySheetIsReplacedWithoutBeingAskedAbout()
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var page = ctx.Render<Portfolio>();
 
         Button(page, LoadHero).Click();
@@ -68,7 +68,7 @@ public sealed class StartAgainTests
     [InlineData(LoadHero)]
     public void ChangingYourMindLeavesTheCharacterExactlyAsItWas(string control)
     {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
+        using var ctx = new RenderContext().AsAdministrator().With(SheetMode.Hero);
         var page = PageFor(ctx, control);
 
         var name = ctx.Session.Sheet.Name;

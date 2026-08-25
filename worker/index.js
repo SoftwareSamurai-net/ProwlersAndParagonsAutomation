@@ -17,7 +17,7 @@ import {
 import { fail } from './http.js';
 import * as invitations from './invitations.js';
 import { sendSignInLink } from './mail.js';
-import { index, power } from './rulebook.js';
+import { contents, index, passage, power, search } from './rulebook.js';
 
 /**
  * Everything the handlers reach for that is not the database.
@@ -142,13 +142,21 @@ async function route(request, env, deps) {
 
     // Everything below needs somebody to be signed in, and asks once. A route that fetched its
     // own user would be a route that could forget to.
-    if (path === '/api/characters' || path.startsWith('/api/characters/') || path === '/api/rulebook/power') {
+    if (path === '/api/characters' || path.startsWith('/api/characters/')
+        || path.startsWith('/api/rulebook/')) {
         const user = await auth.currentUser(request, env, deps);
         if (!user) return fail(401, 'Sign in first.');
 
-        if (path === '/api/rulebook/power') {
-            return only('GET', method, () => power(request, entries));
-        }
+        // The book, in four shapes: one Power's entry beside the editor, a search, what there is
+        // to read, and one passage in full. **The prefix is what is gated, not the four
+        // addresses** — a fifth added below the check but matched above it would be reachable by
+        // anybody, and a list of addresses in a condition is exactly where that goes wrong.
+        if (path === '/api/rulebook/power') return only('GET', method, () => power(request, entries));
+        if (path === '/api/rulebook/search') return only('GET', method, () => search(request, CHAPTERS));
+        if (path === '/api/rulebook/contents') return only('GET', method, () => contents(CHAPTERS));
+        if (path === '/api/rulebook/passage') return only('GET', method, () => passage(request, CHAPTERS));
+
+        if (path.startsWith('/api/rulebook/')) return fail(404, 'No such address.');
 
         if (path === '/api/characters') {
             return only('GET', method, () => characters.list(request, env, deps, user));

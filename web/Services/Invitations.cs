@@ -67,6 +67,21 @@ public sealed class Invitations
 
     public Invitations(HttpClient http) => _http = http;
 
+    /// <summary>
+    /// Whether this account looks after the site, in the same four answers as the list itself.
+    ///
+    /// <para><b>It asks the same question of the same endpoint rather than a cheaper one of its
+    /// own.</b> A second endpoint answering "are you an administrator" would be a second place
+    /// that decides it, and the two would eventually disagree — which is the shape of bug where
+    /// a page shows something the server would refuse, or hides something it would allow. The
+    /// cost is one list nobody reads, on a page only an administrator reaches.</para>
+    ///
+    /// <para><b>And it deliberately returns the whole enumeration, not a bool.</b> "Not you" and
+    /// "not signed in" and "could not reach the site" are three different things to tell a
+    /// reader, and collapsing them to false makes every one of them read as the first.</para>
+    /// </summary>
+    public async Task<ListRequest> AmIAdministratorAsync() => (await ListAsync()).Result;
+
     /// <summary>Everyone who may have an account, or why not.</summary>
     public async Task<InvitationList> ListAsync()
     {

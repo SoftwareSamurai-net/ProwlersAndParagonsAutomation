@@ -4,19 +4,34 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 public enum Area
 {
     /// <summary>
-    /// The play aide: the rules reference and the character sheet helper. The thing somebody
-    /// has open at a table.
+    /// The front door: what this site offers, and a way into each of it.
+    ///
+    /// <para><b>It is its own area because it is nobody's step.</b> The six numbered creation
+    /// steps and a running Hero Point total are the builder's, and above a page whose whole job
+    /// is to ask which of three things you came for they are an answer to a question that has
+    /// not been asked yet.</para>
+    /// </summary>
+    Home,
+
+    /// <summary>
+    /// The character builder: the six creation steps. The thing somebody has open while making
+    /// a character.
     /// </summary>
     Play,
 
     /// <summary>
-    /// The portfolio: the recorded conversations and the finished sample characters. The thing
-    /// that shows somebody what was built, rather than helping them build.
+    /// The rules reference: the book's own text, searchable, cited by printed page. The thing
+    /// somebody has open at a table when a question comes up mid-session.
+    ///
+    /// <para><b>Separate from <see cref="Play"/> for the reason every other area is separate.</b>
+    /// A reader looking a rule up is not part-way through building anything, and a budget strip
+    /// reporting a character they are not editing is a different subject in the same format.</para>
     /// </summary>
-    Portfolio,
+    Rules,
 
     /// <summary>
-    /// Looking after the site rather than using it: who may have an account here.
+    /// Looking after the site rather than using it: who may have an account here, and the
+    /// demonstrations kept for showing it to somebody.
     ///
     /// <para><b>A third area, added because the chrome is wrong on it for exactly the reason it
     /// is wrong on a recording.</b> Six numbered creation steps and a running Hero Point total
@@ -30,45 +45,57 @@ public enum Area
 /// <summary>
 /// Which area an address belongs to.
 ///
-/// <para><b>One site doing two jobs is why this exists.</b> The chrome above the page was built
-/// for the character generator — six numbered steps and a Hero Point budget — and none of it
-/// means anything on a page showing somebody else's recorded conversation. Worse, the budget
-/// strip is the *visitor's own* character, so it sat above a recording of a different one with
-/// nothing on screen saying whose was whose.</para>
+/// <para><b>One site doing several jobs is why this exists.</b> The chrome above the page was
+/// built for the character generator — six numbered steps and a Hero Point budget — and none of
+/// it means anything on a page showing somebody else's recorded conversation, a list of email
+/// addresses, or a rules search. Worse, the budget strip is the <i>visitor's own</i> character,
+/// so it sat above a recording of a different one with nothing on screen saying whose was
+/// whose.</para>
 ///
 /// <para><b>Decided from the address rather than passed down</b>, because the shell renders the
-/// page and cannot ask it anything. That was already true of the replay check this replaces; what
-/// changes is that there is now a name for the question and one place that answers it.</para>
+/// page and cannot ask it anything.</para>
+///
+/// <para><b>The builder is under a prefix of its own, and the front door is the bare path.</b>
+/// It used to be the other way round: the tier page was <c>/</c>, so the first thing a visitor
+/// met was step one of a job they had not chosen yet, and the only other thing the site does was
+/// a single link in the banner. Everything the builder draws is now decided by one segment,
+/// which is what lets the front door carry no builder chrome without a special case for it.</para>
 /// </summary>
 public static class Areas
 {
-    /// <summary>The first path segment that marks the portfolio.</summary>
-    private const string PortfolioPrefix = "portfolio";
+    /// <summary>The first path segment that marks the character builder.</summary>
+    private const string PlayPrefix = "build";
+
+    /// <summary>The first path segment that marks the rules reference.</summary>
+    private const string RulesPrefix = "rules";
+
+    /// <summary>The first path segment that marks the administration pages.</summary>
+    private const string AccountPrefix = "admin";
 
     /// <summary>
-    /// The address the recordings used to live at, before there was a portfolio to put them in.
+    /// Signing in is administration of a sort and is deliberately not the builder.
     ///
-    /// <para><b>It is still a portfolio address and has to be treated as one.</b> The pages keep
-    /// their old routes so shared links do not rot — and a link that still works but arrives
-    /// wearing the character generator's chrome is worse than one that breaks, because the budget
-    /// strip above a recording is the *visitor's own* character sitting over somebody else's with
-    /// nothing saying whose is whose. That is the exact fault the strip was hidden here to fix,
-    /// and moving the route reintroduced it until this line existed.</para>
+    /// <para>It used to fall through to <see cref="Area.Play"/> — the only reason being that
+    /// everything did — so a visitor asking for a sign-in link met six numbered creation steps
+    /// with one of them marked as the step they were on. That is the same fault the recordings
+    /// and the invitation list were each given an area to fix.</para>
     /// </summary>
-    private const string LegacyReplayPrefix = "replay";
-
-    /// <summary>The first path segment that marks the administration page.</summary>
-    private const string AccountPrefix = "admin";
+    private const string SignInPrefix = "signin";
 
     /// <summary>
     /// The area a base-relative path belongs to.
     ///
-    /// <para>Matched on the first segment, so <c>/portfolio</c> and <c>/portfolio/anything</c>
-    /// both count and a future page merely beginning with those letters does not.</para>
+    /// <para>Matched on the first segment, so <c>/build</c> and <c>/build/anything</c> both count
+    /// and a future page merely beginning with those letters does not.</para>
     ///
-    /// <para><b>Case-insensitively</b>, because Blazor's own route matching is: <c>/Portfolio/…</c>
-    /// serves the page, and an ordinal comparison here would serve it wearing the character
-    /// generator's chrome — reachable by anybody who capitalised a shared link.</para>
+    /// <para><b>Case-insensitively</b>, because Blazor's own route matching is: <c>/Build/…</c>
+    /// serves the page, and an ordinal comparison here would serve it without the chrome that
+    /// belongs to it — reachable by anybody who capitalised a shared link.</para>
+    ///
+    /// <para><b>Anything unrecognised is <see cref="Area.Home"/>, not <see cref="Area.Play"/>.</b>
+    /// The default is what an address nobody routed gets, and the not-found page is the clearest
+    /// case: a numbered step list above "no such address" offers to continue something that never
+    /// started. Falling back to the builder was safe only while the builder was every address.</para>
     /// </summary>
     public static Area Of(string relativePath)
     {
@@ -76,14 +103,13 @@ public static class Areas
 
         var first = relativePath.Split('/', '?', '#')[0];
 
-        if (string.Equals(first, PortfolioPrefix, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(first, LegacyReplayPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return Area.Portfolio;
-        }
+        if (Is(first, PlayPrefix)) return Area.Play;
+        if (Is(first, RulesPrefix)) return Area.Rules;
+        if (Is(first, AccountPrefix) || Is(first, SignInPrefix)) return Area.Account;
 
-        return string.Equals(first, AccountPrefix, StringComparison.OrdinalIgnoreCase)
-            ? Area.Account
-            : Area.Play;
+        return Area.Home;
     }
+
+    private static bool Is(string segment, string prefix) =>
+        string.Equals(segment, prefix, StringComparison.OrdinalIgnoreCase);
 }

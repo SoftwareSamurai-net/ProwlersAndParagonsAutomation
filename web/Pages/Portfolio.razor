@@ -1,10 +1,12 @@
-@page "/portfolio"
+@page "/admin/portfolio"
 @inject CharacterSession Session
 @inject ReplayLibrary Replays
 
 <PageTitle>How this was built — Prowlers &amp; Paragons</PageTitle>
 
 <h1>How this was built</h1>
+
+<AdminOnly Title="One moment">
 <p class="muted">
     The other half of this site is a tool for use at a table. This half is about the tool: what
     it does that is hard, and two ways to see it doing that without building a character first.
@@ -31,7 +33,7 @@
     else
     {
         <div class="inline">
-            <NavLink class="btn primary" href="portfolio/replay">Watch one being built</NavLink>
+            <NavLink class="btn primary" href="admin/portfolio/replay">Watch one being built</NavLink>
             <span class="small muted">@Replays.Conversations.Count recordings</span>
         </div>
     }
@@ -77,11 +79,13 @@
     @if (_loaded is not null)
     {
         <div class="inline spaced">
-            <NavLink class="btn primary" href="review">See the sheet</NavLink>
-            <NavLink class="btn" href="">Back to building</NavLink>
+            <NavLink class="btn primary" href="build/review">See the sheet</NavLink>
+            <NavLink class="btn" href="build">Back to building</NavLink>
         </div>
     }
 </Panel>
+
+</AdminOnly>
 
 @code {
     private string? _loaded;

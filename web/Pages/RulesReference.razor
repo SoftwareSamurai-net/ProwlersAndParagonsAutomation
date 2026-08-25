@@ -1,0 +1,215 @@
+@page "/rules"
+@inject RulebookReader Rulebook
+
+@* Looking a rule up, which is the thing that happens every session rather than once.
+
+   **The search admits what it did and did not find, and that is most of the design.** A search
+   that always shows its five best rows reads as five answers however carefully the caution is
+   worded — so a passage that matched only inside its body says so on the row, and a query the
+   book has nothing for says that in as many words rather than showing something adjacent.
+
+   **Every result carries its printed page**, because a rules answer that can be checked against
+   the copy on the table is worth more than one that cannot. That is the difference between this
+   and remembering. *@
+
+<PageTitle>Rules reference — Prowlers &amp; Paragons</PageTitle>
+
+<h1>Rules reference</h1>
+
+@if (_refused)
+{
+    <Panel Title="Sign in first">
+        <p>Reading the book needs an account. <a href="signin">Sign in</a>, then come back.</p>
+    </Panel>
+}
+else
+{
+    <Panel Title="Search the book" Aside="@Held">
+        <Field Label="What are you looking for?" For="rules-search">
+            @* A form, so Enter searches — which is what somebody typing a question expects, and
+               the only way this is usable one-handed at a table. *@
+            <form @onsubmit="Search" @onsubmit:preventDefault>
+                <div class="inline">
+                    <input id="rules-search" type="search" @bind="_query" @bind:event="oninput"
+                           placeholder="knockback, trait cap, how surprise works" />
+                    <button type="submit" class="btn primary" disabled="@_searching">Search</button>
+                </div>
+            </form>
+        </Field>
+
+        @if (_results is { } results)
+        {
+            @if (results.Found == 0)
+            {
+                <EmptyState>@NothingFound</EmptyState>
+            }
+            else
+            {
+                <p class="small muted">@Summary(results)</p>
+            }
+        }
+    </Panel>
+
+    @if (_results is { Found: > 0 } found)
+    {
+        <ChosenList>
+            @foreach (var result in found.Results)
+            {
+                var key = (result.Chapter, result.Index);
+                <ChosenRow Cost="@Cite(result)">
+                    <Body>
+                        <div>
+                            <b>@result.Heading</b>
+                            @if (!result.MatchedHeading)
+                            {
+                                @* Said on the row rather than once at the top: a reader scanning
+                                   a list is deciding about one row at a time. *@
+                                <span class="tag">mentioned in passing</span>
+                            }
+                        </div>
+                        <div class="small muted">@result.Snippet</div>
+
+                        @if (_open == key)
+                        {
+                            @if (_passage is { } passage)
+                            {
+                                <p class="rulebook-text">@passage.Text</p>
+                                <p class="small muted">@passage.SourceRef</p>
+                            }
+                            else
+                            {
+                                <p class="small muted">Fetching it…</p>
+                            }
+                        }
+                    </Body>
+                    <Actions>
+                        <button type="button" class="btn small"
+                                aria-expanded="@(_open == key ? "true" : "false")"
+                                @onclick="() => Toggle(result)">
+                            @(_open == key ? "Close" : "Read it")
+                        </button>
+                    </Actions>
+                </ChosenRow>
+            }
+        </ChosenList>
+    }
+
+    @if (_contents is { } contents)
+    {
+        <Panel Title="What is here" Aside="@Counted(contents.Sections, "passage", "passages")">
+            <ChosenList>
+                @foreach (var chapter in contents.Chapters)
+                {
+                    <ChosenRow Cost="@Counted(chapter.Sections, "passage", "passages")">
+                        <Body>
+                            <div><b>@chapter.Title</b></div>
+                            <div class="small muted">@chapter.SourceRef</div>
+                        </Body>
+                    </ChosenRow>
+                }
+            </ChosenList>
+        </Panel>
+    }
+}
+
+@code {
+    private string _query = "";
+    private bool _searching;
+    private bool _refused;
+
+    private RulebookResults? _results;
+    private RulebookContents? _contents;
+
+    private (int Chapter, int Index)? _open;
+    private RulebookPassage? _passage;
+
+    /// <summary>
+    /// What there is to read, asked once.
+    ///
+    /// <para>It doubles as the check on whether this account may read anything at all: the server
+    /// refuses every address under the book's prefix the same way, so one refusal here is the
+    /// answer for all four. Asking a second time to find out would be asking the same question
+    /// twice and believing the second one.</para>
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        _contents = await Rulebook.ContentsAsync();
+        _refused = _contents is null;
+    }
+
+    private string Held => _contents is { } contents
+        ? Counted(contents.Chapters.Count, "chapter", "chapters")
+        : "";
+
+    private async Task Search()
+    {
+        var query = _query.Trim();
+
+        if (query.Length == 0)
+        {
+            _results = null;
+            return;
+        }
+
+        _searching = true;
+        _open = null;
+        _passage = null;
+
+        _results = await Rulebook.SearchAsync(query);
+
+        _searching = false;
+    }
+
+    private async Task Toggle(RulebookResult result)
+    {
+        var key = (result.Chapter, result.Index);
+
+        if (_open == key)
+        {
+            _open = null;
+            _passage = null;
+            return;
+        }
+
+        _open = key;
+        _passage = null;
+        _passage = await Rulebook.PassageAsync(result.Chapter, result.Index);
+    }
+
+    private static string Cite(RulebookResult result) =>
+        FormattableString.Invariant($"Ch.{result.Chapter} p.{result.PrintedPage}");
+
+    /// <summary>
+    /// What was found, in the reader's terms.
+    ///
+    /// <para><b>It says how many matched and how many are shown, and those differ.</b> The server
+    /// caps a response; a count of what was listed presented as a count of what exists would tell
+    /// a reader the book says less than it does.</para>
+    /// </summary>
+    private static string Summary(RulebookResults results)
+    {
+        var found = Counted(results.Found, "passage", "passages");
+        var shown = results.Results.Count < results.Found
+            ? $", best {results.Results.Count} first"
+            : "";
+
+        var how = results.NothingMatchedByHeading
+            ? " — none of them under a heading of its own, so these are mentions rather than the entry"
+            : "";
+
+        return $"{found}{shown}{how}.";
+    }
+
+    /// <summary>
+    /// What to say when the book has nothing, which is a real answer and not a failure.
+    ///
+    /// <para>It names the words actually searched on, because filler is dropped and a reader who
+    /// typed six words and was told nothing matched deserves to know which two were used.</para>
+    /// </summary>
+    private string NothingFound => _results is { Terms.Count: > 0 } results
+        ? $"Nothing in the book uses {string.Join(" or ", results.Terms)}. Try the word the rules would use."
+        : "Type a word or two the rules would use.";
+
+    private static string Counted(int n, string one, string many) =>
+        FormattableString.Invariant($"{n} {(n == 1 ? one : many)}");
+}

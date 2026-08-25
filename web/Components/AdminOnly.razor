@@ -1,0 +1,61 @@
+@inject Invitations Invitations
+
+@* Content only for whoever looks after this site.
+
+   **The page decides nothing, exactly as the invitation list decides nothing.** The answer comes
+   from the server, which checks on every request; the browser holds no role and no flag it could
+   get wrong, which is why `Identity` still carries a key and a name and nothing else. An ordinary
+   account that finds its way here is told politely that there is nothing here for it, and could
+   learn nothing by trying — the server answers it the same 404 an unrouted address gets.
+
+   **What this wraps is a demonstration, not a secret.** The recordings and the two sample
+   characters are things to show somebody; they moved behind this because a visitor who came to
+   build a character had to walk past them, not because reading one would matter. The transcripts
+   themselves are still ordinary files the browser fetches, so this is a front door rather than a
+   lock — see PROGRESS.md for what making it a lock would take. *@
+
+@if (_state == ListRequest.Loaded)
+{
+    @ChildContent
+}
+else if (_state == ListRequest.NotSignedIn)
+{
+    <Panel Title="Sign in first">
+        <p>This page needs an account. <a href="signin">Sign in</a>, then come back.</p>
+    </Panel>
+}
+else if (_state == ListRequest.Unavailable)
+{
+    <Panel Title="Could not reach the site">
+        <p>Nothing was reached just now. Try again in a moment.</p>
+    </Panel>
+}
+else if (_state == ListRequest.NotForYou)
+{
+    <Panel Title="Not this account">
+        <p>
+            This page is for whoever looks after this site, and that is not this account. Nothing
+            is wrong — there is simply nothing here for you.
+        </p>
+        <p><a href="build">Back to the character generator</a></p>
+    </Panel>
+}
+else
+{
+    <Panel Title="@Title">
+        <p>Looking…</p>
+    </Panel>
+}
+
+@code {
+    /// <summary>What to draw once the server has said this account may see it.</summary>
+    [Parameter, EditorRequired] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>The heading shown while the answer is still coming back.</summary>
+    [Parameter] public string Title { get; set; } = "One moment";
+
+    private ListRequest? _state;
+
+    protected override async Task OnInitializedAsync() =>
+        _state = await Invitations.AmIAdministratorAsync();
+}

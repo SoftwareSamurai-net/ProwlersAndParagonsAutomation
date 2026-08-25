@@ -1,10 +1,15 @@
 # Handover
 
-**The palettes are done. The half of the redesign that matters is not.**
+**The palettes are done. The half of the redesign that matters is not, and it is the next slice.**
 
-The last slice settled light/dark × Hero/Villain into four measured token sets and gave the app
-a theme control. That was the tractable half. What the brief was actually about — *make the
-substance visible, not add decoration* — is still open and is the next slice.
+Light/dark × Hero/Villain is settled into four measured token sets with a theme control. That was
+the tractable half. What the brief was actually about — *make the substance visible, not add
+decoration* — is untouched.
+
+**Everything else is finished and green.** The four-PR reconciliation is merged, sign-in works end
+to end for the first time, and there is no open PR and no branch carrying work. So the next
+session starts on the redesign with nothing to reconcile first, which has not been true for a
+while.
 
 Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this file.
 
@@ -12,15 +17,23 @@ Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this 
 
 ## Where things stand
 
-**4250 tests** — 3726 engine, 422 bUnit, 102 accounts — zero warnings at CI strictness, and a
-whole-tree Qodana scan reporting **0 findings** (measured on a clean `git archive` export, not
-assumed). Seven browser harnesses driven by headless Chrome in the build workflow. Live at
-**superheroes.softwaresamurai.net**.
+**4252 tests** — 3726 engine, 422 bUnit, 104 accounts — zero warnings at CI strictness, measured
+on `master` at `df5d246`. Seven browser harnesses driven by headless Chrome in the build workflow.
+Live at **superheroes.softwaresamurai.net**, with Build, Qodana and Deploy all green on that
+commit.
 
-**That count was 4189 here until the reconciliation was merged**, because it was copied from one
-of the three branches while the other two each claimed a different total. Three branches all
-claiming a figure for the same tree is how this number goes stale; `PROGRESS.md`'s row is the one
-that was measured. Re-measure rather than carrying either forward.
+**Re-measure this rather than adding to it.** It has been wrong twice in a fortnight: three
+branches each claimed a different total for the same tree, and then this file copied one of them
+and carried it through a merge. Two commands, and they disagree with nothing:
+
+```bash
+dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
+./scripts/test-worker.sh
+```
+
+**A whole-tree Qodana scan last reported 0**, on the reconciled tree before the last three merges —
+so that figure is *not* current for `master`. `./scripts/qodana-scan.sh` is the way to find out;
+do not repeat the zero without re-running it, which is a rule this repository has broken twice.
 
 **Sign-in works end to end, and that sentence has never been true before.** A link was requested
 on the live site, arrived, and signed somebody in. Every handover before this one said the same
@@ -96,6 +109,26 @@ of description, and the budget strip only exists once a tier is chosen, so it ca
 first demonstration on its own. Then `docs/FRONT-END-PLAN.md` — Phase 3's last two items
 (validation on the row where the mistake is made, and undo) and Phase 4, the sheet as a live
 preview column. **Phase 4 overlaps this heavily; do not do them separately.**
+
+**The first thing to settle is what the first screen demonstrates, and it is a design decision
+rather than a coding one — take it to the owner before building.** Three candidates, and they are
+not equivalent:
+
+- **A dice roller**, which is what the comparison app does. It teaches the *game*, and this app
+  does not otherwise touch dice at all — so it is the most honest demonstration of P&P and the
+  least honest demonstration of *this tool*. The engine has nothing to do with it.
+- **A live cost.** Pick a Power, see it priced, see the budget move. It demonstrates the thing
+  that is actually verified field by field against the book, and it is the only candidate where
+  the engine is the exhibit. It is also the hardest to make legible in one screen to somebody who
+  does not yet know what a Hero Point is.
+- **A verdict.** Show a character that breaks a rule and the validator naming the rule. The
+  strongest *differentiator* — nothing else here does it — and the easiest to make feel like a
+  telling-off rather than a demonstration.
+
+**Whichever it is, the rule the app already lives by decides how it is built: the engine
+answers, the screen shows.** A demonstration that hard-codes a number the engine could have
+returned is the bug `CLAUDE.md` spends a section on, and it would be a particularly bad one here
+because the whole claim being demonstrated is that the numbers are real.
 
 ### What the slice must not break
 
@@ -334,3 +367,23 @@ What a slice would actually involve:
 - **Reality beats the docs.** Six files claimed the site was at `pp.softwaresamurai.net` and that
   the domain was "not attached yet". It has been `superheroes.softwaresamurai.net` for some time.
   When a screenshot and a document disagree, update the document.
+- **A confident paragraph in this repository can cost more than no paragraph at all.**
+  `PROGRESS.md` item 8 argued that a bad API key answers `401`/`403` and therefore could not be
+  the cause of a `400`. Every sentence was defensible, the conclusion was wrong, and the variable
+  it pointed at was re-entered twice with a deploy each time. The provider answers
+  `name: validation_error` for a bad key *and* a bad field, at different statuses. **When a
+  document rules a cause out, check what that ruling rests on before you spend a cycle acting on
+  it** — and prefer an instrument that observes over an argument that eliminates.
+- **A diagnostic that builds its own version of the payload can agree with the bug.** A
+  hand-written probe reproduced the exact provider error for an entirely different reason and read
+  as a confirmation. `scripts/probe-mail.mjs` imports the real builder for this reason, and two
+  tests keep it that way.
+- **"The secret exists" is not "the secret is right".** `wrangler pages secret list` shows names
+  and never values, which rules out one cause and reads like it rules out four.
+- **Do not write a test fixture at the path the real file lives at.** A throwaway `.dev.vars` in
+  the repository root overwrote the owner's, and the tidy-up `rm` finished it. It is gitignored:
+  no reflog, no stash, nothing to recover, and the provider will not show a key twice. `ls` the
+  target before any `>`, `rm` or `mv`, and put scratch files somewhere that is not the repository.
+  In the same session a `sed -i` delete whose paired insert failed removed 45 lines of
+  `PROGRESS.md` in silence — **a shell redirect is not an editing tool**, and a two-step edit
+  where step one destroys is a two-step edit that needs step two to be checked.

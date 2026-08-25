@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text;
 using Bunit;
@@ -159,6 +160,12 @@ public sealed class ProofPages
     /// </summary>
     private static string ShellBody(RenderContext ctx)
     {
+        // **On the builder's own address, because the chrome is now decided by the address.**
+        // The step band and the budget strip are the builder's and are drawn nowhere else, so a
+        // shell proof rendered at the front door would be a picture of a page with neither —
+        // captioned as the thing it is not, which is the failure this file exists to prevent.
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo(Commands.FirstStep);
+
         var tier = ctx.Render<ChooseTier>().Markup;
         return ctx.Render<MainLayout>(p => p.Add(l => l.Body, tier)).Markup;
     }

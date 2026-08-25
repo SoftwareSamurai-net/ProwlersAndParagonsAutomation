@@ -43,6 +43,10 @@ dotnet test
 # Run the accounts server's tests — a separate suite, because that server is JavaScript.
 # Uses local Node 22+ if there is one, Docker otherwise. Also run in CI.
 ./scripts/test-worker.sh
+
+# Ask the mail provider why it refused a send, instead of deploying to find out.
+# Needs .dev.vars — see "Diagnosing the mail path" below, and never write to that path.
+node scripts/probe-mail.mjs you@example.com
 ```
 
 ## Two disciplines that are commands, not cautions
@@ -491,6 +495,24 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
 - **`wrangler pages deploy <dir>` bundles a `functions` directory found in the working
   directory, not in the directory being uploaded.** There is no flag; the placement *is* the
   configuration, and getting it wrong deploys a healthy-looking site that signs nobody in.
+- **Diagnosing the mail path is `node scripts/probe-mail.mjs`, never a deploy.** The server drops
+  the provider's `message` field on purpose — it can quote the address, and it reaches a visitor's
+  screen and a log line — so a refusal arrives as a status and a machine code and nothing else.
+  That is right, and it means the owner cannot see the sentence naming the broken field. The probe
+  reads it locally from `.dev.vars`. **It sends what the server sends**, importing `signInMessage`
+  from `worker/mail.js` rather than assembling a lookalike, and two tests hold it there — a
+  hand-written probe was tried first with a different key and a literal `YOUR_ADDRESS` in `to`,
+  returned *the same provider code the site was returning* for an unrelated reason, and read as a
+  confirmation. **A probe that builds its own payload can agree with the bug.**
+  - **Read the status, not the code.** Resend answers a bad key with `name: validation_error` at
+    `401` — the same name a malformed field gets at `400`. `docs/ACCOUNTS-SETUP.md` said the code
+    told the four checks apart; it does not, and four deploy cycles were spent on the strength of
+    that. `401` is the key, `403` usually the domain, `400` a field in the message.
+  - **Never write to `.dev.vars`, and never delete it.** It is gitignored and holds a live
+    credential, so there is no reflog, no stash and nothing to recover — and a provider will not
+    show a key twice. Testing this probe destroyed the owner's, which is why `PP_DEV_VARS` exists:
+    point it at a scratch file. The rule generalises past this one path — **`ls` a target before
+    any `>`, `rm` or `mv`, and do not assume a file is yours because you wrote one like it.**
 - **A failure is classified into four categories, and the set is closed.** `mail`, `storage`,
   `configuration`, `unknown`, in `worker/errors.js`. The visitor gets the category and a
   reference and nothing else; the owner gets a row in `error_log`, read by hand with

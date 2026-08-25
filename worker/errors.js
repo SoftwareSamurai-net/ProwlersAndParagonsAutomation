@@ -132,6 +132,7 @@ export function taggedMail(send) {
 const KNOWN_ROUTES = Object.freeze([
     '/api/auth/request', '/api/auth/verify', '/api/auth/signout', '/api/me',
     '/api/characters', '/api/rulebook/power',
+    '/api/rulebook/search', '/api/rulebook/contents', '/api/rulebook/passage',
 ]);
 
 /**

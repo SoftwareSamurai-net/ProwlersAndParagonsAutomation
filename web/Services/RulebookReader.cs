@@ -11,6 +11,73 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// <param name="SourceRef">Which chapter and pages the text came from.</param>
 public sealed record PowerEntry(string Heading, int PrintedPage, string Text, string SourceRef);
 
+/// <summary>One chapter, and how much of it there is.</summary>
+/// <param name="Chapter">Its number in the book.</param>
+/// <param name="Title">Its printed title.</param>
+/// <param name="PrintedPages">First and last printed page.</param>
+/// <param name="SourceRef">The citation the chapter carries.</param>
+/// <param name="Sections">How many passages it holds.</param>
+public sealed record RulebookChapter(
+    int Chapter,
+    string Title,
+    IReadOnlyList<int> PrintedPages,
+    string SourceRef,
+    int Sections);
+
+/// <summary>What there is to read.</summary>
+public sealed record RulebookContents(IReadOnlyList<RulebookChapter> Chapters, int Sections);
+
+/// <summary>
+/// One passage a search turned up, with enough to say why it is here.
+/// </summary>
+/// <param name="Chapter">Which chapter, for fetching it in full.</param>
+/// <param name="ChapterTitle">That chapter's printed title.</param>
+/// <param name="Index">Where in the chapter, for fetching it in full.</param>
+/// <param name="Heading">The heading the book sets it under.</param>
+/// <param name="PrintedPage">The printed page, so it can be checked against a real copy.</param>
+/// <param name="SourceRef">The chapter's citation.</param>
+/// <param name="MatchedTerms">Which of the reader's words this passage uses.</param>
+/// <param name="MatchedHeading">Whether one of them is in the heading rather than the body.</param>
+/// <param name="Snippet">A window of the passage around the word that matched.</param>
+public sealed record RulebookResult(
+    int Chapter,
+    string ChapterTitle,
+    int Index,
+    string Heading,
+    int PrintedPage,
+    string SourceRef,
+    IReadOnlyList<string> MatchedTerms,
+    bool MatchedHeading,
+    string Snippet);
+
+/// <summary>
+/// What a search found, and how.
+/// </summary>
+/// <param name="Query">What was asked, as it was asked.</param>
+/// <param name="Terms">The words it was actually searched on, filler dropped.</param>
+/// <param name="Found">How many passages matched — <b>not</b> how many are listed.</param>
+/// <param name="NothingMatchedByHeading">
+/// Whether every match was in a body rather than a heading. It says how the results matched and
+/// never what to conclude: only <see cref="Found"/> at zero means the book is silent.
+/// </param>
+/// <param name="Results">The best of them, capped by the server.</param>
+public sealed record RulebookResults(
+    string Query,
+    IReadOnlyList<string> Terms,
+    int Found,
+    bool NothingMatchedByHeading,
+    IReadOnlyList<RulebookResult> Results);
+
+/// <summary>One passage, in full.</summary>
+public sealed record RulebookPassage(
+    int Chapter,
+    string ChapterTitle,
+    int Index,
+    string Heading,
+    int PrintedPage,
+    string Text,
+    string SourceRef);
+
 /// <summary>
 /// The book's own words about a Power, for somebody who is signed in.
 ///
@@ -109,6 +176,68 @@ public sealed class RulebookReader
             // A site deployed without its server answers this address with the app's own
             // index.html and a 200, so an answer is not proof of an answer.
             return string.IsNullOrWhiteSpace(entry?.Text) ? null : entry;
+        }
+        catch (Exception e) when (IsUnreachable(e)) { return null; }
+    }
+
+    /// <summary>
+    /// How many passages this account may search, or null if it may not search at all.
+    ///
+    /// <para>Asked of the server rather than counted here. What is readable is the server's
+    /// answer — the book is bundled into it and never staged into the site's own files — so a
+    /// figure kept on this side would be a second one, free to disagree with the first.</para>
+    /// </summary>
+    public async Task<int?> CountAsync()
+    {
+        var contents = await ContentsAsync();
+        return contents?.Sections;
+    }
+
+    /// <summary>What there is to read, or null for anybody who may not.</summary>
+    public async Task<RulebookContents?> ContentsAsync() =>
+        await AskForAsync<RulebookContents>("api/rulebook/contents");
+
+    /// <summary>
+    /// What the book says about a query, best first.
+    ///
+    /// <para><b>The flags come back untouched and are not interpreted here.</b>
+    /// <see cref="RulebookResults.Found"/> at zero is the only answer that means the book is
+    /// silent; <see cref="RulebookResults.NothingMatchedByHeading"/> says every passage matched
+    /// in its body, which is ordinary for a question phrased as a question. The Powers search
+    /// shipped a version that turned the second into the first on screen, and a reader was told
+    /// the rulebook had nothing while a dozen real passages sat under the sentence.</para>
+    /// </summary>
+    public async Task<RulebookResults?> SearchAsync(string query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+
+        return await AskForAsync<RulebookResults>(
+            "api/rulebook/search?q=" + Uri.EscapeDataString(query));
+    }
+
+    /// <summary>One passage in full, by the address a result carries.</summary>
+    public async Task<RulebookPassage?> PassageAsync(int chapter, int index) =>
+        await AskForAsync<RulebookPassage>(
+            FormattableString.Invariant($"api/rulebook/passage?chapter={chapter}&index={index}"));
+
+    /// <summary>
+    /// One GET that answers with a body or with nothing, in the same four refusals the Power
+    /// lookup already treats as ordinary.
+    ///
+    /// <para>Shared rather than written out three times, because the trap is the one the Power
+    /// lookup already carries a comment about: a site deployed without its server answers every
+    /// address with the app's own page and a 200, so a successful status is not proof of an
+    /// answer and the body has to be read.</para>
+    /// </summary>
+    private async Task<T?> AskForAsync<T>(string address) where T : class
+    {
+        try
+        {
+            using var response = await _http.GetAsync(address);
+
+            if (!response.IsSuccessStatusCode) return null;
+
+            return await response.Content.ReadFromJsonAsync<T>(Wire);
         }
         catch (Exception e) when (IsUnreachable(e)) { return null; }
     }

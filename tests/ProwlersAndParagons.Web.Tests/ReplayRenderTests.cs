@@ -105,7 +105,7 @@ public sealed class ReplayRenderTests
     [InlineData(Villain)]
     public void EveryRecordingSaysItIsARecordingBeforeAnythingElseHappens(string id)
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var page = Play(ctx, id);
 
         var text = Text(page);
@@ -136,7 +136,7 @@ public sealed class ReplayRenderTests
     [InlineData(Villain)]
     public void EveryLineIsAttributedToTheSideThatSaidIt(string id)
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var page = Play(ctx, id);
         ShowAll(page);
 
@@ -168,7 +168,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void ARecordingStartsOnItsFirstLineAndAdvancesOnAClick()
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var page = Play(ctx, DidNotFit);
 
         Assert.Single(page.FindAll(".replay-turn"));
@@ -188,7 +188,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void TheHandOffAndTheSheetWaitUntilTheConversationIsOver()
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var page = Play(ctx, DidNotFit);
 
         Assert.Empty(page.FindAll(".sheet"));
@@ -219,7 +219,7 @@ public sealed class ReplayRenderTests
     [InlineData(Villain)]
     public void EverySpendOnThePageIsTheOneTheCalculatorAnswers(string id)
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var costs = ctx.Services.GetRequiredService<CostCalculator>();
         var page = Play(ctx, id);
         ShowAll(page);
@@ -303,7 +303,7 @@ public sealed class ReplayRenderTests
                 .Find(".replay-verdict").TextContent;
         }
 
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var costs = ctx.Services.GetRequiredService<CostCalculator>();
         var subject = Character(ctx, id);
 
@@ -331,7 +331,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void TheDraftThatDidNotFitIsShownNotFittingAndTheSettledOneIsNot()
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var page = Play(ctx, DidNotFit);
         ShowAll(page);
 
@@ -362,7 +362,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void AVillainIsNotCalledIllegalForHavingNoBudget()
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var page = Play(ctx, Villain);
         ShowAll(page);
 
@@ -415,7 +415,7 @@ public sealed class ReplayRenderTests
     [InlineData("Hero Points")]
     public void TheSheetAtTheEndCarriesTheRecordedCharactersOwnFigures(string label)
     {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
+        using var ctx = new RenderContext().AsAdministrator().With(SheetMode.Hero);
         var derived = ctx.Services.GetRequiredService<DerivedStatsCalculator>();
         var costs = ctx.Services.GetRequiredService<CostCalculator>();
 
@@ -461,7 +461,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void EveryPowerOnTheSheetPrintsTheRecordedCharactersOwnRank()
     {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
+        using var ctx = new RenderContext().AsAdministrator().With(SheetMode.Hero);
         var derived = ctx.Services.GetRequiredService<DerivedStatsCalculator>();
         var rules = ctx.Services.GetRequiredService<RulesRepository>();
 
@@ -533,7 +533,7 @@ public sealed class ReplayRenderTests
                 .Find(".sheet").TextContent;
         }
 
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var rules = ctx.Services.GetRequiredService<RulesRepository>();
         var subject = Character(ctx, printed);
         var mine = Character(ctx, visitors);
@@ -576,7 +576,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void ARanklessPowerPrintsTheStandInRankOfTheCharacterOnThePage()
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var rules = ctx.Services.GetRequiredService<RulesRepository>();
         var derived = ctx.Services.GetRequiredService<DerivedStatsCalculator>();
 
@@ -628,7 +628,7 @@ public sealed class ReplayRenderTests
     public void ARecordedCharacterIsMeasuredAgainstTheirOwnBudgetAndNotTheVisitors(
         string id, SheetMode visitorsMode, string label, string? sub)
     {
-        using var ctx = new RenderContext().With(visitorsMode);
+        using var ctx = new RenderContext().AsAdministrator().With(visitorsMode);
         var page = Play(ctx, id);
         ShowAll(page);
 
@@ -652,7 +652,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void ASheetWithAnIdTheRulesDoNotHaveStillRenders()
     {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
+        using var ctx = new RenderContext().AsAdministrator().With(SheetMode.Hero);
 
         ctx.Session.Sheet.Perks.Add(new SelectedPerk("no_such_perk"));
         ctx.Session.Sheet.Gear.Add(new SelectedGear("Something odd")
@@ -686,17 +686,17 @@ public sealed class ReplayRenderTests
     /// the budget bar over the top, reachable by anybody who capitalised a shared link.
     /// </param>
     [Theory]
-    [InlineData("replay/the-conductor")]
-    [InlineData("Replay/the-conductor")]
-    [InlineData("replay")]
+    [InlineData("admin/portfolio/replay/the-conductor")]
+    [InlineData("Admin/Portfolio/Replay/the-conductor")]
+    [InlineData("admin/portfolio/replay")]
     public void TheVisitorsOwnBudgetBarIsNotShownOverARecordedCharacter(string address)
     {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
+        using var ctx = new RenderContext().AsAdministrator().With(SheetMode.Hero);
         var nav = ctx.Services.GetRequiredService<NavigationManager>();
 
         // The wizard first, so a shell that never draws the bar at all cannot pass the half of
         // this that matters.
-        nav.NavigateTo("characteristics");
+        nav.NavigateTo("build/characteristics");
         var shell = ctx.Render<MainLayout>(p => p.Add(l => l.Body, _ => { }));
         Assert.Single(shell.FindAll(".budget"));
 
@@ -706,7 +706,7 @@ public sealed class ReplayRenderTests
         nav.NavigateTo(address);
         Assert.Empty(shell.FindAll(".budget"));
 
-        nav.NavigateTo("characteristics");
+        nav.NavigateTo("build/characteristics");
         Assert.Single(shell.FindAll(".budget"));
     }
 
@@ -720,7 +720,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void OpeningARecordedCharacterOverOneInProgressAsksFirst()
     {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
+        using var ctx = new RenderContext().AsAdministrator().With(SheetMode.Hero);
         var before = ctx.Session.Sheet.Name;
 
         var page = Play(ctx, Cheap);
@@ -739,7 +739,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void OnAnEmptySheetTheRecordedCharacterOpensOnOneClick()
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var page = Play(ctx, Cheap);
         ShowAll(page);
 
@@ -759,7 +759,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void EditingWhatWasHandedOverDoesNotChangeTheRecording()
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var page = Play(ctx, Cheap);
         ShowAll(page);
         Button(page, "Open ").Click();
@@ -780,7 +780,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void OpeningAVillainTakesThePaletteWithIt()
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var page = Play(ctx, Villain);
         ShowAll(page);
 
@@ -808,7 +808,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void TheLayoutDressesTheDocumentAsTheCharacter()
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         ctx.Session.LoadSample(SheetMode.Villain);
 
         ctx.Render<MainLayout>();
@@ -818,7 +818,7 @@ public sealed class ReplayRenderTests
 
         // The positive control: a Hero gets the other one, so this is reading the character
         // rather than reporting whatever was asked for last.
-        using var hero = new RenderContext();
+        using var hero = new RenderContext().AsAdministrator();
         hero.Session.LoadSample(SheetMode.Hero);
         hero.Render<MainLayout>();
 
@@ -837,7 +837,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void AnAddressThatNamesNoRecordingSaysSo()
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var page = ctx.Render<ReplayConversation>(p => p.Add(c => c.Id, "no-such-thing"));
 
         Assert.Contains("No such recording", Text(page), StringComparison.Ordinal);
@@ -866,7 +866,7 @@ public sealed class ReplayRenderTests
     [InlineData("Sheet-Lightning")]
     public void AnAddressReachesItsRecordingWhateverCaseItWasTypedIn(string id)
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var page = ctx.Render<ReplayConversation>(p => p.Add(c => c.Id, id));
 
         Assert.DoesNotContain("No such recording", Text(page), StringComparison.Ordinal);
@@ -887,7 +887,7 @@ public sealed class ReplayRenderTests
     public void RecordingsThatCouldNotBeLoadedAreNotReportedAsABadAddress()
     {
         const string reason = "the transcripts answered 404";
-        using var ctx = new RenderContext(reason);
+        using var ctx = new RenderContext(reason).AsAdministrator();
 
         var conversation = ctx.Render<ReplayConversation>(p => p.Add(c => c.Id, DidNotFit));
         var text = Text(conversation);
@@ -907,7 +907,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void OpeningASecondRecordingStartsItAtTheBeginning()
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var page = Play(ctx, DidNotFit);
         ShowAll(page);
 
@@ -923,7 +923,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public void TheListOffersEveryRecordingWithSomethingToTellThemApart()
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
         var page = ctx.Render<Replay>();
         var text = Text(page);
 

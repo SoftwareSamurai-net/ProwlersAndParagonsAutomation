@@ -1,10 +1,11 @@
-@page "/portfolio/replay"
-@page "/replay"
+@page "/admin/portfolio/replay"
 @inject ReplayLibrary Replays
 
 <PageTitle>Recorded conversations — Prowlers &amp; Paragons</PageTitle>
 
 <h1>Watch one being built</h1>
+
+<AdminOnly Title="One moment">
 
 @* "a costed character back" rather than "a legal one": one of these is a Villain, who is
    over the tier's points and is meant to be, because Ch.9 gives a Villain no budget. The page
@@ -38,7 +39,7 @@
             </Head>
             <ChildContent>
                 <p class="small muted">@conversation.Blurb</p>
-                <NavLink class="btn primary" href="@($"replay/{conversation.Id}")">
+                <NavLink class="btn primary" href="@($"admin/portfolio/replay/{conversation.Id}")">
                     Play it
                 </NavLink>
             </ChildContent>
@@ -64,3 +65,4 @@
         with the program.
     </p>
 </Panel>
+</AdminOnly>

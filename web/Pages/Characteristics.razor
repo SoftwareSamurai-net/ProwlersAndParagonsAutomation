@@ -1,4 +1,4 @@
-@page "/characteristics"
+@page "/build/characteristics"
 @implements IDisposable
 @inject CharacterSession Session
 @inject Commands Commands
@@ -11,7 +11,7 @@
 {
     <Panel>
         <p>Choose a tier first — it sets the budget and the Trait Cap everything here is measured against.</p>
-        <a class="btn primary" href="">Back to tiers</a>
+        <a class="btn primary" href="build">Back to tiers</a>
     </Panel>
 }
 else
@@ -56,7 +56,7 @@ else
         default:          <FlawsTab />     break;
     }
 
-    <StepButtons Back="" BackLabel="Tier" Next="gear" NextLabel="Gear" />
+    <StepButtons Back="build" BackLabel="Tier" Next="build/gear" NextLabel="Gear" />
 }
 
 @code {
