@@ -1,10 +1,23 @@
 # Handover
 
-**The palettes are done. The half of the redesign that matters is not.**
+**The redesign is done, both halves. What is left is the list at the bottom, and none of it is a
+defect.**
 
-The last slice settled light/dark × Hero/Villain into four measured token sets and gave the app
-a theme control. That was the tractable half. What the brief was actually about — *make the
-substance visible, not add decoration* — is still open and is the next slice.
+Light/dark × Hero/Villain was the tractable half and was already settled. The half the brief was
+actually about — *make the substance visible, not add decoration* — landed as an
+information-architecture change rather than as one widget: `/` is a front door offering two
+avenues, the builder is under `/build`, the whole rulebook is searchable at `/rules` behind an
+account, every option and Trait says what it is on hover, and the printed sheet is drawn beside the
+editors while you build. `PROGRESS.md` has the full account under *"A front door with two
+avenues"*.
+
+**What the previous handover asked for, and how it was answered.** It named three candidates for
+what a first screen should demonstrate — a dice roller, a live cost, a verdict — and said to take
+the choice to the owner before building. That was done and **the answer was none of the three**:
+present the avenues, with the working assumption that somebody arriving is here to build a
+character rather than to look a rule up. The reason none of them fitted is worth carrying: **`/`
+was both the first screen and step one of the wizard**, so any demonstration parked there would
+have re-opened the decision `ChooseTier.razor` already recorded when the samples were moved off it.
 
 Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this file.
 
@@ -12,15 +25,26 @@ Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this 
 
 ## Where things stand
 
-**4250 tests** — 3726 engine, 422 bUnit, 102 accounts — zero warnings at CI strictness, and a
-whole-tree Qodana scan reporting **0 findings** (measured on a clean `git archive` export, not
-assumed). Seven browser harnesses driven by headless Chrome in the build workflow. Live at
+**4303 tests** — 3730 engine, 449 bUnit, 124 accounts — measured on the `redesign-avenues` branch.
+Seven browser harnesses driven by headless Chrome in the build workflow. Live at
 **superheroes.softwaresamurai.net**.
 
-**That count was 4189 here until the reconciliation was merged**, because it was copied from one
-of the three branches while the other two each claimed a different total. Three branches all
-claiming a figure for the same tree is how this number goes stale; `PROGRESS.md`'s row is the one
-that was measured. Re-measure rather than carrying either forward.
+**Re-measure this rather than adding to it.** It has been wrong twice in a fortnight: three
+branches each claimed a different total for the same tree, and then this file copied one of them
+and carried it through a merge. Two commands, and they disagree with nothing:
+
+```bash
+dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
+./scripts/test-worker.sh
+```
+
+**A whole-tree Qodana scan reports 0**, measured on `44e8c90` — the head of this branch — from a
+report that exists rather than from an exit code. It got there by being run three times: 23 on the
+first pass, all in code this slice added; 2 after fixing them; 0 after the last two.
+
+**Do not repeat that zero without re-running `./scripts/qodana-scan.sh`**, which is a rule this
+repository has broken twice. It needs Docker Desktop running; without it the script exits non-zero
+saying so, rather than reporting a clean scan of nothing.
 
 **Sign-in works end to end, and that sentence has never been true before.** A link was requested
 on the live site, arrived, and signed somebody in. Every handover before this one said the same
@@ -53,106 +77,114 @@ per-browser, not on `CharacterSheet` and not on the account.
 
 ---
 
-## The next slice: make the substance visible
+## The redesign, and what it settled
 
-### The gap, restated
+[pnpready.com](https://www.pnpready.com/) was the comparison and the reading of it in the previous
+handover was right about the diagnosis and wrong about the remedy, in an instructive way.
 
-[pnpready.com](https://www.pnpready.com/) is the comparison and it is still worth studying. The
-difference is not colour and never was:
+The diagnosis: **they demonstrate the mechanic and we described features**, and **numbers are
+design material** — this app computes Edge, Health, Resolve and a Hero Point total that are the
+whole point of it, and set them at the same size as a sentence.
 
-1. **They demonstrate the mechanic; we describe features.** Their landing page rolls six dice,
-   colours each by what it contributes, lays the arithmetic out as a formula in large numerals,
-   and tags the outcome band with *"YOU'RE HERE"*. Then offers **Roll Again**. A reader learns how
-   the game works by touching it. Our equivalent surface is a paragraph about tiers.
-2. **Numbers are design material.** This app computes Edge, Health, Resolve and a Hero Point total
-   that are the whole point of it, and sets them at the same size as a sentence. Their one
-   headline is **128px**; our largest type is `--text-3xl` at 2.15rem. The `.hp` treatment
-   deliberately makes costs *quieter* — right for a printed form, wrong for a screen where the
-   total is the thing the player is watching.
-3. **Our real advantages are invisible in the first screen** — an engine verified against the book
-   field by field, a validator that names the rule you broke, a replay of real conversations, a
-   printed sheet modelled on the published one, an MCP server.
+The remedy it proposed was a demonstration on the first screen, and it offered three candidates —
+a dice roller, a live cost, a verdict. **The owner chose none of them.** What was actually wrong
+with the first screen was not that it failed to demonstrate: it was that `/` was *step one of the
+wizard*, so a visitor who had not decided what they came for was already inside a job. The site
+does two things and only one of them was reachable without knowing the address of the other.
 
-**One correction to the previous handover's reading of that site.** Its *app* palette is light —
-`--color-background: oklch(98.47% .002 247.84)` — and only the marketing page sits on the
-near-black navy. Do not take "they went dark" as the lesson; the lesson is the numerals and the
-demonstration.
+So the answer was to present the avenues, and to let the figures do the work the demonstration was
+meant to do: the front door's numerals are the engine's — 141 Powers off the loaded rules, the
+spend off the same `TryCost` the budget strip calls — at the same size and in the same ink as the
+four derived stats. Nothing on that page is typed in.
 
-### Where to start
+**One correction to the previous handover's reading of that site, still worth keeping.** Its *app*
+palette is light — `--color-background: oklch(98.47% .002 247.84)` — and only the marketing page
+sits on the near-black navy. Do not take "they went dark" as the lesson.
 
-**The Hero Point budget was the strongest candidate and a first pass on it is done** — see
-"The Hero Point budget becomes the hero moment" in `PROGRESS.md`. The sticky strip's spend figure
-is now the app's largest numeral (`--text-3xl`, matching the four figures on the derived-stats
-step and the sheet) rather than a step behind them, set in `--heading` rather than plain ink; the
-breakdown disclosure draws each of the six categories as a proportional meter on the same
-`--accent`/`--panel-sunk` pair the sticky rail already uses, so a reader sees where the points
-went rather than only reading six numbers. **This did not touch the animation** — `ppCount` and
-the count-up behaviour are unchanged, and the `ppCount` rule in `CLAUDE.md` still applies to
-anything that does.
+### What is now true that was not
 
-**What is still open, and is the larger half of "make the substance visible":** a first screen
-that demonstrates the mechanic rather than describing it — the tier page (`/`) is still six cards
-of description, and the budget strip only exists once a tier is chosen, so it cannot be that
-first demonstration on its own. Then `docs/FRONT-END-PLAN.md` — Phase 3's last two items
-(validation on the row where the mistake is made, and undo) and Phase 4, the sheet as a live
-preview column. **Phase 4 overlaps this heavily; do not do them separately.**
+- **`/` is a front door**, `/build` is the six creation steps, `/rules` is the reference, `/admin`
+  holds the account pages and the portfolio. `Areas.Of` decides every band of chrome from the first
+  segment, and an unrouted address falls to the front door rather than to the builder.
+- **The whole rulebook is searchable behind an account**, cited by printed page. All ten chapters
+  are baked into the worker; the entitlement question that blocked this is settled.
+- **Hovering an option or a Trait says what it is.** The descriptions were in `data/rules` the
+  whole time with nothing showing them.
+- **The sheet is drawn beside the editors** on the characteristics step above 1500px.
 
-### What the slice must not break
+### What the next session should know before touching any of it
 
-Every one is asserted, and all are load-bearing:
+- **`SheetView` only redraws because it subscribes**, and it subscribes only when it is showing the
+  session's own character. It takes no parameter that changes, so Blazor skips it otherwise. If a
+  sheet ever looks stale, that is the first place to look — and if you make it subscribe
+  unconditionally you will tie a recorded character to the visitor's edits, which the replay guard
+  will catch and which is worth understanding before you fight it.
+- **The portfolio gate is a front door rather than a lock**, and the honest sentence for that is in
+  `CLAUDE.md`. The transcripts are still ordinary files under `wwwroot`. Making it real means
+  serving them from the worker as the rulebook is — which would also take four fetches out of every
+  visitor's startup — and is a refactor of `ReplayLibrary.LoadAsync` and `Program.cs`. It is the
+  cleanest small piece of work left.
+- **The old `/portfolio` and `/replay` addresses 404 now**, deliberately. The content is
+  account-gated, so a public link that still worked would be the wrong answer.
+- **The search's honesty flags say how results matched, never what to conclude.** `found: 0` is the
+  only answer meaning the book is silent. The first version of the MCP Power search got this exactly
+  wrong and told a reader the rulebook had nothing while a dozen real passages sat under the
+  sentence. Read `worker/search.js`'s header before changing the matching.
+- **The baker's sentence proves something narrower here than it does in the MCP server**, and the
+  first version of that comment claimed the wider thing. Over there it finds nothing; here it finds
+  twenty-one real passages, because "city" is a word the book uses. What must not happen is that it
+  reaches **Plasticity**.
 
-- **No component names a colour, a typeface, or a raw length.** `app.css` may not declare a custom
-  property at all.
-- **Four palettes now, not two.** `EveryScreenPairInUseHoldsItsContrastFloor` is a `[Theory]` over
-  all four and measures real WCAG ratios, resolving `var()` and `color-mix()`. **Add the row and
-  let the test tell you** — do not adjust by eye, do not weaken a floor. If a new surface puts two
-  tokens together that no rule currently does, that pair is unasserted until you add it;
-  `--muted` on `--accent-soft` is the obvious one.
-- **`--primary` is a fill and `--heading` is text.** Villain `--primary` is 2.0:1 on its surface.
-- **The print stylesheet stays white paper and dark ink in all four**, and the guard for it
-  resolves the whole cascade rather than reading the print block. See below.
-- **`prefers-reduced-motion` turns every animation off** via three duration tokens at `0.01ms`.
-- **The sheet still prints on one page.** Judge it by the PDF, never the screen.
+### What is left, in the order I would take it
+
+1. **Phase 3's validation-on-the-row**, from `docs/FRONT-END-PLAN.md`. The largest remaining item
+   and the one a player would feel: the engine answers continuously and the findings still only
+   surface at GM review. Note that the rows now have somewhere to put it — every option row and
+   every Trait row grew an `aria-describedby` target — but a rule you have broken must be *visible*
+   and not hover-only.
+2. **Phase 3's undo.** Three buttons can still destroy twenty minutes behind a confirm.
+3. **Serving the transcripts from the worker**, which turns the portfolio's front door into a lock
+   and shrinks the startup fetch. Small and self-contained.
+4. **Visual regression testing.** The gap was already acute at four palettes and this slice added
+   three whole screens. Golden PNGs of the proof pages with a per-pixel tolerance would close it;
+   the fonts are self-hosted and CI already drives Chrome at a fixed viewport. **Generate the
+   goldens in CI on Linux, never from a Windows run** — antialiasing differs.
+
+### Still open from before, unchanged
+
+- **`.shell` spaces its children by `.panel`'s `margin-bottom`**, so any non-panel child gets no
+  spacing. The real fix is a `gap` on `.shell` with the margin removed, but `.shell` also holds the
+  sticky budget strip, so it needs proofing on every route.
+- **No `aria-live` anywhere**, so crossing into over-budget is announced to nobody. If you add one
+  it must go on a sibling summary, **never** on `.budget-figure strong`, which `ppCount` rewrites up
+  to 60×/s.
+- **Screen-reader testing is owed** on the command palette, the pips, the sign-in page, the
+  light/dark control — and now on the row descriptions and the rules search. `aria-pressed` asserted
+  as the string `"true"` is not the same as having been listened to.
+- **Home and End on a rank slider also scroll the document.** The fix is a small interop shim.
 
 ### What this slice learned, that the next one needs
 
-- **`@media` contributes nothing to specificity, and that nearly shipped a bug.** A dark palette
-  block guarded by `:not([data-theme="light"])` is (0,3,0); the print block is (0,2,0). Left
-  unscoped the dark blocks would have outranked print, and a reader in dark mode would have
-  printed a full-bleed near-black page — with every existing guard green. `@media screen` on the
-  dark half is the fix. **If you add a screen rule that print must override, check the
-  specificity, not the source order.**
-- **A guard that has never failed is a claim.** The cascade-resolving replacement for that guard
-  applied rules in *source order* and passed with the bug re-introduced. It weighs specificity
-  now. An earlier, wider mutation had appeared to catch it and had not — it tripped the
-  resolver's refusal to model an unknown at-rule, which reads exactly like a catch.
-- **A C# guard cannot see a JavaScript property.** Deleting the `localStorage.setItem` from
-  `theme.js` — so the theme is forgotten on reload — left all 4,115 tests green. Anything whose
-  substance is in a script needs a browser harness; there are seven now.
-- **Copy answers what the reader came to do.** Four places explained the app to a developer and
-  the owner found all four by reading it, not by any test. The rule and its two guards are in
-  `CLAUDE.md`; the short version is that design rationale goes in a `@* *@` comment.
-- **Headless Chrome here reports `prefers-color-scheme: dark`**, so an un-stamped proof page
-  renders the dark palette. Force `data-theme="light"` on the harness to judge a light one.
+- **A guard shaped by the code rather than by the claim is a guard that gets worked around.** Three
+  were widened here: the contract scanner required `searchParams.get('field')` *on the expression*,
+  so hoisting the parameters into a local reported a field the server plainly reads as unread;
+  `NoScreenCalcNamesARawLength` refused `100vh`, which names the container exactly as `100%` does;
+  and the corpus sync test asserted exactly one chapter. **Widen to the claim, and pin the
+  exemption as narrowly as the claim allows** — the `calc` exemption is on the figure 100, not on
+  the unit, and `37svh` is still refused. Watched, both ways.
+- **Three faults were found by looking at a screenshot and by nothing else.** A dotted underline
+  drawn in `--rule` is invisible under a word — and it was the only marking on a control. A CSS
+  comment claimed the preview keeps the sheet's three columns and it does not. Search results sat
+  unframed between two panels. Every rendering test passed through all three.
+- **A component can look live and not be.** See `SheetView` above. The tab strip beside it was
+  updating, which is what made it read as working.
+- **`display: none` and `visibility: hidden` are not interchangeable for an absolutely-positioned
+  tip.** The precedent was already recorded on `AClosedTipTakesNoLayoutBox` and it applied here
+  unchanged: a hidden element keeps its box.
+- **A `sed` pattern containing `||` will be split by the shell** and the tail redirected into a
+  file named after the fragment. It happened here, the file was committed, and it took a second
+  commit to remove. Use an exact-match editing tool for anything with shell metacharacters in it.
 
-### Known gaps that belong to this slice
-
-- **`.shell` spaces its children by `.panel`'s `margin-bottom`**, so any non-panel child gets no
-  spacing. The real fix is a `gap` on `.shell` with the margin removed, but `.shell` also holds
-  the sticky budget strip, so it needs proofing on every route.
-- **No visual regression testing**, and this slice makes that gap acute — four palettes now, and
-  every screenshot is judged by eye. Golden PNGs of the proof pages with a per-pixel tolerance
-  would close it; the fonts are self-hosted and CI already drives Chrome at a fixed viewport.
-  **Generate the goldens in CI on Linux, never from a Windows run** — antialiasing differs.
-- **No `aria-live` anywhere**, so crossing into over-budget is announced to nobody. If you add one
-  it must go on a sibling summary, **never** on `.budget-figure strong`, which `ppCount` rewrites
-  up to 60×/s.
-- **Screen-reader testing is owed** on the command palette, the pips, the sign-in page and now the
-  light/dark control. `aria-pressed` asserted as the string `"true"` is not the same as having
-  been listened to.
-- **Home and End on a rank slider also scroll the document.** The fix is a small interop shim.
-
----
 
 ## Error reporting: two audiences, one failure
 
@@ -265,11 +297,22 @@ repository already uses:
 
 ---
 
-## The strongest feature idea on the table: a searchable rules index
+## The searchable rules index — **built**
 
-Raised by the owner, and it is worth its own slice because **the data is already extracted and
-nobody is reading it.** `data/rulebook/` holds the printed text of all ten chapters with the page
-each section came from, generated by `tools/RulebookExtractor` and guarded by tests. Today it is
+> **Done, and the reasoning below is kept because it is the reasoning.** It shipped inside the
+> redesign rather than as a slice of its own, because the front door had to offer it somewhere. All
+> ten chapters, `worker/search.js`, `/rules`, cited by printed page. Every constraint below is now
+> load-bearing on shipped code — especially "search that admits when it found nothing", which is
+> the whole design of the honesty flags.
+>
+> **Two of its predictions were wrong and are corrected in place below.** The entitlement decision
+> was taken (an account may read the book, and the restrictions on shipping the rulebook text and
+> the published characters are lifted). And the baker's sentence does *not* transfer as stated —
+> see the correction under "Search that admits when it found nothing".
+
+Raised by the owner, and it was worth its own slice because **the data was already extracted and
+nobody was reading it.** `data/rulebook/` holds the printed text of all ten chapters with the page
+each section came from, generated by `tools/RulebookExtractor` and guarded by tests. It was
 served one entry at a time, Chapter 2 only, beside a Power in the editor.
 
 Why it is the strongest candidate:
@@ -289,14 +332,27 @@ What a slice would actually involve:
 - **A decision about entitlement first, not last.** Serving all ten chapters to any account is a
   different thing from serving Chapter 2 beside a Power. The corpus is the book's text, held here
   by the author's permission to the repository owner — so who may read how much of it is the
-  owner's call and should be settled before any UI exists.
+  owner's call and should be settled before any UI exists. **Taken: an account may read the book,
+  and the restrictions on shipping the rulebook text and the published characters are lifted.** It
+  was asked as a blocking question and answered in one line, which is what that item was for.
 - **Search that admits when it found nothing.** `search_powers` in the MCP server already solved
   the harder version of this problem and the reasoning transfers directly: matching is word by
   word with a shared-prefix rule rather than by substring, because substring matching answered
   *"she bakes bread in the city"* with **Plasticity** — and a wrong match that looks plausible is
   worse than no match. Read `Mentions` and its tests before writing a second search.
+
+  **The rule transfers; the test for it does not, and assuming otherwise put a false claim in the
+  new file's header for one commit.** Over there the baker's sentence finds *nothing*, because the
+  haystack is 141 short Power entries. Here it is the whole book, where "city" is a word the text
+  genuinely uses — *City of Heroes* in the introduction, "a city, forest, jungle" in Attuned:
+  **twenty-one real matches, measured**. The property to pin is that the sentence must not reach
+  Plasticity, with the positive control beside it.
 - **Index server-side, not in the browser.** The corpus is ~250KB for one chapter; ten chapters
-  in the WebAssembly payload is not viable and would also put the book on the open web.
+  in the WebAssembly payload is not viable and would also put the book on the open web. **Measured
+  as built: 725KB baked into the worker, 224KB gzipped**, well inside the limit — and the index is
+  constructed on the first search rather than at module load, because a Worker's startup CPU budget
+  is not a thing to spend walking three quarters of a megabyte of prose for a request that may
+  never ask a question.
 - **Cite the page.** Every section carries its printed page number. A rules answer that names
   "Ch.2 p.29" is checkable against the book on the table; one that does not is a claim.
 
@@ -311,8 +367,10 @@ What a slice would actually involve:
 - **The payload is ~27 MiB uncompressed** because trimming is off: `RulesRepository`
   deserializes by reflection and the trimmer can quietly remove model properties, leaving the
   site running on empty rules. See `PROGRESS.md` item 5.
-- **The rulebook reader serves Chapter 2 only.** Adding a chapter is one line in
-  `scripts/inline-rulebook.mjs` and a decision about what an account is entitled to read.
+- ~~**The rulebook reader serves Chapter 2 only.**~~ **Closed.** All ten, and
+  `scripts/inline-rulebook.mjs` reads the directory rather than naming files — with a test that it
+  names none, because a filename there is a list that goes stale the first time a chapter is added
+  and the failure is a chapter silently missing from the search.
 
 ---
 
@@ -334,3 +392,23 @@ What a slice would actually involve:
 - **Reality beats the docs.** Six files claimed the site was at `pp.softwaresamurai.net` and that
   the domain was "not attached yet". It has been `superheroes.softwaresamurai.net` for some time.
   When a screenshot and a document disagree, update the document.
+- **A confident paragraph in this repository can cost more than no paragraph at all.**
+  `PROGRESS.md` item 8 argued that a bad API key answers `401`/`403` and therefore could not be
+  the cause of a `400`. Every sentence was defensible, the conclusion was wrong, and the variable
+  it pointed at was re-entered twice with a deploy each time. The provider answers
+  `name: validation_error` for a bad key *and* a bad field, at different statuses. **When a
+  document rules a cause out, check what that ruling rests on before you spend a cycle acting on
+  it** — and prefer an instrument that observes over an argument that eliminates.
+- **A diagnostic that builds its own version of the payload can agree with the bug.** A
+  hand-written probe reproduced the exact provider error for an entirely different reason and read
+  as a confirmation. `scripts/probe-mail.mjs` imports the real builder for this reason, and two
+  tests keep it that way.
+- **"The secret exists" is not "the secret is right".** `wrangler pages secret list` shows names
+  and never values, which rules out one cause and reads like it rules out four.
+- **Do not write a test fixture at the path the real file lives at.** A throwaway `.dev.vars` in
+  the repository root overwrote the owner's, and the tidy-up `rm` finished it. It is gitignored:
+  no reflog, no stash, nothing to recover, and the provider will not show a key twice. `ls` the
+  target before any `>`, `rm` or `mv`, and put scratch files somewhere that is not the repository.
+  In the same session a `sed -i` delete whose paired insert failed removed 45 lines of
+  `PROGRESS.md` in silence — **a shell redirect is not an editing tool**, and a two-step edit
+  where step one destroys is a two-step edit that needs step two to be checked.

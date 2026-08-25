@@ -1,0 +1,119 @@
+@page "/"
+@inject CharacterSession Session
+@inject RulebookReader Rulebook
+
+@* The front door: what this site does, and a way into each of it.
+
+   **It is a chooser and not a step, which is why the shell draws no numbered steps above it.**
+   Six creation steps with one of them marked current, above a page asking which of two things you
+   came for, answer a question the reader has not been asked yet.
+
+   **Every figure on it is the engine's or the server's, and none is typed here.** That is the
+   claim the whole site rests on — the counts are read off the rules the app is running, and the
+   spend beside a character in progress is the same call the budget strip makes. A figure written
+   into this file would be the one number on the site nobody had checked. *@
+
+<PageTitle>Prowlers &amp; Paragons</PageTitle>
+
+<h1>Prowlers &amp; Paragons</h1>
+<p class="muted">
+    Make a character, or look a rule up. Both work from the same rules, checked entry by entry
+    against the book.
+</p>
+
+<div class="avenues">
+    @* The builder first and drawn large, because that is what somebody arriving here is
+       overwhelmingly here to do. Looking a rule up is the thing you come back for. *@
+    <section class="avenue lead" aria-labelledby="avenue-build">
+        <h2 id="avenue-build">Build a character</h2>
+
+        @if (Resuming)
+        {
+            @* The spend, when the engine can give one. A half-chosen Power — a variable cost
+               with no variant yet — is a question the engine refuses rather than guesses at,
+               and the honest front door for that character is its name and no figure. *@
+            @if (CharacterSession.TryCost(() => Session.Spent) is { } spent)
+            {
+                <p class="figure">
+                    <strong>@spent</strong>
+                    <span class="figure-label">@Carried</span>
+                </p>
+            }
+            <p>
+                @Named is on the sheet, at @Tier. Pick up where you left off.
+            </p>
+            <NavLink class="btn primary" href="@Commands.FirstStep">Carry on building</NavLink>
+        }
+        else
+        {
+            <p class="figure">
+                <strong>@Session.Rules.Powers.Count</strong>
+                <span class="figure-label">Powers to choose from</span>
+            </p>
+            <p>
+                Choose a tier, buy Abilities, Talents and Powers against its Hero Point budget,
+                and print a sheet at the end. Every cost and every Trait Cap is worked out as
+                you go, in this browser.
+            </p>
+            <NavLink class="btn primary" href="@Commands.FirstStep">Start a character</NavLink>
+        }
+    </section>
+
+    <section class="avenue" aria-labelledby="avenue-rules">
+        <h2 id="avenue-rules">Rules reference</h2>
+
+        @if (_sections is { } count)
+        {
+            <p class="figure">
+                <strong>@count</strong>
+                <span class="figure-label">entries, cited by printed page</span>
+            </p>
+            <p>
+                Search the book by what you half-remember. Every answer carries the page it came
+                from, so you can check it against the copy on the table.
+            </p>
+            <NavLink class="btn primary" href="rules">Search the rules</NavLink>
+        }
+        else
+        {
+            <p>
+                Search the book by what you half-remember, and get the page it came from. This
+                part needs an account.
+            </p>
+            <NavLink class="btn" href="signin">Sign in</NavLink>
+        }
+    </section>
+</div>
+
+@code {
+    /// <summary>
+    /// How many entries the reader may search, or nothing if this account may not.
+    ///
+    /// <para>Asked of the server rather than counted here, for the reason the whole store is
+    /// bundled into it: what is readable is the server's answer, and a count kept on this side
+    /// would be a second one that could disagree with it.</para>
+    /// </summary>
+    private int? _sections;
+
+    protected override async Task OnInitializedAsync() => _sections = await Rulebook.CountAsync();
+
+    /// <summary>Whether there is a character here already, rather than an empty sheet.</summary>
+    private bool Resuming => Session.HasSomethingToLose;
+
+    private string Named =>
+        string.IsNullOrWhiteSpace(Session.Sheet.Name) ? "A character" : Session.Sheet.Name;
+
+    private string Tier =>
+        Session.Sheet.SelectedTierId is { } id && Session.Rules.GetTier(id) is { } tier
+            ? tier.Name
+            : "no tier yet";
+
+    /// <summary>
+    /// What the big figure beside a character in progress means. It is a spend, and whether
+    /// there is a limit to say it against is the character's own answer — the same one the
+    /// budget strip asks, so the two cannot say different things about one character.
+    /// </summary>
+    private string Carried => Session.ShowBudget && Session.Budget > 0
+        ? $"of {Session.Budget} Hero Points spent"
+        : "Hero Points spent";
+}

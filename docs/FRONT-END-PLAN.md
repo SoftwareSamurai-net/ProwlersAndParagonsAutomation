@@ -140,6 +140,11 @@ Where the app stops feeling like a document and starts feeling like a tool.
   keeping focus — currently every list is mouse-only in practice.
 - **Validation where the mistake is made.** The engine already answers continuously; the
   findings only surface at GM review. A Trait over the cap should say so on its own row.
+  **Still open, and it is now the largest remaining item on this plan.** Note that the row already
+  has somewhere to put it: the description-on-hover work gave every option row and every Trait row
+  a `aria-describedby` target and a tip container, and a finding is the same shape of thing —
+  though a rule you have broken must be *visible*, not hover-only, since WCAG is explicit that
+  anything carried only by a tooltip is information some readers do not get.
 - **Undo.** Three buttons on the tier page can destroy twenty minutes and are guarded by a
   confirm; a single-level undo is friendlier and less interrupting than a dialogue.
 
@@ -148,22 +153,32 @@ surfaces and need real keyboard and screen-reader testing, not just bUnit.**
 
 ---
 
-## Phase 4 — the sheet as the reward, not the exit
+## Phase 4 — the sheet as the reward, not the exit — **done**
 
-**Phase 1's fourth item ends up here**, because the two are one job: the wide-screen grid and the
-thing to put in its second column. Doing it means widening `--column` above some breakpoint, which
-every band follows automatically — the shell and the three chrome columns all cap on that one
-token and a test holds them together — but it also widens the sheet and the replay, so decide
-that deliberately rather than as a side effect.
+**Phase 1's fourth item ended up here**, because the two are one job: the wide-screen grid and the
+thing to put in its second column. `PROGRESS.md` has the account. Four things a later phase needs
+to know:
 
+- **`--column` widens on the token at 1500px**, so all five bands follow it — the shell, the
+  banner, the step list, the budget strip and the breakdown. Widening the shell alone would leave
+  four bands at the old figure and read as columns that nearly line up, which the existing
+  agreement test would not have caught. It widens the sheet and the recordings too; that was
+  decided rather than allowed to happen.
+- **"Nearly free" was wrong, and the reason is worth carrying.** `SheetView` does take a character
+  and does render from the session — and it **did not redraw**. It has no parameter that changes,
+  so Blazor has nothing to compare and skips it when the parent re-renders. Measured, with the tab
+  strip above it reporting one Power beside a sheet still drawing twelve blank rules. It was
+  invisible because the only sheet on screen was the review step's, where the character is finished
+  before anybody looks.
+- **The render-cost warning was right and was answered by placement rather than by throttling.**
+  The preview is on the characteristics step alone: the ranks are steppers and the lists are
+  pickers, so the sheet redraws on a choice. The finishing step is where the free text is and has
+  none.
+- **It reflows to fewer columns in the preview**, and that is right rather than a shortfall. The
+  three-column arrangement is a fact about the paper.
 
-The printed sheet is the deliverable and it appears only at the end, behind six steps. On a
-wide screen it should be visible *while* building — a live preview column that updates as the
-character does. This is nearly free: `SheetView` already takes a character and already renders
-from the session, and there is exactly one sheet component by design.
-
-**Cost: half a slice. Risk: low, but watch the render cost — the sheet re-renders on every
-keystroke unless it is throttled.**
+**Cost: as estimated, once the routing work it sat behind was done. Risk: was low; the one real
+hazard was a component that looked live and was not.**
 
 ---
 

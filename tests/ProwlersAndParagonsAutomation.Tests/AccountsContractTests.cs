@@ -222,9 +222,15 @@ public sealed class AccountsContractTests
 
         var server = ServerSource();
 
+        // **`.get('field')` on anything, not `searchParams.get('field')` on the expression.** The
+        // stricter spelling did not check that the server reads the field, it checked that the
+        // server reads it *without naming the search parameters first* — so hoisting
+        // `new URL(request.url).searchParams` into a local, which a handler reading two parameters
+        // wants to do, reported a field the server plainly reads as unread. A guard that dictates
+        // the shape of the code it inspects is a guard that gets worked around rather than fixed.
         var unread = sends
             .Where(field => !server.Contains($"value?.{field}", StringComparison.Ordinal)
-                         && !server.Contains($"searchParams.get('{field}')", StringComparison.Ordinal))
+                         && !server.Contains($".get('{field}')", StringComparison.Ordinal))
             .ToList();
 
         Assert.True(unread.Count == 0,

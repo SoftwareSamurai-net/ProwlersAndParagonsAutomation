@@ -103,6 +103,7 @@ else
             {
                 <OptionRow Name="@power.Name"
                            Caveat="@PowerFormatter.StatLine(power)"
+                           Description="@power.Description"
                            Cost="@power.Category"
                            Keywords="@power.Tags"
                            OnSelect="() => Add(power)">

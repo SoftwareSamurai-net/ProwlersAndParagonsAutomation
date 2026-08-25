@@ -122,6 +122,21 @@ public sealed class RenderContext : BunitContext
         return this;
     }
 
+    /// <summary>
+    /// Sign in as somebody who looks after the site, which is who the demonstrations are for now.
+    ///
+    /// <para><b>The recordings and the two samples moved behind the account pages</b>, so a test
+    /// that renders one has to be the person who can see it or it renders a refusal. That is the
+    /// gate working; asserting on the refusal by accident is the failure to avoid, which is why
+    /// this is a named step a test takes rather than a default the context applies.</para>
+    /// </summary>
+    public RenderContext AsAdministrator()
+    {
+        Api.SignedIn = ("acct_administrator", "Someone");
+        Api.ManagesInvitations = true;
+        return this;
+    }
+
     private static string RepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

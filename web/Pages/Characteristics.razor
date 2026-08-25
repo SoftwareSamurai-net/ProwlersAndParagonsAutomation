@@ -1,4 +1,4 @@
-@page "/characteristics"
+@page "/build/characteristics"
 @implements IDisposable
 @inject CharacterSession Session
 @inject Commands Commands
@@ -11,7 +11,7 @@
 {
     <Panel>
         <p>Choose a tier first — it sets the budget and the Trait Cap everything here is measured against.</p>
-        <a class="btn primary" href="">Back to tiers</a>
+        <a class="btn primary" href="build">Back to tiers</a>
     </Panel>
 }
 else
@@ -45,18 +45,49 @@ else
         }
     </div>
 
-    @switch (_tab)
-    {
-        @* No semicolon after the component: Razor renders it as a statement already, and
-           adding one emits an empty statement into the generated code. *@
-        case "abilities": <AbilitiesTab /> break;
-        case "talents":   <TalentsTab />   break;
-        case "powers":    <PowersTab />    break;
-        case "perks":     <PerksTab />     break;
-        default:          <FlawsTab />     break;
-    }
+    @* The editors, and the sheet they are filling in, side by side where there is room.
 
-    <StepButtons Back="" BackLabel="Tier" Next="gear" NextLabel="Gear" />
+       **The printed sheet is the deliverable and it used to appear only at the end, behind six
+       steps.** Somebody choosing a Power had no way to see what it did to the thing they are
+       making until they had finished making it. There is exactly one sheet component by design,
+       so this is the same `SheetView` the review step and the recordings render — not a
+       preview-shaped twin that could drift from it.
+
+       **The second column exists only where it has room to be a sheet rather than a squeeze**,
+       which is what the widened column above the breakpoint is for; below it the aside falls
+       under the editors in ordinary source order and nothing else changes.
+
+       **It is on this step alone, deliberately.** This is where the character is actually built
+       and nothing here types into the character letter by letter — the ranks are steppers and
+       the lists are pickers, so the sheet redraws on a choice rather than on a keystroke. The
+       finishing step is where the free text is, and putting a whole sheet behind every keypress
+       there is the render cost `docs/FRONT-END-PLAN.md` warns about. *@
+    <div class="with-preview">
+        <div class="editing">
+            @switch (_tab)
+            {
+                @* No semicolon after the component: Razor renders it as a statement already, and
+                   adding one emits an empty statement into the generated code. *@
+                case "abilities": <AbilitiesTab /> break;
+                case "talents":   <TalentsTab />   break;
+                case "powers":    <PowersTab />    break;
+                case "perks":     <PerksTab />     break;
+                default:          <FlawsTab />     break;
+            }
+
+            <StepButtons Back="build" BackLabel="Tier" Next="build/gear" NextLabel="Gear" />
+        </div>
+
+        @* `aria-label` rather than a heading, because a heading here would announce itself as a
+           seventh section of a step that has five. It is complementary content: the same
+           character, drawn as it will print. *@
+        @* No `Character` and no `ShowBudget`: both default to the session, which is the
+           visitor's own character. Passing them is for printing somebody else's — a recording —
+           where whether *that* one is held to a budget has nothing to do with this visitor. *@
+        <aside class="preview" aria-label="The sheet as it stands">
+            <SheetView />
+        </aside>
+    </div>
 }
 
 @code {

@@ -84,14 +84,26 @@ test('the inlined rulebook is in step with data/rulebook/', async () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const repo = join(here, '..', '..');
 
-    const source = JSON.parse(
-        await readFile(join(repo, 'data', 'rulebook', 'ch02-characters.json'), 'utf8'));
+    const { readdir } = await import('node:fs/promises');
+
+    const from = join(repo, 'data', 'rulebook');
+    const names = (await readdir(from)).filter(n => n.endsWith('.json')).sort();
+
+    const onDisk = [];
+    for (const name of names) onDisk.push(JSON.parse(await readFile(join(from, name), 'utf8')));
 
     const { CHAPTERS } = await import('../../worker/corpus.js');
 
-    assert.equal(CHAPTERS.length, 1);
-    assert.deepEqual(CHAPTERS[0], source,
-        'worker/corpus.js is out of step with data/rulebook/ch02-characters.json. '
+    // **Every chapter, not a sample of them.** A bake that dropped one would leave the search
+    // quietly unable to answer a whole chapter's questions, which reads exactly like the book not
+    // covering the subject. The count is asserted separately from the contents so that a missing
+    // chapter says so rather than arriving as a diff of fifteen hundred sections.
+    assert.equal(CHAPTERS.length, onDisk.length,
+        `worker/corpus.js holds ${CHAPTERS.length} chapters and data/rulebook/ has ${onDisk.length}. `
+        + 'Re-run: node scripts/inline-rulebook.mjs');
+
+    assert.deepEqual(CHAPTERS, onDisk,
+        'worker/corpus.js is out of step with data/rulebook/. '
         + 'Re-run: node scripts/inline-rulebook.mjs');
 });
 

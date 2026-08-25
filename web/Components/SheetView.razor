@@ -1,3 +1,4 @@
+@implements IDisposable
 @inject CharacterSession Session
 
 @* The character sheet, laid out the way the published Ultimate Edition Hero Sheet is:
@@ -336,6 +337,31 @@
     [Parameter] public bool? ShowBudget { get; set; }
 
     private CharacterSheet Sheet => Character ?? Session.Sheet;
+
+    /// <summary>
+    /// Redraw when the character being built changes.
+    ///
+    /// <para><b>Nothing else can make this component notice.</b> It reads the session and takes
+    /// no parameter that changes, so Blazor has nothing to compare and skips it when the parent
+    /// re-renders — measured, not assumed: the step above it redrew its tab strip to "Powers 1"
+    /// while the sheet beside it still showed twelve blank rules. That was invisible while the
+    /// only sheet on screen was the review step's, where the character is finished by the time
+    /// anybody looks.</para>
+    ///
+    /// <para><b>Only when this is the session's own character.</b> A recording is handed over as
+    /// a parameter and is fixed for the life of the render; subscribing there would tie a
+    /// recorded sheet to the visitor's own edits, which is the exact influence the replay guard
+    /// renders two pages to forbid.</para>
+    /// </summary>
+    protected override void OnInitialized()
+    {
+        if (Character is null) Session.Changed += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        if (Character is null) Session.Changed -= StateHasChanged;
+    }
 
     /// <summary>
     /// A Hero Point figure, or a dash. Every other cost on this sheet already went through

@@ -193,6 +193,9 @@ public sealed class FakeApi : HttpMessageHandler
                 Character(request, p["/api/characters/".Length..]),
 
             "/api/rulebook/power" => Entry(request),
+            "/api/rulebook/contents" => Contents(),
+            "/api/rulebook/search" => Found(request),
+            "/api/rulebook/passage" => Passage(request),
 
             "/api/admin/invitations" => InvitationList(request),
             var p when p.StartsWith("/api/admin/invitations/", StringComparison.Ordinal) =>
@@ -344,6 +347,126 @@ public sealed class FakeApi : HttpMessageHandler
                 """)
             : Status(HttpStatusCode.NotFound);
     }
+
+    /// <summary>
+    /// What there is to read, or 401.
+    ///
+    /// <para><b>Not a second search.</b> What the matching rule does — that "city" must not reach
+    /// Plasticity, that a heading beats a mention — is tested against the real code in
+    /// <c>tests/worker</c>, over the real corpus. What is tested on this side is how the page
+    /// behaves when the server answers, refuses, or is not there, so this only has to produce
+    /// those answers.</para>
+    /// </summary>
+    private Task<HttpResponseMessage> Contents()
+    {
+        if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
+
+        var rows = Chapters.Select(c => $$"""
+            {"chapter":{{c.Number}},"title":{{Quote(c.Title)}},"printedPages":[1,2],
+             "sourceRef":{{Quote($"Ultimate Edition, Ch.{c.Number} {c.Title}, pp.1-2")}},
+             "sections":{{c.Passages.Count}}}
+            """);
+
+        return Json($$"""
+            {"chapters":[{{string.Join(",", rows)}}],
+             "sections":{{Chapters.Sum(c => c.Passages.Count)}}}
+            """);
+    }
+
+    /// <summary>What a search answers, or 401. Matching is a plain word test — see above.</summary>
+    private Task<HttpResponseMessage> Found(HttpRequestMessage request)
+    {
+        if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
+
+        var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query)["q"];
+        if (query is null) return Status(HttpStatusCode.BadRequest);
+
+        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length > 2)
+            .Select(w => w.ToLowerInvariant())
+            .ToList();
+
+        var hits = Chapters
+            .SelectMany(c => c.Passages.Select((p, i) => (Chapter: c, Index: i, Passage: p)))
+            .Where(h => words.Any(w =>
+                h.Passage.Heading.Contains(w, StringComparison.OrdinalIgnoreCase)
+                || h.Passage.Prose.Contains(w, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        var rows = hits.Select(h => $$"""
+            {"chapter":{{h.Chapter.Number}},"chapterTitle":{{Quote(h.Chapter.Title)}},
+             "index":{{h.Index}},"heading":{{Quote(h.Passage.Heading)}},"printedPage":21,
+             "sourceRef":{{Quote($"Ultimate Edition, Ch.{h.Chapter.Number} {h.Chapter.Title}, pp.1-2")}},
+             "matchedTerms":[{{string.Join(",", words.Select(Quote))}}],
+             "matchedHeading":{{Lower(words.Any(w =>
+                 h.Passage.Heading.Contains(w, StringComparison.OrdinalIgnoreCase)))}},
+             "snippet":{{Quote(h.Passage.Prose)}}}
+            """);
+
+        return Json($$"""
+            {"query":{{Quote(query)}},"terms":[{{string.Join(",", words.Select(Quote))}}],
+             "found":{{hits.Count}},
+             "nothingMatchedByHeading":{{Lower(!hits.Any(h => words.Any(w =>
+                 h.Passage.Heading.Contains(w, StringComparison.OrdinalIgnoreCase))))}},
+             "results":[{{string.Join(",", rows)}}]}
+            """);
+    }
+
+    /// <summary>One passage in full, by where it is, or 401/404.</summary>
+    private Task<HttpResponseMessage> Passage(HttpRequestMessage request)
+    {
+        if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
+
+        var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
+
+        if (!int.TryParse(query["chapter"], out var number)
+            || !int.TryParse(query["index"], out var at)) return Status(HttpStatusCode.BadRequest);
+
+        var chapter = Chapters.FirstOrDefault(c => c.Number == number);
+        if (chapter is null || at < 0 || at >= chapter.Passages.Count) return Status(HttpStatusCode.NotFound);
+
+        var passage = chapter.Passages[at];
+
+        return Json($$"""
+            {"chapter":{{number}},"chapterTitle":{{Quote(chapter.Title)}},"index":{{at}},
+             "heading":{{Quote(passage.Heading)}},"printedPage":21,
+             "text":{{Quote(passage.Prose)}},
+             "sourceRef":{{Quote($"Ultimate Edition, Ch.{number} {chapter.Title}, pp.1-2")}}}
+            """);
+    }
+
+    /// <summary>One chapter of the book, as far as the browser can tell.</summary>
+    public sealed record FakeChapter(int Number, string Title, List<FakePassage> Passages);
+
+    /// <summary>
+    /// One passage in it.
+    ///
+    /// <para>The body is <c>Prose</c> rather than <c>Text</c> because <c>Text</c> is the name of
+    /// this stub's own response helper, and a nested record whose property hides a method of the
+    /// class around it is a name two readers will resolve differently.</para>
+    /// </summary>
+    public sealed record FakePassage(string Heading, string Prose);
+
+    /// <summary>
+    /// What the book holds, for a page that wants results rather than an empty box.
+    ///
+    /// <para>Two chapters and three passages: enough for a search to answer, for one result to
+    /// have matched by heading and another only in its body, and for the contents to list more
+    /// than one row. Not a copy of the book — the real corpus is searched by the real code in the
+    /// accounts suite.</para>
+    /// </summary>
+    public List<FakeChapter> Chapters { get; } =
+    [
+        new(2, "Characters",
+        [
+            new("KNOCKBACK", "There are times you want to knock someone across the room."),
+            new("TRAIT CAP", "The highest rank any single Trait may reach at this power level."),
+        ]),
+        new(4, "Combat",
+        [
+            new("SURPRISE", "Acting before somebody who has not noticed you, and what knockback does then."),
+        ]),
+    ];
 
     private static Task<HttpResponseMessage> Json(
         string body, HttpStatusCode status = HttpStatusCode.OK) =>

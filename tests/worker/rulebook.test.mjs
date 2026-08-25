@@ -112,20 +112,20 @@ test('the index takes the first of two sections sharing a heading', () => {
     assert.equal(entries.get('ARMOR').text, 'the entry');
 });
 
-test('every chapter the bake reads is one the repository generated', () => {
-    // `scripts/inline-rulebook.mjs` reads one chapter file — adding a chapter is a decision about
-    // what an account is entitled to read, not a glob. This is what fails if a chapter is added
-    // by hand rather than taken from the extractor's output.
+test('the bake names no chapter of its own', () => {
+    // **This test used to assert the opposite, and the decision under it changed.** It read one
+    // chapter file, because serving more of the book than the Powers editor needed was a decision
+    // about what an account is entitled to read. That decision has been taken — an account may
+    // read the book — so the bake globs the directory and the extractor is what decides what
+    // chapters there are.
     //
-    // (The point moved from `worker/corpus.js` to the bake script when the JSON stopped being
-    // *imported* and started being *inlined*, for the reasons in the sync test above. The claim
-    // and its guard are unchanged; only the file the claim lives in is different.)
+    // What is worth guarding now is the other direction: a filename written into the script is a
+    // list that goes stale the first time a chapter is added, and the failure would be a chapter
+    // silently missing from the search rather than anything visibly broken.
     const source = readFileSync(join(root, 'scripts', 'inline-rulebook.mjs'), 'utf8');
-    const named = [...source.matchAll(/['"]data\/rulebook\/([^'"]+)['"]|'data', 'rulebook', ['"]([^'"]+)['"]/g)]
-        .flatMap(m => [m[1], m[2]]).filter(Boolean);
+    const named = [...source.matchAll(/['"]ch\d\d[a-z-]*\.json['"]/g)];
 
-    assert.ok(named.length > 0, 'the bake script names no chapter at all');
-
-    const onDisk = readdirSync(join(root, 'data', 'rulebook'));
-    for (const file of named) assert.ok(onDisk.includes(file), file + ' is not in data/rulebook/');
+    assert.equal(named.length, 0,
+        'scripts/inline-rulebook.mjs names a chapter file: ' + named.map(m => m[0]).join(', ')
+        + '. It should read data/rulebook/ instead, so a new chapter needs no edit here.');
 });

@@ -435,6 +435,24 @@
    are three references now and no negative margins at all. */
 :root { --column: 1100px; }
 
+/* **Wider where there is a second column to put in it**, which is the sheet drawn beside the
+   editors while a character is being built. At 1100px two columns are ~530px each, which is too
+   narrow for a Power list on one side and a three-column sheet on the other; the choice is
+   between a wider page and a preview nobody can read.
+
+   It is set on `:root` and therefore moves every band together — the shell, the step list, the
+   budget strip, the banner. That is the point of the token and there is a test holding the five
+   of them to one figure, so a widening applied to the shell alone would break the agreement
+   rather than the layout, silently.
+
+   **It widens the sheet and the recordings too**, which is a decision rather than a side effect:
+   a printed sheet is fixed by the paper and only its screen preview grows, and a recorded
+   conversation reads no worse at this width than the app around it does. The breakpoint is above
+   any laptop this would crowd. */
+@media screen and (min-width: 1500px) {
+    :root { --column: 1440px; }
+}
+
 :root {
     --space-0:  0.125rem;  /*  2px — hairline: tag padding, pip gaps          */
     --space-1:  0.25rem;   /*  4px                                           */

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text;
 using Bunit;
@@ -159,6 +160,12 @@ public sealed class ProofPages
     /// </summary>
     private static string ShellBody(RenderContext ctx)
     {
+        // **On the builder's own address, because the chrome is now decided by the address.**
+        // The step band and the budget strip are the builder's and are drawn nowhere else, so a
+        // shell proof rendered at the front door would be a picture of a page with neither —
+        // captioned as the thing it is not, which is the failure this file exists to prevent.
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo(Commands.FirstStep);
+
         var tier = ctx.Render<ChooseTier>().Markup;
         return ctx.Render<MainLayout>(p => p.Add(l => l.Body, tier)).Markup;
     }
@@ -304,6 +311,76 @@ public sealed class ProofPages
     }
 
     private static string Name(SheetMode mode) => mode == SheetMode.Hero ? "hero" : "villain";
+
+    /// <summary>
+    /// The three surfaces this slice added, which no earlier proof could show: the front door,
+    /// the rules reference, and the sheet drawn beside the editors.
+    ///
+    /// <para><b>Written because a green suite is not a working app.</b> Three visible defects
+    /// survived 4,133 tests here and four pieces of developer jargon survived 4,186 — both found
+    /// by a person reading the screen. Everything whose substance is appearance or wording has
+    /// almost no guard, and these are three whole screens of it.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void TheNewSurfaces(SheetMode mode)
+    {
+        if (!Asked) return;
+
+        using var ctx = new RenderContext().With(mode);
+
+        var body = new StringBuilder();
+
+        // The front door with a character already on the sheet, which is the branch carrying a
+        // figure. The empty one is proofed below, because they are different pages.
+        Section(body, "The front door — carrying on", ctx.Render<Home>().Markup);
+
+        using var fresh = new RenderContext();
+        Section(body, "The front door — nothing on the sheet yet", fresh.Render<Home>().Markup);
+
+        Write("proof-front-door.html", Name(mode), body.ToString());
+
+        // **And the same page in light, because headless Chrome here reports
+        // `prefers-color-scheme: dark`** — an un-stamped proof renders the dark palette, so
+        // judging a light one needs the attribute set explicitly. Recorded in CLAUDE.md, and
+        // the reason a palette fault was once diagnosed off a screenshot of the wrong theme.
+        WritePage($"proof-front-door-{Name(mode)}-light.html",
+            Name(mode),
+            Page("proof-front-door.html", Name(mode), body.ToString(), wrap: true, theme: "light"));
+
+        // The rules reference, signed in and with a search actually run, because the interesting
+        // page is the one with results on it — an unsearched box proves only that a box exists,
+        // and a proof of a feature that never ran is the exact shape this file warns about four
+        // times over.
+        using var reader = new RenderContext().With(mode);
+        reader.Api.SignedIn = ("acct-7", "player");
+
+        var page = reader.Render<RulesReference>();
+        page.Find("#rules-search").Input("knockback");
+        page.Find("form").Submit();
+
+        // The positive control: if the search did not run, this proof is a picture of an empty
+        // box captioned as a page of results.
+        Assert.NotEmpty(page.FindAll(".chosen li"));
+
+        // ...and one result opened, so the page shows the book's own words rather than only a
+        // list of places they might be.
+        page.FindAll(".chosen li button")[0].Click();
+        Assert.NotEmpty(page.FindAll(".book-text"));
+
+        var rules = new StringBuilder();
+        Section(rules, "Rules reference — searched, with one passage open", page.Markup);
+        Write("proof-rules.html", Name(mode), rules.ToString());
+
+        // The editors beside the sheet. It needs the wide viewport to be two columns at all, so
+        // screenshot this one at 1600 wide or it proves the narrow fallback.
+        using var building = new RenderContext().With(mode);
+        var preview = new StringBuilder();
+        Section(preview, "The sheet beside the editors — screenshot this at 1600px or wider",
+            building.Render<Characteristics>().Markup);
+        Write("proof-preview.html", Name(mode), preview.ToString());
+    }
 
     private static void Section(StringBuilder body, string heading, string markup) =>
         body.Append("<h2 class=\"proof-heading\">").Append(heading).Append("</h2>")
@@ -1196,6 +1273,12 @@ public sealed class ProofPages
 
         WritePage("proof-narrow.html", "hero", NarrowHarness("proof-hero.html"));
         WritePage("proof-narrow-shell.html", "hero", NarrowHarness("proof-shell-hero.html"));
+
+        // The two pages this slice added. They are ordinary panel layouts, but the front door is
+        // the one screen with a grid that has to collapse, and neither had ever been measured at
+        // 375px — which is the width the 8px overflow this harness exists for showed up at.
+        WritePage("proof-narrow-front.html", "hero", NarrowHarness("proof-front-door.html"));
+        WritePage("proof-narrow-rules.html", "hero", NarrowHarness("proof-rules.html"));
     }
 
     /// <summary>
@@ -1498,6 +1581,16 @@ public sealed class ProofPages
             "375px", "clientWidth", "scrollWidth", "getBoundingClientRect",
             "NARROW: PASS", "NARROW: FAIL", "measuring", "document.title",
         ],
+        ["proof-narrow-front.html"] =
+        [
+            "375px", "clientWidth", "scrollWidth", "getBoundingClientRect",
+            "NARROW: PASS", "NARROW: FAIL", "measuring", "document.title",
+        ],
+        ["proof-narrow-rules.html"] =
+        [
+            "375px", "clientWidth", "scrollWidth", "getBoundingClientRect",
+            "NARROW: PASS", "NARROW: FAIL", "measuring", "document.title",
+        ],
         // The insets harness: all four bands, and the spread between them.
         ["proof-measure.html"] =
         [
@@ -1667,6 +1760,14 @@ public sealed class ProofPages
         var shell = NarrowHarness("proof-shell-hero.html");
         AssertMarkers("proof-narrow-shell.html", shell);
         Assert.Contains("src=\"proof-shell-hero.html\"", shell, StringComparison.Ordinal);
+
+        var front = NarrowHarness("proof-front-door.html");
+        AssertMarkers("proof-narrow-front.html", front);
+        Assert.Contains("src=\"proof-front-door.html\"", front, StringComparison.Ordinal);
+
+        var rules = NarrowHarness("proof-rules.html");
+        AssertMarkers("proof-narrow-rules.html", rules);
+        Assert.Contains("src=\"proof-rules.html\"", rules, StringComparison.Ordinal);
 
         AssertMarkers("proof-measure.html", MeasureHarness());
     }

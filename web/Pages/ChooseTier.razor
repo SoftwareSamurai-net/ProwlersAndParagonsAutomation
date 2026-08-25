@@ -1,4 +1,4 @@
-@page "/"
+@page "/build"
 @inject CharacterSession Session
 
 <PageTitle>Tier — Prowlers &amp; Paragons</PageTitle>
@@ -124,7 +124,7 @@
     </ChosenList>
 </Panel>
 
-<StepButtons Next="characteristics" NextLabel="Buy characteristics"
+<StepButtons Next="build/characteristics" NextLabel="Buy characteristics"
              NextDisabled="@(Session.Sheet.SelectedTierId is null)" />
 
 @code {

@@ -1,10 +1,11 @@
-@page "/portfolio/replay/{Id}"
-@page "/replay/{Id}"
+@page "/admin/portfolio/replay/{Id}"
 @inject ReplayLibrary Replays
 @inject CharacterSession Session
 @inject NavigationManager Nav
 
 <PageTitle>@(Conversation?.Title ?? "Recording") — Prowlers &amp; Paragons</PageTitle>
+
+<AdminOnly Title="One moment">
 
 @* Two ways to have no recording, and telling somebody the wrong one wastes their time. If
    the library failed to load then every address is unknown, including a correct one somebody
@@ -17,13 +18,13 @@
         with your link. Everything else on this site works, so you can still build a character.
     </p>
     <p class="small muted">What went wrong: @problem</p>
-    <NavLink class="btn" href="">Build one instead</NavLink>
+    <NavLink class="btn" href="build">Build one instead</NavLink>
 }
 else if (Conversation is null)
 {
     <h1>No such recording</h1>
     <p class="muted">That address does not name one of the recorded conversations.</p>
-    <NavLink class="btn" href="portfolio/replay">See the ones there are</NavLink>
+    <NavLink class="btn" href="admin/portfolio/replay">See the ones there are</NavLink>
 }
 else
 {
@@ -105,7 +106,7 @@ else
                     <button type="button" class="btn primary" @onclick="Ask">
                         Open @DisplayName in the editor
                     </button>
-                    <NavLink class="btn" href="portfolio/replay">Another recording</NavLink>
+                    <NavLink class="btn" href="admin/portfolio/replay">Another recording</NavLink>
                 </div>
             }
         </Panel>
@@ -116,6 +117,8 @@ else
         <SheetView Character="@settled" ShowBudget="@(!Conversation.Villain)" />
     }
 }
+
+</AdminOnly>
 
 @code {
     /// <summary>Which recording, from the address.</summary>
@@ -197,6 +200,6 @@ else
         // No palette push here. `Restore` records it on the character, and the layout applies it
         // on the render that follows — the one route every change of character takes, whether it
         // came from storage, a sample, or a recording.
-        Nav.NavigateTo("review");
+        Nav.NavigateTo("build/review");
     }
 }

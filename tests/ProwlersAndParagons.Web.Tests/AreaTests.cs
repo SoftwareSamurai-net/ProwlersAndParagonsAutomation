@@ -7,81 +7,83 @@ using ProwlersAndParagonsAutomation.Web.Pages;
 namespace ProwlersAndParagons.Web.Tests;
 
 /// <summary>
-/// One site doing two jobs, and the chrome saying which one you are in.
+/// One site doing several jobs, and the chrome saying which one you are in.
 ///
-/// <para>The play aide is the rules reference and the sheet helper — the thing somebody has open
-/// at a table. The portfolio is the recordings and the sample characters — the thing that shows
-/// somebody what was built. The furniture above the page was written for the first and means
-/// nothing on the second.</para>
+/// <para>The builder is the six creation steps. The rules reference is the book, searchable. The
+/// account pages are who may sign in and the demonstrations kept for showing somebody. The front
+/// door is none of them and offers all of them. The furniture above the page was written for the
+/// builder and means nothing anywhere else.</para>
 /// </summary>
 public sealed class AreaTests
 {
     [Theory]
-    [InlineData("", Area.Play)]
-    [InlineData("characteristics", Area.Play)]
-    [InlineData("review", Area.Play)]
-    [InlineData("portfolio", Area.Portfolio)]
-    [InlineData("portfolio/replay", Area.Portfolio)]
-    [InlineData("portfolio/replay/the-conductor", Area.Portfolio)]
+    [InlineData("", Area.Home)]
+    [InlineData("build", Area.Play)]
+    [InlineData("build/characteristics", Area.Play)]
+    [InlineData("build/review", Area.Play)]
+    [InlineData("rules", Area.Rules)]
     [InlineData("admin", Area.Account)]
     [InlineData("Admin", Area.Account)]
-    [InlineData("administrators", Area.Play)]
-    public void AnAddressKnowsWhichHalfOfTheSiteItIsIn(string path, Area expected) =>
+    [InlineData("admin/portfolio", Area.Account)]
+    [InlineData("admin/portfolio/replay/the-conductor", Area.Account)]
+    [InlineData("signin", Area.Account)]
+    public void AnAddressKnowsWhichPartOfTheSiteItIsIn(string path, Area expected) =>
         Assert.Equal(expected, Areas.Of(path));
 
     /// <summary>
     /// <b>Case-insensitively, because Blazor's own route matching is.</b> A capitalised link is
-    /// served by the app, and an ordinal comparison here would serve a recording wearing the
-    /// character generator's chrome — reachable by anybody who capitalised a shared address.
+    /// served by the app, and an ordinal comparison here would serve the page without the chrome
+    /// that belongs to it — reachable by anybody who capitalised a shared address.
     /// </summary>
     [Theory]
-    [InlineData("Portfolio")]
-    [InlineData("PORTFOLIO/replay")]
-    [InlineData("Replay/the-conductor")]
-    public void TheMatchIsCaseInsensitive(string path) =>
-        Assert.Equal(Area.Portfolio, Areas.Of(path));
+    [InlineData("Build", Area.Play)]
+    [InlineData("BUILD/gear", Area.Play)]
+    [InlineData("Rules", Area.Rules)]
+    [InlineData("SignIn", Area.Account)]
+    public void TheMatchIsCaseInsensitive(string path, Area expected) =>
+        Assert.Equal(expected, Areas.Of(path));
 
     /// <summary>
-    /// The addresses the recordings used to live at are still portfolio addresses.
-    ///
-    /// <para><b>A link that still works but arrives wearing the wrong chrome is worse than one
-    /// that breaks.</b> The budget strip is the visitor's <em>own</em> character, and it sat over
-    /// somebody else's recorded one with nothing saying whose was whose — the exact fault the
-    /// strip was hidden here to fix. Moving the route reintroduced it, and this is what caught
-    /// it.</para>
-    /// </summary>
-    [Theory]
-    [InlineData("replay")]
-    [InlineData("replay/the-conductor")]
-    public void TheOldReplayAddressesAreStillPortfolioAddresses(string path) =>
-        Assert.Equal(Area.Portfolio, Areas.Of(path));
-
-    /// <summary>
-    /// A page whose name merely begins with the prefix is not in the portfolio.
+    /// A page whose name merely begins with a prefix is not in that area.
     ///
     /// <para>The positive control for the matching: a <c>StartsWith</c> would pass every test
-    /// above and quietly capture a future page called something like "portfolios".</para>
+    /// above and quietly capture a future page called something like "buildings".</para>
     /// </summary>
     [Theory]
-    [InlineData("portfolios")]
-    [InlineData("portfolio-of-work")]
-    [InlineData("replaying")]
-    public void APageMerelyBeginningWithThePrefixIsNot(string path) =>
-        Assert.Equal(Area.Play, Areas.Of(path));
+    [InlineData("buildings")]
+    [InlineData("build-a-team")]
+    [InlineData("ruleset")]
+    [InlineData("administrators")]
+    public void APageMerelyBeginningWithAPrefixIsNot(string path) =>
+        Assert.Equal(Area.Home, Areas.Of(path));
 
     /// <summary>
-    /// The tool's chrome is drawn in the tool and not over a recording — the step band as well as
+    /// An address nobody routed falls to the front door, not to the builder.
+    ///
+    /// <para><b>This reverses the old default and the reason is the not-found page.</b> Everything
+    /// unrecognised used to be the builder, which was harmless only while the builder was every
+    /// address: a numbered step list with one step marked current, above "no such address", offers
+    /// to continue something that never started.</para>
+    /// </summary>
+    [Fact]
+    public void AnUnroutedAddressIsNotTheBuilder() =>
+        Assert.Equal(Area.Home, Areas.Of("not-found"));
+
+    /// <summary>
+    /// The builder's chrome is drawn in the builder and nowhere else — the step band as well as
     /// the budget strip.
     ///
     /// <para>Asserted through the layout, because a page cannot see the shell above it.</para>
     /// </summary>
     [Theory]
-    [InlineData("", true)]
-    [InlineData("portfolio", false)]
-    [InlineData("portfolio/replay/the-conductor", false)]
-    [InlineData("replay", false)]
+    [InlineData("build", true)]
+    [InlineData("build/characteristics", true)]
+    [InlineData("", false)]
+    [InlineData("rules", false)]
+    [InlineData("signin", false)]
     [InlineData("admin", false)]
-    public void TheStepsAndTheBudgetBelongToTheToolAlone(string path, bool expected)
+    [InlineData("admin/portfolio/replay/the-conductor", false)]
+    public void TheStepsAndTheBudgetBelongToTheBuilderAlone(string path, bool expected)
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo(path);
@@ -93,39 +95,62 @@ public sealed class AreaTests
     }
 
     /// <summary>
-    /// The banner's cross-link points at the half you are not in.
+    /// Both avenues are offered from every address, rather than one link naming whichever half
+    /// the reader is not in.
     ///
-    /// <para>It used to say "Watch one being built" from everywhere, so the only cross-link a
-    /// player ever saw pointed away from what they were doing.</para>
+    /// <para><b>The flipping cross-link was right for two rooms and wrong for three.</b> It told
+    /// you where you were not, which only identifies a destination while there is exactly one such
+    /// place; with a front door, a builder and a reference it named one of two elsewheres and hid
+    /// the other.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("build")]
+    [InlineData("rules")]
+    [InlineData("admin")]
+    public void EveryAvenueIsOfferedFromEverywhere(string path)
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo(path);
+
+        var nav = ctx.Render<MainLayout>().Find(".avenue-nav").TextContent;
+
+        Assert.Contains("Build", nav, StringComparison.Ordinal);
+        Assert.Contains("Rules", nav, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The banner names the palette in the builder and nowhere else.
+    ///
+    /// <para>A rules search is not a Hero or a Villain. Saying so there is the banner reporting
+    /// the visitor's own character over a page with nothing to do with it, which is the fault the
+    /// budget strip was pulled off three areas to fix.</para>
     /// </summary>
     [Fact]
-    public void TheBannerOffersTheOtherHalf()
+    public void OnlyTheBuilderNamesThePalette()
     {
-        using var play = new RenderContext().With(SheetMode.Hero);
-        Assert.Contains(
-            "How this was built",
-            play.Render<MainLayout>().Find(".banner-link").TextContent,
+        using var building = new RenderContext().With(SheetMode.Villain);
+        building.Services.GetRequiredService<NavigationManager>().NavigateTo("build");
+        Assert.Contains("Villain", building.Render<MainLayout>().Find(".banner-title").TextContent,
             StringComparison.Ordinal);
 
-        using var portfolio = new RenderContext().With(SheetMode.Hero);
-        portfolio.Services.GetRequiredService<NavigationManager>().NavigateTo("portfolio");
-        Assert.Contains(
-            "Build a character",
-            portfolio.Render<MainLayout>().Find(".banner-link").TextContent,
+        using var reading = new RenderContext().With(SheetMode.Villain);
+        reading.Services.GetRequiredService<NavigationManager>().NavigateTo("rules");
+        Assert.DoesNotContain("Villain", reading.Render<MainLayout>().Find(".banner-title").TextContent,
             StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// The demonstrations are on the portfolio and not in the middle of the tool.
+    /// The demonstrations are behind the account pages and not in the middle of the builder.
     ///
     /// <para>Both halves are asserted: it is the <em>moving</em> that matters, and a test that
     /// only checked the new home would pass just as well with the samples on both pages, which is
-    /// the state this slice exists to end.</para>
+    /// the state this exists to end.</para>
     /// </summary>
     [Fact]
-    public void TheSamplesAreOnThePortfolioAndNotOnTheTierPage()
+    public void TheSamplesAreBehindTheAccountAndNotOnTheTierPage()
     {
-        using var ctx = new RenderContext();
+        using var ctx = new RenderContext().AsAdministrator();
 
         var portfolio = ctx.Render<Portfolio>().Markup;
         Assert.Contains("Load a Hero", portfolio, StringComparison.Ordinal);

@@ -56,17 +56,26 @@ public sealed class Commands
     /// </summary>
     public static readonly IReadOnlyList<Command> Steps =
     [
-        new(CommandKind.Step, "", "Tier", "Step 1", ["start", "budget", "package"]),
-        new(CommandKind.Step, "characteristics", "Characteristics", "Step 2",
+        new(CommandKind.Step, "build", "Tier", "Step 1", ["start", "budget", "package"]),
+        new(CommandKind.Step, "build/characteristics", "Characteristics", "Step 2",
             ["abilities", "talents", "powers", "perks", "flaws"]),
-        new(CommandKind.Step, "gear", "Gear", "Step 3", ["equipment", "items"]),
-        new(CommandKind.Step, "derived", "Derived stats", "Step 4",
+        new(CommandKind.Step, "build/gear", "Gear", "Step 3", ["equipment", "items"]),
+        new(CommandKind.Step, "build/derived", "Derived stats", "Step 4",
             ["edge", "health", "resolve"]),
-        new(CommandKind.Step, "finishing", "Finishing touches", "Step 5",
+        new(CommandKind.Step, "build/finishing", "Finishing touches", "Step 5",
             ["name", "appearance", "motivation", "quote", "connections"]),
-        new(CommandKind.Step, "review", "GM review", "Step 6",
+        new(CommandKind.Step, "build/review", "GM review", "Step 6",
             ["export", "print", "sheet", "validate"]),
     ];
+
+    /// <summary>
+    /// Where the builder starts, for anything that needs to send somebody to it.
+    ///
+    /// <para>Read off the list rather than written out again: the six steps' addresses moved
+    /// under a prefix once, and every second copy of the first one is a link that will not
+    /// move with them next time.</para>
+    /// </summary>
+    public static string FirstStep => Steps[0].Target;
 
     /// <summary>Whether the palette is on screen.</summary>
     public bool IsOpen { get; private set; }

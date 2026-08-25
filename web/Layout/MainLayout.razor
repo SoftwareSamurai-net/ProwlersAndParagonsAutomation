@@ -13,24 +13,24 @@
 <header class="banner">
   <div class="banner-inner">
     <div class="banner-title">
-        Prowlers &amp; Paragons
-        <small>@(Where == Area.Portfolio ? "How this was built" : $"Character creation — {(Session.Mode == SheetMode.Hero ? "Hero" : "Villain")}")</small>
+        <NavLink class="banner-home" href="" Match="NavLinkMatch.All">Prowlers &amp; Paragons</NavLink>
+        <small>@Subtitle</small>
     </div>
 
-    @* The door between the two halves of the site, and it says which one you are not in.
+    @* The two things this site does, offered from everywhere rather than one cross-link that
+       named whichever half you were not in.
 
-       It used to say "Watch one being built" from everywhere, which named a *demonstration*
-       from inside the tool — so the only cross-link a player ever saw pointed away from what
-       they were doing, at somebody else's conversation. Now the tool offers the portfolio and
-       the portfolio offers the tool, which is the one thing each half wants from the other. *@
-    @if (Where == Area.Portfolio)
-    {
-        <NavLink class="banner-link" href="">Build a character</NavLink>
-    }
-    else
-    {
-        <NavLink class="banner-link" href="portfolio">How this was built</NavLink>
-    }
+       **It used to be a single door and that was right while there were two rooms.** There are
+       three now — build, look a rule up, and the front page that offers both — and a link that
+       flips its own label is unreadable as navigation the moment a third destination exists: it
+       tells you where you are not, which is only useful when there is exactly one such place.
+
+       The current one is marked and still a link. A reader who clicks the section they are in
+       expects the top of it, not nothing. *@
+    <nav class="avenue-nav" aria-label="Sections">
+        <NavLink class="banner-link" href="@Commands.FirstStep">Build</NavLink>
+        <NavLink class="banner-link" href="rules">Rules</NavLink>
+    </nav>
 
     @* The account, in the one place it is visible from every page.
 
@@ -163,6 +163,23 @@
     /// not.</para>
     /// </summary>
     private Area Where => Areas.Of(Nav.ToBaseRelativePath(Nav.Uri));
+
+    /// <summary>
+    /// What the banner says under the wordmark: which part of the site this is.
+    ///
+    /// <para>The builder names the palette, because that is a fact about the character on screen
+    /// and the reader chose it. Nowhere else does — a rules search is not a Hero or a Villain, and
+    /// saying so there was the banner reporting the visitor's own character over a page that has
+    /// nothing to do with it, which is the fault the budget strip was pulled off three areas
+    /// to fix.</para>
+    /// </summary>
+    private string Subtitle => Where switch
+    {
+        Area.Play => $"Character creation — {(Session.Mode == SheetMode.Hero ? "Hero" : "Villain")}",
+        Area.Rules => "Rules reference",
+        Area.Account => "Your account",
+        _ => "Characters, and the rules behind them",
+    };
 
     /// <summary>Who the banner names, or null until the first answer arrives.</summary>
     private Identity? _who;

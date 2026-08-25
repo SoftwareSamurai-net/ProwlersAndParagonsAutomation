@@ -1,4 +1,4 @@
-@page "/derived"
+@page "/build/derived"
 @inject CharacterSession Session
 
 <PageTitle>Derived stats — Prowlers &amp; Paragons</PageTitle>
@@ -75,7 +75,7 @@
     </ul>
 </Panel>
 
-<StepButtons Back="gear" BackLabel="Gear" Next="finishing" NextLabel="Finishing touches" />
+<StepButtons Back="build/gear" BackLabel="Gear" Next="build/finishing" NextLabel="Finishing touches" />
 
 @code {
     private int ResolveFlaws => Session.Sheet.Flaws.Count(IsResolveFlaw);
