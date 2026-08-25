@@ -10,7 +10,7 @@
 -- change than this needs. The precedent is `users.character_limit`, raised by hand in SQL on the
 -- reasoning that a cap you can raise on yourself is not one. This is read the same way:
 --
---   wrangler d1 execute prowlers-accounts --remote \
+--   wrangler d1 execute prowlers-and-paragons --remote \
 --     --command "SELECT * FROM error_log ORDER BY last_at DESC"
 --
 -- **One row per (category, route), counted rather than appended.** A failing dependency throws on

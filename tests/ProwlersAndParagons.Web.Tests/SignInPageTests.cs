@@ -104,4 +104,52 @@ public sealed class SignInPageTests
 
         Assert.Contains("does not look like an email address", page.Markup, StringComparison.Ordinal);
     }
+
+    /// <summary>The box somebody signed in gets to change their name starts at what it is now.</summary>
+    [Fact]
+    public void TheNameBoxStartsAtTheAccountsCurrentName()
+    {
+        using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var page = ctx.Render<SignIn>();
+
+        Assert.Equal("player", page.Find("#display-name").GetAttribute("value"));
+    }
+
+    /// <summary>Saving a new name changes what the account is called, on this page and not just
+    /// in the request that asked for it.</summary>
+    [Fact]
+    public void SavingANewNameChangesWhatTheAccountIsCalled()
+    {
+        using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var page = ctx.Render<SignIn>();
+        page.Find("#display-name").Input("Dorian");
+        page.FindAll("button").Single(b => b.TextContent.Trim() == "Save name").Click();
+
+        Assert.Equal("Dorian", ctx.Api.SignedIn?.DisplayName);
+        Assert.Contains("Dorian", page.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A name the server refuses says so, rather than the page quietly acting as though nothing
+    /// was asked. Read from <see cref="FakeApi.SignedIn"/> rather than only the markup, because a
+    /// broken save that still shows the old name and no problem would satisfy a markup-only check.
+    /// </summary>
+    [Fact]
+    public void ANameTheServerRefusesLeavesTheOldOneAndSaysSo()
+    {
+        using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+        ctx.Api.RefuseDisplayNameChanges = true;
+
+        var page = ctx.Render<SignIn>();
+        page.Find("#display-name").Input("Dorian");
+        page.FindAll("button").Single(b => b.TextContent.Trim() == "Save name").Click();
+
+        Assert.Equal("player", ctx.Api.SignedIn?.DisplayName);
+        Assert.Contains("could not be saved", page.Markup, StringComparison.OrdinalIgnoreCase);
+    }
 }

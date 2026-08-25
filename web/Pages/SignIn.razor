@@ -28,6 +28,23 @@
             your account, so they are there in any browser you sign in to.
         </p>
 
+        <Field For="display-name">
+            <LabelContent>What to call you</LabelContent>
+            <ChildContent>
+                <input id="display-name" maxlength="@Accounts.DisplayNameLength"
+                       @bind="_displayNameInput" @bind:event="oninput" />
+            </ChildContent>
+        </Field>
+        <p>
+            <button type="button" class="btn" disabled="@_savingName" @onclick="SaveDisplayName">
+                @(_savingName ? "Saving…" : "Save name")
+            </button>
+        </p>
+        @if (_nameProblem is { } nameProblem)
+        {
+            <p role="alert">@nameProblem</p>
+        }
+
         @if (_offerToKeep)
         {
             @* Offered, never done by itself. This browser's anonymous character may not be
@@ -137,6 +154,9 @@ else
     private bool _offerToKeep;
     private bool _kept;
     private string? _anonymousName;
+    private string _displayNameInput = "";
+    private bool _savingName;
+    private string? _nameProblem;
 
     protected override async Task OnInitializedAsync()
     {
@@ -171,7 +191,19 @@ else
             Nav.NavigateTo("signin", replace: true);
         }
 
-        _who = await Accounts.CurrentAsync();
+        SetWho(await Accounts.CurrentAsync());
+    }
+
+    /// <summary>
+    /// The one place <c>_who</c> is assigned, so the field the name box edits never falls out
+    /// of step with who is actually signed in — a sign-out or a switch to another account that
+    /// left the box showing the previous name would offer to save somebody else's account under
+    /// it.
+    /// </summary>
+    private void SetWho(Identity who)
+    {
+        _who = who;
+        _displayNameInput = who.DisplayName ?? "";
     }
 
     private async Task Ask()
@@ -250,9 +282,26 @@ else
         if (await Store.LoadAsync() is { } local) Session.Restore(local.Sheet, local.Mode);
         else Session.StartAgain();
 
-        _who = Identity.Anonymous;
+        SetWho(Identity.Anonymous);
         _offerToKeep = false;
         _kept = false;
+    }
+
+    /// <summary>
+    /// Save the name typed in the box, and only the signed-in account's own row can change —
+    /// see <see cref="Accounts.SetDisplayNameAsync"/> for what is refused and why.
+    /// </summary>
+    private async Task SaveDisplayName()
+    {
+        _savingName = true;
+        _nameProblem = null;
+
+        var saved = await Accounts.SetDisplayNameAsync(_displayNameInput);
+
+        _savingName = false;
+
+        if (saved) SetWho(await Accounts.CurrentAsync());
+        else _nameProblem = "That name could not be saved. Try again.";
     }
 
     private async Task OfferToKeepAnythingLeftBehind()
@@ -277,7 +326,7 @@ else
     // which is where StateHasChanged has to be called from.
     private void OnChanged() => _ = InvokeAsync(async () =>
     {
-        _who = await Accounts.CurrentAsync();
+        SetWho(await Accounts.CurrentAsync());
         StateHasChanged();
     });
 

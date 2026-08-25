@@ -114,6 +114,19 @@ export async function upsertUser(db, { id, email, displayName, now }) {
     return await userByEmail(db, email);
 }
 
+/**
+ * Change the name on one account.
+ *
+ * <p>Scoped to `id` alone — there is no `email` or anything else in the `WHERE` — so this
+ * statement has no way to reach a row other than the one the caller already authenticated as.
+ * The value is written as given: `auth.js` is where a name is trimmed, capped and defaulted,
+ * because those are decisions about what a name is, not about how one is stored.</p>
+ */
+export async function setDisplayName(db, { userId, displayName }) {
+    await db.prepare('UPDATE users SET display_name = ? WHERE id = ?')
+        .bind(displayName, userId).run();
+}
+
 export async function putLoginToken(db, { tokenHash, email, expiresAt }) {
     await db.prepare('INSERT INTO login_tokens (token_hash, email, expires_at) VALUES (?, ?, ?)')
         .bind(tokenHash, email, expiresAt).run();

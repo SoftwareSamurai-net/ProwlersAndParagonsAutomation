@@ -140,6 +140,17 @@ async function route(request, env, deps) {
     if (path === '/api/auth/signout') return only('POST', method, () => auth.signOut(request, env, deps));
     if (path === '/api/me') return only('GET', method, () => auth.me(request, env, deps));
 
+    // Its own address rather than folded into `/api/me`, because the two need different
+    // authentication: `/api/me` answers 401 for an anonymous visitor and that is not a failure,
+    // while a name change with nobody signed in has nothing to change and is refused here before
+    // `auth.setDisplayName` is asked to guess whose row that would be.
+    if (path === '/api/me/display-name') {
+        const user = await auth.currentUser(request, env, deps);
+        if (!user) return fail(401, 'Sign in first.');
+
+        return only('PUT', method, () => auth.setDisplayName(request, env, deps, user));
+    }
+
     // Everything below needs somebody to be signed in, and asks once. A route that fetched its
     // own user would be a route that could forget to.
     if (path === '/api/characters' || path.startsWith('/api/characters/')

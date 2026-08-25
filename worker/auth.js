@@ -194,6 +194,63 @@ export async function verify(request, env, deps) {
     });
 }
 
+/** How long a display name may run. Long enough for a real name; short of the length that
+ * would break the single-line slot it is shown in — the banner and the account panel, neither
+ * of which wraps or truncates. */
+export const MAX_DISPLAY_NAME_LENGTH = 60;
+
+/**
+ * Change the signed-in account's own name, and nobody else's.
+ *
+ * <p><b>Scoped by construction, not by a check.</b> `db.setDisplayName` takes the id off the
+ * session the caller already authenticated with — there is no address, no id in the body, and
+ * no way for this route to name a row other than its own.</p>
+ *
+ * <p><b>The validation is about the same thing `characters.js`'s label check is about</b>: a
+ * name is free text shown in a banner and nowhere it is trusted for anything, so what is
+ * refused is a shape this cannot render, not a judgement about what somebody calls themselves.
+ * Trimmed, and refused only for not being a string, for carrying a control character (a
+ * newline or a tab would corrupt the single line it is shown on), or for outrunning
+ * {@link MAX_DISPLAY_NAME_LENGTH} — the "somebody sets a name thousands of characters long"
+ * case this exists to close.</p>
+ *
+ * <p><b>Blank resets to the email's local part rather than being refused.</b> The alternative —
+ * storing an empty string — would leave the banner naming nobody while
+ * <c>Identity.IsSignedIn</c> still read true, since that only checks the name is not null. A
+ * name cleared out should look exactly like one nobody has set yet, which is the same value
+ * the first sign-in already writes.</p>
+ *
+ * <p><b>Uniqueness is deliberately not checked.</b> The name a fresh sign-in gets — the email's
+ * own local part — was never unique either, two different addresses can share one, and asking
+ * "is this name taken" is the same oracle the invitation list exists to keep this site from
+ * answering, applied to names instead of addresses. A name is not an identity here and nothing
+ * reads it as proof of one; it is what the banner calls somebody, and it says so beside the
+ * account it belongs to, never beside anybody else's.</p>
+ */
+export async function setDisplayName(request, env, deps, user) {
+    if (!sameOrigin(request)) return fail(403, 'This request did not come from this site.');
+
+    const body = await readJson(request);
+    if (!body) return fail(400, 'That request is too large or is not JSON.');
+
+    const submitted = body.value?.displayName;
+    if (typeof submitted !== 'string') return fail(400, 'That is not a name this can store.');
+
+    const trimmed = submitted.trim();
+
+    // eslint-disable-next-line no-control-regex -- deliberately matching control characters
+    if (/[\x00-\x1f\x7f]/.test(trimmed)) {
+        return fail(400, 'That name has a character this cannot store.');
+    }
+    if (trimmed.length > MAX_DISPLAY_NAME_LENGTH) return fail(400, 'That name is too long.');
+
+    const displayName = trimmed.length > 0 ? trimmed : user.email.slice(0, user.email.indexOf('@'));
+
+    await db.setDisplayName(env.DB, { userId: user.id, displayName });
+
+    return json(identityOf({ id: user.id, display_name: displayName }));
+}
+
 /**
  * Who the caller is, or 401.
  *
