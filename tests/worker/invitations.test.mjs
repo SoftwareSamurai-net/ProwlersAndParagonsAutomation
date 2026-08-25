@@ -391,3 +391,78 @@ test('a broken deployment answers an invited and an uninvited address identicall
     await ask(sound, 'nobody@example.test');
     assert.equal(sound.sent.length, 1, 'the gate is not gating, so the comparison above is empty');
 });
+
+// -------------------------------------------------------------------------------------------
+// The failure log, gated by the identical question — see the note in `d1/migrations/
+// 0004_error_log.sql` on why this needed no new claim in the client and no role on `Identity`.
+// -------------------------------------------------------------------------------------------
+
+/** A row written directly, the way nothing but the server's own catch ever writes one. */
+function plantFailure(app, overrides = {}) {
+    const row = {
+        category: 'mail', route: '/api/auth/request', kind: 'Error', detail: 'Refused.',
+        reference: 'aa11bb', occurrences: 1, first_at: app.now, last_at: app.now, ...overrides,
+    };
+
+    app.db.raw.prepare(
+        'INSERT INTO error_log (category, route, kind, detail, reference, occurrences, '
+        + 'first_at, last_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(row.category, row.route, row.kind, row.detail, row.reference, row.occurrences,
+            row.first_at, row.last_at);
+}
+
+test('the failure log is invisible to an ordinary account, exactly as the invitation list is', async () => {
+    const app = gated();
+    app.invite('player@example.test');
+    const ordinary = await enter(app, 'player@example.test');
+    plantFailure(app);
+
+    const refused = await app.call('/api/admin/error-log', { cookie: ordinary });
+    const nowhere = await app.call('/api/no-such-thing', { cookie: ordinary });
+
+    assert.equal(refused.status, 404);
+    assert.deepEqual(await refused.json(), await nowhere.json());
+
+    // Signed out is a different answer, because it is a different question.
+    assert.equal((await app.call('/api/admin/error-log')).status, 401);
+});
+
+test('an administrator reads the recorded failures over the wire', async () => {
+    const app = gated();
+    const cookie = await enter(app, ADMIN);
+    plantFailure(app, { occurrences: 5, detail: 'Resend refused to send (HTTP 422).' });
+
+    const response = await app.call('/api/admin/error-log', { cookie });
+    assert.equal(response.status, 200);
+
+    const body = await response.json();
+    assert.equal(body.rows.length, 1);
+    assert.equal(body.rows[0].category, 'mail');
+    assert.equal(body.rows[0].route, '/api/auth/request');
+    assert.equal(body.rows[0].occurrences, 5);
+    assert.equal(body.rows[0].detail, 'Resend refused to send (HTTP 422).');
+    assert.equal(body.rows[0].reference, 'aa11bb');
+});
+
+test('an empty table answers with an empty list, not a refusal', async () => {
+    // The positive control for the test above: an administrator reading nothing must not be
+    // mistaken for the gate refusing them, or the two tests would be measuring the same thing.
+    const app = gated();
+    const cookie = await enter(app, ADMIN);
+
+    const body = await (await app.call('/api/admin/error-log', { cookie })).json();
+
+    assert.deepEqual(body.rows, []);
+});
+
+test('the failure log has no verb but GET', async () => {
+    // Read-only by construction: there is no route here to delete or clear a row, so every other
+    // verb falls through to the ordinary "method not allowed" rather than to a handler that could
+    // have been given one by mistake.
+    const app = gated();
+    const cookie = await enter(app, ADMIN);
+
+    const response = await app.call('/api/admin/error-log', { method: 'DELETE', cookie });
+
+    assert.equal(response.status, 405);
+});

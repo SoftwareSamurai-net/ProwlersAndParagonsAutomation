@@ -267,7 +267,13 @@ rule:**
 
 ### The private half
 
-**A table in D1, read by hand in SQL. No admin endpoint.**
+**A table in D1, read by hand in SQL. No admin endpoint** — superseded once the invitation list
+landed: it made "am I an admin" a question the server already answers on every request, so a
+read-only `/api/admin/error-log`, gated by that identical check, added no role to `Identity` and
+no new concept. See the completed entry in [`PROGRESS.md`](../PROGRESS.md) and the reversal
+recorded in `d1/migrations/0004_error_log.sql`. The reasoning below is kept for the same reason
+the section above is: it is still why the table is shaped the way it is, only the "read by hand
+alone" half of the conclusion changed.
 
 - **No admin route, deliberately.** `Identity` carries a key and a name and no role — there is a
   test asserting the wire identity holds nothing else — so "am I an admin" is not a question the

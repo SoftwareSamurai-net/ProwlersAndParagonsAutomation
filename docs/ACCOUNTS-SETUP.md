@@ -331,17 +331,32 @@ database.
 ## Reading what has gone wrong
 
 When somebody reports a failure they will quote a six-character reference. Every failure is also
-written to `error_log`, which is read the same way the cap above is set — by hand, in SQL:
+written to `error_log`, and there are now two ways to read it.
+
+**The page is `/admin`, beside who can sign in.** Whoever manages the invitation list sees this
+panel too — it is gated by the identical check, `invitations.isAdministrator`, so an ordinary
+account reaching for it gets the same refusal it gets for the invitation list, and there is
+nothing here to configure beyond adding that address to the list the way the section above
+describes. It has no delete or clear button; it only reads.
+
+By hand, in SQL, is still there for a deployment with nobody set up as an administrator yet, or
+for a fork run from a machine rather than a browser:
 
 ```bash
 npx wrangler --cwd d1 d1 execute prowlers-and-paragons --remote \
     --command "SELECT category, route, kind, occurrences, detail, reference, datetime(last_at/1000, 'unixepoch') AS last FROM error_log ORDER BY last_at DESC;"
 ```
 
-**There is no admin endpoint and there is not going to be one.** `Identity` carries a key and a
-name and no role — there is a test asserting the wire identity holds nothing else — so "am I an
-admin" is not a question the client can ask, and inventing a role to answer it is a far larger
-change than reading a table by hand. Same reasoning as the cap above.
+**This reverses what this document used to say — "there is no admin endpoint and there is not
+going to be one" — and it is worth saying why.** The reasoning was sound at the time: `Identity`
+carried a key and a name and no role, so "am I an admin" was not a question the client could ask,
+and inventing a role to answer it looked like a far larger change than reading a table by hand.
+What changed is that the invitation-list work made "am I an admin" a question the *server*
+already answers, on every request, for an unrelated reason. Gating a read-only error-log endpoint
+behind that existing check adds no role to `Identity` and no new concept — it is the same
+question `/api/admin/invitations` already asks. The character-limit cap above is a different
+case and is unaffected: raising it is a write with no gate built for it yet, so it stays a
+by-hand `UPDATE`.
 
 **One row per `(category, route)`, counted rather than appended.** A failing dependency throws on
 every request, so a log with a row per occurrence would turn one outage into a full database.

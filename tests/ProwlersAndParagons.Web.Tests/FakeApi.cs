@@ -137,6 +137,14 @@ public sealed class FakeApi : HttpMessageHandler
     /// <summary>The address the server calls "you" in that list. The signed-in account's.</summary>
     public string You { get; set; } = "you@example.test";
 
+    /// <summary>
+    /// Every recorded failure, as the error-log endpoint reports it. Gated by
+    /// <see cref="ManagesInvitations"/>, the same as <see cref="Invited"/> — the real server
+    /// answers both from the identical check.
+    /// </summary>
+    public List<(string Category, string Route, string Kind, string? Detail, int Occurrences,
+        long FirstAt, long LastAt, string Reference)> ErrorLogRows { get; } = [];
+
     /// <summary>Set to have an invitation refuse to be added or withdrawn.</summary>
     public bool RefuseInvitationChanges { get; set; }
 
@@ -205,6 +213,8 @@ public sealed class FakeApi : HttpMessageHandler
             "/api/admin/invitations" => InvitationList(request),
             var p when p.StartsWith("/api/admin/invitations/", StringComparison.Ordinal) =>
                 Invitation(request, p["/api/admin/invitations/".Length..]),
+
+            "/api/admin/error-log" => ErrorLogList(),
 
             _ => Status(HttpStatusCode.NotFound),
         };
@@ -361,6 +371,22 @@ public sealed class FakeApi : HttpMessageHandler
         Invited.RemoveAll(i => i.Id == id);
 
         return Status(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>The recorded failures, or the refusal — gated exactly as <see cref="Invitation"/>.</summary>
+    private Task<HttpResponseMessage> ErrorLogList()
+    {
+        if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
+        if (!ManagesInvitations) return Status(HttpStatusCode.NotFound);
+
+        var rows = ErrorLogRows.Select(r => $$"""
+            {"category":{{Quote(r.Category)}},"route":{{Quote(r.Route)}},"kind":{{Quote(r.Kind)}},
+             "detail":{{(r.Detail is null ? "null" : Quote(r.Detail))}},
+             "occurrences":{{r.Occurrences}},"firstAt":{{r.FirstAt}},"lastAt":{{r.LastAt}},
+             "reference":{{Quote(r.Reference)}}}
+            """);
+
+        return Json($$"""{"rows":[{{string.Join(",", rows)}}]}""");
     }
 
     private static string Lower(bool value) => value ? "true" : "false";
