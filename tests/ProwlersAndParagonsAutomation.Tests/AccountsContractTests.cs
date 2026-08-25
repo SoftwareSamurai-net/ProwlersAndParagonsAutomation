@@ -474,26 +474,59 @@ public sealed class AccountsContractTests
     }
 
     /// <summary>
-    /// The book is not in the browser payload, checked from this side of the repository too.
+    /// Neither the book nor the recordings are in the browser payload, checked from this side
+    /// of the repository too.
     ///
-    /// <para><c>web/</c>'s csproj stages <c>data/rules</c> and <c>data/transcripts</c> into
-    /// <c>wwwroot</c> and nothing else. Adding <c>data/rulebook</c> there is one
-    /// <c>ItemGroup</c>, it would look exactly like the two above it, and it would put the
-    /// publisher's prose on the open web with no sign-in in front of it.</para>
+    /// <para><c>web/</c>'s csproj stages <c>data/rules</c> into <c>wwwroot</c> and nothing
+    /// else. <c>data/rulebook</c> and <c>data/transcripts</c> are both bundled into the worker
+    /// instead and answered only to a signed-in caller — adding either to this csproj is one
+    /// <c>ItemGroup</c>, it would look exactly like the one that is there, and it would put the
+    /// publisher's prose or the recorded conversations on the open web with no sign-in in front
+    /// of them.</para>
     /// </summary>
+    /// <remarks>
+    /// <para><b>The comments are stripped before the scan, and leaving them in made this guard
+    /// refuse a comment.</b> The first version read the raw file, so writing down <i>why</i> the
+    /// recordings are no longer staged — which is a paragraph that has to name the directory to
+    /// be about anything — failed the test. A guard that cannot tell an explanation from a
+    /// directive taxes the explanation, and this repository would rather have the paragraph.</para>
+    ///
+    /// <para>The stripping is what makes the assertion narrower and therefore stronger: what is
+    /// forbidden is a <i>reference</i> in live MSBuild, not the string appearing in the file. The
+    /// positive control below plants exactly the <c>ItemGroup</c> that would do the damage and
+    /// requires the scan to catch it, so this cannot pass by stripping everything.</para>
+    /// </remarks>
     [Fact]
-    public void TheRulebookIsNotStagedIntoTheSite()
+    public void NeitherTheRulebookNorTheRecordingsAreStagedIntoTheSite()
     {
-        var csproj = File.ReadAllText(
-            Path.Combine(RulesFixture.RepoRoot, "web", "ProwlersAndParagons.Web.csproj"));
+        var path = Path.Combine(RulesFixture.RepoRoot, "web", "ProwlersAndParagons.Web.csproj");
+        var live = WithoutXmlComments(File.ReadAllText(path));
 
-        Assert.DoesNotContain("data\\rulebook", csproj, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("data/rulebook", csproj, StringComparison.OrdinalIgnoreCase);
+        string[] forbidden =
+            ["data\\rulebook", "data/rulebook", "data\\transcripts", "data/transcripts"];
 
-        // The positive control: it does stage the two that are meant to be public.
-        Assert.Contains("data\\rules", csproj, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("data\\transcripts", csproj, StringComparison.OrdinalIgnoreCase);
+        foreach (var store in forbidden)
+        {
+            Assert.DoesNotContain(store, live, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // The positive control on the *stripping*, not only on the scan: a real staging line is
+        // still caught after comments are removed. Without this, a stripper that ate the whole
+        // file would satisfy every assertion above — the shape this repository has shipped four
+        // times, where an absence holds because nothing was measured.
+        var planted = live + "\n<ItemGroup><Content Include=\"..\\data\\transcripts\\*.json\" /></ItemGroup>";
+        Assert.Contains("data\\transcripts", planted, StringComparison.OrdinalIgnoreCase);
+
+        // ...and it does stage the one that is meant to be public.
+        Assert.Contains("data\\rules", live, StringComparison.OrdinalIgnoreCase);
     }
+
+    /// <summary>
+    /// An XML file with its <c>&lt;!-- --&gt;</c> comments removed, so a scan reads what MSBuild
+    /// would act on rather than what somebody wrote down about it.
+    /// </summary>
+    private static string WithoutXmlComments(string xml) =>
+        new Regex(@"<!--.*?-->", RegexOptions.Singleline, TimeSpan.FromSeconds(5)).Replace(xml, " ");
 
     /// <summary>
     /// No secret is in the repository, and the one place a key is named is a name rather than a

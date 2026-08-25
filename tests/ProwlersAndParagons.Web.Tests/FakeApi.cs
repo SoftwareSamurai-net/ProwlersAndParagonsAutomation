@@ -100,6 +100,19 @@ public sealed class FakeApi : HttpMessageHandler
     /// <summary>A Power's entry, for whoever is allowed to read one.</summary>
     public Dictionary<string, string> Book { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// The recorded conversations, as the server would bundle and answer them — a JSON object
+    /// keyed by file name, matching what <c>worker/transcripts-corpus.js</c> holds. Populated
+    /// with the real files by default; see <c>RenderContext</c>.
+    /// </summary>
+    public string? TranscriptsBundle { get; set; }
+
+    /// <summary>
+    /// Set to have <c>/api/transcripts</c> refuse even a signed-in caller — the shape of a
+    /// server that has the route but not the data, or one that is simply down for a moment.
+    /// </summary>
+    public bool TranscriptsUnavailable { get; set; }
+
     /// <summary>Set to have every call fail the way a missing network does.</summary>
     public bool Unreachable { get; set; }
 
@@ -209,6 +222,8 @@ public sealed class FakeApi : HttpMessageHandler
             "/api/rulebook/contents" => Contents(),
             "/api/rulebook/search" => Found(request),
             "/api/rulebook/passage" => Passage(request),
+
+            "/api/transcripts" => Transcripts(),
 
             "/api/admin/invitations" => InvitationList(request),
             var p when p.StartsWith("/api/admin/invitations/", StringComparison.Ordinal) =>
@@ -387,6 +402,18 @@ public sealed class FakeApi : HttpMessageHandler
             """);
 
         return Json($$"""{"rows":[{{string.Join(",", rows)}}]}""");
+    }
+
+    /// <summary>
+    /// The bundle, or the two refusals the real server gives — 401 for nobody signed in, and
+    /// whatever <see cref="TranscriptsUnavailable"/> asks for otherwise.
+    /// </summary>
+    private Task<HttpResponseMessage> Transcripts()
+    {
+        if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
+        if (TranscriptsUnavailable) return Status(HttpStatusCode.NotFound);
+
+        return Json(TranscriptsBundle ?? "{}");
     }
 
     private static string Lower(bool value) => value ? "true" : "false";

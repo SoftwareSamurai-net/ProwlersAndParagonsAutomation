@@ -49,8 +49,14 @@ public sealed class ReplayRenderTests
              ?? throw new InvalidOperationException($"'{key}' never arrives at a character.")
     };
 
+    /// <summary>
+    /// The recording itself, fetched through the same on-demand loader the pages use. Safe to
+    /// call synchronously — <see cref="ReplayLoader"/> is backed by <see cref="FakeApi"/>, which
+    /// answers every call already completed, so there is nothing here for `GetAwaiter().GetResult()`
+    /// to block on.
+    /// </summary>
     private static Transcript Conversation(RenderContext ctx, string id) =>
-        ctx.Services.GetRequiredService<ReplayLibrary>().Find(id)
+        ctx.Services.GetRequiredService<ReplayLoader>().LoadAsync().GetAwaiter().GetResult().Find(id)
         ?? throw new InvalidOperationException($"No recording called '{id}'.");
 
     private static IRenderedComponent<ReplayConversation> Play(RenderContext ctx, string id) =>
@@ -886,17 +892,19 @@ public sealed class ReplayRenderTests
     [Fact]
     public void RecordingsThatCouldNotBeLoadedAreNotReportedAsABadAddress()
     {
-        const string reason = "the transcripts answered 404";
-        using var ctx = new RenderContext(reason).AsAdministrator();
+        using var ctx = new RenderContext(recordingsUnavailable: true).AsAdministrator();
 
         var conversation = ctx.Render<ReplayConversation>(p => p.Add(c => c.Id, DidNotFit));
         var text = Text(conversation);
 
+        // The reason itself is whatever the gated route answered with, which this test does
+        // not own — see ReplayLoadingTests for that. What matters here is that a load failure
+        // is told apart from a bad address rather than folded into the same message.
         Assert.DoesNotContain("No such recording", text, StringComparison.Ordinal);
-        Assert.Contains(reason, text, StringComparison.Ordinal);
+        Assert.Contains("did not load", text, StringComparison.Ordinal);
 
         // And the list, which is where somebody who did not follow a link arrives.
-        Assert.Contains(reason, Text(ctx.Render<Replay>()), StringComparison.Ordinal);
+        Assert.Contains("did not load", Text(ctx.Render<Replay>()), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -921,16 +929,45 @@ public sealed class ReplayRenderTests
     /// A card with no blurb is four indistinguishable buttons.
     /// </summary>
     [Fact]
-    public void TheListOffersEveryRecordingWithSomethingToTellThemApart()
+    public async Task TheListOffersEveryRecordingWithSomethingToTellThemApart()
     {
         using var ctx = new RenderContext().AsAdministrator();
         var page = ctx.Render<Replay>();
         var text = Text(page);
 
-        foreach (var conversation in ctx.Services.GetRequiredService<ReplayLibrary>().Conversations)
+        var library = await ctx.Services.GetRequiredService<ReplayLoader>().LoadAsync();
+        foreach (var conversation in library.Conversations)
         {
             Assert.Contains(conversation.Title, text, StringComparison.Ordinal);
             Assert.Contains(conversation.Blurb, text, StringComparison.Ordinal);
         }
+    }
+
+    // ── Nobody pays for a demonstration they cannot see ─────────────────────────
+
+    /// <summary>
+    /// <b>The recordings are not fetched until somebody opens one.</b>
+    ///
+    /// <para>They used to be fetched before the first render of the whole app, exactly like the
+    /// rules — four files every visitor paid for, almost none of whom could ever reach the
+    /// gated pages that play them back. Now the server refuses them to anybody not signed in,
+    /// which is what makes deferring the fetch worth doing: <see cref="ReplayLoader"/> asks for
+    /// them only when a component actually calls it.</para>
+    ///
+    /// <para>Asserted with a positive control — opening a recording really does ask — because an
+    /// assertion that nothing was fetched is satisfied just as well by a loader that has stopped
+    /// working at all.</para>
+    /// </summary>
+    [Fact]
+    public void NothingFetchesTheRecordingsUntilOneIsOpened()
+    {
+        using var ctx = new RenderContext().AsAdministrator();
+
+        ctx.Render<MainLayout>(p => p.Add(l => l.Body, _ => { }));
+        Assert.DoesNotContain(ctx.Api.Asked, a => a.Contains(ReplayLibrary.ServedFrom, StringComparison.Ordinal));
+
+        // The positive control: opening a recording does ask for them.
+        Play(ctx, Cheap);
+        Assert.Contains(ctx.Api.Asked, a => a.Contains(ReplayLibrary.ServedFrom, StringComparison.Ordinal));
     }
 }

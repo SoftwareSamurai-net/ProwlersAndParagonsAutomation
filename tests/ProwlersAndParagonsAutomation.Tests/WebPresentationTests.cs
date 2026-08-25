@@ -2668,62 +2668,49 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
-    /// The browser builds its replay library through the loader that promises a failed fetch
-    /// leaves the app running, rather than open-coding the fetch again.
+    /// <b>The browser does not fetch the recorded conversations at startup.</b>
     ///
-    /// <para>This is the source half of a guarantee whose behaviour is tested in
-    /// <c>ProwlersAndParagons.Web.Tests.ReplayLoadingTests</c>. Both are needed and neither is
-    /// enough: a guarded loader nobody calls guarantees nothing, and it lived here as a
-    /// <c>try</c>/<c>catch</c> in top-level statements that no test could reach — deleting the
-    /// <c>try</c> was green, and one 404 then took the character generator to a blank page.
-    /// </para>
+    /// <para>They used to be fetched before the first render, exactly like the rules — four
+    /// files every visitor paid for, almost none of whom could ever reach the pages that play
+    /// them back, since those are behind an account. The server now refuses
+    /// <c>api/transcripts</c> to anybody not signed in, which is what makes fetching worth
+    /// deferring: a visitor who never opens a recording must never ask for one.
+    /// <c>ReplayLoader</c> is where that fetch happens instead, on the first call a component
+    /// makes to it — this file must not build the library, or even mention what it is loading,
+    /// itself.</para>
+    ///
+    /// <para>This is the source half; the behavioural half —that opening a recording really
+    /// does ask, and that nothing else does— is
+    /// <c>ReplayRenderTests.NothingFetchesTheRecordingsUntilOneIsOpened</c> in the bUnit
+    /// project.</para>
     /// </summary>
     [Fact]
-    public void TheBrowserBuildsItsReplayLibraryThroughTheGuardedLoader()
+    public void TheBrowserDoesNotFetchTheReplayLibraryAtStartup()
     {
         var program = File.ReadAllText(Path.Combine(WebRoot, "Program.cs"));
 
-        Assert.Contains("ReplayLibrary.LoadAsync(http)", program, StringComparison.Ordinal);
-
-        // And nowhere else builds one. Constructing it here is how the guard gets bypassed
-        // without anything looking wrong.
-        Assert.DoesNotContain("new ReplayLibrary(", program, StringComparison.Ordinal);
-
-        // **Nor may it do the fetching itself.** Calling the guarded loader is not the same as
-        // being guarded: an adversarial pass fetched every transcript here, in a bare loop,
-        // and handed the loader a delegate that only read the resulting dictionary. The
-        // throwing call was back outside the try, one 404 took the app to a blank page, and
-        // both this test and every behavioural test stayed green. So the path lives on
-        // ReplayLibrary and this file may not name it.
+        Assert.DoesNotContain("ReplayLibrary", program, StringComparison.Ordinal);
         Assert.DoesNotContain("transcripts", program, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// The address the app asks for and the folder the build stages the recordings into are
-    /// the same, and they are written down in two files that nothing else connects.
+    /// The address the app asks for is the one gated route the server answers this from.
     ///
-    /// <para>The behavioural half — that the loader really requests that path — is
-    /// <c>ReplayLoadingTests.TheLibraryAsksForEachRecordingWhereTheBuildPutsIt</c>. This is the
-    /// other end: that the path it agrees on is where the csproj puts the files. Either alone
-    /// is satisfied by a consistent, wrong answer.</para>
+    /// <para>The recordings used to be ordinary files under a folder the csproj staged into
+    /// <c>wwwroot</c>, and this test compared the address against that folder. They are bundled
+    /// into the worker now, the way the rulebook corpus is, so there is no folder to compare
+    /// against — <c>AccountsContractTests.EveryAddressTheBrowserAsksForIsOneTheServerAnswers</c>
+    /// is what holds the two ends of the actual route together. This just pins the address
+    /// itself, so a rename here does not slip past unnoticed.</para>
     /// </summary>
     [Fact]
-    public void TheRecordingsAreAskedForFromTheFolderTheBuildStagesThemInto()
+    public void TheRecordingsAreAskedForFromTheGatedRoute()
     {
         var served = Rx(@"ServedFrom\s*=\s*""([^""]+)""")
             .Match(File.ReadAllText(Path.Combine(WebRoot, "Services", "ReplayLibrary.cs")));
 
         Assert.True(served.Success, "ReplayLibrary does not say where the recordings are served from.");
-
-        // The folders the build actually stages into, read whole. `Contains` is wrong here and
-        // was: `wwwroot\data\transcript` is a substring of `wwwroot\data\transcripts`, so
-        // dropping the "s" — the exact one-character mistake this test exists to catch — passed.
-        var staged = Rx(@"DestinationFolder=""[^""]*\\wwwroot\\([^""]+)""")
-            .Matches(File.ReadAllText(Path.Combine(WebRoot, "ProwlersAndParagons.Web.csproj")))
-            .Select(m => m.Groups[1].Value)
-            .ToList();
-
-        Assert.Contains(served.Groups[1].Value.Replace('/', '\\'), staged, StringComparer.Ordinal);
+        Assert.Equal("api/transcripts", served.Groups[1].Value);
     }
 
     /// <summary>Widows and orphans, so a paragraph never leaves one line behind.</summary>

@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4329 across three suites — 3730 on the engine, 459 rendering components with bUnit, 140 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on the integration branch after merging, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
+| Tests | 4337 across three suites — 3730 on the engine, 460 rendering components with bUnit, 147 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on the integration branch after merging, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -368,6 +368,58 @@ banner from going stale. `docs/ACCOUNTS-SETUP.md` also had `d1/migrations/0004_e
 worked example pointed at a database named `prowlers-accounts`, which does not exist — the real
 one is `prowlers-and-paragons`; fixed in the same change since it was found while this was open.
 
+### The recordings move behind the gate, and out of every visitor's startup fetch
+
+**The account gate on the replay pages was a front door rather than a lock, and this closes it.**
+The recordings and the pages that play them back moved behind `AdminOnly` in an earlier slice, and
+that slice said plainly what it had not done: the four transcripts were still ordinary files under
+`wwwroot/data/transcripts`, so anybody who knew a filename could fetch one straight through, and
+every visitor's browser fetched all four before its first render whether or not that visitor could
+ever reach a page that shows them. Both are fixed the same way the rulebook corpus already was.
+
+- **Bundled into the worker, not staged into `wwwroot`.** `worker/transcripts-corpus.js` bakes
+  `data/transcripts/*.json` into an object literal at build time, the way `worker/corpus.js` bakes
+  the rulebook — `scripts/inline-transcripts.mjs` mirrors `scripts/inline-rulebook.mjs` line for
+  line, including reading the directory rather than naming files, so a fifth recording needs no
+  edit to the bake script. A guard in `tests/worker/transcripts.test.mjs` refuses a bake that has
+  drifted from disk, the same shape as the rulebook's own guard.
+- **`api/transcripts` answers a signed-in caller and refuses everybody else**, gated in the same
+  block as the rulebook routes in `worker/index.js` — "signed in", not "administrator", which
+  matches how the rulebook routes are gated and is deliberate: the page above it is
+  administrator-only, but the route underneath asks the same question every other gated route
+  does. The refusal is a plain 401 whose body carries none of the recorded text — asserted with a
+  positive control, since an absence assertion is satisfied by a route that has stopped answering
+  at all.
+- **`ReplayLoader` fetches once, on demand, and caches it for the session.** `web/Program.cs` used
+  to fetch every transcript before the first render and register a `ReplayLibrary` singleton; that
+  line is gone, and nothing replaces it there. The two replay pages and the portfolio page each ask
+  `ReplayLoader` for the library in their own `OnInitializedAsync`, and because Blazor WebAssembly
+  has one DI scope for the whole app, the first ask is the only ask — opening a second recording
+  does not fetch again. `ReplayLibrary.LoadAsync` still owns the guarantee that a failed fetch
+  leaves the app running rather than the page: it fetches the whole bundle in one request now
+  instead of one request per file, parses it, and hands the result to
+  `engine/TranscriptLibrary.ReadAll` exactly as before.
+- **Nothing fetches the recordings until somebody actually opens one.**
+  `WebPresentationTests.TheBrowserDoesNotFetchTheReplayLibraryAtStartup` holds `Program.cs` to
+  never naming `ReplayLibrary` or mentioning transcripts at all, and
+  `ReplayRenderTests.NothingFetchesTheRecordingsUntilOneIsOpened` is the behavioural half, with a
+  positive control: rendering the shell asks nothing, and opening a recording does.
+- **Every new guard was broken and watched fail**, not merely reasoned about: the gate bypassed and
+  the refusal turned to 200, the bake mutated one word and the byte-for-byte guard caught it, the
+  eager-startup-fetch line put back in `Program.cs` and the source guard caught it, an eager fetch
+  reachable from `MainLayout` and the behavioural guard caught it, the cross-language route name
+  changed in both `worker/index.js` and `worker/errors.js` and `AccountsContractTests` caught it,
+  and the outer catch in `ReplayLibrary.LoadAsync` narrowed from `Exception` to `JsonException` and
+  the "one recording missing" test caught the resulting unhandled exception. Each was reverted
+  after.
+- **This reverses the specific sentence CLAUDE.md used to carry twice** — that the portfolio gate
+  is "a front door rather than a lock" and that the transcripts are "still ordinary files under
+  `wwwroot`" — corrected rather than appended to, in "The replay" and in "The accounts server".
+
+Tests: engine + bUnit 4180 (3730 + 450, both unchanged in total shape apart from this slice's own
+additions and renames), accounts 131 (124 + 7 new in `tests/worker/transcripts.test.mjs`). All
+green, `dotnet build -p:ContinuousIntegrationBuild=true` at zero warnings.
+
 ### A front door with two avenues, the whole book searchable, and the sheet while you build
 
 **The open half of the visual redesign, and it turned into an information-architecture change
@@ -486,11 +538,10 @@ through the mutation, which is the whole reason the stylesheet guards exist:
 
 #### What this did not do, and is honest about
 
-- **The portfolio gate is a front door rather than a lock.** The transcripts are still ordinary
-  files under `wwwroot`, so anybody who knows a filename can fetch one; only the *pages* are gated.
-  Making it real means serving them from the worker as the rulebook is, which would also take them
-  out of every visitor's startup fetch. Not attempted here; it is a refactor of
-  `ReplayLibrary.LoadAsync` and of `Program.cs`, and the recordings hold nothing secret.
+- **The portfolio gate was a front door rather than a lock — closed, see below.** This bullet used
+  to say the transcripts were still ordinary files under `wwwroot`, reachable by anybody who knew a
+  filename, and that making it real would need a refactor of `ReplayLibrary.LoadAsync` and of
+  `Program.cs`. That refactor is [the completed item at the top of this section](#the-recordings-move-behind-the-gate-and-out-of-every-visitors-startup-fetch).
 - **The old `/portfolio` and `/replay` addresses now 404.** Deliberate: the content is
   account-gated, so a public link that still worked would be the wrong answer, and one that arrives
   wearing the wrong chrome is worse than one that breaks.

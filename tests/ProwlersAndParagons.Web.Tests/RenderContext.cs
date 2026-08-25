@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
@@ -25,13 +26,13 @@ public sealed class RenderContext : BunitContext
     /// </summary>
     public FakeApi Api { get; } = new();
 
-    /// <param name="recordingsProblem">
+    /// <param name="recordingsUnavailable">
     /// Set to render the app as it is when the recordings could not be fetched — an empty
-    /// library carrying the reason, which is what <c>web/Program.cs</c> registers when the
-    /// fetch or the parse fails. There is no way to reach that state through the UI, and it is
-    /// the state in which the replay pages have to say something true rather than guess.
+    /// library carrying the reason, which is what <see cref="ReplayLoader"/> answers when the
+    /// gated route refuses or fails. There is no way to reach that state through the UI, and it
+    /// is the state in which the replay pages have to say something true rather than guess.
     /// </param>
-    public RenderContext(string? recordingsProblem = null)
+    public RenderContext(bool recordingsUnavailable = false)
     {
         var rules     = RulesRepository.FromBasePath(RepoRoot());
         var costs     = new CostCalculator(rules);
@@ -45,24 +46,29 @@ public sealed class RenderContext : BunitContext
         Services.AddSingleton(new ProConApplicability(rules));
         Services.AddSingleton(new SourceGrouping(rules));
 
-        // The recorded conversations, read from the real data/transcripts for the same reason
-        // the rules are read from the real data/rules: a replay that renders correctly against
-        // an invented transcript and wrongly against the shipped ones has been tested for
-        // nothing. This is the fetch in Program.cs, minus the HTTP.
-        Services.AddSingleton(recordingsProblem is null
-            ? new ReplayLibrary(TranscriptLibrary.ReadAll(
-                TranscriptLibrary.FileNames.ToDictionary(
-                    name => name,
-                    name => File.ReadAllText(Path.Combine(RepoRoot(), "data", "transcripts", name)),
-                    StringComparer.Ordinal)))
-            : new ReplayLibrary([], recordingsProblem));
         Services.AddScoped<CharacterSession>();
 
         // The accounts server, as far as the browser can tell — see FakeApi. Signed out by
         // default, which is the app every test written before accounts existed was written
         // against: an anonymous visitor whose character is in this browser.
+        //
+        // The recorded conversations are wired the same way now — bundled behind the gate
+        // rather than an eagerly-built singleton — so FakeApi is given the real files from
+        // data/transcripts, read the same way the rules are read from data/rules: a replay
+        // that renders correctly against an invented transcript and wrongly against the
+        // shipped ones has been tested for nothing. ReplayLoader does the fetching, through
+        // this HttpClient, exactly as the app's does.
+        Api.TranscriptsBundle = JsonSerializer.Serialize(
+            TranscriptLibrary.FileNames.ToDictionary(
+                name => name,
+                name => JsonDocument.Parse(
+                    File.ReadAllText(Path.Combine(RepoRoot(), "data", "transcripts", name))).RootElement,
+                StringComparer.Ordinal));
+        Api.TranscriptsUnavailable = recordingsUnavailable;
+
         Services.AddSingleton(Api);
         Services.AddScoped(_ => new HttpClient(Api) { BaseAddress = new Uri("https://pp.example.test/") });
+        Services.AddScoped<ReplayLoader>();
 
         // Resolves bUnit's own IJSRuntime, so a component that persists can be rendered and
         // the interop it asks for can be read back off JSInterop.Invocations.

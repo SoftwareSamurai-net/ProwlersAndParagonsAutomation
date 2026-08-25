@@ -135,6 +135,7 @@ const KNOWN_ROUTES = Object.freeze([
     '/api/characters', '/api/rulebook/power',
     '/api/rulebook/search', '/api/rulebook/contents', '/api/rulebook/passage',
     '/api/admin/error-log',
+    '/api/transcripts',
 ]);
 
 /**

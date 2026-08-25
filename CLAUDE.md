@@ -210,7 +210,7 @@ data/rules/   →   engine/   →   sheets/   →   web/   ←   data/transcript
 ```
 
 - **`data/rules/`** — JSON files only. No logic. All rules data extracted from the P&P Ultimate Edition PDF lives here.
-- **`data/transcripts/`** — the second data input, and **not rules**: four recorded conversations the browser replays, read by `engine/TranscriptLibrary`. They are read *through* the engine rather than by it — every character in one goes through `CharacterSheetJson`'s strict reader — and nothing in the engine's rules logic knows they exist. Only `web/` loads them. See "The replay".
+- **`data/transcripts/`** — the second data input, and **not rules**: four recorded conversations the browser replays, read by `engine/TranscriptLibrary`. They are read *through* the engine rather than by it — every character in one goes through `CharacterSheetJson`'s strict reader — and nothing in the engine's rules logic knows they exist. Only `web/` reads them this way; `worker/` also holds a baked copy of the same bytes, gated behind an account, but relays them without parsing a word of them — see "The accounts server". See "The replay".
 - **`engine/`** — Pure C#, zero Spectre.Console references, no filesystem access. `CostCalculator` and `CharacterValidator` are the authority on HP costs and validity. No front end tallies points itself. The one file here that is not rules logic is `SampleCharacters.cs`, which builds two `CharacterSheet`s for preview — see below.
 - **`sheets/`** — The `.txt` and `.json` exports, plus the stat-line and gear-line formatters, all returning strings. Shared by every host — the wizard, the browser, the build command and the MCP server; writing a string somewhere is the host's job.
 - **`cli/`** — Terminal presentation. Uses Spectre.Console for all rendering. Each wizard step implements `IWizardStep` and receives `CharacterSheet`, `RulesRepository`, `CostCalculator`, and `DerivedStatsCalculator` via `Execute()`.
@@ -367,8 +367,9 @@ category, and an Ability row a name, a rank and the rulebook's word for it. The 
 
 `/admin/portfolio/replay` plays back four real conversations for somebody who has no way to hold one
 — the MCP server needs a Claude of your own. The transcripts are in `data/transcripts/`, read by
-`engine/TranscriptLibrary`, staged into `wwwroot` by the csproj exactly as the rules are, and fetched
-by `Program.cs` from `TranscriptLibrary.FileNames`.
+`engine/TranscriptLibrary`, and bundled into the worker at build time — see `worker/transcripts-corpus.js`
+and `scripts/inline-transcripts.mjs` — the same way the rulebook corpus is. They are fetched, all
+four at once, from `api/transcripts` by `ReplayLoader`, on demand rather than at startup.
 
 **They are behind the account pages now, and that reverses a settled decision deliberately.** The
 older entry read that a visitor cannot bring their own Claude and the replay is the answer; the
@@ -376,11 +377,16 @@ site's owner has decided otherwise — this is not a sign-up, and the recordings
 are a thing to show somebody rather than a thing to publish. The pages are wrapped in `AdminOnly`,
 which asks the server on every visit and holds no claim of its own.
 
-**It is a front door rather than a lock, and saying so is the point.** The transcripts are still
-ordinary files under `wwwroot`, so anybody who knows a filename can fetch one; only the *pages* are
-gated. Making it a real gate means serving them from the worker as the rulebook is, which also takes
-them out of every visitor's startup fetch — see `PROGRESS.md`. Do not describe the current state as
-access control.
+**It is a real gate now, not a front door.** This entry used to say the opposite: the transcripts
+were ordinary files under `wwwroot`, so anybody who knew a filename could fetch one and only the
+*pages* were gated. They are bundled into the worker instead and answered only to a signed-in
+caller at `api/transcripts` — the same placement that is the whole access control for the rulebook
+corpus, and for the same reason: a file under `wwwroot` is a public URL, and no amount of checking
+sessions in the browser would make it not be one. `tests/worker/transcripts.test.mjs` holds the
+gate to a signed-in caller, with a positive control, and asserts the refused body carries none of
+the recorded text. Moving them off `wwwroot` also took them out of every visitor's startup fetch —
+`ReplayLoader` fetches once, the first time a component actually asks for a recording, so a visitor
+who never opens the replay never asks the server for one at all.
 
 - **A transcript holds characters, never answers about them.** A turn carries a `CharacterSheet`
   — the inputs — and the replay costs and validates it in the browser as the visitor reveals it.
@@ -416,16 +422,21 @@ access control.
   Edge, Health and Resolve under a recorded name until it was given the recorded one. A bUnit
   test loads a sample first so there is a different character present to be printed by mistake.
 - **The hand-off gives the editors a copy**, round-tripped through `CharacterSheetJson`. The
-  library is read once at startup and shared by every visit; handing the instance over lets the
-  first edit rewrite the recording.
+  library is fetched once, the first time something asks `ReplayLoader` for it, and shared by
+  every visit after that; handing the instance over lets the first edit rewrite the recording.
 - **A failed transcript fetch must not stop the app.** Missing rules are a broken deployment;
   missing recordings are a missing demonstration. `ReplayLibrary.LoadAsync` catches, returns an
   empty library and carries the reason so the page can print it — and **it is a method rather
-  than a block in `Program.cs` because that is where nothing could reach it.** It was a
-  `try`/`catch` in top-level statements; deleting the `try` left the whole suite green while
-  one 404 took the character generator to a blank page. One file short leaves *no* recordings
-  rather than most of them, which is deliberate: a library holding three of four looks like a
-  decision and answers the fourth address with "no such recording".
+  than a block wherever it is called from, because that is where nothing could reach it.** It
+  was once a `try`/`catch` in `Program.cs`'s top-level statements, back when the fetch happened
+  at startup; deleting the `try` left the whole suite green while one 404 took the character
+  generator to a blank page. One file short leaves *no* recordings rather than most of them,
+  which is deliberate: a library holding three of four looks like a decision and answers the
+  fourth address with "no such recording". `ReplayLoader` is what makes the fetch lazy —
+  `WebPresentationTests.TheBrowserDoesNotFetchTheReplayLibraryAtStartup` holds `Program.cs` to
+  never building one itself, and
+  `ReplayRenderTests.NothingFetchesTheRecordingsUntilOneIsOpened` is the behavioural half, with
+  a positive control: opening a recording really does ask.
 - **Nothing on a replayed sheet may come from the visitor's own character**, and that is
   asserted by rendering the same character twice — once held by the session, once passed as a
   parameter over a *different* session character — and requiring the two pages to be identical.
@@ -732,7 +743,12 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   the deploy is the only place the fault is ever visible**, and it checks for JSON there.
 - **`data/rulebook/` is bundled into the server and never staged into `wwwroot`.** A file under
   `wwwroot` is a public URL; that placement is the entire access control, and there is a test on
-  both sides of the repository.
+  both sides of the repository. **The four recorded conversations the portfolio replays are
+  bundled the same way**, into `worker/transcripts-corpus.js` by `scripts/inline-transcripts.mjs`,
+  and answered at `api/transcripts` behind the same "signed in, nothing more" check as the
+  rulebook routes — see "The replay". `ReplayLoader` fetches it once, on demand, rather than at
+  startup, which is also what stopped every visitor's browser paying for four files almost none
+  of them could ever open.
 - **The two halves are different languages and both suites stay green while they disagree.**
   `AccountsContractTests` is the only thing that reads both — addresses asked for against
   addresses routed, and the keys the server returns against the names the client binds. Do not
@@ -1025,7 +1041,7 @@ Everything else an option states — "Powers that inflict physical or energy dam
 Ten files, one per chapter, holding the printed text of the whole Ultimate Edition with the page each section came from. **The rights position changed to allow this** — the author gave the repository owner permission to use the book's data, so the older rule that no rulebook wording may appear here no longer applies to this store. It still applies to `data/rules/`.
 
 - **They answer different questions and must not be merged.** `data/rules/` is the *mechanics* — structured, verified entry by entry against the page, and the only thing the engine reads. `data/rulebook/` is the *text*, so a player can be shown what a Power says. No cost, rank or validity comes from the corpus, and where the two disagree, `data/rules/` wins.
-- **It is not in the browser payload, and that is deliberate rather than an oversight.** `web/`'s csproj copies `data/rules` and `data/transcripts` into `wwwroot` and nothing else, so the deployed public site does not serve the book. **The reader exists now** — `/rules`, searching all ten chapters — and it reaches the text through `/api/rulebook/`, which asks who is calling. **The placement is still the whole access control**: a file under `wwwroot` is a public URL and no amount of checking sessions in the browser would make it not be one. There is a test on both sides of the repository. Turning it on is one `ItemGroup` — do not turn it on by accident.
+- **It is not in the browser payload, and that is deliberate rather than an oversight.** `web/`'s csproj copies `data/rules` into `wwwroot` and nothing else, so the deployed public site does not serve the book. **The reader exists now** — `/rules`, searching all ten chapters — and it reaches the text through `/api/rulebook/`, which asks who is calling. **The placement is still the whole access control**: a file under `wwwroot` is a public URL and no amount of checking sessions in the browser would make it not be one. There is a test on both sides of the repository. Turning it on is one `ItemGroup` — do not turn it on by accident. The recorded conversations are bundled the same way, into `worker/transcripts-corpus.js`, and answered at `api/transcripts` — see "The replay".
 - **The corpus is generated, and the generator is `tools/RulebookExtractor/`** — in the solution so it cannot rot. Regenerate with `dotnet run --project tools/RulebookExtractor -- <pdf> data/rulebook`. **Do not hand-edit `data/rulebook/`**; an edit there is lost on the next run and hides whatever the extractor is doing wrong. The first extractor was a scratch project that no longer existed by the time its output was found to be wrong, which meant the corpus could be neither audited nor regenerated.
 - **The book is two-column, and both naive readings destroy it in opposite directions.** Reading by baseline alone interleaves the columns — printed p.52's heading came out as `OVERKILL PHASE SHIFT`, which is two entries. Splitting every page at a fixed midpoint instead destroys anything set **full width**, cutting each line in half and filing the halves in different blocks; **every chapter opening in the book is set full width**, and all of them shipped scrambled. So the gutter is found per page, and a line counts as full-width only when **a word actually sits astride it** — the test that distinguishes a real full-width line from two facing headings sharing a baseline.
 - **The damage from all of this reads as English.** Ch.2 opened "…from the Heroes the GM. They include not only sentient beings but also animals, and so on", with two runs of the printed sentence missing and nothing about it looking broken. Judge a change here by re-running the extractor and the corpus tests, never by reading a paragraph and finding it plausible.

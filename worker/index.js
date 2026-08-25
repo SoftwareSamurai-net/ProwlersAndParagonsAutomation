@@ -19,6 +19,8 @@ import { fail } from './http.js';
 import * as invitations from './invitations.js';
 import { sendSignInLink } from './mail.js';
 import { contents, index, passage, power, search } from './rulebook.js';
+import { transcripts } from './transcripts.js';
+import { TRANSCRIPTS } from './transcripts-corpus.js';
 
 /**
  * Everything the handlers reach for that is not the database.
@@ -161,7 +163,7 @@ async function route(request, env, deps) {
     // Everything below needs somebody to be signed in, and asks once. A route that fetched its
     // own user would be a route that could forget to.
     if (path === '/api/characters' || path.startsWith('/api/characters/')
-        || path.startsWith('/api/rulebook/')) {
+        || path.startsWith('/api/rulebook/') || path === '/api/transcripts') {
         const user = await auth.currentUser(request, env, deps);
         if (!user) return fail(401, 'Sign in first.');
 
@@ -175,6 +177,11 @@ async function route(request, env, deps) {
         if (path === '/api/rulebook/passage') return only('GET', method, () => passage(request, CHAPTERS));
 
         if (path.startsWith('/api/rulebook/')) return fail(404, 'No such address.');
+
+        // The four recorded conversations the portfolio replays, gated the same way and for the
+        // same reason as the book: bundled into the server rather than staged into `wwwroot`, so
+        // this is the only way in, and it asks who is calling before it answers.
+        if (path === '/api/transcripts') return only('GET', method, () => transcripts(TRANSCRIPTS));
 
         if (path === '/api/characters') {
             return only('GET', method, () => characters.list(request, env, deps, user));

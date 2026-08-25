@@ -17,15 +17,16 @@ on:
       - 'engine/**'
       - 'sheets/**'
       - 'data/rules/**'
-      # The recorded conversations the replay plays. They are staged into wwwroot by the
-      # build like the rules, so a transcript edited alone still changes the published site.
-      - 'data/transcripts/**'
-      # The accounts server and the book it serves. `functions/` is the one file Cloudflare
-      # routes; `worker/` is everything it imports, and the corpus is bundled into it — so a
-      # change to any of the three changes the deployed site even though none is under web/.
+      # The accounts server, the book it serves, and the recorded conversations the replay
+      # plays. `functions/` is the one file Cloudflare routes; `worker/` is everything it
+      # imports, and both the rulebook corpus and the transcripts are bundled into it — so a
+      # change to any of the four changes the deployed site even though none is under web/.
+      # Editing data/rulebook/ or data/transcripts/ alone changes nothing here until the
+      # corresponding bake script is re-run and worker/*-corpus.js is committed with it.
       - 'functions/**'
       - 'worker/**'
       - 'data/rulebook/**'
+      - 'data/transcripts/**'
       - 'scripts/write-cloudflare-headers.sh'
       - 'Directory.Build.props'
       - '.github/workflows/deploy.yml'
