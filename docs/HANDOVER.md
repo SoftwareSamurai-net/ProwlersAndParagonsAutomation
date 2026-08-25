@@ -19,15 +19,33 @@ character rather than to look a rule up. The reason none of them fitted is worth
 was both the first screen and step one of the wizard**, so any demonstration parked there would
 have re-opened the decision `ChooseTier.razor` already recorded when the samples were moved off it.
 
+**It is merged and deployed.** [#73](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/73)
+went into `master` as `9ff148e`; Build, Deploy and Qodana are all green on it, and the new routes
+are live. **There is no open PR and no branch carrying work**, so the next session starts with
+nothing to reconcile.
+
 Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this file.
 
 ---
 
 ## Where things stand
 
-**4303 tests** — 3730 engine, 449 bUnit, 124 accounts — measured on the `redesign-avenues` branch.
-Seven browser harnesses driven by headless Chrome in the build workflow. Live at
-**superheroes.softwaresamurai.net**.
+**4303 tests** — 3730 engine, 449 bUnit, 124 accounts — **re-measured on `master` at `9ff148e`
+after the merge**, not carried across from the branch, which is the mistake this row records below.
+Nine browser harnesses driven by headless Chrome in the build workflow (two are new: the front door
+and the rules reference at 375px). Live at **superheroes.softwaresamurai.net**.
+
+**The new server routes were checked in production, not inferred from a green deploy.** All three
+answer `401` with `application/json`:
+
+```bash
+curl -i https://superheroes.softwaresamurai.net/api/rulebook/contents
+```
+
+That is the check worth making rather than fetching a page, because `_redirects` serves every
+unmatched path as `index.html` with a **200** — so a route that never shipped comes back looking
+like a working page, and only the body tells you. A JSON refusal proves the address is routed *and*
+that the gate is on it.
 
 **Re-measure this rather than adding to it.** It has been wrong twice in a fortnight: three
 branches each claimed a different total for the same tree, and then this file copied one of them
@@ -38,9 +56,10 @@ dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
 ./scripts/test-worker.sh
 ```
 
-**A whole-tree Qodana scan reports 0**, measured on `44e8c90` — the head of this branch — from a
-report that exists rather than from an exit code. It got there by being run three times: 23 on the
-first pass, all in code this slice added; 2 after fixing them; 0 after the last two.
+**A whole-tree Qodana scan reports 0**, measured on `master` at `9ff148e` — after the merge, not on
+the branch — from a report that exists rather than from an exit code. It got there by being run four
+times: 23 on the first pass, all in code the redesign added; 2 after fixing them; 0 after the last
+two; 0 again on the merge commit.
 
 **Do not repeat that zero without re-running `./scripts/qodana-scan.sh`**, which is a rule this
 repository has broken twice. It needs Docker Desktop running; without it the script exits non-zero
