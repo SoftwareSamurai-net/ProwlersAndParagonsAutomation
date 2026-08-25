@@ -223,6 +223,43 @@ public sealed class Accounts : IIdentitySource
     };
 
     /// <summary>
+    /// How long a name the box will let somebody type — matches the server's own cap in
+    /// <c>worker/auth.js</c> so a paste over the limit is stopped here instead of arriving as a
+    /// refusal. The server enforces its own cap regardless: this is a courtesy, not the control.
+    /// </summary>
+    public const int DisplayNameLength = 60;
+
+    /// <summary>
+    /// Change the signed-in account's own name. True when it was saved.
+    ///
+    /// <para><b>What is refused is a shape the server cannot render, not a judgement about what
+    /// somebody calls themselves</b> — see <c>worker/auth.js</c>'s <c>setDisplayName</c> for the
+    /// exact rule: trimmed, capped at <see cref="DisplayNameLength"/>, and refused only for not
+    /// being usable text. A blank name is not a refusal; the server resets it to the account's
+    /// email instead, the same value a fresh sign-in gets.</para>
+    ///
+    /// <para>Uniqueness is deliberately never checked, here or on the server — see the note
+    /// there. Two accounts may show the same name; nothing in this app treats a name as proof of
+    /// who somebody is.</para>
+    /// </summary>
+    public async Task<bool> SetDisplayNameAsync(string displayName)
+    {
+        try
+        {
+            var response = await _http.PutAsJsonAsync("api/me/display-name", new { displayName });
+            if (!response.IsSuccessStatusCode) return false;
+
+            var who = await response.Content.ReadFromJsonAsync<Wired>(Wire);
+            if (who?.Key is not { Length: > 0 }) return false;
+
+            Became(new Identity(who.Key, who.DisplayName));
+
+            return true;
+        }
+        catch (Exception e) when (IsUnreachable(e)) { return false; }
+    }
+
+    /// <summary>
     /// Spend a link's token. True when somebody is now signed in.
     ///
     /// <para>Every refusal is one answer, for the same reason the server gives one: a link that

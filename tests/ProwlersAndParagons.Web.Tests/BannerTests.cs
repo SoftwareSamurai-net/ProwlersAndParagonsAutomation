@@ -76,6 +76,26 @@ public sealed class BannerTests
     }
 
     /// <summary>
+    /// The banner follows a name change the same way it follows a sign-in — through the one
+    /// service both it and the account panel share, rather than a reload.
+    /// </summary>
+    [Fact]
+    public async Task TheBannerFollowsAnOwnNameChangeWithoutAReload()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var layout = ctx.Render<MainLayout>();
+        Assert.Contains("player", BannerLinks(layout));
+
+        var accounts = ctx.Services.GetRequiredService<Accounts>();
+        await layout.InvokeAsync(async () => await accounts.SetDisplayNameAsync("Dorian"));
+
+        Assert.Contains("Dorian", BannerLinks(layout));
+        Assert.DoesNotContain("player", BannerLinks(layout));
+    }
+
+    /// <summary>
     /// <b>Exactly one of the two mode buttons announces itself as pressed.</b>
     ///
     /// <para>Asserted as a pair rather than one at a time, because the mutation that got through

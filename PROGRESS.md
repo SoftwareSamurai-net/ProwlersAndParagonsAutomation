@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4303 across three suites — 3730 on the engine, 449 rendering components with bUnit, 124 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on `master` at `9ff148e`, re-run after the merge rather than carried across from the branch.** This row has been wrong twice: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
+| Tests | 4317 across three suites — 3730 on the engine, 453 rendering components with bUnit, 134 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on the display-name branch, not `master` — re-run after the merge rather than carried across.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -286,6 +286,29 @@ Do it once the HTTP API stops moving, so audit targets are not shifting under it
 ---
 
 ## Completed work
+
+### A signed-in visitor can change what they are called
+
+The name a fresh sign-in gets is the email's own local part, and there was no way to change it —
+the owner's own account was stuck reading "tabletop". `PUT /api/me/display-name` changes the
+caller's own row and nobody else's, scoped by the id off the session rather than anything the
+request names; trimmed, refused for not being a usable string, a control character, or more than
+60 characters, and reset to the email's local part rather than refused when it comes in blank
+after trimming — the same value a fresh sign-in already gets, so a cleared name looks like one
+never set rather than a banner naming nobody while `Identity.IsSignedIn` still read true.
+
+**Uniqueness is deliberately not checked**, on either side of the wire — a name is free text
+shown in a banner, never a permission or a claim of identity, and asking "is this name taken" is
+the same oracle the invitation list exists to keep this site from answering about addresses. The
+box is on the account panel already on `/signin`, and the banner and the panel both pick the new
+name up from `Accounts.Changed` without a reload, the same event a sign-in already raises.
+
+Every new guard was broken and watched fail: the control-character check, the length cap, the
+blank-resets-to-email-local-part rule, the same-origin check, the signed-in check, the
+own-row-only scoping in the SQL, and the two client-side syncs that keep the name box and the
+banner from going stale. `docs/ACCOUNTS-SETUP.md` also had `d1/migrations/0004_error_log.sql`'s
+worked example pointed at a database named `prowlers-accounts`, which does not exist — the real
+one is `prowlers-and-paragons`; fixed in the same change since it was found while this was open.
 
 ### A front door with two avenues, the whole book searchable, and the sheet while you build
 

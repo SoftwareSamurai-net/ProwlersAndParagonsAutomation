@@ -140,6 +140,10 @@ public sealed class FakeApi : HttpMessageHandler
     /// <summary>Set to have an invitation refuse to be added or withdrawn.</summary>
     public bool RefuseInvitationChanges { get; set; }
 
+    /// <summary>Set to have a display-name change refused, the way the real server refuses one
+    /// that is not a usable string.</summary>
+    public bool RefuseDisplayNameChanges { get; set; }
+
     /// <summary>
     /// What a request for a sign-in link answers. 204 by default.
     ///
@@ -174,6 +178,7 @@ public sealed class FakeApi : HttpMessageHandler
         return path switch
         {
             "/api/me" => Identity(),
+            "/api/me/display-name" => SetDisplayName(request),
 
             "/api/auth/request" => LinkRequestReference is null
                 ? Status(LinkRequestAnswer)
@@ -210,6 +215,35 @@ public sealed class FakeApi : HttpMessageHandler
         SignedIn is { } who
             ? Json($$"""{"key":"{{who.Key}}","displayName":"{{who.DisplayName}}"}""")
             : Status(HttpStatusCode.Unauthorized);
+
+    /// <summary>
+    /// Change the signed-in account's own name, or 401.
+    ///
+    /// <para>The real rule — trimmed, capped, refused for a shape it cannot store, blank resets
+    /// to the account's email — is tested against the real server in <c>tests/worker</c>; this
+    /// only has to give the client something to react to, so a name that is not a usable string
+    /// is the one shape refused here.</para>
+    /// </summary>
+    private Task<HttpResponseMessage> SetDisplayName(HttpRequestMessage request)
+    {
+        if (SignedIn is not { } who) return Status(HttpStatusCode.Unauthorized);
+        if (RefuseDisplayNameChanges) return Status(HttpStatusCode.BadRequest);
+
+        var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+        using var sent = JsonDocument.Parse(body);
+
+        if (!sent.RootElement.TryGetProperty("displayName", out var named)
+            || named.ValueKind != JsonValueKind.String)
+        {
+            return Status(HttpStatusCode.BadRequest);
+        }
+
+        // The same identity `/api/me` gives, not a hand-built one — see the note on
+        // `/api/auth/verify` above; the same lesson applies here.
+        SignedIn = (who.Key, named.GetString() ?? who.DisplayName);
+
+        return Identity();
+    }
 
     /// <summary>
     /// The list, and the cap. Ordered most recently touched first, as the real server orders it —

@@ -407,6 +407,12 @@ There is a test for each, and one that asserts all three together: `AccountTests
   not carry a role field either, so "am I a GM" is not a question the client can ask.
 - **No rules on the server.** The engine runs in the browser and is the authority on what a
   character costs and whether it is legal. The server stores bytes it never parses.
+- **Self-service for your own name, and nothing else.** A fresh sign-in is called by the local
+  part of its email; `/api/me/display-name` lets it change that to anything else, from the
+  account panel. A name is free text shown in a banner, never a permission or a claim of
+  identity — it is not checked for being unique, so two accounts may share one, and nothing
+  about the invitation list, the character cap or an administrator flag can be reached through
+  it.
 
 ---
 
