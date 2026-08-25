@@ -280,4 +280,72 @@ public sealed class BudgetStripTests
         Assert.Single(strip.FindAll(".breakdown-note"));
         Assert.Contains("Trait Cap", strip.Find(".breakdown-note").TextContent, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Crossing into over-budget is announced, crossing back out is announced, and neither
+    /// announcement repeats itself while the state holds.
+    ///
+    /// <para><b>On a sibling of the figure, never inside it.</b> <c>.budget-figure strong</c> is
+    /// rewritten by <c>ppCount</c> up to 60 times a second while a count animates between two
+    /// engine answers, and a live region there would announce every intermediate frame of the
+    /// count rather than the one crossing that matters — asserted first, so the rest of this
+    /// test is not resting on the wrong element by accident.</para>
+    /// </summary>
+    [Fact]
+    public async Task CrossingIntoAndOutOfOverBudgetIsAnnounced()
+    {
+        await using var ctx = new RenderContext().With(SheetMode.Hero);
+        ctx.Session.Sheet.SelectedTierId = "standard";
+
+        var strip = ctx.Render<HpBudgetBar>();
+
+        // The live region is a sibling of the figure, not a descendant of it.
+        var figure = strip.Find(".budget-figure");
+        Assert.Empty(figure.QuerySelectorAll("[aria-live]"));
+
+        var live = strip.Find("[aria-live]");
+        Assert.Equal("polite", live.GetAttribute("aria-live"));
+        Assert.Equal("", live.TextContent);
+
+        await strip.InvokeAsync(() => ctx.Session.Sheet.SelectedTierId = "street_level");
+        strip.Render();
+
+        live = strip.Find("[aria-live]");
+        Assert.Contains("Over budget", live.TextContent, StringComparison.Ordinal);
+        var firstCrossing = live.TextContent;
+
+        // A further edit that leaves the character over budget must not repeat the words — a
+        // render test cannot see that a screen reader stayed silent, but it can see that the
+        // text driving it did not change, which is what would make it announce again.
+        await strip.InvokeAsync(() => ctx.Session.Sheet.AbilityRanks["might"] = 9);
+        strip.Render();
+        Assert.Equal(firstCrossing, strip.Find("[aria-live]").TextContent);
+
+        await strip.InvokeAsync(() => ctx.Session.Sheet.SelectedTierId = "standard");
+        strip.Render();
+
+        live = strip.Find("[aria-live]");
+        Assert.DoesNotContain("Over budget", live.TextContent, StringComparison.Ordinal);
+        Assert.NotEqual("", live.TextContent);
+        Assert.NotEqual(firstCrossing, live.TextContent);
+    }
+
+    /// <summary>
+    /// <b>Loading a character that is already over budget announces nothing.</b>
+    ///
+    /// <para>There is nothing to announce a crossing <em>from</em> — the visitor did not just
+    /// push this character over the line, it arrived that way, and a live region that spoke up
+    /// anyway would be describing an edit that never happened.</para>
+    /// </summary>
+    [Fact]
+    public void LoadingAnAlreadyOverBudgetCharacterAnnouncesNothing()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        ctx.Session.Sheet.SelectedTierId = "street_level";
+
+        var strip = ctx.Render<HpBudgetBar>();
+
+        Assert.NotEmpty(strip.FindAll(".over-text"));
+        Assert.Equal("", strip.Find("[aria-live]").TextContent);
+    }
 }

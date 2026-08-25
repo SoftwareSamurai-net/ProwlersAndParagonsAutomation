@@ -119,6 +119,7 @@ jobs:
           proof-motion.html:MOTION: PASS:--force-prefers-reduced-motion
           proof-shortcut.html:SHORTCUT: PASS:
           proof-theme.html:THEME: PASS:
+          proof-slider.html:SLIDER: PASS:
           "
 
           while IFS= read -r line; do

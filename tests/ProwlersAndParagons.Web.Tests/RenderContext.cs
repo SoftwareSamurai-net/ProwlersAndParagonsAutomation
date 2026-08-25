@@ -107,6 +107,11 @@ public sealed class RenderContext : BunitContext
         Services.AddScoped<Shortcuts>();
         Services.AddScoped<Theme>();
 
+        // The Home/End guard on every rank slider. Registered here for the same reason as the
+        // three above it: a row that could not resolve it would throw on every render, not only
+        // on a test written about the guard.
+        Services.AddScoped<Sliders>();
+
         // The mode switch and the sample loader both call into JS. Loose mode records the
         // calls and answers nothing, which is right here: what those calls do to the
         // document is the browser's business, not a component's.
@@ -119,7 +124,18 @@ public sealed class RenderContext : BunitContext
         // clears storage is racing a write nobody awaits. Without the subscription a test
         // asserting on that ordering asserts on nothing.
         var store = Services.GetRequiredService<ICharacterStore>();
-        Session.Changed += () => _ = store.SaveAsync(Session.Sheet, Session.Mode);
+        Session.Changed += () => _ = SaveThenAnnounce(Session.Version);
+
+        // Mirrors Program.cs: NotifySaved fires once the write-through actually completes,
+        // rather than on the edit that started it, and carries the version that was current
+        // when this particular save began — see CharacterSession.Saved for why. A test
+        // rendering MainLayout's "Saved" text through a real character mutation, rather than by
+        // calling NotifySaved by hand, needs this wired the same way the app wires it.
+        async Task SaveThenAnnounce(int version)
+        {
+            await store.SaveAsync(Session.Sheet, Session.Mode);
+            Session.NotifySaved(version);
+        }
     }
 
     /// <summary>Loads a sample so a rendered sheet has something in every section.</summary>

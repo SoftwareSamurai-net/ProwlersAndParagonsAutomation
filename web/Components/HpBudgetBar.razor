@@ -56,6 +56,16 @@
                     <strong class="num" @ref="_figure">@spent.Value</strong><span class="budget-of num">@(budgeted ? $"/ {budget}" : "HP spent")</span>
                 </span>
 
+                @* A sibling of the figure, never inside it. `.budget-figure strong` is what
+                   ppCount rewrites up to 60 times a second while a count animates between two
+                   engine answers, and a live region on that node would announce every
+                   intermediate frame of the count rather than the one crossing that matters.
+
+                   Silent otherwise: Announce only writes new words on the render where `over`
+                   has actually flipped, so an ordinary change in spend that leaves the character
+                   on the same side of the line says nothing a second time. *@
+                <span class="sr-only" aria-live="polite">@Announce(over)</span>
+
                 @if (!budgeted)
                 {
                     @* Said in words rather than left blank. An empty space where a remaining
@@ -160,6 +170,37 @@
     /// about a character, and the sheet is what gets exported and restored.</para>
     /// </summary>
     private bool _open;
+
+    /// <summary>
+    /// Whether the character was over budget last time <see cref="Announce"/> ran, or
+    /// <c>null</c> before the first answer.
+    ///
+    /// <para><c>null</c> is what keeps a character that is already over budget on load silent:
+    /// there is nothing it transitioned <em>from</em>, so announcing "over budget" the moment
+    /// the strip first renders would describe a crossing that never happened — the visitor did
+    /// not just push this character over, it arrived that way.</para>
+    /// </summary>
+    private bool? _lastOver;
+
+    /// <summary>The live region's text, held so it survives a render where nothing changed.</summary>
+    private string _overAnnouncement = "";
+
+    /// <summary>
+    /// The words for the <c>aria-live</c> region, updated only on the render where
+    /// <paramref name="over"/> has actually flipped from what it was last time.
+    ///
+    /// <para>Called from the markup on every render of the budgeted branch, same as
+    /// <c>over</c> itself is computed there — this is not a second source of truth about
+    /// whether the character is over budget, only a memory of what the last answer was.</para>
+    /// </summary>
+    private string Announce(bool over)
+    {
+        if (_lastOver is { } previous && previous != over)
+            _overAnnouncement = over ? "Over budget." : "Back within budget.";
+
+        _lastOver = over;
+        return _overAnnouncement;
+    }
 
     protected override void OnInitialized() => Session.Changed += StateHasChanged;
 

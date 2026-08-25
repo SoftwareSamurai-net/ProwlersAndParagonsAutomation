@@ -169,18 +169,34 @@ sits on the near-black navy. Do not take "they went dark" as the lesson.
    the fonts are self-hosted and CI already drives Chrome at a fixed viewport. **Generate the
    goldens in CI on Linux, never from a Windows run** — antialiasing differs.
 
+### Four small accessibility items — **done**
+
+> Four items from the list below were bundled into one slice because they all touch the shell and
+> the stylesheet: a skip link and correct landmarks, `aria-live` for the over-budget crossing, a
+> "Saved" indicator for the silent write-through, and the Home/End interop shim this section named
+> as the fix three sessions running. All four are shipped, with a rendered test for each, a CSS
+> assertion where the substance is CSS, a browser harness (`proof-slider.html`) for the one that is
+> JavaScript, and a mutation deliberately applied and watched fail for every one of them. See
+> `PROGRESS.md` for the reasoning behind each.
+>
+> **The bUnit suite went from 455 to 461 on this branch**, not yet re-measured on `master` — the
+> figure two paragraphs up is `master`'s and this work has not merged into it. Re-run rather than
+> adding the two together.
+>
+> **The interop pattern generalised rather than being a one-off.** `Sliders` follows `Motion`,
+> `Shortcuts` and `Theme` exactly — a guarded call into `wwwroot/js/slider.js`, registered in DI
+> beside the other three, with its own `GuardedInteropTests` case. Reach for the same shape before
+> writing a new `try`/`catch` around a JS call.
+
 ### Still open from before, unchanged
 
 - **`.shell` spaces its children by `.panel`'s `margin-bottom`**, so any non-panel child gets no
   spacing. The real fix is a `gap` on `.shell` with the margin removed, but `.shell` also holds the
   sticky budget strip, so it needs proofing on every route.
-- **No `aria-live` anywhere**, so crossing into over-budget is announced to nobody. If you add one
-  it must go on a sibling summary, **never** on `.budget-figure strong`, which `ppCount` rewrites up
-  to 60×/s.
 - **Screen-reader testing is owed** on the command palette, the pips, the sign-in page, the
   light/dark control — and now on the row descriptions and the rules search. `aria-pressed` asserted
-  as the string `"true"` is not the same as having been listened to.
-- **Home and End on a rank slider also scroll the document.** The fix is a small interop shim.
+  as the string `"true"` is not the same as having been listened to. The skip link, the landmarks,
+  the over-budget announcement and the "Saved" word are all new surfaces this applies to as well.
 
 ### What this slice learned, that the next one needs
 

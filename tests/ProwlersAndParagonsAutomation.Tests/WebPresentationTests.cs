@@ -3252,6 +3252,32 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// <b>The skip link is off-screen until it is focused, and back off-screen the moment focus
+    /// leaves it.</b>
+    ///
+    /// <para>The whole substance of this is in the stylesheet, exactly as
+    /// <see cref="AClosedTipTakesNoLayoutBox"/> is: a bUnit render sees the anchor and its href
+    /// either way, so a rule that stopped moving it on focus — the one thing that makes it
+    /// reachable at all rather than a link nobody can ever see — would leave every rendered
+    /// assertion about <c>MainLayout</c> passing.</para>
+    ///
+    /// <para><c>transform</c>, not <c>display</c> or <c>visibility</c>: both of those would also
+    /// have to be undone on <c>:focus</c>, which is two properties agreeing rather than one, and
+    /// this file has already found that shape wrong in both directions on other elements.</para>
+    /// </summary>
+    [Fact]
+    public void TheSkipLinkIsOffscreenUntilFocused()
+    {
+        var atRest = EffectiveValue(ScreenHalfOfAppCss, ".skip-link", "transform", exact: true);
+        Assert.NotNull(atRest);
+        Assert.NotEqual("none", atRest);
+        Assert.NotEqual("translateY(0)", atRest);
+
+        Assert.Equal("translateY(0)",
+            EffectiveValue(ScreenHalfOfAppCss, ".skip-link:focus", "transform", exact: true));
+    }
+
+    /// <summary>
     /// <b>A row's description appears on hover <i>and</i> on focus, and takes no layout box when
     /// it does not.</b>
     ///
