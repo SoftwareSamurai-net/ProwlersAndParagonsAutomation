@@ -1782,8 +1782,15 @@ label {
     text-align: left;
 
     /* Marked as carrying something, quietly. A dotted underline is the long-standing convention
-       for a term with an explanation and reads as neither a link nor a control. */
-    text-decoration: underline dotted var(--rule);
+       for a term with an explanation and reads as neither a link nor a control.
+
+       **`--muted` and not `--rule`.** `--rule` is the hairline between sections and is meant to
+       be at the edge of visible; under a word it is invisible, which was the first spelling here
+       and made the only marking on the control no marking at all. Seen in a screenshot, not
+       reasoned about — and no rendering test could have, because the class is on the element
+       either way. `--muted` is a text token already held to 4.5:1 on this ground in all four
+       palettes. */
+    text-decoration: underline dotted var(--muted);
     text-underline-offset: 3px;
 }
 .rank-name:hover .row-tip,
@@ -1824,9 +1831,16 @@ label {
         overflow-y: auto;
     }
 
-    /* The preview is a sheet at about two thirds size, so the three columns of the published
-       layout still read as three columns rather than reflowing into a list. It is the same
-       component the review step renders full size; only the type scale differs. */
+    /* The preview is a sheet at about two thirds size. It is the same component the review step
+       renders full size; only the type scale differs.
+
+       **It reflows to fewer columns at this width, and that is right rather than a shortfall.**
+       An earlier version of this comment claimed the published layout's three columns still read
+       as three here — proofed in a browser, and they do not: `.sheet-columns` is
+       `auto-fit, minmax(280px, …)`, so a ~560px column fits one or two of them. Squeezing three
+       into 180px each would be worse. The three-column arrangement is a fact about the paper,
+       and the paper is judged on the review step and in the PDF; what this column is for is
+       seeing the character's own content appear as it is chosen. */
     .preview .sheet { font-size: var(--text-xs); }
 }
 
