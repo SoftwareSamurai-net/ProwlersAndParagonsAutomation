@@ -10,9 +10,12 @@
 // addresses and a flag; the engine still runs in the browser and still decides everything about
 // a character.
 
+import { INVITATION_TOKEN_LIFETIME_MS } from './auth.js';
 import * as db from './db.js';
 import { normaliseEmail } from './email.js';
+import { kindOf, redact } from './errors.js';
 import { fail, json, noContent, readJson, sameOrigin } from './http.js';
+import { mintSignInToken, signInLink } from './tokens.js';
 
 /** `i_` plus 22 URL-safe characters — the shape of every other id this server mints. */
 const ID_PATTERN = /^i_[A-Za-z0-9_-]{22}$/;
@@ -105,6 +108,12 @@ export async function list(request, env, deps, user) {
  * Let one more address have an account.
  *
  * <p>Answers the row it made, so the page does not have to guess an id or re-read the list.</p>
+ *
+ * <p><b>A newly-added address is mailed a one-click link, and a withdrawn or already-listed one
+ * is not.</b> The row is what grants the permission — a token is only ever a shortcut to using
+ * it — so this writes the row first and mails second — a mail failure must not cost the
+ * invitation, only the one click mail was for; the address can still ask for an ordinary link
+ * afterwards. See below for what happens when the send itself fails.</p>
  */
 export async function add(request, env, deps, user) {
     if (!sameOrigin(request)) return fail(403, 'This request did not come from this site.');
@@ -117,7 +126,8 @@ export async function add(request, env, deps, user) {
 
     // Not a refusal: the address can already have an account, which is the end state asked for.
     // Reporting a conflict would make the page's own list a thing to reconcile before every
-    // click, and there is nothing here to lose by saying yes twice.
+    // click, and there is nothing here to lose by saying yes twice. Nothing is mailed either —
+    // the address was told once, when it was first added.
     if (email === bootstrapAdmin(env)) {
         return json({ invitation: null, alreadyAllowed: true });
     }
@@ -133,7 +143,80 @@ export async function add(request, env, deps, user) {
         now: deps.now(),
     });
 
-    return json({ invitation: shape(invitation), alreadyAllowed: false });
+    // **Sent because an administrator chose this address on purpose, which is a different act
+    // from the public endpoint that must never confirm one.** `POST /api/admin/invitations` is
+    // reached only by somebody `isAdministrator` already lets manage this list — asking for a
+    // sign-in link, by contrast, always answers `204` so a stranger cannot use it to learn who is
+    // on the list one address at a time. Mailing here does not reopen that question: the caller
+    // already knows the address exists, because they just typed it.
+    const mailed = await tellThemTheyCanSignIn(env, deps, email);
+
+    return json({ invitation: shape(invitation), alreadyAllowed: false, mailed });
+}
+
+/**
+ * Tell somebody they were just added, and never let that cost the invitation above.
+ *
+ * <p><b>The row is already written by the time this runs.</b> A mail provider outage is this
+ * site being broken in a smaller way than a failed sign-in — the address can still ask for a
+ * link the ordinary way — so this reports the failure to the caller (`mailed: false`) rather
+ * than rolling anything back or answering with a 500 that would leave the administrator thinking
+ * nothing happened.</p>
+ *
+ * <p><b>Mints a real sign-in token, held longer than the public request path's.</b> Through the
+ * same `mintSignInToken` and `signInLink` that path uses — see `INVITATION_TOKEN_LIFETIME_MS` on
+ * `worker/auth.js` for why three days is an acceptable trade here and nowhere else. The token
+ * is spent, one time, through the ordinary `/api/auth/verify` route; nothing about verifying it
+ * differs from any other sign-in link.</p>
+ *
+ * <p><b>Minted even when the send is about to fail.</b> The row it writes is cheap, unread until
+ * spent, and pruned by `sweepExpired` like any other; the alternative — minting only after
+ * confirming the send will succeed — is not an option `fetch` offers, and reporting `mailed:
+ * false` already tells the caller the address must ask for an ordinary link instead.</p>
+ *
+ * <p><b>Recorded to `error_log` too, deliberately.</b> A provider outage or a bad key breaks
+ * every sign-in as well, silently, until somebody notices an inbox stayed empty — which is
+ * exactly the failure `docs/ACCOUNTS-SETUP.md` describes costing this deployment its first
+ * sign-in. Writing a row here means the owner can find the same fault from an invitation that
+ * never delivered, not only from a visitor who complained. The category is `mail` without
+ * needing `errors.js`'s `taggedMail` wrapper — there is nothing else this call could have
+ * thrown from, so the subsystem is known without asking.</p>
+ */
+async function tellThemTheyCanSignIn(env, deps, email) {
+    try {
+        const token = await mintSignInToken(env, deps,
+            { email, now: deps.now(), lifetimeMs: INVITATION_TOKEN_LIFETIME_MS });
+
+        await deps.sendInvitationMail(env, { to: email, link: signInLink(env, token) });
+
+        return true;
+    } catch (error) {
+        await recordMailFailure(env, deps, error);
+
+        return false;
+    }
+}
+
+/**
+ * Write the failure down, and never throw doing it — the same promise `index.js`'s own logger
+ * makes, for the same reason: the thing that just broke may be the database this writes to, and
+ * this runs on a path that must still answer the administrator with a 200 either way.
+ */
+async function recordMailFailure(env, deps, error) {
+    try {
+        if (!env || !env.DB || typeof env.DB.prepare !== 'function') return;
+
+        await db.recordFailure(env.DB, {
+            category: 'mail',
+            route: '/api/admin/invitations',
+            kind: kindOf(error),
+            detail: redact(error && error.message),
+            reference: deps.newReference(),
+            now: deps.now(),
+        });
+    } catch (secondary) {
+        console.error('Could not record an invitation mail failure:', secondary);
+    }
 }
 
 /**

@@ -143,6 +143,61 @@ public sealed class AdminPageTests
 
         // And the box is emptied, so a second click cannot re-send the first address.
         Assert.Equal("", page.Find("#invite-email").GetAttribute("value") ?? "");
+
+        // **The reader is told the link actually went**, not merely that the address is on the
+        // list — those are two different facts and the mail path has already failed here once,
+        // silently, without anybody being told.
+        Assert.Contains("sent a link", page.Find("[role=status]").TextContent);
+    }
+
+    /// <summary>
+    /// A mail outage must not read as though nothing happened, and must not read as a refusal
+    /// either — the address really is on the list; only the mail failed to say so.
+    /// </summary>
+    [Fact]
+    public async Task AMailFailureStillAddsTheAddressAndSaysSoHonestly()
+    {
+        await using var ctx = Managing();
+        ctx.Api.InvitationMailSucceeds = false;
+
+        var page = ctx.Render<Admin>();
+        page.Find("#invite-email").Input("newcomer@example.test");
+        await page.Find("form").SubmitAsync();
+
+        // Still added — a broken mail provider does not cost the invitation.
+        await page.WaitForAssertionAsync(() =>
+            Assert.Contains("newcomer@example.test",
+                page.FindAll("li strong").Select(row => row.TextContent.Trim())));
+
+        var status = page.Find("[role=status]").TextContent;
+        Assert.Contains("newcomer@example.test", status);
+        Assert.Contains("could not be sent", status);
+
+        // **Not the sentence a successful send gets.** "Can sign in now" alone is true of both
+        // outcomes, so it cannot be what tells them apart — a mutation collapsing the two
+        // messages into one left this test green when it only checked for that.
+        Assert.DoesNotContain("has been sent a link", status);
+
+        // Not a refusal: nothing here looks like `_problem`'s alert.
+        Assert.Empty(page.FindAll("[role=alert]"));
+    }
+
+    /// <summary>An address already on the list is told so, not told it was just sent something.</summary>
+    [Fact]
+    public async Task AnAddressAlreadyOnTheListIsToldSoRatherThanMailedAgain()
+    {
+        await using var ctx = Managing();
+
+        var page = ctx.Render<Admin>();
+        page.Find("#invite-email").Input("guest@example.test");
+        await page.Find("form").SubmitAsync();
+
+        await page.WaitForAssertionAsync(() =>
+            Assert.NotEmpty(page.FindAll("[role=status]")));
+
+        var status = page.Find("[role=status]").TextContent;
+        Assert.Contains("guest@example.test", status);
+        Assert.Contains("already", status, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

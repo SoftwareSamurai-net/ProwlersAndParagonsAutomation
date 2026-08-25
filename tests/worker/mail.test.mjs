@@ -11,17 +11,22 @@ import assert from 'node:assert/strict';
 
 import { readFile } from 'node:fs/promises';
 
-import { sendSignInLink, signInMessage } from '../../worker/mail.js';
+import { invitationMessage, sendInvitationMail, sendSignInLink, signInMessage } from '../../worker/mail.js';
 
 const ENV = {
     RESEND_API_KEY: 'not-a-real-key',
     MAIL_FROM: 'no-reply@example.test',
+    SITE_URL: 'https://pp.example.test',
 };
 
 const MESSAGE = { to: 'player@example.test', link: 'https://pp.example.test/signin?t=abc' };
 
-/** Runs `sendSignInLink` against one canned provider answer, and hands back what it was sent. */
-async function against(answer, { env = ENV, message = MESSAGE } = {}) {
+/**
+ * Runs one of the two senders against one canned provider answer, and hands back what it was
+ * sent. `send` defaults to `sendSignInLink`, which is what every test predating the invitation
+ * mail assumes.
+ */
+async function against(answer, { env = ENV, message = MESSAGE, send = sendSignInLink } = {}) {
     const original = globalThis.fetch;
     const calls = [];
 
@@ -32,7 +37,7 @@ async function against(answer, { env = ENV, message = MESSAGE } = {}) {
     };
 
     try {
-        const failure = await sendSignInLink(env, message).then(() => null, error => error);
+        const failure = await send(env, message).then(() => null, error => error);
 
         return { calls, failure };
     } finally {
@@ -140,4 +145,53 @@ test('the builder is what the sender sends, so the probe cannot drift from it', 
 
     assert.deepEqual(sent, signInMessage(ENV, MESSAGE),
         'sendSignInLink and signInMessage disagree, so the probe would test the wrong body');
+});
+
+// ---------------------------------------------------------------------------------------------
+// The invitation mail: told when an administrator adds an address, and carrying a one-click link.
+// ---------------------------------------------------------------------------------------------
+
+// **This message carries a real sign-in token, on purpose.** See `INVITATION_TOKEN_LIFETIME_MS`
+// on `worker/auth.js` for why: an administrator chose this address deliberately, so a
+// longer-lived credential in that inbox is an acceptable trade for the first sign-in being one
+// click. The token itself is somebody else's concern — `worker/tokens.js` mints it and
+// `worker/invitations.js` builds the link with `signInLink` — this file only checks that
+// whatever link it is handed reaches the message unchanged, both parts, and that the address
+// does too.
+const INVITATION = { to: 'guest@example.test', link: 'https://pp.example.test/signin?t=xyz' };
+
+test('an invitation names the address and carries the link it was given, once in each part', async () => {
+    const { calls, failure } = await against(
+        () => new Response(JSON.stringify({ id: 'ffff' }), { status: 200 }),
+        { message: INVITATION, send: sendInvitationMail });
+
+    assert.equal(failure, null, 'an accepted send must not throw');
+    assert.equal(calls.length, 1);
+
+    const body = JSON.parse(calls[0].init.body);
+
+    assert.equal(body.from, ENV.MAIL_FROM);
+    assert.deepEqual(body.to, [INVITATION.to]);
+    assert.ok(body.text.includes(INVITATION.link), 'the plain text part does not carry the link');
+    assert.ok(body.html.includes(INVITATION.link), 'the HTML part does not carry the link');
+});
+
+test('an invitation mail is refused the same way a sign-in link is', async () => {
+    // The refusal-handling is shared between the two senders; this is the control that the
+    // sharing really happened rather than a second copy that could drift from the first.
+    const { failure } = await against(refusal(400, { name: 'validation_error', message: 'nope' }),
+        { message: INVITATION, send: sendInvitationMail });
+
+    assert.ok(failure instanceof Error);
+    assert.match(failure.message, /HTTP 400/);
+    assert.match(failure.message, /validation_error/);
+});
+
+test('the invitation builder is what the invitation sender sends', async () => {
+    const { calls } = await against(() => new Response(JSON.stringify({ id: 'ffff' }), { status: 200 }),
+        { message: INVITATION, send: sendInvitationMail });
+    const sent = JSON.parse(calls[0].init.body);
+
+    assert.deepEqual(sent, invitationMessage(ENV, INVITATION),
+        'sendInvitationMail and invitationMessage disagree');
 });

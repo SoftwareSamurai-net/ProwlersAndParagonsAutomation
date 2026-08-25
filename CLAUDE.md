@@ -617,6 +617,19 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   the row alone is a gesture — the person is holding a month-long cookie — and deleting their work
   would make one button on an administration page the most dangerous control in the application.
   Adding the address back gives them everything as they left it.
+- **Adding an address mails it a one-click sign-in link, and the link carries a real token on
+  purpose.** `worker/tokens.js` mints and hashes it exactly the way the public request path does
+  — same table, same single-use guarantee — and only the lifetime differs:
+  `INVITATION_TOKEN_LIFETIME_MS` in `worker/auth.js` is three days against the public path's
+  fifteen minutes, a trade that is acceptable here and nowhere else because an administrator chose
+  this address on purpose, rather than a stranger typing one in. **The row still grants the
+  permission and the mail is only ever a shortcut to using it**: `worker/invitations.js` writes
+  the invitation first and mails second, catches a failed send, and answers the admin page with
+  `mailed: false` rather than a 500 that would read as nothing having happened — the address can
+  still ask for an ordinary link. **The failure is still written to `error_log`, `mail` category**,
+  because the fault that breaks this breaks every ordinary sign-in too and the owner should be
+  able to find it from either. Do not let a probe or a second builder assemble this message's link
+  itself; `signInLink` is the one place either sender's URL is built, same as the token mint.
 - **The administrator's page is reached by its address, not by a link that appears for some
   people.** `Identity` still carries a key and a name and no role, deliberately, so the browser
   holds no claim about who somebody is; the server checks on every request and answers an

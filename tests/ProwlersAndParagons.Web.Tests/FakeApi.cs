@@ -165,6 +165,9 @@ public sealed class FakeApi : HttpMessageHandler
     /// that is not a usable string.</summary>
     public bool RefuseDisplayNameChanges { get; set; }
 
+    /// <summary>Set false to have a newly-added address fail to be mailed. True by default.</summary>
+    public bool InvitationMailSucceeds { get; set; } = true;
+
     /// <summary>
     /// What a request for a sign-in link answers. 204 by default.
     ///
@@ -358,12 +361,15 @@ public sealed class FakeApi : HttpMessageHandler
             var email = sent.RootElement.GetProperty("email").GetString() ?? "";
             var grants = sent.RootElement.TryGetProperty("grantsAdmin", out var g) && g.GetBoolean();
 
-            if (Invited.All(i => i.Email != email))
+            var already = Invited.Any(i => i.Email == email);
+            if (!already)
             {
                 Invited.Add(($"i_{Invited.Count:D22}", email, grants, false, true));
             }
 
-            return Json("""{"alreadyAllowed":false}""");
+            var mailed = !already && InvitationMailSucceeds;
+
+            return Json($$"""{"alreadyAllowed":{{Lower(already)}},"mailed":{{Lower(mailed)}}}""");
         }
 
         var rows = Invited.Select(i => $$"""

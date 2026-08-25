@@ -63,9 +63,9 @@
 
     <Panel Title="Invite somebody">
         <p>
-            Adding an address lets that person ask for a sign-in link. It sends them nothing —
-            they sign in from the sign-in page when they want to, and the account is made the
-            first time they do.
+            Adding an address sends it a link to sign in, good for three days, and lets it ask
+            for another at any time after that. Adding an address already on the list changes
+            and sends nothing.
         </p>
 
         <form @onsubmit="Invite" @onsubmit:preventDefault>
@@ -91,9 +91,9 @@
             </p>
         </form>
 
-        @if (_added is { } added)
+        @if (_addedOutcome is { } addedOutcome)
         {
-            <p role="status">@added can sign in now.</p>
+            <p role="status">@AddedMessage(addedOutcome)</p>
         }
     </Panel>
 
@@ -188,6 +188,7 @@ else
     private bool _grantsAdmin;
     private bool _inviting;
     private string? _added;
+    private InvitationAddResult? _addedOutcome;
     private string? _problem;
 
     /// <summary>The id being withdrawn, so one button reads as busy rather than all of them.</summary>
@@ -258,26 +259,45 @@ else
         _inviting = true;
         _problem = null;
         _added = null;
+        _addedOutcome = null;
 
         var email = _email.Trim();
+        var outcome = await Invitations.AddAsync(email, _grantsAdmin);
 
-        if (await Invitations.AddAsync(email, _grantsAdmin))
-        {
-            _added = email;
-            _email = "";
-            _grantsAdmin = false;
-            await Reload();
-        }
-        else
+        if (outcome == InvitationAddResult.Refused)
         {
             // The server's own refusals are a malformed address and nothing else, so this is the
             // one sentence worth saying. It deliberately does not advise trying again: the same
             // address would be refused the same way.
             _problem = "That was not added. Check it is an email address.";
         }
+        else
+        {
+            _added = email;
+            _addedOutcome = outcome;
+            _email = "";
+            _grantsAdmin = false;
+            await Reload();
+        }
 
         _inviting = false;
     }
+
+    /// <summary>
+    /// The one sentence for whichever of the three ways adding an address can end.
+    ///
+    /// <para>All three are a kind of success — the server never refuses an address it has
+    /// already accepted the shape of — so none of them is <see cref="_problem"/>; they differ
+    /// only in what the reader now needs to do, if anything.</para>
+    /// </summary>
+    private string AddedMessage(InvitationAddResult outcome) => outcome switch
+    {
+        InvitationAddResult.Added => $"{_added} has been sent a link, and can sign in now.",
+        InvitationAddResult.AddedButNotMailed =>
+            $"{_added} can sign in now, but the link could not be sent — let them know another way.",
+        InvitationAddResult.AlreadyAllowed => $"{_added} could already sign in.",
+        _ => "",
+    };
 
     private async Task Withdraw(string id)
     {
