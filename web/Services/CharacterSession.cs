@@ -96,8 +96,54 @@ public sealed class CharacterSession
     /// </summary>
     public event Action? Changed;
 
+    /// <summary>
+    /// Counts every call to <see cref="NotifyChanged"/>. What "the character has not changed
+    /// since a given save started" means, for <see cref="Saved"/> below — never read as
+    /// anything else, and in particular never as a count of edits a player would recognise.
+    /// </summary>
+    public int Version { get; private set; }
+
     /// <summary>Call after mutating <see cref="Sheet"/>.</summary>
-    public void NotifyChanged() => Changed?.Invoke();
+    public void NotifyChanged()
+    {
+        Version++;
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Raised once a write-through to storage <em>completes</em>, carrying the
+    /// <see cref="Version"/> that was current when that write <em>started</em> — never on the
+    /// edit that started it, which is what <see cref="Changed"/> is for.
+    ///
+    /// <para><b>This reports what the store actually did, and invents nothing on top of
+    /// it.</b> <see cref="ICharacterStore.SaveAsync"/> never throws — see its own doc comment —
+    /// so there is no failure branch to represent here, and there is deliberately no "saving…"
+    /// state either: nobody outside the store knows how long a write takes, and a spinner timed
+    /// by guesswork is exactly the invented state this event exists to avoid.</para>
+    ///
+    /// <para><b>The version is what keeps this honest under two events racing.</b> Whoever wires
+    /// <see cref="Changed"/> to the store fires one save per edit; a fast store can finish one
+    /// while a slower one from an earlier edit is still in flight, and nothing guarantees a
+    /// subscriber to both events sees "edit, then its own save" in that order — a save started
+    /// before the edit can easily be reported <em>after</em> it. Comparing the carried version
+    /// against <see cref="Version"/> at the moment "Saved" is read, rather than latching a bare
+    /// flag from whichever event happened to run last, is what makes the answer right regardless
+    /// of that ordering.</para>
+    ///
+    /// <para>Raised by whoever wires <see cref="Changed"/> to the store — <c>Program.cs</c> for
+    /// the real app — after its own <c>await</c> on <see cref="ICharacterStore.SaveAsync"/>
+    /// returns. Kept off <see cref="CharacterSession"/>'s own dependencies on purpose: this
+    /// class does not know a store exists, the same reason <see cref="NotifyChanged"/> is a
+    /// bell somebody else has to ring rather than a call this class makes itself.</para>
+    /// </summary>
+    public event Action<int>? Saved;
+
+    /// <summary>
+    /// Call once the write-through started at <paramref name="version"/> has completed —
+    /// <see cref="Version"/> as it stood right after the <see cref="Changed"/> that triggered
+    /// this particular save, captured by the caller before the write began.
+    /// </summary>
+    public void NotifySaved(int version) => Saved?.Invoke(version);
 
     /// <summary>
     /// Puts back a character read out of local storage. Deliberately silent — the shell

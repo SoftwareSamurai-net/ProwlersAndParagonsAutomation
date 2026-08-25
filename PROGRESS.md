@@ -1031,8 +1031,25 @@ every environment variable the server actually reads — documentation of a conf
 this repository can try out rots silently otherwise.
 
 **One cost, stated rather than hidden:** a failed save is silent. Local storage effectively cannot
-fail; a network can, and the character then exists only in that tab. The honest fix is telling
-somebody, which is the "Saved" feedback Phase 5 of the front-end plan already owes.
+fail; a network can, and the character then exists only in that tab.
+
+> **"Saved" feedback — done, on a branch not yet merged.** `MainLayout` shows the word beside the
+> account link once `CharacterSession.Saved` reports a write-through completed, and nothing before
+> that — there is deliberately no "saving…" state, since nobody outside the store knows how long a
+> write takes. It does not solve the *failed* save this paragraph is actually about: `SaveAsync`
+> still never throws, by design (see `ICharacterStore`'s own doc comment), so a save that genuinely
+> fails still says nothing. What it buys is the more common gap — nobody could tell a *successful*
+> save had happened either, which read as no feedback at all rather than as silence about failure
+> specifically.
+>
+> **The race worth recording:** two saves can be in flight together (a slow account save from one
+> edit, a fast one from the next) and finish in either order. `CharacterSession.Version` — bumped on
+> every `NotifyChanged` — is what a completed save is checked against, rather than a bare
+> `bool` latched by whichever event happens to run last; a stale completion cannot un-confirm a
+> newer one. `SaveStatusTests.AStaleCompletionCannotUnconfirmANewerSave` pins it, though the
+> harness environment resolves the local-storage path synchronously, so what it actually exercises
+> is the version comparison rather than a truly overlapping pair of writes — the closest anything
+> here gets to a real out-of-order race without a controllable double for `ICharacterStore`.
 
 
 ### One site, two areas: the play aide and the portfolio
@@ -1108,12 +1125,21 @@ will not go to tells a screen-reader user something untrue about the control in 
 clicking a pip below that floor clamps up rather than asking for a rank the validator would then
 report.
 
-**Nothing suppresses the browser's default on those keys, and that is a compromise rather than a
-preference.** Blazor fixes `preventDefault` at render time rather than per event, so suppressing it
-on this element would also swallow Tab and trap focus inside a rank row — much worse than what it
-would fix. Home and End therefore still scroll the document. Left and Right are the pair to reach
-for: the pips are horizontal and a CI harness holds this app to no horizontal overflow, so those
-two scroll nothing. A small interop shim would close it properly; a Razor attribute cannot.
+**Nothing suppresses the browser's default on those keys through Blazor, and that is not a gap —
+it is the wrong layer for it.** Blazor fixes `preventDefault` at render time rather than per event,
+so suppressing it on this element would also swallow Tab and trap focus inside a rank row — much
+worse than what it would fix. Left and Right need no such thing: the pips are horizontal and a CI
+harness holds this app to no horizontal overflow, so those two scroll nothing regardless.
+
+> **Home and End — done, on a branch not yet merged.** `Sliders`/`wwwroot/js/slider.js` is the
+> small interop shim this paragraph said would close it: one native `keydown` listener per rank
+> row, attached once on first render, answering to exactly Home and End and nothing else. It
+> follows the same guarded-interop shape as `Motion`, `Shortcuts` and `Theme` — a `try`/`catch`
+> swallowing a missing script rather than throwing out of every rank's render. bUnit cannot see a
+> real `preventDefault`, so the meaningful proof is a browser harness, `proof-slider.html`, driven
+> in the build workflow the same way `proof-motion.html` and `proof-shortcut.html` are; a mutation
+> that suppressed every key (not only Home/End) was applied and watched the harness fail on
+> exactly the Tab-trapping case this note has warned about for three sessions.
 
 **Five mutations, five caught** — the minimum ignoring the package floor, the keys bypassing the
 clamp, a click off by one, the pips exposed as twelve children, and a handler answering every key.
@@ -1125,6 +1151,30 @@ had not: these are `border-box`, so the pip's box went 7px to 11px and its paint
 5px, with the border no longer hugging it. That is a deliberate design quietly altered to fix a
 secondary concern, invisible to every test here and about two pixels to the eye. Reverted. If it is
 revisited, **measure the painted width rather than reasoning about the box model.**
+
+
+### A skip link, and the shell's landmarks — done, on a branch not yet merged
+
+There was neither before this. A reader tabbing from the address bar met the banner's two links and
+five buttons, then the step band, then the sticky budget strip, on every single route, before
+reaching anything the page was actually about.
+
+- **`<a class="skip-link">` is the first thing `MainLayout` writes**, before the banner — order is
+  the whole of what makes it a skip link rather than a link with the right words in the wrong
+  place. Off-screen by `transform`, not `display: none`, so it stays in the accessibility tree and
+  reachable by keyboard while invisible; `:focus` brings it on screen. `<main>` carries
+  `id="main-content"` and `tabindex="-1"` so the jump actually moves focus rather than only
+  scrolling — a plain anchor jump to a non-focusable element moves the viewport and leaves the
+  caret wherever it already was.
+- **The landmarks were already mostly right** — `<header>`, two `<nav>`s each with their own
+  `aria-label`, one `<main>` — this only added the id/tabindex and a test that pins the count and
+  the naming on more than one route, since the step band's own `<nav>` only exists once a tier is
+  being built.
+- **`LandmarkTests` and `WebPresentationTests.TheSkipLinkIsOffscreenUntilFocused`** cover the
+  markup and the CSS separately, for the reason this file states everywhere else: a rendering test
+  cannot see whether a rule actually hides or reveals the link, and a source-reading test cannot
+  see where an element landed in the render order. Mutations applied and watched fail: moving the
+  skip link after the banner, removing a `<nav>`'s `aria-label`, and deleting the `:focus` rule.
 
 
 ### Tooltips, and the attribute that is not one
@@ -1490,8 +1540,16 @@ which is the only thing that separates the two hooks.
   of this API does. Recorded with the numbers so the next session can weigh it rather than
   rediscover it.
 - **There is no `aria-live` anywhere**, so the counting figure spams nothing — but crossing into
-  over-budget is announced to nobody either. Worth adding; **it must go on a sibling summary,
-  never on `.budget-figure strong`**, which `ppCount` rewrites up to 60×/s.
+  over-budget is announced to nobody either.
+
+  > **Done, on a branch not yet merged.** A `sr-only` sibling of `.budget-figure`, never inside it
+  > — exactly the placement this bullet asked for. Its text is computed by a method that compares
+  > the current over-budget state against what it was last time and only writes new words on an
+  > actual flip, so an ordinary change in spend that leaves the character on the same side of the
+  > line says nothing twice, and loading an already-over-budget character announces nothing at
+  > all (there is no crossing to describe — it arrived that way). `BudgetStripTests` pins both
+  > halves, and a mutation that inverted the flip check — announcing on *no* change instead of on
+  > a real one — was applied and watched the crossing test fail.
 
 One latent defect is also recorded: `_midTransition` is released by any render of `MainLayout`,
 not specifically the navigation's, so a render batch flushing in between would close the

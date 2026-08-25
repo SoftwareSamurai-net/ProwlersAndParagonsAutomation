@@ -506,6 +506,35 @@ hr {
     border: 0;
 }
 
+/* The first thing a keyboard reaches on every page, written first in MainLayout so nothing
+   comes before it in the Tab order.
+
+   **`transform`, not `.sr-only`'s clip.** A skip link needs to become visible on its own focus,
+   and a clip-path cannot be un-clipped by a rule on the same element — it would need a second,
+   wider rule fighting the first. Pushed off the top edge instead: still painted, still in the
+   accessibility tree, and one property flips it back on screen.
+
+   z-index sits above the budget strip's 20 and the command palette's 50, both of which the link
+   sits in front of on the one page it is visible: the first paint, before either has anything
+   open. Below Blazor's own error bar at 1000, the same ceiling every other overlay in this file
+   respects. */
+.skip-link {
+    position: fixed;
+    top: var(--space-2);
+    left: var(--space-2);
+    z-index: 60;
+    padding: var(--space-2) var(--space-4);
+    background: var(--surface);
+    color: var(--heading);
+    border-radius: var(--radius-small);
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    transform: translateY(-500%);
+    transition: transform var(--swap) var(--ease);
+}
+.skip-link:focus { transform: translateY(0); }
+
 .muted { color: var(--muted); }
 .small { font-size: var(--text-sm); }
 .nowrap { white-space: nowrap; }
@@ -1047,6 +1076,22 @@ label {
     transition: opacity var(--swap) var(--ease);
 }
 .banner-link:hover { opacity: 0.75; }
+
+/* Confirms a write-through completed, next to the account it belongs to. Body face and lower
+   case, unlike .banner-link beside it: this is not a destination, and setting it the same way
+   as one would make it read like a fourth link nobody can click.
+
+   `:empty` is the whole of the fade — the element renders no text between saves, so there is
+   nothing to fade *to* until the next one lands, and the opacity rule below only ever applies
+   to the state that has something to show. */
+.save-status {
+    color: var(--on-primary);
+    font-family: var(--font-body);
+    font-size: var(--text-xs);
+    opacity: 0.8;
+    transition: opacity var(--swap) var(--ease);
+}
+.save-status:empty { opacity: 0; }
 
 /* The label saying this is a recording. It is marked out rather than styled quietly: it is
    the one thing on the page a visitor must not skim past.
