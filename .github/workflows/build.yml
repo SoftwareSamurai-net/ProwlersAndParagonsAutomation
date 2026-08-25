@@ -112,6 +112,8 @@ jobs:
           proof-sticky.html:STICKY: PASS:
           proof-narrow.html:NARROW: PASS:
           proof-narrow-shell.html:NARROW: PASS:
+          proof-narrow-front.html:NARROW: PASS:
+          proof-narrow-rules.html:NARROW: PASS:
           proof-measure.html:INSETS: PASS:
           proof-motion.html:MOTION: PASS:
           proof-motion.html:MOTION: PASS:--force-prefers-reduced-motion

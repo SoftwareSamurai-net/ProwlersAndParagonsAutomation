@@ -1273,6 +1273,12 @@ public sealed class ProofPages
 
         WritePage("proof-narrow.html", "hero", NarrowHarness("proof-hero.html"));
         WritePage("proof-narrow-shell.html", "hero", NarrowHarness("proof-shell-hero.html"));
+
+        // The two pages this slice added. They are ordinary panel layouts, but the front door is
+        // the one screen with a grid that has to collapse, and neither had ever been measured at
+        // 375px — which is the width the 8px overflow this harness exists for showed up at.
+        WritePage("proof-narrow-front.html", "hero", NarrowHarness("proof-front-door.html"));
+        WritePage("proof-narrow-rules.html", "hero", NarrowHarness("proof-rules.html"));
     }
 
     /// <summary>
@@ -1575,6 +1581,16 @@ public sealed class ProofPages
             "375px", "clientWidth", "scrollWidth", "getBoundingClientRect",
             "NARROW: PASS", "NARROW: FAIL", "measuring", "document.title",
         ],
+        ["proof-narrow-front.html"] =
+        [
+            "375px", "clientWidth", "scrollWidth", "getBoundingClientRect",
+            "NARROW: PASS", "NARROW: FAIL", "measuring", "document.title",
+        ],
+        ["proof-narrow-rules.html"] =
+        [
+            "375px", "clientWidth", "scrollWidth", "getBoundingClientRect",
+            "NARROW: PASS", "NARROW: FAIL", "measuring", "document.title",
+        ],
         // The insets harness: all four bands, and the spread between them.
         ["proof-measure.html"] =
         [
@@ -1744,6 +1760,14 @@ public sealed class ProofPages
         var shell = NarrowHarness("proof-shell-hero.html");
         AssertMarkers("proof-narrow-shell.html", shell);
         Assert.Contains("src=\"proof-shell-hero.html\"", shell, StringComparison.Ordinal);
+
+        var front = NarrowHarness("proof-front-door.html");
+        AssertMarkers("proof-narrow-front.html", front);
+        Assert.Contains("src=\"proof-front-door.html\"", front, StringComparison.Ordinal);
+
+        var rules = NarrowHarness("proof-rules.html");
+        AssertMarkers("proof-narrow-rules.html", rules);
+        Assert.Contains("src=\"proof-rules.html\"", rules, StringComparison.Ordinal);
 
         AssertMarkers("proof-measure.html", MeasureHarness());
     }
