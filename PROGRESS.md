@@ -21,7 +21,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
-| Accounts | **Invitation only, and the mail is still refused.** D1 migrations applied to the remote database, the `DB` binding is in place and `/api/me` answers `401` with JSON — the deploy's own pass condition. **No sign-in link has ever been delivered:** the live `/api/auth/request` answers `500` on an address with allowance left, so the mail provider is refusing the send. See [item 8](#8-the-mail-provider-is-refusing-every-send) |
+| Accounts | **Invitation only, and sign-in works end to end.** All four D1 migrations applied to the remote database, the `DB` binding is in place, `/api/me` answers `401` with JSON, and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong) |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
 | Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export, not assumed**: it had drifted to 3 on `master` and to 37 on the reconciled slices before this was checked |
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
@@ -112,45 +112,51 @@ Enforcing them would need roughly seven booleans on each of the 141 Powers — a
 
 **Assisted creation has now shipped without them, and did not need them** — see the completed item below. A caveat is shown to whoever is proposing and left to the GM, which is what Ch.2 says it is. So this stays open with no consumer asking for it, and the caveat remains honest where the guess would not be.
 
-### 8. The mail provider is refusing every send
+### 8. The mail provider is refusing every send — **closed, and the reasoning here was wrong**
 
-**Nobody can sign in to the live site, and this is the only thing standing in the way.** The
-plumbing either side of it is proven: `/api/me` answers 401 with JSON, so the Function and its
-D1 binding are live; `/api/auth/request` gets far enough to write a rate-limit row and a login
-token, so the database is writable; and it answers `500` rather than the "not configured"
-refusal, so `SITE_URL` is set. What fails is the one call after that — the POST to Resend, which
-`worker/mail.js` turns into a throw.
+**Sign-in works. A link was requested on the live site, arrived, and signed somebody in** — the
+first time that has happened, and the one claim in this file no suite backs.
 
-Measured against the live site on 20 August 2026, from the site's own origin:
+**The fault was the API key, which this entry argued it could not be.** It read:
 
-| Address | Answer | Time |
-|---|---|---|
-| One with allowance left | `500` and a reference | ~750 ms — a real round trip to the provider |
-| One already over the hourly limit | `204` | ~400 ms — no provider call at all |
+> a bad or wrongly scoped key is `401`/`403` and never reaches validation, and the domain is
+> verified in Resend with every record present … so what is left is the *value* of `MAIL_FROM`
 
-**The DNS is not the problem.** Every record Resend asks for is present and correct on the
-sending subdomain: DKIM at `resend._domainkey.superheroes.softwaresamurai.net`, and
-`v=spf1 include:amazonses.com ~all` with `10 feedback-smtp.ap-northeast-1.amazonses.com` at
-`send.superheroes.softwaresamurai.net`. The apex keeps Proton's own MX and SPF untouched, as
-[`docs/ACCOUNTS-SETUP.md`](docs/ACCOUNTS-SETUP.md) requires.
+Every sentence of that is defensible and the conclusion was wrong. `MAIL_FROM` was correct
+throughout. It was re-entered twice on the strength of this paragraph, each time followed by a
+deploy and a fresh refusal, and the refusal never moved because the variable being changed was
+never the broken one.
 
-**It is `400 validation_error`**, read off a live tail of the production deployment while a
-request was made against it. That is the provider refusing the *body*, which rules out both of
-the likelier-sounding causes: a bad or wrongly scoped key is `401`/`403` and never reaches
-validation, and the domain is verified in Resend with every record present. All three variables
-exist on the Pages project — `wrangler pages secret list` shows `MAIL_FROM`, `RESEND_API_KEY` and
-`SITE_URL` — so what is left is the *value* of `MAIL_FROM`, which is encrypted and cannot be read
-back. Every other field in the request is built by `worker/mail.js` from the address that was
-typed, and that address is well formed.
+**What the reasoning got wrong is one measurable fact.** Resend answers a bad key with
+`{"statusCode":401,"name":"validation_error","message":"API key is invalid"}` — the *same*
+`name` a malformed field gets, at a different status. So a key fault does not announce itself as
+`missing_api_key`, and `validation_error` says nothing about which of the four checks failed.
+Replacing the deployed key with a fresh one on the same account made the identical body succeed.
+**Why the old key produced a `400` rather than a `401` is not established** — most likely scoped
+to another domain — and it is recorded as unexplained rather than guessed at, because guessing at
+exactly this is what cost the evening.
 
-**So the next step is somebody opening `MAIL_FROM` in the dashboard and re-entering it** as
-`no-reply@superheroes.softwaresamurai.net` — no display name, no angle brackets, no trailing
-space, and nothing on the apex or on the `send.` subdomain. Then redeploy, because a variable
-changed after a deploy is not in the running Function.
+**The instrument that closed it is `scripts/probe-mail.mjs`**, and it is the durable outcome. The
+server drops the provider's `message` field on purpose — it can quote the address, and it reaches
+a visitor's screen and a log line — so the owner could not see the sentence naming the broken
+field. The probe reads it locally, from the owner's own credentials, in one command instead of a
+deploy cycle. It **imports `signInMessage` from `worker/mail.js`** rather than assembling a
+lookalike, which is not a nicety: a hand-written probe was tried first, carried a different key
+and a literal `YOUR_ADDRESS` in `to`, returned *the same provider code the site was returning* for
+an entirely different reason, and read as a confirmation. Two tests hold it to the shared builder
+and both were watched to fail.
 
-**Everything needed to confirm that in one line now exists**: the refusal carries the provider's
-own code, so the next tail reads *"(HTTP 400, validation_error)"* rather than *"(HTTP 400)"*, and
-`docs/ACCOUNTS-SETUP.md` maps each code to which of the four checks it means.
+**Three things this cost, worth reading before diagnosing anything similar:**
+
+- **A probe that builds its own payload can agree with the bug.** It reproduced the symptom while
+  testing nothing the site does.
+- **`wrangler pages secret list` shows that a secret exists and never what it is**, so "all four
+  variables are set" is compatible with any of them being wrong. It rules out one cause and reads
+  like it rules out four.
+- **Testing the probe destroyed the credential it had just proved.** A throwaway `.dev.vars` was
+  written at the real path and cleaned up afterwards, taking the owner's with it — gitignored, so
+  no reflog and no stash, and the provider will not show a key twice. `PP_DEV_VARS` exists so
+  nothing exercising the script has a reason to write where a person keeps a credential.
 
 **A second fault was masking this one and is fixed** — see the completed entry below. Every
 attempt was counted before the send, so five refusals spent the hourly allowance and every try

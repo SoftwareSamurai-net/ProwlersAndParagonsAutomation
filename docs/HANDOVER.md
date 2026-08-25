@@ -22,25 +22,22 @@ of the three branches while the other two each claimed a different total. Three 
 claiming a figure for the same tree is how this number goes stale; `PROGRESS.md`'s row is the one
 that was measured. Re-measure rather than carrying either forward.
 
-**Accounts are on, and there are two manual steps outstanding that no test and no deploy will
-do for you.** The `DB` binding exists and `/api/me` answers `401` carrying JSON — the deploy's own
-pass condition — but the reconciliation added two migrations and a variable the running site does
-not have yet:
+**Sign-in works end to end, and that sentence has never been true before.** A link was requested
+on the live site, arrived, and signed somebody in. Every handover before this one said the same
+thing the other way round — that it needed somebody to receive a link and no test could do it —
+so this is the one claim here that no suite backs and that somebody watched happen.
 
-- **`0003_invitations.sql` and `0004_error_log.sql` are not applied to the remote database.**
-  `npx wrangler --cwd d1 d1 migrations apply prowlers-and-paragons --remote`. The deploy workflow
-  does not run migrations, deliberately. `invitations` is queried **unguarded** on the sign-in
-  path, so until this is run an address asking for a link gets a categorised `storage` failure;
-  the error log's own pruning is guarded and degrades quietly instead.
-- **`ADMIN_EMAIL` is not set in the Pages project.** The site is now invitation-only, and that
-  variable is the only thing that breaks the circle — managing the list needs an account, an
-  account needs an invitation, an invitation needs somebody signed in. **A deployment with no
-  `ADMIN_EMAIL` allows nobody**, which is the deliberate failure mode rather than a bug.
+All four migrations are applied to the remote database (`invitations` and `error_log` were the
+outstanding pair) and all four variables are set: `RESEND_API_KEY`, `MAIL_FROM`, `SITE_URL`,
+`ADMIN_EMAIL`. **The deploy workflow does not run migrations** — deliberately — so a future
+migration is a manual step again, and `invitations` is queried unguarded on the sign-in path,
+which is what makes an unapplied one visible immediately.
 
-Neither of these is a regression: sign-in has never been verified end to end here, because that
-needs somebody to receive a link and no test can do it. Both are in
-[`ACCOUNTS-SETUP.md`](ACCOUNTS-SETUP.md), which is also where the Resend subdomain reasoning
-lives — a second SPF record at the apex would break the owner's personal mail.
+**Getting there took four deploy cycles and diagnosed nothing, which is why
+`scripts/probe-mail.mjs` now exists.** The fault was the API key; every reading of the evidence
+said otherwise. See *Testing the mail path without deploying* in
+[`ACCOUNTS-SETUP.md`](ACCOUNTS-SETUP.md) — that file also carries the Resend subdomain reasoning,
+since a second SPF record at the apex would break the owner's personal mail.
 
 **This site is not a sign-up.** Only invited addresses may ask for a link, and the list is managed
 at `/admin` by somebody already signed in — reached by its address, with no link in the navigation
