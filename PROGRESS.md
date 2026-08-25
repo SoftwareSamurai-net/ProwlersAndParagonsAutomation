@@ -268,6 +268,64 @@ None of the 33 was a bug in the product. Every one was a **test that did not hol
 to hold**, which is a different and quieter problem: the suite's headline number goes up and its
 grip does not.
 
+### 9. Durable telemetry needs leaving Pages — **researched, costed, and deliberately deferred**
+
+**The owner asked why the Cloudflare observability view is empty. It is empty because this is a
+Pages project, and that is structural rather than a configuration gap.** Cloudflare's own
+Pages-to-Workers compatibility matrix marks every durable observability feature ❌ for Pages —
+**Workers Logs, Logpush, Tail Workers and Source Maps** — and passes only *real-time logs*, the
+ephemeral tail. `observability` is not an inheritable Pages configuration key, so there is nothing
+to switch on and **no plan that unlocks it**. Do not spend a cycle looking for the setting.
+
+**Decision: deferred.** The owner's words — *"error log in /admin is fine for now… can upgrade
+telemetry if we need to."* The durable half already exists and is now readable: the D1 `error_log`
+table, surfaced at `/admin` behind the same gate as the invitation list. That is the thing that was
+actually wanted; the dashboard was the assumed route to it.
+
+**What Pages does have**, and it is a live-debugging tool rather than a record:
+
+```bash
+npx wrangler pages deployment tail --project-name=prowlers-and-paragons --environment production
+```
+
+Useful filters: `--status ok|error|canceled`, `--search <text>` (matches inside `console.log`
+output, so one of the four categories `worker/errors.js` writes is a usable search), `--method`,
+`--ip self`. **It streams only while the command runs**, nothing is stored, and high volume pushes
+it into sampling and drops messages silently. For a fault discovered a week later — which is
+exactly the shape of the mail-key outage this project already had — it tells you nothing, because
+nobody was tailing at the moment it happened. That asymmetry is the whole reason the D1 table
+exists.
+
+**If it is ever wanted, the answer is migrating to Workers with static assets, and it is $0.**
+Workers Logs is on the free plan: 200,000 events a day, 3-day retention — orders of magnitude
+beyond this site's traffic. The migration is bounded and mechanical, and **both constraints this
+repository would raise against it resolve favourably, for reasons worth having written down**:
+
+- **The third-party-cookie objection does not apply.** `CLAUDE.md` says Pages Functions was chosen
+  over "a Worker on `workers.dev`" because a cookie set by another host is partitioned away. That
+  is correct, and it is an objection to **`workers.dev`** — a shared Cloudflare-owned domain — not
+  to Workers. Workers take Custom Domains exactly as Pages does: Cloudflare routes
+  `superheroes.softwaresamurai.net` straight to the Worker. Same-origin holds, on the condition
+  already true today: keep the custom domain and never point the accounts API at `*.workers.dev`.
+- **The `_redirects` SPA fallback survives byte for byte.** `web/wwwroot/_redirects` is one line,
+  `/* /index.html 200`; the Workers equivalent is configuration rather than a file —
+  `assets.not_found_handling: "single-page-application"` — and returns the identical
+  200-with-`index.html`.
+
+**And the migration has one trap that would break the site quietly, so it is recorded here rather
+than rediscovered.** Workers-with-assets checks static files **first** and only reaches the script
+for paths that match none. `/api/*` is not a static file, so in the naive setup **the SPA fallback
+swallows the whole accounts API** — every address answering `index.html` with a 200. That is
+precisely the failure the deploy workflow's "confirm the accounts API answers" step exists to
+catch, and precisely why that step reads the *body* rather than believing the status. The fix is a
+routing directive telling the Worker to run first for that prefix; get it wrong and the site looks
+perfectly healthy while signing nobody in.
+
+Also settled while looking: **OpenTelemetry export is viable but is the option this repository has
+already rejected on principle** — `CLAUDE.md` declines third-party error services on the grounds
+that nothing about who somebody is should leave the Cloudflare account this site deploys to, and
+that property is worth more than a nicer dashboard. That reasoning is unchanged by anything above.
+
 ### 7. The pre-1.0 audit
 
 The last pass before tagging `v1.0.0`, done as a separate slice, both halves cheapest to
