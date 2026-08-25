@@ -1881,22 +1881,45 @@ label {
    assumption is that somebody arriving is here to build a character, and looking a rule up is
    what they come back for. The lead avenue takes the wider column at the width where there are
    two, and the natural order is preserved when there is one. */
+/* The two things this site does, on the page whose whole job is to offer them.
+
+   **Two equal doors, and the first version was not.** It sized them by priority — 3fr against 2fr
+   with `align-items: start` — on the reasoning that somebody arriving is overwhelmingly here to
+   build a character and looking a rule up is what they come back for. That reasoning is sound and
+   the layout was still wrong: a short box beside a tall full one reads as *unfinished*, not as
+   *secondary*, and the reference is a whole half of the site rather than an afterthought. Seen on
+   the deployed page, not in a test.
+
+   Priority is now carried by order and by which button is `primary`, which is where it belongs —
+   the reader meets the builder first and its call to action is the filled one. The boxes
+   themselves share the space. */
 .avenues {
     display: grid;
     gap: var(--space-5);
-    align-items: start;
     margin-bottom: var(--space-6);
 }
 @media screen and (min-width: 52rem) {
-    .avenues { grid-template-columns: 3fr 2fr; }
+    /* `minmax(0, 1fr)` twice rather than `1fr 1fr`: a track's default minimum is its *content's*
+       minimum, so a long unbroken word would push one door wider than the other and undo exactly
+       the thing this rule is for. */
+    .avenues { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+/* A column, so the button can be pushed to the foot. Both doors are then the same height with
+   their calls to action on one line, which is what makes them read as a pair rather than as a
+   thing and a leftover. `stretch` is the grid default and is what `align-items: start` above was
+   overriding. */
 .avenue {
     border: var(--rule-weight) solid var(--rule);
     border-radius: var(--radius);
     background: var(--panel);
     padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
 }
+
+/* The last thing in a door is its way in, and it sits on the floor of the box. */
+.avenue > .btn { align-self: flex-start; margin-top: auto; }
 .avenue h2 { margin-top: 0; }
 .avenue p:last-of-type { margin-bottom: var(--space-4); }
 
