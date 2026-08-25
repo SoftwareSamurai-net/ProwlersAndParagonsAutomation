@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4303 across three suites — 3730 on the engine, 449 rendering components with bUnit, 124 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on `master` at `9ff148e`, re-run after the merge rather than carried across from the branch.** This row has been wrong twice: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
+| Tests | 4315 across three suites — 3730 on the engine, 455 rendering components with bUnit, 130 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on the error-log-admin-endpoint branch, on top of `master` at `9ff148e` (which was 4303: 3730 + 449 + 124) — re-run once this merges rather than carried across.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -713,12 +713,10 @@ category }` and `SignIn.razor` maps the category to a sentence, replacing the si
   client does not recognise. A taxonomy with no default grows a category for every new failure,
   and the pressure is then to classify by guessing.
 
-**The owner's half is one D1 table read by hand, and there is no admin endpoint.** `Identity`
-carries a key and a name and no role — there is a test asserting the wire identity holds nothing
-else — so "am I an admin" is not a question the client can ask, and inventing a role to answer it
-is a far larger change than this needed. The precedent is `users.character_limit`, raised by hand
-in SQL on the reasoning that a cap you can raise on yourself is not one. `docs/ACCOUNTS-SETUP.md`
-carries the `wrangler d1 execute` command and the table of what each category means.
+**The owner's half was one D1 table read by hand, and there was no admin endpoint — superseded
+below**, once the invitation list made "am I an admin" a question the server could already
+answer. `docs/ACCOUNTS-SETUP.md` still carries the `wrangler d1 execute` command and the table of
+what each category means, for a deployment with nobody set up as an administrator yet.
 
 **Bounded by construction rather than by a cap somebody remembers to enforce.** The primary key is
 `(category, route)` and `route` is a *pattern* from a closed list, so `/api/characters/{id}` is
@@ -768,6 +766,47 @@ Not done, and deliberately: **no third-party error service** — nothing about w
 currently leaves the Cloudflare account, and that is worth more than a nicer dashboard — and **no
 stack traces to the client in any environment**, since there is no debug build of a deployed site
 and a flag that turns them on is a flag one mistake from being on.
+
+### The error log gets an admin endpoint after all, reversing the decision above
+
+The decision two entries up — "there is no admin endpoint and there is not going to be one" — was
+sound when it was written and is superseded now, on purpose rather than by drift. What changed
+underneath it is the invitation list, built after that decision: the *server* now answers "am I
+an admin" on every request, via `invitations.isAdministrator(env, user)`, to gate
+`/api/admin/invitations`. A read-only `/api/admin/error-log`, gated by the identical check, adds
+no role to `Identity` and no new concept to the client — it is the same question asked once more.
+Both `d1/migrations/0004_error_log.sql` and `docs/ACCOUNTS-SETUP.md` now say so, instead of
+repeating the old refusal.
+
+**Read-only, and deliberately narrow.** There is no route that deletes or clears a row — the
+table is already bounded by its own primary key, so there is nothing to reclaim, and a control
+that could erase a row would be a control that could erase the evidence of the thing it is for.
+If a clear is ever wanted, that is a new decision, not a gap this slice left open.
+
+**A panel on `/admin`, beside who can sign in**, because both are the same gate and a second page
+would only be a second address for the same account to reach. The one row this site has ever
+produced was a resolved outage, so the panel does not just print a count next to a timestamp:
+a row whose most recent failure is more than a day old says plainly that it has not happened
+again, and an empty table reads as "nothing has failed" rather than as a blank section — the same
+discipline the budget bar's "None yet." already follows for an empty list that is empty for its
+own reasons.
+
+**`console.error` in the catch became one JSON object instead of a formatted sentence**, so
+`wrangler pages deployment tail` can filter and read it. It shares the exact object `error_log`
+is written from — category, route pattern, exception kind, redacted detail, reference — computed
+once in `worker/index.js`'s catch and passed to both the log line and the row, so a tail and the
+table cannot redact the same failure two different ways. The exception's raw message is never in
+it, same reason it was never in the row.
+
+**Tests, and what was broken to prove them:** the new route's three-state gate (401 signed out,
+the invitation list's own 404 for a signed-in non-administrator, 200 with rows otherwise) in
+`tests/worker/invitations.test.mjs`, with the gate removed and watched to answer 200 to an
+ordinary account; the structured log's redaction and its agreement with the row in
+`tests/worker/errors.test.mjs`, with the redaction call deleted and watched to leak the planted
+address and token into the tail; and, on the browser side, that an account which may not manage
+the list is never even asked — `Asked` catches this though the markup cannot, since the page's
+own refusal already hides every panel regardless of whether the fetch's own guard is doing
+anything. Test totals moved: the accounts suite from 124 to 130, the bUnit suite from 449 to 455.
 
 ### Characters, plural: a manager, imports, and the export the app was not writing
 

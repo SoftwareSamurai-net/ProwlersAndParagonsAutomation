@@ -4,13 +4,21 @@
 -- happened to be watching for was unrecoverable. This is the durable half. The visitor's half is
 -- a category and a reference in the 500 body — see `worker/errors.js`.
 --
--- **There is no admin endpoint and there is not going to be one.** `Identity` carries a key and a
--- name and no role — there is a test asserting the wire identity holds nothing else — so "am I an
--- admin" is not a question the client can ask, and inventing a role to answer it is a far larger
--- change than this needs. The precedent is `users.character_limit`, raised by hand in SQL on the
--- reasoning that a cap you can raise on yourself is not one. This is read the same way:
+-- **There was no admin endpoint for this, and there is now — reversing what this comment used to
+-- say, on purpose rather than by drift.** The reasoning above was sound when it was written:
+-- `Identity` carried a key and a name and no role, so "am I an admin" was not a question the
+-- client could ask, and inventing a role to answer it looked like a far larger change than the
+-- error log was worth. What changed is that the invitation-list work made "am I an admin" a
+-- question the SERVER already answers, on every request, for a different reason entirely —
+-- `invitations.isAdministrator(env, user)` gates `/api/admin/invitations`, and an ordinary
+-- account reaching for it gets the same 404 an unrouted address gets, so the page cannot be
+-- discovered by trying. An admin-gated read of this table needs no new claim in the client, no
+-- role on `Identity`, and no new concept: it is `/api/admin/error-log`, gated by the identical
+-- check. The precedent this used to lean on — `users.character_limit`, raised by hand in SQL —
+-- is still true for anything this table's own gate does not cover, but reading the table itself
+-- no longer needs it. Ad hoc, by hand, for a deployment with no such gate yet:
 --
---   wrangler d1 execute prowlers-accounts --remote \
+--   wrangler d1 execute prowlers-and-paragons --remote \
 --     --command "SELECT * FROM error_log ORDER BY last_at DESC"
 --
 -- **One row per (category, route), counted rather than appended.** A failing dependency throws on

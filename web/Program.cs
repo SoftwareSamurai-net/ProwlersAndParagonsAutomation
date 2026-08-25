@@ -44,6 +44,7 @@ builder.Services.AddScoped<CharacterSession>();
 // reading the anonymous slot specifically, and copying it up on request.
 builder.Services.AddScoped<Accounts>();
 builder.Services.AddScoped<Invitations>();
+builder.Services.AddScoped<ErrorLog>();
 builder.Services.AddScoped<IIdentitySource>(s => s.GetRequiredService<Accounts>());
 builder.Services.AddScoped<CharacterStore>();
 // The plural store, registered separately from CharacterStore even though CharacterStore

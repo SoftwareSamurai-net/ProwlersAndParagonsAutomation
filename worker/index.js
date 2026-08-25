@@ -6,6 +6,7 @@
 // there is exactly one routed file — `functions/api/[[path]].js` — and everything else is a
 // module that has to be wired in on purpose to be reachable at all.
 
+import * as adminErrorLog from './adminErrorLog.js';
 import * as auth from './auth.js';
 import * as characters from './characters.js';
 import { CHAPTERS } from './corpus.js';
@@ -93,10 +94,23 @@ export async function handle(request, env, deps = production) {
         const category = categoryOf(error);
         const reference = deps.newReference();
 
-        console.error(
-            `Unhandled failure in the accounts API [${reference}] (${category}):`, error);
+        // **The same four fields the table gets, computed once and shared with it** — a second
+        // computation here could redact differently from the row a caller's reference points at.
+        // One JSON object per line rather than a formatted sentence, so `wrangler pages
+        // deployment tail` can filter and read it: the exception's own message never appears,
+        // only what `redact` leaves of it, for the same reason the visitor is not shown it either
+        // — a tail is exactly the artefact most likely to be pasted into an issue.
+        const entry = {
+            category,
+            route: routePattern(request),
+            kind: kindOf(error),
+            detail: redact(error && error.message),
+            reference,
+        };
 
-        await record(env, { category, request, error, reference, now: deps.now() });
+        console.error(JSON.stringify(entry));
+
+        await record(env, { ...entry, now: deps.now() });
 
         return fail(500, 'Something went wrong at this end.', { reference, category });
     }
@@ -114,18 +128,11 @@ export async function handle(request, env, deps = production) {
  * <p>The raw `env.DB` rather than the wrapped one: there is nothing left to classify here, and a
  * tag applied on the way out of a logger that already swallows everything would be decoration.</p>
  */
-async function record(env, { category, request, error, reference, now }) {
+async function record(env, { category, route, kind, detail, reference, now }) {
     try {
         if (!env || !env.DB || typeof env.DB.prepare !== 'function') return;
 
-        await db.recordFailure(env.DB, {
-            category,
-            route: routePattern(request),
-            kind: kindOf(error),
-            detail: redact(error && error.message),
-            reference,
-            now,
-        });
+        await db.recordFailure(env.DB, { category, route, kind, detail, reference, now });
     } catch (secondary) {
         console.error(`Could not record the failure [${reference}]:`, secondary);
     }
@@ -180,10 +187,17 @@ async function route(request, env, deps) {
     // The check is a database read on every request rather than a claim on the session, because
     // withdrawing somebody's flag has to take effect on their next request and not when their
     // month-old cookie expires.
-    if (path === '/api/admin/invitations' || path.startsWith('/api/admin/invitations/')) {
+    if (path === '/api/admin/invitations' || path.startsWith('/api/admin/invitations/')
+        || path === '/api/admin/error-log') {
         const user = await auth.currentUser(request, env, deps);
         if (!user) return fail(401, 'Sign in first.');
         if (!await invitations.isAdministrator(env, user)) return fail(404, 'No such address.');
+
+        // **Gated by the same question above, not a second one.** Read-only — there is no verb
+        // here beyond GET, because there is nothing to write. See `adminErrorLog.js`.
+        if (path === '/api/admin/error-log') {
+            return only('GET', method, () => adminErrorLog.list(request, env, deps, user));
+        }
 
         if (path === '/api/admin/invitations') {
             if (method === 'GET') return invitations.list(request, env, deps, user);

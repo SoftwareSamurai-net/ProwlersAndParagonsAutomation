@@ -652,10 +652,19 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
     any `>`, `rm` or `mv`, and do not assume a file is yours because you wrote one like it.**
 - **A failure is classified into four categories, and the set is closed.** `mail`, `storage`,
   `configuration`, `unknown`, in `worker/errors.js`. The visitor gets the category and a
-  reference and nothing else; the owner gets a row in `error_log`, read by hand with
-  `wrangler d1 execute` — **there is no admin endpoint and there must not be one**, because
-  `Identity` carries a key and a name and no role, and inventing one to answer "am I an admin"
-  is a far larger change. Precedent: `users.character_limit`, raised by hand in SQL.
+  reference and nothing else; the owner gets a row in `error_log`, readable by hand with
+  `wrangler d1 execute` (see `docs/ACCOUNTS-SETUP.md`) and, now, through a panel on `/admin`.
+  **This reverses an earlier decision recorded here — "there is no admin endpoint and there must
+  not be one" — and the reversal is deliberate, not drift.** The reasoning against it was sound
+  at the time: `Identity` carried a key and a name and no role, so "am I an admin" was not a
+  question the client could ask. What changed underneath it is the invitation list: the *server*
+  now answers exactly that question on every request, via `invitations.isAdministrator(env,
+  user)`, to gate `/api/admin/invitations` — and `/admin` already answers an ordinary account the
+  same `404` an unrouted address gets, so the page cannot be discovered by trying. A read-only
+  `/api/admin/error-log`, gated by that identical check, adds no role to `Identity` and no new
+  concept; it is the same question asked once more. The unrelated precedent —
+  `users.character_limit`, raised by hand in SQL — still stands: that is a *write* with no gate
+  built for it, which reading a table never needed one for in the first place.
   - **A category is assigned where a failure is caught, never at a throw site.** `handle()`
     wraps the two subsystems on the way in — `taggedStorage` round the D1 binding,
     `taggedMail` round the send — so `db.js` and `mail.js` know nothing about any of it. A
@@ -700,6 +709,21 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
     nothing — the failure shape this repository has shipped four times. Each asserts a row was
     written *and* that the message still says what happened, since a `redact` returning the empty
     string would satisfy every absence while destroying the column.
+  - **`console.error` in the catch is one JSON object, not a formatted sentence**, so
+    `wrangler pages deployment tail` can filter and read it. `worker/index.js` computes the
+    category, route pattern, exception kind, redacted detail and reference once and shares the
+    same object with the write to `error_log` — a second computation here could redact
+    differently from the row the caller's own reference points at. The exception's raw message is
+    never in it, for the same reason the visitor is not shown it either.
+
+- **`/api/admin/error-log` reads the table over the wire, gated exactly as
+  `/api/admin/invitations`** — 401 signed out, the same 404 an unrouted address gets if signed in
+  but not an administrator, 200 with the rows otherwise. **Read-only, on purpose**: there is no
+  route here that deletes or clears a row, because the table needs none — see the migration. A
+  panel on `/admin` renders it, beside who can sign in, using the identical gate the invitation
+  list already had; an empty table reads as reassurance ("nothing has failed"), not as a blank
+  page, and a row whose most recent failure is well in the past says so rather than reading as an
+  ongoing outage.
 
 - **A missing server is a missing feature, not a blank page** — and the shape that makes that
   work is also the shape that hides the mistake. `_redirects` serves every unmatched path as

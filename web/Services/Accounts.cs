@@ -213,8 +213,14 @@ public sealed class Accounts : IIdentitySource
     /// <para>Matched by name rather than parsed, so the wire spelling is decided here and not by
     /// how the enum happens to be capitalised. Anything unrecognised is unknown — a newer server
     /// with a fifth category must degrade to the honest sentence, not to a wrong one.</para>
+    ///
+    /// <para><b>Internal rather than private</b>: <see cref="ErrorLog"/> reads the same four
+    /// categories off the same server, for the same rows this design already classifies. A
+    /// second mapping there would be a second place the two lists could drift apart — the exact
+    /// shape <c>AccountsContractTests</c> exists to catch, which reads this method's own source
+    /// and would be blind to a copy of it.</para>
     /// </summary>
-    private static FailureCategory CategoryNamed(string? wire) => wire switch
+    internal static FailureCategory CategoryNamed(string? wire) => wire switch
     {
         "mail" => FailureCategory.Mail,
         "storage" => FailureCategory.Storage,

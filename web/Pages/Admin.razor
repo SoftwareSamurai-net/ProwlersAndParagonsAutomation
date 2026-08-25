@@ -1,7 +1,11 @@
 @page "/admin"
 @inject Invitations Invitations
+@inject ErrorLog ErrorLog
 
-@* Who may have an account here.
+@* Who may have an account here, and what has gone wrong while running the site.
+   Both stay on one page because both are the same gate — the server asks the identical question,
+   `invitations.isAdministrator`, before answering either one, and a second page would only be a
+   second address for the same account to reach.
 
    **This site is not a sign-up.** An account is what keeps somebody's characters with them and
    what opens the rulebook's own text, so who may have one is a decision rather than a form —
@@ -11,7 +15,11 @@
    every single request whether the person asking may manage this list; the browser holds no
    claim, no role and no flag it could get wrong. So it is reached by its address rather than by
    a button that appears for some people — an ordinary account that finds its way here is told,
-   politely, that it is not theirs, and could learn nothing by trying. *@
+   politely, that it is not theirs, and could learn nothing by trying.
+
+   **The failure log is read-only on purpose.** There is nothing here that clears or deletes a
+   row — the server offers no such route, and adding one to this page would be inventing a
+   control the server does not have. *@
 
 <PageTitle>Who can sign in — Prowlers &amp; Paragons</PageTitle>
 
@@ -106,6 +114,40 @@
             changed where the rest of the site's settings are.
         </p>
     </Panel>
+
+    <Panel Title="What has gone wrong" Aside="@ErrorLogCounted">
+        @if (_errorRows.Count == 0)
+        {
+            <p>Nothing has failed here in the last month.</p>
+        }
+        else
+        {
+            <p>
+                Each row folds every occurrence of one failure into a count, so a fault that kept
+                happening is one line rather than one per attempt. Nothing here is anybody's own
+                data — no address, no character, only what broke and how often.
+            </p>
+
+            <ChosenList>
+                @foreach (var row in _errorRows)
+                {
+                    <ChosenRow>
+                        <Body>
+                            <strong>@CategoryLabel(row.Category)</strong>
+                            <span class="small muted">@row.Route · @row.Kind</span>
+                            @if (!string.IsNullOrEmpty(row.Detail))
+                            {
+                                <p class="small muted">@row.Detail</p>
+                            }
+                            <p class="small muted">
+                                @Occurred(row) Quote reference @row.Reference to report it.
+                            </p>
+                        </Body>
+                    </ChosenRow>
+                }
+            </ChosenList>
+        }
+    </Panel>
 }
 else if (_state == ListRequest.NotSignedIn)
 {
@@ -140,6 +182,7 @@ else
     private ListRequest? _state;
     private IReadOnlyList<Invitation> _invitations = [];
     private string? _you;
+    private IReadOnlyList<ErrorLogRow> _errorRows = [];
 
     private string _email = "";
     private bool _grantsAdmin;
@@ -153,6 +196,11 @@ else
     private string Counted =>
         _invitations.Count == 1 ? "1 address" : $"{_invitations.Count} addresses";
 
+    private string ErrorLogCounted =>
+        _errorRows.Count == 0 ? "none recorded"
+        : _errorRows.Count == 1 ? "1 recorded"
+        : $"{_errorRows.Count} recorded";
+
     protected override async Task OnInitializedAsync() => await Reload();
 
     private async Task Reload()
@@ -162,7 +210,48 @@ else
         _state = answer.Result;
         _invitations = answer.Invitations;
         _you = answer.You;
+
+        // Asked for only once this account is known to manage the list — the server gates the
+        // two identically, but there is no reason to make the call before the first answer says
+        // it could possibly succeed.
+        _errorRows = _state == ListRequest.Loaded
+            ? (await ErrorLog.ListAsync()) is { Result: ErrorLogRequest.Loaded } log
+                ? log.Rows
+                : []
+            : [];
     }
+
+    /// <summary>A plain name for the subsystem, matching the words <c>SignIn.razor</c> uses for
+    /// the same four categories — a visitor who reports a failure and whoever reads this row
+    /// should be able to recognise it as the same thing.</summary>
+    private static string CategoryLabel(FailureCategory category) => category switch
+    {
+        FailureCategory.Mail => "sending mail",
+        FailureCategory.Storage => "saving what it was asked to save",
+        FailureCategory.Configuration => "how this deployment is set up",
+        _ => "something unclassified",
+    };
+
+    /// <summary>
+    /// How often, and — the reason this exists — whether it is still happening.
+    ///
+    /// <para>A row here is a fact about the last month, not about right now: the one row this
+    /// site has ever produced was an outage that ended days before anybody read the table. A
+    /// count on its own reads as an ongoing fire; a count next to "hasn't happened again" does
+    /// not.</para>
+    /// </summary>
+    private static string Occurred(ErrorLogRow row)
+    {
+        var times = row.Occurrences == 1 ? "Happened once" : $"Happened {row.Occurrences} times";
+        var last = DateTimeOffset.FromUnixTimeMilliseconds(row.LastAt);
+        var quiet = DateTimeOffset.UtcNow - last > TimeSpan.FromHours(24);
+
+        return quiet
+            ? $"{times}, most recently {When(last)}, and not again since."
+            : $"{times}, most recently {When(last)}.";
+    }
+
+    private static string When(DateTimeOffset at) => at.ToLocalTime().ToString("d MMM, HH:mm");
 
     private async Task Invite()
     {
