@@ -1,5 +1,38 @@
 // Sending the magic link. One provider, one call, no SDK.
 
+/** Where the send goes. Named so the probe cannot address a different endpoint by accident. */
+export const RESEND_ENDPOINT = 'https://api.resend.com/emails';
+
+/**
+ * The request body, exactly as the provider receives it.
+ *
+ * <p><b>Exported so that a diagnostic probe sends what this server sends, rather than something
+ * that resembles it.</b> That distinction is not academic: the refusal this was written for was
+ * diagnosed for half an hour with a hand-written probe carrying a different key and a literal
+ * `YOUR_ADDRESS` in `to`, which reproduced the same provider error code for a completely
+ * different reason and read exactly like a confirmation. A probe that builds its own payload is
+ * a probe that can agree with the bug.</p>
+ *
+ * <p>`scripts/probe-mail.mjs` calls this, and a test asserts it calls this rather than
+ * assembling its own — see `tests/worker/mail.test.mjs`.</p>
+ */
+export function signInMessage(env, { to, link }) {
+    return {
+        from: env.MAIL_FROM,
+        to: [to],
+        subject: 'Your sign-in link',
+        // Plain text as well as HTML: a link that exists only inside markup is a link some
+        // mail clients will not show at all.
+        text: 'Open this link to sign in. It works once and expires in 15 minutes.\n\n'
+            + link
+            + '\n\nIf you did not ask to sign in, ignore this — nothing has happened to any account.',
+        html: '<p>Open this link to sign in. It works once and expires in 15 minutes.</p>'
+            + '<p><a href="' + escapeHtml(link) + '">Sign in</a></p>'
+            + '<p style="color:#666">If you did not ask to sign in, ignore this — nothing has '
+            + 'happened to any account.</p>',
+    };
+}
+
 /**
  * Hands the link to Resend.
  *
@@ -12,26 +45,13 @@
  * 500 rather than the cheerful 204 the endpoint otherwise gives.
  */
 export async function sendSignInLink(env, { to, link }) {
-    const response = await fetch('https://api.resend.com/emails', {
+    const response = await fetch(RESEND_ENDPOINT, {
         method: 'POST',
         headers: {
             authorization: `Bearer ${env.RESEND_API_KEY}`,
             'content-type': 'application/json',
         },
-        body: JSON.stringify({
-            from: env.MAIL_FROM,
-            to: [to],
-            subject: 'Your sign-in link',
-            // Plain text as well as HTML: a link that exists only inside markup is a link some
-            // mail clients will not show at all.
-            text: 'Open this link to sign in. It works once and expires in 15 minutes.\n\n'
-                + link
-                + '\n\nIf you did not ask to sign in, ignore this — nothing has happened to any account.',
-            html: '<p>Open this link to sign in. It works once and expires in 15 minutes.</p>'
-                + '<p><a href="' + escapeHtml(link) + '">Sign in</a></p>'
-                + '<p style="color:#666">If you did not ask to sign in, ignore this — nothing has '
-                + 'happened to any account.</p>',
-        }),
+        body: JSON.stringify(signInMessage(env, { to, link })),
     });
 
     if (!response.ok) {

@@ -54,3 +54,9 @@ web/wwwroot/proof-*.html
 node_modules/
 package-lock.json
 .wrangler/
+
+# The local half of the accounts server's configuration: a real Resend key, read by
+# `wrangler pages dev` and by `scripts/probe-mail.mjs`. It holds a live credential, so it is
+# ignored here rather than relied on to be remembered — the same reasoning that keeps the key
+# out of this repository in the first place.
+.dev.vars

@@ -9,7 +9,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { sendSignInLink } from '../../worker/mail.js';
+import { readFile } from 'node:fs/promises';
+
+import { sendSignInLink, signInMessage } from '../../worker/mail.js';
 
 const ENV = {
     RESEND_API_KEY: 'not-a-real-key',
@@ -105,4 +107,37 @@ test('a refusal with no readable body is still a refusal', async () => {
         assert.ok(failure instanceof Error, 'a refused send must throw whatever the body was');
         assert.match(failure.message, /The mail provider refused the send \(HTTP \d{3}\)\./);
     }
+});
+
+// The probe that reads what this file's subject deliberately throws away.
+//
+// `worker/mail.js` drops the provider's `message` field on purpose — it can quote the address —
+// so `scripts/probe-mail.mjs` exists to read it on the owner's own machine. The probe is only
+// worth anything if it sends *this* body; one that assembles a lookalike can reproduce the same
+// provider error for a different reason and read as a confirmation. That happened, by hand,
+// before the probe existed: a different key and a literal `YOUR_ADDRESS` in `to` returned the
+// same code the site was returning and sent the diagnosis half an hour the wrong way.
+
+test('the probe sends the body this server sends, rather than one of its own', async () => {
+    const source = await readFile(new URL('../../scripts/probe-mail.mjs', import.meta.url), 'utf8');
+
+    assert.match(source, /import \{[^}]*signInMessage[^}]*\} from '\.\.\/worker\/mail\.js'/,
+        'the probe must import the shared builder, or it is testing a payload nobody sends');
+    assert.match(source, /signInMessage\(env, \{ to, link[^}]*\}\)/,
+        'the probe must call the builder, not merely import it');
+
+    // The positive control, and it is not optional: both assertions above are satisfied by a
+    // probe that imports the builder and then posts something else entirely. This one fails if
+    // the probe grows a second literal body — a `from:` or a `subject:` of its own.
+    const ownPayload = source.match(/^\s*(from|subject|html):/gm);
+    assert.equal(ownPayload, null,
+        `the probe builds part of the message itself: ${ownPayload?.join(', ')}`);
+});
+
+test('the builder is what the sender sends, so the probe cannot drift from it', async () => {
+    const { calls } = await against(() => new Response(JSON.stringify({ id: 'ffff' }), { status: 200 }));
+    const sent = JSON.parse(calls[0].init.body);
+
+    assert.deepEqual(sent, signInMessage(ENV, MESSAGE),
+        'sendSignInLink and signInMessage disagree, so the probe would test the wrong body');
 });
