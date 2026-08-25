@@ -18,7 +18,6 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
 | Tests | 4370 across three suites — 3733 on the engine, 474 rendering components with bUnit, 163 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome, one of them twice for reduced motion, and a pixel diff of the proof pages against Linux goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
-
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
