@@ -17,11 +17,11 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4303 across three suites — 3730 on the engine, 449 rendering components with bUnit, 124 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on `master` at `9ff148e`, re-run after the merge rather than carried across from the branch.** This row has been wrong twice: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
+| Tests | 4321 across three suites — 3730 on the engine, 451 rendering components with bUnit, 140 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on this branch, on top of `fb613c5`; re-run after the merge rather than carried across.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
-| Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. All four D1 migrations applied to the remote database, the `DB` binding is in place, `/api/me` answers `401` with JSON, and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong) |
+| Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. All four D1 migrations applied to the remote database, the `DB` binding is in place, `/api/me` answers `401` with JSON, and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong). **Adding an address now actually mails it** a one-click, three-day link — see the completed item below; until now the admin page said an address "can sign in now" and nothing ever told them so |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
 | Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export of `master` at `9ff148e`, not assumed**. It had drifted to 3 on `master` and to 37 across three reconciled slices before anybody checked, and the redesign slice put 23 there before they were fixed. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
@@ -286,6 +286,53 @@ Do it once the HTTP API stops moving, so audit targets are not shifting under it
 ---
 
 ## Completed work
+
+### Adding an address to the invitation list now actually tells them, with a one-click link
+
+`worker/invitations.js`'s `add()` wrote the row and returned — nothing was ever mailed. An address
+the owner added had no way of knowing it could sign in unless he told them himself, and the admin
+page's own "*can sign in now*" read as though something had been done about that. Fixed:
+
+- **A real, one-click sign-in link, not a bare pointer at the sign-in page.** The first version of
+  this deliberately carried no token — the reasoning being that a token is minted only when
+  somebody *asks*, and minting one unrequested puts a live credential in a mailbox nobody asked
+  anything of. **The owner reversed that mid-slice**: every invited address has already been
+  chosen deliberately, so a longer-lived credential in that inbox is an acceptable trade for the
+  first sign-in being one click rather than three. `worker/auth.js`'s
+  `INVITATION_TOKEN_LIFETIME_MS` is three days against the public request path's fifteen minutes,
+  and it needed no new migration and no second kind of token: `login_tokens.expires_at` is already
+  per-row, and `used_at` already burns a token on first spend. `worker/tokens.js` is the one place
+  that mints and hashes a token and the one place that builds its URL, so the public request path
+  and the invitation path cannot drift into two ways of doing either.
+- **A mail failure never costs the invitation.** The row is written first; the mail is attempted
+  second and caught in `worker/invitations.js`, so a dead provider still leaves the address able
+  to ask for an ordinary link, and the admin page is told honestly rather than shown a 500 that
+  would read as nothing having happened. **Deliberately still written to `error_log`**, `mail`
+  category, `route = '/api/admin/invitations'` — the same outage breaks every ordinary sign-in
+  too, and the owner should be able to find it from either failure, not only from a visitor who
+  complained.
+- **The admin page now says which of three things happened**: mailed and can sign in now; added,
+  but the mail did not go, so tell them another way; or already on the list, nothing sent.
+  `web/Services/Invitations.cs`'s `AddAsync` used to return a bare `bool` for "was the HTTP status
+  a success", which could not tell "just invited" from "already allowed" apart — it now reads the
+  two booleans the server sends back.
+- **16 new tests on the server, 2 on the page**, on top of the existing 124 and 449: the token is
+  minted and hashed through the shared function, the mail carries it and the database keeps only
+  the hash, it signs the invited address in and burns on first use exactly like a requested link,
+  it survives the public path's fifteen minutes and expires after its own three days,
+  `sweepExpired` actually removes an expired one rather than merely refusing it, a provoked mail
+  failure keeps the row and writes exactly one `error_log` row, and the admin page's three
+  sentences are told apart from each other rather than merely from a refusal. Every one of these
+  guards was broken by hand and watched fail before being restored, per this file's own standing
+  rule about checks that have never been seen to fail — see the git history on
+  `tests/worker/invitations.test.mjs`, `tests/worker/tokens.test.mjs` and
+  `tests/ProwlersAndParagons.Web.Tests/AdminPageTests.cs` for exactly what was mutated each time.
+
+**Not done, and deliberately left for later:** `scripts/probe-mail.mjs` still only diagnoses the
+sign-in message; it was not extended to send a test invitation. Both messages now go through the
+same `send`/refusal-handling function in `worker/mail.js`, so the diagnosis the probe already
+gives — the provider's status and its own machine code — is the same fault either message would
+hit, which is most of why this was left alone rather than because it would be hard.
 
 ### A front door with two avenues, the whole book searchable, and the sheet while you build
 

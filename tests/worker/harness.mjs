@@ -82,10 +82,12 @@ export function database() {
 export function server({ now = Date.parse('2026-08-19T10:00:00Z'), gated = false, admin } = {}) {
     const db = database();
     const sent = [];
+    const invitationsSent = [];
 
     const state = {
         now,
         sent,
+        invitationsSent,
         db,
         // The failure reference, held still for the same reason the clock is. Production mints a
         // random one per failure, which would make two otherwise identical 500 bodies differ for
@@ -122,6 +124,12 @@ export function server({ now = Date.parse('2026-08-19T10:00:00Z'), gated = false
         newReference: () => state.reference,
         sendSignInLink: async (env, message) => {
             sent.push(message);
+        },
+        // A separate array from `sent`: an invitation mail and a sign-in link are different
+        // messages to different assertions, and a test asserting nothing was mailed to a
+        // stranger should not have to know an invitation is a second kind of mail.
+        sendInvitationMail: async (env, message) => {
+            invitationsSent.push(message);
         },
     };
 

@@ -44,6 +44,22 @@ public readonly record struct InvitationList(
     public static InvitationList Refused(ListRequest why) => new(why, []);
 }
 
+/// <summary>What adding an address did.</summary>
+public enum InvitationAddResult
+{
+    /// <summary>Added, and mailed a link.</summary>
+    Added,
+
+    /// <summary>Added, but the mail telling them did not go.</summary>
+    AddedButNotMailed,
+
+    /// <summary>Already on the list; nothing changed and nothing was sent.</summary>
+    AlreadyAllowed,
+
+    /// <summary>The server would not add it.</summary>
+    Refused,
+}
+
 /// <summary>
 /// Who may have an account here, from the browser's side.
 ///
@@ -113,18 +129,32 @@ public sealed class Invitations
     }
 
     /// <summary>
-    /// Let one more address have an account. True when it may, including when it already could.
+    /// Let one more address have an account, and say whether it was mailed a link.
+    ///
+    /// <para><b>Three ways this can succeed, and they read differently to whoever clicked
+    /// Add.</b> A brand new address is mailed a one-click link; an address already on the list
+    /// changes nothing and sends nothing a second time; and a newly-added address whose mail
+    /// failed to go still has the row — the permission is granted either way, only the mail
+    /// did not arrive. The admin page is what turns these into a sentence.</para>
     /// </summary>
-    public async Task<bool> AddAsync(string email, bool grantsAdmin)
+    public async Task<InvitationAddResult> AddAsync(string email, bool grantsAdmin)
     {
         try
         {
             var response = await _http.PostAsJsonAsync("api/admin/invitations",
                 new { email, grantsAdmin });
 
-            return response.IsSuccessStatusCode;
+            if (!response.IsSuccessStatusCode) return InvitationAddResult.Refused;
+
+            var body = await response.Content.ReadFromJsonAsync<Added>(Wire);
+
+            if (body?.AlreadyAllowed == true) return InvitationAddResult.AlreadyAllowed;
+
+            return body?.Mailed == true
+                ? InvitationAddResult.Added
+                : InvitationAddResult.AddedButNotMailed;
         }
-        catch (Exception e) when (IsUnreachable(e)) { return false; }
+        catch (Exception e) when (IsUnreachable(e)) { return InvitationAddResult.Refused; }
     }
 
     /// <summary>
@@ -150,4 +180,7 @@ public sealed class Invitations
 
     /// <summary>What the server sends: who is asking, and the list.</summary>
     private sealed record Wired(string? You, IReadOnlyList<Invitation>? Invitations);
+
+    /// <summary>What the server sends back from adding one address.</summary>
+    private sealed record Added(bool AlreadyAllowed, bool Mailed);
 }

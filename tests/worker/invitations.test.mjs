@@ -8,7 +8,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { cookieFrom, server, signIn, tokenFrom } from './harness.mjs';
+import { INVITATION_TOKEN_LIFETIME_MS, TOKEN_LIFETIME_MS } from '../../worker/auth.js';
+import { cookieFrom, errorRows, server, signIn, tokenFrom } from './harness.mjs';
 
 const ADMIN = 'boss@example.test';
 
@@ -202,6 +203,221 @@ test('inviting the same address twice is not an error', async () => {
     assert.equal(listed.invitations.filter(i => i.email === 'guest@example.test').length, 1);
     assert.equal(listed.invitations.filter(i => i.email === ADMIN).length, 1,
         'the address that needs no row was given one');
+});
+
+test('adding an address mails it', async () => {
+    // **What the message itself says is a `worker/mail.test.mjs` question**, the same split as
+    // the sign-in link: this file drives the route and asserts a mail was attempted for the
+    // right address and carried a link; the shape of the message body is asserted where the
+    // builder actually runs, since the stub here stands in for the network call and never sees
+    // the built body.
+    const app = gated();
+    const cookie = await enter(app, ADMIN);
+
+    const added = await app.call('/api/admin/invitations',
+        { method: 'POST', body: { email: 'guest@example.test' }, cookie });
+
+    assert.equal(added.status, 200);
+    assert.equal((await added.json()).mailed, true);
+
+    assert.equal(app.invitationsSent.length, 1, 'nothing was mailed, so the assertion below checks nothing');
+    assert.equal(app.invitationsSent[0].to, 'guest@example.test');
+    assert.ok(app.invitationsSent[0].link.includes('?t='), 'the invitation carries no token');
+});
+
+test('the invitation link signs the invited person in, in one click', async () => {
+    const app = gated();
+    const cookie = await enter(app, ADMIN);
+
+    await app.call('/api/admin/invitations',
+        { method: 'POST', body: { email: 'guest@example.test' }, cookie });
+
+    const token = new URL(app.invitationsSent.at(-1).link).searchParams.get('t');
+    const verified = await app.call('/api/auth/verify', { method: 'POST', body: { token } });
+
+    assert.equal(verified.status, 200);
+    assert.equal((await verified.json()).displayName, 'guest');
+
+    const listed = await (await app.call('/api/admin/invitations', { cookie })).json();
+    assert.equal(listed.invitations.find(i => i.email === 'guest@example.test')?.hasSignedIn, true);
+});
+
+test('an invitation link works once, the same as any other sign-in link', async () => {
+    const app = gated();
+    const cookie = await enter(app, ADMIN);
+
+    await app.call('/api/admin/invitations',
+        { method: 'POST', body: { email: 'guest@example.test' }, cookie });
+    const token = new URL(app.invitationsSent.at(-1).link).searchParams.get('t');
+
+    const first = await app.call('/api/auth/verify', { method: 'POST', body: { token } });
+    const second = await app.call('/api/auth/verify', { method: 'POST', body: { token } });
+
+    assert.equal(first.status, 200);
+    assert.equal(second.status, 401, 'the same invitation link signed somebody in twice');
+});
+
+test('an invitation link outlives the public request path’s fifteen minutes', async () => {
+    const app = gated();
+    const cookie = await enter(app, ADMIN);
+
+    await app.call('/api/admin/invitations',
+        { method: 'POST', body: { email: 'guest@example.test' }, cookie });
+    const token = new URL(app.invitationsSent.at(-1).link).searchParams.get('t');
+
+    // Past the ordinary link's lifetime, and this one must still work — that is the entire
+    // feature. `TOKEN_LIFETIME_MS` rather than a bare number, so this test breaks the moment the
+    // two constants are made equal by accident rather than passing on a coincidence.
+    app.now += TOKEN_LIFETIME_MS + 1;
+
+    const verified = await app.call('/api/auth/verify', { method: 'POST', body: { token } });
+    assert.equal(verified.status, 200,
+        'an invitation link expired at the public request path’s shorter lifetime');
+});
+
+test('an invitation link still expires, after three days rather than fifteen minutes', async () => {
+    const app = gated();
+    const cookie = await enter(app, ADMIN);
+
+    await app.call('/api/admin/invitations',
+        { method: 'POST', body: { email: 'guest@example.test' }, cookie });
+    const token = new URL(app.invitationsSent.at(-1).link).searchParams.get('t');
+
+    app.now += INVITATION_TOKEN_LIFETIME_MS + 1;
+
+    const verified = await app.call('/api/auth/verify', { method: 'POST', body: { token } });
+    assert.equal(verified.status, 401, 'an invitation link never expires');
+});
+
+test('a spent or expired invitation token is actually pruned, not only refused', async () => {
+    // **`sweepExpired` was written for `login_tokens` in general and this confirms it also
+    // covers the longer-lived row an invitation writes, rather than assuming a three-day
+    // `expires_at` behaves the same as a fifteen-minute one.** The comparison is `expires_at <
+    // now` regardless of how the row got that value, so nothing in `worker/db.js` needed to
+    // change — this is the test that checks that rather than takes it on faith.
+    const app = gated();
+    const cookie = await enter(app, ADMIN);
+
+    await app.call('/api/admin/invitations',
+        { method: 'POST', body: { email: 'guest@example.test' }, cookie });
+
+    const stillThere = app.db.raw.prepare('SELECT COUNT(*) AS n FROM login_tokens WHERE email = ?')
+        .all('guest@example.test')[0].n;
+    assert.equal(stillThere, 1, 'nothing was minted, so the assertions below check nothing');
+
+    // The positive control: well within the three days, a sweep must not take it early.
+    app.now += TOKEN_LIFETIME_MS + 1;
+    await ask(app, 'nobody@example.test');
+    assert.equal(
+        app.db.raw.prepare('SELECT COUNT(*) AS n FROM login_tokens WHERE email = ?')
+            .all('guest@example.test')[0].n,
+        1, 'a sweep pruned an invitation link well inside its three days');
+
+    // Past the three days, the same sweep — reached by any request for a link — removes it.
+    app.now += INVITATION_TOKEN_LIFETIME_MS;
+    await ask(app, 'nobody@example.test');
+    assert.equal(
+        app.db.raw.prepare('SELECT COUNT(*) AS n FROM login_tokens WHERE email = ?')
+            .all('guest@example.test')[0].n,
+        0, 'an expired invitation token was never pruned');
+});
+
+test('an invitation mail carries the token; the database keeps only its hash', async () => {
+    const app = gated();
+    const cookie = await enter(app, ADMIN);
+
+    await app.call('/api/admin/invitations',
+        { method: 'POST', body: { email: 'guest@example.test' }, cookie });
+    const token = new URL(app.invitationsSent.at(-1).link).searchParams.get('t');
+
+    assert.ok(token.length > 0, 'nothing was minted, so the assertion below checks nothing');
+
+    // Scoped to the guest's row rather than the whole table, which also holds the one minted for
+    // ADMIN's own sign-in above.
+    const stored = app.db.raw.prepare('SELECT token_hash FROM login_tokens WHERE email = ?')
+        .all('guest@example.test');
+
+    assert.equal(stored.length, 1, 'nothing was stored for the invited address');
+    assert.notEqual(stored[0].token_hash, token, 'the raw token reached the database');
+    assert.ok(!JSON.stringify(stored).includes(token), 'the raw token appears somewhere in storage');
+});
+
+test('an address already on the list is not mailed again', async () => {
+    const app = gated();
+    const cookie = await enter(app, ADMIN);
+
+    await app.call('/api/admin/invitations',
+        { method: 'POST', body: { email: 'guest@example.test' }, cookie });
+    assert.equal(app.invitationsSent.length, 1, 'the first add did not mail, so this checks nothing');
+
+    const again = await app.call('/api/admin/invitations',
+        { method: 'POST', body: { email: 'guest@example.test' }, cookie });
+
+    assert.equal((await again.json()).alreadyAllowed, true);
+    assert.equal(app.invitationsSent.length, 1, 'an address already on the list was mailed again');
+
+    const bootstrap = await app.call('/api/admin/invitations',
+        { method: 'POST', body: { email: ADMIN }, cookie });
+
+    assert.equal((await bootstrap.json()).alreadyAllowed, true);
+    assert.equal(app.invitationsSent.length, 1, 'the bootstrap administrator was mailed');
+});
+
+test('a mail failure does not cost the invitation, and says so', async () => {
+    const app = gated();
+    const cookie = await enter(app, ADMIN);
+
+    app.deps = {
+        ...app.deps,
+        sendInvitationMail: async () => { throw new Error('The mail provider refused the send (HTTP 500).'); },
+    };
+
+    const added = await app.call('/api/admin/invitations',
+        { method: 'POST', body: { email: 'guest@example.test' }, cookie });
+
+    // **Still a 200, and still on the list.** The row is what grants the permission; a broken
+    // mail provider must not read to the administrator as "nothing happened", and must not take
+    // back a permission that has already been granted.
+    assert.equal(added.status, 200);
+    assert.equal((await added.json()).mailed, false);
+
+    const listed = await (await app.call('/api/admin/invitations', { cookie })).json();
+    assert.ok(listed.invitations.some(i => i.email === 'guest@example.test'),
+        'a failed mail took the invitation with it');
+
+    // And the address really can sign in — the row, not the mail, is what grants that. Counted
+    // from a baseline rather than asserted at 1, because entering as ADMIN above already sent
+    // one sign-in link of its own.
+    const before = app.sent.length;
+    await ask(app, 'guest@example.test');
+    assert.equal(app.sent.length, before + 1, 'the address that could not be mailed also cannot sign in');
+});
+
+test('a mail failure while adding is recorded, the same as any other mail outage', async () => {
+    // **Deliberately recorded, and this is the decision worth stating.** A broken provider or a
+    // bad key breaks every sign-in the same way, silently, until somebody notices an inbox
+    // stayed empty — which is the exact failure `docs/ACCOUNTS-SETUP.md` describes costing this
+    // deployment its first sign-in. Writing a row here means the owner can find that fault from
+    // an invitation that never delivered, not only from a visitor who complained about it.
+    const app = gated();
+    const cookie = await enter(app, ADMIN);
+
+    app.deps = {
+        ...app.deps,
+        sendInvitationMail: async () => { throw new Error('Resend refused to send (HTTP 422, validation_error).'); },
+    };
+
+    await app.call('/api/admin/invitations',
+        { method: 'POST', body: { email: 'guest@example.test' }, cookie });
+
+    const rows = errorRows(app.db);
+
+    // The positive control: an absence is satisfied by a logger that writes nothing at all.
+    assert.equal(rows.length, 1, 'nothing was recorded, so the assertions below check nothing');
+    assert.equal(rows[0].category, 'mail');
+    assert.equal(rows[0].route, '/api/admin/invitations');
+    assert.match(rows[0].detail, /Resend refused to send/);
+    assert.ok(!rows[0].detail.includes('guest@example.test'), rows[0].detail);
 });
 
 test('what is not an address is refused, and nothing is written', async () => {

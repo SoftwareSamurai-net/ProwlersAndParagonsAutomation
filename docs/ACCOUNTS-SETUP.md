@@ -374,6 +374,11 @@ screenshotted, does not carry somebody's address with it.
 Rows nobody has written to for thirty days are swept away on the next sign-in request, beside the
 expired tokens and sessions.
 
+**A failed invitation mail lands here too, under `route = '/api/admin/invitations'`.** Adding an
+address still succeeds even when the mail provider is down — see *Who can sign in* below — and
+this is where that failure is recorded so it does not go unnoticed just because nobody was
+watching the admin page at the time.
+
 ---
 
 ## What happens before any of this is done
@@ -423,8 +428,13 @@ who is on the list.
   somebody already signed in who may manage the list. There is no link to it in the site's
   navigation and no button that appears only for administrators — the browser holds no claim about
   who anybody is, so the page is reached by its address and refuses politely if it is not yours.
-- **Adding an address sends nothing.** It lets that person ask for a link when they want one; the
-  account is made the first time they sign in.
+- **Adding an address mails it a one-click sign-in link, good for three days** — longer than an
+  ordinary requested link, because this address was chosen deliberately rather than typed in by
+  whoever is holding it. It also lets that person ask for an ordinary link at any time afterwards.
+  The account is made the first time they actually sign in, whichever way they do it.
+- **If that mail fails to send, the address is still added.** The row is what grants permission to
+  sign in; the admin page says plainly when the mail itself did not go, and the same fault is also
+  written to `error_log` under the `mail` category — see *Reading what has gone wrong* above.
 - **Withdrawing an invitation ends any session that address is holding**, so somebody signed in on
   another machine is signed out rather than left there for the rest of the month. **Their
   characters are untouched** — adding the address again gives them back exactly what they had.

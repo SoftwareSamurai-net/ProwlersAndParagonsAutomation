@@ -34,24 +34,58 @@ export function signInMessage(env, { to, link }) {
 }
 
 /**
- * Hands the link to Resend.
+ * The message told to somebody an administrator has just added to the list.
+ *
+ * <p><b>Carries a real, one-click sign-in link — deliberately a longer-lived token rather than
+ * no token.</b> `worker/tokens.js`'s `mintSignInToken` is the same mint the public request path
+ * uses; only the lifetime differs. `worker/auth.js`'s `INVITATION_TOKEN_LIFETIME_MS` (three days)
+ * is longer than `TOKEN_LIFETIME_MS` (fifteen minutes) because this address was chosen by an
+ * administrator on purpose, not typed in by whoever is holding it — see the comment on that
+ * constant for the trade being made. It is still single-use and still pruned by `sweepExpired`;
+ * only the lifetime at mint time is different. The caller (`worker/invitations.js`) builds the
+ * link with `signInLink`, the same function the public request path uses, so there is one way
+ * this URL is ever built.</p>
+ *
+ * <p>Exported for the same reason `signInMessage` is: so a diagnostic probe, if one is ever built
+ * for this message, sends what the server sends rather than a lookalike.</p>
+ */
+export function invitationMessage(env, { to, link }) {
+    return {
+        from: env.MAIL_FROM,
+        to: [to],
+        subject: 'You can sign in now',
+        text: 'An administrator has added this address to the list of people who may sign in.\n\n'
+            + 'Open this link to sign in. It works once and expires in 3 days.\n\n'
+            + link
+            + '\n',
+        html: '<p>An administrator has added this address to the list of people who may sign in.</p>'
+            + '<p>Open this link to sign in. It works once and expires in 3 days.</p>'
+            + '<p><a href="' + escapeHtml(link) + '">Sign in</a></p>',
+    };
+}
+
+/**
+ * Hands one message to Resend, whichever builder produced it.
  *
  * The key is a Cloudflare secret and is never in this repository. `wrangler secret put
  * RESEND_API_KEY` is the only place it exists outside the dashboard — see
  * `docs/ACCOUNTS-SETUP.md`.
  *
  * Failure throws, and the caller decides what to do about it. It deliberately does not return
- * a boolean: a send that quietly failed is a person staring at an inbox, and that is worth a
- * 500 rather than the cheerful 204 the endpoint otherwise gives.
+ * a boolean: a send that quietly failed is a person staring at an inbox, and a sign-in link is
+ * worth a 500 rather than the cheerful 204 the endpoint otherwise gives. An invitation mail is
+ * a softer failure — the address is on the list either way — and `worker/invitations.js` is the
+ * one that decides that; this function still throws either way, so there is one place that talks
+ * to the provider and one shape of failure to handle.
  */
-export async function sendSignInLink(env, { to, link }) {
+async function send(env, message) {
     const response = await fetch(RESEND_ENDPOINT, {
         method: 'POST',
         headers: {
             authorization: `Bearer ${env.RESEND_API_KEY}`,
             'content-type': 'application/json',
         },
-        body: JSON.stringify(signInMessage(env, { to, link })),
+        body: JSON.stringify(message),
     });
 
     if (!response.ok) {
@@ -73,6 +107,16 @@ export async function sendSignInLink(env, { to, link }) {
         throw new Error('The mail provider refused the send (HTTP ' + response.status
             + (name ? ', ' + name : '') + ').');
     }
+}
+
+/** Send a sign-in link. See `send` for what a refusal looks like. */
+export async function sendSignInLink(env, { to, link }) {
+    await send(env, signInMessage(env, { to, link }));
+}
+
+/** Tell somebody they have been added to the list. See `send` for what a refusal looks like. */
+export async function sendInvitationMail(env, { to, link }) {
+    await send(env, invitationMessage(env, { to, link }));
 }
 
 /**

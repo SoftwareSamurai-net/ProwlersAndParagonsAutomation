@@ -16,7 +16,7 @@ import {
 } from './errors.js';
 import { fail } from './http.js';
 import * as invitations from './invitations.js';
-import { sendSignInLink } from './mail.js';
+import { sendInvitationMail, sendSignInLink } from './mail.js';
 import { contents, index, passage, power, search } from './rulebook.js';
 
 /**
@@ -32,6 +32,7 @@ export const production = {
     newUserId,
     newInvitationId,
     sendSignInLink,
+    sendInvitationMail,
     newReference,
 };
 

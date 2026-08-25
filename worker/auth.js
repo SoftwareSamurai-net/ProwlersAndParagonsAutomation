@@ -13,9 +13,26 @@ import {
     setSessionCookie,
 } from './http.js';
 import { mayHaveAnAccount } from './invitations.js';
+import { mintSignInToken, signInLink } from './tokens.js';
 
 /** A link is good for fifteen minutes. Long enough to walk to another machine; short as a leak. */
 export const TOKEN_LIFETIME_MS = 15 * 60 * 1000;
+
+/**
+ * An invitation's link is good for three days, not fifteen minutes.
+ *
+ * <p><b>Longer only here, and deliberately.</b> This token is minted for an address an
+ * administrator chose on purpose (`worker/invitations.js`), not one a stranger typed into the
+ * public request path — which is unchanged and still `TOKEN_LIFETIME_MS`. A credential that
+ * lives in an inbox for three days is a real trade against a shorter one, and it is a trade this
+ * deployment can make precisely because every address that gets one has already been vetted by
+ * a human before it is ever mailed.</p>
+ *
+ * <p>It is still the same table and the same single-use guarantee as any other token: `used_at`
+ * burns it on first click (`db.spendLoginToken`, reached through this same module's `verify`),
+ * and `sweepExpired` prunes an unused one same as any other row — only later.</p>
+ */
+export const INVITATION_TOKEN_LIFETIME_MS = 3 * 24 * 60 * 60 * 1000;
 
 /** A session lasts a month. Long enough not to be a nuisance, short enough to end by itself. */
 export const SESSION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
@@ -110,18 +127,10 @@ export async function requestLink(request, env, deps) {
     // setting is not a fact about the address and never needed to be behind the gate.
     if (!await mayHaveAnAccount(env, email)) return noContent();
 
-    const token = deps.newSecret();
-    await db.putLoginToken(env.DB, {
-        tokenHash: await hash(token),
-        email,
-        expiresAt: now + TOKEN_LIFETIME_MS,
-    });
+    const token = await mintSignInToken(env, deps, { email, now, lifetimeMs: TOKEN_LIFETIME_MS });
 
     try {
-        await deps.sendSignInLink(env, {
-            to: email,
-            link: env.SITE_URL.replace(/\/+$/, '') + '/signin?t=' + token,
-        });
+        await deps.sendSignInLink(env, { to: email, link: signInLink(env, token) });
     } catch (error) {
         // **A send that failed has to give the attempt back, or the failure stops being
         // reported.** The two answers this endpoint gives are deliberately indistinguishable:
