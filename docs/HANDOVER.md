@@ -12,17 +12,41 @@ Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this 
 
 ## Where things stand
 
-**4189 tests** — 3722 engine, 409 bUnit, 58 accounts — zero warnings at CI strictness, and a
+**4250 tests** — 3726 engine, 422 bUnit, 102 accounts — zero warnings at CI strictness, and a
 whole-tree Qodana scan reporting **0 findings** (measured on a clean `git archive` export, not
 assumed). Seven browser harnesses driven by headless Chrome in the build workflow. Live at
 **superheroes.softwaresamurai.net**.
 
-**Accounts are on.** The D1 migrations are applied to the remote database, the `DB` binding
-exists, and `/api/me` answers `401` carrying JSON. What is *still* not verified is a sign-in from
-end to end: that needs somebody to receive a link, and no test can do it. Resend is configured
-against `superheroes.softwaresamurai.net` as a subdomain, deliberately — see
-[`ACCOUNTS-SETUP.md`](ACCOUNTS-SETUP.md) for why a second SPF record at the apex would break the
-owner's personal mail.
+**That count was 4189 here until the reconciliation was merged**, because it was copied from one
+of the three branches while the other two each claimed a different total. Three branches all
+claiming a figure for the same tree is how this number goes stale; `PROGRESS.md`'s row is the one
+that was measured. Re-measure rather than carrying either forward.
+
+**Accounts are on, and there are two manual steps outstanding that no test and no deploy will
+do for you.** The `DB` binding exists and `/api/me` answers `401` carrying JSON — the deploy's own
+pass condition — but the reconciliation added two migrations and a variable the running site does
+not have yet:
+
+- **`0003_invitations.sql` and `0004_error_log.sql` are not applied to the remote database.**
+  `npx wrangler --cwd d1 d1 migrations apply prowlers-and-paragons --remote`. The deploy workflow
+  does not run migrations, deliberately. `invitations` is queried **unguarded** on the sign-in
+  path, so until this is run an address asking for a link gets a categorised `storage` failure;
+  the error log's own pruning is guarded and degrades quietly instead.
+- **`ADMIN_EMAIL` is not set in the Pages project.** The site is now invitation-only, and that
+  variable is the only thing that breaks the circle — managing the list needs an account, an
+  account needs an invitation, an invitation needs somebody signed in. **A deployment with no
+  `ADMIN_EMAIL` allows nobody**, which is the deliberate failure mode rather than a bug.
+
+Neither of these is a regression: sign-in has never been verified end to end here, because that
+needs somebody to receive a link and no test can do it. Both are in
+[`ACCOUNTS-SETUP.md`](ACCOUNTS-SETUP.md), which is also where the Resend subdomain reasoning
+lives — a second SPF record at the apex would break the owner's personal mail.
+
+**This site is not a sign-up.** Only invited addresses may ask for a link, and the list is managed
+at `/admin` by somebody already signed in — reached by its address, with no link in the navigation
+and no button that appears only for administrators, because the browser holds no claim about who
+anybody is. Asking for a link still always answers `204`, so the page cannot be used to ask who is
+on the list.
 
 **Four palettes, on two independent axes.** hero-light and villain-dark are the two that always
 existed, values unchanged; hero-dark and villain-light are new. The theme is `data-theme` on the
