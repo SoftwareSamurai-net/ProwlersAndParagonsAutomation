@@ -1791,6 +1791,45 @@ label {
 .rank-name .row-tip.dismissed,
 .rank-name:hover .row-tip.dismissed { display: none; }
 
+/* ── The sheet beside the editors ────────────────────────────────────────── */
+
+/* One column until there is room for two. Below the breakpoint the aside simply falls under the
+   editors in source order, which is the right reading order on a phone: what you are doing, then
+   what it has made. */
+.with-preview { display: block; }
+
+@media screen and (min-width: 1500px) {
+    .with-preview {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+        gap: var(--space-6);
+        align-items: start;
+    }
+
+    /* `minmax(0, …)` on both tracks rather than a bare fraction: a grid track's default minimum
+       is `auto`, which is the *content's* minimum, so a wide Power name or a long stat line
+       pushes the track past its share and the sheet is squeezed by whatever the longest row
+       happens to be. */
+
+    /* The sheet stays put while the editors scroll — it is what the editing is *for*, and a
+       preview that scrolls away is a preview you have to go looking for.
+
+       `--space-6` clears the sticky budget strip's own band above it. It scrolls internally
+       rather than growing past the window, because a sheet is a page and a page is taller than
+       a viewport. */
+    .preview {
+        position: sticky;
+        top: var(--space-8);
+        max-height: calc(100vh - var(--space-8) * 2);
+        overflow-y: auto;
+    }
+
+    /* The preview is a sheet at about two thirds size, so the three columns of the published
+       layout still read as three columns rather than reflowing into a list. It is the same
+       component the review step renders full size; only the type scale differs. */
+    .preview .sheet { font-size: var(--text-xs); }
+}
+
 /* ── The front door ──────────────────────────────────────────────────────── */
 
 /* The wordmark is a link home. It carries no underline and no colour of its own — it *is* the

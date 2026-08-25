@@ -816,6 +816,14 @@ public sealed class WebPresentationTests
     ///
     /// <para>Percentages and unitless factors are fine — <c>100%</c> is the container and
     /// <c>-1</c> and <c>2</c> are multipliers, not lengths.</para>
+    ///
+    /// <para><b>So is the whole viewport, and only the whole viewport.</b> <c>100vh</c> is the
+    /// same kind of thing as <c>100%</c>: it names the container rather than a size somebody
+    /// chose, and there is no token it could ever be expected to agree with. <c>37svh</c> is not
+    /// — that is a chosen length wearing a viewport unit — so the exemption is pinned to the
+    /// figure 100 rather than to the unit. Exempting the unit is the shape of mistake this file
+    /// already records twice: an allow-list of units let <c>9pt</c> through, and its
+    /// thirty-unit replacement let <c>9dvmin</c> and <c>4PX</c> through.</para>
     /// </summary>
     [Fact]
     public void NoScreenCalcNamesARawLength()
@@ -828,8 +836,12 @@ public sealed class WebPresentationTests
 
         foreach (Match call in calls)
         {
-            // The percentage is a share of the container, not a length somebody chose.
+            // The percentage is a share of the container, not a length somebody chose — and the
+            // whole viewport is the same statement in another unit. Both are stripped before the
+            // scan; anything other than the whole of it still reads as a length.
             var body = Rx(@"\d*\.?\d+%").Replace(call.Groups[1].Value, " ");
+            body = Rx(@"(?<![\d.])100(?:d|s|l)?v(?:h|w|b|i|min|max)\b").Replace(body, " ");
+
             var literal = absolute.Match(body);
 
             Assert.False(literal.Success,
@@ -3299,6 +3311,76 @@ public sealed class WebPresentationTests
             ScreenHalfOfAppCss, ".option.tip-dismissed:hover .row-tip", "display", exact: true));
         Assert.Equal("none", EffectiveValue(
             ScreenHalfOfAppCss, ".rank-name:hover .row-tip.dismissed", "display", exact: true));
+    }
+
+    /// <summary>
+    /// <b>The sheet sits beside the editors rather than under them, and stays put while they
+    /// scroll.</b>
+    ///
+    /// <para>Every assertion in <c>PreviewColumnTests</c> passes with this rule deleted — the
+    /// component is still rendered, still holds the character, still says everything it says.
+    /// It is simply a full-width sheet below a full-width editor, which is the page that existed
+    /// before and is not what the second column is for.</para>
+    ///
+    /// <para><b>One column first, two above a breakpoint</b>, and asserted in that order: a
+    /// two-column grid with no narrow fallback is the shape that puts a Power list and a
+    /// three-column sheet into 300px each on a laptop.</para>
+    /// </summary>
+    [Fact]
+    public void TheSheetIsAColumnBesideTheEditorsAndStaysWhileTheyScroll()
+    {
+        // **Outside every media query**, or the wide rule answers for the narrow one: the CSS is
+        // read as a flat string here, so `EffectiveValue` takes the last declaration whichever
+        // scope it is in — and the last one is `grid`. Asking that way would report the narrow
+        // layout as two columns and pass with the fallback deleted.
+        var unconditional = string.Join("\n", MediaQueriesOf(ScreenHalfOfAppCss)
+            .Aggregate(ScreenHalfOfAppCss, (css, q) => css.Replace(q.Body, " ", StringComparison.Ordinal)));
+
+        Assert.Equal("block",
+            EffectiveValue(unconditional, ".with-preview", "display", exact: true));
+
+        // Two columns where there is room. Read out of the wide query rather than off the base
+        // rule, which is what makes this a statement about the breakpoint.
+        var wide = MediaQueriesOf(ScreenHalfOfAppCss)
+            .Where(q => q.Condition.Contains("min-width", StringComparison.Ordinal))
+            .Select(q => q.Body)
+            .Where(b => b.Contains(".with-preview", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(wide.Count > 0,
+            "Nothing widens .with-preview at any breakpoint, so the sheet never gets a column.");
+
+        var body = string.Join("\n", wide);
+
+        Assert.Contains("grid", body, StringComparison.Ordinal);
+        Assert.Equal("sticky", EffectiveValue(body, ".preview", "position", exact: true));
+    }
+
+    /// <summary>
+    /// <b>The content column widens where the second one appears, and the bands follow it.</b>
+    ///
+    /// <para>The five bands agree on <c>--column</c> — the shell, the banner, the step list, the
+    /// budget strip and the breakdown — and there is a test holding them to that. This is the
+    /// other half: that the widening happens on the token rather than on the shell, so the
+    /// agreement survives it. A shell widened on its own would leave four bands at the old figure
+    /// and the page reading as two columns that nearly line up.</para>
+    /// </summary>
+    [Fact]
+    public void TheColumnWidensOnTheTokenSoEveryBandFollows()
+    {
+
+        var widened = MediaQueriesOf(ThemeCss)
+            .Where(q => q.Condition.Contains("min-width", StringComparison.Ordinal))
+            .Select(q => q.Body)
+            .Where(b => b.Contains("--column", StringComparison.Ordinal))
+            .ToList();
+
+        Assert.True(widened.Count > 0,
+            "--column never widens, so the sheet beside the editors has no room to be a sheet.");
+
+        // And app.css still declares no custom property of its own — the rule that makes a widening
+        // here reach every band rather than one of them.
+        Assert.DoesNotContain("--column:", ScreenHalfOfAppCss, StringComparison.Ordinal);
     }
 
     /// <summary>
