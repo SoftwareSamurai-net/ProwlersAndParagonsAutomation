@@ -205,6 +205,74 @@ verification: a broken configuration turns the deploy red rather than shipping q
 
 ---
 
+## Testing the mail path without deploying
+
+**Do this before changing a variable and redeploying to see what happens.** A refused send is
+reported to the visitor as a category and a reference, and stored as a status and the provider's
+machine code — deliberately, because the provider's own sentence can quote the address. That
+discipline is right and it costs the owner the one thing that names the broken field, so the
+sentence is read here instead: locally, from your own credentials, printed to a terminal.
+
+Four rounds of *change a variable → deploy → ask for a link → read a redacted code* diagnosed
+nothing and are what this section exists to prevent.
+
+**1. Put the credentials in `.dev.vars`**, in the repository root. It is gitignored, it holds a
+live key, and it is the same file `wrangler pages dev` reads:
+
+```
+RESEND_API_KEY=re_yourkeyhere
+MAIL_FROM=no-reply@superheroes.softwaresamurai.net
+```
+
+No quotes and no trailing spaces. **A key already in Cloudflare cannot be read back** — neither
+the dashboard nor `wrangler pages secret list` will show a value — so this needs a key you have
+in hand. Making a fresh one in Resend → *API Keys* is fine; keys are additive and an unused one
+costs nothing.
+
+**2. Send one:**
+
+```bash
+node scripts/probe-mail.mjs you@example.com
+```
+
+It prints the provider's status and its **whole** body, including the `message` field the server
+drops. That field names the field at fault, which is the entire point.
+
+It also prints `MAIL_FROM` quoted and the key's length and first three characters — never the
+key. Those two lines catch the class of fault that is invisible everywhere else: a value pasted
+with surrounding quotes, a trailing space, a newline swallowed by a dashboard field.
+
+**It sends the body the server sends**, because it imports `signInMessage` from `worker/mail.js`
+rather than assembling a lookalike. That is not a nicety. A hand-written probe was tried first
+and cost half an hour: it carried a different key and a literal `YOUR_ADDRESS` in `to`, which
+returned *the same provider code the site was returning*, for an entirely different reason, and
+read as a confirmation of the theory being tested. Two tests in `tests/worker/mail.test.mjs` hold
+the probe to the shared builder, and both were watched to fail.
+
+**Reading the answer.** The provider answers `validation_error` for a bad key as well as a bad
+field, so **the status tells them apart and the name does not** — a mapping this document had
+wrong until it was measured:
+
+| | |
+|---|---|
+| `401` | the key, whatever the `name` says |
+| `403` | usually the domain: verified in *Domains*, and the key scoped to it |
+| `400` | a field in the message — the `message` field says which |
+| `200` | accepted. If no mail arrives it left this end: spam first, then the provider's *Emails* list |
+
+**3. Or run the whole server locally**, when the fault is not the send itself:
+
+```bash
+npx wrangler pages dev publish/wwwroot --d1 DB=prowlers-and-paragons
+```
+
+from the repository root, so wrangler finds `functions/` — the placement *is* the configuration,
+which is the same trap the deploy has. Publish the site first
+(`dotnet publish web/ProwlersAndParagons.Web.csproj -c Release -o publish`). The D1 is local and
+empty until you apply the migrations to it without `--remote`.
+
+---
+
 ## Checking it worked
 
 The deploy does two of these for you and fails if either is wrong:
@@ -418,10 +486,28 @@ npx wrangler pages deployment tail <deployment-id> --project-name prowlers-and-p
 ```
 
 The line to look for names the status **and the provider's own code for the refusal**:
-*The mail provider refused the send (HTTP 400, validation_error).* The code is what tells the
-four checks above apart — `missing_api_key` and `restricted_api_key` are numbers 2,
-`validation_error` is number 3, and a `403` about the domain is number 1.
+*The mail provider refused the send (HTTP 400, validation_error).*
+
+**Read the status, not the code — this document had it the other way round and it cost an
+evening.** It used to say `validation_error` meant check 3 and that a key fault would announce
+itself as `missing_api_key` or `restricted_api_key`. Measured against the real provider, an
+invalid key answers `{"statusCode":401,"name":"validation_error","message":"API key is invalid"}`
+— the *same* name as a malformed field. So the name is nearly worthless for telling the four
+apart and the status does it:
+
+| | |
+|---|---|
+| `401` | check 2, the key — whatever the name says |
+| `403` | check 1, usually the domain |
+| `400` | check 3, a field in the message |
+
+**Better than any of this: run `scripts/probe-mail.mjs`** — see *Testing the mail path without
+deploying* above. It prints the provider's `message`, which names the field outright instead of
+leaving you to infer it from a status. The tail below is what to use when the fault is not
+reproducible outside the deployment.
 
 **`wrangler pages secret list --project-name prowlers-and-paragons-chargen` says which of the
 three variables exist**, without showing a value. It is the fastest way to rule out number 4: a
 variable added after the last deploy is missing from that list until the deploy that picks it up.
+**It cannot show you a value**, which is why the probe needs a key you have in hand rather than
+the one already deployed.
