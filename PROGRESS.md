@@ -12,18 +12,18 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 
 | | |
 |---|---|
-| Rulebook coverage | Everything character creation needs. Chapters 1–2 fully extracted and verified, plus Ch.6's custom gear and Ch.7's toxin Pros/Cons. Chapters 3, 4, 5 and 7 are play rules, 8 is the pre-built characters (transcribed in the tests) and 9 builds Villains by the Hero rules — see item 3 |
+| Rulebook coverage | Everything character creation needs. Chapters 1–2 fully extracted and verified, plus Ch.6's custom gear and Ch.7's toxin Pros/Cons. Chapters 3, 4, 5 and 7 are play rules, 8 is the pre-built characters (transcribed in the tests) and 9 builds Villains by the Hero rules — see item 3. **All ten chapters of the printed text are extracted into `data/rulebook/` and searchable at `/rules` by anybody with an account**, which is a different store and a different claim: that is the book's prose, and only `data/rules/` is verified entry by entry against the page |
 | Powers | 141 entries, all mechanically verified against Ch.2 pp.21–48 |
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4303 across three suites — 3730 on the engine, 449 rendering components with bUnit, 124 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus seven browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on `master`, not carried forward.** This row has been wrong twice: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
+| Tests | 4303 across three suites — 3730 on the engine, 449 rendering components with bUnit, 124 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on `master` at `9ff148e`, re-run after the merge rather than carried across from the branch.** This row has been wrong twice: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
-| Accounts | **Invitation only, and sign-in works end to end.** All four D1 migrations applied to the remote database, the `DB` binding is in place, `/api/me` answers `401` with JSON, and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong) |
+| Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. All four D1 migrations applied to the remote database, the `DB` binding is in place, `/api/me` answers `401` with JSON, and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong) |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
-| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export of `44e8c90`, not assumed**. It had drifted to 3 on `master` and to 37 across three reconciled slices before anybody checked, and the redesign slice put 23 there before they were fixed. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
+| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export of `master` at `9ff148e`, not assumed**. It had drifted to 3 on `master` and to 37 across three reconciled slices before anybody checked, and the redesign slice put 23 there before they were fixed. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
 | Licence | MIT, in `LICENSE`, covering this repository's own code only. The game system is © LakeSide Games. `data/rules/` holds structured metadata and this project's own descriptions; `data/rulebook/` holds the book's text **by the author's permission to this repository's owner**, is not served by the public site, and does not travel with a fork |
 
@@ -419,8 +419,22 @@ through the mutation, which is the whole reason the stylesheet guards exist:
 - **Still no visual regression testing**, and this slice makes the gap worse: three new screens, four
   palettes, every screenshot judged by eye.
 
-**4,303 tests** — 3,730 engine, 449 bUnit, 124 accounts. Measured on this branch, not carried
-forward.
+#### Merged and deployed
+
+[#73](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/73) went into `master` as
+**`9ff148e`**, with Build, Deploy and Qodana green on the merge commit.
+
+**The new server routes were then checked in production rather than inferred from a green deploy.**
+`/api/rulebook/contents`, `/api/rulebook/search` and `/api/me` all answer `401` with
+`application/json`. That is the check worth making rather than fetching a page: `_redirects` serves
+every unmatched path as `index.html` with a **200**, so a route that never shipped comes back
+looking like a working page and only the body tells you. A JSON refusal proves the address is routed
+*and* that the gate is on it.
+
+**4,303 tests** — 3,730 engine, 449 bUnit, 124 accounts — and a whole-tree Qodana scan at **0**,
+both re-measured on `master` after the merge rather than carried across from the branch. That is
+the discipline this file's own Tests row exists to enforce, and the merge is exactly where it has
+been broken before.
 
 
 ### Three branches reconciled into one, and the four things that only collided
