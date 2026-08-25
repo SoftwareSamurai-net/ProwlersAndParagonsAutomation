@@ -1770,8 +1770,13 @@ label {
 
 /* The same treatment on an Ability or Talent row, where the trigger is the Trait's name rather
    than the whole row: that row is a slider and two steppers, and making all of it the trigger
-   would open a description every time somebody reached for the `+`. */
-.rank-name { position: relative; }
+   would open a description every time somebody reached for the `+`.
+
+   **The positioning context is the row and not the name cell**, which is the first thing that was
+   wrong here. `.rank-name` is the first track of a four-track grid — `minmax(7rem, 1fr)` — so a
+   tip positioned against it comes out a sliver a few words wide, with a sentence wrapped down it.
+   The trigger is still the name; only the box it is measured against is the row. */
+.rank-row { position: relative; }
 .trait-term {
     font: inherit;
     color: inherit;

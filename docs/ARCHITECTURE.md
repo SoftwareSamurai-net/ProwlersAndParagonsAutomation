@@ -14,7 +14,7 @@ data/rules/   →   engine/   →   sheets/   →   web/   ←   data/transcript
 | Layer | Rule |
 |---|---|
 | `data/rules/` | JSON only. No logic lives here. |
-| `data/transcripts/` | The second data input, and not rules: the recorded conversations `/portfolio/replay` plays. Read through the engine — every character in one goes through the strict reader — and loaded only by `web/`. |
+| `data/transcripts/` | The second data input, and not rules: the recorded conversations the replay plays. Read through the engine — every character in one goes through the strict reader — and loaded only by `web/`. |
 | `engine/` | Pure C#, zero Spectre.Console references and no filesystem coupling — rules arrive through `IRulesSource`, so the same assembly runs in a browser. `CostCalculator` and `CharacterValidator` are the authority on cost and validity. |
 | `sheets/` | The exports, as strings. Shared because three hosts need the same two documents; separate from `engine/` because that layer stays free of presentation. |
 | `cli/` | Terminal rendering and prompting. **The CLI never tallies points itself.** |

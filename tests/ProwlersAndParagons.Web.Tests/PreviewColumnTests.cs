@@ -68,23 +68,26 @@ public sealed class PreviewColumnTests
     /// added, then asserted present.</para>
     /// </summary>
     [Fact]
-    public void ItFollowsTheCharacter()
+    public async Task ItFollowsTheCharacter()
     {
         using var ctx = Building();
 
+        var session = ctx.Session;
         var flight = ctx.Services.GetRequiredService<RulesRepository>().Powers
             .Single(p => p.Id == "flight");
 
         var page = ctx.Render<Characteristics>();
         Assert.DoesNotContain(flight.Name, page.Find(".preview").TextContent, StringComparison.Ordinal);
 
-        // Through the dispatcher, because notifying the session is what triggers the re-render
-        // and Blazor refuses one raised off its own thread.
-        page.InvokeAsync(() =>
+        // Through the dispatcher, because notifying the session is what triggers the re-render and
+        // Blazor refuses one raised off its own thread. **Awaited rather than blocked on**: a test
+        // that blocks on a renderer task can deadlock against that same dispatcher, which is a
+        // failure that would arrive as a hung CI run rather than as a red test.
+        await page.InvokeAsync(() =>
         {
-            ctx.Session.Sheet.SelectedPowers.Add(new SelectedPower(flight.Id, 4));
-            ctx.Session.NotifyChanged();
-        }).GetAwaiter().GetResult();
+            session.Sheet.SelectedPowers.Add(new SelectedPower(flight.Id, 4));
+            session.NotifyChanged();
+        });
 
         Assert.Contains(flight.Name, page.Find(".preview").TextContent, StringComparison.Ordinal);
     }
@@ -102,10 +105,11 @@ public sealed class PreviewColumnTests
     /// <para>The positive control is the test above: the session's own sheet does follow.</para>
     /// </summary>
     [Fact]
-    public void ASheetHandedACharacterIgnoresTheSession()
+    public async Task ASheetHandedACharacterIgnoresTheSession()
     {
         using var ctx = Building();
 
+        var session = ctx.Session;
         var recorded = SampleCharacters.Villain();
         var flight = ctx.Services.GetRequiredService<RulesRepository>().Powers
             .Single(p => p.Id == "flight");
@@ -115,11 +119,11 @@ public sealed class PreviewColumnTests
 
         var before = page.Markup;
 
-        page.InvokeAsync(() =>
+        await page.InvokeAsync(() =>
         {
-            ctx.Session.Sheet.SelectedPowers.Add(new SelectedPower(flight.Id, 4));
-            ctx.Session.NotifyChanged();
-        }).GetAwaiter().GetResult();
+            session.Sheet.SelectedPowers.Add(new SelectedPower(flight.Id, 4));
+            session.NotifyChanged();
+        });
 
         Assert.Equal(before, page.Markup);
     }

@@ -149,6 +149,31 @@ resharper_class_never_instantiated_local_highlighting = none
 resharper_class_never_instantiated_global_highlighting = none
 resharper_not_accessed_positional_property_global_highlighting = none
 
+[web/Services/RulebookReader.cs]
+# The third instance of the same objection, for the rulebook wire. RulebookChapter,
+# RulebookContents, RulebookResult, RulebookResults and RulebookPassage are the
+# shapes of what the four /api/rulebook/ addresses answer with: System.Text.Json
+# constructs every one of them through reflection, so ClassNeverInstantiated is
+# simply wrong about all five.
+#
+# The unread positional properties are the fields the server sends and the page
+# does not print yet — a result's ChapterTitle and SourceRef beside the citation it
+# does print, a passage's own Chapter and Index, the query echoed back. Each is
+# bound because worker/rulebook.js puts it on the wire, and acting on the
+# inspection would delete the property: that does not fail to build, and it quietly
+# takes the field off the client side of the wire. The same trap CreatedAt is
+# exempted for above.
+#
+# MatchedTerms is the one worth naming. It is how a reader would be shown *which*
+# of their words a passage used, which is the honest companion to the flags this
+# search is built around — not printed yet, and the field it needs is already
+# arriving.
+#
+# .Global rather than .Local because the records are public: the page renders them,
+# so they cannot be private to the file that parses them.
+resharper_class_never_instantiated_global_highlighting = none
+resharper_not_accessed_positional_property_global_highlighting = none
+
 [engine/CharacterValidator.cs]
 # Since the headless build command, this file's job includes checking a character
 # somebody else wrote — and a deserializer hands back null for a property whose

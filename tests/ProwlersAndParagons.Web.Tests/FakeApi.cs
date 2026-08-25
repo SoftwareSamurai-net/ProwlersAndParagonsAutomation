@@ -390,7 +390,7 @@ public sealed class FakeApi : HttpMessageHandler
             .SelectMany(c => c.Passages.Select((p, i) => (Chapter: c, Index: i, Passage: p)))
             .Where(h => words.Any(w =>
                 h.Passage.Heading.Contains(w, StringComparison.OrdinalIgnoreCase)
-                || h.Passage.Text.Contains(w, StringComparison.OrdinalIgnoreCase)))
+                || h.Passage.Prose.Contains(w, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
         var rows = hits.Select(h => $$"""
@@ -400,7 +400,7 @@ public sealed class FakeApi : HttpMessageHandler
              "matchedTerms":[{{string.Join(",", words.Select(Quote))}}],
              "matchedHeading":{{Lower(words.Any(w =>
                  h.Passage.Heading.Contains(w, StringComparison.OrdinalIgnoreCase)))}},
-             "snippet":{{Quote(h.Passage.Text)}}}
+             "snippet":{{Quote(h.Passage.Prose)}}}
             """);
 
         return Json($$"""
@@ -430,7 +430,7 @@ public sealed class FakeApi : HttpMessageHandler
         return Json($$"""
             {"chapter":{{number}},"chapterTitle":{{Quote(chapter.Title)}},"index":{{at}},
              "heading":{{Quote(passage.Heading)}},"printedPage":21,
-             "text":{{Quote(passage.Text)}},
+             "text":{{Quote(passage.Prose)}},
              "sourceRef":{{Quote($"Ultimate Edition, Ch.{number} {chapter.Title}, pp.1-2")}}}
             """);
     }
@@ -438,8 +438,14 @@ public sealed class FakeApi : HttpMessageHandler
     /// <summary>One chapter of the book, as far as the browser can tell.</summary>
     public sealed record FakeChapter(int Number, string Title, List<FakePassage> Passages);
 
-    /// <summary>One passage in it.</summary>
-    public sealed record FakePassage(string Heading, string Text);
+    /// <summary>
+    /// One passage in it.
+    ///
+    /// <para>The body is <c>Prose</c> rather than <c>Text</c> because <c>Text</c> is the name of
+    /// this stub's own response helper, and a nested record whose property hides a method of the
+    /// class around it is a name two readers will resolve differently.</para>
+    /// </summary>
+    public sealed record FakePassage(string Heading, string Prose);
 
     /// <summary>
     /// What the book holds, for a page that wants results rather than an empty box.

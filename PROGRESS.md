@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4252 across three suites — 3726 on the engine, 422 rendering components with bUnit, 104 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus seven browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on `master`, not carried forward.** This row has been wrong twice: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
+| Tests | 4303 across three suites — 3730 on the engine, 449 rendering components with bUnit, 124 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus seven browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on `master`, not carried forward.** This row has been wrong twice: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -287,6 +287,142 @@ Do it once the HTTP API stops moving, so audit targets are not shifting under it
 
 ## Completed work
 
+### A front door with two avenues, the whole book searchable, and the sheet while you build
+
+**The open half of the visual redesign, and it turned into an information-architecture change
+rather than one widget.** The handover named three candidates for what a first screen should
+demonstrate — a dice roller, a live cost, a verdict — and asked for the choice to be taken with the
+owner before anything was built. It was, and the answer was none of the three: **present the
+avenues.** A rules reference and a character builder, with the portfolio moved out of the way, and
+the working assumption that somebody arriving is here to build a character rather than to look a
+rule up.
+
+**One thing the handover did not name, and it shaped the whole slice.** `/` was both the first
+screen *and* step one of the wizard, so a visitor who had not decided what they came for met step
+one of a job they had not chosen. `ChooseTier.razor` had already recorded exactly that objection
+when the two sample characters were moved off it — *a demonstration is not a step in making your own
+character* — so parking a demo on `/` would have re-opened a decision already taken. The builder
+moved to `/build` instead and `/` became the chooser.
+
+#### What landed
+
+- **Four areas, decided from the first path segment.** `""` is the front door, `build` the six
+  creation steps, `rules` the reference, `admin` (with `signin`) the account pages. An unrouted
+  address falls to the front door rather than to the builder: the default is what the not-found page
+  gets, and a numbered step list with one step marked current, above "no such address", offers to
+  continue something that never started.
+- **Both avenues offered from everywhere**, replacing one banner link that flipped its own label to
+  name whichever half you were not in. That works for two rooms and fails for three — it identifies
+  a destination only while there is exactly one elsewhere.
+- **The front door carries figures and none of them is written into the page.** 141 Powers off the
+  rules the app is running; the spend beside a character in progress from the same `TryCost` call
+  the budget strip makes, and shown only when the engine can give one. A figure typed into
+  `Home.razor` would be the one number on the site nobody had checked, on the page whose whole claim
+  is that the numbers are real.
+- **`/rules` searches all ten chapters and cites the printed page.** 725KB baked into the worker,
+  224KB gzipped, well inside the limit. The matching rule is `Mentions` from the MCP server, ported.
+- **Hovering an option or a Trait says what it is.** The lists priced things and never said what
+  they were; the descriptions were in `data/rules` the whole time with nothing showing them.
+- **Phase 4: the sheet drawn beside the editors** on the characteristics step, with `--column`
+  widened on the token so all five bands follow it.
+- **The portfolio — recordings and both samples — moved behind the account pages.**
+
+#### The entitlement decision, and what it lifted
+
+Broadening the corpus past Chapter 2 was recorded as the owner's call and a blocker. He took it:
+**an account may read the book**, and the older restrictions on shipping the rulebook text and the
+published characters are lifted. `scripts/inline-rulebook.mjs` globs `data/rulebook/` rather than
+naming files, and the test that used to assert it named exactly one chapter now asserts it names
+**none** — a filename in that script is a list that goes stale the first time a chapter is added,
+and the failure would be a chapter silently missing from the search rather than anything visibly
+broken.
+
+#### What the search rule actually buys here, which is narrower than it buys in the MCP server
+
+The ported rule matches word by word with a shared-prefix allowance, never by substring, because
+substring matching once answered *"she bakes bread in the city"* with **Plasticity** — and a wrong
+match that looks plausible costs more than a miss.
+
+**The first version of the comment in `worker/search.js` claimed the wider property, and it is
+false.** It said the baker's sentence has to stay at nothing found. It does not and cannot: over
+there the haystack is 141 short Power entries, here it is the whole book, and "city" is a word the
+text genuinely uses — *City of Heroes* in the introduction, "a city, forest, jungle" in Attuned.
+**Twenty-one real matches, measured.** What is worth pinning is that the sentence must not reach
+Plasticity, with the positive control beside it, since a search that has stopped working satisfies
+every absence. Watched to fail: swapping the word test for `String.includes` turns four tests red.
+
+#### Three faults that only a screenshot could find
+
+A green suite is not a working app — three visible defects survived 4,133 tests here and four pieces
+of developer jargon survived 4,186. Proof pages were written for all three new screens and driven
+rather than rendered at rest, and looking at them found:
+
+- **The Trait name's dotted underline was drawn in `--rule`**, the hairline token, which under a
+  word is invisible. It was the only marking on the control, so the control had no marking.
+  `--muted` now.
+- **A CSS comment claimed the preview keeps the sheet's three columns.** It does not:
+  `.sheet-columns` is `auto-fit, minmax(280px, …)`, so a ~560px column fits one or two. The comment
+  is corrected rather than the layout — three at 180px each is worse, and the three-column
+  arrangement is a fact about the paper.
+- **The search results sat unframed between two panels**, reading as an unfinished section rather
+  than as the answer to the box above.
+
+#### SheetView did not redraw, and nothing could have told us
+
+It reads the session and takes no parameter that changes, so Blazor has nothing to compare and skips
+it when the parent re-renders. Measured, with the tab strip above it reporting one Power beside a
+sheet still drawing twelve blank rules. **It was invisible while the only sheet on screen was the
+review step's**, where the character is finished before anybody looks. It subscribes now, and only
+when it is showing the session's own character — a recording is handed over as a parameter, and
+tying it to the visitor's edits is the influence the replay renders two pages to forbid. Both
+directions are asserted.
+
+#### Three guards were shaped by the code rather than by the claim
+
+- **The contract scanner** required `searchParams.get('field')` on the expression, so hoisting the
+  search parameters into a local — which a handler reading two parameters wants to do — reported a
+  field the server plainly reads as unread. A guard that dictates the shape of the code it inspects
+  is a guard that gets worked around rather than fixed.
+- **`NoScreenCalcNamesARawLength`** refused `100vh`, which names the container exactly as `100%`
+  does and can agree with no token. Widened — **pinned to the figure 100 rather than to the unit**,
+  because exempting the unit is the mistake this file already records twice: an allow-list let `9pt`
+  through and its thirty-unit replacement let `9dvmin` and `4PX` through. Watched: `37svh` is still
+  refused.
+- **The corpus sync test** asserted exactly one chapter.
+
+#### Everything watched to fail
+
+Every new guard was broken and seen to go red, and in three cases the rendered tests stayed green
+through the mutation, which is the whole reason the stylesheet guards exist:
+
+| Mutation | What went red | What stayed green |
+|---|---|---|
+| Word matching → `String.includes` | 4 accounts tests | — |
+| `:focus-visible` removed from the row tip | 1 CSS guard | all 9 rendered tests |
+| `position: static` on the preview | 1 CSS guard | all 7 rendered tests |
+| `--column` widening removed | 1 CSS guard | all 7 rendered tests |
+| `calc(37svh - …)` | the widened calc guard | — |
+
+#### What this did not do, and is honest about
+
+- **The portfolio gate is a front door rather than a lock.** The transcripts are still ordinary
+  files under `wwwroot`, so anybody who knows a filename can fetch one; only the *pages* are gated.
+  Making it real means serving them from the worker as the rulebook is, which would also take them
+  out of every visitor's startup fetch. Not attempted here; it is a refactor of
+  `ReplayLibrary.LoadAsync` and of `Program.cs`, and the recordings hold nothing secret.
+- **The old `/portfolio` and `/replay` addresses now 404.** Deliberate: the content is
+  account-gated, so a public link that still worked would be the wrong answer, and one that arrives
+  wearing the wrong chrome is worse than one that breaks.
+- **The preview is on the characteristics step alone**, because the finishing step is where the free
+  text is and a whole sheet behind every keypress is the render cost the front-end plan warns about.
+  Asserted, with a control.
+- **Still no visual regression testing**, and this slice makes the gap worse: three new screens, four
+  palettes, every screenshot judged by eye.
+
+**4,303 tests** — 3,730 engine, 449 bUnit, 124 accounts. Measured on this branch, not carried
+forward.
+
+
 ### Three branches reconciled into one, and the four things that only collided
 
 `#67` (invitation list, and the send that was never made), `#68` (four palettes on two axes) and
@@ -448,20 +584,19 @@ toggle existed, and contradicted three paragraphs later in the same file and by
 `AVillainIsStillHeldToTheTiersBudget`. Left as found, it is exactly the kind of thing `CLAUDE.md`
 warns a stale note becomes: something the next reader trusts because it is close to the code.
 
-**Still open, and larger than this slice:**
+**Still open, and larger than this slice:** *(all but two of these are closed by the entry above —
+see "A front door with two avenues".)*
 
-- **The first screen that demonstrates rather than describes.** pnpready's landing page rolls
-  dice and lays the arithmetic out before anybody signs up; this app's first screen (`/`, the
-  tier page) is still a description of six tiers. The budget strip only exists once a tier is
-  chosen, so it cannot itself be that first demonstration — something on the tier page, or a
-  worked example on `/portfolio`, still could be.
-- **Phase 3's validation-on-the-row and undo**, from `docs/FRONT-END-PLAN.md`.
-- **Phase 4, the sheet as a live preview column** — explicitly said to overlap this heavily and
-  not to be done separately, and not attempted here for that reason: it means widening
-  `--column` above a breakpoint, which the shell, the sheet and the replay all cap on, and that
-  is a decision of its own rather than a side effect of a budget-bar change.
-- **No visual regression testing**, unchanged from the last slice's handover — four palettes and
-  a proportional bar chart are more, not fewer, pixels nobody but a person is checking.
+- ~~**The first screen that demonstrates rather than describes.**~~ **Done, and not as any of the
+  three candidates.** The choice was taken with the owner and the answer was to present the
+  avenues: `/` is a chooser, the builder moved to `/build`, and the front door's figures are the
+  engine's. What the entry above adds is the reason none of the three fitted — the tier page was
+  step one as well as the first screen.
+- **Phase 3's validation-on-the-row and undo**, from `docs/FRONT-END-PLAN.md`. **Still open.**
+- ~~**Phase 4, the sheet as a live preview column.**~~ **Done**, with `--column` widened on the
+  token at 1500px so all five bands follow it.
+- **No visual regression testing**, unchanged and now worse: three new screens on top of the four
+  palettes, every screenshot judged by eye.
 
 ### Only invited addresses, and a page that says which
 
@@ -732,6 +867,8 @@ one character round-trips, and the handover said so explicitly. *(The next slice
 entire access control.** A file under `wwwroot` is a public URL, and no amount of checking sessions
 in the browser would make it not be one. Chapter 2 only — where the Powers are — because adding
 chapters is a decision about what an account is entitled to read and should not happen by a glob.
+*(**That decision has since been taken and this is now all ten chapters** — see "A front door with
+two avenues" below. The placement is unchanged and is still the whole access control.)*
 The lookup needs no table of its own: it joins on the heading, which is the join
 `RulebookCorpusTests` already holds the corpus to across a hundred and sixteen entries.
 

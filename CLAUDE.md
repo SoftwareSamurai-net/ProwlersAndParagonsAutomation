@@ -240,12 +240,147 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 - **`CharacterStore` decides what a stored character is by asking the engine, not by checking its shape.** A saved sheet is nested several levels deep, and `System.Text.Json` will put a null at any of them without the type system objecting — so the guard costs and validates the sheet once and rejects a payload the engine cannot answer for. The first version stripped nulls level by level and missed `"Pros":[null]`, which restored cleanly and then took the app down on the first frame, because the budget bar renders on every route. **Do not replace this with a list of shapes**: the list goes stale the first time somebody adds a field. `InvalidOperationException` is deliberately not caught there — that is a half-finished character, not a corrupt one.
 - **Trimming is disabled on publish.** `RulesRepository` deserializes by reflection, so the trimmer can quietly remove model properties and leave the site running on empty rules. See `PROGRESS.md` item 5 before turning it back on.
 
+### Four areas, and the address decides which
+
+**`Areas.Of` reads the first path segment and every band of chrome follows it.** `""` is the front
+door, `build` the six creation steps, `rules` the reference, and `admin` (with `signin`) the account
+pages. `MainLayout` draws the step list and the budget strip in `Play` alone.
+
+- **The builder is under `/build` and `/` is a chooser, which reverses the old shape.** The tier page
+  was both the first screen *and* step one, so a visitor who had not decided what they came for met
+  step one of a job they had not chosen — and the only other thing the site does was a single link in
+  the banner. This is also the objection `ChooseTier.razor` already recorded when the two sample
+  characters were moved off it: a demonstration is not a step in making your own character.
+- **An unrouted address falls to `Home`, not to `Play`.** The default is what the not-found page gets,
+  and a numbered step list with one step marked current, above "no such address", offers to continue
+  something that never started. Falling back to the builder was safe only while the builder was every
+  address.
+- **Both avenues are offered from everywhere, rather than one link naming whichever half you are not
+  in.** That flipping label works for two rooms and fails for three: it identifies a destination only
+  while there is exactly one elsewhere. `EveryAvenueIsOfferedFromEverywhere` pins it on four routes.
+- **Only the builder names the palette in the banner.** A rules search is not a Hero or a Villain, and
+  saying so there is the banner reporting the visitor's own character over a page with nothing to do
+  with it — the fault the budget strip was pulled off three areas to fix.
+
+### The front door
+
+`/` presents what the site does and offers a way into each, with **every figure on it the engine's or
+the server's and none written into the page**. That is the claim the whole site rests on: the Powers
+count is read off the rules the app is running, and the spend beside a character in progress is the
+same `TryCost` call the budget strip makes. A figure typed into `Home.razor` would be the one number
+on the site nobody had checked.
+
+- **It draws no builder chrome**, for the reason in the area note above.
+- **The spend is shown only when the engine can give one.** A half-chosen Power is a question the
+  engine refuses rather than guesses at, and the honest front door for that character is its name and
+  no figure.
+- **`.figure` is the same face, size and ink as the four derived stats and the budget strip's spend.**
+  One numeral treatment in this app, used wherever a number is the point of the screen; a second one
+  here would make the front door's figures read as a different kind of thing from the ones the rest
+  of the app answers with. They are the same engine's answers.
+
+### The rules reference
+
+`/rules` searches the whole book and cites the printed page. The corpus is bundled into the worker
+and never staged into `wwwroot` — that placement is the access control — so every address under
+`/api/rulebook/` is refused to anybody not signed in, **on the prefix rather than on the four
+addresses**, because a fifth added below the check but matched above it would be reachable by
+anybody.
+
+- **All ten chapters, and the entitlement question is settled.** It was Chapter 2 alone while the only
+  reader was a Power's entry beside the editor; the owner has decided an account may read the book,
+  and lifted the older restrictions on shipping the rulebook text and the published characters.
+  `scripts/inline-rulebook.mjs` globs `data/rulebook/` rather than naming files, and there is a test
+  that it names none — a filename in that script is a list that goes stale the first time a chapter
+  is added, and the failure would be a chapter silently missing from the search.
+- **The matching rule is `Mentions` from the MCP server, ported to `worker/search.js`.** Word by word
+  with a shared-prefix rule, never substring.
+- **What that rule buys here is narrower than what it buys there, and the first version of the comment
+  claimed the wider thing.** Over there the baker's sentence — *"she bakes bread in the city"* —
+  finds nothing, because the haystack is 141 short Power entries. Here it is the whole book, where
+  "city" is a word the text genuinely uses: *City of Heroes* in the introduction, "a city, forest,
+  jungle" in Attuned. **Twenty-one real matches, measured.** The property worth pinning is that the
+  sentence must not reach **Plasticity**, which is what substring matching did — with the positive
+  control beside it, since a search that has stopped working satisfies every absence.
+- **The stopword list is deliberately not the Powers search's.** That one drops "power", "powers",
+  "character" and "super" because they carry no information *about a Power*; here they are section
+  headings a reader will actually type.
+- **The index is built on the first search, not when the module loads.** A Worker gets a small budget
+  of startup CPU and three quarters of a megabyte of prose is not a thing to spend it on for a request
+  that may never ask a question. It is **keyed on the corpus it was built from** — cached on a bare
+  null check it would answer a second corpus from the first one's index, silently and plausibly.
+- **The flags say how the results matched and never what to conclude.** `found: 0` is the only answer
+  that means the book is silent; `nothingMatchedByHeading` says every passage matched in its body,
+  which is ordinary for a question phrased as a question. It is computed over the whole result and
+  **then** the list is cut, or a caller asking for one row turns a heading match at position two into
+  "nothing matched by heading at all".
+- **The row cap is the server's and the caller cannot raise it.** The alternative is one response
+  carrying fifteen hundred passages and their snippets.
+
+### The sheet beside the editors
+
+`SheetView` is drawn in a second column on the characteristics step above 1500px — Phase 4 of
+`docs/FRONT-END-PLAN.md`. It is the same component the review step and the recordings render; there
+is one sheet in this app by design.
+
+- **`--column` widens on the token, so all five bands follow it.** The shell, the banner, the step
+  list, the budget strip and the breakdown agree on one figure and there is a test holding them
+  together; widening the shell alone would leave four bands behind and read as columns that nearly
+  line up. It widens the sheet and the recordings too, which is a decision rather than a side effect.
+- **`SheetView` had to be told to redraw, and nothing could have told us.** It reads the session and
+  takes no parameter that changes, so Blazor has nothing to compare and skips it when the parent
+  re-renders — measured, with the tab strip above it reporting one Power beside a sheet still drawing
+  twelve blank rules. It was invisible while the only sheet on screen was the review step's, where
+  the character is finished before anybody looks. **It subscribes only when `Character` is null**: a
+  recording is handed over as a parameter, and tying it to the visitor's edits is the influence the
+  replay renders two pages to forbid.
+- **The preview is on the characteristics step alone.** That is where the character is built and
+  nothing there types letter by letter — the ranks are steppers and the lists are pickers, so the
+  sheet redraws on a choice rather than on a keystroke. The finishing step is where the free text is.
+- **It reflows to fewer columns and that is right.** `.sheet-columns` is `auto-fit, minmax(280px, …)`,
+  so a ~560px column fits one or two; three at 180px each would be worse. The three-column
+  arrangement is a fact about the paper, judged on the review step and in the PDF.
+
+### An option or a Trait says what it is, on hover and on focus
+
+The lists priced things and never said what they were: a Powers row printed a name, a stat line and a
+category, and an Ability row a name, a rank and the rulebook's word for it. The descriptions were in
+`data/rules` the whole time with nothing showing them.
+
+- **Never a `title` attribute** — the rule the app already lives by, with a guard.
+- **On an option row the row is the trigger**, because it is a button already and 141 extra tab stops
+  would undo `OptionList`'s one-tab-stop keyboard model. **On a Trait row the name is a real button**,
+  because that row is a slider and two steppers and making all of it the trigger opens a description
+  every time somebody reaches for the `+`.
+- **`display: none` when shut, not `visibility: hidden`** — the precedent on `AClosedTipTakesNoLayoutBox`
+  is exact: a hidden element keeps its box, and an absolutely-positioned tip that keeps its box put
+  real horizontal overflow into CI once already. The `sr-only` copy is what `aria-describedby` names,
+  so the description never leaves the document.
+- **A row that already prints its description gets no tip.** Perks, Flaws and both kinds of Pro and
+  Con print theirs as the row's caveat; a tip there says the same sentence twice and covers the row
+  below. Asserted, with the control that the Powers list still has them.
+- **The marking is `--muted`, not `--rule`.** `--rule` is the hairline between sections and under a
+  word it is invisible, which made the only marking on the control no marking at all. Found in a
+  screenshot; no rendering test could have, because the class is on the element either way.
+
 ### The replay
 
-`/replay` plays back four real conversations for somebody who has no way to hold one — the MCP
-server needs a Claude of your own, and a visitor to the site has none. The transcripts are in
-`data/transcripts/`, read by `engine/TranscriptLibrary`, staged into `wwwroot` by the csproj
-exactly as the rules are, and fetched by `Program.cs` from `TranscriptLibrary.FileNames`.
+`/admin/portfolio/replay` plays back four real conversations for somebody who has no way to hold one
+— the MCP server needs a Claude of your own. The transcripts are in `data/transcripts/`, read by
+`engine/TranscriptLibrary`, staged into `wwwroot` by the csproj exactly as the rules are, and fetched
+by `Program.cs` from `TranscriptLibrary.FileNames`.
+
+**They are behind the account pages now, and that reverses a settled decision deliberately.** The
+older entry read that a visitor cannot bring their own Claude and the replay is the answer; the
+site's owner has decided otherwise — this is not a sign-up, and the recordings and the two samples
+are a thing to show somebody rather than a thing to publish. The pages are wrapped in `AdminOnly`,
+which asks the server on every visit and holds no claim of its own.
+
+**It is a front door rather than a lock, and saying so is the point.** The transcripts are still
+ordinary files under `wwwroot`, so anybody who knows a filename can fetch one; only the *pages* are
+gated. Making it a real gate means serving them from the worker as the rulebook is, which also takes
+them out of every visitor's startup fetch — see `PROGRESS.md`. Do not describe the current state as
+access control.
 
 - **A transcript holds characters, never answers about them.** A turn carries a `CharacterSheet`
   — the inputs — and the replay costs and validates it in the browser as the visitor reveals it.
@@ -477,10 +612,12 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   ordinary account with the same `404` an unrouted address gets, so the page cannot be discovered
   by trying. The link on the account panel is therefore shown to everybody signed in, and an
   account it is not for is told so plainly.
-- **`/admin` is a third `Area`, and the reason is the one recorded for the recordings.** Six
+- **`/admin` is its own `Area`, and the reason is the one recorded for the recordings.** Six
   numbered creation steps and a running Hero Point total above a list of email addresses are an
   offer to continue something the reader is not doing, and the budget is a different subject in
-  the same six-label format. `Areas.Of` answers it; `MainLayout` draws neither there.
+  the same six-label format. `Areas.Of` answers it; `MainLayout` draws neither there. **It now
+  covers the portfolio and the sign-in page too** — there are four areas; see "Four areas, and the
+  address decides which".
 - **It holds no rules and must never gain one.** A character is stored as an opaque string it
   never parses — the engine decides cost and legality and runs in the browser. A second place
   that understood the shape of a character is a second place to keep in step.
@@ -607,9 +744,9 @@ Cloudflare Pages at `superheroes.softwaresamurai.net`, by `.github/workflows/dep
 
 `SampleCharacters.Hero()` and `.Villain()` return finished Standard-tier sheets, offered on **`/portfolio`** so a sheet can be previewed without building one. They fill every section a printed sheet has, which an empty sheet does not.
 
-**This entry said "on the tier page" for a while after they stopped being there.** They moved with the two-areas split, for a reason worth keeping: a demonstration is not a step in making your own character, and somebody who came to build one had to walk past them first. `AreaTests.TheSamplesAreOnThePortfolioAndNotOnTheTierPage` pins both halves.
+**This entry said "on the tier page" for a while after they stopped being there, and then said "on the portfolio" after that moved too.** They are at **`/admin/portfolio`** now, behind the account pages. The reason for the first move is worth keeping and is the same one: a demonstration is not a step in making your own character, and somebody who came to build one had to walk past them. `AreaTests.TheSamplesAreBehindTheAccountAndNotOnTheTierPage` pins both halves.
 
-- **They are this project's own characters.** The published Ch.8 Heroes stay in the test suite, where they verify the engine against printed numbers. Shipping them in the app would redistribute the authors' content.
+- **They are this project's own characters.** The published Ch.8 Heroes stay in the test suite, where they verify the engine against printed numbers. **The reason has changed and the practice has not:** shipping them used to be barred as redistributing the authors' content, and the owner has since lifted that — the book's text and the published characters may be served to an account. These two are still the ones the app offers, because they were written for this tool and fill every section a sheet has, which is what a preview is for.
 - **`SampleCharacterTests` holds them to the rules** — legal, inside budget, fully priceable, every section filled, at least one Source heading, and both exports rendering. Writing them caught three real mistakes: ranks bought on rankless Powers (`invisibility`, `lightning_reflexes` are `max_rank: 0`), and Danger Sense and Resistance pushed over the Trait Cap because both take a **baseline equal to** an Ability rather than half it. Check `rank_type` and `prerequisite` before adding ranks to a sample.
 - The Villain deliberately leaves one Power without a Source, so the sheet shows the plain `POWERS` fallback heading and the review step shows a warning. Both are things a preview should exercise; it is not an oversight.
 
@@ -864,7 +1001,7 @@ Everything else an option states — "Powers that inflict physical or energy dam
 Ten files, one per chapter, holding the printed text of the whole Ultimate Edition with the page each section came from. **The rights position changed to allow this** — the author gave the repository owner permission to use the book's data, so the older rule that no rulebook wording may appear here no longer applies to this store. It still applies to `data/rules/`.
 
 - **They answer different questions and must not be merged.** `data/rules/` is the *mechanics* — structured, verified entry by entry against the page, and the only thing the engine reads. `data/rulebook/` is the *text*, so a player can be shown what a Power says. No cost, rank or validity comes from the corpus, and where the two disagree, `data/rules/` wins.
-- **It is not in the browser payload, and that is deliberate rather than an oversight.** `web/`'s csproj copies `data/rules` and `data/transcripts` into `wwwroot` and nothing else, so the deployed public site does not serve the book. The intended reader is account-gated and comes after the front-end redesign; until it exists there is nothing to serve and no reason to publish the text to the open web. Turning it on is one `ItemGroup` — do not turn it on by accident.
+- **It is not in the browser payload, and that is deliberate rather than an oversight.** `web/`'s csproj copies `data/rules` and `data/transcripts` into `wwwroot` and nothing else, so the deployed public site does not serve the book. **The reader exists now** — `/rules`, searching all ten chapters — and it reaches the text through `/api/rulebook/`, which asks who is calling. **The placement is still the whole access control**: a file under `wwwroot` is a public URL and no amount of checking sessions in the browser would make it not be one. There is a test on both sides of the repository. Turning it on is one `ItemGroup` — do not turn it on by accident.
 - **The corpus is generated, and the generator is `tools/RulebookExtractor/`** — in the solution so it cannot rot. Regenerate with `dotnet run --project tools/RulebookExtractor -- <pdf> data/rulebook`. **Do not hand-edit `data/rulebook/`**; an edit there is lost on the next run and hides whatever the extractor is doing wrong. The first extractor was a scratch project that no longer existed by the time its output was found to be wrong, which meant the corpus could be neither audited nor regenerated.
 - **The book is two-column, and both naive readings destroy it in opposite directions.** Reading by baseline alone interleaves the columns — printed p.52's heading came out as `OVERKILL PHASE SHIFT`, which is two entries. Splitting every page at a fixed midpoint instead destroys anything set **full width**, cutting each line in half and filing the halves in different blocks; **every chapter opening in the book is set full width**, and all of them shipped scrambled. So the gutter is found per page, and a line counts as full-width only when **a word actually sits astride it** — the test that distinguishes a real full-width line from two facing headings sharing a baseline.
 - **The damage from all of this reads as English.** Ch.2 opened "…from the Heroes the GM. They include not only sentient beings but also animals, and so on", with two runs of the printed sentence missing and nothing about it looking broken. Judge a change here by re-running the extractor and the corpus tests, never by reading a paragraph and finding it plausible.
@@ -967,7 +1104,7 @@ Settled rules questions:
 - Hero and Villain are **one app with four palettes**, since light/dark became an axis of its own — Hero/Villain is an identity and light/dark is a reader's preference, and neither is derivable from the other. The mode *is* a field on `CharacterSheet` — `IsVillain` — and no rules code may read it, which a test enforces. That reverses an earlier entry, and only because the budget moved off the switch: "a Villain has no Hero Point budget" was never a rule about Villains, and is now `UnlimitedBudget`, an independent toggle either kind of character can carry
 - `engine/`, `sheets/`, `cli/` and `web/` are **separate projects**, so the dependency arrows hold at compile time rather than by convention
 - Assisted creation *in this repository, for somebody with it checked out*, is a **non-interactive command plus a skill** — and the model proposes while the engine decides, never the other way round. **For somebody else, connecting their own Claude, it is an MCP server**, which is the mechanism built for exactly that and lets us handle no credentials at all. The two are not in tension and both call the same engine; the earlier flat "not an MCP server" note was scoped to the first case and is superseded
-- **A visitor to the site cannot bring their own Claude, and that is settled — do not re-investigate it.** A claude.ai subscription cannot be lent to a third-party site, the API is separate billing with no dependable free tier, and custom connectors are gated to paid plans. The answer is `/portfolio/replay`: real conversations recorded, with the engine run for real in the visitor's browser. A proxy funded by the owner was rejected — it costs money, invites abuse, and breaks the static-site property the README advertises
+- **A visitor to the site cannot bring their own Claude, and that is settled — do not re-investigate it.** A claude.ai subscription cannot be lent to a third-party site, the API is separate billing with no dependable free tier, and custom connectors are gated to paid plans. A proxy funded by the owner was rejected — it costs money, invites abuse, and breaks the static-site property the README advertises. **What has changed is who the answer is for:** the recordings are at `/admin/portfolio/replay`, behind an account, because the owner decided the demonstrations are a thing to show somebody rather than a thing to publish. The technical finding above is unaffected; only the audience is
 - An illegal character is **reported, never repaired**: the engine is a judge and does not make design decisions about somebody's character
 
 Each of these was wrong at some point and is now covered by a regression test naming the rule. If one appears to be violated, read `PROGRESS.md` and the test before changing the code.

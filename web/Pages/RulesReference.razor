@@ -37,12 +37,11 @@ else
             </form>
         </Field>
 
-        @if (_results is { } results)
+        @* One pattern rather than a nested `if`: this asks a single question — did a search run and
+           come back with nothing — and splitting it across two conditions reads as two. *@
+        @if (_results is { Found: 0 })
         {
-            @if (results.Found == 0)
-            {
-                <EmptyState>@NothingFound</EmptyState>
-            }
+            <EmptyState>@NothingFound</EmptyState>
         }
     </Panel>
 

@@ -45,10 +45,16 @@ your own Claude can ask you the two or three questions a description leaves open
 costed, checked character. It handles no credentials and holds no key. →
 [Setting it up](docs/MCP-SETUP.md)
 
-**And if you have no Claude of your own**, [`/portfolio/replay`](https://prowlers-and-paragons-chargen.pages.dev/portfolio/replay)
-plays four real conversations back. The words are a recording and say so; **the numbers are not** —
-every Hero Point figure and every finding is worked out in your browser as you reveal it, from the
+**And if you have no Claude of your own**, four real conversations are recorded and play back at
+`/admin/portfolio/replay`. The words are a recording and say so; **the numbers are not** — every
+Hero Point figure and every finding is worked out in your browser as you reveal it, from the
 character the recording carries. No transcript holds a total.
+
+**They are behind an account now, and that is a change rather than an oversight.** They used to be
+public, on the reasoning that a visitor who cannot bring their own Claude should still see assisted
+creation working. The site's owner moved them: this is not a sign-up, the demonstrations are a
+thing to show somebody rather than a thing to publish, and a visitor arriving to build a character
+had to walk past them. The character builder and everything it needs are still open to anybody.
 
 **The character is kept in this browser between visits**, so a refresh or a shared link does not
 throw it away, and nothing is sent anywhere. A saved character this build cannot read is discarded
@@ -91,7 +97,7 @@ For the browser front end:
 dotnet run --project web/ProwlersAndParagons.Web.csproj
 ```
 
-Then open the address it prints. It is a static site — `dotnet publish web/ProwlersAndParagons.Web.csproj -c Release` produces a `wwwroot/` that any static host can serve, with no server-side component. The rules JSON is copied into `wwwroot/data/rules/` by the build and fetched over HTTP at startup; `data/rules/` remains the only copy in the repository. The recorded conversations at `/portfolio/replay` are staged from `data/transcripts/` the same way.
+Then open the address it prints. It is a static site — `dotnet publish web/ProwlersAndParagons.Web.csproj -c Release` produces a `wwwroot/` that any static host can serve, with no server-side component. The rules JSON is copied into `wwwroot/data/rules/` by the build and fetched over HTTP at startup; `data/rules/` remains the only copy in the repository. The recorded conversations at `/admin/portfolio/replay` are staged from `data/transcripts/` the same way — they are still ordinary files under `wwwroot`, so the account gate on that page is a front door rather than a lock.
 
 To cost and validate a character without a terminal:
 
@@ -119,7 +125,7 @@ The MCP server lets you describe a character in ordinary words — *"a washed-up
 
 It is one file rather than a section here because the setup is the part a stranger needs and the part with the traps in it: the path has to outlive a git worktree, the client has to point at the built binary rather than at `dotnet run`, and the published server carries its own copy of the rules — so it keeps answering with old ones, perfectly happily, until you re-publish.
 
-No Claude of your own? [`/portfolio/replay`](https://prowlers-and-paragons-chargen.pages.dev/portfolio/replay) plays four of these conversations back, with the engine costing and validating in your browser as you read.
+No Claude of your own? Four of these conversations are recorded and play back at `/admin/portfolio/replay`, with the engine costing and validating in your browser as you read. That page needs an account — see the note above.
 
 ---
 
