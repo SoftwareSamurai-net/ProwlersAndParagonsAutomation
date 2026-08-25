@@ -70,7 +70,10 @@ public sealed class PreviewColumnTests
     [Fact]
     public async Task ItFollowsTheCharacter()
     {
-        using var ctx = Building();
+        // `await using`, because this test is async and RenderContext disposes asynchronously:
+        // a synchronous `using` on it blocks the disposal on a renderer that may still be
+        // draining, which is the same deadlock shape as blocking on InvokeAsync above.
+        await using var ctx = Building();
 
         var session = ctx.Session;
         var flight = ctx.Services.GetRequiredService<RulesRepository>().Powers
@@ -107,7 +110,10 @@ public sealed class PreviewColumnTests
     [Fact]
     public async Task ASheetHandedACharacterIgnoresTheSession()
     {
-        using var ctx = Building();
+        // `await using`, because this test is async and RenderContext disposes asynchronously:
+        // a synchronous `using` on it blocks the disposal on a renderer that may still be
+        // draining, which is the same deadlock shape as blocking on InvokeAsync above.
+        await using var ctx = Building();
 
         var session = ctx.Session;
         var recorded = SampleCharacters.Villain();
