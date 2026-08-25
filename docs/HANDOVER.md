@@ -33,7 +33,9 @@ Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this 
 **4303 tests** — 3730 engine, 449 bUnit, 124 accounts — **re-measured on `master` at `9ff148e`
 after the merge**, not carried across from the branch, which is the mistake this row records below.
 Nine browser harnesses driven by headless Chrome in the build workflow (two are new: the front door
-and the rules reference at 375px). Live at **superheroes.softwaresamurai.net**.
+and the rules reference at 375px), plus a tenth added since: `scripts/visual-regression.sh`
+compares seven of those renders pixel-by-pixel against committed goldens — see "What is left" item
+4 below, now closed. Live at **superheroes.softwaresamurai.net**.
 
 **The new server routes were checked in production, not inferred from a green deploy.** All three
 answer `401` with `application/json`:
@@ -164,10 +166,36 @@ sits on the near-black navy. Do not take "they went dark" as the lesson.
 2. **Phase 3's undo.** Three buttons can still destroy twenty minutes behind a confirm.
 3. **Serving the transcripts from the worker**, which turns the portfolio's front door into a lock
    and shrinks the startup fetch. Small and self-contained.
-4. **Visual regression testing.** The gap was already acute at four palettes and this slice added
-   three whole screens. Golden PNGs of the proof pages with a per-pixel tolerance would close it;
-   the fonts are self-hosted and CI already drives Chrome at a fixed viewport. **Generate the
-   goldens in CI on Linux, never from a Windows run** — antialiasing differs.
+4. ~~**Visual regression testing.**~~ **Closed.** `scripts/visual-regression.sh` screenshots seven
+   proof pages (the four palettes via `proof-shell-*.html`, the front door light and forced-dark,
+   and the rules reference) at a fixed 1280×900 with `--virtual-time-budget=5000`, and compares
+   each against a committed PNG under `tests/visual-goldens/` with `scripts/visual/diff.mjs` — a
+   plain-Node PNG decoder and differ using only `node:zlib`, because this repository has never had
+   a `package.json` and `npm view pixelmatch version` answering fine is not a reason to start one.
+   Wired into `.github/workflows/build.yml` right after the existing proof-harness step.
+
+   **The Linux-only rule held, and here is how.** On CI's `ubuntu-latest` the script drives the
+   Chrome already on PATH; everywhere else — a developer's own Windows or macOS machine included —
+   it drives `selenium/standalone-chrome` in Docker, which ships real Google Chrome rather than a
+   distro-patched Chromium. The goldens in this repository were generated exactly that way, from a
+   Windows machine, through that Docker path, and verified pixel-identical across two independent
+   runs — so "generate them in CI, or in a documented `docker run`" was satisfied by making the
+   `docker run` the thing the script itself falls back to, rather than a manual step somebody has
+   to remember. Two dead ends worth recording so nobody repeats them: `zenika/alpine-chrome` pulls
+   without any package-manager access at all but renders a forced dark colour scheme differently
+   from `ubuntu-latest`'s real Chrome on the identical flag — which would have meant goldens that
+   agreed with themselves and disagreed with CI forever, the exact Windows-vs-Linux failure moved
+   one level down; and a from-scratch Debian image with `apt-get install google-chrome-stable`
+   failed to build here on `Clearsigned file isn't valid, got 'NOSPLIT'`, this environment's own
+   network mangling Debian's signed release file — a `docker build` in a normal environment would
+   likely be fine, but `selenium/standalone-chrome` needs no package-manager access at all, so it
+   sidesteps the question rather than depending on the answer.
+
+   **Broken and watched to fail.** Hero-light `--primary` was changed from `#1B4F9C` to `#2E8B57`
+   and one screenshot regenerated: the check failed on exactly the three pages that token reaches
+   and stayed green on the four that do not use it, each failure reporting a pixel count, a
+   percentage, and a bounding box. Reverted, re-verified green. Full account in `PROGRESS.md`
+   item 9.
 
 ### Still open from before, unchanged
 

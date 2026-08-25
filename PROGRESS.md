@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4303 across three suites — 3730 on the engine, 449 rendering components with bUnit, 124 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on `master` at `9ff148e`, re-run after the merge rather than carried across from the branch.** This row has been wrong twice: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
+| Tests | 4303 across three suites — 3730 on the engine, 449 rendering components with bUnit, 124 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome asserting verdicts (one twice, for reduced motion), and a tenth comparing seven of those renders pixel-by-pixel against committed goldens — see item 9 below. **Measured on `master` at `9ff148e`, re-run after the merge rather than carried across from the branch.** This row has been wrong twice: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -283,6 +283,43 @@ delegate to no-context agents:
 
 Do it once the HTTP API stops moving, so audit targets are not shifting under it.
 
+### 9. Visual regression testing — **closed**
+
+Nine browser harnesses asserted verdicts — sticky, narrow, motion, theme, shortcut, insets — and
+none of them looked at a pixel, so four palettes and three new screens were judged by eye. Closed
+by `scripts/visual-regression.sh`, wired into `.github/workflows/build.yml` right after the
+existing proof-harness step. Full account in `docs/HANDOVER.md`; the short version:
+
+- Screenshots seven proof pages at a fixed 1280×900 viewport (the four palettes via
+  `proof-shell-*.html`, plus the front door in both light and forced dark, plus the rules
+  reference) with `--virtual-time-budget=5000` — the `.panel` entrance animation is the exact
+  trap named throughout this file, and 5000ms clears it with margin.
+- Compares each against a committed PNG under `tests/visual-goldens/` with `scripts/visual/diff.mjs`,
+  a ~150-line plain-Node PNG decoder/differ using only `node:zlib` — no image-diff package is
+  installed, on purpose: this repository has never had a `package.json`, and adding the first npm
+  dependency for a CI convenience is a worse trade than the ~150 lines.
+- **The goldens are Linux-rendered, never from this Windows machine.** On a Linux host (CI) the
+  script drives the Chrome already on PATH; everywhere else it drives `selenium/standalone-chrome`
+  in Docker — real Google Chrome, not a distro-patched Chromium, so a developer's own machine
+  produces the same pixels CI would. The goldens committed here were generated exactly that way,
+  from this Windows machine, through that Docker path — verified pixel-identical across two
+  independent runs.
+- **Broken and watched to fail, not just reasoned about.** `--primary` on the Hero-light palette
+  was changed from `#1B4F9C` to `#2E8B57` and the screenshot regenerated: the check failed on
+  exactly the three pages that token reaches (`shell-hero-light`, `front-door-hero-light`,
+  `rules-reference` — its Search button), reporting pixel counts, percentages and a bounding box
+  each time, and left the other four pages (a different palette or a page not using `--primary`)
+  reporting pixel-identical. Reverted, re-verified green.
+- A first attempt at the Docker path used `zenika/alpine-chrome`, which pulls without any
+  apt access and is the common choice for "headless Chrome in Docker" — and turned out to render
+  a forced dark colour scheme differently from `ubuntu-latest`'s real Google Chrome on the same
+  flag, which would have meant goldens that agreed with themselves and disagreed with CI forever.
+  A from-scratch Debian image with `apt-get install google-chrome-stable` was tried next and hit
+  this environment's network mangling Debian's signed release file
+  (`Clearsigned file isn't valid, got 'NOSPLIT'`) — not a Windows-vs-Linux problem, a
+  this-sandbox-vs-`deb.debian.org` one. `selenium/standalone-chrome` sidesteps both: it is
+  pre-built with real Google Chrome and needs no package-manager access at all.
+
 ---
 
 ## Completed work
@@ -417,7 +454,8 @@ through the mutation, which is the whole reason the stylesheet guards exist:
   text is and a whole sheet behind every keypress is the render cost the front-end plan warns about.
   Asserted, with a control.
 - **Still no visual regression testing**, and this slice makes the gap worse: three new screens, four
-  palettes, every screenshot judged by eye.
+  palettes, every screenshot judged by eye. **Closed in a later slice** — see item 9 below and
+  `docs/HANDOVER.md`.
 
 #### Merged and deployed
 
@@ -609,8 +647,8 @@ see "A front door with two avenues".)*
 - **Phase 3's validation-on-the-row and undo**, from `docs/FRONT-END-PLAN.md`. **Still open.**
 - ~~**Phase 4, the sheet as a live preview column.**~~ **Done**, with `--column` widened on the
   token at 1500px so all five bands follow it.
-- **No visual regression testing**, unchanged and now worse: three new screens on top of the four
-  palettes, every screenshot judged by eye.
+- ~~**No visual regression testing**~~ **Done.** See item 9 in "Remaining work" and
+  `scripts/visual-regression.sh`.
 
 ### Only invited addresses, and a page that says which
 

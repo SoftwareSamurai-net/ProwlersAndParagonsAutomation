@@ -1,0 +1,284 @@
+#!/usr/bin/env bash
+# Renders a fixed set of proof pages in headless Chrome and compares each against a committed
+# golden PNG, pixel by pixel, with a small tolerance for the kind of jitter that is not a
+# regression. Nine browser harnesses in this repository already assert verdicts — sticky,
+# narrow, motion, theme, shortcut, insets — and none of them look at a pixel. Four palettes and
+# three new screens were being judged by eye. This is the missing tenth.
+#
+#   ./scripts/visual-regression.sh                  # compare against the committed goldens
+#   ./scripts/visual-regression.sh --update-goldens  # regenerate the goldens instead
+#
+# ------------------------------------------------------------------------------------------------
+# THE GOLDENS MUST BE LINUX-RENDERED, NEVER FROM A WINDOWS RUN.
+#
+# Font hinting and antialiasing differ between Windows' and Linux's text rasterisers, so a golden
+# captured by a Windows Chrome would disagree with every pixel of text CI ever renders — not by a
+# little, by enough to fail this check on every run forever, on a page nobody touched. So the
+# actual screenshot step never runs the host's own Chrome unless the host is already Linux (which
+# is what a GitHub Actions runner is): everywhere else — this includes a Windows or macOS
+# developer's machine — it runs inside `selenium/standalone-chrome`, a Docker image that ships
+# real Google Chrome (not a distro-patched Chromium) on Linux. That is deliberate and is not an
+# approximation of "a documented docker run on a Linux image"; it *is* one, invoked automatically
+# so nobody has to remember the command. `--update-goldens` goes through the identical path, so
+# regenerating them from a Windows machine still writes Linux-rendered PNGs.
+#
+# (A from-scratch Debian image with `apt-get install google-chrome-stable` was tried first and is
+# a fine approach in general — it is what a network with unfiltered access to deb.debian.org
+# would want — but the network this was built on mangles Debian's signed release file through
+# some proxy in the middle, `Clearsigned file isn't valid, got 'NOSPLIT'`. The Selenium image
+# needs no apt access at all: it is pulled already built.)
+#
+# ------------------------------------------------------------------------------------------------
+# NO IMAGE-DIFF PACKAGE IS INSTALLED, ON PURPOSE.
+#
+# `npm view pixelmatch version` answers fine from here, but this repository has never had a
+# `package.json` or a `node_modules` anywhere in it — the accounts server's entire suite runs on
+# `node --test` with nothing installed, deliberately, and adding the first npm dependency for a
+# CI convenience is a worse trade than ~150 lines of plain Node. `scripts/visual/png.mjs` decodes
+# and encodes the one PNG shape Chrome's `--screenshot` produces (8-bit, non-interlaced, RGB or
+# RGBA) using only `node:zlib`; `scripts/visual/diff.mjs` walks the two pixel buffers.
+#
+# ------------------------------------------------------------------------------------------------
+# --virtual-time-budget IS NOT OPTIONAL, AND NEITHER IS THIS COMMENT'S EXISTENCE.
+#
+# `.panel` carries `animation: rise var(--enter) both`, which starts at `opacity: 0`. A bare
+# `--screenshot` fires before that finishes and captures a washed-out page — which has already
+# been misdiagnosed once in this repository as a palette fault. Every screenshot below waits
+# 5000ms of virtual time, comfortably past the animation, before Chrome is asked for a frame.
+
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+wwwroot="$root/web/wwwroot"
+goldens_dir="$root/tests/visual-goldens"
+work_dir="$root/.visual-regression"
+actual_dir="$work_dir/actual"
+diff_dir="$work_dir/diff"
+
+# Pinned by digest rather than `:latest`, so a future pull of this image can never silently move
+# the pixels these goldens were checked against — the exact failure this whole script exists to
+# rule out, just moved from Windows-vs-Linux to today-vs-six-months-from-now. Bump deliberately
+# (`docker pull selenium/standalone-chrome:latest && docker inspect ... RepoDigests`) alongside a
+# `--update-goldens` run, never as an incidental side effect of an unrelated change.
+docker_chrome_image="selenium/standalone-chrome@sha256:cd778b6f38d99d1e14a05a767f576aff2face98d5202a2192d857614c265ec4d"
+
+update_goldens=0
+tolerance=0.05
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --update-goldens) update_goldens=1 ;;
+    --tolerance) tolerance="$2"; shift ;;
+    -h|--help)
+      echo "usage: $0 [--update-goldens] [--tolerance PERCENT]"
+      exit 0
+      ;;
+    *)
+      echo "error: unrecognised argument '$1'" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
+mkdir -p "$actual_dir" "$diff_dir" "$goldens_dir"
+
+# ------------------------------------------------------------------------------------------------
+# Regenerate the proof pages. This is plain bUnit rendering — no browser, no antialiasing, just
+# component markup written to a file — so it runs identically on any OS and does not threaten the
+# Linux-only rule above. Skipped only when the pages are already fresh, so a caller who just ran
+# the existing proof-harness step in the same job is not paying to rebuild.
+if [ "${PP_PROOF_ALREADY_BUILT:-0}" != "1" ]; then
+  echo "Rendering proof pages (PP_PROOF=1 dotnet test tests/ProwlersAndParagons.Web.Tests)..."
+  PP_PROOF=1 dotnet test "$root/tests/ProwlersAndParagons.Web.Tests" \
+    --configuration Release >/tmp/pp-proof-build.log 2>&1 \
+    || { echo "::error::proof-page generation failed:"; tail -60 /tmp/pp-proof-build.log; exit 2; }
+fi
+
+# ------------------------------------------------------------------------------------------------
+# Pick the Chrome that will actually take the screenshots.
+#
+# On a Linux host with a Chrome on PATH (a GitHub Actions runner, or a Linux dev machine) this
+# runs it directly — no Docker needed, no image to pull, and it is the Chrome CI's own dump-DOM
+# harnesses already trust. Everywhere else, `run_chrome` transparently drives the same command
+# inside `selenium/standalone-chrome`. Callers below do not know or care which branch ran; both
+# take the same arguments and both write to the same host path.
+use_docker=1
+native_chrome=""
+if [ "$(uname -s)" = "Linux" ]; then
+  for candidate in google-chrome google-chrome-stable chromium-browser chromium; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      native_chrome="$candidate"
+      use_docker=0
+      break
+    fi
+  done
+fi
+
+if [ "$use_docker" -eq 1 ]; then
+  if ! command -v docker >/dev/null 2>&1 || ! docker version >/dev/null 2>&1; then
+    cat >&2 <<'EOF'
+================================================================================
+VISUAL REGRESSION SKIPPED — not run, not passed.
+
+This host is not Linux and has no reachable Docker daemon, so there is no way
+to render a page with the Chrome these goldens were made from without risking
+a Windows-antialiased screenshot compared against a Linux one — which is
+exactly the "fails forever on a page nobody touched" failure this script
+exists to prevent. Install Docker Desktop (or run this on Linux, or in CI)
+and re-run. This is a skip, not a pass: nothing below was compared.
+================================================================================
+EOF
+    exit 3
+  fi
+  docker pull --quiet "$docker_chrome_image" >/dev/null
+fi
+
+# `flags` beyond the shared ones (extra per-page arguments, e.g. forcing a colour scheme that
+# has no explicit `data-theme` page of its own). Empty is a valid value.
+run_chrome() {
+  local out_host="$1" width="$2" height="$3" page="$4" extra_flags="$5"
+
+  if [ "$use_docker" -eq 0 ]; then
+    local profile; profile="$(mktemp -d)"
+    "$native_chrome" \
+      --headless=new --no-sandbox --disable-gpu --allow-file-access-from-files \
+      --hide-scrollbars --user-data-dir="$profile" --virtual-time-budget=5000 \
+      --window-size="${width},${height}" --screenshot="$out_host" $extra_flags \
+      "file://$wwwroot/$page" >/dev/null 2>&1 || true
+    rm -rf "$profile"
+    [ -s "$out_host" ]
+    return
+  fi
+
+  # The bind mount is the whole reason for MSYS_NO_PATHCONV: without it, Git Bash rewrites the
+  # container-side `-v ...:/data` and `-w /data` into Windows paths and Docker refuses them —
+  # documented already in scripts/test-worker.sh and scripts/qodana-scan.sh for this same reason.
+  # `pwd -W` converts the *host* side; MSYS_NO_PATHCONV stops the *container* side being touched.
+  local host_wwwroot; host_wwwroot="$(cd "$wwwroot" && pwd -W 2>/dev/null || pwd)"
+  local out_name; out_name="$(basename "$out_host")"
+
+  # **Retried, and this was found by watching it fail rather than assumed.** A container that
+  # starts Chrome fine on its own occasionally produces no screenshot when several are launched
+  # back to back — a transient contention on this host under Docker Desktop, not a fault in the
+  # page or the flags: the identical command succeeds standing alone. A `--rm` container leaves
+  # nothing to inspect after the fact, so the only honest response is to run it again rather than
+  # to report a rendering failure that was actually a scheduling one. A distinct profile
+  # directory per attempt rules out a stale singleton lock as the cause of the retry being needed.
+  local attempt
+  for attempt in 1 2 3; do
+    rm -f "$wwwroot/$out_name"
+    MSYS_NO_PATHCONV=1 docker run --rm --user root \
+      --entrypoint google-chrome \
+      -v "${host_wwwroot}:/data" -w /data \
+      "$docker_chrome_image" \
+      --headless=new --no-sandbox --disable-gpu --allow-file-access-from-files \
+      --hide-scrollbars --user-data-dir="/tmp/pp-chrome-profile-${attempt}" \
+      --virtual-time-budget=5000 \
+      --window-size="${width},${height}" --screenshot="/data/${out_name}" $extra_flags \
+      "file:///data/${page}" >/dev/null 2>&1 || true
+
+    if [ -s "$wwwroot/$out_name" ]; then
+      mv "$wwwroot/$out_name" "$out_host"
+      return 0
+    fi
+
+    echo "  (attempt $attempt produced no screenshot for $page, retrying)" >&2
+  done
+
+  return 1
+}
+
+# ------------------------------------------------------------------------------------------------
+# The manifest: name : page : width : height : extra Chrome flags.
+#
+# The four palettes are the four `proof-shell-*` pages TheShell already writes — hero and villain
+# each stamp an explicit `data-theme="dark"` variant, so the light pair need no forcing and the
+# dark pair need no guessing at `prefers-color-scheme`. The front door has no such dark twin (only
+# an explicit *light* one, `-hero-light`), so its dark capture forces the media feature directly;
+# `preferredColorScheme=0` was verified against this exact Chrome to mean dark and `=1` light —
+# not documented anywhere obvious, so measured directly rather than assumed. The rules reference
+# is the third new screen and is deterministic (FakeApi test data, not a live search), so one
+# capture of it is a real regression guard rather than a snapshot of whatever happened to be on
+# screen.
+manifest="
+shell-hero-light:proof-shell-hero.html:1280:900:
+shell-hero-dark:proof-shell-hero-dark.html:1280:900:
+shell-villain-light:proof-shell-villain.html:1280:900:
+shell-villain-dark:proof-shell-villain-dark.html:1280:900:
+front-door-hero-light:proof-front-door-hero-light.html:1280:900:
+front-door-hero-dark:proof-front-door.html:1280:900:--blink-settings=preferredColorScheme=0
+rules-reference:proof-rules.html:1280:900:
+"
+
+failed=0
+missing_golden=0
+
+while IFS= read -r line; do
+  [ -z "$(echo "$line" | tr -d '[:space:]')" ] && continue
+  name="$(echo "$line" | cut -d: -f1)"
+  page="$(echo "$line" | cut -d: -f2)"
+  width="$(echo "$line" | cut -d: -f3)"
+  height="$(echo "$line" | cut -d: -f4)"
+  extra="$(echo "$line" | cut -d: -f5-)"
+
+  if [ ! -f "$wwwroot/$page" ]; then
+    echo "::error::$name: $page was not written by the proof harness — check ProofPages.cs"
+    failed=1
+    continue
+  fi
+
+  actual="$actual_dir/$name.png"
+  rm -f "$actual"
+  run_chrome "$actual" "$width" "$height" "$page" "$extra" || true
+
+  if [ ! -s "$actual" ]; then
+    echo "::error::$name: Chrome produced no screenshot for $page after retrying"
+    failed=1
+    continue
+  fi
+
+  if [ "$update_goldens" -eq 1 ]; then
+    cp "$actual" "$goldens_dir/$name.png"
+    echo "updated  $name -> tests/visual-goldens/$name.png"
+    continue
+  fi
+
+  golden="$goldens_dir/$name.png"
+  if [ ! -f "$golden" ]; then
+    # A missing golden is not a pass and must not read as one — this is the exact failure shape
+    # CLAUDE.md names four times over: a check satisfied by there being nothing to check.
+    echo "::error::$name: NO GOLDEN at tests/visual-goldens/$name.png — run with " \
+         "--update-goldens (on Linux, or let this script's Docker fallback do it) to create one"
+    missing_golden=1
+    continue
+  fi
+
+  if ! node "$root/scripts/visual/diff.mjs" "$actual" "$golden" \
+      --out "$diff_dir/$name.png" --max-diff-percent "$tolerance"; then
+    failed=1
+  fi
+done <<< "$manifest"
+
+if [ "$update_goldens" -eq 1 ]; then
+  echo ""
+  echo "Goldens written under tests/visual-goldens/. Review them (they are real PNGs) and commit."
+  exit 0
+fi
+
+if [ "$missing_golden" -eq 1 ]; then
+  echo ""
+  echo "::error::one or more pages have no golden to compare against — see above. This is a" \
+       "SKIP dressed as a failure on purpose: a missing golden must stop the build, not pass it."
+  exit 1
+fi
+
+if [ "$failed" -eq 1 ]; then
+  echo ""
+  echo "::error::visual regression found a pixel difference over tolerance — see the diff PNGs" \
+       "under .visual-regression/diff/"
+  exit 1
+fi
+
+echo ""
+echo "All pages match their goldens within ${tolerance}%."
