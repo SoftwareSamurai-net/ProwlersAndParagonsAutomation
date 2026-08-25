@@ -17,11 +17,8 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-<<<<<<< HEAD
-| Tests | 4339 across three suites — 3732 on the engine, 460 rendering components with bUnit, 147 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on the integration branch after merging, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
-=======
-| Tests | 4321 across three suites — 3730 on the engine, 451 rendering components with bUnit, 140 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on this branch, on top of `fb613c5`; re-run after the merge rather than carried across.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
->>>>>>> ff/invitation-email
+| Tests | 4370 across three suites — 3733 on the engine, 474 rendering components with bUnit, 163 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome, one of them twice for reduced motion, and a pixel diff of the proof pages against Linux goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
+
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -381,11 +378,47 @@ delegate to no-context agents:
 
 Do it once the HTTP API stops moving, so audit targets are not shifting under it.
 
+### 9. Visual regression testing — **closed**
+
+Nine browser harnesses asserted verdicts — sticky, narrow, motion, theme, shortcut, insets — and
+none of them looked at a pixel, so four palettes and three new screens were judged by eye. Closed
+by `scripts/visual-regression.sh`, wired into `.github/workflows/build.yml` right after the
+existing proof-harness step. Full account in `docs/HANDOVER.md`; the short version:
+
+- Screenshots seven proof pages at a fixed 1280×900 viewport (the four palettes via
+  `proof-shell-*.html`, plus the front door in both light and forced dark, plus the rules
+  reference) with `--virtual-time-budget=5000` — the `.panel` entrance animation is the exact
+  trap named throughout this file, and 5000ms clears it with margin.
+- Compares each against a committed PNG under `tests/visual-goldens/` with `scripts/visual/diff.mjs`,
+  a ~150-line plain-Node PNG decoder/differ using only `node:zlib` — no image-diff package is
+  installed, on purpose: this repository has never had a `package.json`, and adding the first npm
+  dependency for a CI convenience is a worse trade than the ~150 lines.
+- **The goldens are Linux-rendered, never from this Windows machine.** On a Linux host (CI) the
+  script drives the Chrome already on PATH; everywhere else it drives `selenium/standalone-chrome`
+  in Docker — real Google Chrome, not a distro-patched Chromium, so a developer's own machine
+  produces the same pixels CI would. The goldens committed here were generated exactly that way,
+  from this Windows machine, through that Docker path — verified pixel-identical across two
+  independent runs.
+- **Broken and watched to fail, not just reasoned about.** `--primary` on the Hero-light palette
+  was changed from `#1B4F9C` to `#2E8B57` and the screenshot regenerated: the check failed on
+  exactly the three pages that token reaches (`shell-hero-light`, `front-door-hero-light`,
+  `rules-reference` — its Search button), reporting pixel counts, percentages and a bounding box
+  each time, and left the other four pages (a different palette or a page not using `--primary`)
+  reporting pixel-identical. Reverted, re-verified green.
+- A first attempt at the Docker path used `zenika/alpine-chrome`, which pulls without any
+  apt access and is the common choice for "headless Chrome in Docker" — and turned out to render
+  a forced dark colour scheme differently from `ubuntu-latest`'s real Google Chrome on the same
+  flag, which would have meant goldens that agreed with themselves and disagreed with CI forever.
+  A from-scratch Debian image with `apt-get install google-chrome-stable` was tried next and hit
+  this environment's network mangling Debian's signed release file
+  (`Clearsigned file isn't valid, got 'NOSPLIT'`) — not a Windows-vs-Linux problem, a
+  this-sandbox-vs-`deb.debian.org` one. `selenium/standalone-chrome` sidesteps both: it is
+  pre-built with real Google Chrome and needs no package-manager access at all.
+
 ---
 
 ## Completed work
 
-<<<<<<< HEAD
 ### A signed-in visitor can change what they are called
 
 The name a fresh sign-in gets is the email's own local part, and there was no way to change it —
@@ -460,7 +493,7 @@ ever reach a page that shows them. Both are fixed the same way the rulebook corp
 Tests: engine + bUnit 4180 (3730 + 450, both unchanged in total shape apart from this slice's own
 additions and renames), accounts 131 (124 + 7 new in `tests/worker/transcripts.test.mjs`). All
 green, `dotnet build -p:ContinuousIntegrationBuild=true` at zero warnings.
-=======
+
 ### Adding an address to the invitation list now actually tells them, with a one-click link
 
 `worker/invitations.js`'s `add()` wrote the row and returned — nothing was ever mailed. An address
@@ -507,7 +540,6 @@ sign-in message; it was not extended to send a test invitation. Both messages no
 same `send`/refusal-handling function in `worker/mail.js`, so the diagnosis the probe already
 gives — the provider's status and its own machine code — is the same fault either message would
 hit, which is most of why this was left alone rather than because it would be hard.
->>>>>>> ff/invitation-email
 
 ### A front door with two avenues, the whole book searchable, and the sheet while you build
 
@@ -638,7 +670,8 @@ through the mutation, which is the whole reason the stylesheet guards exist:
   text is and a whole sheet behind every keypress is the render cost the front-end plan warns about.
   Asserted, with a control.
 - **Still no visual regression testing**, and this slice makes the gap worse: three new screens, four
-  palettes, every screenshot judged by eye.
+  palettes, every screenshot judged by eye. **Closed in a later slice** — see item 9 below and
+  `docs/HANDOVER.md`.
 
 #### Merged and deployed
 
@@ -830,8 +863,8 @@ see "A front door with two avenues".)*
 - **Phase 3's validation-on-the-row and undo**, from `docs/FRONT-END-PLAN.md`. **Still open.**
 - ~~**Phase 4, the sheet as a live preview column.**~~ **Done**, with `--column` widened on the
   token at 1500px so all five bands follow it.
-- **No visual regression testing**, unchanged and now worse: three new screens on top of the four
-  palettes, every screenshot judged by eye.
+- ~~**No visual regression testing**~~ **Done.** See item 9 in "Remaining work" and
+  `scripts/visual-regression.sh`.
 
 ### Only invited addresses, and a page that says which
 
