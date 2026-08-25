@@ -115,14 +115,20 @@ const answer = await response.text();
 console.log(`\nHTTP ${response.status}`);
 console.log(answer);
 
+// **`process.exitCode` rather than `process.exit()`, and the difference is visible on Windows.**
+// Exiting explicitly while the socket from the fetch above is still closing aborts Node inside
+// libuv — `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` — printed *after* a successful
+// run, where it reads as the probe having failed at the last moment. Setting the code and
+// letting the process end on its own says the same thing to a caller and says nothing alarming
+// to a reader.
 if (response.ok) {
     console.log('\nAccepted. If no mail arrives, it left this end — check spam, then the'
         + ' provider\'s own Emails list, which records a send that was accepted and then bounced.');
-    process.exit(0);
+    process.exitCode = 0;
+} else {
+    // The mapping the docs used to get wrong: the provider answers `validation_error` for a bad
+    // key as well as for a bad field, so the *name* does not tell them apart and the status does.
+    console.log('\nRefused. The `message` field above names the field at fault — that is the whole'
+        + ' reason this probe exists, since the server drops it on purpose.');
+    process.exitCode = 1;
 }
-
-// The mapping the docs used to get wrong: the provider answers `validation_error` for a bad key
-// as well as for a bad field, so the *name* does not tell them apart and the status does.
-console.log('\nRefused. The `message` field above names the field at fault — that is the whole'
-    + ' reason this probe exists, since the server drops it on purpose.');
-process.exit(1);
