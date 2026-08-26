@@ -17,13 +17,13 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4387 across three suites — 3739 on the engine, 482 rendering components with bUnit, 166 driving the accounts server over real SQLite. **The bUnit figure is worth distrusting**: it read 474 twice and then 482 twice in one session, on a tree where `git diff --stat -- web/ tests/ProwlersAndParagons.Web.Tests/` was empty both times, so nothing in that project or its subject had changed. `UppercasedTextTests` builds its theory by reading `web/wwwroot/css/app.css` at discovery, which is one place a count could move without a source edit — but that file did not change either, and the difference is unexplained. Re-run before quoting, and treat a moving count here as a finding rather than a nuisance — all run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome, one of them twice for reduced motion, and a pixel diff of the proof pages against Linux goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
+| Tests | 4653 across **four** suites — 3964 on the engine, 509 rendering components with bUnit, 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
 | Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. All four D1 migrations applied to the remote database, the `DB` binding is in place, `/api/me` answers `401` with JSON, and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong). **Adding an address now actually mails it** a one-click, three-day link — see the completed item below; until now the admin page said an address "can sign in now" and nothing ever told them so |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
-| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export of `5312f32`, not assumed**. It had drifted to 3 on `master` and to 37 across three reconciled slices before anybody checked, and the redesign slice put 23 there before they were fixed. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
+| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export of `b724c61`, not assumed**, and that scan found 2 (a local constant named `Opening`, and a `cref` to `IRulesSource` that does not resolve from the test project's namespace), both fixed. It had drifted to 3 on `master` and to 37 across three reconciled slices before anybody checked, and the redesign slice put 23 there before they were fixed. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
 | Licence | MIT, in `LICENSE`, covering this repository's own code only. The game system is © LakeSide Games. `data/rules/` holds structured metadata and this project's own descriptions; `data/rulebook/` holds the book's text **by the author's permission to this repository's owner**, is not served by the public site, and does not travel with a fork |
 
@@ -362,22 +362,36 @@ already rejected on principle** — `CLAUDE.md` declines third-party error servi
 that nothing about who somebody is should leave the Cloudflare account this site deploys to, and
 that property is worth more than a nicer dashboard. That reasoning is unchanged by anything above.
 
-### 7. The pre-1.0 audit
+### 7. The pre-1.0 audit — **the test half is closed; the snapshotability half is not**
 
-The last pass before tagging `v1.0.0`, done as a separate slice, both halves cheapest to
-delegate to no-context agents:
+The adversarial half has run and been acted on: 126 mutations, 48 survivors, eleven streams. See
+the completed entry, and `docs/notes/` for the mutation tables. What is left of this item is the
+second half, untouched:
 
-- **Is the codebase as optimised as it should be?** Dead code marked for removal, hot paths on
-  the engine, payload waste, and the token side — files a subagent has to load before it can
-  do anything useful.
-- **Is it snapshotable to a fresh AI agent?** What can a new session read to know what this
-  repo is and where the load-bearing pieces are, without re-tracing every past decision? The
-  audit's job is to say what would improve `CLAUDE.md` — a redraft, or smaller pointer files
-  for common tasks.
+- **Is it snapshotable to a fresh AI agent?** What can a new session read to know what this repo
+  is and where the load-bearing pieces are, without re-tracing every past decision? The audit's
+  job is to say what would improve `CLAUDE.md` — a redraft, or smaller pointer files for common
+  tasks. **`CLAUDE.md` is now over 1,300 lines and this file is over 4,400**, and this slice added
+  to both. That is the argument for the item rather than against it, but it is worth saying
+  plainly that the two documents are growing faster than anybody reads them.
+- **Is the codebase as optimised as it should be?** Dead code, hot paths on the engine, payload
+  waste, and the token side — files a subagent has to load before it can do anything useful.
 
-Do it once the HTTP API stops moving, so audit targets are not shifting under it.
+The one thing this slice learned that bears on the first bullet: **eleven agents were each given
+the two or three `CLAUDE.md` sections their task depended on, rather than the whole file, and
+none of them went wrong for want of the rest.** That is weak evidence that the pointer-file shape
+is the right answer, and it is weak because the sections were chosen by somebody who had read the
+whole thing.
 
-### 9. Visual regression testing — **closed**
+### 9. Visual regression testing — **closed, and then closed properly**
+
+> **Read this heading note first.** When this entry was written the check covered seven pages;
+> four were then dropped because a locally-rendered golden could not agree with CI's Chrome, and
+> the entry below still describes the seven-page version. All seven are back, and the goldens now
+> come from `.github/workflows/visual-goldens.yml` on `ubuntu-latest` — the same Chrome that
+> compares them. The comparator itself also turned out to be unable to see a uniform whole-page
+> colour shift, which is a hole this entry's confident tone did not anticipate. Both are in the
+> completed entry above.
 
 Nine browser harnesses asserted verdicts — sticky, narrow, motion, theme, shortcut, insets — and
 none of them looked at a pixel, so four palettes and three new screens were judged by eye. Closed
@@ -417,6 +431,242 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 ---
 
 ## Completed work
+
+### The pre-1.0 audit's forty-eight survivors, and the two front-end items that were left
+
+A twelve-agent adversarial audit applied **126 mutations to the three suites and 48 were not
+caught**. This is what was done about them, plus the two Phase 3 items `docs/FRONT-END-PLAN.md`
+had carried as the largest remaining front-end work. Eleven streams, worked in isolated worktrees
+and merged one at a time onto a single integration branch so that eleven streams cost **one**
+deploy; every merge was verified by re-running the suites rather than by trusting the stream's own
+report, and the highest-value guards were re-broken by hand afterwards.
+
+**Per-stream mutation tables are in [`docs/notes/`](docs/notes/README.md)** — evidence rather than
+status, kept out of this file because eleven of them would bury the record they are meant to be.
+
+#### Two things the audit called production bugs that were not, and one it missed that was
+
+The audit reported "a negative purchased rank makes a character free and legal". **It does not**:
+`CheckQuantities` catches it, and `SelectedPower("blast", -400)` binds to `PurchasedRanks`, which
+that guard reads. What was true is the sentence underneath — weakening the guard leaves the suite
+green, because five of the six quantity branches had no isolating test. The framing is worth
+recording, because it would have been easy to "fix" a validator that was already right.
+
+**Why five branches were invisible**: they were reachable only through one sheet carrying all six
+fields negative at once, so a meta-check asking whether *some* `NEGATIVE_RANK` or `NEGATIVE_UNITS`
+issue exists stayed satisfied whichever single branch was disabled. Each now has a test on an
+otherwise-legal sheet asserting the specific issue that branch constructs. One detail from the
+mutation runs is worth keeping: for the Ability and Talent branches, `IsValid == false` alone would
+**not** have caught the mutation, because `TRAIT_BELOW_MINIMUM` independently invalidates any rank
+below 1d. Only the assertion on the code itself bites there.
+
+**The one the audit missed was real.** Importing a character called `CharacterSession.Restore`,
+which does not call `NotifyChanged()` — so an imported character was not autosaved until some later
+edit happened to touch it. Found while replacing the confirm dialogues with undo.
+
+#### Four guards that did not guard what their docstring claimed
+
+- **`light-dark(white, black)` passed `NoComponentNamesAColour`** — the one rule the four-palette
+  architecture rests on. Three detectors and all three missed it: `light-dark` is CSS Color 5 and
+  was in none of the six function names the scan knew, and its arguments follow `(` and `,` rather
+  than the `:` the keyword regex required. The keyword position anchor is gone rather than widened
+  (a colour is equally a colour in `border: 1px solid black`), bounded by `(?<![\w-])`/`(?![\w-])`
+  rather than `\b`, because a plain word boundary treats the hyphen in `white-space` as one. The
+  function list gained `color`, `light-dark`, `color-contrast` and `device-cmyk` and **is still a
+  denylist that will rot again** — an allowlist was tried and rejected, because the razor scan runs
+  over files whose `@code` blocks are full of unrelated calls. Verified by hand with the strongest
+  form of the mutation: `light-dark(var(--surface), var(--ink))`, whose arguments are legitimate
+  tokens, so only the function path can see it. It fails on the function path.
+- **The engine had no filesystem-isolation test at all**, though `CLAUDE.md` asserts the property
+  in two places, one of them *inside `TheEngineHasNoNetwork`'s own doc comment*. A reachable,
+  non-throwing `File.Exists(...)` in `CostCalculator.AbilityCost` left all 3,734 tests green. The
+  guard bans `File.`, `Directory.`, `FileStream`, `StreamReader`/`StreamWriter` and a written-out
+  `using System.IO;`, with comments blanked first (three files name these APIs as history) and
+  `FileSystemRulesSource.cs` excluded by name as the sanctioned seam. `Path.Combine` stays legal.
+- **`EveryAddressTheBrowserAsksForIsOneTheServerAnswers` was substring-matching every worker file
+  concatenated together**, so renaming the real routing condition passed because the literal
+  survives in `worker/errors.js`'s `KNOWN_ROUTES` — a list built for an unrelated purpose that
+  happens to name the same addresses. It now reads `worker/index.js` alone and extracts the routing
+  *conditions* structurally: thirteen exact `path === '…'` routes and three `path.startsWith('…')`
+  prefixes, which is also what correctly resolves `/api/characters/{id}`.
+- **`EachOwnerActuallyWritesTheClassItOwns` was `Assert.Contains($"\"{cssClass}", source)`**, so
+  renaming `panel` to `panelish` passed all fifteen cases — the exact "satisfied by writing
+  nothing" shape the test exists to prevent, in disguise. It reuses the attribute tokenizer twenty
+  lines above it for the eight classes written as markup, and a small lexer for the seven built in
+  C#. A whole-file literal scan was tried and rejected because `OptionRow`'s
+  `role="@(Navigable ? "option" : null)"` would have kept masking a broken `RowClass`.
+
+#### A denylist of spellings cannot make a verdict honest — so every harness got a twin
+
+`MustNotShow` banned `say(true` in the sticky harness. **`|| true` is textually distinct and walks
+straight through it**, and the weakened harnesses reported `PASS` against a sticky strip that moved
+the full 483px it should have stayed pinned against, and against a real View Transition opening for
+a visitor who asked for none. Reproduced exactly before anything was written.
+
+The answer is a negative control rather than a longer denylist. Each of the seven parameterised
+harnesses now also writes a **deliberately-broken twin**, driven by the byte-identical harness
+script — an injected `<style>` defect for the geometry ones, a derived broken copy of the shipped
+`.js` for the script-driven ones, with `WithDefect` throwing if the line it substitutes has moved,
+so a twin cannot silently stop reproducing its defect. CI requires nineteen verdicts: every real
+page `PASS` **and** every twin `FAIL`.
+
+**Every twin says `FAIL` and not the resting `measuring` text**, which is the distinction three of
+this repository's four historical guard failures turned on: a feature that did not run mistaken for
+a feature that worked. Driven through Docker Chrome by hand after the merge, and again after both
+front-end streams landed.
+
+A structural "the verdict is derived from the measurements" check was considered and rejected: it
+would be a second unbounded-spelling denylist of the same shape that just failed, and the twin
+subsumes it by proving behaviour rather than guessing at structure.
+
+#### The pixel check could not see a whole-page colour change
+
+Two independent holes in `scripts/visual/diff.mjs`, both reproduced before being closed:
+
+```
+uniform +20 per channel:  OK  0/1152000 pixels differ (0.000%)      exit 0
+24×24 opaque block:       OK  576/1152000 pixels differ (0.050%)    exit 0
+```
+
+The first is the serious one — a `channelThreshold` of 24 means a per-pixel count can never see a
+uniform sub-threshold shift, **and halving the threshold just moves the exploit to +11**. So there
+is a second, independent measure: mean absolute channel difference over the whole image, RGB only,
+failing if either measure is exceeded, with the summary line naming which fired. `channelThreshold`
+is 3, `maxDiffPercent` 0.02 (230px at 1280×900, so a 24×24 block fails by more than twice), and the
+new mean threshold 0.5 against a uniform +20's mean of 20.
+
+`diff.mjs` and the hand-written `png.mjs` codec beneath it had no tests at all; there are now
+fourteen, synthesising images rather than committing fixtures, run in CI with the same
+count-assertion the accounts step uses.
+
+#### The goldens are generated by CI now, and the four palette captures are back
+
+The four `proof-shell-*` captures had been removed, recorded in the script as *"a retreat rather
+than a decision"*: they compared a golden written by a developer machine's digest-pinned Docker
+Chrome against CI's own Chrome, and `shell-villain-light` disagreed by exactly **32,462 pixels**
+across repeated CI runs while the three beside it came back identical.
+
+The removal named the fix and this is it. `.github/workflows/visual-goldens.yml` regenerates them
+on `ubuntu-latest`, from the Chrome that compares them. It is **`workflow_dispatch` only** — a
+golden regenerated as a side effect of an unrelated change is a regression signed off by nobody —
+and it **commits nothing**, uploading the PNGs for a person to look at first. It also re-runs the
+ordinary comparison against what it just wrote: two captures seconds apart from one Chrome must be
+pixel-identical, and if they are not, the pages are non-deterministic and committing them would
+install a permanently flaky check by another route.
+
+The missing-golden message now points at that workflow rather than at `--update-goldens`, which off
+Linux writes back exactly the cross-renderer golden that caused this.
+
+#### Rules data that read as transcribed and was not
+
+Four areas had no transcription pinning them to the book — talents' `linked_ability`, 49 of 53 flaw
+types, Power baseline prerequisites, and the graded Cons' variant→value mapping (only the multiset
+of prices was checked, so swapping two grades passed). All four are now transcribed from
+`data/rulebook/` with page citations, in the `CanonicalPowers.cs` shape, each with a positive
+control that the transcription covers **every** entry in its rules file.
+
+**No disagreement was found** in three of the four: all 53 flaw types, all 27 baseline prerequisites
+and all 4 graded-Con mappings matched. The fourth is the finding.
+
+**The rulebook prints no Talent→Ability table at all.** The only explicit pairing anywhere in
+Ch.1–2 is Covert : Agility on p.17, via the half-Agility substitution rule. The other eleven
+`linked_ability` values are **this project's own editorial grouping**, present unsourced since the
+first rules-data commit, used only to group Talents under an Ability heading in the CLI and browser
+displays. Nothing is wrong — unlike flaw `type`, which feeds the Resolve formula, this has no
+mechanical consequence — but `data/rules/` was carrying eleven values that read as transcribed and
+were not. They are recorded as what they are and pinned as a regression snapshot rather than given
+invented page citations.
+
+The flaw types are additionally pinned to their **consequence**: retyping `obligation` from
+`plot_hook` moves the computed Resolve from 25 to 24, and a test asserts that as well as the string.
+Verified by hand after the merge; both tests fire.
+
+#### `PageReader` had no tests, and now regenerating the corpus is a check
+
+Disabling `CrossesGutter` reproduced the historical two-column corruption byte for byte with the
+suite green, because nothing regenerated the corpus from the PDF. PdfPig's `Page` has no public
+constructor, so `Read(Page)` became a one-line adapter onto a `RawLetter` record and the logic runs
+against an `internal` overload — the same shape `ColumnLayout` already used. Fifteen tests over
+made-up pages, since the committed corpus cannot show you a layout the book happens not to contain.
+
+**The seam was verified by regenerating the whole corpus from the real PDF and comparing blob
+hashes: all ten chapters, 1,523 sections, byte-identical.** `CLAUDE.md` says nothing does this; it
+is now a one-command check, and it is the thing that actually closes this item.
+
+One of the ten mutations survived first time. Rather than being reported as covered, it was traced
+to a fixture whose gap sizes accidentally satisfied the *other* splitting mechanism, the fixture was
+tightened, and it was re-run to red. One named behaviour — a heading with no body qualifying the
+headings beneath it — turned out to live in `Program.cs`'s outline stack rather than in
+`PageReader`, and is recorded as out of scope rather than quietly dropped.
+
+#### `GearFormatter` and the JSON export
+
+Twelve tests on the formatter, asserting whole strings rather than fragments, per the `Armor8d`
+lesson. Twenty-five on the export, parsed with `JsonNode` and pinned key set by key set rather than
+as a whole-document snapshot — the reasoning parallels the goldens warning above, that a snapshot is
+regenerated thoughtlessly the first time it fails. It caught a real asymmetry: gear's `pros`/`cons`
+are bare id strings while a Power's are `{id, variant_key}` objects.
+
+#### `search_powers`: 24 of 33 to 25 of 33
+
+The stopword list already existed to drop words carrying no information about a Power, and stopped
+short of ordinary prepositions and pronouns — **"through" alone tied twenty of the twenty-two
+candidates** for "walks through walls". Widening it shrank those coincidence clusters. One
+expectation moved unmet→met; none moved the other way.
+
+Two other approaches were measured and reverted: symmetric stemming (fixed "mind"/"minds" for
+Telepathy, strengthened Cloud Minds' coincidental name match on the same word, **net −1**), and
+tie-breaking by matched-term breadth (**net 0**, and it inverts the documented
+name>id>tag>category>description hierarchy for every tied pair rather than only this set's).
+
+The ratchet is at 25, and that is what was achieved rather than a padded figure — raising it to 26
+reports *"meets only 25 of 33 … down from the recorded baseline of 26"*.
+
+**The two cases item 4 names by hand stay unmet, and the reason has changed.** They are not
+reachable by any word-matching change at all: Phasing's description says "solid matter" and never
+"walls"; Blast's says "a damaging ranged attack", with the damage type left to the player, so
+nothing in it is about fire. Closing those needs vocabulary in the data, which is a different and
+better-scoped slice than tuning the scorer.
+
+#### Phase 3: a broken rule says so on the row that broke it
+
+`web/Services/SheetFindings.cs` routes a `ValidationResult` to the row that owns each issue, using
+the `SubjectKind`/`SubjectId`/`OwnerId` fields `CharacterValidator` already fills in — which is why
+those fields exist, so a consumer does not parse the message back into the facts it was built from.
+No arithmetic and no engine change. `RowFinding.razor` renders them **visibly, never hover-only**:
+WCAG is explicit that anything carried only by a tooltip is information some readers do not get, and
+the `aria-describedby` target the hover-description work left on every row was the tempting wrong
+place to put this.
+
+Error and warning are told apart by a printed word **and** a border style, not by colour alone. No
+new colour token and no new contrast measurement were needed — `--danger` and `--heading` on
+`--panel` are already held to 4.5:1 across all four palettes.
+
+`HP_BUDGET_EXCEEDED` and the tier findings are deliberately left unrouted: they belong to no row,
+and the budget strip already exists for the first of them.
+
+#### Phase 3: single-level undo, and what "the three buttons" had become
+
+The plan was written against an older `ChooseTier.razor`; the samples had moved to
+`/admin/portfolio` and the confirm logic into `CharacterManager`. The real family is five: the tier
+page's "Start a new character", the per-row "Discard" of the current row, the portfolio's two sample
+buttons, the replay's "Open in the editor" — and "Import a character", which had no confirm at all
+and is where the autosave bug above was found. All five now act immediately and buffer what they
+replaced.
+
+The buffer is a **JSON snapshot** in `CharacterSession`, never the live sheet — the replay has a
+recorded bug of exactly the shared-reference shape — plus a version counter. `CanUndo` requires the
+session's `Version` to still match the moment it was armed, so the window closes on the first edit
+with nothing needing to remember to clear it. It is announced through `MainLayout`'s existing
+`.save-status` live region rather than a second one.
+
+**No `Ctrl-Z` binding**, deliberately: there is no general shortcut manager to extend, `palette.js`
+says in as many words to resist growing it, and taking `Ctrl-Z` from the finishing step's four text
+fields is real untested risk for one shortcut.
+
+Discarding a *different*, non-current saved character is deliberately left as it was — deleting it
+does not touch the live session, so restoring it is a different mechanism than the sheet buffer, and
+it is a separate item rather than folded in.
 
 ### Assisted builds default to full strength, and a Villain has no Resolve
 

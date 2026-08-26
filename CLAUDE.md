@@ -140,12 +140,50 @@ frame from the counting figure changes nothing observable, because the easing al
 exactly 1 at `t=1`; the honest report is that the mutation was a no-op, not that the guard has a
 hole. Break it with something that changes the answer.
 
+**And a mutation can be null because the *fixture* is wrong, not the guard.** A `PageReader`
+mutation disabling the space-glyph split survived, and the cause was a fixture whose gap sizes
+happened to satisfy the other splitting mechanism too — so the behaviour under test was still
+reached, by the wrong route. The honest response is to tighten the fixture and re-run to red, not
+to record a hole that is not there and not to record coverage that is not there either.
+
+### A denylist of spellings cannot make a verdict honest. Build the broken twin
+
+**This is the general form of the rule above, and it is now the shape every behavioural harness in
+this repository uses.** `MustNotShow` banned the literal `say(true` in the sticky harness so that
+a verdict could not be hard-coded. `|| true` is textually distinct, walks straight through it, and
+made the harness report `PASS` against a strip that moved the full 483px it should have stayed
+pinned against — and the same trick inverted the motion harness while `MustNotShow` stayed green.
+The spelling space is unbounded; a longer denylist buys one more spelling and no more.
+
+So each parameterised harness writes a **deliberately-broken twin beside the real page**, driven by
+the *byte-identical* harness script — only the thing under test differs, because a twin with a
+doctored script proves nothing. CI requires the real page to say `PASS` **and** the twin to say
+`FAIL`. `WithDefect` reads the shipped file and substitutes one documented line, **throwing if that
+line has moved**, so a twin cannot silently stop reproducing its defect and start passing for the
+wrong reason.
+
+Two properties to keep if you touch this:
+
+- **A twin must say `FAIL`, not merely fail to say `PASS`.** A harness whose script never ran
+  leaves its resting `measuring` text, which is neither verdict — and "not PASS" would call that
+  green. This is the same failure three of this repository's four historical guard faults were.
+- **`MustNotShow` stays.** It is cheap and it catches the lazy spelling. Its doc comment now says
+  what it cannot do, so nobody reads it as the guarantee again.
+
+A structural "the verdict expression is derived from the measured variables" check was considered
+and rejected: with no data-flow analysis in this repository's tooling it is a second unbounded
+denylist of the same shape that just failed, and the twin subsumes it by proving behaviour.
+
 ## Tests
 
 `tests/ProwlersAndParagonsAutomation.Tests` (xunit.v3). Two things to know before touching it:
 
 - The suite loads the **real** `data/rules/*.json` via `RulesFixture`, not hand-built fixtures. That is deliberate: its main job is to catch a rules file drifting away from the rulebook.
-- `CanonicalPowers.cs` is the transcribed Range/Rank/Cost of all 141 Powers, `CanonicalPowerProsCons.cs` the 106 Power-specific Pros and Cons, `GearTests` the twelve Ch.6 gear feature prices, and `RulesDataTests` the tier/ability/talent/pro/con/perk/flaw values. **Do not "fix" a failing test by editing these to match the code** — they are the rulebook. Check the page named in the entry's `source_ref` and fix whichever side is wrong.
+- `CanonicalPowers.cs` is the transcribed Range/Rank/Cost of all 141 Powers, `CanonicalPowerProsCons.cs` the 106 Power-specific Pros and Cons, `GearTests` the twelve Ch.6 gear feature prices, and `RulesDataTests` the tier/ability/talent/pro/con/perk/flaw values. Four more were added when an audit found them unpinned: `CanonicalFlawTypes.cs` (all 53), `CanonicalPowerBaselines.cs` (all 27 baseline prerequisites), `CanonicalGradedCons.cs` (which grade earns which value — only the *multiset* of prices was checked before, so swapping two grades passed) and `CanonicalTalentLinkedAbilities.cs`. **Do not "fix" a failing test by editing these to match the code** — they are the rulebook. Check the page named in the entry's `source_ref` and fix whichever side is wrong.
+
+  **A flaw's `type` is pinned to its consequence as well as its string**, because that field feeds the Resolve formula: retyping `obligation` from `plot_hook` moves a character's computed Resolve from 25 to 24, and a test asserts the figure, not only the word.
+
+  **`linked_ability` on a Talent is the exception, and it is this project's own invention.** The rulebook prints **no Talent→Ability table at all**; the only explicit pairing anywhere in Ch.1–2 is Covert : Agility on p.17, via the half-Agility substitution rule. The other eleven values have been in `data/rules/talents.json` unsourced since the first commit and are used only to group Talents under an Ability heading in the CLI and the browser — no cost, no rank, no validity depends on one. They are pinned as a **regression snapshot**, and the transcription file says so per entry rather than carrying invented page citations. Do not add a `source_ref` to them and do not let a later reader mistake them for transcribed values.
 - `PrebuiltHeroes.cs` transcribes the 20 published Heroes from Ch.8 and `PrebuiltHeroTests` rebuilds each one, asserting the printed Edge, Health and Resolve. Same rule applies: those numbers are the authors', not ours. They are the only tests that check the rules as *applied* rather than as transcribed, so a failure there usually means a rule was misread, not that a number is stale.
 - **16 of the 20 Heroes rebuild to exactly 125 Hero Points** and are asserted as such. The other four are held at a recorded residual in `PrebuiltHeroes.BuildByHero`, none more than 1 HP out **as modelled** — Shadow's printed Gear box carries a Silenced pair his transcription does not, which would put him at +2, so the bound is a fact about what is counted rather than about the authors' arithmetic. Do not tune an ambiguous variant just to force one of those to zero — that is fitting the model to the answer. Fix the underlying gap instead.
 - **`EveryPublishedHeroIsALegalCharacter` asks the one question the rest of that file does not: would this tool accept the character the authors printed?** Nothing did until it existed, and two rules were wrong because of it — Blastwave came back with four `DUPLICATE_PRO` errors and T-Kay with `PRO_NOT_APPLICABLE` on the Zone Pro printed on her sheet, so two Heroes in the rulebook could not be built here. The budget exemption is keyed to the residual recorded for each Hero, so a Hero who starts costing the wrong amount fails the residual test rather than being excused. A cost test and a legality test are different questions; keep both.
@@ -340,6 +378,53 @@ is one sheet in this app by design.
 - **It reflows to fewer columns and that is right.** `.sheet-columns` is `auto-fit, minmax(280px, …)`,
   so a ~560px column fits one or two; three at 180px each would be worse. The three-column
   arrangement is a fact about the paper, judged on the review step and in the PDF.
+
+### A broken rule says so on the row that broke it
+
+The engine answers continuously and the findings used to surface only at GM review, so a Trait over
+the Trait Cap was silent on its own row until the end. `web/Services/SheetFindings.cs` routes a
+`ValidationResult` to the row that owns each issue and `RowFinding.razor` draws it.
+
+- **It reads `SubjectKind`, `SubjectId` and `OwnerId`, and computes nothing.** Those fields exist on
+  `ValidationIssue` precisely so a consumer does not parse the message back into the facts it was
+  built from — this is the first thing to actually use them that way. No arithmetic in the routing,
+  no engine change, and the message is the engine's own string unaltered.
+- **It is visible, never hover-only.** Every row grew an `aria-describedby` target during the
+  hover-description work and that is the tempting wrong place to put this: WCAG is explicit that
+  anything carried only by a tooltip is information some readers do not get. A description is
+  optional and a broken rule is not.
+- **Error and warning differ by a printed word *and* a border style**, not by colour alone. No new
+  token was needed — `--danger` and `--heading` on `--panel` are already held to 4.5:1 in all four
+  palettes by `EveryScreenPairInUseHoldsItsContrastFloor`. Adding one would have needed a fresh
+  measurement, since the screen palette has no luminance test.
+- **`HP_BUDGET_EXCEEDED` and the tier findings are deliberately unrouted.** They belong to no row,
+  and the budget strip already exists for the first of them. A finding pinned to an arbitrary row
+  would be worse than one shown where it belongs.
+
+### Three controls could destroy twenty minutes; now five act at once and can be undone
+
+- **The plan's "three buttons on the tier page" no longer described anything.** The samples had
+  moved to `/admin/portfolio` and the confirm logic into `CharacterManager`. The real family is
+  five: "Start a new character", the current row's "Discard", the portfolio's two sample buttons,
+  and the replay's "Open in the editor" — plus **"Import a character", which had no confirm at all
+  *and* never called `NotifyChanged()`**, so an imported character was not autosaved until a later
+  edit happened to touch it. That was a real defect and no audit found it.
+- **The buffer is a JSON snapshot, never the live `CharacterSheet`.** The replay carries a recorded
+  bug of exactly the shared-reference shape — handing over the instance let the first edit rewrite
+  the original — and an undo buffer holding the same object would be that bug again.
+- **The window closes by construction rather than by remembering to clear it.** `CanUndo` requires
+  the session's `Version` to still equal what it was when the buffer was armed, so the first edit to
+  the replacing character ends it and nothing has to know to call a `Clear`.
+- **It is a fact about a screen, so it is not on `CharacterSheet`** — same rule as the budget
+  breakdown's open/shut state, and for the same reason: that type is what gets exported, stored and
+  restored.
+- **No `Ctrl-Z`.** There is no general shortcut manager to extend, `palette.js` says in as many
+  words to resist growing it, and taking `Ctrl-Z` off the finishing step's four text inputs is real
+  untested risk for one shortcut. Announced through `MainLayout`'s existing `.save-status` live
+  region rather than a second one.
+- **Discarding a *different*, non-current saved character is still a confirm**, deliberately:
+  deleting it does not touch the live session, so undoing it is a restore-into-store rather than the
+  sheet buffer, which is a different mechanism and a separate piece of work.
 
 ### An option or a Trait says what it is, on hover and on focus
 
@@ -776,6 +861,18 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   write a guard there with `Contains`: the first version was one, and a rename walked through it
   because the same word occurred elsewhere in the server's own source.
 
+  **That warning was already in this file and the routing guard was still a `Contains`.** It
+  concatenated every `worker/*.js` and asked whether the literal `'/api/me'` appeared anywhere, so
+  renaming the real routing condition passed — the literal survives in `worker/errors.js`'s
+  `KNOWN_ROUTES`, a list built to bound the error log's row count that happens to name the same
+  addresses. Proved twice, on two routes, defeated by two different unrelated duplicates. It reads
+  `worker/index.js` **alone** now and extracts the routing *conditions* structurally: the exact
+  paths compared with `===` and the prefixes compared with `startsWith`. **The prefix half is not
+  optional** — `/api/characters/{id}` and `/api/admin/invitations/{id}` are reached by a
+  `startsWith` and a `path.slice`, never an exact match, so an exact-only model flags both as
+  unrouted on every real request. Both counts are bounded as a positive control: an extraction that
+  has stopped matching yields an empty route set, which fails loudly rather than quietly.
+
 - **Wrangler's bundled esbuild is older than Node's, and both suites plus a whole-tree Qodana
   scan will happily ship an incompatibility to the deploy.** This has happened once:
   `import ... with { type: 'json' }` in `worker/corpus.js` ran under Node 22 (both the accounts
@@ -858,8 +955,28 @@ harnesses. The PNG codec is ~150 lines against `node:zlib` rather than a depende
   is on PATH; everywhere else — including a Windows development machine — it drives a digest-pinned
   `selenium/standalone-chrome` in Docker. A golden generated from Windows Chrome fails every CI run
   for ever, which is a check that has to be deleted rather than fixed.
-- **Regenerate with `--update-goldens`, and only ever deliberately.** A golden updated as a side
-  effect of an unrelated change is a regression signed off by nobody.
+- **Linux-rendered is not enough: it has to be the *same* Chrome.** The digest-pinned Docker Chrome
+  and `ubuntu-latest`'s own Google Chrome are both real Chrome on Linux and they still disagree —
+  `shell-villain-light` by exactly **32,462 pixels**, across repeated CI runs, unchanged by forcing
+  the colour scheme, while the pages beside it came back pixel-identical on the same runs. Four
+  pages were deleted from the manifest over this before the cause was understood. **So goldens are
+  generated by `.github/workflows/visual-goldens.yml`**, on the runner, and `--update-goldens` from
+  a developer machine puts the gap straight back. The Docker path in the script is for *looking* at
+  a page locally.
+- **Regenerate deliberately, and never as a side effect.** A golden updated because something else
+  changed is a regression signed off by nobody — which is why the workflow is `workflow_dispatch`
+  only and uploads an artifact rather than committing. It also re-runs the ordinary comparison
+  against what it just wrote: two captures seconds apart from one Chrome must be pixel-identical,
+  and if they are not, the page is non-deterministic and committing it installs a flaky check.
+- **A per-pixel count with a per-pixel threshold cannot see a uniform shift, at any threshold.**
+  `channelThreshold` was 24, so a **uniform +20 per channel across every pixel** — a whole-page
+  colour change, on an app with four palettes — reported `pixel-identical` and exited 0. Halving
+  the threshold only moves the exploit to +11, so the answer is a second, independent measure:
+  mean absolute channel difference over the whole image, failing if *either* is exceeded. Keep
+  both, and keep the summary line naming which one fired.
+- **The comparator is code and gets tested like code.** `diff.mjs` and the ~150-line `png.mjs`
+  codec beneath it had no tests while being the only thing standing between four palettes and
+  nobody looking. `tests/visual/*.test.mjs` synthesises images rather than committing fixtures.
 - **`--virtual-time-budget` is not optional.** `.panel` carries `animation: rise var(--enter) both`,
   which starts at `opacity: 0`; a bare screenshot proofs a washed-out lie.
 - **A proof page whose content depends on which test ran last cannot be pixel-checked.** Three pages
@@ -951,7 +1068,9 @@ bUnit pulls AngleSharp transitively at a version carrying a published advisory, 
 
 All four are asserted by `WebPresentationTests`, which reads the source because none of them is visible to a compiler.
 
-1. **No component names a colour.** Checked by hex, by keyword, *and* by `rgb()`/`hsl()`/`oklch()` function syntax — that last one is the loophole a hex grep leaves open. `transparent` is allowed; it is the absence of a colour. Radii and durations are tokens for the same reason, and `prefers-reduced-motion` turns every animation off by setting three duration tokens to `0.01ms` — not `0`, which makes some engines skip `transitionend` entirely.
+1. **No component names a colour.** Checked by hex, by keyword, *and* by `rgb()`/`hsl()`/`oklch()` function syntax — that last one is the loophole a hex grep leaves open. `transparent` is allowed; it is the absence of a colour, and `currentColor` is allowed for the same reason: it is a reference to whatever ink already applies, not a hue chosen here.
+
+   **`light-dark(white, black)` passed all three detectors, and this is the rule the four palettes rest on.** It is CSS Color 5, so it was in none of the six function names the scan knew, and its arguments follow `(` and `,` rather than the `:` the keyword regex anchored on — so every detector missed it at once. Two changes: the keyword's position anchor is **gone** rather than widened, because a colour is equally a colour in `border: 1px solid black`, bounded by `(?<![\w-])`/`(?![\w-])` rather than `\b` since a plain word boundary treats the hyphen in `white-space` as one; and the function list gained `color`, `light-dark`, `color-contrast` and `device-cmyk`. **It is still a denylist and it will rot again when the spec grows another one.** An allowlist of the functions this codebase uses was tried and rejected: the razor scan runs over files whose `@code` blocks are full of unrelated calls, which is the same denylist problem one level up. Re-run the function census in the comment if it rots. `///` doc comments are stripped from the razor scan for the same reason `@* *@` comments always were — one `<summary>` in `ChooseTier.razor` is prose about a screenshot that mentions "dead white". Radii and durations are tokens for the same reason, and `prefers-reduced-motion` turns every animation off by setting three duration tokens to `0.01ms` — not `0`, which makes some engines skip `transitionend` entirely.
 
    **Nor a typeface.** `--font-display` (Oswald) and `--font-body` (Public Sans) are declared in `theme.css` and nothing else names a family; `font:` shorthand is checked as well as `font-family`, because the shorthand carries a family too and `font: inherit` is everywhere. **Both faces are self-hosted under `web/wwwroot/fonts/` and both are SIL OFL, so the licence text ships beside them** — this repository redistributes them on every deploy and every fork, which is a condition rather than a courtesy, and there is a test. **A missing font file fails silently**: the stacks name system fallbacks on purpose, so a renamed file degrades the whole app to them with every other test green — which is why one test reads the bytes on disk. They are `.ttf` and would be ~40% smaller as `.woff2`; converting them is a one-line change per face.
 2. **Nothing on screen names an internal type or a build command.** Asserted on the *prose*, which `VisibleText` derives by stripping `@* *@` comments, the `@code` block, every tag (and so every attribute) and every Razor expression — so `@PowerFormatter.StatLine(p)` is fine and the same characters in a paragraph are not. The rule is general: no compound PascalCase type declared in `engine/` or `sheets/` may appear. The reverse is asserted too — `Ch.6`, `Ch.9`, `Trait Cap` and `Hero Point` must still appear *in the prose*, since deleting the rulebook references would satisfy a naive reading of this rule and ruin the app. (Asserted against the raw file, that test passed while `Ch.6` survived only in a comment.)
@@ -960,6 +1079,8 @@ All four are asserted by `WebPresentationTests`, which reads the source because 
 
    **The validator's messages are the other half of this surface**, and `web/`'s tests cannot see them — they are engine strings, printed verbatim on the GM review step and in both exports. `ValidationMessageTests` provokes them from real sheets and holds them to the same rule: no file name, no internal flag, no bare id where the rulebook has a name, no `flaw(s)`, and every message a sentence.
 3. **One component owns each repeated class.** `Panel`, `Field`, `SheetSection`, `StatBlock`, `DerivedStatBlocks`, `OptionList`/`OptionRow`, `ChosenList`/`ChosenRow`, `Tooltip`. Writing `class="panel"` by hand anywhere else fails a test.
+
+   **The other half of that pair — that the owner still writes its own class — was a substring match and held nothing.** `Assert.Contains($"\"{cssClass}", source)` is satisfied by `"panelish"`, so renaming `panel` in `Panel.razor` passed all fifteen cases: the exact "an owner that satisfies the test by writing nothing at all" failure the check exists to prevent, wearing the check's own clothes. It tokenizes now — the same `class="…"` splitter the sibling test twenty lines above uses, for the eight classes written as markup, and a small lexer over the named member for the seven built in C# (`ClassName` on five components, `OptionRow`'s `RowClass`, and `RuledLines`' `Lines`, which reaches the page through `RenderTreeBuilder.AddAttribute` and never appears as `class="…"` at all). **A whole-file literal scan is not the shortcut it looks like**: `OptionRow` writes `role="@(Navigable ? "option" : null)"`, so the literal `"option"` is in that file whatever `RowClass` says.
 
    **A `title` attribute is not a tooltip, and no component may use one** — there is a test. It never appears on a touch screen, is unreliable for keyboard users, cannot be styled, cannot be dismissed, and is announced inconsistently by screen readers. It is the easiest way to undo `Tooltip` because it is the obvious thing to write. The component's own traps: the trigger is a **real button** (a `<span>` with a mouse handler is a tooltip only for people with a mouse); the hover handlers are on the **wrapper**, because `mouseenter` does not bubble and a tip that closes as you reach for it fails WCAG 1.4.13; the tip is **always in the document**, hidden by `visibility`/`opacity` and never `display: none`, which would take the `aria-describedby` description with it while every rendering test stayed green; and the id is **derived from the term**, since a generated one differs per render and breaks the replay guard that requires two renders of one character to be identical. It opens **downward** — an upward tip is clipped by the window edge inside the budget breakdown, which hangs off a strip stuck to `top: 0`. The budget bar's live fill width is the **only** inline style left, and it is the sole justification for `style-src 'unsafe-inline'` in the CSP.
 4. **No screen rule names a raw length**, in px any more than in rem. Padding, margin, gap and font-size come from `--space-0`…`-8` and `--text-xs`…`-3xl` in `theme.css`; the print block is out of scope because mm and pt are a different medium with its own scale. Before the scales existed the screen half of `app.css` spent **twenty-seven** distinct spacing lengths and **twenty** font sizes, ten of the latter between 0.68rem and 0.9rem — an accumulation nothing could flag, because every value in it was locally reasonable.
@@ -1173,6 +1294,15 @@ Ten files, one per chapter, holding the printed text of the whole Ultimate Editi
 - **Ch.8's stat-block headings are set in small capitals and come out as `aBIlItIes` and `FlaWs`. That is known, cosmetic, and deliberately not "fixed".** Two rules were tried; the better of them uppercased "Points" to "POINTS" while leaving the real cases alone, because a lowercase `t` is genuinely shorter than cap height. Do not tune a third heuristic until it happens to look right on the examples in front of you. **A table of three or more columns is read across rather than down** — the Powers list on printed p.20 and the location lists in Ch.9 — which is the other known limit; the two-column model is what the body text needs and a third column is rare enough not to have earned the complexity.
 - **Judge a change here by the tests and by the PDF, in that order — and the tests can now see the failures that matter.** They pin the total volume of prose, that every one of the 116 Ch.2 Power entries opens with the stat line `data/rules` records for it, and that every published character is named in Ch.8. Before that they were shape checks: an adversarial pass rotated all 1,492 section bodies onto the wrong headings, and separately deleted 90% of the book, and the suite stayed green through both.
 - **`ColumnLayout` is unit-tested against made-up pages**, because the committed corpus cannot show you a layout the book happens not to contain, and every failure this extractor has had was layout-shaped. **Two detectors, and both are needed**: an ordinary two-column page has almost no line containing the gutter (each line sits in one column), so it is found by which column of the page few words cross; but printed p.81 sets two sidebars above full-width body text, where no column is empty top to bottom and the gutter shows up only as a gap repeated at the same x. Removing either one turns real pages back into interleaved nonsense, and there is a test for each.
+- **`PageReader` is too, now, and for the same reason it had to be.** It had no tests at all: disabling `CrossesGutter` reproduced the historical two-column corruption byte for byte with the whole suite green, because nothing regenerated the corpus from the PDF. PdfPig's `Page` has no public constructor, so `Read(Page)` is a one-line adapter onto a `RawLetter` record and the logic runs against an `internal` overload — the same shape `ColumnLayout` already had. **A seam introduced to make something testable has to be proved to change nothing**, and the proof is below.
+- **Regenerating the corpus is a check, and it is one command.** This file used to say nothing did it. It does now:
+
+  ```bash
+  dotnet run --project tools/RulebookExtractor -- "docs/Prowlers_&_Paragons_Ultimate_Edition.pdf" data/rulebook
+  git status --porcelain data/rulebook/
+  ```
+
+  A clean second line means the committed corpus is exactly what today's extractor produces — all ten chapters, 1,523 sections. **Do it from the main working directory, not a worktree**, since `*.pdf` is gitignored and only the main checkout has the book. **And read the blob hash, not `git status`**: regenerating rewrites every file, so the stat cache reports all ten as modified until something refreshes it, and on Windows the raw bytes genuinely differ — `JsonSerializer` writes `Environment.NewLine`, so the working file is CRLF where the blob is LF. `.gitattributes` normalises `*.json`, so `git hash-object` against `git rev-parse HEAD:<file>` is the comparison that means anything. Do not "fix" the extractor's newline on the strength of the raw bytes; that was nearly done here and would have been wrong.
 
 ### The engine never touches the filesystem
 
@@ -1181,6 +1311,25 @@ Ten files, one per chapter, holding the printed text of the whole Ultimate Editi
 **Keep `IRulesSource` synchronous.** Making it async would push `await` through every lazy collection and from there into `CostCalculator` and `CharacterValidator`, turning a pure instantly-callable engine into an async one for no gain. A host that can only load asynchronously does that once at startup and hands over strings.
 
 `RulesRepository.DataFileNames` lists every file a self-loading host must fetch — it cannot glob a directory that isn't there. **Add a new rules file to that list**, or a browser build silently runs on an incomplete rules set; a test enforces it.
+
+**Both halves of that rule are now enforced rather than asserted, and neither was.** This section
+and `TheEngineHasNoNetwork`'s own doc comment both claimed the engine has no filesystem access, and
+nothing checked it: a reachable, non-throwing `File.Exists(...)` in `CostCalculator.AbilityCost`
+left all 3,734 tests green. `TheEngineHasNoFilesystemAccess` bans `File.`, `Directory.`,
+`FileStream`, `StreamReader`/`StreamWriter` and a written-out `using System.IO;` across `engine/`
+and `sheets/`. Three things about it are deliberate:
+
+- **`Path.Combine` and `Path.GetFullPath` stay legal.** They are string manipulation with nothing
+  on the far end, and `RulesRepository.FromBasePath` legitimately calls one.
+- **`FileSystemRulesSource.cs` is excluded by name**, because it is the documented seam a host with
+  a disk is supposed to use — an exception rather than a loosened ban for everyone.
+- **Comments are blanked before the scan.** Three files here name `File.ReadAllText` or
+  `AppContext.BaseDirectory` as history, and a guard that cannot tell an explanation from a
+  directive taxes the explanation.
+
+The `using` is in the list because the SDK's implicit usings already bring `System.IO` into every
+file — which is exactly why a stray `File.Exists` compiles in silence and needed a guard rather
+than a missing import to catch it.
 
 ### Sources, and the default rank
 
