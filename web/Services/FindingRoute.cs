@@ -123,7 +123,7 @@ public static class FindingRoute
         if (issue.Code is "UNKNOWN_PACKAGE")
             return new Destination("build", "Tier", null, null);
 
-        if (issue.SubjectId is { } id
+        if (issue.SubjectId is not null
             && PerkCodes.Contains(issue.Code, StringComparer.Ordinal))
             return new Destination(Characteristics, "Perks", "perks", null);
 
