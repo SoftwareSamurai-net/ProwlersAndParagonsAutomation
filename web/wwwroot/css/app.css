@@ -1776,6 +1776,101 @@ label {
 .book-text p { margin: 0 0 var(--space-2); }
 .book-text p:last-child { margin-bottom: 0; }
 
+/* **A measure, because a Power's entry arrives as one run.** The extraction flattens the book's
+   paragraphs, so the description of LUCK is 120 unbroken words — and at the full width of a panel
+   that is a line long enough for the eye to lose its place returning. `RulebookProse` will not
+   invent a paragraph break and should not; what presentation can honestly do is set the line at a
+   readable length and open the leading up. */
+.book-text { max-width: 68ch; line-height: 1.6; }
+
+/* The stat line, as three labelled cells rather than the page's one bullet run. A reader arriving
+   at a Power's entry wants one of the three, and on a screen there is room to say which is which.
+   `auto-fit` so it stacks rather than crushes in the narrow column beside the editors. */
+.book-stat {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: var(--space-2) var(--space-4);
+    margin: 0 0 var(--space-3);
+    padding-bottom: var(--space-3);
+    border-bottom: var(--rule-weight) solid var(--rule);
+}
+
+.book-stat dt {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    color: var(--muted);
+}
+
+.book-stat dd { margin: 0; }
+
+/* A generic option's own price, where its section opens with one. In the display face and the
+   heading ink, because it is the entry's own opening line — but **not in capitals**, unlike the
+   labels above it. It is a phrase rather than a label: CLOSE is priced both ways at once and
+   would read "PRO +2 HERO POINTS OR CON −2 HERO POINTS". `UppercasedTextTests` is what asks the
+   question, since every uppercased selector in this file has to be reachable and defensible. */
+.book-lead {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    color: var(--heading);
+}
+
+/* The Pros and Cons printed inside an entry, one block each. They were the tail of the same run as
+   the description, which is where most of the unreadability was: LUCK printed its two Pros as
+   sentences four and five of a paragraph. */
+.book-options {
+    list-style: none;
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    display: grid;
+    gap: var(--space-3);
+}
+
+.book-options > li {
+    padding-top: var(--space-3);
+    border-top: var(--rule-weight) solid var(--rule);
+}
+
+.book-options .head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.book-options p { margin: var(--space-1) 0 0; }
+
+/* What the book charges for the option, in its own words. **Deliberately not `.hp`**: that is the
+   treatment for a Hero Point figure the engine answered and it sets its text in capitals, which
+   turns "+1 per rank" into "+1 PER RANK". A phrase is not a figure. */
+.book-options .price {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+/* The citation, when option blocks come before it. `.book-text p` carries a bottom margin and no
+   top one, so the printed page sat flush against the last option's last line and read as part of
+   it. Seen in the proof; no rendering test could, because the element is there either way. */
+.book-options + p { margin-top: var(--space-3); }
+
+/* PRO and CON are the book's own markers and are read as one word each, so they are set as a tag
+   rather than as running text. **Both take `--muted`, not green and red.** A Con is not a warning
+   and a Pro is not a success — they are two prices, and colouring them as outcomes would be this
+   stylesheet having an opinion about somebody's Power. */
+.book-options .kind {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    color: var(--muted);
+    border: var(--rule-weight) solid var(--rule);
+    border-radius: var(--radius-small);
+    padding: 0 var(--space-1);
+}
+
 /* ── What an option does, on hover and on focus ──────────────────────────── */
 
 /* The row is already the trigger, so this hangs off it rather than off a `?` of its own — see
@@ -1871,6 +1966,43 @@ label {
 .trait-term:focus-visible ~ .row-tip { display: block; }
 .rank-name .row-tip.dismissed,
 .rank-name:hover .row-tip.dismissed { display: none; }
+
+/* The same treatment on a name printed on the sheet — `Term`, which is `RankRow`'s trigger
+   extracted so the sheet can use it. **The positioning context is the term itself and not the
+   row**, unlike the Ability rows above: a sheet row is a table cell in a three-column layout, and
+   a tip measured against the cell comes out a sliver. Measured against the inline term it hangs
+   below the word, which is where a reader is looking. */
+.term { position: relative; }
+
+.term-name {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: help;
+    text-align: left;
+
+    /* Quietly marked as carrying something. `--muted`, not `--rule`: the hairline token is meant
+       to be at the edge of visible and under a word it is invisible, which is the mistake made
+       once already on `.trait-term` and found in a screenshot rather than by any test. */
+    text-decoration: underline dotted var(--muted);
+    text-underline-offset: 3px;
+}
+
+/* Wider than the term, because a term is one word and a description is a sentence. Left-aligned to
+   the word and clamped so it cannot run out of a sheet column. */
+.term .row-tip {
+    left: 0;
+    right: auto;
+    width: max-content;
+    max-width: min(22rem, 60vw);
+}
+
+.term:hover .row-tip,
+.term-name:focus-visible ~ .row-tip { display: block; }
+.term .row-tip.dismissed,
+.term:hover .row-tip.dismissed { display: none; }
 
 /* ── The sheet beside the editors ────────────────────────────────────────── */
 
@@ -2094,6 +2226,15 @@ label {
     .stat-block .formula,
     #blazor-error-ui {
         display: none !important;
+    }
+
+    /* **A term on the sheet prints as the word, with nothing to say it was ever a control.** The
+       tip is already `display: none` unshut and hover does not happen on paper, but the dotted
+       underline and the pointer would survive — and the printed sheet is the deliverable, so it has
+       to come out of the printer identical whether or not the explanations were on. */
+    .term-name {
+        text-decoration: none;
+        cursor: auto;
     }
 
     body {

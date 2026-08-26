@@ -91,6 +91,7 @@ public sealed class RenderContext : BunitContext
         Services.AddScoped<ApiCharacterStore>();
         Services.AddScoped<CharacterImport>();
         Services.AddScoped<AccountCharacterStore>();
+Services.AddScoped<DiscardedCharacter>();
         Services.AddScoped<ICharacterStore>(s => s.GetRequiredService<AccountCharacterStore>());
         Services.AddScoped<RulebookReader>();
 

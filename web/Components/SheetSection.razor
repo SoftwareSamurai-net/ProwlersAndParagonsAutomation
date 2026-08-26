@@ -10,7 +10,9 @@
 <section class="@ClassName">
     @if (Title is not null)
     {
-        <h3>@Title</h3>
+        @* The heading is a <Term> only when something was passed to explain it — otherwise the
+           bare text, so every sheet drawn without explanations is byte-identical to before. *@
+        <h3><Term Name="@Title" Text="@TitleTerm" /></h3>
     }
     @ChildContent
 </section>
@@ -21,6 +23,14 @@
     /// character's name and the sheet's own title and would be captioned by neither.
     /// </summary>
     [Parameter] public string? Title { get; set; }
+
+    /// <summary>
+    /// What the heading means, where a heading is a rulebook term rather than a plain label.
+    ///
+    /// <para>Only the Powers groups use it: "TECH POWERS" is a Source, and a Source is the one
+    /// heading on the sheet that carries a rule. "Abilities" and "Gear" explain themselves.</para>
+    /// </summary>
+    [Parameter] public string? TitleTerm { get; set; }
 
     [Parameter] public string? Class { get; set; }
 

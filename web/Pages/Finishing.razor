@@ -4,7 +4,7 @@
 <PageTitle>Finishing touches — Prowlers &amp; Paragons</PageTitle>
 
 <h1>Finishing touches</h1>
-<p class="muted">None of this costs Hero Points. It is what makes the numbers a character.</p>
+<p class="muted">None of this costs Hero Points.</p>
 
 <Panel>
     <Field Label="Name" For="ft-name">
@@ -31,10 +31,7 @@
 <Panel Title="Connections" Aside="People and places that tie the character to the world">
     @if (Session.Sheet.Connections.Count == 0)
     {
-        <EmptyState>
-            None yet. Add a person or a place below — each one prints on the sheet in a box
-            of its own, which is where a GM goes looking for something to pull on.
-        </EmptyState>
+        <EmptyState>None yet. Add a person or a place below.</EmptyState>
     }
     else
     {

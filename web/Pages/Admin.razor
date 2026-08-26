@@ -28,10 +28,7 @@
 @if (_state == ListRequest.Loaded)
 {
     <Panel Title="Invited" Aside="@Counted">
-        <p>
-            Everyone here can ask for a sign-in link. Nobody else can — asking from any other
-            address does nothing at all, and says so to nobody.
-        </p>
+        <p>Everyone here can ask for a sign-in link. Nobody else can.</p>
 
         <ChosenList>
             @foreach (var one in _invitations)
@@ -63,9 +60,7 @@
 
     <Panel Title="Invite somebody">
         <p>
-            Adding an address sends it a link to sign in, good for three days, and lets it ask
-            for another at any time after that. Adding an address already on the list changes
-            and sends nothing.
+            Adding sends a sign-in link, good for three days. Re-adding does nothing.
         </p>
 
         <form @onsubmit="Invite" @onsubmit:preventDefault>
@@ -110,28 +105,20 @@
        because the suite renders these pages by type and asserts what chrome an address gets once
        you are already there — never whether anybody can click their way in. *@
     <Panel Title="Showing it to somebody">
-        <p>
-            Four recorded conversations, and two finished characters that fill in every section a
-            sheet has. Quicker than building one when you want to show what this does.
-        </p>
+        <p>Four recorded conversations, and two finished characters.</p>
         <NavLink class="btn" href="admin/portfolio">Open the demonstrations</NavLink>
     </Panel>
 
     <Panel Title="What withdrawing does">
         <p>
-            It stops that address asking for another link, and ends any session it is already
-            holding — so somebody signed in on another machine is signed out rather than left
-            there until their month runs out.
+            It ends any session that address is holding, and stops it asking for another link.
         </p>
         <p>
-            <strong>Their characters are untouched.</strong> Withdrawing is about who may sign in,
-            not about anybody's work; adding the address again gives them back everything exactly
-            as they left it.
+            <strong>Their characters are untouched.</strong> Adding the address back restores
+            everything.
         </p>
         <p class="small muted">
-            Your own address is not offered here, because withdrawing it would take this page with
-            it. The address set on the deployment itself is not offered either — that one is
-            changed where the rest of the site's settings are.
+            Your own address is not offered here, nor the deployment's own.
         </p>
     </Panel>
 
@@ -143,9 +130,7 @@
         else
         {
             <p>
-                Each row folds every occurrence of one failure into a count, so a fault that kept
-                happening is one line rather than one per attempt. Nothing here is anybody's own
-                data — no address, no character, only what broke and how often.
+                One row per failure, counting every occurrence. No addresses, no characters.
             </p>
 
             <ChosenList>
@@ -184,10 +169,7 @@ else if (_state == ListRequest.Unavailable)
 else if (_state == ListRequest.NotForYou)
 {
     <Panel Title="Not this account">
-        <p>
-            This page is for whoever looks after who can sign in here, and that is not this
-            account. Nothing is wrong — there is simply nothing here for you.
-        </p>
+        <p>Nothing is wrong — there is simply nothing here for this account.</p>
         <p><a href="build">Back to the character generator</a></p>
     </Panel>
 }

@@ -79,7 +79,7 @@
                             @foreach (var ability in Session.Rules.Abilities)
                             {
                                 <tr>
-                                    <td>@ability.Name</td>
+                                    <td><Term Name="@ability.Name" Text="@ability.Description" Enabled="@Explain" /></td>
                                     <td>@Rank(Sheet.GetAbilityRank(ability.Id))</td>
                                 </tr>
                             }
@@ -93,7 +93,7 @@
                             @foreach (var talent in Session.Rules.Talents)
                             {
                                 <tr>
-                                    <td>@talent.Name</td>
+                                    <td><Term Name="@talent.Name" Text="@talent.Description" Enabled="@Explain" /></td>
                                     <td>@Rank(Sheet.GetTalentRank(talent.Id))</td>
                                 </tr>
                             }
@@ -125,7 +125,11 @@
                        whole to the next page, leaving two thirds of the previous one white. *@
                     @foreach (var group in Groups)
                     {
-                        <SheetSection Title="@group.Heading" Class="powers">
+                        @* The Source is what a group of Powers has in common, and the heading
+                           is the only place the sheet says it. "TECH POWERS" does not tell a
+                           reader what a Source is for. *@
+                        <SheetSection Title="@group.Heading" Class="powers"
+                                      TitleTerm="@(Explain ? group.Source?.Description : null)">
                             @* An Ability's or Talent's Source is printed here, inside the
                                Power group, and not as a marking on the Abilities table —
                                that is where the published sheets put it. Stronghold's
@@ -144,7 +148,12 @@
                                            whitespace inside a <text> block and inside an
                                            element that follows an expression, which printed
                                            "Armor8d" on every ranked Power. *@
-                                        <span class="pname">@(power?.Name ?? sp.PowerId)@Ranked(power, rank)</span>
+                                        <span class="pname">@* The rank stays in one expression
+                                            with whatever precedes it: Razor strips the leading
+                                            whitespace inside an element following an expression,
+                                            which printed "Armor8d" here once already. *@
+                                            <Term Name="@(power?.Name ?? sp.PowerId)"
+                                                  Text="@power?.Description" Enabled="@Explain" />@Ranked(power, rank)</span>
                                         <span class="hp">@(CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—") HP</span>
                                     </div>
                                     @if (power is not null)
@@ -190,7 +199,9 @@
                                 {
                                     <tr>
                                         <td>
-                                            @(Session.Rules.GetPerk(sp.PerkId)?.Name ?? sp.PerkId)@(sp.Units > 1 ? $" ×{sp.Units}" : "")
+                                            <Term Name="@(Session.Rules.GetPerk(sp.PerkId)?.Name ?? sp.PerkId)"
+                                                  Text="@Session.Rules.GetPerk(sp.PerkId)?.Description"
+                                                  Enabled="@Explain" />@(sp.Units > 1 ? $" ×{sp.Units}" : "")
                                             @if (sp.NarrativeDetail is not null)
                                             {
                                                 <span class="muted small"> — @sp.NarrativeDetail</span>
@@ -236,7 +247,8 @@
                                     var flaw = Session.Rules.GetFlaw(sf.FlawId);
                                     <tr>
                                         <td>
-                                            @(flaw?.Name ?? sf.FlawId)
+                                            <Term Name="@(flaw?.Name ?? sf.FlawId)" Text="@flaw?.Description"
+                                                  Enabled="@Explain" />
                                             @if (sf.NarrativeDetail is not null)
                                             {
                                                 <span class="muted small"> — @sf.NarrativeDetail</span>
@@ -255,7 +267,7 @@
                 @* The four figures a player reads off mid-scene, set as big as the
                    published sheet sets them. Hero Points is the tier budget: a Villain has
                    none (Ch.9), so that box carries what the character cost instead. *@
-                <DerivedStatBlocks Class="quad" WithPoints="true"
+                <DerivedStatBlocks Class="quad" WithPoints="true" Explain="@Explain"
                                    Character="@Character" ShowBudget="@ShowBudget" />
 
                 <SheetSection Title="Origin" Class="fill">
@@ -328,6 +340,20 @@
     /// only the sheet being read differs.</para>
     /// </summary>
     [Parameter] public CharacterSheet? Character { get; set; }
+
+    /// <summary>
+    /// Whether every name on the sheet carries what it means, on hover and on focus.
+    ///
+    /// <para><b>Off by default, and the default is the one that matters.</b> The printed sheet is
+    /// what this whole tool produces and it is one page by a margin; a sheet that gained forty
+    /// controls would be a different document. So the explanations are a screen a reader asks
+    /// for — see <c>ExplainedSheet</c> — and every other place this component is drawn is
+    /// unchanged, which <c>SheetRenderTests</c> holds it to.</para>
+    ///
+    /// <para>The descriptions are the ones in <c>data/rules</c>, which is verified entry by entry
+    /// against the page. Nothing here writes a sentence about a rule.</para>
+    /// </summary>
+    [Parameter] public bool Explain { get; set; }
 
     /// <summary>
     /// Whether the four-figure block measures the spend against a budget. Defaults to the

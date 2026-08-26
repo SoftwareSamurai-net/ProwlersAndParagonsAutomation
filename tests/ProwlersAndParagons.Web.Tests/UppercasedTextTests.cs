@@ -104,6 +104,16 @@ public sealed class UppercasedTextTests
         var pages = new List<IRenderedComponent<Microsoft.AspNetCore.Components.IComponent>>
         {
             signedIn.Render<PowerEditor>(p => p.Add(e => e.Power, armor)),
+
+            // A passage of the book, drawn open. `PowerEditor` above reaches `.book-toggle` and
+            // stops there — `RulebookEntry` renders the passage itself only once somebody opens
+            // it, so the stat line's own labels and the PRO/CON markers are two more interactions
+            // deep than any page in this list goes. The text is a Power's entry with an option in
+            // it, because that is the shape carrying both.
+            ctx.Render<BookText>(p => p.Add(
+                b => b.Text,
+                "Self • Power Rank • 2 Hero Points per rank You are incredibly lucky. "
+                + "PRO Control (+4): You can alter probability fields.")),
             over.Render<HpBudgetBar>(),
             ctx.Render<ChooseTier>(),
             ctx.Render<AbilitiesTab>(),

@@ -4,10 +4,7 @@
 <PageTitle>Tier — Prowlers &amp; Paragons</PageTitle>
 
 <h1>Choose a tier</h1>
-<p class="muted">
-    The tier sets the Hero Point budget and the Trait Cap — the highest rank any single
-    Trait may reach. Everything after this is measured against those two numbers.
-</p>
+<p class="muted">The tier sets the Hero Point budget and the Trait Cap.</p>
 
 @* **The two sample characters used to be here and are now in the portfolio.** They are a
    demonstration — a way to see what a finished sheet looks like without building one — and a
@@ -52,13 +49,6 @@
    whatever the scene needs, which a Hero campaign does too. Keeping them apart means a Villain
    can be held to a tier's points and a Hero need not be. *@
 <Panel Title="Hero Point limit" Aside="Optional">
-    <p class="small muted">
-        The tier's Hero Points are a budget by default and the review step reports going over
-        it. Switch that off to build without a limit — the spend is still tracked and shown as
-        a running total, and everything else is still checked: Trait Caps, flaw counts, and
-        options that cannot go where they have been put.
-    </p>
-
     <Field Class="inline">
         @* aria-pressed as a string, for the reason recorded in CLAUDE.md: Blazor renders a true
            bool as an empty attribute, which is invalid ARIA and announces the opposite. *@
@@ -81,9 +71,7 @@
 
 <Panel Title="Starting package" Aside="Optional">
     <p class="small muted">
-        A package buys the ranks it grants, at a small discount — the Superhero Package is
-        50 HP for what would cost 54 bought rank by rank. You can still buy higher ranks on
-        top; only the ranks above the package's own are charged again.
+        A package buys the ranks it grants, at a discount. Higher ranks cost the difference.
     </p>
 
     <ChosenList>

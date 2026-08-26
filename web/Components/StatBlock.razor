@@ -2,7 +2,7 @@
    Health, Resolve and Hero Points. *@
 
 <div class="stat-block">
-    <div class="label">@Label</div>
+    <div class="label"><Term Name="@Label" Text="@LabelTerm" /></div>
     <div class="value">@Value</div>
     @if (Sub is not null)
     {
@@ -17,6 +17,14 @@
 @code {
     [Parameter, EditorRequired] public string Label { get; set; } = "";
     [Parameter, EditorRequired] public string Value { get; set; } = "";
+
+    /// <summary>
+    /// The rule behind the figure, behind its label — where the label is the only room there is.
+    ///
+    /// <para>Null draws the bare label, which is every surface but the explained sheet, so nothing
+    /// about the printed page changes.</para>
+    /// </summary>
+    [Parameter] public string? LabelTerm { get; set; }
 
     /// <summary>
     /// A smaller second line under the figure. The budget needs one: "105/125" set at the

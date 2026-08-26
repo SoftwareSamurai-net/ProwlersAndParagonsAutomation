@@ -2,6 +2,7 @@
 @inject AccountCharacterStore Store
 @inject CharacterSession Session
 @inject Accounts Accounts
+@inject DiscardedCharacter Discarded
 
 @* The characters this browser — or this account — is holding, and the way between them.
 
@@ -41,11 +42,11 @@
         <EmptyState>
             @if (_limit is not null)
             {
-                <text>Nothing built yet. Start one below and it is remembered on your account, ready on any browser you sign in to.</text>
+                <text>Nothing built yet. Start one below — it is kept on your account.</text>
             }
             else
             {
-                <text>Nothing built yet. Start one below and it is remembered in this browser, so you can close the tab and come back to it.</text>
+                <text>Nothing built yet. Start one below — it is kept in this browser.</text>
             }
         </EmptyState>
     }
@@ -72,11 +73,17 @@
                             <button type="button" class="btn" @onclick="() => Open(one.Id)">Open</button>
                         }
 
-                        @* No question first — see the comment on the panel above. Discarding the
-                           one on screen is the character's own undo, offered from the banner the
-                           moment this fires; discarding a different row was never asked about
+                        @* No question first — see the comment on the panel above. Both kinds of
+                           row are undoable from the banner the moment this fires: the one on
+                           screen through the character's own buffer, any other row through
+                           `DiscardedCharacter`, which reads it back before deleting it and can
+                           write it to the same id again.
+
+                           **The comment here used to say a different row "was never asked about
                            either, because switching away from it already left it saved under its
-                           own id, safe from anything this button does. *@
+                           own id, safe from anything this button does".** The first half is true
+                           of Open and the second half is not true of this: `DeleteAsync` is
+                           exactly what destroys that copy, and nothing held it anywhere else. *@
                         <button type="button" class="btn danger" @onclick="() => Delete(one.Id)">
                             Discard
                         </button>
@@ -111,8 +118,7 @@
     @if (_full)
     {
         <p class="small muted spaced" role="status">
-            Your account is holding as many characters as it can. Discard one to make room, or
-            keep building this one — it is still saved.
+            Your account is full. Discard one to make room; this one is still saved.
         </p>
     }
 
@@ -123,10 +129,7 @@
         }
         else
         {
-            <text>
-                These are in this browser only — not sent anywhere. Sign in and they follow you
-                instead, or download one from the last step to keep a copy that travels.
-            </text>
+            <text>These are in this browser only. Sign in and they follow you instead.</text>
         }
     </p>
 
@@ -174,10 +177,18 @@
     }
 
     /// <summary>
-    /// Throws a character away, current or not — nothing here asks first any more. Discarding
-    /// the one on screen is undoable from the banner, the instant this fires; discarding a
-    /// different row never asked either, because switching away from it already left it saved
-    /// under its own id and this cannot touch that copy.
+    /// Throws a character away, current or not — nothing here asks first, and both are undoable.
+    ///
+    /// <para>The one on screen goes through the session's own buffer, which
+    /// <see cref="CharacterSession.StartAgain"/> arms. Any other row is read back <em>before</em>
+    /// the delete and handed to <see cref="DiscardedCharacter"/>, which is the only thing that
+    /// could put it back: the session has never held that character and the store copy is what
+    /// this is about to remove.</para>
+    ///
+    /// <para><b>Read with <c>ReadAsync</c> and not <c>OpenAsync</c>.</b> The latter moves the
+    /// current-character pointer on the way past, so reading a row in order to remember it would
+    /// switch the app to the character being discarded — and the next autosave would write the
+    /// sheet on screen over the id just restored.</para>
     /// </summary>
     private async Task Delete(string id)
     {
@@ -191,6 +202,19 @@
         }
         else
         {
+            // Remembered first: after the delete there is nothing left to read.
+            if (await Store.ReadAsync(id) is { } going)
+            {
+                var label = _characters.FirstOrDefault(c => c.Id == id)?.Label ?? "";
+                await Discarded.RememberAsync(id, label, going.Sheet, going.Mode);
+            }
+            else
+            {
+                // Nothing readable to offer back — and the stale offer from a previous discard
+                // must not be left standing over a row this one could not keep.
+                Discarded.Forget();
+            }
+
             await Store.DeleteAsync(id);
         }
 

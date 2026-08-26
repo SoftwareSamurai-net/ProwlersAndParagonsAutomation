@@ -307,6 +307,19 @@ run_chrome() {
 # **Nothing in the string below is a comment.** It is double-quoted, so a `#` line in it is still
 # parsed as a manifest row, and backticks in it are command substitution — a note written inside
 # it ran `data-theme="dark"` as a command. Notes go here, above it.
+#
+# `explained-sheet` is 1700 rather than 900, and it is a **new** page rather than a changed height on
+# an existing one -- the caution above about judging a capture height in CI is about moving one that
+# already has goldens, which this does not. Two things the page exists to check, neither of which
+# survives a crop: whether a dotted underline under forty names reads as marking or as noise, and
+# whether the one open description lands somewhere readable inside a sheet column rather than as a
+# sliver down it. A 900px frame cuts the sheet mid-Powers.
+#
+# **1700 is past the end of the ~1640px page, and that is the point.** At 1400 the crop fell inside
+# the foot's ruled boxes and two Docker runs of the *same* tree disagreed by 0.022% in the last
+# twelve rows -- under tolerance, so green, but that is the knife edge described above, reached
+# locally rather than across renderers. Clearing the content entirely leaves flat background at the
+# boundary and there is nothing there to rasterise two ways.
 manifest="
 front-door-hero-light:proof-front-door-hero-light.html:1280:900:
 front-door-hero-dark:proof-front-door-hero.html:1280:900:--blink-settings=preferredColorScheme=0
@@ -315,6 +328,7 @@ shell-hero-light:proof-shell-hero.html:1280:900:--blink-settings=preferredColorS
 shell-hero-dark:proof-shell-hero-dark.html:1280:900:
 shell-villain-light:proof-shell-villain.html:1280:900:--blink-settings=preferredColorScheme=1
 shell-villain-dark:proof-shell-villain-dark.html:1280:900:
+explained-sheet:proof-explained-hero.html:1280:1700:
 "
 
 failed=0

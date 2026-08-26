@@ -493,7 +493,7 @@ public sealed class FakeApi : HttpMessageHandler
              "matchedTerms":[{{string.Join(",", words.Select(Quote))}}],
              "matchedHeading":{{Lower(words.Any(w =>
                  h.Passage.Heading.Contains(w, StringComparison.OrdinalIgnoreCase)))}},
-             "snippet":{{Quote(h.Passage.Prose)}}}
+             "snippet":{{Quote(Window(h.Passage.Prose))}}}
             """);
 
         return Json($$"""
@@ -504,6 +504,18 @@ public sealed class FakeApi : HttpMessageHandler
              "results":[{{string.Join(",", rows)}}]}
             """);
     }
+
+    /// <summary>
+    /// A window of the passage, the way the server sends one.
+    ///
+    /// <para><b>It used to be the whole passage, and that made a stub that lied about the
+    /// shape.</b> A result row prints its snippet as one line of small print; handing it a Power's
+    /// entire 200-word entry drew the whole thing there, above the panel that sets the same text
+    /// out properly — which is what the rules proof captured, and it read as the structured
+    /// version being pointless. The real server windows around the word that matched.</para>
+    /// </summary>
+    private static string Window(string prose) =>
+        prose.Length <= 120 ? prose : prose[..120].TrimEnd() + "…";
 
     /// <summary>One passage in full, by where it is, or 401/404.</summary>
     private Task<HttpResponseMessage> Passage(HttpRequestMessage request)

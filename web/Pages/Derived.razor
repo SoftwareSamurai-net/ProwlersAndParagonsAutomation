@@ -4,10 +4,7 @@
 <PageTitle>Derived stats — Prowlers &amp; Paragons</PageTitle>
 
 <h1>Derived stats</h1>
-<p class="muted">
-    Nothing on this page is bought. All three follow from what is already on the sheet, and
-    they change as you change it.
-</p>
+<p class="muted">Nothing here is bought — all three follow from the sheet.</p>
 
 @* **No panel around these.** Each of the four figures is already a ruled box, so a bordered
    panel holding them was a box drawn around four boxes, carrying no heading and separating
@@ -20,11 +17,7 @@
    twice on the same screen, the panel's copy being the longer and better one. *@
 <Panel Title="How these came out">
     <h3>Edge</h3>
-    <p class="small">
-        Three details are easy to get wrong: <b>Danger Sense replaces</b> Perception rather
-        than adding to it, <b>Lightning Reflexes is a flat +6</b> with no rank, and
-        <b>Super Speed</b> floors Edge at its rank × 3.
-    </p>
+    
 
     @* The working, with the numbers actually used. This list showed Perception even when
        Danger Sense had replaced it, so the figures on the page added up to something other
@@ -50,9 +43,7 @@
     </ul>
 
     <h3>Health</h3>
-    <p class="small">
-        Halves always round up — the rulebook has a global rule for it in the Glossary.
-    </p>
+    <p class="small">Halves round up.</p>
     <p class="small muted">
         Toughness @Session.Sheet.GetAbilityRank("toughness")d,
         Might @Session.Sheet.GetAbilityRank("might")d,
@@ -61,9 +52,7 @@
 
     <h3>Resolve</h3>
     <p class="small">
-        Determination costs @DerivedStatsCalculator.DeterminationHpPerResolve Hero Points a
-        point. A specialist with a rank at the Trait Cap starts on nothing; a generalist
-        starts with room to spend.
+        Determination: @DerivedStatsCalculator.DeterminationHpPerResolve Hero Points a point.
     </p>
     <ul class="small muted">
         <li>Trait Cap @(Session.TraitCap)d.</li>

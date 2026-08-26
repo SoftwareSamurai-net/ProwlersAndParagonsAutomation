@@ -114,6 +114,28 @@ public sealed class AccountCharacterStore : ICharacterStore
     }
 
     /// <summary>
+    /// Read one of them without opening it — same two sources as <see cref="OpenAsync"/> and
+    /// none of its side effect.
+    ///
+    /// <para><b>It exists because the manager has to weigh a character it is not looking at.</b>
+    /// A row's confirmation asks whether there is anything to lose, and for the row that is open
+    /// the session can answer from the sheet in memory; for every other row the only copy is in
+    /// the store, and the question cannot be answered without reading it. <see cref="OpenAsync"/>
+    /// would answer it and move the current-character pointer on the way past — so asking "is
+    /// this worth asking about" would switch the app to the character somebody is about to throw
+    /// away, and the next autosave would write the sheet on screen over it.</para>
+    ///
+    /// <para>Null means the same as everywhere else here: there is no character at that id this
+    /// build can read. A caller deciding whether to protect one should treat that as unknown
+    /// rather than as nothing, the way <see cref="AccountCharacters.IsFull"/> treats a cap it
+    /// could not ask about.</para>
+    /// </summary>
+    public async Task<(CharacterSheet Sheet, SheetMode Mode)?> ReadAsync(string id) =>
+        (await _who.CurrentAsync()).IsSignedIn
+            ? await _inTheAccount.LoadAsync(id)
+            : await _local.LoadAsync(id);
+
+    /// <summary>
     /// Throw one away, wherever it lives.
     ///
     /// <para><b>Not the one that is open unless it is asked for by id.</b> The single-character
@@ -128,6 +150,31 @@ public sealed class AccountCharacterStore : ICharacterStore
         // id from before they signed in, and leaving it would resurrect the character on the next
         // visit while they were signed out.
         await _local.DeleteAsync(id);
+    }
+
+    /// <summary>
+    /// Put a character back under the id it had, wherever that id lives.
+    ///
+    /// <para><b>The other half of a deleted row's undo</b> — see <see cref="DiscardedCharacter"/>.
+    /// Deliberately not <see cref="SaveAsync(CharacterSheet, SheetMode)"/>, which writes to
+    /// whichever character is <em>open</em>: this names an id, and the point is to restore a row
+    /// that was never the open one.</para>
+    ///
+    /// <para><b>It answers whether the write landed, which every other method here does not.</b>
+    /// An autosave that fails is not worth interrupting somebody over; an undo that silently did
+    /// nothing is the worst possible outcome, because the reader believes their character is
+    /// back. The account cap is the refusal that actually happens: discard a row from a full
+    /// account, build something in its place, and there is no room to put the old one back.</para>
+    /// </summary>
+    public async Task<bool> RestoreAsync(string id, string label, CharacterSheet sheet, SheetMode mode)
+    {
+        if ((await _who.CurrentAsync()).IsSignedIn)
+            return await _inTheAccount.SaveAsync(id, label, sheet, mode) == SaveOutcome.Saved;
+
+        // The browser's own store has no cap and no failure worth reporting — see
+        // SavedCharacters, where a storage refusal is the same case as no character at all. It
+        // hands back the id it wrote, so a mismatch is the only thing that could mean "not done".
+        return await _local.SaveAsync(id, label, sheet, mode) == id;
     }
 
     /// <summary>Which character the app currently has open, whoever is here.</summary>

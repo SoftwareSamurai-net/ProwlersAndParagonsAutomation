@@ -55,6 +55,7 @@ builder.Services.AddScoped<CharacterStore>();
 builder.Services.AddScoped<SavedCharacters>();
 builder.Services.AddScoped<ApiCharacterStore>();
 builder.Services.AddScoped<AccountCharacterStore>();
+builder.Services.AddScoped<DiscardedCharacter>();
 builder.Services.AddScoped<ICharacterStore>(s => s.GetRequiredService<AccountCharacterStore>());
 builder.Services.AddScoped<RulebookReader>();
 builder.Services.AddScoped<CharacterImport>();

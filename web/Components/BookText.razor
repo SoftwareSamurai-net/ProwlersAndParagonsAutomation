@@ -1,0 +1,94 @@
+@* A passage of the book, set as the book sets it.
+
+   **It replaced two hand-written copies of `.book-text`.** The Power editor's disclosure and the
+   rules reference each looped their own paragraphs into their own div, and the reference's own
+   comment already said the two should be one idiom. They are now, and `WebPresentationTests`
+   owns the class — a third copy fails a test rather than drifting.
+
+   **What it draws is what `RulebookProse` found, and that is only what the book marks.** A stat
+   line, a generic option's price, and the Pros and Cons printed inside an entry. The description
+   itself is left exactly as the extraction hands it over: the corpus runs a Power's entry together
+   on one line, so a Power's description is still one run, and breaking it here on sentence count
+   would be this component deciding where the author's paragraphs were. That gap is the
+   extractor's — see PROGRESS.md — and pretending otherwise would put invented structure in front
+   of a reader who cannot tell.
+
+   The mechanics beside this come from `data/rules`, which is verified entry by entry. This is the
+   book's wording next to them, never instead of them. *@
+
+<div class="book-text">
+    @if (Prose.Stat is { } stat)
+    {
+        @* Three labelled cells rather than one bullet run, because a reader coming to a Power's
+           entry is looking up one of the three. The bullets are how the page fits them on one
+           line; a screen has room to say which is which. *@
+        <dl class="book-stat">
+            <div><dt>Range</dt><dd>@stat.Range</dd></div>
+            <div><dt>Rank</dt><dd>@stat.RankType</dd></div>
+            <div><dt>Cost</dt><dd>@stat.Cost</dd></div>
+        </dl>
+    }
+
+    @if (Prose.Lead is { } lead)
+    {
+        <p class="book-lead">@lead</p>
+    }
+
+    @foreach (var paragraph in Prose.Paragraphs)
+    {
+        <p>@paragraph</p>
+    }
+
+    @if (Prose.Options.Count > 0)
+    {
+        <ul class="book-options">
+            @foreach (var option in Prose.Options)
+            {
+                <li>
+                    <div class="head">
+                        @* One expression, so the parts cannot be run together: Razor strips the
+                           leading whitespace inside an element that follows an expression, which
+                           is how "Armor8d" reached the sheet twice. *@
+                        <span class="kind @option.Kind.ToLowerInvariant()">@option.Kind</span>
+                        <b>@option.Name</b>
+                        @* **Not `.hp`.** That class is for a Hero Point figure the engine
+                           answered — smaller, letter-spaced and set in capitals — and a price the
+                           book writes in words comes out of it as "+1 PER RANK". This is the
+                           book's own phrase, so it is set like the lead: display face, muted, and
+                           in the case it was printed in. *@
+                        <span class="price">@option.Price</span>
+                    </div>
+                    <p>@option.Text</p>
+                </li>
+            }
+        </ul>
+    }
+
+    @if (Citation is not null)
+    {
+        <p class="small muted">@Citation</p>
+    }
+</div>
+
+@code {
+    /// <summary>The passage, verbatim, as the corpus holds it.</summary>
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+
+    /// <summary>
+    /// Where it is printed, in the reader's own terms — "Ch.2 Characters, printed p.33".
+    ///
+    /// <para>Passed in rather than built here: the two call sites hold different records, and a
+    /// citation assembled from whichever fields this component could see would be a second
+    /// spelling of the one thing this text is worth more than memory for.</para>
+    /// </summary>
+    [Parameter] public string? Citation { get; set; }
+
+    /// <summary>
+    /// Parsed once per change of passage, not once per render. It is three regular expressions
+    /// over up to a few thousand characters, and this component is inside a list that redraws on
+    /// every keystroke in the filter box above it.
+    /// </summary>
+    private RulebookProse Prose { get; set; } = RulebookProse.Read(null);
+
+    protected override void OnParametersSet() => Prose = RulebookProse.Read(Text);
+}
