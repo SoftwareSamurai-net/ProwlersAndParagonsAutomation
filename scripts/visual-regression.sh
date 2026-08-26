@@ -39,6 +39,19 @@
 # RGBA) using only `node:zlib`; `scripts/visual/diff.mjs` walks the two pixel buffers.
 #
 # ------------------------------------------------------------------------------------------------
+# THE TOLERANCE BELOW IS NOT THE WHOLE TOLERANCE — READ diff.mjs's OWN HEADER TOO.
+#
+# An adversarial audit found that a percentage-of-differing-pixels tolerance alone cannot see a
+# colour shift applied uniformly across an entire page — no single pixel's delta ever gets large
+# enough to be counted as "differing", however many pixels are nudged the same small amount. So
+# diff.mjs now checks two independent measures and fails if *either* is exceeded: this script's
+# `--tolerance` still governs the count-of-differing-pixels measure (`--max-diff-percent`), and a
+# second, whole-image mean-absolute-channel-difference measure is diff.mjs's own default and is
+# not overridden from here — see that file's header comment for the arithmetic behind both
+# defaults, and for why a uniform shift and a percentage-of-pixels tolerance need genuinely
+# different instruments rather than one number tuned harder.
+#
+# ------------------------------------------------------------------------------------------------
 # --virtual-time-budget IS NOT OPTIONAL, AND NEITHER IS THIS COMMENT'S EXISTENCE.
 #
 # `.panel` carries `animation: rise var(--enter) both`, which starts at `opacity: 0`. A bare
@@ -63,7 +76,12 @@ diff_dir="$work_dir/diff"
 docker_chrome_image="selenium/standalone-chrome@sha256:cd778b6f38d99d1e14a05a767f576aff2face98d5202a2192d857614c265ec4d"
 
 update_goldens=0
-tolerance=0.05
+# Matches diff.mjs's own default for --max-diff-percent — see this file's and that file's header
+# comments for the arithmetic (tight enough that a 24x24 solid block fails at 1280x900, loose
+# enough for a handful of stray antialiased pixels). Kept as a literal here rather than reading
+# diff.mjs's default at runtime, so `--tolerance` on the command line has an honest value to
+# override *from*.
+tolerance=0.02
 
 while [ $# -gt 0 ]; do
   case "$1" in
