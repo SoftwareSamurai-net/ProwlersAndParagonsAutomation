@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4653 across **four** suites — 3964 on the engine, 509 rendering components with bUnit, 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4717 across **four** suites — 3988 on the engine, 549 rendering components with bUnit, 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -566,45 +566,75 @@ printed sheet says "Presence 6d" and "Plot Hook" and "TECH POWERS" and left a re
 **The proof page is where the two judgements that matter were made**, neither of them checkable by
 assertion: whether a dotted underline under forty names reads as marking or as noise, and whether a
 tip hanging off a word inside a three-column sheet lands somewhere readable rather than as a sliver
-down one column. It is a fourth golden now, at 1280×1400 because a 900px frame cuts the sheet
+down one column. It is a golden now, at 1280×1700 because a 900px frame cuts the sheet
 mid-Powers and neither judgement survives a crop.
 
-### The row you were not looking at was the one with no protection
+**Its PNG is not in this branch, deliberately.** Master moved golden generation into
+`.github/workflows/visual-goldens.yml` so that both sides of every comparison are the runner's own
+Chrome, and says plainly not to regenerate them from a developer machine. Three existing goldens
+move with this work (both front doors, from the copy trim; the rules reference, from the new passage
+layout) and the explained sheet is new — all four have to come from that workflow. **So the pixel
+check is expected to fail on this branch until it has been run and its artifact committed**, which
+is stated here rather than left to look like a flake.
 
-The character list asked before discarding — **but only about the character that happened to be
-open**. `CharacterManager.AskDelete` read `id == _currentId && Session.HasSomethingToLose`, so
-every other row went on the first click: no question, and nothing to put back, because
-`CharacterSession` holds the sheet being edited and never the others. The row a reader is least
-likely to be weighing carefully was the one with the least behind it.
+### A discarded row you were not looking at had nothing behind it
 
-**The fix is the panel's own rule applied to every row, not a second rule for this case.** One
-predicate — `CharacterSession.IsWorthKeeping` — asked of the sheet in memory for the open row,
-because that is ahead of storage by however much has not been written yet, and of the stored copy
-for every other row. Two sources, one question, so "something to lose" cannot come to mean
-different things depending on which row was clicked.
+**The confirmations came off every row when undo arrived** (`da9f249`), on the reasoning that the
+one on screen has `CharacterSession`'s buffer behind it and a different row *"was never asked about
+either, because switching away from it already left it saved under its own id and this cannot touch
+that copy"*.
 
-**Reading a row back needed a method, and `OpenAsync` was not it.** That one moves the
-current-character pointer on its way past, so asking "is this worth asking about" would have
-switched the app to the character somebody was about to throw away — and the next autosave would
-then have written the sheet on screen over it. `AccountCharacterStore.ReadAsync` is the same two
-sources with none of the side effect.
+**The first half of that is true of `Open`. The second half is not true of `Delete`, which is
+precisely what destroys that copy.** `CharacterSession` holds the sheet being edited and never the
+others, so a background row — twenty minutes of work switched away from — went on one click with no
+question and nothing to bring it back. The row a reader is least likely to be weighing carefully had
+the least behind it.
 
-**Unknown fails towards the question.** The store answers null both for a payload this build
-cannot trust and for a server it could not reach, and those are not the same thing: treating the
-second as "nothing here" discards somebody's character in silence because their network dropped.
-Same direction `AccountCharacters.IsFull` takes for a cap it could not ask about.
+**`DiscardedCharacter` is the missing half of the same mechanism, not a second one.** It reads the
+row back *before* the delete and can write it to the same id again, and it borrows every rule the
+session's buffer already follows:
 
-**Three mutations, each caught by exactly one of the five new tests**: the old condition put back
-(four red), asking about every row unconditionally (the empty-character control red), and unknown
-read as nothing (the unreachable-server test red). The bUnit suite went 482 → 487.
+| | session's buffer | `DiscardedCharacter` |
+|---|---|---|
+| holds | the sheet on screen | one deleted row, by id |
+| armed by | `StartAgain`, `LoadSample`, `ReplaceWithUndo` | the manager's `Delete`, for a row that is not open |
+| skipped when | `IsWorthKeeping` is false | the same predicate |
+| closes on | `Version` moving | the same |
+| offered from | the banner's `.save-status` | the same region, checked second |
 
-**Two things named in the brief for this work do not exist in this tree** and the fix does not
-assume them: there is no `s11-undo` branch, no `docs/notes/s11-undo.md`, no `UndoTests.cs`, and no
-undo behind `StartAgain` — `MainLayout`'s `.save-status` region says "Saved" and nothing else. So
-the confirmation is not a step backwards from an undo mechanism; it is the pattern this panel and
-both other destructive controls already use. An undo that could write a deleted character back
-under its own id is still available as later work, and would replace this rather than sit beside
-it.
+**They can never be armed by one click**, which is what makes one region safe for both: deleting a
+background row raises no change event, so it cannot touch the session's `Version`. The session's is
+checked first anyway — it is the one whose window closes on the very next edit, so it is the one more
+likely to be about what just happened.
+
+**Read with `ReadAsync`, never `OpenAsync`.** The latter moves the current-character pointer on its
+way past, so reading a row in order to remember it would switch the app to the character being
+discarded — and the next autosave would write the sheet on screen over the id just restored.
+
+**A refusal is reported in words, because an undo that silently did nothing is the worst outcome
+available** — the reader believes their character is back. The account cap is the refusal that
+actually happens: discard a row from a full account, build something in its place, and there is
+nowhere to put the old one. `RestoreAsync` is the only method on that store that answers whether the
+write landed; every other one is an autosave, where failure is not worth interrupting somebody over.
+
+**An offer does not survive a change of who is here.** The store picks the account or this browser
+per call from whoever is signed in *now*, so an offer left standing across a sign-out would write an
+account's character into the anonymous slot. The identity key is captured and compared rather than an
+event being listened for — the same decision `RulebookReader` made, for the same reason.
+
+**The open-row branch was covered by nothing, and could not be.** Which row is open resolves through
+`ppStore`, and bUnit's loose interop answers null to every read, so `_currentId` was always `legacy`
+and no account row ever matched it — every test in `CharacterManagerTests` exercised the not-open
+half. Planting the pointer with `JSInterop.Setup` fixes it and also closes the "open now" caveat this
+file has carried since the manager shipped. Three mutations, each caught: nothing remembered before
+the delete, a restore reporting success regardless, and the identity guard removed.
+
+**One thing recorded rather than changed.** `StartAgain` raises `Changed` *before* it fills the
+buffer, so the redraw that event triggers still sees `CanUndo` false; in the app the completed
+write-through fires `Saved` a moment later and the offer appears then. A render test has to ask for
+the second pass explicitly, which `TheSessionsOwnUndoWinsTheRegion` says in a comment rather than
+papering over.
+
 ### The pre-1.0 audit's forty-eight survivors, and the two front-end items that were left
 
 A twelve-agent adversarial audit applied **126 mutations to the three suites and 48 were not

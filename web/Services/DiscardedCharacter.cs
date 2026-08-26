@@ -103,11 +103,11 @@ public sealed class DiscardedCharacter
     /// Writes it back under the id it had. Answers false when there was nothing to put back, when
     /// whoever is here now is not who discarded it, or when the store refused.
     ///
-    /// <para><b>A refusal is reported rather than swallowed, and the account cap is why.</b> Ch.6
-    /// aside, a reader whose account was full may have discarded one row to make room and built
-    /// something in its place; putting the old one back would be the character over the cap, and
-    /// the server answers <see cref="SaveOutcome.AccountIsFull"/>. Saying so is the difference
-    /// between an undo that did not work and an undo that looks like it did.</para>
+    /// <para><b>A refusal is reported rather than swallowed, and the account cap is why.</b> A
+    /// reader whose account was full may have discarded one row to make room and built something
+    /// in its place; putting the old one back would take them over the cap, and the server answers
+    /// <see cref="SaveOutcome.AccountIsFull"/>. Saying so is the difference between an undo that
+    /// did not work and an undo that looks like it did.</para>
     ///
     /// <para>One level: the buffer is cleared either way, so a second call does nothing. There is
     /// no redo.</para>
