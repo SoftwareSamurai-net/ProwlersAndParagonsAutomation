@@ -18,23 +18,50 @@ if (args.Length < 2)
 
 var (pdfPath, outputDir) = (args[0], args[1]);
 
+// The printed page number plus this is the PDF page. Constant across the book, verified at both
+// ends: printed 13 is PDF 16 and printed 188 is PDF 191. Declared here, ahead of both diagnostic
+// modes below, because both need it too.
+const int PageOffset = 3;
+
 // `--page <printed>` prints that page's lines in the order the reader puts them, marking each
 // heading. Diagnosing a scrambled section from the finished JSON is guesswork; this is not.
 if (args is [_, _, "--page", _, ..])
 {
     using var one = PdfDocument.Open(pdfPath);
     var printedPage = int.Parse(args[3]);
-    foreach (var l in new PageReader().Read(one.GetPage(printedPage + 3)))
+    foreach (var l in new PageReader().Read(one.GetPage(printedPage + PageOffset)))
         Console.WriteLine($"{(l.IsHeading ? "H" : " ")} [{l.Baseline,6:F0} {l.Left,6:F1}-{l.Right,6:F1} sz{l.Size,5:F1}] {l.Text}");
+    return 0;
+}
+
+// `--gaps <from> <to>` prints one CSV row per non-heading line that has a known predecessor in
+// its own column-run — printed page, font size, the gap from the line above it, and the line's
+// own text — for every page in the printed range. This is how the paragraph-break threshold
+// below was chosen: run it over the whole book and look at the distribution, not by eye on one
+// page. Restricted to body-sized text because a run against a heading's own larger size would
+// mix two different leadings into one histogram.
+if (args is [_, _, "--gaps", _, _, ..])
+{
+    using var two = PdfDocument.Open(pdfPath);
+    var from = int.Parse(args[3]);
+    var to = int.Parse(args[4]);
+    Console.WriteLine("page,size,gap,text");
+    for (var printed = from; printed <= to; printed++)
+    {
+        var pdfPage = printed + PageOffset;
+        if (pdfPage < 1 || pdfPage > two.NumberOfPages) continue;
+        foreach (var l in new PageReader().Read(two.GetPage(pdfPage)))
+        {
+            if (l.IsHeading || l.LeadingGap is not double gap) continue;
+            var snippet = l.Text.Length > 30 ? l.Text[..30] : l.Text;
+            Console.WriteLine($"{printed},{l.Size:F1},{gap:F2},\"{snippet}\"");
+        }
+    }
     return 0;
 }
 
 if (!File.Exists(pdfPath)) { Console.Error.WriteLine($"no such PDF: {pdfPath}"); return 2; }
 Directory.CreateDirectory(outputDir);
-
-// The printed page number plus this is the PDF page. Constant across the book, verified at both
-// ends: printed 13 is PDF 16 and printed 188 is PDF 191.
-const int PageOffset = 3;
 
 // Printed page ranges, from the table of contents. Chapter 9's text ends on printed 188; printed
 // 189 is the blank Hero Sheet form, which is a form and not prose — extracted, it yielded
@@ -87,7 +114,7 @@ foreach (var chapter in chapters)
     // "PHASING" found the entry in pieces.
     string? heading = null;
     var headingPage = chapter.From;
-    var body = new List<string>();
+    var body = new List<PageReader.Line>();
 
     // A heading immediately followed by another heading has no body of its own, and it is almost
     // always the one that says what the thing IS: a character's code name above "villain", or a
@@ -111,7 +138,7 @@ foreach (var chapter in chapters)
 
     void Close()
     {
-        var text = Join(body);
+        var text = ParagraphJoiner.Join(body);
         if (heading is not null && text.Length > 0)
         {
             PopTo(headingSize);
@@ -131,7 +158,7 @@ foreach (var chapter in chapters)
         {
             if (line.IsHeading)
             {
-                var hadBody = Join(body).Length > 0;
+                var hadBody = ParagraphJoiner.Join(body).Length > 0;
                 Close();
 
                 // A heading that never got a body is the one that says what this IS — a
@@ -151,7 +178,7 @@ foreach (var chapter in chapters)
             else
             {
                 if (heading is null) { heading = "(opening)"; headingPage = printed; headingSize = 0; }
-                body.Add(line.Text);
+                body.Add(line);
             }
         }
     }
@@ -174,28 +201,6 @@ foreach (var chapter in chapters)
 
 Console.WriteLine($"{"total",-34}                {grandTotal,4} sections");
 return 0;
-
-// Joins the lines of one section into a paragraph. A word broken across a line ends in a hyphen
-// and is rejoined; everything else is separated by a single space.
-static string Join(List<string> lines)
-{
-    var text = "";
-
-    foreach (var raw in lines)
-    {
-        var line = raw.Trim();
-        if (line.Length == 0) continue;
-
-        if (text.Length == 0) { text = line; continue; }
-
-        if (text.EndsWith('-') && !text.EndsWith("--", StringComparison.Ordinal))
-            text = text[..^1] + line;
-        else
-            text += " " + line;
-    }
-
-    return text.Trim();
-}
 
 internal sealed record Chapter(int Number, string Title, string File, int From, int To);
 
