@@ -194,7 +194,7 @@ let builtFor = null;
  * index, silently and with entirely plausible results. It is one line either way and only one of
  * them is honest.
  */
-export function corpusIndex(chapters) {
+function corpusIndex(chapters) {
     if (builtFor !== chapters) {
         built = build(chapters);
         builtFor = chapters;

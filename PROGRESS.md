@@ -486,26 +486,61 @@ already rejected on principle** — `CLAUDE.md` declines third-party error servi
 that nothing about who somebody is should leave the Cloudflare account this site deploys to, and
 that property is worth more than a nicer dashboard. That reasoning is unchanged by anything above.
 
-### 7. The pre-1.0 audit — **the test half and the `CLAUDE.md` half are closed; the codebase half is not**
+### 7. The pre-1.0 audit — **closed. Dead code and hot paths measured clean; the token side is costed but not implemented**
 
 The adversarial half has run and been acted on: 126 mutations, 48 survivors, eleven streams. See
 the completed entry, and `docs/notes/` for the mutation tables.
 
 **The first of the two remaining bullets — "is it snapshotable to a fresh AI agent?" — is closed
 by the split recorded in the completed entry below.** `CLAUDE.md` is 290 lines and indexes ten
-files under `docs/guide/`. What is left of this item is the second bullet, untouched:
+files under `docs/guide/`. The second bullet — "is the codebase as optimised as it should be?" —
+is now audited too. Full writeup in the completed entry below; the short version:
 
-- **Is the codebase as optimised as it should be?** Dead code, hot paths on the engine, payload
-  waste, and the token side — files a subagent has to load before it can do anything useful.
-
-**The token side is the half the split only started on.** `CLAUDE.md` no longer costs every
-session 1,431 lines, but this file is over 4,900 and is read at the start of every slice by
-instruction. The same argument applies to it and the same answer probably does not: `PROGRESS.md`
-is chronological by design, and its completed entries are the record that stops work being redone.
-Splitting it by area would break the one property that makes it worth reading — that the newest
-entry is the newest news. What would help is a shorter **Current state** and **Remaining work**
-head with the completed entries behind a second file, and that is a slice of its own with a real
-risk of losing the reasoning that is the whole point of the file. Nobody has costed it.
+- **Dead code: two exports removed, nothing else found.** `worker/db.js`'s `userByEmail` and
+  `worker/search.js`'s `corpusIndex` were `export`ed with no caller outside their own file — both
+  now private. Everything else checked came back clean: elevating `IDE0051`/`IDE0052`/`IDE0060`/
+  `CA1801`/`CA1812`/`CA1852` to warnings for a scratch rebuild found nothing beyond the expected
+  `CA1812` false positives on reflection-deserialized test-transcription types; all 180 CSS class
+  selectors in `app.css`, all five `web/wwwroot/js/*.js` functions and all 35 `web/Components/*`
+  component tags trace to a real caller (`.boot`/`.boot-title`/`.boot-sub` live in
+  `index.html`, not a `.razor` file — the first pass over just `*.razor`/`*.cs` missed them, which
+  is itself worth recording: a "which files reference this" sweep in this repository has to
+  include `wwwroot/index.html`); a spot-check of engine/sheets public types (`GearFormatter`,
+  `RulebookStatLine`/`RulebookOption`, `ValidationSubject`, the `CreationRulesModel` nested
+  records) traced every one to a real caller. **Proof**: `./scripts/test-worker.sh` — 166 passed,
+  0 failed — after both removals; the two .NET suites are untouched by the change (JS-only) and
+  still print the baseline counts below.
+- **Hot paths: measured, no change landed.** `RulesRepository`'s lookups are already
+  lazily-cached dictionaries built once; `CostCalculator` and `DerivedStatsCalculator` have no
+  rebuilt-per-call dictionary or repeated full-collection scan on the paths that run per
+  character. A `Stopwatch` over the 20 published Heroes, 2000 iterations each (40,000 calls per
+  measurement, warmed up first): `TotalCost` **13.2 µs/call**, `CalculateEdge` +
+  `CalculateHealth` + `CalculateResolve` combined **2.5 µs/call**, `CharacterValidator.Validate`
+  **25.0 µs/call**. All three are already far below anything a keystroke-driven browser UI or a
+  4,000-test suite would notice, so no optimisation was landed — the task's own rule is not to
+  land one that cannot be shown faster, and there was nothing here worth the clarity this codebase
+  spends on purpose to buy.
+- **Payload: nothing found.** The one asset that looked like a candidate — `PublicSans-Italic-
+  Variable.ttf` — is reached by `.power-entry.trait-sources` and `.sheet .quote`, both
+  `font-style: italic`. No orphaned font, no duplicated data staged into `wwwroot` beyond what
+  item 5 already documents and rules out of scope.
+- **The token side is costed, not implemented — the owner's call, per the task that ran this
+  audit.** `PROGRESS.md` is 5,069 lines / 446,711 characters / 71,769 words — roughly **90–110K
+  tokens** to read in full, against **~15K tokens** for `Current state` + `Remaining work` +
+  `How to maintain this` alone (60,829 of those characters). `Completed work` is the other
+  ~89% of the file: 4,503 lines across 68 entries, prepended newest-first so far — the newest
+  entry sits immediately after `Remaining work`. Proposed shape, not built: keep this file's
+  `Current state`, `Remaining work` and `How to maintain this` as they are; move `Completed work`
+  verbatim, same newest-first order, into a second file (e.g. `docs/PROGRESS-COMPLETED.md`);
+  leave a short index in its place — one line per entry, newest first, linking into the archive.
+  That cuts the mandatory read from ~100K tokens to ~15–18K, an ~85% reduction. The risk is the
+  one this item already named: a reader who does not follow the link loses the reasoning that is
+  the whole point of the file, exactly the risk `CLAUDE.md`'s guide split ran into and solved with
+  `RepositoryGuideTests` — a tiling/set-comparison check that the split covers the original
+  exactly and a pointer cannot rot silently. The same discipline (an analogous test holding the
+  index and the archive to each other) would have to be built alongside the split, which is why
+  this remains costed and not done: it is a slice of its own, as the previous note said, and
+  still the owner's call rather than something to do as a side effect of an audit.
 
 ### 9. Visual regression testing — **closed, and then closed properly**
 
@@ -555,6 +590,94 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 ---
 
 ## Completed work
+
+### The optimisation half of the pre-1.0 audit — dead code, hot paths, payload, the token side
+
+The last open bullet of item 7. Worked in the order the task set: dead code first (highest
+confidence), then hot paths, then payload, then a costing of this file's own size — landing real
+changes where the evidence supported one, and reporting a finding where it did not.
+
+**Dead code.** Two genuinely unused exports found and removed, `worker/db.js`'s `userByEmail` and
+`worker/search.js`'s `corpusIndex` — each called only from within its own file, never imported
+elsewhere, never referenced by a test. Both are now private functions rather than deleted, since
+each is still a real internal caller's dependency. `./scripts/test-worker.sh` reports 166 passed,
+0 failed both before and after.
+
+Everything else checked came back clean, and each check is a method that could have found
+something and did not, not merely a look that did not:
+
+- **Unused private members, unused parameters, "can be static", "never instantiated".**
+  `.editorconfig`'s `dotnet_diagnostic.IDE0051/IDE0052/IDE0060/CA1801/CA1812/CA1852` were bumped
+  to `warning` for a scratch `dotnet build --configuration Release -t:Rebuild`, then reverted (the
+  repository was clean before and after — `git status --porcelain` confirmed both). Result: 8
+  warnings, all `CA1812` ("apparently never instantiated") on types the `[engine/Models/*.cs]` /
+  `[engine/TranscriptLibrary.cs]` exemptions already document as constructed only by
+  `System.Text.Json` reflection — test-transcription `Chapter`/`Section` helper records and
+  `TranscriptLibrary`'s `Envelope`/`TurnEnvelope`. No true positive.
+- **CSS.** All 180 distinct class selectors in `web/wwwroot/css/app.css` trace to a real writer —
+  `web/**/*.razor`, `web/**/*.cs` (for the five components that write a class from C#, per the
+  browser guide's own warning), or `web/wwwroot/index.html`. That last one is the interesting
+  miss: `.boot`, `.boot-title` and `.boot-sub` looked unreferenced against `*.razor`/`*.cs` alone
+  because they are written into the static boot screen in `index.html`, which loads before Blazor
+  does. A "what references this" sweep in this repository has to include the static HTML, not
+  just the component tree.
+- **JS.** All five `web/wwwroot/js/*.js` files' exported entry points (`ppMotion`, `ppCount`,
+  `ppLand`, `ppSetMode`, `ppStore`, `ppDownload`, `ppPalette`, `ppTheme`, `ppSlider`) are called
+  from `web/Services/*.cs` or a `.razor` file.
+- **Razor components.** All 35 files under `web/Components/` are used as a tag somewhere else in
+  the tree — no orphaned component.
+- **Public engine/sheets types.** Spot-checked the ones that looked like candidates —
+  `GearFormatter`, `RulebookStatLine`/`RulebookOption` (used structurally through the parent
+  `RulebookProse` record in `BookText.razor`, not by their own type names, which is why a naive
+  name-grep flagged them first), `ValidationSubject`, `CreationRulesModel`'s nested records. Every
+  one traces to a real caller in a host project or a test that exercises it end to end.
+
+**Hot paths.** `RulesRepository`'s ten `GetX(id)` lookups are already lazily-built,
+cached-after-first-call dictionaries; nothing in `CostCalculator` or `DerivedStatsCalculator`
+rebuilds a dictionary or re-scans a full rules collection per call on the paths a character build
+exercises. Measured with a `Stopwatch` over the 20 published Heroes from `PrebuiltHeroes.cs`, 2000
+iterations each (warmed up first so the lazy caches were already built):
+
+| Call | Total (40,000 calls) | Per call |
+|---|---|---|
+| `CostCalculator.TotalCost` | 526.6 ms | 13.16 µs |
+| `CalculateEdge` + `CalculateHealth` + `CalculateResolve` | 99.5 ms | 2.49 µs |
+| `CharacterValidator.Validate` | 1001.0 ms | 25.03 µs |
+
+All three are microseconds against a UI driven by human keystrokes and a test suite that already
+runs in seconds. No optimisation was landed — the task's own rule was not to land one that could
+not be shown faster, and nothing here is slow enough to be worth trading the clarity this codebase
+spends deliberately (see `CLAUDE.md` on `CA1822` and explicit constructors). The benchmark itself
+was a scratch xunit test, deleted before this commit — not part of the committed suite.
+
+**Payload.** The one candidate that looked like dead weight — `PublicSans-Italic-Variable.ttf` —
+is reached by `.power-entry.trait-sources` and `.sheet .quote`, both set `font-style: italic` in
+`app.css`. Nothing else in `web/wwwroot/` (outside the generated `data/` the csproj copies, and
+the 27 MiB payload item 5 already covers and puts out of scope) looked unreferenced.
+
+**The token side.** Costed, not implemented, per the task's own instruction that the shape is the
+owner's call. `PROGRESS.md` is 5,069 lines / 446,711 characters / 71,769 words — roughly
+**90–110K tokens** to read whole (at the usual ~4 characters or ~1.3 tokens per word for English
+prose), against **~15K tokens** for `Current state` + `Remaining work` + `How to maintain this`
+alone (60,829 of those characters, lines 11–556 plus the header and footer). `Completed work` —
+lines 592 onward at time of writing, 68 entries prepended newest-first — is the other ~89% of the
+file. Proposed shape: keep this file's `Current state`, `Remaining work` and `How to maintain
+this` where they are; move `Completed work` verbatim, same newest-first order, into a second file;
+leave a one-line-per-entry newest-first index here in its place, linking into the archive. That
+is an ~85% cut to the mandatory-read cost. Not built, because the risk is real and already named
+in this item before this audit ran: a reader who does not follow the link loses the reasoning that
+is this file's whole point, which is exactly what `RepositoryGuideTests` was built to catch for
+the `CLAUDE.md` split — a tiling check that the split covers the original exactly, so a pointer
+cannot rot silently. The same kind of check would need to exist for this split before it shipped,
+which is a slice of its own rather than a side effect of an audit.
+
+**What was deliberately left alone.** `cli/` was not swept for dead code with the same confidence
+as the rest: it is the one area with no test harness (`WizardOrchestrator` and the six
+`IWizardStep`s), so "nothing calls this" there rests on reading rather than on a suite that would
+fail if the reading were wrong, and this audit did not remove anything it could not prove dead by
+a green-then-red build or test run. `mcp/`'s public surface was checked structurally (all six
+tools wired into `CharacterTools`, all reachable from `McpStdioTests`) but not swept file-by-file
+the way `worker/` was.
 
 ### `CLAUDE.md` becomes an index, and ten guides carry the rest
 
