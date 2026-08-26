@@ -557,6 +557,40 @@ install a permanently flaky check by another route.
 The missing-golden message now points at that workflow rather than at `--update-goldens`, which off
 Linux writes back exactly the cross-renderer golden that caused this.
 
+**All seven pages are checked and all seven come back pixel-identical in CI.** Three things had to
+be found on the way, and two of them were only findable because the comparator had been tightened
+first.
+
+**The step that uploads the diff images had never uploaded anything.** `upload-artifact@v4` excludes
+dot-prefixed paths by default, the path is `.visual-regression/`, and `if-no-files-found` defaults
+to `warn` — so on every failing run it logged *"No files were found with the provided path"* and
+went green. The diff PNGs it exists to hand you have never once been reachable. Found by trying to
+use it. `include-hidden-files: true` fixes it and `if-no-files-found: error` stops the same silence
+recurring.
+
+**The rules reference had been flaky the whole time and nothing could say so.** Two CI runs, on
+commits that changed nothing that page renders, disagreed on **59.6%** of its pixels with a mean
+channel difference of 5.622 — and the diff image is unambiguous: three panel interiors solid, the
+headings outside them untouched. `.panel`'s entrance animation, caught at two different moments.
+`--virtual-time-budget` is a *wait*, and a wait is a race settled only as reliably as the page is
+fast; that is the page with the most content on the site. **At `--channel-threshold 24` most of
+those deltas did not count as differing at all**, so it read as identical while being flaky. Fixed
+by capturing with `--force-prefers-reduced-motion` rather than by guessing a longer budget: the app
+zeroes its three duration tokens under that media feature, the motion harness proves it every CI
+run, and `both` means the resting frame is the same frame either way — so the capture is the settled
+page by construction rather than by arriving late enough.
+
+**And the 32,462 pixels finally have a cause rather than a count.** Locally, six of seven pages match
+the CI-rendered goldens and `shell-villain-light` does not, in one band at (622,835)-(1166,899).
+Sampling it settles it: CI paints `--surface` (255,253,249) there and the Docker Chrome paints
+`--bg` (248,243,236), the two grounds the rest of the page already uses. The last panel's bottom
+edge lands a few pixels apart in the two renderers and on this one page it falls inside the final 65
+rows of a 900px viewport, so a sub-pixel layout difference flips a whole band from panel to ground.
+Not antialiasing, and nothing to do with the palette — which is why forcing the colour scheme never
+moved it. **Left alone deliberately**: CI is the authority and CI is green. The lever is the capture
+height, and it costs a CI round trip to judge, may only move the knife edge, and has been changed
+once and reverted already (`d0839ad`).
+
 #### Rules data that read as transcribed and was not
 
 Four areas had no transcription pinning them to the book — talents' `linked_ability`, 49 of 53 flaw

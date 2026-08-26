@@ -1,8 +1,8 @@
 # Handover
 
-**The pre-1.0 audit's test half is done, both remaining Phase 3 front-end items are built, and the
-one thing still outstanding is a CI round trip to generate four visual goldens.** Read
-[`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this file.
+**The pre-1.0 audit's test half is done, both remaining Phase 3 front-end items are built, and
+[#77](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/77) is green on both
+checks.** Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this file.
 
 A twelve-agent adversarial audit had applied **126 mutations to the three suites and 48 were not
 caught**. Eleven streams closed them, worked in isolated git worktrees and merged one at a time onto
@@ -55,33 +55,42 @@ All ten chapters came back byte-identical, which is what verifies the `PageReade
 
 ---
 
-## The one thing that is not finished
+## The visual check, which is where most of the surprises were
 
-**Four visual goldens need generating in CI, and until they are, the visual-regression step fails.**
+**All seven pages are checked again and all seven come back pixel-identical in CI.** The goldens are
+CI-rendered and committed. Three things had to be found on the way, and two were only findable
+because the comparator had been tightened first — which is the argument for tightening it.
 
-That failure is deliberate and is the design: a missing golden must stop the build, not pass it.
+- **The step that uploads the diff images had never uploaded anything.** `upload-artifact@v4`
+  excludes dot-prefixed paths by default, the path is `.visual-regression/`, and
+  `if-no-files-found` defaults to `warn`. Every failing run logged *"No files were found with the
+  provided path"* and went green. Found by trying to use it.
+- **The rules reference was flaky the whole time.** Two runs on commits that changed nothing it
+  renders disagreed on 59.6% of its pixels — `.panel`'s entrance animation caught mid-flight, which
+  `--virtual-time-budget` cannot prevent because a wait is a race. Captures now force
+  `prefers-reduced-motion`, so the frame is settled by construction.
+- **The historic 32,462-pixel disagreement has a cause.** CI paints `--surface` in a band at the
+  bottom of `shell-villain-light` where the Docker Chrome paints `--bg`: the last panel's bottom
+  edge lands a few pixels apart and on that page it falls inside the final 65 rows of the viewport.
+  Not antialiasing, nothing to do with the palette. Left alone — CI is the authority and CI is
+  green; the lever is the capture height and it costs a CI round trip to judge.
 
-The four `proof-shell-*` palette captures had been dropped because a golden written by a developer
-machine's digest-pinned Docker Chrome could not agree with CI's own Chrome — `shell-villain-light`
-disagreed by exactly **32,462 pixels** across repeated CI runs while the pages beside it came back
-identical. The script recorded that as *"a retreat rather than a decision"* and named the fix.
+**A local run therefore fails on `shell-villain-light` and only that page.** That is expected and
+recorded in the script. Do not "fix" it with `--update-goldens`, which writes back the developer
+machine's renderer and undoes the whole thing.
 
-The fix is in: `.github/workflows/visual-goldens.yml`, `workflow_dispatch` only, generating on
-`ubuntu-latest` from the Chrome that compares them, uploading an artifact rather than committing.
-The four pages are back in the manifest. What is left is to run it and commit what it produces:
+**To regenerate goldens deliberately**, once this is on `master`:
 
 ```bash
 gh workflow run visual-goldens.yml --ref <branch>
 gh run download <run-id> --name visual-goldens --dir tests/visual-goldens
 ```
 
-**A `workflow_dispatch` workflow cannot be dispatched until it exists on the default branch** — that
-is a GitHub rule, not a repository one. Until this merges, the same PNGs come out of the ordinary
-build: the visual step fails on the missing goldens, and the existing "Upload visual-regression
-diffs" step uploads `.visual-regression/`, whose `actual/` directory holds all seven pages rendered
-by CI's own Chrome. Those files *are* the goldens.
+**A `workflow_dispatch` workflow cannot be dispatched until it exists on the default branch** — a
+GitHub rule, not a repository one. Before then the same PNGs come out of the ordinary build's
+`visual-regression-diffs` artifact, whose `actual/` holds every page as CI rendered it.
 
-Look at them before committing them. They are real images and this is the one check in the
+Look at them before committing them. They are real images, and this is the one check in the
 repository whose whole subject is what something looks like.
 
 ---
