@@ -58,6 +58,27 @@
 # `--screenshot` fires before that finishes and captures a washed-out page — which has already
 # been misdiagnosed once in this repository as a palette fault. Every screenshot below waits
 # 5000ms of virtual time, comfortably past the animation, before Chrome is asked for a frame.
+#
+# ------------------------------------------------------------------------------------------------
+# AND --force-prefers-reduced-motion, BECAUSE 5000ms OF VIRTUAL TIME TURNED OUT NOT TO BE ENOUGH.
+#
+# The budget above is a *wait* and a wait is a race, so it settles an animation only as reliably as
+# the page is fast. It was not enough for `rules-reference`, the page with the most content: two CI
+# runs on commits that changed nothing that page renders disagreed on **59.6% of its pixels**, mean
+# channel difference 5.622 — and the diff image is unambiguous, three panel interiors solid and the
+# headings outside them untouched. That is `.panel`'s entrance caught at two different moments.
+#
+# **The old tolerance was hiding it.** At `--channel-threshold 24` most of those per-pixel deltas
+# did not count as differing at all, so the page read as identical while being flaky; tightening
+# the comparator is what surfaced it. A page that is flaky under a strict comparator was always
+# flaky — it just had nothing able to say so.
+#
+# So a golden is captured with motion **off** rather than with a longer guess. The app honours
+# `prefers-reduced-motion` by setting its three duration tokens to `0.01ms`, which the motion
+# harness proves on every CI run, and `both` on the animation means the resting frame is the same
+# frame either way. The capture is therefore the settled page by construction rather than by
+# arriving late enough — which is what a golden should have been all along. The budget stays,
+# because it also covers font loading and layout, and belt-and-braces costs nothing here.
 
 set -euo pipefail
 
@@ -161,7 +182,7 @@ run_chrome() {
     local profile; profile="$(mktemp -d)"
     "$native_chrome" \
       --headless=new --no-sandbox --disable-gpu --allow-file-access-from-files \
-      --hide-scrollbars --user-data-dir="$profile" --virtual-time-budget=5000 \
+      --hide-scrollbars --user-data-dir="$profile" --virtual-time-budget=5000 --force-prefers-reduced-motion \
       --window-size="${width},${height}" --screenshot="$out_host" $extra_flags \
       "file://$wwwroot/$page" >/dev/null 2>&1 || true
     rm -rf "$profile"
@@ -192,7 +213,7 @@ run_chrome() {
       "$docker_chrome_image" \
       --headless=new --no-sandbox --disable-gpu --allow-file-access-from-files \
       --hide-scrollbars --user-data-dir="/tmp/pp-chrome-profile-${attempt}" \
-      --virtual-time-budget=5000 \
+      --virtual-time-budget=5000 --force-prefers-reduced-motion \
       --window-size="${width},${height}" --screenshot="/data/${out_name}" $extra_flags \
       "file:///data/${page}" >/dev/null 2>&1 || true
 
