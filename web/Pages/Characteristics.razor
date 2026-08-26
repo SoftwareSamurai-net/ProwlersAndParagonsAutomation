@@ -117,6 +117,14 @@ else
     private void Asked()
     {
         if (Commands.RequestedPowerId is not null) _tab = "powers";
+
+        // A section named by a finding on the GM review step. Taken rather than peeked — this is
+        // its only consumer, and a request left set would drag the reader back to this tab on
+        // every later re-render. It is read second so a Power request still wins: the two arrive
+        // together for a Power's own finding, and the Power is the more specific of the two.
+        if (Commands.TakeRequestedSection() is { } section && Commands.RequestedPowerId is null)
+            _tab = section;
+
         StateHasChanged();
     }
 

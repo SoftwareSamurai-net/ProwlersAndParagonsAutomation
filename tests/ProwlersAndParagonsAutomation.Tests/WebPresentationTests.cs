@@ -4425,6 +4425,17 @@ public sealed class WebPresentationTests
             ("--danger",     "--panel",       4.5),
             ("--on-primary", "--primary",     4.5),
             ("--focus",      "--surface",     3.0),   // WCAG 1.4.11, not 1.4.3
+
+            // The two tinted grounds `.issues li` uses, which were carrying the validator's
+            // messages unmeasured. They are in the list now because the GM review step's
+            // findings gained a link to the step that caused each one, and a link on a ground
+            // nobody had measured is the shape this file already records going wrong twice
+            // (--heading on --accent-soft at 4.08:1, --danger on --danger-soft at 3.94:1 — both
+            // live, both hover states, both found by re-measuring rather than by looking).
+            // That is also why the link is --ink rather than the app's usual --heading: it is
+            // the ink already on these grounds, so it adds no pair that is not asserted here.
+            ("--ink",        "--danger-soft", 4.5),
+            ("--ink",        "--accent-soft", 4.5),
         ];
 
         foreach (var (fg, bg, floor) in pairs)

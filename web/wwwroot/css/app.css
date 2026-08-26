@@ -1082,6 +1082,24 @@ label {
 .issues li.error { border-left-color: var(--danger); background: var(--danger-soft); }
 .issues li.warning { border-left-color: var(--accent); background: var(--accent-soft); }
 
+/* The step a finding belongs to, on the GM review list.
+
+   **`--ink`, not the `--heading` every other link on the site uses.** These two rows are the
+   only tinted grounds in the app, and `--heading` on `--accent-soft` measures 4.08:1 — under
+   the 4.5:1 words need, and already recorded twice in this file's own history as the mistake
+   made on hover states. `--ink` is the ink already carrying the message beside it, so the link
+   introduces no pair that is not asserted by `EveryScreenPairInUseHoldsItsContrastFloor`, which
+   gained both grounds when this shipped. Measured 11.2:1 to 14.4:1 across the four palettes.
+
+   Underlined rather than coloured apart, for the same reason: colour alone is not an available
+   distinction here, and WCAG 1.4.1 wants one that is not. */
+.issues a.finding-step {
+    color: var(--ink);
+    margin-left: var(--space-2);
+    white-space: nowrap;
+    text-underline-offset: var(--space-0);
+}
+
 .verdict {
     font-family: var(--font-display);
     font-weight: 700;
