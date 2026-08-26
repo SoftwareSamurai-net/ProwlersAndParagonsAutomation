@@ -681,12 +681,12 @@ public sealed class ValidationIssueStructureTests
     public void ANegativeTalentRankIsRefused()
     {
         var sheet = Legal();
-        sheet.TalentRanks["athletics"] = -3;
+        sheet.TalentRanks["academics"] = -3;
 
         var issue = Issue(sheet, "NEGATIVE_RANK");
 
         Assert.Equal(ValidationSubject.Talent, issue.SubjectKind);
-        Assert.Equal("athletics", issue.SubjectId);
+        Assert.Equal("academics", issue.SubjectId);
         Assert.Equal(-3, issue.Value);
         Assert.False(_f.Validator.Validate(sheet).IsValid);
     }
