@@ -9,6 +9,21 @@
 # give up most of what the policy is for. So the hash is taken from the index.html that
 # was actually published.
 #
+# static.cloudflareinsights.com is the one host in script-src that is not this origin, and
+# it is there because the edge injects the Web Analytics beacon into the HTML *after* this
+# script has hashed it — so no hash here could ever cover it. connect-src is deliberately
+# left at 'self': with automatic setup on a proxied domain the beacon reports to this site's
+# own /cdn-cgi/rum, not to cloudflareinsights.com. Widening it would allow an exfiltration
+# destination for nothing. This is a host, not 'unsafe-inline', which script-src must never
+# gain.
+#
+# The other thing the edge injects — Cloudflare's Precursor bot script — is deliberately
+# *not* accommodated and is blocked in the browser console. Its inline body carries a
+# per-request token, so its hash differs on every response; Cloudflare's own answer is a CSP
+# nonce, which a static _headers file cannot mint. Turn Precursor off in the dashboard rather
+# than reaching for 'unsafe-inline' here, which would be inert anyway: with a hash present,
+# browsers ignore it.
+#
 # One implementation, run by the deploy workflow and by anyone checking the policy
 # locally — a second copy is somewhere for the two to disagree.
 #
@@ -83,7 +98,7 @@ cat > "$root/_headers" <<HEADERS
 # change whenever the framework assets are re-fingerprinted.
 
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'${hashes} 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; script-src 'self'${hashes} 'wasm-unsafe-eval' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   Cross-Origin-Opener-Policy: same-origin

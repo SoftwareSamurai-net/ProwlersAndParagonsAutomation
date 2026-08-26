@@ -457,6 +457,43 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 
 ## Completed work
 
+### Two scripts Cloudflare injects at the edge, one allowed and one deliberately not
+
+Reported from the live site's console, not by a test: `static.cloudflareinsights.com/beacon.min.js`
+refused, and an inline script on `/build` refused with a hash the policy does not carry.
+
+**Neither could ever have been covered by a hash.** `scripts/write-cloudflare-headers.sh` hashes the
+inline scripts of the `index.html` that was actually published — and both of these are injected by
+the edge *afterwards*, into the response. The generator was working exactly as designed; there was
+nothing wrong with the import-map hash, which still matched.
+
+**The Web Analytics beacon is now allowed by host** — `https://static.cloudflareinsights.com` in
+`script-src`. `connect-src` deliberately stays `'self'`: with automatic setup on a proxied domain the
+beacon reports to this site's own `/cdn-cgi/rum` rather than to `cloudflareinsights.com`, so widening
+it would have added an exfiltration destination in exchange for nothing.
+
+**Cloudflare's Precursor bot script is left blocked, and that is the part worth remembering.** Its
+inline body carries a per-request token, so its hash differs on every single response — two loads of
+`/build` gave `sha256-kqhq0c…` and `sha256-C8a1Bx…`, which is what proves no generated hash can ever
+catch up with it. Cloudflare's own answer is a CSP **nonce**, which it propagates into the tags it
+injects by parsing the response header; a static `_headers` file cannot mint one per request, so that
+route is closed here. And `'unsafe-inline'` is not the escape hatch it looks like: with a hash present
+browsers ignore `'unsafe-inline'` entirely, so it would do nothing at all unless the import-map hash
+were deleted alongside it — which is the whole policy.
+
+**So one console error is still there, and closing it is a dashboard setting rather than repository
+work**: Security → Settings → Precursor. Check Bot Fight Mode beside it, which force-enables
+JavaScript Detections and injects the same way, and which the documentation says cannot then be
+turned off separately.
+
+Nothing was broken by either refusal — Blazor booted and the app rendered throughout. What was lost
+was the analytics beacon and the precursor bot signal.
+
+Verified by publishing the web project and running the generator against the real output, then
+matching the emitted host-source against the origin of the blocked URL. `_headers` is generated and
+not tracked, so there was no fixture to update; the policy is only genuinely exercised on the deploy.
+[PR #80](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/80)
+
 ### The copy answered questions nobody asked
 
 The owner read the app and said so: *"so much commentary on EVERY button click and EVERY step. Just
