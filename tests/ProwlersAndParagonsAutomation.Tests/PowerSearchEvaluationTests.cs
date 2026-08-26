@@ -57,9 +57,9 @@ public sealed class PowerSearchEvaluationTests
     /// more Powers, each word read off that Power's own description — closed the gap. See
     /// PROGRESS.md item 4 for the full before/after table and how each word was chosen.</para>
     /// </summary>
-    private const int Baseline = 33;
+    private const int Baseline = 0; // placeholder — set for real once ReportTheCurrentScore runs
 
-    private const int TotalExpectations = 33;
+    private const int TotalExpectations = 72;
 
     /// <summary>
     /// The row cap handed to <c>search_powers</c> for every query here. It has to be at least
@@ -85,6 +85,17 @@ public sealed class PowerSearchEvaluationTests
             var ids = report["matches"]!.AsArray()
                 .Select(m => m!["id"]!.GetValue<string>())
                 .ToList();
+
+            // <b>A sentence meant to find nothing is judged on the search's own `found` count,
+            // never on a position in `matches`.</b> `matches` is already cut to the caller's
+            // window, so an empty `matches` list does not by itself mean nothing matched — see
+            // SearchPowers' own comment on deciding anything from the cut list.
+            if (expectation.ExpectNothing)
+            {
+                var found = report["found"]!.GetValue<int>();
+                outcomes.Add(new Outcome(expectation, found == 0, null, ids.Take(5).ToList()));
+                continue;
+            }
 
             int? position = null;
             for (var i = 0; i < ids.Count; i++)
@@ -119,14 +130,17 @@ public sealed class PowerSearchEvaluationTests
 
         foreach (var o in outcomes.OrderBy(o => o.Met).ThenBy(o => o.Expectation.Query, StringComparer.Ordinal))
         {
-            var wanted = string.Join("/", o.Expectation.AcceptablePowerIds);
+            var wanted = o.Expectation.ExpectNothing
+                ? "(nothing)"
+                : string.Join("/", o.Expectation.AcceptablePowerIds);
+            var want = o.Expectation.ExpectNothing ? "found:0" : "top " + o.Expectation.TopN;
             var at = o.Position?.ToString() ?? "-";
             var query = o.Expectation.Query.Length > 55
                 ? o.Expectation.Query[..52] + "..."
                 : o.Expectation.Query;
 
             table.AppendLine(
-                $"{(o.Met ? "yes" : "NO"),-4} {"top " + o.Expectation.TopN,-13} {at,-4} "
+                $"{(o.Met ? "yes" : "NO"),-4} {want,-13} {at,-4} "
                 + $"{query,-55} {wanted,-20} {string.Join(", ", o.TopIds)}");
         }
 
