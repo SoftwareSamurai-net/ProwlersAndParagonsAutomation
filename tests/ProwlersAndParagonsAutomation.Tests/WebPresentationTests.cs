@@ -1124,6 +1124,59 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// The shell spaces its own direct children with <c>gap</c>, not by leaning on
+    /// <c>.panel</c>'s trailing margin — closing the item recorded in
+    /// <c>docs/HANDOVER.md</c>'s "Still open from before" list.
+    ///
+    /// <para><b>The bug this replaces: any non-panel child of the shell got no spacing at
+    /// all.</b> <c>.panel</c> carried <c>margin-bottom: var(--space-5)</c>, so a column of
+    /// panels was evenly spaced by accident of one of them always coming first — and the tier
+    /// cards grid, the one non-panel child the app had, sat flush against the panel below it
+    /// until it grew a margin-bottom of its own to match. <c>gap</c> spaces every kind of
+    /// child alike, which is why <c>.shell</c> now sets one.</para>
+    ///
+    /// <para><b>A `gap` and a surviving margin would add rather than replace</b>, since flex
+    /// items do not collapse margins with each other the way block siblings do — so this also
+    /// requires the cancellation that stops every direct child's own trailing margin from
+    /// doubling the new gap. <c>.shell &gt; *</c> is asserted by exact selector, the same
+    /// "does this rule still say this" standard <see cref="EffectiveValue"/>'s own doc comment
+    /// asks for, because a suffix match here would be satisfied by a rule that reaches nothing
+    /// in the app.</para>
+    ///
+    /// <para><b>What this does not do, and must not:</b> remove <c>.panel</c>'s own
+    /// margin-bottom. It is relied on everywhere a panel is nested more than one level under a
+    /// routed page — inside <c>.editing</c> on the characteristics step, inside a tab, inside
+    /// a dialog — none of which is a direct child of the shell and none of which gets a
+    /// <c>gap</c> from it. Deleting the rule globally rather than cancelling it locally would
+    /// collapse every one of those onto its neighbour.</para>
+    /// </summary>
+    [Fact]
+    public void TheShellSpacesItsOwnChildrenWithGapNotWithAMargin()
+    {
+        var css = ScreenHalfOfAppCss;
+
+        Assert.Equal("flex", EffectiveValue(css, ".shell", "display", exact: true));
+        Assert.Equal("column", EffectiveValue(css, ".shell", "flex-direction", exact: true));
+        Assert.Equal("var(--space-5)", EffectiveValue(css, ".shell", "gap", exact: true));
+
+        // The cancellation. Without it a `.panel` following a `.panel` — the ordinary case on
+        // most steps — would carry its own `margin-bottom` *and* the shell's `gap`, stacked
+        // rather than replaced, because flex items do not collapse margins with each other.
+        Assert.Equal("0", EffectiveValue(css, ".shell > *", "margin-top", exact: true));
+        Assert.Equal("0", EffectiveValue(css, ".shell > *", "margin-bottom", exact: true));
+
+        // `.panel`'s own margin-bottom is untouched — it still does real work for every panel
+        // that is not a direct child of the shell. Only the shell's own children have it
+        // cancelled, by the rule above.
+        Assert.Equal("var(--space-5)", EffectiveValue(css, ".panel", "margin-bottom", exact: true));
+
+        // `.nav-buttons` keeps its own, wider, `margin-top` too — the divider before Back and
+        // Continue asks for more separation than an ordinary gap, and the shell's cancellation
+        // is what stops that intent from being doubled rather than what deletes it.
+        Assert.Equal("var(--space-6)", EffectiveValue(css, ".nav-buttons", "margin-top", exact: true));
+    }
+
+    /// <summary>
     /// Every <c>@media</c> block, as its condition and its body, found by <b>matching braces</b>
     /// rather than by pattern.
     ///
