@@ -104,10 +104,16 @@ repository whose whole subject is what something looks like.
    were each given the two or three `CLAUDE.md` sections their task depended on rather than the
    whole file, and none went wrong for want of the rest — weak because the sections were chosen by
    somebody who had read all of it.
-2. **`search_powers` vocabulary, not scoring.** The scorer is at 25 of 33 with a ratchet. The two
-   cases `PROGRESS.md` item 4 names by hand are now known to be unreachable by *any* word-matching
-   change — Phasing's description says "solid matter" and never "walls", Blast's says "a damaging
-   ranged attack" and nothing about fire. That is a data slice with a different shape.
+2. **`search_powers` vocabulary — closed.** `PROGRESS.md` item 4 is now at 33 of 33, up from 25,
+   by giving 67 of the 141 Powers a wider `tags` field (the same field the browser already reads
+   as `OptionRow`'s `Keywords`) rather than by touching the scorer, which is unchanged. The two
+   cases item 4 names by hand — Phasing for "walks through walls", Blast for "he shoots fire from
+   his hands" — are both met and separately pinned against regression by
+   `PhasingAndBlastAreFoundByTheirOwnVocabularyNotByTheScorer`. What is *not* claimed: the scorer
+   still ties description-only matches at a flat 2 points regardless of distinctiveness, so a
+   query outside this labelled set, about a Power nobody has written vocabulary for yet, can still
+   land behind a wall of coincidences the way it always could — this slice widened the haystack
+   the 33 examples showed was missing words, it did not change how ties are broken.
 3. **The four published Heroes 1 HP out.** Every cheap explanation is spent.
 4. **Discarding a non-current saved character** still uses a confirm; undoing it is a
    restore-into-store rather than the sheet buffer, so it was left rather than folded in.

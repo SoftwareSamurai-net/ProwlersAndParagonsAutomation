@@ -97,6 +97,22 @@ public record PowerModel
     /// <summary>Cons printed inside this Power's own rulebook entry.</summary>
     public IReadOnlyList<PowerProConModel> PowerCons { get; init; } = [];
 
+    /// <summary>
+    /// Words this Power can be <em>found</em> by, that its <see cref="Description"/> does not
+    /// necessarily print — a searchable vocabulary, not a category label. Two hosts read it:
+    /// the browser passes it to <c>OptionRow</c> as <c>Keywords</c> so the Powers tab's filter
+    /// box can match on a word the printed description never uses, and the MCP server's
+    /// <c>search_powers</c> weights a tag match at 6 points, between a name/id match and a
+    /// category match — see <c>CharacterTools.Score</c>.
+    ///
+    /// <para><b>Not a mechanical field, and not claimed as one.</b> It is absent from
+    /// <see cref="VerifiedFields"/>'s closed set (range, rank_type, cost, prerequisite,
+    /// description, pros_cons) because no cost, rank or validity ever reads it — the same
+    /// reasoning CLAUDE.md records for <c>linked_ability</c> on a Talent. Every word here is
+    /// chosen by reading this Power's own printed entry and asking what a player would call the
+    /// effect, not transcribed from the rulebook, so it carries no <see cref="SourceRef"/>
+    /// citation and is not something a rules audit re-verifies against a page.</para>
+    /// </summary>
     public IReadOnlyList<string> Tags { get; init; } = [];
 
     /// <summary>
