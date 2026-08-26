@@ -121,6 +121,19 @@ jobs:
         # **Assert on the positive.** A harness whose script never ran leaves its resting text
         # in place, which is neither verdict — so grepping for FAIL and finding none would call
         # a broken harness green. Each page must *say* PASS.
+        #
+        # **A verdict is not proof the harness can fail, and one was hard-coded past
+        # `ProofPages.MustNotShow` to check.** `|| true` appended to the sticky
+        # harness's verdict, and to the motion harness's `checks.every(...)`, reported PASS
+        # against a genuinely broken sticky strip and against the exact reduced-motion
+        # inversion the motion harness exists to catch — `MustNotShow` stayed green throughout,
+        # because `|| true` is not the banned literal `say(true`. See docs/notes/s4-harness.md.
+        # So every harness below that can be given an honest negative control is: alongside the
+        # real page, ProofPages.cs also writes a *twin* that reproduces one documented defect —
+        # the same harness script, driving a shell or a shipped file with that one defect
+        # injected — and this step requires the real page to say PASS **and its twin to say
+        # FAIL**, in the same run. A harness reporting PASS on both proves nothing about the
+        # thing it claims to measure, and that is now a failure here rather than a silence.
         run: |
           set -euo pipefail
 
@@ -136,16 +149,24 @@ jobs:
           # page:expected-verdict:extra-chrome-flags
           checks="
           proof-sticky.html:STICKY: PASS:
+          proof-sticky-broken.html:STICKY: FAIL:
           proof-narrow.html:NARROW: PASS:
           proof-narrow-shell.html:NARROW: PASS:
           proof-narrow-front.html:NARROW: PASS:
           proof-narrow-rules.html:NARROW: PASS:
+          proof-narrow-broken.html:NARROW: FAIL:
           proof-measure.html:INSETS: PASS:
+          proof-measure-broken.html:INSETS: FAIL:
           proof-motion.html:MOTION: PASS:
           proof-motion.html:MOTION: PASS:--force-prefers-reduced-motion
+          proof-motion-broken.html:MOTION: FAIL:
+          proof-motion-broken.html:MOTION: FAIL:--force-prefers-reduced-motion
           proof-shortcut.html:SHORTCUT: PASS:
+          proof-shortcut-broken.html:SHORTCUT: FAIL:
           proof-theme.html:THEME: PASS:
+          proof-theme-broken.html:THEME: FAIL:
           proof-slider.html:SLIDER: PASS:
+          proof-slider-broken.html:SLIDER: FAIL:
           "
 
           while IFS= read -r line; do
