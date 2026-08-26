@@ -542,12 +542,55 @@ regrows and the split has bought a year rather than a fix. 400 lines, with headr
 actually produced — a budget that fails on the next honest sentence teaches people to raise the
 budget, which is the one outcome that makes it worthless. It is there to catch a *section*.
 
-**What this does not close.** The evidence that the pointer shape is right is still the weak data
-point item 7 recorded — eleven agents given two or three sections each, none going wrong for want
-of the rest, weak because somebody who had read the whole file chose the sections. **The honest
-test is a fresh session that has to find a rule it was not handed**, and that is a thing to watch
-for over the next few slices rather than something this one can assert. If an agent breaks a rule
-that is now in a guide, the routing table is the suspect, not the reader.
+**The evidence item 7 recorded was weak, and it has been replaced rather than repeated.** That was
+eleven agents given two or three sections each, none going wrong for want of the rest — weak
+because somebody who had read the whole file chose the sections. The honest test is a fresh session
+that has to find a rule it was not handed, and it was run. If an agent later breaks a rule that is
+now in a guide, the routing table is the suspect before the reader is.
+
+**The measurement, and it does not say what the split's author hoped.** Four fresh no-context
+agents were each given a task that is a trap for a rule that had just moved into a guide — a panel
+border (raw lengths, no colours), crediting the Item Con (forbidden outright), a `title`-attribute
+tooltip (banned by name), and an MCP log line (breaks the JSON-RPC stream). **All four routed
+correctly**, each quoting the routing table as the thing that sent it, and each found the rule that
+made its task wrong. One went further than asked and reported that half its task — an MCP startup
+banner — already existed.
+
+**Then the control arm was run, and it is the useful half.** The same tooltip task, against a
+checkout of this same tree with every mention of `docs/guide/` stripped out of `CLAUDE.md` — the
+guides still on disk, nothing naming them. **It found both load-bearing rules anyway.** So the
+routing table is not what makes the rules findable, and any claim that it is would be false.
+
+What it changed is the cost and the confidence:
+
+| | routed | control |
+|---|---|---|
+| files read | 5–9 | 17 |
+| tool calls | 12–19 | 48 |
+| found the guide at | step 2 | step 13, by accident |
+| its own verdict | quoted the table | *"Nothing told me to look at `docs/`… Everything else was hunting"* |
+
+The control reached `docs/guide/browser.md` only after a code comment had already told it the
+answer, and it closed with *"I am **not** confident I found everything."* The routed agents did not
+say that. **What actually saved the control was this repository's redundancy, not its own
+searching** — it said so itself: both rules are *"stated in at least three independent places each
+(code comment, prose doc, and a named regression test), which is this repo's pattern for anything
+it considers settled."*
+
+So the honest finding is narrower than the hypothesis and worth more than it: **the guides are
+findable without the table; the table makes finding them cheap and makes the reader confident they
+are done.** Triple-stating a settled rule is doing more work than either.
+
+**And the control found a real defect while it was hunting**, which is the strongest argument for
+the exercise. `RowDescriptionTests.ARowThatAlreadyPrintsItsDescriptionHasNoTip` asserts no Perks or
+Flaws row carries a tip, and its doc comment claims a rule about *"the row's own caveat"* — but the
+fixture set the tier and nothing else, so both tabs rendered an **empty chosen list** and the
+assertion only ever reached the pickable `OptionRow`s. Demonstrated rather than argued: wrapping a
+chosen Perk's name in `<Term>` — a tip on every chosen row — left the old fixture **green**, and
+fails the tightened one on `Assert.Empty() Failure: Collection was not empty`. It now chooses a
+Perk and a Flaw and carries a positive control that the chosen rows actually rendered, without
+which every assertion is satisfied by a list that drew nothing. That is the same fault this file
+records in four other spellings, found by an agent that was not looking for it.
 
 ### The shell spaces its own children with `gap`, closing the last item in "Still open from before"
 
