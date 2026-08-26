@@ -720,30 +720,38 @@ public sealed class ReplayRenderTests
 
     /// <summary>
     /// The same bargain the tier page strikes over its samples: the character is kept in this
-    /// browser between visits, so opening a recorded one over it destroys work written down
-    /// nowhere else. It asks first, and until it is answered nothing has moved.
+    /// browser between visits, so opening a recorded one over it can overwrite work written
+    /// down nowhere else. It used to ask first and wait to be answered; now it acts at once and
+    /// leaves the banner able to bring the old one back — see <c>UndoTests</c> for the
+    /// mechanism, and <see cref="CharacterSession.ReplaceWithUndo"/> for why this is the one
+    /// page that also has to navigate away from itself in the same click.
     /// </summary>
     [Fact]
-    public void OpeningARecordedCharacterOverOneInProgressAsksFirst()
+    public void OpeningARecordedCharacterOverOneInProgressReplacesAtOnceAndCanBeUndone()
     {
         using var ctx = new RenderContext().AsAdministrator().With(SheetMode.Hero);
         var before = ctx.Session.Sheet.Name;
+        var beforePowers = ctx.Session.Sheet.SelectedPowers.Count;
 
         var page = Play(ctx, Cheap);
         ShowAll(page);
         Button(page, "Open ").Click();
 
+        Assert.NotEqual(before, ctx.Session.Sheet.Name);
+        Assert.DoesNotContain("Keep what I have", Text(page), StringComparison.Ordinal);
+
+        Assert.True(ctx.Session.CanUndo);
+        ctx.Session.Undo();
         Assert.Equal(before, ctx.Session.Sheet.Name);
-        Assert.Contains("Keep what I have", Text(page), StringComparison.Ordinal);
+        Assert.Equal(beforePowers, ctx.Session.Sheet.SelectedPowers.Count);
     }
 
     /// <summary>
-    /// And on an untouched sheet there is nothing to ask about, so it opens on one click — the
-    /// visit where somebody is most likely to want a recorded character and least likely to
-    /// have anything at stake.
+    /// And on an untouched sheet there is nothing worth buffering, so opening one arms no undo
+    /// — there was nothing at stake to bring back.
     /// </summary>
     [Fact]
-    public void OnAnEmptySheetTheRecordedCharacterOpensOnOneClick()
+    public void OnAnEmptySheetTheRecordedCharacterOpensAndArmsNoUndo()
     {
         using var ctx = new RenderContext().AsAdministrator();
         var page = Play(ctx, Cheap);
@@ -754,6 +762,7 @@ public sealed class ReplayRenderTests
         var recorded = Conversation(ctx, Cheap).FinalCharacter!;
         Assert.Equal(recorded.Name, ctx.Session.Sheet.Name);
         Assert.Equal(recorded.SelectedPowers.Count, ctx.Session.Sheet.SelectedPowers.Count);
+        Assert.False(ctx.Session.CanUndo);
     }
 
     /// <summary>
