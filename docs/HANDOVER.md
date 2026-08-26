@@ -69,15 +69,16 @@ because the comparator had been tightened first — which is the argument for ti
   renders disagreed on 59.6% of its pixels — `.panel`'s entrance animation caught mid-flight, which
   `--virtual-time-budget` cannot prevent because a wait is a race. Captures now force
   `prefers-reduced-motion`, so the frame is settled by construction.
-- **The historic 32,462-pixel disagreement has a cause.** CI paints `--surface` in a band at the
-  bottom of `shell-villain-light` where the Docker Chrome paints `--bg`: the last panel's bottom
-  edge lands a few pixels apart and on that page it falls inside the final 65 rows of the viewport.
-  Not antialiasing, nothing to do with the palette. Left alone — CI is the authority and CI is
-  green; the lever is the capture height and it costs a CI round trip to judge.
+- **The historic 32,462-pixel disagreement was never a renderer difference.** It was the same
+  entrance animation, and the first diagnosis written for it here was wrong — the band where CI
+  painted `--surface` and Docker painted `--bg` is the painted and unpainted state of one panel,
+  not two renderers disagreeing about layout. `animation: none` under reduced motion closed it:
+  the Docker Chrome and the runner's Chrome now produce **byte-for-byte identical PNGs for all
+  seven pages**. The Windows-versus-Linux rule is untouched and still absolute; the
+  Linux-versus-Linux gap is gone because it was never a gap.
 
-**A local run therefore fails on `shell-villain-light` and only that page.** That is expected and
-recorded in the script. Do not "fix" it with `--update-goldens`, which writes back the developer
-machine's renderer and undoes the whole thing.
+**A local run now passes all seven.** Still do not use `--update-goldens` off Linux — the
+Windows/Linux rasteriser difference is real and unrelated.
 
 **To regenerate goldens deliberately**, once this is on `master`:
 
