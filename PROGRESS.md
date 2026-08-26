@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4745 across **four** suites — 4015 on the engine (26 added this slice: 15 on the extractor's paragraph joiner and the page reader that feeds it, 5 holding `CLAUDE.md` and the guide set to each other, 4 pinning that no other starting package lands any of the four unclosed Ch.8 Heroes on exactly 125 — see item 1 — 1 on the Powers search vocabulary and 1 on the shell's spacing), 550 rendering components with bUnit (1 added this slice, sweeping every surface for a dangling ARIA reference), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4755 across **four** suites — 4015 on the engine (26 added this slice: 15 on the extractor's paragraph joiner and the page reader that feeds it, 5 holding `CLAUDE.md` and the guide set to each other, 4 pinning that no other starting package lands any of the four unclosed Ch.8 Heroes on exactly 125 — see item 1 — 1 on the Powers search vocabulary and 1 on the shell's spacing), 560 rendering components with bUnit (11 added since: an ARIA-reference sweep over twelve surfaces, and ten on the GM review step's route back to the step a finding came from), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -278,7 +278,39 @@ Found by an adversarial audit during the sheet-polish slice; real, and out of sc
 
 **A printed page in the middle of a sheet is anonymous.** Much less pressing now the sheet is one page for an ordinary character, but a Powers-heavy one still runs over. The name is on page one and in a colophon on the last; every page between them relies on the browser's own print header, which the user can switch off — and unticking it is exactly what the review step now tells them to do, because that header is also where the web address comes from. CSS has no portable answer: `position: fixed` renders once at the top of page two in Chrome, and Chrome supports neither `@page` margin boxes nor `counter(page)`. The only mechanism that genuinely repeats per page is a table `<thead>`, which would mean rebuilding the sheet as one table.
 
-Smaller, from the same audits: the GM review step lists findings with no route back to the step that caused them.
+**The second half of this item is closed: a finding on the GM review step now names the step that
+caused it.** `web/Services/FindingRoute.cs` is a sibling of `SheetFindings` under the same rule — it
+reads `SubjectKind`, `SubjectId` and `OwnerId` and computes nothing. A Power's finding carries the
+Power, so `Commands.RequestPower` (which the command palette already had) opens that Power's editor
+on arrival rather than landing the reader on a list of what they own.
+
+- **The budget deliberately gets no link.** Every purchase contributes to `HP_BUDGET_EXCEEDED`, so
+  naming one step would name one of several answers as though it were the answer — the same
+  reasoning that already keeps it off the rows, and the running total is on screen from every step
+  anyway. `TheBudgetFindingGetsNoLinkAtAll` pins it.
+- **Two findings were left bare by the first version, and a screenshot is what found them.**
+  `FLAW_MIN_NOT_MET` and `UNKNOWN_PACKAGE` file at `Character` because what they are about is a
+  count or a choice rather than a row, so they sat with no link among findings that had one — which
+  reads as the feature half-working. **No markup assertion here would have caught it**: "every
+  finding that has a route draws one" is true of a router that routes too little. The same
+  screenshot showed the test fixture naming a package that does not exist (`superhero`, not
+  `superhero_package`), which the page reported and six passing tests did not, because each looks
+  for one code.
+- **The link is `--ink`, not the `--heading` every other link on the site uses.** `.issues li` are
+  the only tinted grounds in the app and `--heading` on `--accent-soft` measures 4.08:1 — under the
+  floor, and already recorded twice here as the mistake made on hover states. `--ink` is the ink
+  already carrying the message. **Both grounds are now in `EveryScreenPairInUseHoldsItsContrastFloor`
+  and were not before**, so the validator's messages had been sitting on them unmeasured; they come
+  out at 11.2:1 to 14.4:1 across the four palettes.
+- **Six mutations, each watched to fail**: routing an Ability to the wrong section, dropping the
+  Power id, routing the budget "somewhere plausible", turning the link into a button, dropping the
+  section request from the click handler, and making the step peek rather than take.
+- The findings list is deliberately **not** in the pixel manifest: its content is whatever the
+  fixture happens to break, and a page whose content depends on the fixture is the trap
+  `docs/guide/testing.md` records three proof pages falling into. `proof-review-findings.html` is
+  generated to be looked at; `FindingRouteTests` is what holds it.
+
+**The printed-page half above stays open** — CSS still has no portable answer for a running header.
 
 **The 0d half of this item turned out to be a rules gap rather than a UI wrinkle, and is closed.** It was recorded as "a fresh sheet starts every Ability at 0d although the editor's floor is 1d without anything objecting". The floor was right and nearly everything else was wrong: Ch.2 states, once for Abilities (p.17) and again for Talents (p.18), that **no rank can be lower than 1d** and that ordinary people have 2d in every one — so a character has all eighteen Traits, 0d is not a low rank but a Trait nobody can be without, and the Talents editor's floor of 0d contradicted the book outright.
 
