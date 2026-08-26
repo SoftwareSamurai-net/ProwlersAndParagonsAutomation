@@ -116,6 +116,15 @@ Three separate stale claims were found and fixed, none of which any test could h
   listened to. **No agent in this repository can close this** — it needs a person with a screen
   reader, and nothing automated is a substitute. Saying otherwise would be the kind of claim this
   file exists to prevent.
+
+  What *was* added is one structural check that clears the plumbing out of the way first:
+  `AriaReferenceTests` sweeps twelve surfaces and resolves every token of `aria-describedby`,
+  `aria-labelledby` and `aria-controls`, so a dangling IDREF cannot reach a person doing the real
+  work. It catches the class rather than an instance — `RowDescriptionTests` already resolved one
+  row's target — and it carries a count as its positive control, because every assertion in it is
+  an absence and a sweep that rendered nothing satisfies all of them. Broken both ways and watched
+  to fail: a dangled reference names the id, and an empty sweep reports `Only 0`. **It cannot hear
+  an announcement**, and it is not progress against the eight surfaces above.
 - **The browser payload is ~27 MiB** because trimming is off — `PROGRESS.md` item 5.
 
 ---
