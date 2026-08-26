@@ -3,13 +3,19 @@
 @* Edge, Health and Resolve as ruled boxes. The derived-stats step and the sheet itself
    both show them, and they must never disagree, so they ask once from here. *@
 
+@* The rule each figure came out of is either printed under it — the derived-stats step, which is
+   where it is being taught — or available behind its label, which is what a sheet has room for.
+   One set of sentences either way, so the two surfaces cannot come to say different things. *@
 <StatBlockRow Class="@RowClass">
     <StatBlock Label="Edge" Value="@Session.Derived.CalculateEdge(Sheet).ToString()"
-               Formula="@(WithFormulas ? EdgeRule : null)" />
+               Formula="@(WithFormulas ? EdgeRule : null)"
+               LabelTerm="@(Explain ? EdgeRule : null)" />
     <StatBlock Label="Health" Value="@Session.Derived.CalculateHealth(Sheet).ToString()"
-               Formula="@(WithFormulas ? HealthRule : null)" />
+               Formula="@(WithFormulas ? HealthRule : null)"
+               LabelTerm="@(Explain ? HealthRule : null)" />
     <StatBlock Label="Resolve" Value="@Session.Derived.CalculateResolve(Sheet).ToString()"
-               Formula="@(WithFormulas ? ResolveRule : null)" />
+               Formula="@(WithFormulas ? ResolveRule : null)"
+               LabelTerm="@(Explain ? ResolveRule : null)" />
     @if (WithPoints)
     {
         @* The published sheet sets Hero Points beside the other three, and on paper that is
@@ -21,7 +27,8 @@
            deleted `PointsRule` was. What the spend is made of is the budget bar's job, and
            it itemises all six parts. *@
         <StatBlock Label="@(Budgeted ? "Hero Points" : "Points Spent")"
-                   Value="@Points" Sub="@Budget" />
+                   Value="@Points" Sub="@Budget"
+                   LabelTerm="@(Explain ? PointsRule : null)" />
     }
 </StatBlockRow>
 
@@ -31,6 +38,12 @@
 
     /// <summary>Adds the fourth box. The sheet shows it; the derived-stats step does not.</summary>
     [Parameter] public bool WithPoints { get; set; }
+
+    /// <summary>
+    /// Whether each label carries the rule behind it, on hover and on focus. See
+    /// <c>SheetView.Explain</c>; off everywhere else, including the printed sheet.
+    /// </summary>
+    [Parameter] public bool Explain { get; set; }
 
     /// <summary>
     /// A character to read instead of the one being built — see the same parameter on
@@ -76,6 +89,20 @@
     private const string HealthRule =
         "Toughness with Might, or Toughness with Willpower — whichever pair is higher, halved "
         + "and rounded up.";
+
+    /// <summary>
+    /// What the fourth box is measuring, which the other three do not need saying: Edge, Health
+    /// and Resolve are the character's, and this one is a budget somebody set.
+    ///
+    /// <para><b>There is deliberately no <c>Formula</c> using this.</b> The only page that asks
+    /// for formulas is the derived-stats step, which does not draw this box at all — a rule
+    /// written for it there would be unreachable by any configuration, which is exactly what the
+    /// deleted <c>PointsRule</c> was. It is reachable now because the sheet asks a different
+    /// question of the same string.</para>
+    /// </summary>
+    private const string PointsRule =
+        "What the character cost, against the tier's Hero Points where there is a limit. What the "
+        + "spend is made of is itemised on the budget strip.";
 
     private const string ResolveRule =
         "Trait Cap less the character's highest relevant rank, doubled. Determination adds 1 "

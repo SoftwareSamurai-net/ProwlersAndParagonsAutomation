@@ -1915,6 +1915,43 @@ label {
 .rank-name .row-tip.dismissed,
 .rank-name:hover .row-tip.dismissed { display: none; }
 
+/* The same treatment on a name printed on the sheet — `Term`, which is `RankRow`'s trigger
+   extracted so the sheet can use it. **The positioning context is the term itself and not the
+   row**, unlike the Ability rows above: a sheet row is a table cell in a three-column layout, and
+   a tip measured against the cell comes out a sliver. Measured against the inline term it hangs
+   below the word, which is where a reader is looking. */
+.term { position: relative; }
+
+.term-name {
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: help;
+    text-align: left;
+
+    /* Quietly marked as carrying something. `--muted`, not `--rule`: the hairline token is meant
+       to be at the edge of visible and under a word it is invisible, which is the mistake made
+       once already on `.trait-term` and found in a screenshot rather than by any test. */
+    text-decoration: underline dotted var(--muted);
+    text-underline-offset: 3px;
+}
+
+/* Wider than the term, because a term is one word and a description is a sentence. Left-aligned to
+   the word and clamped so it cannot run out of a sheet column. */
+.term .row-tip {
+    left: 0;
+    right: auto;
+    width: max-content;
+    max-width: min(22rem, 60vw);
+}
+
+.term:hover .row-tip,
+.term-name:focus-visible ~ .row-tip { display: block; }
+.term .row-tip.dismissed,
+.term:hover .row-tip.dismissed { display: none; }
+
 /* ── The sheet beside the editors ────────────────────────────────────────── */
 
 /* One column until there is room for two. Below the breakpoint the aside simply falls under the
@@ -2109,6 +2146,15 @@ label {
     .stat-block .formula,
     #blazor-error-ui {
         display: none !important;
+    }
+
+    /* **A term on the sheet prints as the word, with nothing to say it was ever a control.** The
+       tip is already `display: none` unshut and hover does not happen on paper, but the dotted
+       underline and the pointer would survive — and the printed sheet is the deliverable, so it has
+       to come out of the printer identical whether or not the explanations were on. */
+    .term-name {
+        text-decoration: none;
+        cursor: auto;
     }
 
     body {

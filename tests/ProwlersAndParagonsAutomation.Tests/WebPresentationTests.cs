@@ -2054,6 +2054,43 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// <b>A name on the printed sheet is a word, not a control.</b>
+    ///
+    /// <para>The explained sheet turns forty names into buttons with a dotted underline and a
+    /// help cursor. The tip itself never reaches paper — it is <c>display: none</c> until somebody
+    /// hovers, and hovering does not happen on a printer — but the underline and the cursor would
+    /// survive, and the printed sheet is what this whole tool produces. It has to come out
+    /// identical whether the explanations were on or not.</para>
+    ///
+    /// <para><b>Asserted against the resolved cascade, not against the print block's own
+    /// declarations.</b> <c>@media</c> contributes nothing to specificity, so a screen rule can
+    /// outrank a print rule written below it — which is how a dark palette once printed a
+    /// full-bleed near-black page. <c>.term-name</c> is one class in both halves, so source order
+    /// decides and the print half is later; that is exactly the kind of thing that stops being
+    /// true when somebody adds a selector, and <see cref="EffectiveValue"/> is what notices.</para>
+    ///
+    /// <para>Nothing here is visible to a rendering test: the class sits on the element in both
+    /// cases, and the whole substance of this rule is in the stylesheet.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("text-decoration", "none")]
+    [InlineData("cursor", "auto")]
+    public void ATermOnPaperIsAWordRatherThanAControl(string property, string expected)
+    {
+        var css = AppCss;
+
+        // The positive control on the pair: on screen it really is marked as carrying something,
+        // so the two absences above are a change of state rather than a rule that never existed.
+        // Whitespace-normalised, which is how `EffectiveValue` answers — `position:sticky` and
+        // `position: sticky` have to be one string for it to be usable at all.
+        Assert.Equal("underlinedottedvar(--muted)",
+            EffectiveValue(ScreenHalfOfAppCss, ".term-name", "text-decoration"));
+        Assert.Equal("help", EffectiveValue(ScreenHalfOfAppCss, ".term-name", "cursor"));
+
+        Assert.Equal(expected, EffectiveValue(css, ".term-name", property));
+    }
+
+    /// <summary>
     /// Phrases that could only ever be prose. A player has no use for how the app is built
     /// or what it is built with.
     ///

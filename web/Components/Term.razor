@@ -1,0 +1,83 @@
+@* A name on the sheet with what it means behind it, on hover and on focus.
+
+   **The same idiom `RankRow` uses on an Ability, extracted so the sheet can use it too.** The
+   trigger is the name itself and it is a real button: a `<span>` with a mouse handler is a tooltip
+   only for people using a mouse, and this is the one surface where a reader most often does not
+   know what the word means — Presence, Willpower, Danger Sense, "Plot Hook" are not
+   self-explanatory, and a printed sheet has never said.
+
+   **Never a `title` attribute**, for the reasons this app already records and has a test for: it
+   never appears on a touch screen, is unreliable for keyboard users, cannot be styled, cannot be
+   dismissed, and is announced inconsistently.
+
+   **Supplementary and never the only place anything is said.** WCAG is explicit that information
+   carried only by a tooltip is information some readers do not get, so the sheet still prints
+   every name, every rank and every figure exactly as it did. This adds what a thing *is*.
+
+   **The tip is `display: none` when shut, and the description is a separate `sr-only` copy.** A
+   hidden element keeps its layout box, and an absolutely-positioned tip that keeps its box put
+   real horizontal overflow into CI once already — while the `sr-only` copy is what
+   `aria-describedby` names, so the sentence never leaves the document.
+
+   **It draws the bare name when there is nothing to say.** A Power the rules data has no
+   description for, or a sheet drawn without explanations, has to render exactly what it rendered
+   before — otherwise the printed sheet gains a control. *@
+
+@if (Text is { Length: > 0 } text && Enabled)
+{
+    <span class="term">
+        <button type="button" class="term-name"
+                aria-describedby="@Id"
+                @onkeydown="Key"
+                @onmouseleave="Restore"
+                @onblur="Restore">@Name</button>
+        <span id="@Id" class="sr-only">@text</span>
+        <span class="row-tip @(_dismissed ? "dismissed" : "")" role="tooltip" aria-hidden="true">@text</span>
+    </span>
+}
+else
+{
+    @Name
+}
+
+@code {
+    /// <summary>The word as the sheet prints it. Printed either way.</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+
+    /// <summary>What it means. Null or empty draws the bare name.</summary>
+    [Parameter] public string? Text { get; set; }
+
+    /// <summary>
+    /// Off draws the bare name too.
+    ///
+    /// <para>Here rather than at each call site because the sheet has upwards of forty of these
+    /// and an <c>@if</c> around every one would be forty chances to get the condition wrong — and
+    /// the one that mattered would be on the printed page.</para>
+    /// </summary>
+    [Parameter] public bool Enabled { get; set; } = true;
+
+    /// <summary>Whether Escape has closed it for now. Same as <c>RankRow</c> and <c>OptionRow</c>.</summary>
+    private bool _dismissed;
+
+    /// <summary>
+    /// Escape dismisses it, which WCAG 1.4.13 requires and the obvious implementation leaves out:
+    /// a tip that can only be closed by moving the pointer is not dismissable by somebody who is
+    /// not using one. Moving off, or blurring, brings it back.
+    /// </summary>
+    private void Key(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") _dismissed = true;
+    }
+
+    private void Restore() => _dismissed = false;
+
+    /// <summary>
+    /// <b>Derived from the name rather than generated.</b> A fresh identifier per render is enough
+    /// on its own to break the replay's strongest guard, which renders the same character twice and
+    /// requires the two pages to be identical — the trap <c>Tooltip</c> and <c>RankRow</c> both hit.
+    /// Two terms explaining the same word share an id, which is the one collision worth having:
+    /// the description is the same sentence either way.
+    /// </summary>
+    private string Id => "term-" + new string(
+        Name.ToLowerInvariant().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray());
+}

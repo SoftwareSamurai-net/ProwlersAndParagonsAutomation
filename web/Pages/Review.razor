@@ -50,6 +50,9 @@
         <button type="button" class="btn" @onclick="DownloadText">Download as text</button>
         <button type="button" class="btn" @onclick="DownloadJson">Download as data</button>
         <button type="button" class="btn" @onclick="DownloadCharacter">Download to keep</button>
+        @* The same sheet with every name explained. A link rather than a button: it is another
+           address, and the sheet below is unchanged by it. *@
+        <a class="btn small" href="build/sheet">Explain this sheet</a>
     </div>
     @* The web address, the date and the page number across the top of a printed page are
        the browser's own furniture, not part of the sheet — and no page can turn them off,
