@@ -497,6 +497,14 @@ questions about the rules. It does not replace `build --from`; both call the sam
   reads and the document the assistant is taught cannot drift. `McpQuestionPolicyTests` holds
   it to the same standard as the skill: its example character goes through the strict reader
   and the validator, and the four questions are asserted by name.
+- **A served document goes stale silently, and three sentences in this one had.** It claimed a
+  Villain has no Hero Point budget (retired when `UnlimitedBudget` became an independent toggle —
+  and `CLAUDE.md` already said so), that there is no Villain flag to set (`IsVillain` is a real
+  field), and said nothing about Resolve at all. Every conversation the server has starts from
+  this file, so a wrong sentence here is wrong everywhere at once and nothing compiles it. **When
+  a decision changes in `CLAUDE.md`, grep this document for it.** The skill is the same pair and
+  drifts the same way — both now carry the optimise-first default and the Villain Resolve rule,
+  and both have tests naming the retired claims so they cannot come back.
 - **The four that change the build are tier, one-Power-or-several, what the character is
   deliberately ordinary at, and Source** — and the second is the one a model is most tempted
   to answer silently. Everything else is decided and *shown*. The reasoning for each is in the
@@ -1045,6 +1053,27 @@ Resolve = max(0, (TraitCap − highestRelevantRank) × 2)
 
 Three Edge details are easy to get wrong and were all bugs at one point: Danger Sense **replaces** Perception rather than adding to it, Lightning Reflexes is a **flat +6** with no rank, and Super Speed is missing from most summaries. All three are verified against Ch.2 — p.60 names the three, and their own entries are pp.25, 33 and 44.
 
+**The engine computes Resolve for every character, and only Heroes have any.** Ch.2 says it twice
+— *"Only Heroes have Resolve"* — and Ch.5 gives the GM **Adversity** instead, spendable "on behalf
+of any NPC whether they're Villains, Foes, Minions, or Extras". Ch.9's *"the only difference
+between Foes and Villains is that Foes have less Health"* is not a contradiction; it compares two
+kinds of antagonist, and Resolve is not in scope of that comparison.
+
+This is deliberately **not** modelled. The engine is never told which it is looking at — that is
+the same rule `IsVillain` lives under — so it answers the Hero question and the figure is noise on
+a Villain. What must not drift is the guidance that reads it: `mcp/QUESTION-POLICY.md` and the
+skill both say not to quote the figure, and name the three purchases that turn on it. **Never buy
+Determination on a Villain** (Hero Points for Resolve); **Plot Hook and Condition Flaws grant
+nothing mechanical** to one; and **the Trait Cap trade does not apply** — Resolve is what a *Hero*
+pays for a rank at the cap, so a Villain caps for free. All three were got wrong in the session
+that found this, in advice already given to the owner.
+
+**And it is why a Villain's Flaws are the players' handles.** A Hero's Flaw is a drawback bought
+with the Resolve it pays out; with the payout gone the drawback is all there is, so the one to
+three slots are where the GM decides how the character can be beaten. Prefer a Flaw that bites
+without a Resolve payout to notice it — Vulnerability halves active *and* passive defence as a
+printed rule, which is the strongest in the book.
+
 Halves always round **up** — the rulebook has a global rule for this (the Glossary in the Introduction, p.7, "Half").
 
 Highest relevant rank = max(all ability ranks, effective ranks of powers where `affects_resolve == true`). Talents excluded. Movement and Sensory category powers excluded by default; `PowerModel.AffectsResolve` overrides this per-power (`super_speed` is explicitly true; 11 non-combat Utility/Special powers are explicitly false). This reproduces the rulebook's list of Resolve-exempt powers exactly — do not "fix" it by naming powers individually.
@@ -1236,6 +1265,9 @@ Settled rules questions:
 - Assisted creation *in this repository, for somebody with it checked out*, is a **non-interactive command plus a skill** — and the model proposes while the engine decides, never the other way round. **For somebody else, connecting their own Claude, it is an MCP server**, which is the mechanism built for exactly that and lets us handle no credentials at all. The two are not in tension and both call the same engine; the earlier flat "not an MCP server" note was scoped to the first case and is superseded
 - **A visitor to the site cannot bring their own Claude, and that is settled — do not re-investigate it.** A claude.ai subscription cannot be lent to a third-party site, the API is separate billing with no dependable free tier, and custom connectors are gated to paid plans. A proxy funded by the owner was rejected — it costs money, invites abuse, and breaks the static-site property the README advertises. **What has changed is who the answer is for:** the recordings are at `/admin/portfolio/replay`, behind an account, because the owner decided the demonstrations are a thing to show somebody rather than a thing to publish. The technical finding above is unaffected; only the audience is
 - An illegal character is **reported, never repaired**: the engine is a judge and does not make design decisions about somebody's character
+- An assisted build **starts at full strength and trades down out loud**, rather than being built tastefully and quietly leaving points unspent. Trading down is a decision the person makes; trading up is a correction they have to notice they need. It does not license overruling a weakness they stated, dropping what they asked for, or exceeding the budget
+- **Only Heroes have Resolve**; the GM gets Adversity, spendable on any NPC. The engine computes the figure anyway and it is noise on a Villain — never quote it, never buy Determination on one, and cap a Villain's Traits freely, because the Resolve a Hero pays for a rank at the cap is not a currency a Villain holds
+- **A Villain's one to three Flaws are the players' handles** — the payout half of the bargain is gone, so the slots are where the GM says how the character can be beaten. A slot spent on colour, or on something the fiction carries free, is a handle the party does not get
 
 Each of these was wrong at some point and is now covered by a regression test naming the rule. If one appears to be violated, read `PROGRESS.md` and the test before changing the code.
 

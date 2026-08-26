@@ -12,6 +12,63 @@ plausible number is worse than no number.
 
 ---
 
+## Build it at full strength first
+
+**The default character is the strongest legal one the description allows.** Build that, show
+it, and let them trade *down* from there — a thematic rank, a Con they like the sound of, a
+Power that suits the story better than the numbers. Trading down is a decision somebody makes
+about their own character, out loud. Trading up is a correction they have to notice they need,
+and most people never will: a sheet quietly six points weaker than it could be looks exactly
+like a sheet that is not.
+
+This is the opposite of the instinct to build tastefully, and that instinct is the failure.
+A build that spends 118 of 125 because the concept "felt like" a modest character has made a
+decision the person never asked for and hidden it behind prose about them being unassuming.
+
+**The rulebook has no single power axis, so "strongest" means these things concretely:**
+
+- **Spend the budget.** `remaining` at zero is the target, not a ceiling to stay politely
+  under. Anything left over is a rank somebody did not get.
+- **Take a package.** It is a discount rather than a flavour choice and is almost never wrong;
+  `list_options` with `packages` gives the prices and the ranks each one grants.
+- **Push the headline Trait to the Trait Cap** wherever the concept supports it. The cap is
+  what the tier permits, and a character built three ranks under it is playing a lower tier
+  than the one they chose.
+- **Prefer a Power that arrives with a baseline rank.** 27 of them derive free ranks from a
+  Trait the character is buying anyway, so the same points buy a higher effective rank.
+  `power_detail` says which, and from what.
+- **Use the Cons the character would genuinely suffer.** A Con is a discount paid for with a
+  drawback in play, and on an expensive Power the saving is large. Do not stack Cons that will
+  never cost them anything — that is a cheaper sheet, not a stronger character, and the GM will
+  read it that way too.
+- **Know the derived-stat levers**, each worth more than a rank. Danger Sense replaces
+  Perception in Edge rather than adding to it. Lightning Reflexes is a flat +6. Super Speed
+  sets Edge to rank × 3. Ask `check_character` what they came to; never work one out.
+
+**Name the one trade that has no right answer.** Resolve comes off the *gap* between the Trait
+Cap and the character's highest relevant rank, so pushing a headline Trait to the cap drives
+Resolve towards zero. The specialist at the cap and the generalist three ranks below it are
+both defensible and the engine will not choose between them. Build the specialist, say in one
+sentence what it cost, and let them move if they want the other one.
+
+**That trade is a Hero's alone.** Only Heroes have Resolve, so for a Villain there is nothing on
+the other side of it — cap everything the concept supports and do not mention the figure. See
+"If they are building a Villain".
+
+**What this does not license:**
+
+- **It does not overrule a weakness they stated.** "Useless with people" is a decision they
+  already made, and it stays made whatever it costs. Optimise around what they said, never
+  through it.
+- **It does not drop a Flaw, a Con or a Power they asked for** because a stronger build exists
+  without it.
+- **It does not go over budget.** `HP_BUDGET_EXCEEDED` is still a rule broken, and the Iconic
+  tier's open budget is still the GM's call rather than yours.
+- **It does not make the character cheaper.** The goal is the strongest sheet *at* the budget,
+  not the most efficient one under it.
+
+---
+
 ## The question policy
 
 This is the part that matters, and it is the part that is easy to get wrong in both
@@ -48,6 +105,10 @@ about it.
    ordinary is a characterisation question and not an arithmetic one — it is the difference
    between a brawler who is also a detective and a brawler who is hopeless indoors.
    If they described a weakness already ("useless with people"), you have your answer.
+   **If they shrug, the default is mechanical, not tasteful**: leave ordinary whatever costs
+   the character least — a Trait that feeds no derived stat and no Power's baseline — and say
+   which ones you picked. Guessing a modest-sounding weakness on their behalf spends their
+   points on your taste.
 
 4. **Where does it come from?** — *Infer it, state the inference, ask only if it is genuinely
    open.*
@@ -67,10 +128,11 @@ build. Ask them in a single message, each with the answer you will use if they s
 Everything below is yours. Decide it, build it, and let the sheet be the account of what you
 did. If they disagree with any of it they will say so, and changing it later is cheap.
 
-- Exact ranks. Give the concept's headline Trait a high rank and let `check_character` tell
-  you if it does not fit.
+- Exact ranks. Take the concept's headline Trait to the Trait Cap and let `check_character`
+  tell you what else has to give — see "Build it at full strength first". Do not open below
+  the cap to leave room you were not asked to leave.
 - The talent spread. 2d is an ordinary person; fill in the ones the concept does not care
-  about and spend the difference where it does.
+  about and spend every remaining point where it does.
 - Which package. It is a discount, not a flavour choice — almost every character wants one.
 - Which Flaw, which Perks, which gear. Mundane gear is free; give them the kit that suits.
 - Pros and Cons on a Power, unless one changes what the character can do in a way they would
@@ -112,12 +174,65 @@ along with the two or three ways out. An illegal character is reported, never re
 
 ### If they are building a Villain
 
-Ch.9 builds Villains by exactly the Hero rules, so nothing about the character changes and
-there is no Villain flag to set. One thing is different in what you say about the result:
-**a Villain has no Hero Point budget.** The tier still sets the Trait Cap, and
-`check_character` still reports `HP_BUDGET_EXCEEDED` above the tier's points, because the
-engine is never told which you are building. For a Villain that finding is the GM's call
-rather than a rule broken — say what it costs and let them decide. Every other finding means
+Ch.9 builds Villains by exactly the Hero rules, so costing and legality are the same questions
+they are for a Hero. Three things differ.
+
+**`IsVillain` is a field on the character and it is presentation only.** It decides the palette
+a sheet is drawn in and nothing else — no rules code reads it, and flipping it changes no cost,
+no rank and no finding. Set it so the sheet reads right; never expect it to change an answer.
+
+**A Villain has no Resolve, and this changes the build.** Ch.2 says it twice — *"Only Heroes
+have Resolve"* — and Ch.5 gives the GM **Adversity** instead, which can be spent "on behalf of
+any NPC whether they're Villains, Foes, Minions, or Extras". The engine builds Heroes, so
+`check_character` returns a Resolve figure for a Villain regardless. **It is noise. Do not quote
+it**, and follow it through:
+
+- **Never buy Determination on a Villain.** It is Hero Points spent on Resolve, and the Resolve
+  is worth nothing. It is the one purchase that goes from good to dead on this flag alone.
+- **Plot Hook and Condition Flaws grant nothing mechanical**, because what they grant is
+  starting Resolve. Creation still requires one to three and they still cost nothing — choose
+  them for the story, not for the number.
+- **The Trait Cap trade disappears.** Resolve comes off the gap between the cap and the highest
+  relevant rank, so it is what a *Hero* pays for a rank at the cap. A Villain pays nothing.
+  Take every Trait the concept supports to the cap and say nothing about Resolve.
+
+**A Villain's Flaws are the players' handles — choose them for that and nothing else.** For a
+Hero a Flaw is a bargain: a drawback bought with the Resolve it pays out. A Villain gets no
+Resolve, so that half is gone and the drawback is all that is left — which makes the Flaw slots
+the only place on the sheet where the GM decides *how this character can be beaten*. Spend them
+on something a player can find out and then act on.
+
+The test is whether a Flaw bites without needing a Resolve payout to notice it. Most do not:
+Absentminded, Clumsy, Quirk, Decorum, Notoriety, Creepy, Unusual Looks, Broke and Illiterate are
+pure flavour on a Villain, giving the character nothing and the table nothing. Prefer these,
+which carry their own teeth:
+
+- **A handle in the fight.** **Vulnerability** is the strongest in the book — active *and*
+  passive defence halved against one attack, effect or weapon, stated as a rule rather than as a
+  Resolve trigger. **Severe Reaction** and **Severe Requirement** are impossible to resist by
+  their own text. **Power Limits** works like a Con the GM controls, and on a one-Power Villain
+  it is the whole answer. **Finite Power** lets the party make them burn it. **Light Sensitive**,
+  **Night Blind** and **Impaired Sense** are holes a player can engineer a scene around.
+- **A handle in their behaviour.** **Code**, **Severe Compulsion**, **Frenzy** and **Hidden
+  Agenda** make a Villain predictable once somebody works them out — the party baits rather than
+  beats. **Flashbacks/Guilt** is the rare behavioural Flaw with printed numbers: helpless for a
+  page, or −2d for three.
+- **A handle outside the fight.** **Secret**, **Secret Identity**, **Relationship**, **Wanted**
+  and **Obligation** are won by investigation, exposure or leverage rather than by damage.
+
+**One from each of the three is the strong default**, so a party beats them by fighting,
+outthinking or exposing them depending on who is at the table — rather than only the way the GM
+happened to imagine.
+
+**Do not spend a slot on something true in the fiction that gives the players nothing.** A rival
+organisation is an Enemy on the sheet and a plot in the campaign, and only the second one is
+load-bearing: the fiction carries it free. Creation allows one to three Flaws and no more, so a
+slot spent on colour is a handle the party does not get.
+
+**The budget is the GM's call and is not a fact about Villains.** `HP_BUDGET_EXCEEDED` above the
+tier's points is a finding either way, because the engine is never told what it is looking at. A
+GM building to whatever a scene needs may go past it — and so may a GM building a Hero, which is
+why this is not a Villain rule. Say what it costs and let them decide. Every other finding means
 exactly what it says.
 
 ### When there is no Power for it
@@ -173,6 +288,7 @@ fill.
 ```jsonc
 {
   "Name": "Chrono Jab",
+  "IsVillain": false,                   // presentation only — the sheet's palette, never a cost or a rank
   "SelectedTierId": "standard",          // sets the budget and the cap; nothing works without it
   "SelectedPackageId": "hero_package",   // omit for a character who took none
 

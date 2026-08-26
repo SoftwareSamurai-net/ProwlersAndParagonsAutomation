@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4374 across three suites — 3734 on the engine, 474 rendering components with bUnit, 166 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome, one of them twice for reduced motion, and a pixel diff of the proof pages against Linux goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
+| Tests | 4387 across three suites — 3739 on the engine, 482 rendering components with bUnit, 166 driving the accounts server over real SQLite. **The bUnit figure is worth distrusting**: it read 474 twice and then 482 twice in one session, on a tree where `git diff --stat -- web/ tests/ProwlersAndParagons.Web.Tests/` was empty both times, so nothing in that project or its subject had changed. `UppercasedTextTests` builds its theory by reading `web/wwwroot/css/app.css` at discovery, which is one place a count could move without a source edit — but that file did not change either, and the difference is unexplained. Re-run before quoting, and treat a moving count here as a finding rather than a nuisance — all run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome, one of them twice for reduced motion, and a pixel diff of the proof pages against Linux goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -417,6 +417,111 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 ---
 
 ## Completed work
+
+### Assisted builds default to full strength, and a Villain has no Resolve
+
+Two pieces of guidance the owner gave while building the first campaign Villain, plus three
+claims in `mcp/QUESTION-POLICY.md` that were found stale on the way through. The document is
+embedded and served verbatim as the `creation_guide` tool, so a wrong sentence there is a wrong
+sentence in every conversation the MCP server has; the skill got the same changes because the two
+teach the same loop to different readers and are exactly the kind of pair that drifts.
+
+#### Build at full strength first, and trade down out loud
+
+The default had been to build *tastefully* — a modest-sounding concept got a modest sheet, and
+the leftover points were never mentioned. That is a decision made on somebody's behalf and hidden
+behind prose about the character being unassuming. **Trading down is a decision somebody makes out
+loud; trading up is a correction they have to notice they need**, and a sheet six points weaker
+than it could be looks exactly like one that is not.
+
+"Strongest" needed defining, because the rulebook has no single power axis. Six levers are named:
+spend to `remaining: 0`, always take a package, headline Trait to the Trait Cap, prefer a Power
+that arrives with a baseline rank, use only the Cons the character would genuinely suffer, and
+know the three derived-stat levers. Question 3 of the question policy — *what are they
+deliberately ordinary at* — now defaults **mechanically** when the person shrugs, rather than
+guessing a modest-sounding weakness on their behalf.
+
+Four limits go with it, because the principle without them is a licence to rebuild somebody's
+character into a better one: it does not overrule a stated weakness, drop a Flaw or Con they asked
+for, exceed the budget, or make the character *cheaper* rather than stronger.
+
+#### Only Heroes have Resolve, and three purchases turn on it
+
+The owner said a Villain does not get Resolve. He is right, and the book says so twice in Ch.2 —
+*"Only Heroes have Resolve"* — with Ch.5 giving the GM **Adversity** instead, spendable "on behalf
+of any NPC whether they're Villains, Foes, Minions, or Extras". Ch.9's *"the only difference
+between Foes and Villains is that Foes have less Health"* is not a contradiction: it compares two
+kinds of antagonist, and Resolve is not in scope of that comparison.
+
+The engine builds Heroes, so it returns a Resolve figure for a Villain regardless. **That figure
+is noise, and the guide now says not to quote it.** Three consequences change what gets built:
+
+- **Determination is a dead buy on a Villain** — Hero Points spent on Resolve. It is the one
+  purchase that goes from good to worthless on this distinction alone.
+- **Plot Hook and Condition Flaws grant nothing mechanical**, since what they grant is starting
+  Resolve.
+- **The Trait Cap trade does not exist.** Resolve comes off the gap between the cap and the
+  highest relevant rank, so it is what a *Hero* pays for a rank at the cap. A Villain pays
+  nothing, which makes capping strictly correct rather than a trade-off.
+
+That last one had already been shipped as advice in this session and was wrong: a Villain build
+was offered against a thematic alternative on the strength of "capping costs you Resolve", a trade
+that does not exist for the character in question.
+
+#### A Villain's Flaws are the players' handles
+
+Following from the above rather than standing beside it. For a Hero a Flaw is a bargain — a
+drawback bought with the Resolve it pays out. **With the payout gone, the drawback is all that is
+left**, which makes the Flaw slots the one place on a Villain's sheet where the GM decides how the
+character can be beaten. Creation allows one to three and no more, so a slot spent on colour is a
+handle the party does not get.
+
+The test is whether the Flaw bites without a Resolve payout to notice it. Most do not —
+Absentminded, Clumsy, Quirk, Decorum, Notoriety, Creepy, Unusual Looks, Broke and Illiterate are
+pure flavour on a Villain. The guide names three categories and says to take one from each, so a
+party can win by fighting, outthinking or exposing them rather than only the way the GM imagined:
+
+- **In the fight** — **Vulnerability** is the strongest in the book, halving active *and* passive
+  defence against one attack, effect or weapon as a printed rule rather than a Resolve trigger.
+  Severe Reaction, Severe Requirement, Power Limits, Finite Power, Light Sensitive, Night Blind,
+  Impaired Sense.
+- **In their behaviour** — Code, Severe Compulsion, Frenzy, Hidden Agenda; Flashbacks/Guilt is the
+  rare behavioural Flaw with printed numbers.
+- **Outside the fight** — Secret, Secret Identity, Relationship, Wanted, Obligation.
+
+#### Three stale claims in the served document
+
+Found by following the Resolve question through, and all three would have misled a conversation:
+
+- **"A Villain has no Hero Point budget"** — retired when `UnlimitedBudget` became a toggle either
+  kind of character can carry. `CLAUDE.md` already recorded that "no budget" was never a fact about
+  Villains; the served document had not caught up.
+- **"There is no Villain flag to set"** — `IsVillain` is a real field. A model following that
+  sentence omits it and the sheet draws in the wrong palette.
+- **Nothing about Resolve at all** — the gap above.
+
+`IsVillain` is now documented in both field lists as **presentation only**, proved rather than
+asserted: flipping it on a real character and diffing the reports gives byte-identical output, and
+a test asserts equal cost, equal Resolve and an equal issue list across the flag.
+
+#### Everything watched to fail
+
+Five new tests, each broken before being trusted, per the discipline in `CLAUDE.md`:
+
+- Stripping the limits from the optimise-first section while keeping the direction — **red**.
+- Inverting the direction while keeping the limits — **red**, so neither half satisfies the guard.
+- Stating the Resolve rule while dropping all three consequences — **red**.
+- Restoring each retired claim, separately — **red** both times.
+- Collapsing the three Flaw categories, and naming a Flaw id the rules do not have — **red** both.
+
+`SkillDocumentationTests` gained the `Flowed` helper the MCP tests already had, since the file is
+hard-wrapped and a raw substring assertion passes or fails on where the wrap landed. The handles
+test also carries a positive control: every Flaw id the guide recommends is looked up in the rules,
+so the advice cannot quietly name one that would be refused on submit.
+
+**Not covered, and not coverable:** whether a recommendation is *good*. The tests hold the document
+to naming the categories and to naming real ids; that a GM would actually want Vulnerability on a
+given Villain is a judgement no regular expression reaches.
 
 ### The manager panel stopped creating empty characters, and got a hierarchy
 
