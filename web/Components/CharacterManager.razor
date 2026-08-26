@@ -17,17 +17,33 @@
      visit where nobody has anything at stake.
    * **The clear lands after the save that emptying the sheet fires.** Setting the session off
      raises its change event, which starts a fire-and-forget write; clearing first races a
-     write nobody awaits. `StartAgainTests` asserts the interop ordering, not just the outcome. *@
+     write nobody awaits. `StartAgainTests` asserts the interop ordering, not just the outcome.
+
+   **The count is stated once, in `Aside`, not repeated in the closing sentence too.** It used to
+   be both — "3 of 5" beside the title and "3 of 5 on this account" again at the foot — which is
+   the same fact read twice on a panel with four other things competing for the same glance. The
+   sentence at the foot now says only what `Aside` cannot: where a character actually lives. *@
 
 <Panel Title="Your characters" Aside="@Aside" NoPrint="true">
     <ChildContent>
 
     @if (_characters.Count == 0)
     {
-        <p class="small muted">
-            Nothing saved yet. Whatever you build is remembered in this browser, so you can close
-            the tab and come back to it.
-        </p>
+        @* **Says what to do, and where the character will actually be found**, rather than only
+           that there is nothing yet — the same rule every other empty list in this app follows.
+           The two branches used to be one sentence claiming "remembered in this browser" whoever
+           was reading it, which was simply false for a signed-in account: nothing here has ever
+           put an account's character in browser storage. *@
+        <EmptyState>
+            @if (_limit is not null)
+            {
+                <text>Nothing built yet. Start one below and it is remembered on your account, ready on any browser you sign in to.</text>
+            }
+            else
+            {
+                <text>Nothing built yet. Start one below and it is remembered in this browser, so you can close the tab and come back to it.</text>
+            }
+        </EmptyState>
     }
     else
     {
@@ -76,6 +92,11 @@
         </ChosenList>
     }
 
+    @* One row, one hierarchy: starting fresh is the reason anybody is on this page, and importing
+       a character already made somewhere else is the thing a reader reaches for only sometimes —
+       so it sits beside the primary action rather than in a field of its own below it, and it is
+       drawn smaller. Loading a file in is here rather than on the review step because this is
+       where somebody looks for a character they already have. *@
     <div class="inline spaced">
         @* "Start a new character" keeps its exact wording. It is what the old panel called this and
            what AreaTests asserts the tier page offers — and the act is the same act, so renaming it
@@ -98,6 +119,8 @@
                colour and the confirmation can never disagree. *@
             <button type="button" class="btn @(Session.HasSomethingToLose ? "danger" : "")"
                     @onclick="AskNew">Start a new character</button>
+
+            <ImportCharacter OnImported="Imported" />
         }
     </div>
 
@@ -109,18 +132,10 @@
         </p>
     }
 
-    @* Loading a file in is here rather than on the review step, because this is where somebody
-       looks for a character they already have. Spaced off the buttons above: proofed without it,
-       the file picker sat flush under "Start a new character" and read as that button's own
-       caption. *@
-    <div class="spaced">
-        <ImportCharacter OnImported="Imported" />
-    </div>
-
-    <p class="small muted">
-        @if (_limit is { } limit)
+    <p class="small muted spaced">
+        @if (_limit is not null)
         {
-            <text>@_characters.Count of @limit on this account, and they follow you to any browser you sign in to.</text>
+            <text>They follow you to any browser you sign in to.</text>
         }
         else
         {

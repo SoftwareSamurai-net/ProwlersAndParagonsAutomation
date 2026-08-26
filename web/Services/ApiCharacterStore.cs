@@ -152,6 +152,18 @@ public sealed class ApiCharacterStore : ICharacterStore
     /// renaming a character calls <see cref="SaveAsync(string, string, CharacterSheet, SheetMode)"/>
     /// with the label it was given.</para>
     ///
+    /// <para><b>A sheet with nothing worth keeping is never written through, and that is the
+    /// whole fix for characters nobody built.</b> <c>PUT</c> below creates the account's row if
+    /// the id is new — there is no separate "create" step — so before this guard existed,
+    /// switching the palette or the sandbox toggle before choosing a tier fired
+    /// <see cref="CharacterSession.NotifyChanged"/>, which fired this, which created a real,
+    /// listed, empty character on the account the moment either happened. Skipping the write
+    /// loses nothing: the edit is still on the sheet in memory, and the next substantive change
+    /// — a tier, a Power, a name — saves it along with everything already there.
+    /// <see cref="CharacterSession.IsWorthKeeping"/> is the same question
+    /// <see cref="CharacterSession.HasSomethingToLose"/> answers for the manager's own
+    /// confirmations, asked here because this path only ever has the sheet.</para>
+    ///
     /// <para><b>The outcome is discarded on purpose, and the discard is written out rather than
     /// implied.</b> This overload implements <c>ICharacterStore</c>, which may not throw and has
     /// nowhere to report to — it runs before the first render, so an exception here is a blank
@@ -161,8 +173,12 @@ public sealed class ApiCharacterStore : ICharacterStore
     /// feedback — see <c>PROGRESS.md</c>. Until then <c>_ =</c> is the honest spelling, because
     /// it distinguishes a result nobody wanted from one somebody forgot.</para>
     /// </summary>
-    public async Task SaveAsync(CharacterSheet sheet, SheetMode mode) =>
+    public async Task SaveAsync(CharacterSheet sheet, SheetMode mode)
+    {
+        if (!CharacterSession.IsWorthKeeping(sheet)) return;
+
         _ = await SaveAsync(await CurrentIdAsync(), LabelFor(sheet), sheet, mode);
+    }
 
     /// <summary>The open character, or null.</summary>
     public async Task<(CharacterSheet Sheet, SheetMode Mode)?> LoadAsync() =>

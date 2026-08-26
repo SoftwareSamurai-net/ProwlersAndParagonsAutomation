@@ -272,6 +272,21 @@ public sealed class ProofPages
         Section(body, "Your characters — the top of the tier page, where a panel of one red button was",
             holding.Render<CharacterManager>().Markup);
 
+        // **And empty — the state the redesign was actually about.** Nobody's account starts
+        // holding characters; this is the panel a first visit meets, and it is where the count
+        // used to be printed twice and the file picker sat unstyled and equal in weight to
+        // "Start a new character".
+        await using var emptyAccount = new RenderContext();
+        emptyAccount.Api.SignedIn = ("acct-9", "nobody yet");
+
+        Section(body, "Your characters — nothing built yet, on a signed-in account",
+            emptyAccount.Render<CharacterManager>().Markup);
+
+        await using var emptyAnonymous = new RenderContext();
+
+        Section(body, "Your characters — nothing built yet, signed out",
+            emptyAnonymous.Render<CharacterManager>().Markup);
+
         await using var anonymous = new RenderContext().With(mode);
 
         Section(body, "Signed out — one field, and no password anywhere",
