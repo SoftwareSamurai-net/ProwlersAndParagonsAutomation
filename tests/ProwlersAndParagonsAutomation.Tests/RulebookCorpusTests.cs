@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ProwlersAndParagonsAutomation.Engine;
+using ProwlersAndParagonsAutomation.Tools.RulebookExtractor;
 using System.Text.RegularExpressions;
 
 namespace ProwlersAndParagonsAutomation.Tests;
@@ -428,5 +429,97 @@ public sealed class RulebookCorpusTests
 
         Assert.Contains("3 ranks", overkill.Text, StringComparison.Ordinal);
         Assert.Contains("never be lower than 9d", overkill.Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The corpus used to run a whole entry together as one flat line.</b> LUCK's description
+    /// arrived as a single 120-word run because nothing kept the vertical spacing the printed page
+    /// sets a paragraph start with. See <c>PROGRESS.md</c> item 1c and <see cref="ParagraphJoiner"/>.
+    ///
+    /// <para>Positive control first: LUCK really does have four paragraphs on printed p.33 — the
+    /// stat line sits on its own with extra leading below it (18pt against the entry's own 12pt
+    /// normal), then the description, then a PRO Control block set off the same way, then a PRO
+    /// Unbelievable block — so a passage with no <c>\n</c> at all would already be the wrong
+    /// answer whatever else this test checked. <c>RulebookProse.Read</c> already splits and
+    /// renders on exactly this character, so a corpus that gains real breaks needs no change on
+    /// that side to show them; the stat line's own leading <c>\n</c> lands inside the text
+    /// <c>RulebookProse.Read</c> strips off as the matched stat line, so its own output is
+    /// unaffected — see <see cref="RulebookProseTests"/>.</para>
+    /// </summary>
+    [Fact]
+    public void LucksDescriptionKeepsItsFourPrintedParagraphs()
+    {
+        var luck = All().Single(c => c.Number == 2).Sections.Single(s => s.Heading == "LUCK");
+
+        var paragraphs = luck.Text.Split('\n');
+
+        Assert.True(paragraphs.Length > 1, // positive control: splitting actually happened
+            $"LUCK's description is still one flat run of {luck.Text.Length} characters.");
+
+        Assert.Equal(4, paragraphs.Length);
+        Assert.Equal("Self • Power Rank • 2 Hero Points per rank", paragraphs[0]);
+        Assert.StartsWith("You are incredibly lucky", paragraphs[1], StringComparison.Ordinal);
+        Assert.EndsWith("without you needing to do anything.", paragraphs[1], StringComparison.Ordinal);
+        Assert.StartsWith("PRO Control (+4):", paragraphs[2], StringComparison.Ordinal);
+        Assert.StartsWith("PRO Unbelievable (+1 per rank):", paragraphs[3], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Over-splitting guard, scoped to what this fix is actually for.</b> A paragraph invented
+    /// mid-sentence is the failure mode the whole feature answers to, and the cheapest strong
+    /// signal of one is a paragraph that begins with a lowercase letter — an ordinary sentence
+    /// never does, so a lowercase start almost always means the line before it was cut off rather
+    /// than finished.
+    ///
+    /// <para><b>This is scoped to Chapter 2's Power entries, not the whole book, and that scoping
+    /// is deliberate rather than a shortcut.</b> Two pre-existing, already-documented extraction
+    /// limitations (see <c>PageReader</c>'s own doc comments) produce lowercase-looking text
+    /// elsewhere that has nothing to do with this feature: a table of three or more columns is
+    /// read across rather than down, which the vertical-gap logic then also splits at row
+    /// boundaries without repairing the underlying scramble; and Chapter 8's small-capitals field
+    /// labels ("orIGIn:", "aBIlItIes") extract with their case as stored, so a genuine, correct
+    /// field-to-field break can start with what looks like a lowercase letter. Both are measured,
+    /// named, and unrelated to paragraph detection — asserting the whole book here would either
+    /// need to special-case them (inventing exactly the kind of denylist this repository's own
+    /// guidance warns against) or hide a real regression in the 116 Power entries this fix exists
+    /// for behind noise from table pages it was never meant to fix. What this check cannot catch:
+    /// a false split that happens to land after a full stop, or one whose next word happens to be
+    /// capitalized (a proper noun, "I", the start of a quoted sentence) — those still read as
+    /// English and are why the corpus tests were re-run and several passages were spot-checked
+    /// against the printed page rather than relying on this alone.</para>
+    /// </summary>
+    [Fact]
+    public void NoChapterTwoPowerParagraphContinuesMidSentence()
+    {
+        var rules = new RulesRepository(RulesFixture.DataPath);
+        var ch2 = All().Single(c => c.Number == 2);
+
+        var checkedParagraphs = 0;
+        var badBreaks = new List<string>();
+
+        foreach (var power in rules.Powers)
+        {
+            var heading = power.Name.ToUpperInvariant();
+            foreach (var entry in ch2.Sections.Where(s => s.Heading == heading))
+            {
+                var paragraphs = entry.Text.Split('\n');
+                for (var i = 1; i < paragraphs.Length; i++)
+                {
+                    checkedParagraphs++;
+                    var p = paragraphs[i];
+                    if (p.Length > 0 && char.IsLower(p[0]))
+                        badBreaks.Add($"{heading}: \"{Truncate(p)}\"");
+                }
+            }
+        }
+
+        Assert.True(checkedParagraphs > 50, // positive control: this actually looked at real splits
+            $"only {checkedParagraphs} paragraph breaks were found across Chapter 2's Power "
+            + "entries to check — the passage this guard is meant to police may not be reachable.");
+
+        Assert.True(badBreaks.Count == 0,
+            "a paragraph inside a Chapter 2 Power entry starts with a lowercase letter, which "
+            + "usually means a break was invented mid-sentence rather than read off the page:\n  "
+            + string.Join("\n  ", badBreaks));
     }
 }

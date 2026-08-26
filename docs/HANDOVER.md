@@ -4,10 +4,11 @@
 the rest.** Read [`CLAUDE.md`](../CLAUDE.md) first and follow its routing table to the guide for
 whatever you are about to touch, then [`PROGRESS.md`](../PROGRESS.md).
 
-This round closed `PROGRESS.md` item 7's snapshotability half, item 4 (`search_powers`), the
-`.shell` spacing item that had sat in this file's "still open" list since before the pre-1.0 audit,
-and re-verified item 1 (the four Heroes) with a second independent instrument. Four streams, worked
-in isolated worktrees and merged serially onto one branch, so four slices cost **one** deploy.
+This round closed `PROGRESS.md` item 7's snapshotability half, item 4 (`search_powers`), item 1c
+(the extractor's paragraph breaks), and the `.shell` spacing item that had sat in this file's "still
+open" list since before the pre-1.0 audit — and re-verified item 1 (the four Heroes) with a second
+independent instrument. Five streams, worked in isolated worktrees and merged serially, so five
+slices cost two deploys.
 
 ---
 
@@ -103,8 +104,13 @@ Three separate stale claims were found and fixed, none of which any test could h
    matches still tie flat, so a query about a Power nobody has written vocabulary for can still
    land behind coincidental ties, and 74 of 141 Powers carry only their original category tags.
    Widening the expectation set is what would make it a measurement again.
-5. **Item 1c, the extractor's paragraph breaks** — a stream was run on this; see `PROGRESS.md`.
-6. **Durable telemetry**, deferred by the owner — `PROGRESS.md` item 9.
+5. **Durable telemetry**, deferred by the owner — `PROGRESS.md` item 9.
+6. **Item 5, the 27 MiB payload**, deliberately not started this round and worth saying why: it
+   cannot be verified on this machine (the trimmer needs the `wasm-tools` workload, which needs
+   elevation), its failure mode is a *silently empty rules set at runtime* rather than a build
+   error, and deploy fires on merge. It is the one open item where a mistake ships live and quiet.
+   `PROGRESS.md` records the source-generation attempt that already failed and the test that caught
+   it; whatever is done needs a check that loads the published site and reads a rule out of it.
 
 ---
 
