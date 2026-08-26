@@ -67,11 +67,20 @@ jobs:
         #
         # **Assert the count, not the exit code.** `node --test` with a glob that matches
         # nothing exits 0 and reports zero tests, which reads exactly like a suite that passed.
+        #
+        # **`--test-reporter=tap` is explicit rather than assumed**, the same as the comparator
+        # step below. The grep on `^ok ` relies on Node choosing the tap reporter because stdout
+        # is a pipe, and that default has already stopped holding once — Node 24 prints a `spec`
+        # reporter's `✔ name (123ms)` lines, which this grep matches zero times however many
+        # tests passed. The pin above keeps CI on 22 today, so this changes nothing now (measured
+        # in `node:22-alpine`: the flag is accepted and the `ok ` lines are identical); what it
+        # buys is that raising that pin cannot turn a green suite into "the glob has stopped
+        # matching".
         run: |
           set -euo pipefail
 
           node --version
-          node --test "tests/worker/*.test.mjs" | tee /tmp/worker.tap
+          node --test --test-reporter=tap "tests/worker/*.test.mjs" | tee /tmp/worker.tap
 
           passed=$(grep -c '^ok ' /tmp/worker.tap || true)
           echo "The accounts API's suite reported $passed passing tests."
