@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
 using Bunit;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Pages;
@@ -147,6 +149,58 @@ public sealed class FindingRouteTests
             Assert.Contains(href, StepAddresses);
             Assert.False(string.IsNullOrWhiteSpace(link.TextContent));
         });
+    }
+
+    /// <summary>
+    /// <b>Clicking it actually does the two things, in the order that matters.</b>
+    ///
+    /// <para>Everything above asserts the markup and the routing function; none of it would notice
+    /// a handler that renders a perfect link and wires nothing to it. The request has to be set
+    /// <em>before</em> the step is reached, because <c>Characteristics.OnInitialized</c> reads it
+    /// on the way in — so this asserts the request is standing at the moment the address
+    /// changes, which is the property, rather than that two things happened in some order.</para>
+    /// </summary>
+    [Fact]
+    public void ClickingItAsksForTheSectionAndThenGoesThere()
+    {
+        using var ctx = new RenderContext();
+        var sheet = Legal(ctx);
+        sheet.AbilityRanks["might"] = 99;
+
+        var commands = ctx.Services.GetRequiredService<Commands>();
+        var nav = ctx.Services.GetRequiredService<NavigationManager>();
+
+        // The control: nothing is asked for until the reader asks.
+        Assert.Null(commands.RequestedSection);
+
+        string? sectionWhenTheAddressChanged = null;
+        nav.LocationChanged += (_, _) => sectionWhenTheAddressChanged = commands.RequestedSection;
+
+        ctx.Render<Review>().Find("ul.issues a.finding-step").Click();
+
+        Assert.EndsWith("build/characteristics", nav.Uri, StringComparison.Ordinal);
+        Assert.Equal("abilities", sectionWhenTheAddressChanged);
+    }
+
+    /// <summary>
+    /// <b>The step consumes the request rather than leaving it standing.</b> A section left set
+    /// would drag the reader back to that tab every time anything else on the step re-rendered —
+    /// which is why <c>Commands.TakeRequestedSection</c> takes rather than peeks, unlike the Power
+    /// beside it, which two components need.
+    /// </summary>
+    [Fact]
+    public void TheStepTakesTheSectionSoItActsOnce()
+    {
+        using var ctx = new RenderContext();
+        Legal(ctx);
+
+        var commands = ctx.Services.GetRequiredService<Commands>();
+        commands.RequestSection("flaws");
+
+        var page = ctx.Render<Characteristics>();
+
+        Assert.Null(commands.RequestedSection);
+        Assert.NotNull(page.Find("[aria-current='true']"));
     }
 
     /// <summary>
