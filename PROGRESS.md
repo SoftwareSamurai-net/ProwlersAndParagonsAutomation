@@ -452,6 +452,63 @@ rather than dropped for being hard. None of the 39 new sentences were edited aft
 measured — every miss above is a real gap, not a sentence that could as honestly have named a
 different Power.
 
+### 10. Nothing drives the assembled app — **a plan, awaiting the owner's approval**
+
+**Asked for by the owner after a slice where two real defects were found by screenshotting and none
+by the suites.** Both were in the same class: they existed only once markup, stylesheet and layout
+were put together on a page. The question is what would have caught them without a person looking.
+
+**What is verified today, and it is more than it sounds.** Three suites, nineteen browser verdict
+harnesses each with a deliberately-broken twin, and a pixel diff of eight proof pages against
+CI-rendered goldens. `ProofPages` renders components through bUnit into static HTML against the
+real `theme.css` and `app.css`, which headless Chrome then screenshots — that is what catches a
+contrast fault or a broken layout.
+
+**What is not verified, which is narrower and sharper than "the app is untested".** A proof page is
+*markup and CSS*. It is not the running application:
+
+| Not exercised by anything | Consequence |
+|---|---|
+| Blazor WebAssembly actually booting | A boot-time failure is invisible until the deploy |
+| Every `js/*.js` interop — `ppStore`, `theme.js`, `palette.js`, `motion.js` | bUnit answers **null** to every interop read, which is why two tests in this slice had to *plant* a storage pointer to reach the branch they were written for |
+| Client-side routing | `Areas.Of` is asserted by unit test, never by a browser following a link |
+| Pages Functions against the real edge | The worker suite runs on local Node; D1 and the real request pipeline are checked only by the deploy's own JSON smoke check |
+| **Anything behind sign-in** | `/rules`, `/admin`, the portfolio, the replay and every account-storage path — an assistant cannot sign in, so none of it is verified against the deployed stack |
+
+**The proposal, in two stages, because the first needs no permission and the second does.**
+
+**Stage one — the anonymous half, and it is most of the value.** A `scripts/e2e.sh` that publishes
+the site, serves it with `wrangler pages dev` **at the version `.github/workflows/deploy.yml`
+pins** (the marker comment is already load-bearing for exactly this reason), and drives real Chrome
+over the DevTools Protocol. No account, no credential, no bypass. It would cover: the app boots and
+renders; a character can be built, saved, reloaded from storage and swapped; the theme survives a
+reload (today proved by `proof-theme.html` re-executing the module, not by a reload); the four
+palettes; the routes. **No new npm dependency** — this repository has never had a `package.json`,
+and CDP over a WebSocket is a few hundred lines of Node, the same trade already made for the PNG
+codec.
+
+**Stage two — the signed-in half, and this is the part to approve or refuse.** Testing an account
+flow locally needs a session without a mailbox, which means a **development-only seam that mints
+one**. That is the single most dangerous thing that could be added to this repository: an auth
+bypass that reached production would be worse than every gap it closes. It is only worth doing with
+all of these, and the owner should say whether it is worth doing at all:
+
+- keyed on a secret supplied to `wrangler pages dev` and **absent from `wrangler.toml` and every
+  workflow**, so the deployed site has no value to check against;
+- the code path compiled out, or a test asserting the published bundle does not contain it — the
+  `AccountsContractTests` shape, which already reads both sides of the wire;
+- refused unless the request is from localhost.
+
+**A cheaper alternative to stage two, if the answer is no:** point the harness at the *deployed*
+site and drive only what an anonymous visitor can reach. That verifies the real edge, the real
+Functions and the real bundle, and simply cannot test an account. Given the account paths are the
+ones with a shared-machine consequence, that is a real loss — but it is an honest one, and it
+carries no risk at all.
+
+**Not proposed, deliberately.** Screen-reader testing stays owed and no harness closes it: it needs
+a person with a screen reader, and asserting `aria-pressed` is the string `"true"` is not the same
+as having been listened to. `docs/HANDOVER.md` says so and should keep saying so.
+
 ### 5. The browser payload is large — a characteristic, not a defect
 
 **The site works.** It is deployed, it loads, it builds characters — this is not a fault, and it was listed alongside real gaps for too long. The first load is **27 MiB uncompressed**, about a third of that over the wire once Cloudflare applies Brotli, and cached hard afterwards because every framework asset is fingerprinted, so a returning visitor pays nothing. Everything below is what it would take to make that number smaller, kept because the *reasons* are expensive to rediscover — not because anything is broken.
