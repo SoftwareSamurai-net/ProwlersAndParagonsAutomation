@@ -61,7 +61,7 @@
 
         @if (_kept)
         {
-            <p>Kept on your account. The one in this browser is untouched.</p>
+            <p>Kept on your account.</p>
         }
 
         @* **Offered to everybody signed in, not only to whoever it is for.** Which account
@@ -267,7 +267,11 @@ else
     {
         await Accounts.SignOutAsync();
 
-        // Back to whatever this browser was holding before, which signing in never touched.
+        // This browser's anonymous slot may now be holding one of the account's own characters
+        // — opening one copies it here, see AccountCharacterStore.OpenAsync — so it is emptied
+        // rather than kept: the next visitor to open this browser must not inherit it.
+        await Store.ClearAnonymousAsync();
+
         if (await Store.LoadAsync() is { } local) Session.Restore(local.Sheet, local.Mode);
         else Session.StartAgain();
 

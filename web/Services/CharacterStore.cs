@@ -60,8 +60,25 @@ public sealed class CharacterStore : ICharacterStore
     internal async Task<(CharacterSheet Sheet, SheetMode Mode)?> LoadAsync(Identity who) =>
         await _saved.LoadCurrentAsync(who);
 
+    /// <summary>
+    /// Writes into one particular identity's slot, whoever is here now.
+    ///
+    /// <para>Exists for one caller: <see cref="AccountCharacterStore.OpenAsync"/> copies a
+    /// signed-in reader's opened account character down into this browser's anonymous slot. By
+    /// then the ordinary overload would write to the account's own browser-side slot, which is
+    /// not what was meant — the write-side counterpart to <see cref="LoadAsync(Identity)"/>.</para>
+    /// </summary>
+    internal async Task SaveAsync(Identity who, CharacterSheet sheet, SheetMode mode) =>
+        await _saved.SaveCurrentAsync(who, sheet, mode);
+
     /// <summary>Forgets the currently open character. What "Start a new character" actually does.</summary>
     public async Task ClearAsync() => await ClearAsync(await _who.CurrentAsync());
 
-    private async Task ClearAsync(Identity who) => await _saved.ClearCurrentAsync(who);
+    /// <summary>
+    /// Forgets one particular identity's currently open character, whoever is here now.
+    ///
+    /// <para>Exists for one caller: <see cref="AccountCharacterStore.ClearAnonymousAsync"/>,
+    /// which signing out uses to empty the anonymous slot — see its remarks for why.</para>
+    /// </summary>
+    internal async Task ClearAsync(Identity who) => await _saved.ClearCurrentAsync(who);
 }
