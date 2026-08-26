@@ -198,15 +198,33 @@ public sealed class RowDescriptionTests
     /// <para>Perks, Flaws and both kinds of Pro and Con print their description as the row's own
     /// caveat. Adding a tip there would say the same sentence in two places on one row, and the
     /// tip would cover the row below while saying nothing new.</para>
+    ///
+    /// <para><b>The fixture chooses a Perk and a Flaw, and it did not used to.</b> It set the
+    /// tier and nothing else, so both tabs rendered with an empty <em>chosen</em> list and the
+    /// assertion only ever reached the pickable <c>OptionRow</c>s — while the sentence above
+    /// claims a rule about the rows of both lists. A tip appearing on a chosen row would have
+    /// gone unnoticed. Found by a fresh agent reading this file for an unrelated reason, which
+    /// is the failure this repository has shipped before in several spellings: a guard that
+    /// passes for a reason narrower than the one it states.</para>
     /// </summary>
     [Fact]
     public void ARowThatAlreadyPrintsItsDescriptionHasNoTip()
     {
         using var ctx = new RenderContext();
         ctx.Session.Sheet.SelectedTierId = "standard";
+        ctx.Session.Sheet.Perks.Add(new SelectedPerk("contacts"));
+        ctx.Session.Sheet.Flaws.Add(new SelectedFlaw("amnesia"));
 
-        Assert.Empty(ctx.Render<PerksTab>().FindAll(".row-tip"));
-        Assert.Empty(ctx.Render<FlawsTab>().FindAll(".row-tip"));
+        var perks = ctx.Render<PerksTab>();
+        var flaws = ctx.Render<FlawsTab>();
+
+        // The positive control on the fixture: the chosen rows have to actually be on the page,
+        // or every assertion below is satisfied by a list that rendered nothing.
+        Assert.NotEmpty(perks.FindAll(".chosen-row"));
+        Assert.NotEmpty(flaws.FindAll(".chosen-row"));
+
+        Assert.Empty(perks.FindAll(".row-tip"));
+        Assert.Empty(flaws.FindAll(".row-tip"));
 
         // The control: the list that does not print one still has them, so this is a statement
         // about these two lists rather than about the feature having been removed.

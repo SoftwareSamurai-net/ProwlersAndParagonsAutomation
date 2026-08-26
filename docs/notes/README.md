@@ -5,8 +5,9 @@ slice: what a guard claimed, the exact mutation that defeated it, what replaced 
 mutation table showing the replacement watched red and then green.
 
 [`PROGRESS.md`](../../PROGRESS.md) is still the single source of truth for what is done and what
-remains, and `CLAUDE.md` is still where a rule that must not be broken again is written down. **Do
-not read these files for either.** They exist because a mutation table is long, specific, and
+remains, and a rule that must not be broken again is still written down in `CLAUDE.md`, or in that
+area's file under `docs/guide/`. **Do not read these files for either.** They exist because a
+mutation table is long, specific, and
 worth keeping — the thing a later reader needs when a guard fails and they want to know whether it
 has ever passed for the right reason — and folding eleven of them into `PROGRESS.md` would have
 buried the record it is meant to be.

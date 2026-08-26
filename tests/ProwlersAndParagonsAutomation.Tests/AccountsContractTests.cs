@@ -102,8 +102,9 @@ public sealed class AccountsContractTests
     /// Nothing under <c>engine/</c> or <c>sheets/</c> touches the filesystem directly.
     ///
     /// <para><b>Nothing enforced this until now, despite it being asserted in prose twice</b> —
-    /// the "### The engine never touches the filesystem" section of <c>CLAUDE.md</c>, and,
-    /// verbatim, inside <see cref="TheEngineHasNoNetwork"/>'s own doc comment above ("The engine
+    /// the "The engine never touches the filesystem" section of <c>docs/guide/rules-engine.md</c>
+    /// (which was <c>CLAUDE.md</c> when this was written), and, verbatim, inside
+    /// <see cref="TheEngineHasNoNetwork"/>'s own doc comment above ("The engine
     /// has no filesystem access by design"). Proved by mutation before this test existed: adding
     /// <c>System.IO.File.Exists(...)</c> to a real, executed line of <c>CostCalculator
     /// .AbilityCost</c> — a call that succeeds rather than throwing, so nothing else notices —

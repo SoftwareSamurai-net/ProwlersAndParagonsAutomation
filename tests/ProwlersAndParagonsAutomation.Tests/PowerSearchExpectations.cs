@@ -19,7 +19,10 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// expectation to match would measure the scorer against itself. The two exceptions are the
 /// pair PROGRESS.md item 4 names directly, "walks through walls" (should reach Phasing) and
 /// "he shoots fire from his hands" (should reach Blast) — quoted from that entry, not
-/// discovered by searching.</para>
+/// discovered by searching. Both failed when this file was first written, because neither word
+/// is in the matching Power's own printed description; both are met now that Phasing and Blast
+/// carry a data-driven vocabulary (a wider <c>tags</c> field) reaching past that description —
+/// see PROGRESS.md item 4.</para>
 ///
 /// <para><c>AcceptablePowerIds</c> holds more than one id only where the printed rulebook text
 /// genuinely supports either answer — "unaffected by poison" is Resistance's own example
@@ -42,14 +45,15 @@ public static class PowerSearchExpectations
     public static readonly IReadOnlyList<PowerSearchExpectation> All =
     [
         new("walks through walls", "phasing", 3,
-            "PROGRESS.md item 4's own reproduction: 22 Powers match, 20 tying on the filler "
-            + "word \"through\", and Phasing — the Power this sentence actually describes — is "
-            + "11th, alphabetised behind Powers whose only connection is that shared word."),
+            "PROGRESS.md item 4's own reproduction. Phasing's own description says 'pass "
+            + "through solid matter', never 'walls' — no reordering of that word could ever "
+            + "reach it; it now carries 'walls'/'walk' as data-driven vocabulary instead."),
 
         new("he shoots fire from his hands", "blast", 3,
             "PROGRESS.md item 4's other reproduction. Blast's own description is 'a damaging "
-            + "ranged attack' — none of those words is in this sentence, so today the search "
-            + "never returns it at all."),
+            + "ranged attack. Name the type of damage it inflicts when you buy it' — that "
+            + "naming is the whole Power, so 'fire'/'shoot'/'shooting' are vocabulary drawn "
+            + "from Blast's own printed invitation, not from this sentence."),
 
         new("she can read anyone's mind from across the room", "telepathy", 3,
             "Telepathy: 'You can read minds and send thoughts within Distant Range.'"),

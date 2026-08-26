@@ -1,0 +1,267 @@
+# The accounts server
+
+Read before touching `worker/` or `functions/`, or anything about sign-in, invitations, display names, the error log or the administrator pages.
+
+> Part of the guide set indexed by [`CLAUDE.md`](../../CLAUDE.md). Read that first; it carries the
+> disciplines that apply whatever you are working on. **Open work lives in
+> [`PROGRESS.md`](../../PROGRESS.md)** — this file records how things are, not what is left.
+
+---
+
+## The accounts server
+
+`worker/` is a Cloudflare Pages Functions server over D1, reached through the one routed file
+`functions/api/[[path]].js`. It is JavaScript because Workers is, so it is invisible to
+`dotnet test` and has its own suite: `./scripts/test-worker.sh` (local Node 22+, or Docker).
+Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
+
+- **It is an allow-list, not a sign-up, and the refusal is silent.** Only an address on the
+  invitation list may ask for a sign-in link; every other address gets the same `204` a sent link
+  gets, because anything else makes the endpoint a way of asking who is on the list, one address
+  at a time. **The bootstrap is `ADMIN_EMAIL`, an environment variable, and nothing is seeded into
+  the database** — a committed address would be this repository owner's own, silently making him
+  the administrator of every fork. A deployment with neither the variable nor a row allows nobody,
+  which is the direction this should fail in. **What the list does not hide is time**: an invited
+  address waits on a call to the mail provider and an uninvited one returns at once. Recorded
+  rather than padded, because padding trades the real defence for the look of one.
+- **Withdrawing an invitation ends that address's sessions and keeps its characters.** Deleting
+  the row alone is a gesture — the person is holding a month-long cookie — and deleting their work
+  would make one button on an administration page the most dangerous control in the application.
+  Adding the address back gives them everything as they left it.
+- **Adding an address mails it a one-click sign-in link, and the link carries a real token on
+  purpose.** `worker/tokens.js` mints and hashes it exactly the way the public request path does
+  — same table, same single-use guarantee — and only the lifetime differs:
+  `INVITATION_TOKEN_LIFETIME_MS` in `worker/auth.js` is three days against the public path's
+  fifteen minutes, a trade that is acceptable here and nowhere else because an administrator chose
+  this address on purpose, rather than a stranger typing one in. **The row still grants the
+  permission and the mail is only ever a shortcut to using it**: `worker/invitations.js` writes
+  the invitation first and mails second, catches a failed send, and answers the admin page with
+  `mailed: false` rather than a 500 that would read as nothing having happened — the address can
+  still ask for an ordinary link. **The failure is still written to `error_log`, `mail` category**,
+  because the fault that breaks this breaks every ordinary sign-in too and the owner should be
+  able to find it from either. Do not let a probe or a second builder assemble this message's link
+  itself; `signInLink` is the one place either sender's URL is built, same as the token mint.
+- **The administrator's page is reached by its address, not by a link that appears for some
+  people.** `Identity` still carries a key and a name and no role, deliberately, so the browser
+  holds no claim about who somebody is; the server checks on every request and answers an
+  ordinary account with the same `404` an unrouted address gets, so the page cannot be discovered
+  by trying. The link on the account panel is therefore shown to everybody signed in, and an
+  account it is not for is told so plainly.
+- **`/admin` is its own `Area`, and the reason is the one recorded for the recordings.** Six
+  numbered creation steps and a running Hero Point total above a list of email addresses are an
+  offer to continue something the reader is not doing, and the budget is a different subject in
+  the same six-label format. `Areas.Of` answers it; `MainLayout` draws neither there. **It now
+  covers the portfolio and the sign-in page too** — there are four areas; see [`browser.md`](browser.md), "Four areas, and the
+  address decides which".
+- **It holds no rules and must never gain one.** A character is stored as an opaque string it
+  never parses — the engine decides cost and legality and runs in the browser. A second place
+  that understood the shape of a character is a second place to keep in step.
+- **No password anywhere.** A magic link; the token and the session are both stored as SHA-256
+  and never in the clear, so a dump of the database lets nobody sign in as anybody. The session
+  is an `HttpOnly` cookie, so the WebAssembly app never holds a credential.
+- **Same origin is load-bearing.** Pages Functions rather than a Worker on `workers.dev`,
+  because a cookie set by another host is a third-party cookie that browsers now partition
+  away. Move the API to its own hostname and sign-in stops working and nothing else does.
+- **Every refusal to sign in says the same thing**, and asking for a link always answers 204 —
+  otherwise the endpoint is a way of asking whether an address has an account here.
+- **`wrangler pages deploy <dir>` bundles a `functions` directory found in the working
+  directory, not in the directory being uploaded.** There is no flag; the placement *is* the
+  configuration, and getting it wrong deploys a healthy-looking site that signs nobody in.
+- **Diagnosing the mail path is `node scripts/probe-mail.mjs`, never a deploy.** The server drops
+  the provider's `message` field on purpose — it can quote the address, and it reaches a visitor's
+  screen and a log line — so a refusal arrives as a status and a machine code and nothing else.
+  That is right, and it means the owner cannot see the sentence naming the broken field. The probe
+  reads it locally from `.dev.vars`. **It sends what the server sends**, importing `signInMessage`
+  from `worker/mail.js` rather than assembling a lookalike, and two tests hold it there — a
+  hand-written probe was tried first with a different key and a literal `YOUR_ADDRESS` in `to`,
+  returned *the same provider code the site was returning* for an unrelated reason, and read as a
+  confirmation. **A probe that builds its own payload can agree with the bug.**
+  - **Read the status, not the code.** Resend answers a bad key with `name: validation_error` at
+    `401` — the same name a malformed field gets at `400`. `docs/ACCOUNTS-SETUP.md` said the code
+    told the four checks apart; it does not, and four deploy cycles were spent on the strength of
+    that. `401` is the key, `403` usually the domain, `400` a field in the message.
+  - **Never write to `.dev.vars`, and never delete it.** It is gitignored and holds a live
+    credential, so there is no reflog, no stash and nothing to recover — and a provider will not
+    show a key twice. Testing this probe destroyed the owner's, which is why `PP_DEV_VARS` exists:
+    point it at a scratch file. The rule generalises past this one path — **`ls` a target before
+    any `>`, `rm` or `mv`, and do not assume a file is yours because you wrote one like it.**
+- **A failure is classified into four categories, and the set is closed.** `mail`, `storage`,
+  `configuration`, `unknown`, in `worker/errors.js`. The visitor gets the category and a
+  reference and nothing else; the owner gets a row in `error_log`, readable by hand with
+  `wrangler d1 execute` (see `docs/ACCOUNTS-SETUP.md`) and, now, through a panel on `/admin`.
+  **This reverses an earlier decision recorded here — "there is no admin endpoint and there must
+  not be one" — and the reversal is deliberate, not drift.** The reasoning against it was sound
+  at the time: `Identity` carried a key and a name and no role, so "am I an admin" was not a
+  question the client could ask. What changed underneath it is the invitation list: the *server*
+  now answers exactly that question on every request, via `invitations.isAdministrator(env,
+  user)`, to gate `/api/admin/invitations` — and `/admin` already answers an ordinary account the
+  same `404` an unrouted address gets, so the page cannot be discovered by trying. A read-only
+  `/api/admin/error-log`, gated by that identical check, adds no role to `Identity` and no new
+  concept; it is the same question asked once more. The unrelated precedent —
+  `users.character_limit`, raised by hand in SQL — still stands: that is a *write* with no gate
+  built for it, which reading a table never needed one for in the first place.
+  - **A category is assigned where a failure is caught, never at a throw site.** `handle()`
+    wraps the two subsystems on the way in — `taggedStorage` round the D1 binding,
+    `taggedMail` round the send — so `db.js` and `mail.js` know nothing about any of it. A
+    category per throw site becomes a description of the internals by enumeration, which is the
+    disclosure this exists to avoid. The first tag wins: a storage failure raised *inside* the
+    mail call stays `storage`, because the innermost boundary is the one that knows.
+  - **`unknown` must stay reachable.** A taxonomy with no default grows a category for every new
+    failure, and the pressure is then to classify by guessing.
+  - **A category may never depend on whether an account exists**, and this is a security property
+    rather than a style rule. Asking for a link always answers 204 precisely so the endpoint
+    cannot be used to ask whether an address is registered; a category that appeared only for
+    known addresses would put that oracle straight back through the error path. `errors.test.mjs`
+    provokes the same subsystem failure for a registered and an unregistered address and requires
+    **byte-identical** bodies — which is also why the reference is injected through `deps` like
+    the clock, since a random one per failure makes every body differ for an unrelated reason.
+  - **`configuration` must never advise retrying**, because retrying cannot set an environment
+    variable. That is the category the one failure this site has actually had would have landed
+    in. `AccountsContractTests` scans the sentence — and note that *"trying again will not help"*
+    is deliberately allowed and deliberately pinned: it is the denial, not the advice. The scan
+    carries a positive control on the `mail` sentence, which is known to advise retrying, or an
+    absence-only assertion would pass against a regex that captured nothing.
+  - **The row is bounded by construction, not by a cap somebody remembers to enforce.** The
+    primary key is `(category, route)` and `route` is a *pattern* from a closed list, so
+    `/api/characters/{id}` is one row however many ids a caller invents — otherwise the error log
+    is a table anybody passing by can fill, with a caller-chosen string in it. Occurrences are
+    counted against the one row rather than appended: **`occurrences` is the record of what was
+    dropped**, because a silently truncated log reads as a quiet period.
+  - **The retention window rolls inside the write statement**, the same shape as `countAttempt`,
+    so a stale row starts a fresh count rather than continuing last month's into this morning's
+    outage. A prune written as a separate pass is a prune that does not happen.
+  - **The logger may never throw.** The thing that just broke is often the database it writes to,
+    and a logger that threw out of the catch would cost the visitor the reference and category
+    that are the entire visitor-facing half of the design.
+  - **Redaction buys less than it looks like and is still worth having.** `users.email` is in
+    that database in the clear already, so an error row is not a new exposure *boundary*; what it
+    protects is that the log — the artefact most likely to be pasted into an issue — does not
+    carry an address. It over-redacts on purpose: any run of twenty or more token-alphabet
+    characters goes, with no test for randomness, because a session secret is 43 base64url
+    characters and a hash is 64 hex ones and neither is guaranteed to contain a digit.
+  - **The absence tests all carry a positive control, and it is not optional.** Every assertion
+    about redaction is an absence, and an absence is satisfied completely by a logger that writes
+    nothing — the failure shape this repository has shipped four times. Each asserts a row was
+    written *and* that the message still says what happened, since a `redact` returning the empty
+    string would satisfy every absence while destroying the column.
+  - **`console.error` in the catch is one JSON object, not a formatted sentence**, so
+    `wrangler pages deployment tail` can filter and read it. `worker/index.js` computes the
+    category, route pattern, exception kind, redacted detail and reference once and shares the
+    same object with the write to `error_log` — a second computation here could redact
+    differently from the row the caller's own reference points at. The exception's raw message is
+    never in it, for the same reason the visitor is not shown it either.
+
+- **`/api/admin/error-log` reads the table over the wire, gated exactly as
+  `/api/admin/invitations`** — 401 signed out, the same 404 an unrouted address gets if signed in
+  but not an administrator, 200 with the rows otherwise. **Read-only, on purpose**: there is no
+  route here that deletes or clears a row, because the table needs none — see the migration. A
+  panel on `/admin` renders it, beside who can sign in, using the identical gate the invitation
+  list already had; an empty table reads as reassurance ("nothing has failed"), not as a blank
+  page, and a row whose most recent failure is well in the past says so rather than reading as an
+  ongoing outage.
+
+- **A missing server is a missing feature, not a blank page** — and the shape that makes that
+  work is also the shape that hides the mistake. `_redirects` serves every unmatched path as
+  `index.html` with a 200, so a site without its Functions answers `/api/me` with HTML; the
+  client parses the body rather than trusting the status, and answers `Identity.Anonymous`. **So
+  the deploy is the only place the fault is ever visible**, and it checks for JSON there.
+- **`data/rulebook/` is bundled into the server and never staged into `wwwroot`.** A file under
+  `wwwroot` is a public URL; that placement is the entire access control, and there is a test on
+  both sides of the repository. **The four recorded conversations the portfolio replays are
+  bundled the same way**, into `worker/transcripts-corpus.js` by `scripts/inline-transcripts.mjs`,
+  and answered at `api/transcripts` behind the same "signed in, nothing more" check as the
+  rulebook routes — see [`replay.md`](replay.md). `ReplayLoader` fetches it once, on demand, rather than at
+  startup, which is also what stopped every visitor's browser paying for four files almost none
+  of them could ever open.
+- **The two halves are different languages and both suites stay green while they disagree.**
+  `AccountsContractTests` is the only thing that reads both — addresses asked for against
+  addresses routed, and the keys the server returns against the names the client binds. Do not
+  write a guard there with `Contains`: the first version was one, and a rename walked through it
+  because the same word occurred elsewhere in the server's own source.
+
+  **That warning was already in this file and the routing guard was still a `Contains`.** It
+  concatenated every `worker/*.js` and asked whether the literal `'/api/me'` appeared anywhere, so
+  renaming the real routing condition passed — the literal survives in `worker/errors.js`'s
+  `KNOWN_ROUTES`, a list built to bound the error log's row count that happens to name the same
+  addresses. Proved twice, on two routes, defeated by two different unrelated duplicates. It reads
+  `worker/index.js` **alone** now and extracts the routing *conditions* structurally: the exact
+  paths compared with `===` and the prefixes compared with `startsWith`. **The prefix half is not
+  optional** — `/api/characters/{id}` and `/api/admin/invitations/{id}` are reached by a
+  `startsWith` and a `path.slice`, never an exact match, so an exact-only model flags both as
+  unrouted on every real request. Both counts are bounded as a positive control: an extraction that
+  has stopped matching yields an empty route set, which fails loudly rather than quietly.
+
+- **Wrangler's bundled esbuild is older than Node's, and both suites plus a whole-tree Qodana
+  scan will happily ship an incompatibility to the deploy.** This has happened once:
+  `import ... with { type: 'json' }` in `worker/corpus.js` ran under Node 22 (both the accounts
+  suite and my local `npx wrangler`) and failed on the deploy pipeline with
+  *"Expected ';' but found 'with'"* — because `cloudflare/wrangler-action@v3` pins wrangler at
+  **3.90.0**, whose bundled esbuild predates JSON import attributes. `assert { type: 'json' }`
+  is the older spelling and is deprecated in Node 22; that trade breaks the tests instead of
+  the deploy. **So the corpus is baked into `worker/corpus.js` as an object literal by
+  `scripts/inline-rulebook.mjs`**, and both are guarded: `tests/worker/router.test.mjs` asserts
+  the bake is byte-for-byte the JSON on disk, and the build workflow runs
+  `wrangler pages functions build` at the same version the deploy uses (read out of
+  `.github/workflows/deploy.yml`'s marker comment), so a wrangler-vs-Node parse difference
+  fails the PR rather than the way to production. That marker comment is load-bearing — see it.
+
+
+## An account has a name it can change
+
+`display_name` is set once at first sign-in to the email's local part, and `PUT /api/me/display-name`
+is how it stops being that. It needed no migration — the column has existed since `0001_accounts.sql`.
+
+- **Scoped by construction, not by a check.** `db.setDisplayName` takes the id off the session the
+  caller already authenticated with. There is no address and no id in the body, so the route has no
+  way to name a row other than its own.
+- **Uniqueness is deliberately never checked**, on either side. The name a fresh sign-in gets was
+  never unique either, and "is this name taken" is the same oracle the invitation list exists to keep
+  this site from answering, asked about names instead of addresses. A name is what the banner calls
+  somebody; nothing reads it as proof of anything.
+- **What is refused is a shape that cannot be rendered, not a judgement about what somebody calls
+  themselves**: a control character (the banner is one line), and more than 60 characters.
+- **Blank resets to the email's local part rather than being refused.** Storing an empty string
+  would leave the banner naming nobody while `Identity.IsSignedIn` still read true, since that only
+  checks the name is not null. A cleared name should look exactly like one nobody has set.
+- `Identity` still carries a key and a name and **nothing else**. There is a test.
+
+
+## The error log is visible to an administrator, and that reverses a recorded decision
+
+`/api/admin/error-log` reads the `error_log` table; a panel on `/admin` renders it. Both are gated by
+`invitations.isAdministrator` — 401 signed out, and the same **404** an unrouted address gets for an
+ordinary account, so the endpoint cannot be found by trying. Read-only: there is no route that
+clears or deletes a row.
+
+**`0004_error_log.sql` said there would never be an admin endpoint, and its reasoning was sound at
+the time**: `Identity` carried a key and a name and no role, so "am I an admin" was not a question
+the client could ask, and inventing a role to answer it was a much larger change than the log needed.
+The invitation work made it a question the *server* answers on every single request. So this adds no
+role to `Identity`, no claim in the browser, and no new concept — it is the same gate the invitation
+list already uses, asked once more. The migration comment records the reversal rather than being
+left to contradict the code.
+
+**The live database is `prowlers-and-paragons`.** That comment named `prowlers-accounts`, which does
+not exist, so the worked example in it failed for anybody who followed it.
+
+
+## Inviting somebody emails them, and the token is the exception rather than the rule
+
+`invitations.add` writes the row and then sends a one-click link. **It sent nothing at all until
+somebody noticed**: adding an address granted permission and told nobody, while being called an
+invitation, so an invited person had no way of knowing they could sign in.
+
+- **`worker/tokens.js` is the only place a token is minted, hashed, or turned into a URL.** Both the
+  public request path and the invitation go through it, so there is one mint rather than two that
+  could drift on the hashing or the link.
+- **`INVITATION_TOKEN_LIFETIME_MS` is three days against the public path's fifteen minutes**, and
+  that is the whole difference: same table, same `used_at` single-use guarantee, same verify path. A
+  longer-lived credential in an inbox is acceptable **only** because an administrator chose that
+  address deliberately, which is not true of the public endpoint — do not carry the three days
+  across.
+- **A dead mail provider must not lose the invitation.** The row is written first; the send is
+  caught; the failure reaches `error_log` as a `mail` category, because the fault that breaks this
+  breaks ordinary sign-in too; and the page says which of the three things happened.
+- **Re-adding an address already on the list sends nothing** and answers `alreadyAllowed`. So an
+  address invited before this existed is not retrospectively mailed — withdraw and re-add.
+

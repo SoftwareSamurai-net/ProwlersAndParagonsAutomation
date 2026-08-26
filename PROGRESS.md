@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4718 across **four** suites — 3989 on the engine, 549 rendering components with bUnit, 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4730 across **four** suites — 4000 on the engine (11 added this slice: 5 holding `CLAUDE.md` and the guide set to each other, 4 pinning that no other starting package lands any of the four unclosed Ch.8 Heroes on exactly 125 — see item 1 — 1 on the Powers search vocabulary and 1 on the shell's spacing), 550 rendering components with bUnit (1 added this slice, sweeping every surface for a dangling ARIA reference), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -33,7 +33,7 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 ## Remaining work
 
-Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends, and a visitor with no account can watch a real conversation build one. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, a Power search that orders ties by name, and a payload size.
+Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends, and a visitor with no account can watch a real conversation build one. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, and a payload size. (Item 4, the Power search's vocabulary, is closed — see below.)
 
 [`docs/HANDOVER.md`](docs/HANDOVER.md) picks three of these and says what a slice on each would actually involve, including which approaches are already spent. Read it before choosing; read the entry here before starting.
 
@@ -95,6 +95,12 @@ The two ambiguous grades (`Side Effect: collateral damage`, `Limited: only for T
 | Vigilant | 124 | the same two confirmed |
 
 **So the method this item prescribed is now spent as well.** The residual is not a mispriced element in any of the four — which is a real narrowing, because it was the last cheap explanation. What is left is an interaction: a floor, a baseline or a grouping applied where the authors did something else. Nothing points at which, and two examples would not be evidence if they did.
+
+**Re-run independently, with a second instrument, and the negative result holds.** A scratch console project referencing `engine/` directly (not this test project) reconstructed all four Heroes plus three controls (Talon, Psidearm, Stronghold) and printed every Ability, Talent, Power, Perk and package line CostCalculator charges, computing each Power's cost by hand from its rate, baseline, Pros and Cons rather than only calling `PowerCost` — Strike's four modifiers on Scathach (Deflect +4, generic Phase Shift +4, Reach/Throw +2, Item −1), Invisibility's flat 9 with generic Item −1 and the Power's own Jamming −3 on Shadow, Danger Sense's `baseline_equal` on Perception, Armor's `baseline_half` on Toughness, Strike's `baseline_greater_of` Might/Martial Arts, T-Kay's Force Field and Telekinesis Pros (`zone_nova`, `area_burst`, `overload`) — all read straight from `data/rules/*.json` and all confirmed to the Hero Point. Every recomputed total matched the recorded residual and every recomputed Edge/Health/Resolve matched the printed sheet, for all seven Heroes. Mutating one Con (T-Kay's Limited grade to *somewhat limited*) correctly flipped her total to 125 — the instrument reacts to a real change rather than agreeing vacuously.
+
+**One genuine narrowing came out of the line-by-line arithmetic that hadn't been stated before, and it rules out rather than explains.** Swing Line and Wall Crawling are both priced at 1 HP per 2 ranks — exactly the rulebook's own floor rate — so `Base` and `MinimumRankedCost` are numerically identical before any Con is applied, and the floor ("no Power can ever cost less... regardless of its Cons") then swallows the Item Con whole: Shadow's Swing Line and Wall Crawling, and Vigilant's Swing Line, all cost exactly what they would with no Con recorded at all. This is the rulebook's own stated rule working as intended, not a bug, and it is neutral — the same floor would have bound for the authors too, so it explains none of the four residuals. Recorded so the next attempt does not spend time re-deriving it.
+
+**The other question a cheap instrument could finally answer: does any package other than the recorded "closest" one land any of the four on exactly 125?** No — swept across every package whose granted ranks the Hero's printed Traits do not fall below, none of the nine viable alternate (Hero, Package) pairings reaches 125. `PrebuiltHeroTests.NoOtherPackageLandsAnyOfTheFourUnclosedHeroesOnExactly125` pins this now, with a positive control (the candidate list must be non-empty) and was watched to fail: deliberately asserting against T-Kay's real civilian-package total (127) rather than 125 turned three of the four theory cases red, then was reverted.
 
 **One thing the pages did add, and it widens rather than closes.** Shadow's Gear box prints `2 Pistols: 9d Ranged (Silenced)`. Silenced is a Ch.6 custom feature at 1 HP, and the pair is one price under his Two-Fisted — so transcribed, Shadow is **+2**, not +1. The "nothing more than 1 HP out" bound above holds only because gear features are not modelled on these transcriptions. Recorded rather than half-applied, exactly as Vigilant's Upgraded Jo Sticks are.
 
@@ -224,68 +230,84 @@ questions and the ledger is the one that can be resumed.
 
 **The one genuine gap is Ch.6's vehicles and headquarters (pp.94–104).** `unique_vehicle` and `headquarters` are Perks priced per unit — a Hero Point buys 25 Vehicle Points — and what those points buy is not modelled, so the perk is a cost and a free-text note. That is a sub-tool of its own (spend a vehicle's points on a vehicle), not a chapter to extract, and nothing else needs it.
 
-### 4. `search_powers` ranks ties alphabetically
+### 4. `search_powers` had no vocabulary for the effects players actually describe — **closed**
 
 The MCP server's Power search is a word match, and when several Powers match the same words it
-puts them in name order under a caution calling them "the closest entries". **"Walks through
-walls" is the case to reproduce**: it returns twenty-two, of which **twenty tie on a single
-word** — eighteen on "through" and two on "walls" — so which of them a caller sees is
-alphabetical. Phasing is eleventh, where a caller asking for eight rows never sees it. (Measured
-against the built server; an earlier version of this paragraph said twenty-one on "through", and
-was wrong on both figures.) "He shoots fire from his hands" is the same weakness the other way
-round: Blast is never returned, because its description says "a damaging ranged attack" and none
-of those words is in it.
+used to put them in name order under a caution calling them "the closest entries". **"Walks
+through walls" was the case that reproduced it**: it returned twenty-two, of which twenty tied on
+a single filler word, so which of them a caller saw was alphabetical, and Phasing sat eleventh.
+"He shoots fire from his hands" was the same weakness the other way round: Blast was never
+returned at all, because its description says "a damaging ranged attack" and names no element.
 
-**Weighting each word by how much of the rulebook uses it was implemented and reverted**, and
-that is the finding rather than the fix. It sorted "walks through walls" correctly and broke
-"reads minds", which dropped Telepathy out of the first three because four Powers carry "mind"
-in their names. Two examples are not evidence; a half-tuned scorer is worse than a dull one,
-because it is wrong in places nobody has looked at rather than in the place they tested.
+**Weighting each word by how much of the rulebook uses it was implemented and reverted early on**,
+and that was the finding rather than the fix. It sorted "walks through walls" correctly and broke
+"reads minds", which dropped Telepathy out of the first three because four Powers carry "mind" in
+their names. Two examples are not evidence; a half-tuned scorer is worse than a dull one, because
+it is wrong in places nobody has looked at rather than in the place they tested.
 
-What shipped instead is the truth about each row — `matched_terms` names which of the caller's
-words it matched, `found` and `more_beyond_these` say the list was cut, and the caution says
-rows matching the same words are in no meaningful order and to search a more distinctive word.
-The guide teaches all three.
+**A labelled set closed the loop on judging any of this**, and its own history is worth keeping
+straight because this file drifted out of step with it once already. `PowerSearchExpectations.cs`
+holds 33 sentences a player might actually say, each written by opening `data/rules/powers.json`,
+reading a Power's own printed `description`, and writing the sentence — never by running the
+search first and recording what came back. The two exceptions are quoted directly from this entry
+rather than discovered by searching: "walks through walls" (Phasing) and "he shoots fire from his
+hands" (Blast). `PowerSearchEvaluationTests.cs` is two tests over that set: `ReportTheCurrentScore`
+is a measurement that never fails and prints a table; `TheScoreNeverGetsWorse` is the ratchet.
+Widening the stopword list (dropping "through", "than", "anyone" and other connective words that
+carry no information about a Power) raised the baseline from 24 of 33 to 25 — recorded further
+down this file, under "`search_powers`: 24 of 33 to 25 of 33" — but that entry's own closing line
+was already the honest read: **the two cases this item names by hand are not reachable by any
+word-matching change at all**, because neither word is in the matching Power's own printed
+description. This item's own text above still said "24 of the 33" after that slice landed, which
+is the drift: read the test file's `Baseline` constant, not this paragraph, if the two ever
+disagree again.
 
-Closing it properly needs a set of descriptions with expected answers — twenty or thirty, written
-from the Powers rather than from the scorer — and then a scoring change measured against them.
-That is a slice of its own, and until somebody wants it, an honest label beats a tuned guess.
+**Closed by giving Powers a searchable vocabulary as data, not by touching the scorer.** The
+mechanism already existed on the browser side — `OptionRow` reads `Keywords`, "words it can be
+found by but does not print" (see CLAUDE.md's `OptionList` section) — and it is the same `tags`
+field `data/rules/powers.json` already carries for all 141 Powers, which `CharacterTools.Score`
+already weighted at 6 points, between a name/id match and a category match. So the fix reuses
+that field rather than inventing a second one: Phasing's `tags` gained `walls`/`walk` (its entry
+says "pass through solid matter", never "walls"), Blast's gained `fire`/`shoot`/`shooting` (its
+entry is "name the type of damage it inflicts when you buy it" — naming the element *is* the
+Power, so those words are drawn from its own printed invitation), and 65 more Powers gained one to
+five words each, chosen the same way: reading that Power's own description and asking what a
+player would call the effect, with the labelled set closed rather than consulted query by query.
+`search_powers` and `Mentions`/`Score` in `mcp/CharacterTools.cs` are byte-for-byte unchanged.
 
-**The set now exists, and the baseline is measured: `search_powers` meets 24 of the 33 labelled
-expectations.** `PowerSearchExpectations.cs` holds 33 sentences a player might actually say, each
-written by opening `data/rules/powers.json`, reading a Power's own printed `description`, and
-writing the sentence — never by running the search first and recording what came back, which
-would measure the scorer against itself rather than against the rulebook. The two exceptions are
-quoted directly from this entry rather than discovered by searching: "walks through walls" (wants
-Phasing in the top 3; today it lands 11th of 22, matching this entry's own reproduction) and "he
-shoots fire from his hands" (wants Blast; today it is never returned at all, also as recorded
-above). Both fail, as expected going in.
+**`search_powers` now meets all 33 of 33 labelled expectations**, up from 25. `Baseline` in
+`PowerSearchEvaluationTests.cs` is raised to 33 to match. Three additions collided with existing,
+deliberately-worded regression tests and were dropped rather than kept: `fly` on Flight and `fast`
+on Super Speed each turned a description-only match into a tag match for the exact fixed queries
+`ADescriptionOnlyMatchIsNotReportedAsTheRulebookHavingNothing`/`SearchSaysWhenNothingMatchedByNameAtAll`
+use to illustrate that flag ("he can fly", "heals fast"), and `read` on Telepathy broke
+`ATightLimitDoesNotChangeWhatTheSearchFound`'s premise that a specific long query's top row is a
+description-only match. None of the three was load-bearing for the 33/33 score — Super Speed's
+`faster` and Telepathy's `mind` alone were enough — so they came out rather than the older tests
+being rewritten to match a coincidence.
 
-`PowerSearchEvaluationTests.cs` is two tests over that set, deliberately not one:
+**`PhasingAndBlastAreFoundByTheirOwnVocabularyNotByTheScorer`** holds the two named cases to their
+own bar directly, so a future change to unrelated vocabulary cannot let either slip back out of
+range while the aggregate ratchet stays green on some other query's improvement. Broken and
+watched to fail twice, once per Power: removing Phasing's `walls`/`walk` tags failed with
+`Assert.Contains() Failure: Item not found in collection` / `Not found: "phasing"`; removing
+Blast's `fire`/`shoot`/`shooting` tags failed the same way for `"blast"`. Both restored
+immediately via `git stash` (per the stash-first discipline above) rather than a bare
+`git checkout --`; `git diff` was empty before either commit.
 
-- **`ReportTheCurrentScore` is a measurement and never fails.** It runs every expectation against
-  the live `search_powers`, prints a table — met/unmet, the position found, the query, the wanted
-  id(s), and the top five ids actually returned — and asserts only that it evaluated every
-  expectation in the set (a positive control on the measurement itself, not on the scorer).
-  Asserting the score here would be a test that starts red and stays red until somebody tunes the
-  scorer, which is not what a measurement is for.
-- **`TheScoreNeverGetsWorse` is the gate.** It asserts the met count stays at or above 24. This is
-  the ratchet the closing work needs: a future scoring change is judged by whether this number
-  goes up, rather than by the two examples above the way the reverted attempt was.
-
-**Broken and watched to fail.** Forcing `search_powers`'s internal row count to 1 regardless of
-the caller's own `limit` argument (the shape a truncation bug would take) drove the measured score
-from 24 of 33 to 16 of 33, and `TheScoreNeverGetsWorse` failed with that exact count in its
-message. Restored immediately afterwards; `git diff` against `mcp/CharacterTools.cs` was empty
-before committing, confirming nothing of the mutation shipped.
-
-Of the 9 that fail today, most are exactly the tie-ordering problem this item is about: a
-description-only match with no distinctive word scores the same 2 points as every other
-description-only match, so a real answer sits behind a wall of coincidences at the same score.
-"He moves faster than anyone can follow" is a clean example — Super Speed's description shares no
-distinctive word with the sentence, and four Powers with a closer *coincidental* wording (`aura`,
-`running`, `tracer`, `animal_mimicry`) outrank it. That is the shape a scoring change should fix;
-this set is what would show whether one did.
+**What this closes and what it does not.** The 33 labelled cases now all pass, and the two
+PROGRESS.md named by hand specifically are pinned against regression. What is *not* claimed: the
+underlying scorer still ties description-only matches at a flat 2 points regardless of how
+distinctive the word is, so a query outside this set, worded around a Power with no vocabulary
+written for it yet, can still land behind a wall of coincidences the way "he moves faster than
+anyone can follow" used to. This slice made the haystack bigger where the 33 examples showed it
+was missing words a player would actually reach for; it did not make the needle-finding smarter.
+Vocabulary was added to 67 of the 141 Powers (the two named cases, the other seven the table
+above's predecessor found failing, and a further pass across categories); the other 74 carry only
+their original category tags. **`worker/search.js` needed no change and got none**: it is the
+`/rules` full-text search over `data/rulebook/`'s book prose, a different corpus and a different
+tool from `search_powers`'s 141 structured Power entries, and `tags` is not a field that corpus
+has.
 
 ### 5. The browser payload is large — a characteristic, not a defect
 
@@ -387,26 +409,26 @@ already rejected on principle** — `CLAUDE.md` declines third-party error servi
 that nothing about who somebody is should leave the Cloudflare account this site deploys to, and
 that property is worth more than a nicer dashboard. That reasoning is unchanged by anything above.
 
-### 7. The pre-1.0 audit — **the test half is closed; the snapshotability half is not**
+### 7. The pre-1.0 audit — **the test half and the `CLAUDE.md` half are closed; the codebase half is not**
 
 The adversarial half has run and been acted on: 126 mutations, 48 survivors, eleven streams. See
-the completed entry, and `docs/notes/` for the mutation tables. What is left of this item is the
-second half, untouched:
+the completed entry, and `docs/notes/` for the mutation tables.
 
-- **Is it snapshotable to a fresh AI agent?** What can a new session read to know what this repo
-  is and where the load-bearing pieces are, without re-tracing every past decision? The audit's
-  job is to say what would improve `CLAUDE.md` — a redraft, or smaller pointer files for common
-  tasks. **`CLAUDE.md` is now over 1,300 lines and this file is over 4,400**, and this slice added
-  to both. That is the argument for the item rather than against it, but it is worth saying
-  plainly that the two documents are growing faster than anybody reads them.
+**The first of the two remaining bullets — "is it snapshotable to a fresh AI agent?" — is closed
+by the split recorded in the completed entry below.** `CLAUDE.md` is 290 lines and indexes ten
+files under `docs/guide/`. What is left of this item is the second bullet, untouched:
+
 - **Is the codebase as optimised as it should be?** Dead code, hot paths on the engine, payload
   waste, and the token side — files a subagent has to load before it can do anything useful.
 
-The one thing this slice learned that bears on the first bullet: **eleven agents were each given
-the two or three `CLAUDE.md` sections their task depended on, rather than the whole file, and
-none of them went wrong for want of the rest.** That is weak evidence that the pointer-file shape
-is the right answer, and it is weak because the sections were chosen by somebody who had read the
-whole thing.
+**The token side is the half the split only started on.** `CLAUDE.md` no longer costs every
+session 1,431 lines, but this file is over 4,900 and is read at the start of every slice by
+instruction. The same argument applies to it and the same answer probably does not: `PROGRESS.md`
+is chronological by design, and its completed entries are the record that stops work being redone.
+Splitting it by area would break the one property that makes it worth reading — that the newest
+entry is the newest news. What would help is a shorter **Current state** and **Remaining work**
+head with the completed entries behind a second file, and that is a slice of its own with a real
+risk of losing the reasoning that is the whole point of the file. Nobody has costed it.
 
 ### 9. Visual regression testing — **closed, and then closed properly**
 
@@ -456,6 +478,175 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 ---
 
 ## Completed work
+
+### `CLAUDE.md` becomes an index, and ten guides carry the rest
+
+**1,431 lines, and the cost was never that it was long.** The cost is visible in the pull request
+immediately before this one. #79 shipped four features and `CLAUDE.md` records **one** of them: it
+is silent on `RulebookProse`/`BookText`, silent on the explained sheet, and silent on
+`DiscardedCharacter` — while a bullet at line 425 said discarding a non-current saved character
+"is still a confirm, deliberately… a separate piece of work", which #79 had removed, and which
+then sat there being wrong through three more merges. Nothing caught either, because nothing
+could: a markdown paragraph that has stopped being true breaks no build.
+
+Both halves of that are one failure. **A file nobody finishes is a file whose last two hundred
+lines do not fire** — so the rules stop being read, and then they stop being written, because the
+place to write them down is no longer a place anybody goes.
+
+**The rule that decided the split, and it is the whole design:**
+
+> A rule stays in `CLAUDE.md` if breaking it costs work regardless of what you were doing. It
+> moves to a guide if you can only break it while working on that area.
+
+So the stash rule and break-it-and-watch-it-fail are in the index — you can lose a day to either
+while editing a JSON file — and "no component names a colour" is not, because you cannot break it
+without opening `web/`. **290 lines, from 1,431.** Ten files under `docs/guide/`: the rules engine,
+the browser front end, the printed sheet, the replay, the two assisted-creation surfaces, the
+accounts server, the rulebook corpus, tests and static analysis, hosting, and the terminal wizard.
+
+**Nothing was cut. The partition was proved to tile the source exactly**, which is the check worth
+keeping rather than the outcome:
+
+- Every one of the 1,446 baseline lines is covered by exactly one destination range — 1,446 rows
+  counted with duplicates, 1,446 distinct, **zero gaps and zero overlaps**. Dropping one 100-line
+  range from the cover reports exactly 100 gaps, which is the positive control: the checker fires.
+- A set comparison over the content confirms it independently, and **it was broken and watched to
+  fail** — deleting the Item Con bullet from `rules-engine.md` made the checker name that exact
+  line, and restoring it returned zero. Twelve lines differ from the baseline in the end, and all
+  twelve are cross-references deliberately repointed at their new files.
+
+That mattered because a set comparison is precisely the shape this repository has been fooled by
+before: the extractor audit rotated 1,492 section bodies onto the wrong headings with the suite
+green. The tiling check is the one that cannot be satisfied that way.
+
+**The split buys a smaller always-loaded file and costs a failure mode the single file did not
+have: a pointer can rot independently of the thing it points at.** A guide nobody names is a guide
+nobody reads; an index naming a renamed file sends a reader hunting for rules still in force
+somewhere else. Both are silent. `RepositoryGuideTests` is the only thing that would notice — five
+tests, each broken and watched to fail:
+
+| Mutation | What went red |
+|---|---|
+| `replay.md` renamed to `recordings.md` | three at once: an orphaned guide, an unrouted guide, and a dead pointer naming `replay.md` |
+| 120 lines appended to `CLAUDE.md` | the budget test, naming 410 against 400 |
+| one table row rewritten as a prose sentence | the routing test, naming `cli-wizard.md` — **the prose mention survived and the test still failed**, which is the property it exists for |
+| a guide's `PROGRESS.md` back-link removed | the back-link test, naming `hosting.md` |
+
+Two of them carry positive controls on the instrument rather than on the subject: an empty guide
+directory and an extraction that has stopped matching both satisfy every "no orphans" assertion
+completely while proving nothing, which is the failure shape this repository has shipped four
+times.
+
+**The budget test is the load-bearing one and it is deliberately awkward.** Without it the file
+regrows and the split has bought a year rather than a fix. 400 lines, with headroom over the 290
+actually produced — a budget that fails on the next honest sentence teaches people to raise the
+budget, which is the one outcome that makes it worthless. It is there to catch a *section*.
+
+**The evidence item 7 recorded was weak, and it has been replaced rather than repeated.** That was
+eleven agents given two or three sections each, none going wrong for want of the rest — weak
+because somebody who had read the whole file chose the sections. The honest test is a fresh session
+that has to find a rule it was not handed, and it was run. If an agent later breaks a rule that is
+now in a guide, the routing table is the suspect before the reader is.
+
+**The measurement, and it does not say what the split's author hoped.** Four fresh no-context
+agents were each given a task that is a trap for a rule that had just moved into a guide — a panel
+border (raw lengths, no colours), crediting the Item Con (forbidden outright), a `title`-attribute
+tooltip (banned by name), and an MCP log line (breaks the JSON-RPC stream). **All four routed
+correctly**, each quoting the routing table as the thing that sent it, and each found the rule that
+made its task wrong. One went further than asked and reported that half its task — an MCP startup
+banner — already existed.
+
+**Then the control arm was run, and it is the useful half.** The same tooltip task, against a
+checkout of this same tree with every mention of `docs/guide/` stripped out of `CLAUDE.md` — the
+guides still on disk, nothing naming them. **It found both load-bearing rules anyway.** So the
+routing table is not what makes the rules findable, and any claim that it is would be false.
+
+What it changed is the cost and the confidence:
+
+| | routed | control |
+|---|---|---|
+| files read | 5–9 | 17 |
+| tool calls | 12–19 | 48 |
+| found the guide at | step 2 | step 13, by accident |
+| its own verdict | quoted the table | *"Nothing told me to look at `docs/`… Everything else was hunting"* |
+
+The control reached `docs/guide/browser.md` only after a code comment had already told it the
+answer, and it closed with *"I am **not** confident I found everything."* The routed agents did not
+say that. **What actually saved the control was this repository's redundancy, not its own
+searching** — it said so itself: both rules are *"stated in at least three independent places each
+(code comment, prose doc, and a named regression test), which is this repo's pattern for anything
+it considers settled."*
+
+So the honest finding is narrower than the hypothesis and worth more than it: **the guides are
+findable without the table; the table makes finding them cheap and makes the reader confident they
+are done.** Triple-stating a settled rule is doing more work than either.
+
+**And the control found a real defect while it was hunting**, which is the strongest argument for
+the exercise. `RowDescriptionTests.ARowThatAlreadyPrintsItsDescriptionHasNoTip` asserts no Perks or
+Flaws row carries a tip, and its doc comment claims a rule about *"the row's own caveat"* — but the
+fixture set the tier and nothing else, so both tabs rendered an **empty chosen list** and the
+assertion only ever reached the pickable `OptionRow`s. Demonstrated rather than argued: wrapping a
+chosen Perk's name in `<Term>` — a tip on every chosen row — left the old fixture **green**, and
+fails the tightened one on `Assert.Empty() Failure: Collection was not empty`. It now chooses a
+Perk and a Flaw and carries a positive control that the chosen rows actually rendered, without
+which every assertion is satisfied by a list that drew nothing. That is the same fault this file
+records in four other spellings, found by an agent that was not looking for it.
+
+### The shell spaces its own children with `gap`, closing the last item in "Still open from before"
+
+`docs/HANDOVER.md` had carried this since before the pre-1.0 audit: `.shell` had no spacing
+mechanism of its own, so a column of panels was evenly spaced only because `.panel` carried
+`margin-bottom: var(--space-5)` — which meant any *non*-panel direct child got none at all. The
+tier-cards grid was the one instance in the app, and it had already been patched with a
+margin-bottom of its own to match, which is the workaround the "real fix" note was written
+against.
+
+**The hazard the note named no longer exists.** It said the fix wanted proofing on every route
+because `.shell` also held the sticky budget strip and its negative-margin bleed. An unrelated,
+earlier refactor already pulled the strip out to be a sibling of `<main class="shell">` in
+`MainLayout.razor` — `web/wwwroot/css/app.css`'s own comment on `.budget` records it — so there
+was nothing left to proof against the strip specifically.
+
+**`.shell` is now a flex column with `gap: var(--space-5)`, and `.panel`'s margin-bottom was not
+deleted.** It is relied on everywhere a panel is nested more than one level under a routed
+page — inside `.editing` on the characteristics step, inside a tab, inside a dialog — none of
+which is a direct child of the shell and none of which a `gap` on the shell can reach. Deleting
+it globally would have collapsed every one of those onto its neighbour. Instead `.shell > *`
+cancels every direct child's own vertical margin, placed after every rule that sets one so it
+wins by source order rather than a specificity fight — margins do not collapse between flex
+items the way they did in the shell's old block flow, so without the cancellation a panel
+following a panel would get its own margin-bottom *and* the new gap, stacked rather than
+replaced. The now-redundant margin-bottom on `.options.cards` (the tier-cards patch) was
+removed with it. Print explicitly resets `.shell` to `display: block`, since a rem-based `gap`
+has no business surviving onto paper even though every visible sibling but the sheet is already
+hidden there.
+
+**Measured, not assumed, and the two things worth recording from the measurement:** direct-child
+gaps everywhere in the app were already `var(--space-5)` (16px) except two — `h1`→`p` and
+`p`→first-panel were 12px (the headings' own smaller margin), and the gap before `StepButtons`
+("Back"/"Continue") was 24px (`.nav-buttons`'s own, wider `margin-top`, which still carries its
+extra separation — only the *cancellation* is scoped to the shell's direct children, not the
+value). Both are now the uniform 16px. On every route that ends in `StepButtons` the two
+changes cancel exactly (+4, +4, −8 = net 0 by the bottom of the page — confirmed with a
+`getBoundingClientRect` harness against the actual rendered proof pages, before and after), so
+the only visible difference is a handful of panels sitting 8px lower than before, for the height
+of that one page. Routes with no `StepButtons` (`/rules`) keep the small, constant +4px from the
+heading change and nothing more.
+
+**The visual-regression pixel diff moves on all eight proof pages, as expected, and the deltas
+are confined to this.** Confirmed by direct measurement (not by eyeballing the diff PNGs, which
+read as far more alarming than the numbers): every gap in the rendered proof pages resolved to
+exactly `16.0px`, no doubling anywhere, and the cumulative drift never exceeded the 8px/12px
+figures above. The goldens are CI-rendered and cannot be regenerated from this machine —
+`scripts/visual-regression.sh` was run locally (Docker) only to observe the deltas, and the
+committed goldens were left untouched. **They need regenerating on CI
+(`visual-goldens.yml`) after this merges**, or every run of the ordinary check fails on a page
+nobody broke.
+
+Guarded by `WebPresentationTests.TheShellSpacesItsOwnChildrenWithGapNotWithAMargin`, against the
+parsed rule rather than a substring — `EffectiveValue`, exact-selector, per the file's own
+warning about suffix matching. Broken by hand (the `.shell > *` cancellation emptied) and watched
+red before being restored.
 
 ### Two scripts Cloudflare injects at the edge, one allowed and one deliberately not
 
@@ -933,6 +1124,9 @@ reachable by any word-matching change at all: Phasing's description says "solid 
 "walls"; Blast's says "a damaging ranged attack", with the damage type left to the player, so
 nothing in it is about fire. Closing those needs vocabulary in the data, which is a different and
 better-scoped slice than tuning the scorer.
+
+**That slice landed — see item 4, now closed at 33 of 33.** The vocabulary is a wider `tags`
+field, reusing the mechanism the browser already calls `Keywords`; the scorer above is untouched.
 
 #### Phase 3: a broken rule says so on the row that broke it
 

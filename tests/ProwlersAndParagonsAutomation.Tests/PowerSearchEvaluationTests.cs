@@ -39,11 +39,25 @@ public sealed class PowerSearchEvaluationTests
     /// about a Power than "from" or "into", already on this list; dropping them as search terms
     /// shrank the filler-word tie-floods PROGRESS.md item 4 named without touching the scoring
     /// formula itself. "Walks through walls" and "he shoots fire from his hands" — the two cases
-    /// quoted directly from that entry — are still unmet: neither the tie-ordering fix nor the
-    /// other change measured against this set moved either one, and the note explains why.
-    /// </para>
+    /// quoted directly from that entry — were still unmet at that point: neither the
+    /// tie-ordering fix nor the other change measured against this set moved either one, because
+    /// neither word is in the matching Power's own printed description.</para>
+    ///
+    /// <para><b>Raised from 25 to 33 — every expectation met — by giving Powers a searchable
+    /// vocabulary as data, not by touching <c>Score</c> or <c>Mentions</c>.</b> The scoring
+    /// formula and the word-matching rule are unchanged; what moved is
+    /// <c>data/rules/powers.json</c>'s <c>tags</c> field, the same field <c>OptionRow</c> already
+    /// reads on the browser side as <c>Keywords</c> — "words it can be found by but does not
+    /// print" — and that <see cref="CharacterTools.Score"/> already weighted at 6 points, between
+    /// a name/id match and a category match. Phasing's own printed entry never says "walls" (it
+    /// says "solid matter") and Blast's never says "fire" (it says "name the type of damage it
+    /// inflicts when you buy it" — Blast's whole point is that the caller names the element), so
+    /// no reordering of the same haystack could ever reach either one. Adding "walls"/"walk" to
+    /// Phasing's tags and "fire"/"shoot"/"shooting" to Blast's — plus a broader pass across 65
+    /// more Powers, each word read off that Power's own description — closed the gap. See
+    /// PROGRESS.md item 4 for the full before/after table and how each word was chosen.</para>
     /// </summary>
-    private const int Baseline = 25;
+    private const int Baseline = 33;
 
     private const int TotalExpectations = 33;
 
@@ -146,4 +160,55 @@ public sealed class PowerSearchEvaluationTests
             + $"labelled expectations, down from the recorded baseline of {Baseline}. Run "
             + $"{nameof(ReportTheCurrentScore)} to see which ones regressed.");
     }
+
+    /// <summary>
+    /// The two cases PROGRESS.md item 4 names by hand, held to their own bar directly — not
+    /// folded into the aggregate count above, so a future change to unrelated vocabulary cannot
+    /// let either one quietly slip back out of range while <see cref="TheScoreNeverGetsWorse"/>
+    /// stays green on the strength of some other query improving.
+    ///
+    /// <para><b>What this actually tests is that <c>data/rules/powers.json</c>'s <c>tags</c>
+    /// field reaches <c>search_powers</c>, not that the scorer changed</b> — the scorer
+    /// (<c>Score</c>/<c>Mentions</c> in <c>CharacterTools.cs</c>) is untouched by this slice.
+    /// Phasing's own printed description says "pass through solid matter" and never "walls";
+    /// Blast's says "a damaging ranged attack" and never "fire". Both are found now only
+    /// because their <c>tags</c> arrays carry "walls"/"walk" and "fire"/"shoot"/"shooting"
+    /// respectively.</para>
+    ///
+    /// <para><b>Broken and watched to fail</b>: with <c>"walls"</c> and <c>"walk"</c> removed
+    /// from Phasing's <c>tags</c> in <c>data/rules/powers.json</c> (nothing else changed), this
+    /// failed with:
+    /// <code>
+    /// Assert.Contains() Failure: Item not found in collection
+    /// Collection: ["wall_crawling", "constructs", "super_senses_hypersensitive_touch", "super_speed"]
+    /// Not found:  "phasing"
+    /// </code>
+    /// confirming Phasing's presence in the "walls" result depends on that data and not on
+    /// coincidence elsewhere in its name, category or description. Restored immediately after;
+    /// <c>git diff data/rules/powers.json</c> was empty before committing.</para>
+    /// </summary>
+    [Fact]
+    public void PhasingAndBlastAreFoundByTheirOwnVocabularyNotByTheScorer()
+    {
+        var tools = Tools();
+
+        var walls = Parse(tools.SearchPowers("walks through walls", 25));
+        var wallIds = walls["matches"]!.AsArray()
+            .Select(m => m!["id"]!.GetValue<string>()).ToList();
+        Assert.Contains("phasing", wallIds);
+        Assert.True(wallIds.IndexOf("phasing") < 3,
+            $"Phasing must rank in the top 3 for \"walks through walls\"; it is at "
+            + $"{wallIds.IndexOf("phasing")} of {wallIds.Count}: [{string.Join(", ", wallIds)}]");
+
+        var fire = Parse(tools.SearchPowers("he shoots fire from his hands", 25));
+        var fireIds = fire["matches"]!.AsArray()
+            .Select(m => m!["id"]!.GetValue<string>()).ToList();
+        Assert.Contains("blast", fireIds);
+        Assert.True(fireIds.IndexOf("blast") < 3,
+            $"Blast must rank in the top 3 for \"he shoots fire from his hands\"; it is at "
+            + $"{fireIds.IndexOf("blast")} of {fireIds.Count}: [{string.Join(", ", fireIds)}]");
+    }
+
+    private static JsonNode Parse(string json) =>
+        JsonNode.Parse(json) ?? throw new InvalidOperationException("No JSON returned.");
 }
