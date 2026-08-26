@@ -783,16 +783,40 @@ zeroes its three duration tokens under that media feature, the motion harness pr
 run, and `both` means the resting frame is the same frame either way — so the capture is the settled
 page by construction rather than by arriving late enough.
 
-**And the 32,462 pixels finally have a cause rather than a count.** Locally, six of seven pages match
-the CI-rendered goldens and `shell-villain-light` does not, in one band at (622,835)-(1166,899).
-Sampling it settles it: CI paints `--surface` (255,253,249) there and the Docker Chrome paints
-`--bg` (248,243,236), the two grounds the rest of the page already uses. The last panel's bottom
-edge lands a few pixels apart in the two renderers and on this one page it falls inside the final 65
-rows of a 900px viewport, so a sub-pixel layout difference flips a whole band from panel to ground.
-Not antialiasing, and nothing to do with the palette — which is why forcing the colour scheme never
-moved it. **Left alone deliberately**: CI is the authority and CI is green. The lever is the capture
-height, and it costs a CI round trip to judge, may only move the knife edge, and has been changed
-once and reverted already (`d0839ad`).
+**And the 32,462 pixels turned out to be the entrance animation, not a renderer difference at all.**
+
+This paragraph originally recorded a confident and wrong answer, and the correction is worth more
+than the answer was. Sampling the band at the bottom of `shell-villain-light` showed CI painting
+`--surface` (255,253,249) where the Docker Chrome painted `--bg` (248,243,236), and that was read as
+the last panel's bottom edge landing a few pixels apart in the two renderers. The measurement was
+right; the conclusion was not. **Those are the painted and unpainted states of the same panel.**
+`.panel` carries `animation: rise … both`, and a `both` fill is backwards as well as forwards — the
+element holds the keyframe's starting `opacity: 0` from layout until the animation *begins*, so
+whichever capture landed in that window showed the page ground straight through the panel.
+
+It surfaced properly when master went red on `shell-hero-light` immediately after the merge, on an
+**identical tree hash** to the run that had just passed: both `.panel` regions at opacity 0 while the
+`.card` elements between them matched exactly, which is what named the cause — only `rise` was
+involved. Unreproducible across four local captures, so a load-dependent race.
+
+**`--force-prefers-reduced-motion` on the capture was not enough, and could not have been**, because
+`theme.css` collapsing `--enter` to `0.01ms` shortens the *run* and the problem is the window
+*before the start*. The fix is `animation: none` under reduced motion for the four rules that carry
+`rise` — which the print block has carried for this exact reason for far longer ("an animation with
+`both` fill can leave an element at its starting opacity if print runs before it completes"), and
+which is a real accessibility improvement besides: a reader who asked for no motion was still being
+shown a panel arriving.
+
+**That closed the renderer gap completely.** This script's Docker Chrome and the CI runner's own
+Chrome now produce byte-for-byte identical PNGs for all seven pages, `shell-villain-light` included,
+so a developer can run the check locally and believe the answer. The Windows-versus-Linux rule is
+untouched and still absolute; what is gone is the Linux-versus-Linux difference, which was never a
+difference.
+
+Guarded by `ReducedMotionStopsTheEntranceRatherThanShorteningIt`, which reads the animated selectors
+out of the stylesheet rather than listing them, so a fifth cannot be added uncovered. Broken three
+ways. **The third mutation was null on the first attempt** and is recorded because it looked like a
+hole: renaming the keyframe to `risen` still matches a prefix scan for `rise`.
 
 #### Rules data that read as transcribed and was not
 

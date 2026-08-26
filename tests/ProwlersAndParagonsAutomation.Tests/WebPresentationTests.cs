@@ -441,6 +441,76 @@ public sealed class WebPresentationTests
             + "--enter so prefers-reduced-motion can switch it off.");
     }
 
+    /// <summary>
+    /// <b>Reduced motion turns the entrance animation off, rather than making it fast.</b>
+    ///
+    /// <para><c>theme.css</c> collapsing <c>--enter</c> to <c>0.01ms</c> — which
+    /// <see cref="MotionIsTokenisedAndCanBeTurnedOffWholesale"/> above is the guard for — is not
+    /// enough for the four rules that carry <c>animation: rise … both</c>. A <c>both</c> fill is
+    /// <em>backwards</em> as well as forwards, so the element sits at the keyframe's starting
+    /// <c>opacity: 0</c> from layout until the animation begins, and shortening the run does
+    /// nothing to that window because the window is before the start.</para>
+    ///
+    /// <para><b>Found by a screenshot, and only because the pixel comparator had been
+    /// tightened.</b> <c>scripts/visual-regression.sh</c> captures with
+    /// <c>--force-prefers-reduced-motion</c> so the frame is settled by construction, and
+    /// <c>shell-hero-light</c> still came back with both its panels at opacity 0 on one CI run of
+    /// three — same tree hash, same runner image, unreproducible across four local captures. The
+    /// <c>.card</c> elements between the two panels matched exactly, which is what named the
+    /// cause: only <c>rise</c> was involved.</para>
+    ///
+    /// <para>The print block has carried this same fix for the same reason for far longer
+    /// ("an animation with <c>both</c> fill can leave an element at its starting opacity if
+    /// print runs before it completes"). This asserts it for the other two readers who need
+    /// it: somebody who asked for no motion, and a camera.</para>
+    ///
+    /// <para><b>Selector and declaration are checked together, and the pairing is the point.</b>
+    /// "This selector appears under a reduced-motion query" and "<c>animation:none</c> appears
+    /// somewhere" are each satisfied by a stylesheet where they are nowhere near each other.</para>
+    /// </summary>
+    [Fact]
+    public void ReducedMotionStopsTheEntranceRatherThanShorteningIt()
+    {
+        var block = Rx(@"@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{((?:[^{}]|\{[^{}]*\})*)\}")
+            .Match(WithoutCssComments(AppCss));
+
+        Assert.True(block.Success,
+            "app.css has no `@media (prefers-reduced-motion: reduce)` block, so the four rules "
+            + "carrying `animation: rise … both` keep a backwards fill for a reader who asked "
+            + "for no motion — and for every screenshot the visual check takes.");
+
+        // Every selector that carries the entrance animation, read out of the stylesheet rather
+        // than listed here — a hard-coded list goes stale the first time a fifth one is added,
+        // and the failure would be a rule silently uncovered.
+        var animated = Rx(@"([^{}]+)\{([^{}]*animation:\s*rise[^{}]*)\}")
+            .Matches(WithoutCssComments(AppCss))
+            .SelectMany(m => m.Groups[1].Value.Split(','))
+            .Select(Normalise)
+            .Where(s => s.Length > 0 && !s.StartsWith('@'))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        // The positive control on the scan itself: a regex that has stopped matching finds no
+        // selectors, and "every selector in an empty list is covered" is true of anything.
+        Assert.True(animated.Count >= 4,
+            $"only {animated.Count} selectors carry `animation: rise`; the scan has stopped "
+            + "matching and this test would pass whatever the stylesheet said.");
+
+        var turnedOff = Rx(@"([^{}]+)\{([^{}]*)\}")
+            .Matches(block.Groups[1].Value)
+            .Where(rule => Normalise(rule.Groups[2].Value)
+                .Contains("animation:none", StringComparison.Ordinal))
+            .SelectMany(rule => rule.Groups[1].Value.Split(','))
+            .Select(Normalise)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var uncovered = animated.Where(s => !turnedOff.Contains(s)).ToList();
+
+        Assert.True(uncovered.Count == 0,
+            "these carry `animation: rise … both` and are not switched off under reduced "
+            + "motion, so each can still be caught at opacity 0: " + string.Join(", ", uncovered));
+    }
+
     // ── No rule names a raw length ──────────────────────────────────────────────
 
     /// <summary>
