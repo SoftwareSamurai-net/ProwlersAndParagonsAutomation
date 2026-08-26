@@ -1,28 +1,26 @@
 # Handover
 
-**The redesign is done, both halves. What is left is the list at the bottom, and none of it is a
-defect.**
+**The redesign is finished, the follow-ups are merged and deployed, and the next thing is the
+pre-1.0 audit.** There is no open PR and no branch carrying work.
 
-Light/dark × Hero/Villain was the tractable half and was already settled. The half the brief was
-actually about — *make the substance visible, not add decoration* — landed as an
-information-architecture change rather than as one widget: `/` is a front door offering two
-avenues, the builder is under `/build`, the whole rulebook is searchable at `/rules` behind an
-account, every option and Trait says what it is on hover, and the printed sheet is drawn beside the
-editors while you build. `PROGRESS.md` has the full account under *"A front door with two
-avenues"*.
+What shipped since the last handover, in two waves. The first was the open half of the visual
+redesign: `/` became a front door offering two avenues, the builder moved under `/build`, the whole
+rulebook became searchable at `/rules` behind an account, every option and Trait says what it is on
+hover, and the printed sheet is drawn beside the editors while you build.
 
-**What the previous handover asked for, and how it was answered.** It named three candidates for
-what a first screen should demonstrate — a dice roller, a live cost, a verdict — and said to take
-the choice to the owner before building. That was done and **the answer was none of the three**:
-present the avenues, with the working assumption that somebody arriving is here to build a
-character rather than to look a rule up. The reason none of them fitted is worth carrying: **`/`
-was both the first screen and step one of the wizard**, so any demonstration parked there would
-have re-opened the decision `ChooseTier.razor` already recorded when the samples were moved off it.
+The second was a fifteen-agent fan-out over everything that was left, merged one stream at a time
+onto an integration branch so that fifteen streams cost **one** deploy:
 
-**It is merged and deployed.** [#73](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/73)
-went into `master` as `9ff148e`; Build, Deploy and Qodana are all green on it, and the new routes
-are live. **There is no open PR and no branch carrying work**, so the next session starts with
-nothing to reconcile.
+- **Inviting somebody now emails them** a 3-day single-use one-click link. It sent nothing at all
+  before — `invitations.add` granted permission and told nobody, while being called an invitation.
+- **An account can change its own display name.** No migration; the column always existed.
+- **The error log is readable at `/admin`**, gated exactly as the invitation list.
+- **The recorded conversations moved into the worker**, so the replay gate is a real gate and four
+  fetches came off every visitor's startup.
+- **A labelled evaluation set for the Power search** — 33 expectations, baseline 24, plus a ratchet.
+- **Accessibility**: skip link, landmarks, a live region for crossing into over-budget, saved
+  feedback, slider key handling.
+- **Visual regression**: seven proof pages pixel-diffed against Linux-rendered goldens, in CI.
 
 Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this file.
 
@@ -30,224 +28,111 @@ Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this 
 
 ## Where things stand
 
-**4374 tests** — 3734 engine, 474 bUnit, 166 accounts — **measured on the integration branch after
-every merge**, not carried across from any single branch, which is the mistake this row records
-below.
-Nine browser harnesses driven by headless Chrome in the build workflow (two are new: the front door
-and the rules reference at 375px), plus a tenth added since: `scripts/visual-regression.sh`
-compares seven of those renders pixel-by-pixel against committed goldens — see "What is left" item
-4 below, now closed. Live at **superheroes.softwaresamurai.net**.
+**4374 tests** — 3734 engine, 474 bUnit, 166 accounts — **measured on `master` after the merge**,
+not carried across from any branch. Nine browser harnesses driven by headless Chrome, plus the pixel
+diff. Live at **superheroes.softwaresamurai.net**.
 
-**The new server routes were checked in production, not inferred from a green deploy.** All three
-answer `401` with `application/json`:
-
-```bash
-curl -i https://superheroes.softwaresamurai.net/api/rulebook/contents
-```
-
-That is the check worth making rather than fetching a page, because `_redirects` serves every
-unmatched path as `index.html` with a **200** — so a route that never shipped comes back looking
-like a working page, and only the body tells you. A JSON refusal proves the address is routed *and*
-that the gate is on it.
-
-**Re-measure this rather than adding to it.** It has been wrong twice in a fortnight: three
-branches each claimed a different total for the same tree, and then this file copied one of them
-and carried it through a merge. Two commands, and they disagree with nothing:
+**Re-measure rather than adding to it.** This row has been wrong twice, and the integration that
+produced these figures managed to break it twice more on the way — three competing Tests rows
+accumulated from keep-both merge resolutions, each claiming a different total. Two commands:
 
 ```bash
 dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
 ./scripts/test-worker.sh
 ```
 
-**A whole-tree Qodana scan reports 0**, measured on `5312f32` — from a report that exists rather
-than from an exit code. The follow-up fan-out put ten findings there and all ten were cleared: nine
-fixed, one silenced in `.editorconfig` with the rationale the other three wire surfaces carry.
+**`dotnet test` prints one `Passed!` line per project, and there are two.** If you see one, a project
+failed to **build** and its result is simply missing from the output — which is the same trap as the
+`Catastrophic` one already recorded, in another spelling. Count the lines.
 
-**Do not repeat that zero without re-running `./scripts/qodana-scan.sh`**, which is a rule this
-repository has broken twice. It needs Docker Desktop running; without it the script exits non-zero
-saying so, rather than reporting a clean scan of nothing.
+**A whole-tree Qodana scan reports 0.** `./scripts/qodana-scan.sh`; it needs Docker Desktop running,
+and refuses rather than reporting a clean scan of nothing when it is not. Do not repeat the zero
+without re-running it.
 
-**Sign-in works end to end, and that sentence has never been true before.** A link was requested
-on the live site, arrived, and signed somebody in. Every handover before this one said the same
-thing the other way round — that it needed somebody to receive a link and no test could do it —
-so this is the one claim here that no suite backs and that somebody watched happen.
+**Sign-in, and now the invitation email, both work end to end — watched, not tested.** A link was
+requested on the live site and used; and an invitation was sent from `/admin` to somebody who
+received it and signed in. Those are the two claims here no suite backs. What the suites assert is
+that a message *builder* is called and a token is minted, which is a different sentence.
 
-All four migrations are applied to the remote database (`invitations` and `error_log` were the
-outstanding pair) and all four variables are set: `RESEND_API_KEY`, `MAIL_FROM`, `SITE_URL`,
-`ADMIN_EMAIL`. **The deploy workflow does not run migrations** — deliberately — so a future
-migration is a manual step again, and `invitations` is queried unguarded on the sign-in path,
-which is what makes an unapplied one visible immediately.
+**The live D1 database is `prowlers-and-paragons`.** Two documents named `prowlers-accounts`, which
+does not exist, so their worked `wrangler d1 execute` examples failed for anybody who followed them.
 
-**Getting there took four deploy cycles and diagnosed nothing, which is why
-`scripts/probe-mail.mjs` now exists.** The fault was the API key; every reading of the evidence
-said otherwise. See *Testing the mail path without deploying* in
-[`ACCOUNTS-SETUP.md`](ACCOUNTS-SETUP.md) — that file also carries the Resend subdomain reasoning,
-since a second SPF record at the apex would break the owner's personal mail.
+**Verify a deployed route by its body, never its status.** `_redirects` serves every unmatched path
+as `index.html` with a **200**, so a route that never shipped comes back looking like a working page:
 
-**This site is not a sign-up.** Only invited addresses may ask for a link, and the list is managed
-at `/admin` by somebody already signed in — reached by its address, with no link in the navigation
-and no button that appears only for administrators, because the browser holds no claim about who
-anybody is. Asking for a link still always answers `204`, so the page cannot be used to ask who is
-on the list.
+```bash
+curl -i https://superheroes.softwaresamurai.net/api/rulebook/contents
+```
 
-**Four palettes, on two independent axes.** hero-light and villain-dark are the two that always
-existed, values unchanged; hero-dark and villain-light are new. The theme is `data-theme` on the
-document element with **three states** — an explicit `light`, an explicit `dark`, and no attribute
-at all, which follows `prefers-color-scheme`. The preference is `pp.theme.v1` in local storage:
-per-browser, not on `CharacterSheet` and not on the account.
+A JSON refusal proves the address is routed *and* that the gate is on it.
 
 ---
 
-## The redesign, and what it settled
+## The next thing: the pre-1.0 audit
 
-[pnpready.com](https://www.pnpready.com/) was the comparison and the reading of it in the previous
-handover was right about the diagnosis and wrong about the remedy, in an instructive way.
+The owner's words: *"nearly ready for 1.0"*. `PROGRESS.md` item 7 has carried the shape of this for
+a while and it is now the top of the list. An adversarial audit of all three suites has been run —
+twelve areas, each required to prove a gap **by mutation** rather than by reading. See
+`PROGRESS.md` for what it found and what was done about it.
 
-The diagnosis: **they demonstrate the mechanic and we described features**, and **numbers are
-design material** — this app computes Edge, Health, Resolve and a Hero Point total that are the
-whole point of it, and set them at the same size as a sentence.
+The other half of item 7 — *is this repository snapshotable to a fresh agent?* — is untouched. It
+asks what a new session can read to know what this repo is without re-tracing every past decision,
+and whether `CLAUDE.md` should be redrafted or split into smaller pointer files. It is now over a
+thousand lines.
 
-The remedy it proposed was a demonstration on the first screen, and it offered three candidates —
-a dice roller, a live cost, a verdict. **The owner chose none of them.** What was actually wrong
-with the first screen was not that it failed to demonstrate: it was that `/` was *step one of the
-wizard*, so a visitor who had not decided what they came for was already inside a job. The site
-does two things and only one of them was reachable without knowing the address of the other.
+---
 
-So the answer was to present the avenues, and to let the figures do the work the demonstration was
-meant to do: the front door's numerals are the engine's — 141 Powers off the loaded rules, the
-spend off the same `TryCost` the budget strip calls — at the same size and in the same ink as the
-four derived stats. Nothing on that page is typed in.
+## What is left, in the order I would take it
 
-**One correction to the previous handover's reading of that site, still worth keeping.** Its *app*
-palette is light — `--color-background: oklch(98.47% .002 247.84)` — and only the marketing page
-sits on the near-black navy. Do not take "they went dark" as the lesson.
+1. **Phase 3's validation-on-the-row**, from `docs/FRONT-END-PLAN.md`. The largest remaining
+   front-end item and the one a player would feel: the engine answers continuously and the findings
+   still only surface at GM review. A design for it exists — see `PROGRESS.md`. The rows now have
+   somewhere to put it, since every option row and every Trait row grew an `aria-describedby`
+   target, **but a rule you have broken must be visible and not hover-only**.
+2. **Phase 3's undo.** Three controls can still destroy twenty minutes behind a confirm. A design
+   exists for this too.
+3. **The `search_powers` scorer.** `PROGRESS.md` item 4 forbade touching it until a labelled set
+   existed. It exists now: 33 expectations, **24 met**, with a ratchet that fails if the count
+   drops. That is exactly what lets somebody try a scoring change and see whether it helped or only
+   moved the failures around.
+4. **The four published Heroes 1 HP out.** Every cheap explanation is spent.
+5. **Durable telemetry**, deferred by the owner — `PROGRESS.md` item 9 has the research and the trap
+   that would break the site silently if anybody migrates.
 
-### What is now true that was not
+---
 
-- **`/` is a front door**, `/build` is the six creation steps, `/rules` is the reference, `/admin`
-  holds the account pages and the portfolio. `Areas.Of` decides every band of chrome from the first
-  segment, and an unrouted address falls to the front door rather than to the builder.
-- **The whole rulebook is searchable behind an account**, cited by printed page. All ten chapters
-  are baked into the worker; the entitlement question that blocked this is settled.
-- **Hovering an option or a Trait says what it is.** The descriptions were in `data/rules` the
-  whole time with nothing showing them.
-- **The sheet is drawn beside the editors** on the characteristics step above 1500px.
-
-### What the next session should know before touching any of it
-
-- **`SheetView` only redraws because it subscribes**, and it subscribes only when it is showing the
-  session's own character. It takes no parameter that changes, so Blazor skips it otherwise. If a
-  sheet ever looks stale, that is the first place to look — and if you make it subscribe
-  unconditionally you will tie a recorded character to the visitor's edits, which the replay guard
-  will catch and which is worth understanding before you fight it.
-- **The portfolio gate is a front door rather than a lock**, and the honest sentence for that is in
-  `CLAUDE.md`. The transcripts are still ordinary files under `wwwroot`. Making it real means
-  serving them from the worker as the rulebook is — which would also take four fetches out of every
-  visitor's startup — and is a refactor of `ReplayLibrary.LoadAsync` and `Program.cs`. It is the
-  cleanest small piece of work left.
-- **The old `/portfolio` and `/replay` addresses 404 now**, deliberately. The content is
-  account-gated, so a public link that still worked would be the wrong answer.
-- **The search's honesty flags say how results matched, never what to conclude.** `found: 0` is the
-  only answer meaning the book is silent. The first version of the MCP Power search got this exactly
-  wrong and told a reader the rulebook had nothing while a dozen real passages sat under the
-  sentence. Read `worker/search.js`'s header before changing the matching.
-- **The baker's sentence proves something narrower here than it does in the MCP server**, and the
-  first version of that comment claimed the wider thing. Over there it finds nothing; here it finds
-  twenty-one real passages, because "city" is a word the book uses. What must not happen is that it
-  reaches **Plasticity**.
-
-### What is left, in the order I would take it
-
-1. **Phase 3's validation-on-the-row**, from `docs/FRONT-END-PLAN.md`. The largest remaining item
-   and the one a player would feel: the engine answers continuously and the findings still only
-   surface at GM review. Note that the rows now have somewhere to put it — every option row and
-   every Trait row grew an `aria-describedby` target — but a rule you have broken must be *visible*
-   and not hover-only.
-2. **Phase 3's undo.** Three buttons can still destroy twenty minutes behind a confirm.
-3. **Serving the transcripts from the worker**, which turns the portfolio's front door into a lock
-   and shrinks the startup fetch. Small and self-contained.
-4. ~~**Visual regression testing.**~~ **Closed.** `scripts/visual-regression.sh` screenshots seven
-   proof pages (the four palettes via `proof-shell-*.html`, the front door light and forced-dark,
-   and the rules reference) at a fixed 1280×900 with `--virtual-time-budget=5000`, and compares
-   each against a committed PNG under `tests/visual-goldens/` with `scripts/visual/diff.mjs` — a
-   plain-Node PNG decoder and differ using only `node:zlib`, because this repository has never had
-   a `package.json` and `npm view pixelmatch version` answering fine is not a reason to start one.
-   Wired into `.github/workflows/build.yml` right after the existing proof-harness step.
-
-   **The Linux-only rule held, and here is how.** On CI's `ubuntu-latest` the script drives the
-   Chrome already on PATH; everywhere else — a developer's own Windows or macOS machine included —
-   it drives `selenium/standalone-chrome` in Docker, which ships real Google Chrome rather than a
-   distro-patched Chromium. The goldens in this repository were generated exactly that way, from a
-   Windows machine, through that Docker path, and verified pixel-identical across two independent
-   runs — so "generate them in CI, or in a documented `docker run`" was satisfied by making the
-   `docker run` the thing the script itself falls back to, rather than a manual step somebody has
-   to remember. Two dead ends worth recording so nobody repeats them: `zenika/alpine-chrome` pulls
-   without any package-manager access at all but renders a forced dark colour scheme differently
-   from `ubuntu-latest`'s real Chrome on the identical flag — which would have meant goldens that
-   agreed with themselves and disagreed with CI forever, the exact Windows-vs-Linux failure moved
-   one level down; and a from-scratch Debian image with `apt-get install google-chrome-stable`
-   failed to build here on `Clearsigned file isn't valid, got 'NOSPLIT'`, this environment's own
-   network mangling Debian's signed release file — a `docker build` in a normal environment would
-   likely be fine, but `selenium/standalone-chrome` needs no package-manager access at all, so it
-   sidesteps the question rather than depending on the answer.
-
-   **Broken and watched to fail.** Hero-light `--primary` was changed from `#1B4F9C` to `#2E8B57`
-   and one screenshot regenerated: the check failed on exactly the three pages that token reaches
-   and stayed green on the four that do not use it, each failure reporting a pixel count, a
-   percentage, and a bounding box. Reverted, re-verified green. Full account in `PROGRESS.md`
-   item 9.
-
-### Four small accessibility items — **done**
-
-> Four items from the list below were bundled into one slice because they all touch the shell and
-> the stylesheet: a skip link and correct landmarks, `aria-live` for the over-budget crossing, a
-> "Saved" indicator for the silent write-through, and the Home/End interop shim this section named
-> as the fix three sessions running. All four are shipped, with a rendered test for each, a CSS
-> assertion where the substance is CSS, a browser harness (`proof-slider.html`) for the one that is
-> JavaScript, and a mutation deliberately applied and watched fail for every one of them. See
-> `PROGRESS.md` for the reasoning behind each.
->
-> **The bUnit suite went from 455 to 461 on this branch**, not yet re-measured on `master` — the
-> figure two paragraphs up is `master`'s and this work has not merged into it. Re-run rather than
-> adding the two together.
->
-> **The interop pattern generalised rather than being a one-off.** `Sliders` follows `Motion`,
-> `Shortcuts` and `Theme` exactly — a guarded call into `wwwroot/js/slider.js`, registered in DI
-> beside the other three, with its own `GuardedInteropTests` case. Reach for the same shape before
-> writing a new `try`/`catch` around a JS call.
-
-### Still open from before, unchanged
+## Still open from before, unchanged
 
 - **`.shell` spaces its children by `.panel`'s `margin-bottom`**, so any non-panel child gets no
   spacing. The real fix is a `gap` on `.shell` with the margin removed, but `.shell` also holds the
   sticky budget strip, so it needs proofing on every route.
 - **Screen-reader testing is owed** on the command palette, the pips, the sign-in page, the
-  light/dark control — and now on the row descriptions and the rules search. `aria-pressed` asserted
-  as the string `"true"` is not the same as having been listened to. The skip link, the landmarks,
-  the over-budget announcement and the "Saved" word are all new surfaces this applies to as well.
+  light/dark control, the row descriptions and the rules search. `aria-pressed` asserted as the
+  string `"true"` is not the same as having been listened to, and the new live region is exactly the
+  kind of thing that needs hearing rather than asserting.
+- **The browser payload is ~27 MiB** because trimming is off — `PROGRESS.md` item 5.
 
-### What this slice learned, that the next one needs
+---
 
-- **A guard shaped by the code rather than by the claim is a guard that gets worked around.** Three
-  were widened here: the contract scanner required `searchParams.get('field')` *on the expression*,
-  so hoisting the parameters into a local reported a field the server plainly reads as unread;
-  `NoScreenCalcNamesARawLength` refused `100vh`, which names the container exactly as `100%` does;
-  and the corpus sync test asserted exactly one chapter. **Widen to the claim, and pin the
-  exemption as narrowly as the claim allows** — the `calc` exemption is on the figure 100, not on
-  the unit, and `37svh` is still refused. Watched, both ways.
-- **Three faults were found by looking at a screenshot and by nothing else.** A dotted underline
-  drawn in `--rule` is invisible under a word — and it was the only marking on a control. A CSS
-  comment claimed the preview keeps the sheet's three columns and it does not. Search results sat
-  unframed between two panels. Every rendering test passed through all three.
-- **A component can look live and not be.** See `SheetView` above. The tab strip beside it was
-  updating, which is what made it read as working.
-- **`display: none` and `visibility: hidden` are not interchangeable for an absolutely-positioned
-  tip.** The precedent was already recorded on `AClosedTipTakesNoLayoutBox` and it applied here
-  unchanged: a hidden element keeps its box.
-- **A `sed` pattern containing `||` will be split by the shell** and the tail redirected into a
-  file named after the fragment. It happened here, the file was committed, and it took a second
-  commit to remove. Use an exact-match editing tool for anything with shell metacharacters in it.
+## What this round learned, that the next one needs
 
+- **Mergeable is about text, not agreement, and it bit here.** A branch cut before the transcripts
+  moved into the worker still carried the startup `ReplayLibrary.LoadAsync`; both registrations
+  merged cleanly and keeping both would have silently restored four fetches for every visitor. When
+  merging parallel branches, read what each one *meant*, not just whether git was quiet.
+- **A guard that cannot tell an explanation from a directive taxes the explanation.** A csproj
+  contract scan used `Contains`, so writing down *why* transcripts are no longer staged failed the
+  test. Strip comments before scanning, and keep a positive control that plants the real thing.
+- **Some things a build cannot fix.** `wwwroot/**` is globbed at project *evaluation*, so a
+  `RemoveDir` of a stale staged directory always breaks its own build. Recorded in the csproj.
+- **A proof page whose content depends on test order cannot be pixel-checked.** Three were written
+  by a `[Theory]` into fixed filenames, so the palette was a coin toss. Nothing before the pixel
+  diff had ever compared those pages byte for byte.
+- **An audit is worth running even when everything is green.** Two real bugs came out of one:
+  a search route where any signed-in account could spend **2.7 seconds** of CPU on a 70KB query, and
+  a page that existed, rendered, was tested, and could be reached by nobody.
+
+---
 
 ## Error reporting: two audiences, one failure
 
@@ -481,3 +366,17 @@ What a slice would actually involve:
   In the same session a `sed -i` delete whose paired insert failed removed 45 lines of
   `PROGRESS.md` in silence — **a shell redirect is not an editing tool**, and a two-step edit
   where step one destroys is a two-step edit that needs step two to be checked.
+- **A `sed` pattern containing `||` is split by the shell**, and the tail is redirected into a file
+  named after the fragment. That happened here, the junk file was committed, and it took a second
+  commit to remove. Anything with shell metacharacters in it wants an exact-match editing tool, not
+  `sed -i` through a shell.
+- **A mechanical "keep both" conflict resolution can cut through a method.** Resolving two agents'
+  additions that way left unbalanced braces in a test helper — and solution-level `dotnet test`
+  reported one `Passed!` line for the project that still built, so the suite *looked* green while a
+  whole project failed to compile. Count the `Passed!` lines; there should be one per project.
+- **Two branches can merge cleanly and still contradict each other.** One cut before a change and
+  one after it offered git two registrations, both applied without complaint, and keeping both would
+  have undone the earlier change silently. Git's silence is about text.
+- **Do not let a doc name an external resource without checking it exists.** Two files told a stuck
+  reader to run `wrangler d1 execute prowlers-accounts`; there is no such database. A value that
+  lives in somebody else's dashboard goes stale — write the command that *finds* it instead.

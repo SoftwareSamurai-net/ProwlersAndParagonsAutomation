@@ -668,7 +668,7 @@ through the mutation, which is the whole reason the stylesheet guards exist:
 - **The preview is on the characteristics step alone**, because the finishing step is where the free
   text is and a whole sheet behind every keypress is the render cost the front-end plan warns about.
   Asserted, with a control.
-- **Still no visual regression testing**, and this slice makes the gap worse: three new screens, four
+- ~~**Still no visual regression testing**~~ — **closed by the follow-up fan-out**; at the time of this entry it was open, and the gap was worse for three new screens and four
   palettes, every screenshot judged by eye. **Closed in a later slice** — see item 9 below and
   `docs/HANDOVER.md`.
 

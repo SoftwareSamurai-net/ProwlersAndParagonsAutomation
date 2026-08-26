@@ -3,7 +3,11 @@
 
 The site is **live on Cloudflare Pages** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `*.pages.dev` fallback at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev). Deployed by [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) on every push to `master` that touches the app, the engine, the rules or the deploy itself.
 
-There is no server-side component and no build step on Cloudflare's side: the workflow runs `dotnet publish`, writes the security headers, and uploads the result.
+There is no build step on Cloudflare's side: the workflow runs `dotnet publish`, writes the security headers, and uploads the result.
+
+**There *is* a server-side component, and this document used to say there was not.** The character generator needs none — it runs entirely in the browser — but the accounts half is Cloudflare Pages Functions: one routed file, `functions/api/[[path]].js`, and everything it imports from `worker/`. That is what serves sign-in, saved characters, the rulebook reader and the recorded conversations, and it is why the deploy has a `curl` check that `/api/me` answers **JSON** rather than the app's own `index.html`. See [`ACCOUNTS-SETUP.md`](ACCOUNTS-SETUP.md).
+
+**`wrangler pages deploy <dir>` bundles a `functions` directory found in the working directory, not in the directory being uploaded.** There is no flag for it; the placement *is* the configuration, and getting it wrong deploys a healthy-looking site that signs nobody in.
 
 ### One-time setup
 
