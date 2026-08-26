@@ -653,6 +653,120 @@ public sealed class ValidationIssueStructureTests
     }
 
     /// <summary>
+    /// <b>Five of the six quantity-carrying fields had no test that isolated their own branch.</b>
+    /// An adversarial mutation audit weakened <c>&lt; 0</c> to <c>&lt; -1000</c> on the Power
+    /// purchased-ranks branch of <c>CheckQuantities</c>, and separately on the Perk-Units branch,
+    /// and the whole suite stayed green. The reason is <c>Build("negative quantities")</c>: one
+    /// sheet carrying all six fields negative at once, so a shared meta-check ("some
+    /// <c>NEGATIVE_RANK</c>/<c>NEGATIVE_UNITS</c> issue exists somewhere on this sheet") was
+    /// satisfied by one of the *other* five sources every time, whichever branch the mutation
+    /// disabled. Each test below puts exactly one field negative on an otherwise-legal sheet, so
+    /// nothing else on the character can supply the finding it asserts on.
+    /// </summary>
+    [Fact]
+    public void ANegativeAbilityRankIsRefused()
+    {
+        var sheet = Legal();
+        sheet.AbilityRanks["might"] = -5;
+
+        var issue = Issue(sheet, "NEGATIVE_RANK");
+
+        Assert.Equal(ValidationSubject.Ability, issue.SubjectKind);
+        Assert.Equal("might", issue.SubjectId);
+        Assert.Equal(-5, issue.Value);
+        Assert.False(_f.Validator.Validate(sheet).IsValid);
+    }
+
+    [Fact]
+    public void ANegativeTalentRankIsRefused()
+    {
+        var sheet = Legal();
+        sheet.TalentRanks["athletics"] = -3;
+
+        var issue = Issue(sheet, "NEGATIVE_RANK");
+
+        Assert.Equal(ValidationSubject.Talent, issue.SubjectKind);
+        Assert.Equal("athletics", issue.SubjectId);
+        Assert.Equal(-3, issue.Value);
+        Assert.False(_f.Validator.Validate(sheet).IsValid);
+    }
+
+    /// <summary>
+    /// A Power's purchased ranks. <c>PowerCost</c> floors a per-rank Power's minimum at 0 once
+    /// its ranks are non-positive, so a negative rank does not pay Hero Points back — it costs
+    /// exactly 0, silently, which is not a refusal. The guard, not the price, is what keeps a
+    /// character carrying a nonsensical negative Power rank off a legal sheet.
+    /// </summary>
+    [Fact]
+    public void ANegativePowerPurchasedRanksIsRefused()
+    {
+        var sheet     = Legal();
+        var selection = new SelectedPower("blast", -4) { SourceId = "tech" };
+        sheet.SelectedPowers.Add(selection);
+
+        var issue = Issue(sheet, "NEGATIVE_RANK");
+
+        Assert.Equal(ValidationSubject.Power, issue.SubjectKind);
+        Assert.Equal("blast", issue.SubjectId);
+        Assert.Equal(-4, issue.Value);
+
+        // The positive control for "the total cost is not silently reduced": the raw calculator
+        // really does answer 0 for this, not a refusal and not a negative number, so the guard
+        // is the only thing standing between this and a legal, free Power.
+        Assert.Equal(0, _f.Costs.PowerCost(selection));
+        Assert.False(_f.Validator.Validate(sheet).IsValid);
+    }
+
+    /// <summary>
+    /// A Power's <c>Units</c>, on a Power priced by the unit. Every Power floors at 1 HP
+    /// regardless of Cons (<c>CostParts.Fixed</c>), so a negative quantity here does not pay
+    /// Hero Points either — it silently costs the floor, hiding that the number recorded makes
+    /// no sense rather than refusing it.
+    /// </summary>
+    [Fact]
+    public void ANegativePowerUnitsIsRefused()
+    {
+        var sheet     = Legal();
+        var selection = new SelectedPower("immunity", 0) { Units = -20, SourceId = "tech" };
+        sheet.SelectedPowers.Add(selection);
+
+        var issue = Issue(sheet, "NEGATIVE_UNITS");
+
+        Assert.Equal(ValidationSubject.Power, issue.SubjectKind);
+        Assert.Equal("immunity", issue.SubjectId);
+        Assert.Equal(-20, issue.Value);
+
+        Assert.Equal(1, _f.Costs.PowerCost(selection));
+        Assert.False(_f.Validator.Validate(sheet).IsValid);
+    }
+
+    /// <summary>
+    /// A Perk's <c>Units</c> is the one quantity with no floor underneath it at all —
+    /// <c>PerkCost</c> multiplies straight through with no <c>Math.Max</c> beneath it. This is
+    /// the harm CLAUDE.md records by name: unguarded, a negative quantity here really does pay
+    /// the character Hero Points, which can report an over-budget character legal at exit 0.
+    /// </summary>
+    [Fact]
+    public void ANegativePerkUnitsIsRefused()
+    {
+        var sheet = Legal();
+        var perk  = new SelectedPerk("contacts", -1000);
+        sheet.Perks.Add(perk);
+
+        var issue = Issue(sheet, "NEGATIVE_UNITS");
+
+        Assert.Equal(ValidationSubject.Character, issue.SubjectKind);
+        Assert.Equal("contacts", issue.SubjectId);
+        Assert.Equal(-1000, issue.Value);
+
+        // The positive control: unguarded, this really would pay the character 1,000 Hero
+        // Points rather than cost them — the total is not silently reduced, it is silently
+        // reversed, and the guard is what stops that reaching a legal sheet.
+        Assert.True(_f.Costs.PerkCost(perk) < 0);
+        Assert.False(_f.Validator.Validate(sheet).IsValid);
+    }
+
+    /// <summary>
     /// A quantity large enough to wrap the multiplication. Making the grand total checked was
     /// not enough — the wrap happened in the per-unit multiplication underneath it, so
     /// Determination at 500,000,000 units cost 5 HP and gave 500,000,016 Resolve at exit 0.
