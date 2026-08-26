@@ -2028,6 +2028,34 @@ label {
    fall.
    ───────────────────────────────────────────────────────────────────────────── */
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   REDUCED MOTION TURNS THE ENTRANCE OFF, RATHER THAN MAKING IT FAST.
+
+   `theme.css` collapses `--enter` to 0.01ms under `prefers-reduced-motion`, and that is
+   right for the tokens but is not enough for these four. `animation: rise … both` has a
+   **backwards** fill, so the element sits at the keyframe's starting `opacity: 0` from the
+   moment it is laid out until the animation actually begins — and shortening the duration
+   does nothing to that window, because the window is before the start rather than during
+   the run. A reader who asked for no motion can therefore still catch a panel mid-arrival.
+
+   The print block below already carries this exact fix for the same exact reason ("an
+   animation with `both` fill can leave an element at its starting opacity if print runs
+   before it completes"). This is that finding applied to the other two places it bites:
+   somebody who asked for no motion, and a screenshot.
+
+   **And a screenshot is how it was found.** `scripts/visual-regression.sh` captures with
+   `--force-prefers-reduced-motion` precisely so the frame is settled by construction, and
+   `shell-hero-light` still came back with both its panels at opacity 0 on one CI run out of
+   three — same commit, same tree hash, same runner image, and unreproducible across four
+   local captures, so it is a load-dependent race and not a renderer difference. `.card`
+   elements between the two panels matched exactly, which is what named the cause: only
+   `rise` was involved.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    .panel, .sheet, .breakdown, .palette { animation: none; }
+}
+
 @page {
     size: A4 portrait;
     margin: 14mm 13mm;
