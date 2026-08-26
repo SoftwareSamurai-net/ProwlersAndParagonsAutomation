@@ -105,6 +105,16 @@
        when it is false and renders it as `aria-pressed=""` when it is true, and an empty
        value is invalid ARIA that assistive technology reads as *not* pressed — so the
        natural spelling announces the exact opposite of the state on both buttons. *@
+    @* Which character is open, and the way to another one, on every step of the builder.
+
+       **The builder alone**, exactly as the step list and the budget strip below are: naming the
+       visitor's character over a rules search or a recording of somebody else's is the fault
+       those two were pulled off three areas to fix. *@
+    @if (Where == Area.Play)
+    {
+        <CharacterSwitcher />
+    }
+
     <div class="mode-switch" role="group" aria-label="Hero or Villain">
         <button type="button"
                 aria-pressed="@Pressed(SheetMode.Hero)"
