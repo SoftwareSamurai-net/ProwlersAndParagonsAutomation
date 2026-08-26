@@ -16,6 +16,7 @@ namespace ProwlersAndParagons.Web.Tests;
 /// </summary>
 public sealed class CharacterSwitcherTests
 {
+    /// <param name="path">The address to render at, which decides whether the switcher draws.</param>
     /// <param name="signedIn">
     /// Set <b>before anything else touches the store</b>. `.With(mode)` loads a sample, which asks
     /// who is here and caches the answer — so signing in after it leaves the identity resolved as
@@ -117,11 +118,11 @@ public sealed class CharacterSwitcherTests
     [Fact]
     public async Task ItOffersTheOthersAndNotTheOneAlreadyOpen()
     {
-        using var ctx = At("build/characteristics", signedIn: true);
+        await using var ctx = At("build/characteristics", signedIn: true);
         var (_, openName, otherName) = await TwoSaved(ctx);
 
         var shell = ctx.Render<MainLayout>();
-        shell.Find(".character-switch-name").Click();
+        await shell.Find(".character-switch-name").ClickAsync(new());
 
         // The click handler refreshes the list asynchronously, so the render that shows it lands
         // after the click returns. Waiting for the element is what makes this a test of the
@@ -185,13 +186,13 @@ public sealed class CharacterSwitcherTests
     [Fact]
     public async Task ChoosingOneSwapsTheCharacterOnScreen()
     {
-        using var ctx = At("build/characteristics", signedIn: true);
+        await using var ctx = At("build/characteristics", signedIn: true);
         var (_, _, otherName) = await TwoSaved(ctx);
 
         var shell = ctx.Render<MainLayout>();
-        shell.Find(".character-switch-name").Click();
+        await shell.Find(".character-switch-name").ClickAsync(new());
         shell.WaitForElement("#character-switch-list li button");
-        shell.FindAll("#character-switch-list li button")[0].Click();
+        await shell.FindAll("#character-switch-list li button")[0].ClickAsync(new());
 
         Assert.Equal(otherName, ctx.Session.Sheet.Name);
 
