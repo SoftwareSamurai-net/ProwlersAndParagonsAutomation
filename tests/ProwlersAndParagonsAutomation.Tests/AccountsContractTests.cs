@@ -119,9 +119,9 @@ public sealed class AccountsContractTests
     /// compiles silently and needs a guard rather than a missing <c>using</c> to catch it.</para>
     ///
     /// <para><b>One sanctioned exception.</b> <c>FileSystemRulesSource.cs</c> is the
-    /// <see cref="IRulesSource"/> implementation the CLI hands the repository — the documented
-    /// seam a host with a disk is supposed to use — so it is excluded by name rather than the
-    /// ban being loosened for everyone.</para>
+    /// <see cref="Engine.IRulesSource"/> implementation the CLI hands the repository — the
+    /// documented seam a host with a disk is supposed to use — so it is excluded by name rather
+    /// than the ban being loosened for everyone.</para>
     ///
     /// <para>Comments are blanked before the scan, the same reason <c>WithoutXmlComments</c>
     /// does it for the csproj scan below: two of these files carry an architecture comment

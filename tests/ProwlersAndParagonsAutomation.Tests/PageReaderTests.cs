@@ -145,10 +145,10 @@ public sealed class PageReaderTests
     [Fact]
     public void AGenuinelyFullWidthLineIsKeptWhole()
     {
-        const string Opening =
+        const string opening =
             "THIS OPENING RUNS ACROSS THE WHOLE WIDTH OF THE PRINTED PAGE FROM ONE MARGIN TO THE OTHER";
 
-        var glyphs = Glyphs(Opening, left: 45, baseline: 700);
+        var glyphs = Glyphs(opening, left: 45, baseline: 700);
         glyphs.AddRange(TwoColumnBody("L", "R", startBaseline: 680));
 
         var lines = new PageReader().Read(glyphs, PageWidth);
@@ -157,7 +157,7 @@ public sealed class PageReaderTests
         Assert.Contains(lines, l => l.Text.StartsWith("L0 XXX", StringComparison.Ordinal));
         Assert.Contains(lines, l => l.Text.StartsWith("R0 XXX", StringComparison.Ordinal));
 
-        Assert.Equal(Opening, lines[0].Text);
+        Assert.Equal(opening, lines[0].Text);
     }
 
     // ------------------------------------------------------------------------------------------
