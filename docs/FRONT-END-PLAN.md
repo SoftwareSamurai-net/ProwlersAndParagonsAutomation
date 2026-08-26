@@ -5,8 +5,10 @@ after it: turning a correct sheet-filling tool into something that feels like a 
 application. It is a plan, not a commitment — each phase is separable, and the order is chosen
 so that the cheap invisible work comes before the expensive visible work that depends on it.
 
-**Read `CLAUDE.md` first.** Everything below is bounded by the disciplines already recorded
-there, and a plan that quietly breaks one of them is not a plan.
+**Read `CLAUDE.md` first, and then [`docs/guide/browser.md`](guide/browser.md)**, which is where
+the front end's own rules now live — the four presentation rules, the four palettes and the areas.
+Everything below is bounded by the disciplines recorded in those two, and a plan that quietly
+breaks one of them is not a plan.
 
 ---
 
@@ -192,7 +194,8 @@ hazard was a component that looked live and was not.**
 
 ## What must not break
 
-Every one of these has already cost this project a bug, and all are recorded in `CLAUDE.md`:
+Every one of these has already cost this project a bug, and all are recorded in
+[`docs/guide/browser.md`](guide/browser.md):
 
 - **No component names a colour, a font, a radius, a duration or a raw length.** theme.css is
   the only file that names any of them, and as of Phase 0 the length half is asserted too —

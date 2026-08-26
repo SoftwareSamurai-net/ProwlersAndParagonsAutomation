@@ -387,26 +387,26 @@ already rejected on principle** — `CLAUDE.md` declines third-party error servi
 that nothing about who somebody is should leave the Cloudflare account this site deploys to, and
 that property is worth more than a nicer dashboard. That reasoning is unchanged by anything above.
 
-### 7. The pre-1.0 audit — **the test half is closed; the snapshotability half is not**
+### 7. The pre-1.0 audit — **the test half and the `CLAUDE.md` half are closed; the codebase half is not**
 
 The adversarial half has run and been acted on: 126 mutations, 48 survivors, eleven streams. See
-the completed entry, and `docs/notes/` for the mutation tables. What is left of this item is the
-second half, untouched:
+the completed entry, and `docs/notes/` for the mutation tables.
 
-- **Is it snapshotable to a fresh AI agent?** What can a new session read to know what this repo
-  is and where the load-bearing pieces are, without re-tracing every past decision? The audit's
-  job is to say what would improve `CLAUDE.md` — a redraft, or smaller pointer files for common
-  tasks. **`CLAUDE.md` is now over 1,300 lines and this file is over 4,400**, and this slice added
-  to both. That is the argument for the item rather than against it, but it is worth saying
-  plainly that the two documents are growing faster than anybody reads them.
+**The first of the two remaining bullets — "is it snapshotable to a fresh AI agent?" — is closed
+by the split recorded in the completed entry below.** `CLAUDE.md` is 290 lines and indexes ten
+files under `docs/guide/`. What is left of this item is the second bullet, untouched:
+
 - **Is the codebase as optimised as it should be?** Dead code, hot paths on the engine, payload
   waste, and the token side — files a subagent has to load before it can do anything useful.
 
-The one thing this slice learned that bears on the first bullet: **eleven agents were each given
-the two or three `CLAUDE.md` sections their task depended on, rather than the whole file, and
-none of them went wrong for want of the rest.** That is weak evidence that the pointer-file shape
-is the right answer, and it is weak because the sections were chosen by somebody who had read the
-whole thing.
+**The token side is the half the split only started on.** `CLAUDE.md` no longer costs every
+session 1,431 lines, but this file is over 4,900 and is read at the start of every slice by
+instruction. The same argument applies to it and the same answer probably does not: `PROGRESS.md`
+is chronological by design, and its completed entries are the record that stops work being redone.
+Splitting it by area would break the one property that makes it worth reading — that the newest
+entry is the newest news. What would help is a shorter **Current state** and **Remaining work**
+head with the completed entries behind a second file, and that is a slice of its own with a real
+risk of losing the reasoning that is the whole point of the file. Nobody has costed it.
 
 ### 9. Visual regression testing — **closed, and then closed properly**
 
@@ -456,6 +456,76 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 ---
 
 ## Completed work
+
+### `CLAUDE.md` becomes an index, and ten guides carry the rest
+
+**1,431 lines, and the cost was never that it was long.** The cost is visible in the pull request
+immediately before this one. #79 shipped four features and `CLAUDE.md` records **one** of them: it
+is silent on `RulebookProse`/`BookText`, silent on the explained sheet, and silent on
+`DiscardedCharacter` — while a bullet at line 425 said discarding a non-current saved character
+"is still a confirm, deliberately… a separate piece of work", which #79 had removed, and which
+then sat there being wrong through three more merges. Nothing caught either, because nothing
+could: a markdown paragraph that has stopped being true breaks no build.
+
+Both halves of that are one failure. **A file nobody finishes is a file whose last two hundred
+lines do not fire** — so the rules stop being read, and then they stop being written, because the
+place to write them down is no longer a place anybody goes.
+
+**The rule that decided the split, and it is the whole design:**
+
+> A rule stays in `CLAUDE.md` if breaking it costs work regardless of what you were doing. It
+> moves to a guide if you can only break it while working on that area.
+
+So the stash rule and break-it-and-watch-it-fail are in the index — you can lose a day to either
+while editing a JSON file — and "no component names a colour" is not, because you cannot break it
+without opening `web/`. **290 lines, from 1,431.** Ten files under `docs/guide/`: the rules engine,
+the browser front end, the printed sheet, the replay, the two assisted-creation surfaces, the
+accounts server, the rulebook corpus, tests and static analysis, hosting, and the terminal wizard.
+
+**Nothing was cut. The partition was proved to tile the source exactly**, which is the check worth
+keeping rather than the outcome:
+
+- Every one of the 1,446 baseline lines is covered by exactly one destination range — 1,446 rows
+  counted with duplicates, 1,446 distinct, **zero gaps and zero overlaps**. Dropping one 100-line
+  range from the cover reports exactly 100 gaps, which is the positive control: the checker fires.
+- A set comparison over the content confirms it independently, and **it was broken and watched to
+  fail** — deleting the Item Con bullet from `rules-engine.md` made the checker name that exact
+  line, and restoring it returned zero. Twelve lines differ from the baseline in the end, and all
+  twelve are cross-references deliberately repointed at their new files.
+
+That mattered because a set comparison is precisely the shape this repository has been fooled by
+before: the extractor audit rotated 1,492 section bodies onto the wrong headings with the suite
+green. The tiling check is the one that cannot be satisfied that way.
+
+**The split buys a smaller always-loaded file and costs a failure mode the single file did not
+have: a pointer can rot independently of the thing it points at.** A guide nobody names is a guide
+nobody reads; an index naming a renamed file sends a reader hunting for rules still in force
+somewhere else. Both are silent. `RepositoryGuideTests` is the only thing that would notice — five
+tests, each broken and watched to fail:
+
+| Mutation | What went red |
+|---|---|
+| `replay.md` renamed to `recordings.md` | three at once: an orphaned guide, an unrouted guide, and a dead pointer naming `replay.md` |
+| 120 lines appended to `CLAUDE.md` | the budget test, naming 410 against 400 |
+| one table row rewritten as a prose sentence | the routing test, naming `cli-wizard.md` — **the prose mention survived and the test still failed**, which is the property it exists for |
+| a guide's `PROGRESS.md` back-link removed | the back-link test, naming `hosting.md` |
+
+Two of them carry positive controls on the instrument rather than on the subject: an empty guide
+directory and an extraction that has stopped matching both satisfy every "no orphans" assertion
+completely while proving nothing, which is the failure shape this repository has shipped four
+times.
+
+**The budget test is the load-bearing one and it is deliberately awkward.** Without it the file
+regrows and the split has bought a year rather than a fix. 400 lines, with headroom over the 290
+actually produced — a budget that fails on the next honest sentence teaches people to raise the
+budget, which is the one outcome that makes it worthless. It is there to catch a *section*.
+
+**What this does not close.** The evidence that the pointer shape is right is still the weak data
+point item 7 recorded — eleven agents given two or three sections each, none going wrong for want
+of the rest, weak because somebody who had read the whole file chose the sections. **The honest
+test is a fresh session that has to find a rule it was not handed**, and that is a thing to watch
+for over the next few slices rather than something this one can assert. If an agent breaks a rule
+that is now in a guide, the routing table is the suspect, not the reader.
 
 ### Two scripts Cloudflare injects at the edge, one allowed and one deliberately not
 

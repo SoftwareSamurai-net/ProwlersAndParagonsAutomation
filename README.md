@@ -172,9 +172,13 @@ Two more that are not reference material:
 
 - **[`PROGRESS.md`](PROGRESS.md)** — the single source of truth for what is done and what remains,
   with the reasoning behind each decision. Read it before starting anything.
-- **[`CLAUDE.md`](CLAUDE.md)** — how to *work* in this codebase: the disciplines, the traps, and
-  the rules that have already been got wrong once. Written for an assistant and just as useful to
-  a person.
+- **[`CLAUDE.md`](CLAUDE.md)** — how to *work* in this codebase: the disciplines and traps that
+  apply whatever you are touching, and a routing table into the guide set. Written for an
+  assistant and just as useful to a person.
+- **[`docs/guide/`](docs/guide/)** — one file per area: the rules engine, the browser front end,
+  the printed sheet, the replay, the MCP server, the accounts server, the rulebook corpus, tests,
+  hosting and the terminal wizard. Each holds the rules that have already been got wrong once in
+  that area. `CLAUDE.md` says which to read for what you are about to touch.
 
 ---
 ## Roadmap

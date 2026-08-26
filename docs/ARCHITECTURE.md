@@ -1,6 +1,6 @@
 # Architecture
 
-How the projects fit together, and what lives where. The rules for *working* in this codebase are in [`CLAUDE.md`](../CLAUDE.md); this is the map.
+How the projects fit together, and what lives where. The rules for *working* in this codebase are in [`CLAUDE.md`](../CLAUDE.md) — the ones that apply whatever you are touching — and in [`docs/guide/`](guide/), one file per area, which `CLAUDE.md`'s routing table indexes. This is the map.
 
 
 Four layers with a strict no-upward-dependency rule, and three hosts sharing the top one:
@@ -158,7 +158,8 @@ ProwlersAndParagonsAutomation/
 ├── Directory.Build.props         # Target framework and the analyzer contract, shared by every project
 ├── qodana.yaml                   # Linter, profile and the load-bearing dotnet.solution key
 ├── PROGRESS.md                   # What is done and what remains — kept current
-├── CLAUDE.md                     # Working notes: the decisions that are expensive to re-derive
+├── CLAUDE.md                     # The disciplines that apply everywhere, and the guide routing table
+├── docs/guide/                   # One file per area: the decisions that are expensive to re-derive
 ├── docs/HANDOVER.md              # Where the last session stopped and what the next one is for
 ├── docs/MCP-SETUP.md             # Connecting the server to Claude Code or Claude Desktop
 ├── docs/RULES_EXTRACTION_GUIDE.md
