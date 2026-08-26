@@ -29,12 +29,21 @@ public sealed class PowerSearchEvaluationTests
         new(_f.Rules, _f.Costs, _f.Derived, _f.Validator);
 
     /// <summary>
-    /// The number of expectations met, measured against the search as it stands when this file
-    /// was written and committed to PROGRESS.md item 4. <see cref="TheScoreNeverGetsWorse"/>
-    /// holds the suite to at least this; it must never be lowered to make a regression pass —
-    /// lower it only alongside a PROGRESS.md entry saying why the set itself changed.
+    /// The number of expectations met. <see cref="TheScoreNeverGetsWorse"/> holds the suite to
+    /// at least this; it must never be lowered to make a regression pass — lower it only
+    /// alongside a note saying why the set itself changed.
+    ///
+    /// <para><b>Raised from 24 to 25</b> by widening the stopword list — see
+    /// <c>docs/notes/s8-search.md</c> for the before/after table and what else was tried and
+    /// reverted. "Through", "than", "anyone" and the rest added there carry no more information
+    /// about a Power than "from" or "into", already on this list; dropping them as search terms
+    /// shrank the filler-word tie-floods PROGRESS.md item 4 named without touching the scoring
+    /// formula itself. "Walks through walls" and "he shoots fire from his hands" — the two cases
+    /// quoted directly from that entry — are still unmet: neither the tie-ordering fix nor the
+    /// other change measured against this set moved either one, and the note explains why.
+    /// </para>
     /// </summary>
-    private const int Baseline = 24;
+    private const int Baseline = 25;
 
     private const int TotalExpectations = 33;
 
