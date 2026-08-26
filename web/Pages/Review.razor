@@ -2,6 +2,8 @@
 @implements IDisposable
 @inject CharacterSession Session
 @inject IJSRuntime Js
+@inject Commands Commands
+@inject NavigationManager Nav
 
 @* The character's name leads the title because the browser prints the document title in
    its own page header, which is the one thing that reliably repeats on every printed page.
@@ -29,6 +31,24 @@
                 {
                     <li class="@(issue.Severity == ValidationSeverity.Error ? "error" : "warning")">
                         @issue.Message
+                        @* **Where to go and fix it.** This list is the last of six steps, and it
+                           used to name a broken rule and leave the reader to remember which
+                           earlier step holds the thing that broke it.
+
+                           The link text is the step's own name and nothing more. WCAG 2.4.4 takes
+                           link purpose *in context*, and the context is this row — the sentence
+                           immediately before it is the finding. Repeating the finding into an
+                           `aria-label` would say it twice to the readers most likely to be moving
+                           link by link.
+
+                           A finding with no honest destination gets no link rather than a link to
+                           somewhere plausible: see `FindingRoute`, and the note there on why the
+                           Hero Point budget is deliberately one of them. *@
+                        @if (FindingRoute.For(issue, Session.Sheet) is { } to)
+                        {
+                            <a class="finding-step" href="@to.Href"
+                               @onclick="() => GoTo(to)" @onclick:preventDefault="true">@to.Label</a>
+                        }
                     </li>
                 }
             </ul>
@@ -95,6 +115,30 @@
         Validation.Issues
             .Where(i => Session.ShowBudget || i.Code != "HP_BUDGET_EXCEEDED")
             .ToList();
+
+    /// <summary>
+    /// Take the reader to the step a finding belongs to, and open the right section when it has
+    /// one.
+    ///
+    /// <para><b>A real <c>href</c> with the default prevented, rather than a button.</b> The
+    /// destination is another address, so it should be a link — announced as one, and openable in
+    /// a new tab with the middle button, which fires <c>auxclick</c> and so never reaches the
+    /// handler below. What the handler buys is ordering: the request has to be set <em>before</em>
+    /// the step initialises, because <c>Characteristics.OnInitialized</c> reads it, and letting
+    /// the router navigate on its own leaves that a race. This is the same
+    /// request-then-navigate the command palette already does for a Power.</para>
+    ///
+    /// <para>Both requests are set where both apply: a Power's own finding names the section
+    /// <em>and</em> the Power, so the reader lands on the Powers section with that Power's editor
+    /// already open rather than on a list of what they have.</para>
+    /// </summary>
+    private void GoTo(FindingRoute.Destination to)
+    {
+        if (to.PowerId is { } powerId) Commands.RequestPower(powerId);
+        if (to.Section is { } section) Commands.RequestSection(section);
+
+        Nav.NavigateTo(to.Href);
+    }
 
     private Task Print() => Js.InvokeVoidAsync("print").AsTask();
 

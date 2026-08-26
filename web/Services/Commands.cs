@@ -124,6 +124,39 @@ public sealed class Commands
     }
 
     /// <summary>
+    /// The section of the characteristics step the reader asked for and has not been shown yet.
+    ///
+    /// <para><b>The same shape as <see cref="RequestedPowerId"/>, for the same reason</b>: the
+    /// sections live on another step, so naming one is a request rather than an action. It is a
+    /// fact about a screen and deliberately not a field on the character.</para>
+    ///
+    /// <para><b>Taken rather than peeked, which is the opposite of the Power above.</b> A Power is
+    /// peeked by the step and taken by the editor, because two components need it. A section has
+    /// exactly one consumer — the step's own tab — so it is cleared the moment that reads it; left
+    /// set, it would drag the reader back to the same tab every time anything else on the step
+    /// re-rendered.</para>
+    /// </summary>
+    public string? RequestedSection { get; private set; }
+
+    /// <summary>
+    /// Ask for a section of the characteristics step to be shown. Used by the GM review step's
+    /// findings, which name the step a broken rule belongs to.
+    /// </summary>
+    public void RequestSection(string section)
+    {
+        RequestedSection = section;
+        Changed?.Invoke();
+    }
+
+    /// <summary>Take the requested section, clearing it so it is acted on once.</summary>
+    public string? TakeRequestedSection()
+    {
+        var section = RequestedSection;
+        RequestedSection = null;
+        return section;
+    }
+
+    /// <summary>
     /// Take the requested Power, clearing it so it is acted on once.
     ///
     /// <para><b>Read-once is the point.</b> The step that holds the editor re-renders for every

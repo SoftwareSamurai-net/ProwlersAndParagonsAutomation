@@ -190,6 +190,42 @@ public sealed class ProofPages
         Write("proof-empty.html", "hero", EmptyBody(ctx));
     }
 
+    /// <summary>
+    /// The GM review step's findings, each naming the step that caused it.
+    ///
+    /// <para><b>Written to be looked at, and deliberately not added to the pixel manifest.</b> The
+    /// findings list is the one screen in the app whose content is a *list of things that are
+    /// wrong*, so a golden for it would be a golden for whatever character the fixture happens to
+    /// break — a page whose content depends on the fixture is the trap
+    /// <c>docs/guide/testing.md</c> records three proof pages falling into. What holds this screen
+    /// is <c>FindingRouteTests</c>, which renders it and reads it; this exists so somebody can see
+    /// the link sitting beside the message rather than infer it from markup.</para>
+    /// </summary>
+    [Fact]
+    public void TheReviewFindings()
+    {
+        if (!Asked) return;
+
+        using var ctx = new RenderContext();
+        var sheet = ctx.Session.Sheet;
+        sheet.SelectedTierId = "standard";
+        sheet.SelectedPackageId = "superhero_package";
+
+        foreach (var ability in ctx.Session.Rules.Abilities) sheet.AbilityRanks[ability.Id] = 3;
+        foreach (var talent in ctx.Session.Rules.Talents) sheet.TalentRanks[talent.Id] = 3;
+
+        // One of each kind that routes, plus the budget, which deliberately does not.
+        sheet.AbilityRanks["might"] = 99;
+        sheet.SelectedPowers.Add(new SelectedPower("invisibility", 4));
+        sheet.Gear.Add(new SelectedGear("A borrowed sword"));
+
+        var body = new StringBuilder();
+        Section(body, "Findings, each naming where to go and fix it",
+            ctx.Render<Review>().Markup);
+
+        Write("proof-review-findings.html", "hero", body.ToString());
+    }
+
     /// <summary>The five editors holding nothing. Shared with the marker test, for the same reason.</summary>
     private static string EmptyBody(RenderContext ctx)
     {
