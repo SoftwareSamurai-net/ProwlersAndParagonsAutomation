@@ -418,6 +418,43 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 
 ## Completed work
 
+### The row you were not looking at was the one with no protection
+
+The character list asked before discarding — **but only about the character that happened to be
+open**. `CharacterManager.AskDelete` read `id == _currentId && Session.HasSomethingToLose`, so
+every other row went on the first click: no question, and nothing to put back, because
+`CharacterSession` holds the sheet being edited and never the others. The row a reader is least
+likely to be weighing carefully was the one with the least behind it.
+
+**The fix is the panel's own rule applied to every row, not a second rule for this case.** One
+predicate — `CharacterSession.IsWorthKeeping` — asked of the sheet in memory for the open row,
+because that is ahead of storage by however much has not been written yet, and of the stored copy
+for every other row. Two sources, one question, so "something to lose" cannot come to mean
+different things depending on which row was clicked.
+
+**Reading a row back needed a method, and `OpenAsync` was not it.** That one moves the
+current-character pointer on its way past, so asking "is this worth asking about" would have
+switched the app to the character somebody was about to throw away — and the next autosave would
+then have written the sheet on screen over it. `AccountCharacterStore.ReadAsync` is the same two
+sources with none of the side effect.
+
+**Unknown fails towards the question.** The store answers null both for a payload this build
+cannot trust and for a server it could not reach, and those are not the same thing: treating the
+second as "nothing here" discards somebody's character in silence because their network dropped.
+Same direction `AccountCharacters.IsFull` takes for a cap it could not ask about.
+
+**Three mutations, each caught by exactly one of the five new tests**: the old condition put back
+(four red), asking about every row unconditionally (the empty-character control red), and unknown
+read as nothing (the unreachable-server test red). The bUnit suite went 482 → 487.
+
+**Two things named in the brief for this work do not exist in this tree** and the fix does not
+assume them: there is no `s11-undo` branch, no `docs/notes/s11-undo.md`, no `UndoTests.cs`, and no
+undo behind `StartAgain` — `MainLayout`'s `.save-status` region says "Saved" and nothing else. So
+the confirmation is not a step backwards from an undo mechanism; it is the pattern this panel and
+both other destructive controls already use. An undo that could write a deleted character back
+under its own id is still available as later work, and would replace this rather than sit beside
+it.
+
 ### The manager panel stopped creating empty characters, and got a hierarchy
 
 The owner's report — "the start a new character section is awkward, and often has empty
@@ -1106,7 +1143,9 @@ anything. Test totals moved: the accounts suite from 124 to 130, the bUnit suite
 account (25 for a GM, `users.character_limit`), a list with per-row Open/Discard, and an import
 affordance folded into the same panel. Both halves the old panel was tested for came across: it
 asks before discarding, only when there is something to lose, and the clear still lands after the
-save that emptying the sheet fires.
+save that emptying the sheet fires. **The first of those was narrower than this sentence said** —
+it asked only about the character that was open, and every other row went on one click. Closed
+later; see the entry above.
 
 **"Download to keep" is the reason the whole slice is not smaller than it looked.** The importer
 was written against the strict inputs shape — which is what `build --from` reads and what a
