@@ -30,8 +30,9 @@ Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this 
 
 ## Where things stand
 
-**4303 tests** — 3730 engine, 449 bUnit, 124 accounts — **re-measured on `master` at `9ff148e`
-after the merge**, not carried across from the branch, which is the mistake this row records below.
+**4374 tests** — 3734 engine, 474 bUnit, 166 accounts — **measured on the integration branch after
+every merge**, not carried across from any single branch, which is the mistake this row records
+below.
 Nine browser harnesses driven by headless Chrome in the build workflow (two are new: the front door
 and the rules reference at 375px), plus a tenth added since: `scripts/visual-regression.sh`
 compares seven of those renders pixel-by-pixel against committed goldens — see "What is left" item
@@ -58,10 +59,9 @@ dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
 ./scripts/test-worker.sh
 ```
 
-**A whole-tree Qodana scan reports 0**, measured on `master` at `9ff148e` — after the merge, not on
-the branch — from a report that exists rather than from an exit code. It got there by being run four
-times: 23 on the first pass, all in code the redesign added; 2 after fixing them; 0 after the last
-two; 0 again on the merge commit.
+**A whole-tree Qodana scan reports 0**, measured on `5312f32` — from a report that exists rather
+than from an exit code. The follow-up fan-out put ten findings there and all ten were cleared: nine
+fixed, one silenced in `.editorconfig` with the rationale the other three wire surfaces carry.
 
 **Do not repeat that zero without re-running `./scripts/qodana-scan.sh`**, which is a rule this
 repository has broken twice. It needs Docker Desktop running; without it the script exits non-zero
