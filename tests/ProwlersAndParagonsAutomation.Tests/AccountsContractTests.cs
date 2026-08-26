@@ -256,6 +256,11 @@ public sealed class AccountsContractTests
             $"found {prefixes.Count} routed prefixes in worker/index.js: "
             + string.Join(", ", prefixes));
 
+        // **The character class was `[a-z/]` and a reviewer walked through it.** Renaming a route
+        // to `api/auth/verify-token` made the pattern fail to match the literal at all, so the
+        // address was silently dropped from the list and the test passed while the browser called
+        // something the server does not route — the exact drift this test exists for. A pattern
+        // that answers "not an address" when it means "I cannot read this" is worse than none.
         var asked = Regex.Matches(BrowserSource(), @"""(api/[A-Za-z0-9/_.-]+)(?:\?[^""]*)?""",
                 RegexOptions.None, TimeSpan.FromSeconds(5))
             .Select(m => "/" + m.Groups[1].Value)
