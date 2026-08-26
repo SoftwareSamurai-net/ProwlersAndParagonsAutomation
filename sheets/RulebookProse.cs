@@ -84,8 +84,8 @@ public sealed partial record RulebookProse
     /// words are the closed set Ch.2 p.19 prints.
     /// </summary>
     private static readonly Regex StatLine = new(
-        @"^(?<range>Self|Touch|Ranged|Zone|Special) • (?<rank>[^•]+?) • "
-        + @"(?<cost>" + Money + @"|Varies|Special|None)(?=\s|$)",
+        "^(?<range>Self|Touch|Ranged|Zone|Special) • (?<rank>[^•]+?) • "
+        + "(?<cost>" + Money + @"|Varies|Special|None)(?=\s|$)",
         RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
     /// <summary>
@@ -94,7 +94,7 @@ public sealed partial record RulebookProse
     /// is part of the lead rather than a second option.
     /// </summary>
     private static readonly Regex PriceLead = new(
-        @"^(?<lead>(?:PRO|CON) " + Signed + @"(?: or (?:PRO|CON) " + Signed + @")?)(?=\s|$)",
+        "^(?<lead>(?:PRO|CON) " + Signed + "(?: or (?:PRO|CON) " + Signed + @")?)(?=\s|$)",
         RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
     /// <summary>

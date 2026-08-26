@@ -34,7 +34,10 @@ public sealed class RulebookProseTests
         [property: System.Text.Json.Serialization.JsonPropertyName("chapter")] int Number,
         Section[] Sections);
 
-    private sealed record Section(string Heading, int PrintedPage, string Text);
+    // Only the heading and the text: this file asks what the splitter makes of a passage, and
+    // the printed page is `RulebookCorpusTests`' subject. A positional property nothing reads is
+    // a field somebody has to wonder about.
+    private sealed record Section(string Heading, string Text);
 
     private static readonly JsonSerializerOptions SnakeCase =
         new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
@@ -179,9 +182,8 @@ public sealed class RulebookProseTests
     [Fact]
     public void LuckComesApartIntoItsPrintedParts()
     {
-        var luck = Corpus().Single(s => s.Chapter == 2 && s.Heading == "LUCK");
-
-        var prose = RulebookProse.Read(luck.Text);
+        var prose = RulebookProse.Read(
+            Corpus().Single(s => s is { Chapter: 2, Heading: "LUCK" }).Text);
 
         Assert.Equal("Self", prose.Stat!.Range);
         Assert.Equal("Power Rank", prose.Stat.RankType);

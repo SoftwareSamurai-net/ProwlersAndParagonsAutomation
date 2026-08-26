@@ -155,7 +155,7 @@ public sealed class CharacterManagerTests
         await account.SaveAsync(id, "Ninth Precinct", SampleCharacters.Hero(), SheetMode.Hero);
 
         var cut = ctx.Render<CharacterManager>();
-        Discard(cut, "Ninth Precinct").Click();
+        await Discard(cut, "Ninth Precinct").ClickAsync();
 
         Assert.Contains("Keep this character", cut.Markup, StringComparison.Ordinal);
 
@@ -176,8 +176,8 @@ public sealed class CharacterManagerTests
         await account.SaveAsync(id, "Ninth Precinct", SampleCharacters.Hero(), SheetMode.Hero);
 
         var cut = ctx.Render<CharacterManager>();
-        Discard(cut, "Ninth Precinct").Click();
-        Button(cut, "Keep this character").Click();
+        await Discard(cut, "Ninth Precinct").ClickAsync();
+        await Button(cut, "Keep this character").ClickAsync();
 
         Assert.Contains((await account.ListAsync()).Characters, c => c.Id == id);
         Assert.DoesNotContain("Keep this character", cut.Markup, StringComparison.Ordinal);
@@ -202,8 +202,8 @@ public sealed class CharacterManagerTests
         await account.SaveAsync(spared, "The Quiet Hour", SampleCharacters.Villain(), SheetMode.Villain);
 
         var cut = ctx.Render<CharacterManager>();
-        Discard(cut, "Ninth Precinct").Click();
-        Button(cut, "Yes, discard this character").Click();
+        await Discard(cut, "Ninth Precinct").ClickAsync();
+        await Button(cut, "Yes, discard this character").ClickAsync();
 
         var left = (await account.ListAsync()).Characters;
         Assert.DoesNotContain(left, c => c.Id == doomed);
@@ -231,7 +231,7 @@ public sealed class CharacterManagerTests
         await account.SaveAsync(id, "Untouched", new CharacterSheet(), SheetMode.Hero);
 
         var cut = ctx.Render<CharacterManager>();
-        Discard(cut, "Untouched").Click();
+        await Discard(cut, "Untouched").ClickAsync();
 
         Assert.DoesNotContain("Keep this character", cut.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain((await account.ListAsync()).Characters, c => c.Id == id);
@@ -256,7 +256,7 @@ public sealed class CharacterManagerTests
 
         // The list has been drawn; now the server goes away, so reading the row back answers null.
         ctx.Api.Unreachable = true;
-        Discard(cut, "Ninth Precinct").Click();
+        await Discard(cut, "Ninth Precinct").ClickAsync();
 
         Assert.Contains("Keep this character", cut.Markup, StringComparison.Ordinal);
     }
@@ -328,7 +328,7 @@ public sealed class CharacterManagerTests
         ctx.Session.LoadSample(SheetMode.Hero);
 
         var cut = ctx.Render<CharacterManager>();
-        Discard(cut, "Ninth Precinct").Click();
+        await Discard(cut, "Ninth Precinct").ClickAsync();
 
         Assert.Contains("Keep this character", cut.Markup, StringComparison.Ordinal);
         Assert.NotEmpty(ctx.Session.Sheet.SelectedPowers);
@@ -352,8 +352,8 @@ public sealed class CharacterManagerTests
         ctx.Session.LoadSample(SheetMode.Hero);
 
         var cut = ctx.Render<CharacterManager>();
-        Discard(cut, "Ninth Precinct").Click();
-        Button(cut, "Yes, discard this character").Click();
+        await Discard(cut, "Ninth Precinct").ClickAsync();
+        await Button(cut, "Yes, discard this character").ClickAsync();
 
         Assert.Empty(ctx.Session.Sheet.SelectedPowers);
         Assert.Null(ctx.Session.Sheet.SelectedTierId);
@@ -377,7 +377,7 @@ public sealed class CharacterManagerTests
         var id = await OpenRow(ctx, "Ninth Precinct", SampleCharacters.Hero());
 
         var cut = ctx.Render<CharacterManager>();
-        Discard(cut, "Ninth Precinct").Click();
+        await Discard(cut, "Ninth Precinct").ClickAsync();
 
         Assert.DoesNotContain("Keep this character", cut.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain(
