@@ -261,11 +261,138 @@ public sealed class CharacterManagerTests
         Assert.Contains("Keep this character", cut.Markup, StringComparison.Ordinal);
     }
 
+    // -- The row that is open -----------------------------------------------------------------
+
+    /// <summary>
+    /// The open row's own branch, which nothing here could reach before.
+    ///
+    /// <para><b>Which row is open resolves through <c>ppStore</c>, and bUnit's loose interop
+    /// answers null to every read</b> — so <c>_currentId</c> was always <c>legacy</c>, no account
+    /// row ever matched it, and every test in this file exercised the not-open half. That is the
+    /// caveat <c>PROGRESS.md</c> records about the "open now" marking, and it is why the branch
+    /// this panel has had the longest was covered here by nothing at all. Planting the pointer is
+    /// the whole of the fix.</para>
+    ///
+    /// <para>The key is spelled out rather than asked for, the same way <c>SavedCharactersTests</c>
+    /// spells out the historical key: it is a storage layout two files have to agree on, and a
+    /// test that derived it from the code under test could not catch the layout changing.</para>
+    /// </summary>
+    private static async Task<string> OpenRow(RenderContext ctx, string label, CharacterSheet sheet)
+    {
+        var who = await ctx.Services.GetRequiredService<IIdentitySource>().CurrentAsync();
+        var id = SavedCharacters.NewId();
+
+        await ctx.Services.GetRequiredService<ApiCharacterStore>()
+            .SaveAsync(id, label, sheet, SheetMode.Hero);
+
+        ctx.JSInterop.Setup<string?>("ppStore.load", $"pp.character.v1.{who.Key}.current")
+            .SetResult(id);
+
+        return id;
+    }
+
+    /// <summary>
+    /// The positive control for the three below: the pointer really did land, so the row under
+    /// test really is the open one. Without it they would all be passing against a panel where
+    /// nothing matched <c>_currentId</c> — which is exactly the state they were written to leave.
+    /// </summary>
+    [Fact]
+    public async Task ThePlantedPointerReallyMarksTheRowOpen()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+        await OpenRow(ctx, "Ninth Precinct", SampleCharacters.Hero());
+
+        var cut = ctx.Render<CharacterManager>();
+
+        Assert.Contains("open now", Row(cut, "Ninth Precinct").TextContent, StringComparison.Ordinal);
+
+        // And the row that is open offers no "Open" button, since there is nowhere to go.
+        Assert.DoesNotContain(
+            Row(cut, "Ninth Precinct").QuerySelectorAll("button"),
+            b => b.TextContent.Trim() == "Open");
+    }
+
+    /// <summary>
+    /// The open row asks too, and the question is answered from the sheet in memory rather than
+    /// from the stored copy — which is the half of the predicate the not-open tests cannot reach.
+    /// </summary>
+    [Fact]
+    public async Task DiscardingTheOpenCharacterAsksFirst()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+        var id = await OpenRow(ctx, "Ninth Precinct", SampleCharacters.Hero());
+
+        // The session is what the open row is weighed by, so it is what has to hold something.
+        ctx.Session.LoadSample(SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+        Discard(cut, "Ninth Precinct").Click();
+
+        Assert.Contains("Keep this character", cut.Markup, StringComparison.Ordinal);
+        Assert.NotEmpty(ctx.Session.Sheet.SelectedPowers);
+        Assert.Contains(
+            (await ctx.Services.GetRequiredService<ApiCharacterStore>().ListAsync()).Characters,
+            c => c.Id == id);
+    }
+
+    /// <summary>
+    /// Confirming empties the sheet <b>and</b> forgets the stored one — both, because clearing
+    /// only the session leaves the character in the store and it comes back on the next visit,
+    /// which reads as the button not having worked. Same guarantee <c>StartAgainTests</c> holds
+    /// for "Start a new character"; this is the row that does it by id.
+    /// </summary>
+    [Fact]
+    public async Task ConfirmingDiscardsTheOpenCharacterAndEmptiesTheSheet()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+        var id = await OpenRow(ctx, "Ninth Precinct", SampleCharacters.Hero());
+        ctx.Session.LoadSample(SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+        Discard(cut, "Ninth Precinct").Click();
+        Button(cut, "Yes, discard this character").Click();
+
+        Assert.Empty(ctx.Session.Sheet.SelectedPowers);
+        Assert.Null(ctx.Session.Sheet.SelectedTierId);
+        Assert.DoesNotContain(
+            (await ctx.Services.GetRequiredService<ApiCharacterStore>().ListAsync()).Characters,
+            c => c.Id == id);
+    }
+
+    /// <summary>
+    /// The open row's positive control, and the reason the predicate reads the session for this
+    /// row rather than the store: the sheet on screen is ahead of storage by however much has not
+    /// been written yet. Here it is <em>behind</em> — the stored copy is a whole Hero and the
+    /// session is empty — and the empty session is the right answer, because that is what
+    /// discarding this row would actually cost the reader.
+    /// </summary>
+    [Fact]
+    public async Task AnEmptyOpenCharacterIsDiscardedOnOneClick()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+        var id = await OpenRow(ctx, "Ninth Precinct", SampleCharacters.Hero());
+
+        var cut = ctx.Render<CharacterManager>();
+        Discard(cut, "Ninth Precinct").Click();
+
+        Assert.DoesNotContain("Keep this character", cut.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            (await ctx.Services.GetRequiredService<ApiCharacterStore>().ListAsync()).Characters,
+            c => c.Id == id);
+    }
+
+    /// <summary>The row with this label.</summary>
+    private static IElement Row(IRenderedComponent<CharacterManager> cut, string label) =>
+        cut.FindAll("ul.chosen > li")
+            .Single(row => row.QuerySelector(".body")!.TextContent.Contains(label, StringComparison.Ordinal));
+
     /// <summary>The "Discard" button belonging to the row with this label, and no other row's.</summary>
     private static IElement Discard(IRenderedComponent<CharacterManager> cut, string label) =>
-        cut.FindAll("ul.chosen > li")
-            .Single(row => row.QuerySelector(".body")!.TextContent.Contains(label, StringComparison.Ordinal))
-            .QuerySelectorAll("button")
+        Row(cut, label).QuerySelectorAll("button")
             .First(b => b.TextContent.Contains("Discard", StringComparison.Ordinal));
 
     private static IElement Button(IRenderedComponent<CharacterManager> cut, string label) =>
