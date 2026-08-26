@@ -1,0 +1,104 @@
+name: Regenerate visual goldens
+
+# ------------------------------------------------------------------------------------------------
+# WHY THIS EXISTS: A GOLDEN AND ITS CHECK MUST COME FROM THE SAME CHROME.
+#
+# `scripts/visual-regression.sh` screenshots proof pages and compares each against a committed PNG.
+# Off Linux it drives a digest-pinned `selenium/standalone-chrome` in Docker; on a GitHub runner it
+# drives the runner's own Google Chrome. Those are two different Chromes, and for some pages that
+# difference is not noise: `shell-villain-light` disagreed by exactly 32,462 pixels across repeated
+# CI runs, unchanged by forcing the colour scheme, while other pages came back pixel-identical on
+# the same runs. Four pages were removed from the manifest for that reason — a check that fails for
+# a reason unrelated to the change under review teaches people to ignore it.
+#
+# The fix is not a wider tolerance. A wider tolerance is what let a uniform +20-per-channel shift
+# across every pixel read as "pixel-identical" (see scripts/visual/diff.mjs). The fix is to
+# generate the goldens **here**, on `ubuntu-latest`, from the same Chrome that will compare them,
+# and commit those — so the two sides of every comparison are the same renderer and the honest
+# jitter floor is near zero.
+#
+# ------------------------------------------------------------------------------------------------
+# THIS IS `workflow_dispatch` ONLY, AND THAT IS THE POINT.
+#
+# `CLAUDE.md`: "Regenerate with `--update-goldens`, and only ever deliberately. A golden updated as
+# a side effect of an unrelated change is a regression signed off by nobody." A workflow that
+# regenerated on push would do exactly that — every visual regression would silently become the new
+# expectation. So this runs when somebody asks for it, and it **does not commit anything**: it
+# uploads the PNGs as an artifact for a human to download, look at, and commit.
+#
+# Usage:
+#   gh workflow run visual-goldens.yml --ref <branch>
+#   gh run download <run-id> --name visual-goldens --dir tests/visual-goldens
+#   # look at the PNGs — they are real images — then commit them.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  goldens:
+    name: Screenshot the proof pages on the runner's own Chrome
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          # Honours the SDK version pinned in global.json, the same as Build does.
+          global-json-file: global.json
+
+      - name: Set up Node
+        # scripts/visual/diff.mjs is plain Node with no dependencies, but the version is pinned
+        # for the same reason the Build workflow pins it: a runner that happened to ship an older
+        # one would fail in a way that looks like a broken script.
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Report which Chrome is taking these screenshots
+        # **Recorded in the log on purpose.** The whole value of this workflow is that the goldens
+        # and the check come from one renderer, and the only way a later reader can confirm that
+        # is to compare this line against the same line in the Build workflow's run. A version
+        # bump on the runner image is then visible as a version bump rather than as a page that
+        # mysteriously started disagreeing.
+        run: |
+          set -euo pipefail
+          chrome="$(command -v google-chrome || command -v chromium-browser || command -v chromium)"
+          echo "Chrome on PATH: $chrome"
+          "$chrome" --version
+
+      - name: Render the proof pages
+        # Plain bUnit rendering — no browser, no antialiasing, just component markup written to a
+        # file. `visual-regression.sh` would do this itself, but doing it as its own step means a
+        # failure here reads as "the harness did not build" rather than as a screenshot problem.
+        run: PP_PROOF=1 dotnet test tests/ProwlersAndParagons.Web.Tests --configuration Release
+
+      - name: Regenerate the goldens
+        # On a Linux host with a Chrome on PATH the script uses it directly and never touches
+        # Docker — see its own `use_docker` branch. That is precisely the path we want here.
+        env:
+          PP_PROOF_ALREADY_BUILT: "1"
+        run: ./scripts/visual-regression.sh --update-goldens
+
+      - name: Prove the goldens agree with a second capture from the same Chrome
+        # **A regeneration that nobody checked is a screenshot, not a golden.** Running the
+        # ordinary comparison immediately afterwards, against the PNGs just written, is the
+        # cheapest possible control: it must come back pixel-identical, because both sides are now
+        # this runner's Chrome rendering the same pages seconds apart. If it does not, the pages
+        # are non-deterministic and committing them would install a permanently flaky check —
+        # which is the failure this whole workflow exists to end, arriving by another route.
+        env:
+          PP_PROOF_ALREADY_BUILT: "1"
+        run: ./scripts/visual-regression.sh
+
+      - name: Upload the goldens for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-goldens
+          path: tests/visual-goldens/*.png
+          if-no-files-found: error
