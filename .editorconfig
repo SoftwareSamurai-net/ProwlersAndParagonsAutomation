@@ -149,6 +149,23 @@ resharper_class_never_instantiated_local_highlighting = none
 resharper_class_never_instantiated_global_highlighting = none
 resharper_not_accessed_positional_property_global_highlighting = none
 
+[web/Services/ErrorLog.cs]
+# The fourth instance of the objection recorded on ApiCharacterStore, Invitations and
+# RulebookReader below: ErrorLogRow and the private Wired/WiredRow pair are the shape of
+# what GET /api/admin/error-log answers with, and System.Text.Json constructs every one
+# of them by reflection. ClassNeverInstantiated is simply wrong about them.
+#
+# FirstAt is the unread positional property. It is bound because the server sends it —
+# worker/errors.js writes first_at on every row, and it is what tells an outage that
+# started last month from one that started this morning, which is the distinction the
+# migration's own comment says the count exists to preserve. The panel prints how long
+# ago the failure last happened and not yet when it began; acting on the inspection would
+# delete the property, which does not fail to build and quietly takes the field off the
+# client side of the wire.
+resharper_class_never_instantiated_local_highlighting = none
+resharper_class_never_instantiated_global_highlighting = none
+resharper_not_accessed_positional_property_global_highlighting = none
+
 [web/Services/RulebookReader.cs]
 # The third instance of the same objection, for the rulebook wire. RulebookChapter,
 # RulebookContents, RulebookResult, RulebookResults and RulebookPassage are the

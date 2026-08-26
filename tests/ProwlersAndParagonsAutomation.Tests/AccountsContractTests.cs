@@ -526,7 +526,7 @@ public sealed class AccountsContractTests
     /// would act on rather than what somebody wrote down about it.
     /// </summary>
     private static string WithoutXmlComments(string xml) =>
-        new Regex(@"<!--.*?-->", RegexOptions.Singleline, TimeSpan.FromSeconds(5)).Replace(xml, " ");
+        new Regex("<!--.*?-->", RegexOptions.Singleline, TimeSpan.FromSeconds(5)).Replace(xml, " ");
 
     /// <summary>
     /// No secret is in the repository, and the one place a key is named is a name rather than a

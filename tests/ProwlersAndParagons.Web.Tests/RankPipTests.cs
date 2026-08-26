@@ -201,7 +201,7 @@ public sealed class RankPipTests
     public void TheSliderIsGuardedOnce()
     {
         using var ctx = new RenderContext();
-        var (_, _) = Row(ctx);
+        Row(ctx);
 
         Assert.Single(ctx.JSInterop.Invocations, i => i.Identifier == "ppSlider.guard");
     }

@@ -62,7 +62,7 @@ public sealed class SaveStatusTests
         var beforeTheEdit = ctx.Session.Version;
 
         await layout.InvokeAsync(() => ctx.Session.NotifyChanged());
-        layout.WaitForAssertion(() =>
+        await layout.WaitForAssertionAsync(() =>
             Assert.Equal("Saved", layout.Find(".save-status").TextContent));
 
         // The slow save for the edit before this one finally lands.
@@ -91,7 +91,7 @@ public sealed class SaveStatusTests
 
         await layout.InvokeAsync(() => ctx.Session.Mode = SheetMode.Villain);
 
-        layout.WaitForAssertion(() =>
+        await layout.WaitForAssertionAsync(() =>
             Assert.Equal("Saved", layout.Find(".save-status").TextContent));
     }
 }

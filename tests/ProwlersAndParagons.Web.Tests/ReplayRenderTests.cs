@@ -931,7 +931,7 @@ public sealed class ReplayRenderTests
     [Fact]
     public async Task TheListOffersEveryRecordingWithSomethingToTellThemApart()
     {
-        using var ctx = new RenderContext().AsAdministrator();
+        await using var ctx = new RenderContext().AsAdministrator();
         var page = ctx.Render<Replay>();
         var text = Text(page);
 

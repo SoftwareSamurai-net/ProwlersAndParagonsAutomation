@@ -20,7 +20,7 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// </summary>
 public sealed class ReplayLibrary
 {
-    public ReplayLibrary(IReadOnlyList<Transcript> conversations, string? problem = null)
+    private ReplayLibrary(IReadOnlyList<Transcript> conversations, string? problem = null)
     {
         Conversations = conversations;
         Problem = problem;
