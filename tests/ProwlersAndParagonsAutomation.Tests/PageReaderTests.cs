@@ -394,4 +394,105 @@ public sealed class PageReaderTests
         for (var i = 0; i < words.Length; i++)
             Assert.StartsWith(words[i] + " ", lines[i].Text, StringComparison.Ordinal);
     }
+
+    // ------------------------------------------------------------------------------------------
+    // LeadingGap: the vertical distance to the previous line in the same column-run, which is
+    // what ParagraphJoiner reads to tell a paragraph start from an ordinary wrap.
+    // ------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The book's own gap is measurable: three ordinary 14pt-leaded lines, then one set 28pt
+    /// below its predecessor — twice the ordinary leading, the shape a real paragraph break has
+    /// on the page. The first line has no predecessor at all.
+    /// </summary>
+    [Fact]
+    public void LeadingGapIsTheDistanceToThePreviousLineInTheSameColumn()
+    {
+        var glyphs = new List<RawLetter>();
+        glyphs.AddRange(FilledLine("A", 45, 567, 700));
+        glyphs.AddRange(FilledLine("B", 45, 567, 686));   // 14pt below A: ordinary wrap
+        glyphs.AddRange(FilledLine("C", 45, 567, 672));   // 14pt below B: ordinary wrap
+        glyphs.AddRange(FilledLine("D", 45, 567, 644));   // 28pt below C: a real paragraph gap
+
+        var lines = new PageReader().Read(glyphs, PageWidth);
+
+        Assert.Equal(4, lines.Count); // positive control: every row survived
+        Assert.Null(lines[0].LeadingGap);
+        Assert.Equal(14, lines[1].LeadingGap);
+        Assert.Equal(14, lines[2].LeadingGap);
+        Assert.Equal(28, lines[3].LeadingGap);
+    }
+
+    /// <summary>
+    /// A two-column page tracks the gap separately per column — line R1 is measured against R0,
+    /// never against whatever the left column was doing on the same row, and the very first line
+    /// of each column has no predecessor of its own.
+    /// </summary>
+    [Fact]
+    public void LeadingGapIsTrackedSeparatelyPerColumn()
+    {
+        var glyphs = TwoColumnBody("L", "R");                 // 14pt leading, 8 rows each column
+
+        var lines = new PageReader().Read(glyphs, PageWidth);
+
+        Assert.Equal(16, lines.Count); // positive control
+        Assert.Null(lines[0].LeadingGap);      // L0: first of the left column
+        Assert.Equal(14, lines[1].LeadingGap); // L1
+        Assert.Null(lines[8].LeadingGap);      // R0: first of the right column, not "14pt below L7"
+        Assert.Equal(14, lines[9].LeadingGap); // R1
+    }
+
+    /// <summary>
+    /// A full-width line breaks the page into bands, and a column resuming below one has no
+    /// comparable predecessor — its own top is nowhere near where the column left off, so a raw
+    /// baseline subtraction there would be meaningless rather than merely large.
+    /// </summary>
+    [Fact]
+    public void AFullWidthBreakResetsTheGapOnBothColumns()
+    {
+        // Eight rows a side, same as the fixture that already proves a full-width line stays
+        // whole — ColumnLayout.FindGutter needs at least six lines to trust a page has columns
+        // at all, and a page too short to meet that reads as single-column, which would defeat
+        // this fixture in a different way than the one it means to test.
+        var glyphs = TwoColumnBody("L", "R", startBaseline: 700);
+        glyphs.AddRange(Glyphs("A FULL WIDTH LINE ACROSS THE WHOLE PAGE WIDTH FROM MARGIN TO MARGIN",
+            left: 45, baseline: 580));
+        glyphs.AddRange(TwoColumnBody("L", "R", startBaseline: 560));
+
+        var lines = new PageReader().Read(glyphs, PageWidth).ToList();
+
+        Assert.Equal(33, lines.Count); // positive control: 16 + 16 column lines plus the full-width line
+
+        var fullWidthIndex = lines.FindIndex(l =>
+            l.Text == "A FULL WIDTH LINE ACROSS THE WHOLE PAGE WIDTH FROM MARGIN TO MARGIN");
+        Assert.NotEqual(-1, fullWidthIndex); // positive control: the full-width line survived whole
+        Assert.Null(lines[fullWidthIndex].LeadingGap);
+
+        var resumedLeftIndex = lines.FindIndex(fullWidthIndex + 1,
+            l => l.Text.StartsWith("L0 ", StringComparison.Ordinal));
+        Assert.NotEqual(-1, resumedLeftIndex); // positive control: the column resumed afterwards
+        Assert.Null(lines[resumedLeftIndex].LeadingGap);
+    }
+
+    /// <summary>
+    /// A line right after a heading has no usable predecessor either — the space above an entry's
+    /// first line is whatever the layout gives its heading, not a paragraph gap, and
+    /// <c>Program.cs</c> never joins body text across a heading anyway (a heading closes the
+    /// section and starts a fresh one), so that gap carries no signal either side would ever read.
+    /// </summary>
+    [Fact]
+    public void ALineImmediatelyAfterAHeadingHasNoLeadingGap()
+    {
+        var glyphs = new List<RawLetter>();
+        glyphs.AddRange(Glyphs("HEADING", left: 45, baseline: 700,
+            font: "AAAAAA+LeagueGothic-Regular", size: 18));
+        glyphs.AddRange(FilledLine("Body", 45, 567, 670));
+
+        var lines = new PageReader().Read(glyphs, PageWidth);
+
+        Assert.Equal(2, lines.Count); // positive control
+        Assert.True(lines[0].IsHeading);
+        Assert.False(lines[1].IsHeading);
+        Assert.Null(lines[1].LeadingGap);
+    }
 }

@@ -170,30 +170,74 @@ after that answered the same cheerful `204` a sent link gets. That is why the si
 was on its way, Resend's dashboard showed nothing and Cloudflare showed nothing: by then nothing
 was being attempted.
 
-### 1c. The extractor loses the book's paragraph breaks
+### 1c. The extractor loses the book's paragraph breaks — **closed**
 
-`RulebookProse` pulls a Power's stat line and its Pros and Cons out of the flat run the corpus holds,
-and the description that is left is **still one paragraph** — LUCK's is 120 unbroken words. That is
-as far as honest structure goes from the corpus side: the corpus has no newline in a Power entry to
-split on, and inventing one on sentence count would be a presentation layer deciding where the
-author's paragraphs were.
+`RulebookProse` used to pull a Power's stat line and its Pros and Cons out of the flat run the
+corpus held, leaving a description that was **still one paragraph** — LUCK's was 120 unbroken words.
+The breaks were never missing from the PDF, only from the corpus: the page sets a paragraph start
+with more vertical space above it than an ordinary wrapped line gets, and that gap is measurable.
 
-**The breaks still exist in the PDF, as vertical spacing between lines, and the extractor is where
-they can be read.** `tools/RulebookExtractor` groups words into lines and lines into sections; a line
-whose baseline sits further below its predecessor than the body leading is a paragraph start, and
-that gap is measurable on the page. What makes this a real slice rather than a one-liner is
-everything `CLAUDE.md` already records about this tool: the damage from getting it wrong **reads as
-English**, so it is judged by re-running the extractor and the corpus tests rather than by reading a
-paragraph and finding it plausible. `RulebookCorpusTests` pins the total volume of prose and every
-Power entry's opening stat line, which is what would catch a change that started splitting mid-
-sentence.
+**`PageReader` now measures it, and `ParagraphJoiner` (new) decides with it.** Every `Line` carries
+`LeadingGap` — the baseline distance to the line physically above it in the same column-run, `null`
+wherever that comparison would be meaningless (the top of a column, the line right after a heading,
+the line right after a full-width break, or the first line of a fresh page). `ParagraphJoiner.Join`
+starts a new paragraph, joined by `\n` instead of a space, when a line's gap exceeds **1.4x the
+smallest gap measured elsewhere in that same passage**.
 
-What is already done and must not be redone: the presentation side. `BookText` renders whatever
-paragraphs it is handed, and `RulebookProse.Read` returns the passage's own `\n` splits — so a
-corpus that gained real breaks would show them with no change on the browser side at all.
+**The threshold is local to the passage, not a book-wide constant, and that was the real finding.**
+The book does not set one leading throughout: 9pt Chapter 2 body text is normal-12pt, 8.5pt Chapter 8
+prose is normal-10 to 12pt (the two wobble against each other with nothing meant by it), and the
+Introduction's own 11pt single-column style is normal-**18pt** — wider than Chapter 2's own
+*paragraph-break* gap of 18pt. A single fixed point value cannot be both "wider than Chapter 2's
+normal line" and "narrower than the Introduction's normal line" at once; picked for one it invents a
+break on every ordinary line-wrap of the other, or misses every real break in the first. Using each
+passage's own smallest observed gap as its baseline sidesteps this, because a paragraph break only
+ever *adds* space — the tightest gap in any passage is by definition an ordinary wrap.
 
-Until then `.book-text` carries `max-width: 68ch` and open leading, which is what presentation can
-honestly do about a long run.
+**Measured across the whole book** (`RulebookExtractor --gaps <from> <to>`, a new diagnostic mode
+alongside `--page`): ordinary leading clusters tightly per passage (12pt at 9pt type, 10–12pt at
+8.5pt, 18pt in the Introduction), and the closest any genuine break in this book ever sits above its
+own passage's normal leading is 1.5x (LUCK's second PRO block: 12pt normal, 18pt above it). 1.4x
+clears that in both directions.
+
+**Verified byte-for-byte before touching anything**: the extractor reproduced the committed corpus
+exactly (`git hash-object` matched `git rev-parse HEAD:<file>` on all ten chapter files) — the
+positive control on the whole toolchain. After the change, regenerating only ever swaps a joining
+space for a joining newline: total character count and the whitespace-split word-token stream are
+identical to `HEAD`, chapter by chapter, checked by script rather than eyeballed. **439 of 1,523
+sections gained a total of 888 paragraph breaks**; the rest were already one paragraph and stay that
+way. LUCK now reads as four: its own stat line, the description, the PRO Control block, the PRO
+Unbelievable block — spot-checked against printed p.33, along with FORCE FIELD (p.29, two
+description paragraphs split correctly at "You can shape your force field...") and the Introduction
+(p.5, four paragraphs, matching the printed page exactly including the two 30pt breaks against an
+18pt normal).
+
+**The over-splitting guard is scoped to Chapter 2's Power entries, deliberately, not to the whole
+book.** A scan for a paragraph starting with a lowercase letter — the cheap, strong signal of a break
+invented mid-sentence — finds 84 instances outside Chapter 2, and every one of them traces to a
+pre-existing, already-documented extraction limitation this slice did not touch and does not fix: a
+table of three or more columns read across rather than down (the vertical-gap logic then also splits
+it at row boundaries, without repairing the underlying scramble), and Chapter 8's small-capitals
+field labels ("orIGIn:", "aBIlItIes") which extract with their case as stored, so a genuine,
+*correct* field-to-field break can start with what looks like a lowercase letter. Asserting the whole
+book would either need to special-case both (a denylist of the exact shape this repository's own
+guidance warns against) or hide a real regression in the 116 Power entries this fix exists for behind
+noise from pages it was never meant to touch. `RulebookCorpusTests.NoChapterTwoPowerParagraphContinuesMidSentence`
+checks all of Chapter 2 (with a positive control: over 50 real splits actually reached) and finds
+zero. What it cannot catch, honestly: a false split landing right after a full stop, or one whose
+next word happens to be capitalized regardless (a proper noun, "I", a quoted sentence) — those still
+read as English, which is why the spot checks against the printed page above exist alongside it.
+
+**Watched to fail.** `ParagraphJoinerTests` (9 cases, unit-level against made-up passages) and
+`RulebookCorpusTests.LucksDescriptionKeepsItsFourPrintedParagraphs` (corpus-level, real book) were
+run against `ParagraphJoiner.Multiplier` mutated to 1000 — both went red, the corpus test with the
+exact shape of the original bug: *"LUCK's description is still one flat run of 1343 characters."*
+Restored via `git stash`, both suites green again afterwards, not just before.
+
+The presentation side needed no change, as expected: `BookText` renders whatever paragraphs it is
+handed and `RulebookProse.Read` already returned the passage's own `\n` splits, so the corpus gaining
+real breaks shows them with no code change on the browser side. `RulebookProseTests` (34 cases, all
+green) is the proof — it drives the real corpus, unmodified.
 
 ### 2. What the sheet still cannot say
 
@@ -743,9 +787,10 @@ line of its own and each its own entry in `powers.json`, filed under headings th
 differently. The test reads the number off `RulesRepository` now, so the two stores are witnesses to
 each other rather than one of them being a figure somebody typed.
 
-**What it deliberately does not do is invent a paragraph break** — see the open item below. Splitting
-the remaining description on "For example," or on sentence count would be a presentation layer
-deciding where the author's paragraphs were.
+**What it deliberately does not do is invent a paragraph break** — see [item 1c](#1c-the-extractor-loses-the-books-paragraph-breaks--closed),
+closed in a later slice by reading the ones the page actually has off its own vertical spacing.
+Splitting the remaining description on "For example," or on sentence count would have been a
+presentation layer deciding where the author's paragraphs were.
 
 **Six sections share a heading with a Power and are not that Power's entry** — Ch.6's ARMOR gear row
 and COMMUNICATIONS base points, Ch.7's SWIMMING and LEAPING, Ch.4's HEALING, Ch.9's TIME TRAVEL — and

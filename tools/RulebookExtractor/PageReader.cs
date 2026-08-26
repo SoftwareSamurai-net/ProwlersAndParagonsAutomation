@@ -73,8 +73,19 @@ public sealed class PageReader
         return name.Length > 7 && name[6] == '+' ? name[7..] : name;
     }
 
+    /// <param name="LeadingGap">
+    /// The vertical distance from this line's baseline to the baseline of the line immediately
+    /// before it <b>in the same column-run</b> — the same physical column, unbroken by a
+    /// full-width line, a page boundary or the start of the page. <c>null</c> when there is no
+    /// such predecessor: the first line of a column, the line right after a full-width break, or
+    /// the first line read from a fresh page. Those are exactly the places where two baselines
+    /// are not comparable — a column restarts near the top of the page, so a raw subtraction
+    /// there would be large and negative, meaning "no signal" rather than "no gap" — so a
+    /// predecessor is deliberately not invented for them. See <see cref="Order"/>.
+    /// </param>
     public sealed record Line(
-        string Text, double Baseline, double Left, double Right, bool IsHeading, double Size);
+        string Text, double Baseline, double Left, double Right, bool IsHeading, double Size,
+        double? LeadingGap = null);
 
     private sealed record Word(string Text, double Left, double Right, bool Heading, double Size);
 
@@ -181,42 +192,58 @@ public sealed class PageReader
         var left = new List<Line>();
         var right = new List<Line>();
 
+        // The previous line seen in each running column, so a gap can be measured against the line
+        // that is actually physically above this one. Reset at a full-width break (a column that
+        // resumes below one has no comparable predecessor) and implicitly reset at the start of
+        // every page, because a fresh call to Order() starts these at null again.
+        //
+        // A predecessor that was itself a heading is treated the same as no predecessor at all:
+        // the space above an entry's first line is the space the layout gives a heading, not a
+        // paragraph gap, and <c>Program.cs</c> never joins body text across a heading anyway (a
+        // heading closes the section and starts a fresh one) — so that gap carries no signal
+        // either side would ever use it for.
+        (double Baseline, bool IsHeading)? leftPrev = null, rightPrev = null, singlePrev = null;
+
         void Flush()
         {
             ordered.AddRange(left);
             ordered.AddRange(right);
             left.Clear();
             right.Clear();
+            leftPrev = null;
+            rightPrev = null;
         }
 
-        static Line Build(double baseline, List<Word> ws) =>
-            new(string.Join(' ', ws.Select(w => w.Text)),
-                baseline,
-                ws[0].Left,
-                ws[^1].Right,
-                ws.Count(w => w.Heading) * 2 > ws.Count,
-                ws.Max(w => w.Size));
+        static Line Build(double baseline, List<Word> ws, (double Baseline, bool IsHeading)? prev)
+        {
+            var isHeading = ws.Count(w => w.Heading) * 2 > ws.Count;
+            var gap = prev is { IsHeading: false } p ? p.Baseline - baseline : (double?)null;
+            return new(string.Join(' ', ws.Select(w => w.Text)),
+                baseline, ws[0].Left, ws[^1].Right, isHeading, ws.Max(w => w.Size), gap);
+        }
 
         foreach (var (baseline, words) in lines)
         {
             if (gutterRight <= gutterLeft)                       // single-column page
             {
-                ordered.Add(Build(baseline, words));
+                var single = Build(baseline, words, singlePrev);
+                ordered.Add(single);
+                singlePrev = (baseline, single.IsHeading);
                 continue;
             }
 
             if (CrossesGutter(words, gutterLeft, gutterRight, measure))
             {
                 Flush();
-                ordered.Add(Build(baseline, words));
+                ordered.Add(Build(baseline, words, null));
                 continue;
             }
 
             var l = words.Where(w => w.Right <= gutterRight).ToList();
             var r = words.Where(w => w.Right > gutterRight).ToList();
 
-            if (l.Count > 0) left.Add(Build(baseline, l));
-            if (r.Count > 0) right.Add(Build(baseline, r));
+            if (l.Count > 0) { var bl = Build(baseline, l, leftPrev); left.Add(bl); leftPrev = (baseline, bl.IsHeading); }
+            if (r.Count > 0) { var br = Build(baseline, r, rightPrev); right.Add(br); rightPrev = (baseline, br.IsHeading); }
         }
 
         Flush();
