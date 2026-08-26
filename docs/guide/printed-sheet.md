@@ -8,17 +8,6 @@ Read before changing the print stylesheet, `SheetView`, or the two sample charac
 
 ---
 
-## The two sample characters
-
-`SampleCharacters.Hero()` and `.Villain()` return finished Standard-tier sheets, offered on **`/portfolio`** so a sheet can be previewed without building one. They fill every section a printed sheet has, which an empty sheet does not.
-
-**This entry said "on the tier page" for a while after they stopped being there, and then said "on the portfolio" after that moved too.** They are at **`/admin/portfolio`** now, behind the account pages. The reason for the first move is worth keeping and is the same one: a demonstration is not a step in making your own character, and somebody who came to build one had to walk past them. `AreaTests.TheSamplesAreBehindTheAccountAndNotOnTheTierPage` pins both halves.
-
-- **They are this project's own characters.** The published Ch.8 Heroes stay in the test suite, where they verify the engine against printed numbers. **The reason has changed and the practice has not:** shipping them used to be barred as redistributing the authors' content, and the owner has since lifted that — the book's text and the published characters may be served to an account. These two are still the ones the app offers, because they were written for this tool and fill every section a sheet has, which is what a preview is for.
-- **`SampleCharacterTests` holds them to the rules** — legal, inside budget, fully priceable, every section filled, at least one Source heading, and both exports rendering. Writing them caught three real mistakes: ranks bought on rankless Powers (`invisibility`, `lightning_reflexes` are `max_rank: 0`), and Danger Sense and Resistance pushed over the Trait Cap because both take a **baseline equal to** an Ability rather than half it. Check `rank_type` and `prerequisite` before adding ranks to a sample.
-- The Villain deliberately leaves one Power without a Source, so the sheet shows the plain `POWERS` fallback heading and the review step shows a warning. Both are things a preview should exercise; it is not an oversight.
-
-
 ## The printed sheet is the deliverable
 
 **It is modelled on the published Ultimate Edition Hero Sheet**, which is at `docs/Prowlers_&_Paragons_Ultimate_Edition_Hero_Sheet.pdf` — untracked, because `*.pdf` is gitignored repository-wide, so get your own copy from the publisher. Look at it before changing the layout.
@@ -62,5 +51,17 @@ Rasterising the result needs a PDF library (there is no `pdftoppm` or Python on 
 - **`--focus` is a separate token from `--accent`.** A focus ring is a non-text indicator and WCAG 1.4.11 wants 3:1; Hero `--accent` is 1.8:1 on `--surface`, which is a ring nobody can see. `--muted` is held to 4.5:1 rather than 3:1 because it carries the explanatory prose at 0.72–0.82rem. Both were measured, not eyeballed; re-measure if you change them.
 - **A `position: fixed` running footer does not work.** Chrome's print output renders it once, at the top of page two, over the content. The character's name repeats across pages via the **document title**, which the browser prints in its own header — that is why `Review.razor`'s `<PageTitle>` leads with the name. A test asserts `position: fixed` never returns to the print block.
 - `h1 { display: none }` in print: the page heading is the tool's, not the sheet's.
+
+
+
+## The two sample characters
+
+`SampleCharacters.Hero()` and `.Villain()` return finished Standard-tier sheets, offered on **`/portfolio`** so a sheet can be previewed without building one. They fill every section a printed sheet has, which an empty sheet does not.
+
+**This entry said "on the tier page" for a while after they stopped being there, and then said "on the portfolio" after that moved too.** They are at **`/admin/portfolio`** now, behind the account pages. The reason for the first move is worth keeping and is the same one: a demonstration is not a step in making your own character, and somebody who came to build one had to walk past them. `AreaTests.TheSamplesAreBehindTheAccountAndNotOnTheTierPage` pins both halves.
+
+- **They are this project's own characters.** The published Ch.8 Heroes stay in the test suite, where they verify the engine against printed numbers. **The reason has changed and the practice has not:** shipping them used to be barred as redistributing the authors' content, and the owner has since lifted that — the book's text and the published characters may be served to an account. These two are still the ones the app offers, because they were written for this tool and fill every section a sheet has, which is what a preview is for.
+- **`SampleCharacterTests` holds them to the rules** — legal, inside budget, fully priceable, every section filled, at least one Source heading, and both exports rendering. Writing them caught three real mistakes: ranks bought on rankless Powers (`invisibility`, `lightning_reflexes` are `max_rank: 0`), and Danger Sense and Resistance pushed over the Trait Cap because both take a **baseline equal to** an Ability rather than half it. Check `rank_type` and `prerequisite` before adding ranks to a sample.
+- The Villain deliberately leaves one Power without a Source, so the sheet shows the plain `POWERS` fallback heading and the review step shows a warning. Both are things a preview should exercise; it is not an oversight.
 
 
