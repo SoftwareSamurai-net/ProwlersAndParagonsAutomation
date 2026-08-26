@@ -253,7 +253,14 @@ hr {
 .character-switch-list {
     position: absolute;
     top: 100%;
-    right: 0;
+
+    /* **Anchored to the button's left edge, not its right, and that is a narrow-viewport fix.**
+       Right-anchored it grows leftwards, and at 375px the banner wraps so the button sits near
+       the left of its row — the menu ran off the window and lost its first few characters on
+       every line. Measured in a screenshot at 375px; nothing in the markup differs, so no
+       rendering test could have seen it. Growing rightwards from a control that is itself never
+       far from the left edge cannot leave the window on the other side. */
+    left: 0;
     z-index: 40;
     margin-top: var(--space-2);
     min-width: 14rem;
