@@ -117,11 +117,14 @@ public sealed class AccountCharacterStore : ICharacterStore
         // write the character on screen over an id the visitor did not choose.
         if (opened is not null) await _local.SetCurrentAsync(id);
 
-        // A signed-in reader opening one of their account's characters is now what this browser
-        // is holding — see the class remarks — so it replaces whatever the anonymous slot had.
-        // Nothing to do when nobody is signed in: the anonymous slot already is where this went.
+        // A signed-in reader opening one of their account's characters is now what this browser is
+        // holding, so it goes into the anonymous side — but into `AccountCopyId` and never over
+        // whatever was open there. Writing it through the anonymous *current* pointer, which is
+        // what this did first, overwrote a real named local character; see that constant.
+        // Nothing to do when nobody is signed in: the anonymous slot already is where this came
+        // from, and writing it back would be a self-write no test could observe.
         if (who.IsSignedIn && opened is not null)
-            await _inThisBrowser.SaveAsync(Identity.Anonymous, opened.Value.Sheet, opened.Value.Mode);
+            await CopyDownAsync(opened.Value.Sheet, opened.Value.Mode);
 
         return opened;
     }
@@ -135,14 +138,33 @@ public sealed class AccountCharacterStore : ICharacterStore
     /// having it depend on either store back would be a cycle. A page-level call is the seam that
     /// is left.</para>
     ///
-    /// <para><b>Unconditional, on purpose.</b> This empties whatever the slot holds, not only a
-    /// copy <see cref="OpenAsync"/> left there — the owner was shown the alternative of clearing
-    /// only what this store itself wrote, and chose the simpler, safer rule: a shared machine must
-    /// not hand the next visitor anything that was on screen under somebody else's account, and
-    /// nothing here can tell that copy apart from the visitor's own anonymous work once it has
-    /// been sitting in the slot for a while.</para>
+    /// <para><b>Conditional, and the unconditional version was a defect.</b> It used to empty
+    /// whatever the anonymous slot held. That destroyed the reader's own work in two ways nobody
+    /// had traced: a draft built before signing in was deleted by a later sign-out even though no
+    /// account character was ever opened, and a named local character that happened to be open was
+    /// deleted outright. Both were demonstrated by adversarial review, and both are gone because
+    /// the copy now lives at <see cref="SavedCharacters.AccountCopyId"/> and this removes only
+    /// that. Anything of the reader's own is untouched.</para>
+    ///
+    /// <para><b>The pointer goes back to the legacy slot</b>, because leaving it at an id that has
+    /// just been deleted would land the next read on nothing while the reader's own characters sat
+    /// in the list unreachable.</para>
     /// </summary>
-    public Task ClearAnonymousAsync() => _inThisBrowser.ClearAsync(Identity.Anonymous);
+    public Task ClearAnonymousAsync() =>
+        _local.ClearPayloadAsync(Identity.Anonymous, SavedCharacters.AccountCopyId);
+
+    /// <summary>
+    /// Puts an opened account character into the anonymous side's reserved slot.
+    ///
+    /// <para><b>Written at the id outright, never through the current-character pointer.</b> The
+    /// first version moved the pointer and then saved "the open character", trusting the write to
+    /// see the move — and it did not: the payload landed under the previously-open character's id
+    /// and overwrote it. Naming the id removes the ordering question, leaves the reader's pointer
+    /// where they left it, and keeps the copy out of their index so it never appears in their own
+    /// list.</para>
+    /// </summary>
+    private Task CopyDownAsync(CharacterSheet sheet, SheetMode mode) =>
+        _local.SavePayloadAsync(Identity.Anonymous, SavedCharacters.AccountCopyId, sheet, mode);
 
     /// <summary>
     /// Read one of them without opening it — same two sources as <see cref="OpenAsync"/> and
