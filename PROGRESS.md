@@ -457,6 +457,62 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 
 ## Completed work
 
+### The shell spaces its own children with `gap`, closing the last item in "Still open from before"
+
+`docs/HANDOVER.md` had carried this since before the pre-1.0 audit: `.shell` had no spacing
+mechanism of its own, so a column of panels was evenly spaced only because `.panel` carried
+`margin-bottom: var(--space-5)` — which meant any *non*-panel direct child got none at all. The
+tier-cards grid was the one instance in the app, and it had already been patched with a
+margin-bottom of its own to match, which is the workaround the "real fix" note was written
+against.
+
+**The hazard the note named no longer exists.** It said the fix wanted proofing on every route
+because `.shell` also held the sticky budget strip and its negative-margin bleed. An unrelated,
+earlier refactor already pulled the strip out to be a sibling of `<main class="shell">` in
+`MainLayout.razor` — `web/wwwroot/css/app.css`'s own comment on `.budget` records it — so there
+was nothing left to proof against the strip specifically.
+
+**`.shell` is now a flex column with `gap: var(--space-5)`, and `.panel`'s margin-bottom was not
+deleted.** It is relied on everywhere a panel is nested more than one level under a routed
+page — inside `.editing` on the characteristics step, inside a tab, inside a dialog — none of
+which is a direct child of the shell and none of which a `gap` on the shell can reach. Deleting
+it globally would have collapsed every one of those onto its neighbour. Instead `.shell > *`
+cancels every direct child's own vertical margin, placed after every rule that sets one so it
+wins by source order rather than a specificity fight — margins do not collapse between flex
+items the way they did in the shell's old block flow, so without the cancellation a panel
+following a panel would get its own margin-bottom *and* the new gap, stacked rather than
+replaced. The now-redundant margin-bottom on `.options.cards` (the tier-cards patch) was
+removed with it. Print explicitly resets `.shell` to `display: block`, since a rem-based `gap`
+has no business surviving onto paper even though every visible sibling but the sheet is already
+hidden there.
+
+**Measured, not assumed, and the two things worth recording from the measurement:** direct-child
+gaps everywhere in the app were already `var(--space-5)` (16px) except two — `h1`→`p` and
+`p`→first-panel were 12px (the headings' own smaller margin), and the gap before `StepButtons`
+("Back"/"Continue") was 24px (`.nav-buttons`'s own, wider `margin-top`, which still carries its
+extra separation — only the *cancellation* is scoped to the shell's direct children, not the
+value). Both are now the uniform 16px. On every route that ends in `StepButtons` the two
+changes cancel exactly (+4, +4, −8 = net 0 by the bottom of the page — confirmed with a
+`getBoundingClientRect` harness against the actual rendered proof pages, before and after), so
+the only visible difference is a handful of panels sitting 8px lower than before, for the height
+of that one page. Routes with no `StepButtons` (`/rules`) keep the small, constant +4px from the
+heading change and nothing more.
+
+**The visual-regression pixel diff moves on all eight proof pages, as expected, and the deltas
+are confined to this.** Confirmed by direct measurement (not by eyeballing the diff PNGs, which
+read as far more alarming than the numbers): every gap in the rendered proof pages resolved to
+exactly `16.0px`, no doubling anywhere, and the cumulative drift never exceeded the 8px/12px
+figures above. The goldens are CI-rendered and cannot be regenerated from this machine —
+`scripts/visual-regression.sh` was run locally (Docker) only to observe the deltas, and the
+committed goldens were left untouched. **They need regenerating on CI
+(`visual-goldens.yml`) after this merges**, or every run of the ordinary check fails on a page
+nobody broke.
+
+Guarded by `WebPresentationTests.TheShellSpacesItsOwnChildrenWithGapNotWithAMargin`, against the
+parsed rule rather than a substring — `EffectiveValue`, exact-selector, per the file's own
+warning about suffix matching. Broken by hand (the `.shell > *` cancellation emptied) and watched
+red before being restored.
+
 ### Two scripts Cloudflare injects at the edge, one allowed and one deliberately not
 
 Reported from the live site's console, not by a test: `static.cloudflareinsights.com/beacon.min.js`
