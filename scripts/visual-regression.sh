@@ -257,6 +257,38 @@ run_chrome() {
 # **So do not regenerate these from a developer machine**: the Docker path this script still
 # carries is for *looking* at a page locally, and a golden written by it would reintroduce exactly
 # the cross-renderer gap that removed these four in the first place.
+#
+# **And that gap now has a cause rather than a pixel count.** Running this script locally, six of
+# the seven pages come back pixel-identical against the CI-rendered goldens and `shell-villain-light`
+# does not — 35,410 pixels, in one band at (622,835)-(1166,899). Sampling it says what it is:
+#
+#     panel interior elsewhere on the page   255,253,249   (--surface)
+#     page ground elsewhere on the page      248,243,236   (--bg)
+#     the differing band, CI's Chrome        255,253,249   -> panel
+#     the differing band, Docker's Chrome    248,243,236   -> ground
+#
+# The last panel's bottom edge lands a few pixels apart in the two renderers, and on this one page
+# it falls inside the final 65 rows of a 900px viewport — so a sub-pixel layout difference flips a
+# whole band from panel to ground. Not antialiasing, and nothing to do with the palette, which is
+# why forcing the colour scheme never moved it. **This is the original 32,462-pixel disagreement,
+# measured instead of guessed at.**
+#
+# It is left alone deliberately. CI is the authority, CI's goldens are what is committed, and CI is
+# green; what a local run gets is one known page of seven disagreeing for a understood reason. The
+# lever, if somebody wants to close it, is the capture height — put the boundary somewhere other
+# than the viewport edge. **Judge that in CI and not here**: the height has been changed once
+# already and reverted (`d0839ad`, "the flake was local, not CI"), and it would invalidate all
+# seven goldens, so it costs a CI round trip to evaluate and may simply move the knife edge.
+#
+# One thing to expect when looking at the two dark goldens rather than to be alarmed by: the
+# light/dark control in them reads AUTO, not DARK. The page stamps data-theme="dark" on the root so
+# the palette is unambiguous, while the control's pressed state comes from the component's own
+# default in a bUnit render, which nothing here sets. A fidelity gap in the harness, not a fault in
+# the app, where choosing dark does both. These goldens are here for the palette.
+#
+# **Nothing in the string below is a comment.** It is double-quoted, so a `#` line in it is still
+# parsed as a manifest row, and backticks in it are command substitution — a note written inside
+# it ran `data-theme="dark"` as a command. Notes go here, above it.
 manifest="
 front-door-hero-light:proof-front-door-hero-light.html:1280:900:
 front-door-hero-dark:proof-front-door-hero.html:1280:900:--blink-settings=preferredColorScheme=0
