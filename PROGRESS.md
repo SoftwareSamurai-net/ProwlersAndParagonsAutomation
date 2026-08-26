@@ -418,6 +418,45 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 
 ## Completed work
 
+### The manager panel stopped creating empty characters, and got a hierarchy
+
+The owner's report — "the start a new character section is awkward, and often has empty
+characters to discard" — turned out to be two different problems, and the second was hiding
+behind the first.
+
+**The cause: `ApiCharacterStore`'s autosave PUT unconditionally, and `PUT` creates the row if the
+id is new.** There is no separate "create a character" step for an account — the first
+write-through *is* the create. So switching the Hero/Villain palette or the sandbox budget toggle
+before choosing a tier fired `CharacterSession.NotifyChanged` exactly the way choosing a tier
+does, and this autosave wrote the untouched sheet straight to the server: a real, listed, empty
+character, from one click nowhere near "Start a new character." `CharacterSession.HasSomethingToLose`
+already answered "is this worth keeping" for the manager's own delete/discard confirmations; it is
+now `CharacterSession.IsWorthKeeping(CharacterSheet)`, a static so the autosave path — which only
+ever has the sheet, never a session — can ask the identical question before writing through.
+Nothing is deleted or repaired; the guard only stops a worthless sheet from being written in the
+first place, and the very next substantive edit saves everything, including whatever preference
+was set first. `AccountTests` pins both directions, and the mutation was watched to fail (removing
+the guard reintroduces the exact server row).
+
+**The panel itself, once the cause was fixed:**
+
+- **The count is stated once**, in the panel's `Aside`, not printed again in the closing sentence.
+- **The empty state names the action and the right place a character lands** — `EmptyState`, the
+  same component every other empty list in this app uses, and it no longer tells a signed-in
+  account "remembered in this browser," which was simply false: nothing here has ever put an
+  account's character in browser storage.
+- **The file picker is a real, styled `<label class="btn small">` beside a visually-hidden
+  `<input>`**, not the operating system's own "Choose File" chrome sized the same as "Start a new
+  character" next to it. One label — `Field` is not used here, so there is nothing to double it —
+  and its own focus ring is drawn on the sibling label with a plain adjacent-sibling selector,
+  since `for`/`id` association (deliberately not nesting) means `:focus-within` cannot see it.
+
+`CharacterManagerTests` (new) renders both identities in both states and holds the count, the
+wording, and the control's classes and `for`/`id` pairing to all of the above; each guard was
+watched to fail before landing. `scripts/visual-regression.sh --update-goldens` was re-run because
+the panel sits inside all four `proof-shell-*` goldens — the other three (front door × 2, rules
+reference) came back pixel-identical, confirming the change is contained to the one component.
+
 ### A signed-in visitor can change what they are called
 
 The name a fresh sign-in gets is the email's own local part, and there was no way to change it —

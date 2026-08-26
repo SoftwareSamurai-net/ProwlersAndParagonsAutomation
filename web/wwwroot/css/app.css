@@ -602,7 +602,7 @@ hr {
 h1[tabindex="-1"]:focus,
 h1[tabindex="-1"]:focus-visible { outline: none; }
 
-input[type="text"], input[type="number"], input[type="search"], input[type="file"],
+input[type="text"], input[type="number"], input[type="search"],
 select, textarea {
     font: inherit;
     color: var(--ink);
@@ -614,47 +614,34 @@ select, textarea {
     transition: border-color var(--swap) var(--ease);
 }
 input[type="text"]:hover, input[type="number"]:hover, input[type="search"]:hover,
-input[type="file"]:hover, select:hover, textarea:hover { border-color: var(--heading); }
+select:hover, textarea:hover { border-color: var(--heading); }
 
-/* **The file picker was the one control left rendering as the operating system drew
-   it** — a grey "Choose File" chip and the words "No file chosen", in the OS font, in
-   the middle of an app where every other control is themed. It was not an oversight in
-   the rules above so much as an omission from their selector list: `type="file"` was
-   simply never named, so it inherited nothing.
+/* **The file picker used to render as the operating system drew it** — a grey "Choose File"
+   chip and the words "No file chosen", in the OS font, sized the same as "Start a new
+   character" beside it, in a panel where every other control is themed and the file picker is
+   meant to read as the lesser of the two. Theming `::file-selector-button` fixed the first
+   problem and not the second — the chip took `.btn`'s colours but kept the control's native
+   width and the "No file chosen" caption, so it still matched the primary action for weight.
 
-   The native control is kept rather than replaced by a label-and-hidden-input, which is
-   the usual trick. Two reasons. `Field` already emits the `<label for>`, so a second
-   label would give one input two of them; and the hidden-input pattern moves the focus
-   ring off the thing that actually has focus, which then has to be put back with
-   `:focus-within` — more moving parts than the styling is worth.
+   The input itself is `.sr-only` now and `ImportCharacter` draws its own `<label class="btn
+   small">` beside it — the ordinary label-and-hidden-input trick, adopted here for the reason
+   it usually is: a `<label>` can be any size the rest of the app already has a token for, and
+   the native control cannot. One label, not two: `Field` is not used here, so there is nothing
+   double-labelling the input the way a wrapped `<label for>` beside `Field`'s own would. */
+input[type="file"].sr-only { cursor: pointer; }
+input[type="file"].sr-only:disabled { cursor: not-allowed; }
 
-   `::file-selector-button` is the button inside the control, so it takes `.btn`'s
-   treatment: same border, radius, ground and transition. It cannot be given `.btn`
-   itself — it is a pseudo-element, not an element a class can reach. */
-input[type="file"] { cursor: pointer; }
-
-input[type="file"]::file-selector-button {
-    font: inherit;
-    padding: var(--space-1) var(--space-4);
-    margin-right: var(--space-3);
-    border: 1px solid var(--heading);
-    border-radius: var(--radius-small);
-    background: var(--panel);
-    color: var(--heading);
-    cursor: pointer;
-    transition: background-color var(--swap) var(--ease),
-                border-color var(--swap) var(--ease);
+/* The ring the input would draw on itself under `:where(...):focus-visible` above is clipped
+   away with the rest of it, so the visible trigger needs its own — drawn on the sibling label
+   rather than via `:focus-within`, because the two are not nested: `for`/`id` is the whole of
+   the association, on purpose, so nesting the input inside the label cannot double it back up
+   even by accident. Source order is what a sibling selector needs and `ImportCharacter` writes
+   the input first for exactly this. */
+input[type="file"].sr-only:focus-visible + label {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
 }
 
-/* Hover is on the *control*, not the pseudo-element: the button is small and the
-   pointer spends most of its travel on the surrounding box, so lighting up only on
-   the chip itself reads as an unresponsive control. --panel-sunk rather than
-   --accent-soft for the reason measured on `.btn` above: Villain --heading on
-   Villain --accent-soft is 4.08:1, under what text needs. */
-input[type="file"]:hover:not(:disabled)::file-selector-button { background: var(--panel-sunk); }
-
-input[type="file"]:disabled { opacity: 0.45; cursor: not-allowed; }
-input[type="file"]:disabled::file-selector-button { cursor: not-allowed; }
 textarea { width: 100%; resize: vertical; }
 input[type="number"] { width: 5.5rem; }
 /* Item 2 of the redesign, and the place it actually earns its keep. A long form is

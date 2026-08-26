@@ -11,14 +11,28 @@
    file can fail to become a character. Nothing here decides where a successful import
    goes — that is the hosting page's job, through OnImported — and nothing here can take
    the page down: CharacterImport never throws, so a bad file is an ordinary outcome shown
-   right here rather than a page that stops rendering. *@
+   right here rather than a page that stops rendering.
+
+   **The trigger is a real, styled `<label>`, not the operating system's own "Choose File" chip.**
+   Every other control on the manager panel this sits in is themed and sized to the app; the raw
+   control read as an afterthought bolted beside "Start a new character" and, being the same size,
+   competed with it rather than sitting behind it. `.small` is the same demotion `.btn.small`
+   already gives a secondary action elsewhere.
+
+   The `<input>` itself is `.sr-only` — clipped, not `display: none`, so it is still in the
+   accessibility tree and still reachable by keyboard — and the visible label is what a reader
+   actually sees and clicks. One label, because `for`/`id` is the whole of the association: a
+   second, wrapping label would give the same input two of them, which is the trap a hidden-input
+   pattern usually falls into. Its own focus ring is drawn on the label beside it, since the ring
+   Chrome would put on the input itself is invisible under the clip. *@
 
 @inject CharacterImport Import
 
-<Field Label="Import a character" For="import-character-file">
-    <InputFile id="import-character-file" accept=".json,application/json"
-               disabled="@_busy" OnChange="HandleSelected" />
-</Field>
+<InputFile id="import-character-file" class="sr-only" accept=".json,application/json"
+           disabled="@_busy" OnChange="HandleSelected" />
+<label class="btn small@(_busy ? " disabled" : "")" for="import-character-file">
+    Import a character
+</label>
 
 @if (_busy)
 {
