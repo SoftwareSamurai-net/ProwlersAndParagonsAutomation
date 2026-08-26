@@ -33,13 +33,14 @@ public sealed class PageReaderTests
     /// </summary>
     private static List<RawLetter> Glyphs(
         string text, double left, double baseline,
-        string font = BodyFont, double size = BodySize, double charWidth = 6, double gap = 1)
+        string font = BodyFont, double size = BodySize,
+        double charWidth = 6, double gap = 1, double? spaceWidth = null)
     {
         var glyphs = new List<RawLetter>();
         var x = left;
         foreach (var ch in text)
         {
-            var w = char.IsWhiteSpace(ch) ? charWidth * 0.5 : charWidth;
+            var w = char.IsWhiteSpace(ch) ? spaceWidth ?? charWidth * 0.5 : charWidth;
             glyphs.Add(new RawLetter(ch.ToString(), x, x + w, baseline, font, size, true));
             x += w + gap;
         }
@@ -166,13 +167,14 @@ public sealed class PageReaderTests
     /// <summary>
     /// In the condensed display face a word space is barely wider than the gap between two
     /// letters. Guessing word boundaries from gap size merged "FORCE FIELD" into "FORCEFIELD";
-    /// this fixture makes every gap — inside the words and between them — identically narrow, so
-    /// only recognising the space glyph itself can produce the right answer.
+    /// this fixture makes the gap across the space (0.8pt) <em>narrower</em> than the gap-based
+    /// break threshold (4.05pt at this size), so only recognising the space glyph's own value —
+    /// not its width or the size of the surrounding gaps — can produce the right answer.
     /// </summary>
     [Fact]
     public void WordsAreSplitOnRealSpaceGlyphsEvenWhenTheGapIsNarrow()
     {
-        var glyphs = Glyphs("FORCE FIELD", left: 45, baseline: 700);
+        var glyphs = Glyphs("FORCE FIELD", left: 45, baseline: 700, charWidth: 6, gap: 0.3, spaceWidth: 0.2);
 
         var lines = new PageReader().Read(glyphs, PageWidth);
 
