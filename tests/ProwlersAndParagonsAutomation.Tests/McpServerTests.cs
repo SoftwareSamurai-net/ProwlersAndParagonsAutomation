@@ -1248,10 +1248,21 @@ public sealed class McpServerTests
 
     /// <summary>
     /// <b>A row that matched one common word looks exactly like a row that answers the
-    /// description, and the only thing that tells them apart is the word.</b> "Walks through
-    /// walls" puts twenty-one Powers on two points each, every one of them on the filler word
-    /// "through", and which of them a caller sees is alphabetical — so the answer says which
-    /// word each row matched, that ties are unordered, and that there are more.
+    /// description, and the only thing that tells them apart is the word.</b> Asking "at your
+    /// rank" ties dozens of Powers on two points each, every one of them on the word "rank" —
+    /// which names a number every Power entry states, not an effect any of them describes — and
+    /// which of them a caller sees is alphabetical. Adding "boost" gives the query one row that
+    /// matches by name too, which is what keeps the answer in the "closest entries" branch of
+    /// the caution rather than the "nothing matched by name" one — the property under test is
+    /// what the caution says about a *thin* row, not about a query with no name match at all,
+    /// which <see cref="SearchSaysWhenNothingMatchedByNameAtAll"/> already covers. So the answer
+    /// says which word each thin row matched, that ties are unordered, and that there are more.
+    ///
+    /// <para>This used to search "walks through walls" and tie on "through" — PROGRESS.md item
+    /// 4's own reproduction of the problem this test exists to pin. "Through" is a stopword now
+    /// (it carried no more information about a Power than "from" or "into" already on that
+    /// list), so that query no longer produces the flood; <see cref="WideQuery"/>'s "rank" is
+    /// the same shape of coincidence with a word this search still has to see.</para>
     /// </summary>
     [Fact]
     public void AThinMatchCanBeSeenToBeThin()
@@ -1260,11 +1271,12 @@ public sealed class McpServerTests
         // cut does not quietly become an assertion about whatever the default happens to be.
         const int window = 6;
 
-        var report = Parse(Tools().SearchPowers("walks through walls", window));
+        var report = Parse(Tools().SearchPowers(
+            $"it happens at your {WideQuery}, and it is quite a boost", window));
 
         var onOneCommonWord = report["matches"]!.AsArray()
             .Where(m => m!["matched_terms"]!.AsArray().Count == 1
-                     && m["matched_terms"]![0]!.GetValue<string>() == "through")
+                     && m["matched_terms"]![0]!.GetValue<string>() == WideQuery)
             .ToList();
 
         Assert.NotEmpty(onOneCommonWord);

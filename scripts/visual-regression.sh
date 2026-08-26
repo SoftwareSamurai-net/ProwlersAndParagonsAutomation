@@ -39,12 +39,46 @@
 # RGBA) using only `node:zlib`; `scripts/visual/diff.mjs` walks the two pixel buffers.
 #
 # ------------------------------------------------------------------------------------------------
+# THE TOLERANCE BELOW IS NOT THE WHOLE TOLERANCE — READ diff.mjs's OWN HEADER TOO.
+#
+# An adversarial audit found that a percentage-of-differing-pixels tolerance alone cannot see a
+# colour shift applied uniformly across an entire page — no single pixel's delta ever gets large
+# enough to be counted as "differing", however many pixels are nudged the same small amount. So
+# diff.mjs now checks two independent measures and fails if *either* is exceeded: this script's
+# `--tolerance` still governs the count-of-differing-pixels measure (`--max-diff-percent`), and a
+# second, whole-image mean-absolute-channel-difference measure is diff.mjs's own default and is
+# not overridden from here — see that file's header comment for the arithmetic behind both
+# defaults, and for why a uniform shift and a percentage-of-pixels tolerance need genuinely
+# different instruments rather than one number tuned harder.
+#
+# ------------------------------------------------------------------------------------------------
 # --virtual-time-budget IS NOT OPTIONAL, AND NEITHER IS THIS COMMENT'S EXISTENCE.
 #
 # `.panel` carries `animation: rise var(--enter) both`, which starts at `opacity: 0`. A bare
 # `--screenshot` fires before that finishes and captures a washed-out page — which has already
 # been misdiagnosed once in this repository as a palette fault. Every screenshot below waits
 # 5000ms of virtual time, comfortably past the animation, before Chrome is asked for a frame.
+#
+# ------------------------------------------------------------------------------------------------
+# AND --force-prefers-reduced-motion, BECAUSE 5000ms OF VIRTUAL TIME TURNED OUT NOT TO BE ENOUGH.
+#
+# The budget above is a *wait* and a wait is a race, so it settles an animation only as reliably as
+# the page is fast. It was not enough for `rules-reference`, the page with the most content: two CI
+# runs on commits that changed nothing that page renders disagreed on **59.6% of its pixels**, mean
+# channel difference 5.622 — and the diff image is unambiguous, three panel interiors solid and the
+# headings outside them untouched. That is `.panel`'s entrance caught at two different moments.
+#
+# **The old tolerance was hiding it.** At `--channel-threshold 24` most of those per-pixel deltas
+# did not count as differing at all, so the page read as identical while being flaky; tightening
+# the comparator is what surfaced it. A page that is flaky under a strict comparator was always
+# flaky — it just had nothing able to say so.
+#
+# So a golden is captured with motion **off** rather than with a longer guess. The app honours
+# `prefers-reduced-motion` by setting its three duration tokens to `0.01ms`, which the motion
+# harness proves on every CI run, and `both` on the animation means the resting frame is the same
+# frame either way. The capture is therefore the settled page by construction rather than by
+# arriving late enough — which is what a golden should have been all along. The budget stays,
+# because it also covers font loading and layout, and belt-and-braces costs nothing here.
 
 set -euo pipefail
 
@@ -63,7 +97,12 @@ diff_dir="$work_dir/diff"
 docker_chrome_image="selenium/standalone-chrome@sha256:cd778b6f38d99d1e14a05a767f576aff2face98d5202a2192d857614c265ec4d"
 
 update_goldens=0
-tolerance=0.05
+# Matches diff.mjs's own default for --max-diff-percent — see this file's and that file's header
+# comments for the arithmetic (tight enough that a 24x24 solid block fails at 1280x900, loose
+# enough for a handful of stray antialiased pixels). Kept as a literal here rather than reading
+# diff.mjs's default at runtime, so `--tolerance` on the command line has an honest value to
+# override *from*.
+tolerance=0.02
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -143,7 +182,7 @@ run_chrome() {
     local profile; profile="$(mktemp -d)"
     "$native_chrome" \
       --headless=new --no-sandbox --disable-gpu --allow-file-access-from-files \
-      --hide-scrollbars --user-data-dir="$profile" --virtual-time-budget=5000 \
+      --hide-scrollbars --user-data-dir="$profile" --virtual-time-budget=5000 --force-prefers-reduced-motion \
       --window-size="${width},${height}" --screenshot="$out_host" $extra_flags \
       "file://$wwwroot/$page" >/dev/null 2>&1 || true
     rm -rf "$profile"
@@ -174,7 +213,7 @@ run_chrome() {
       "$docker_chrome_image" \
       --headless=new --no-sandbox --disable-gpu --allow-file-access-from-files \
       --hide-scrollbars --user-data-dir="/tmp/pp-chrome-profile-${attempt}" \
-      --virtual-time-budget=5000 \
+      --virtual-time-budget=5000 --force-prefers-reduced-motion \
       --window-size="${width},${height}" --screenshot="/data/${out_name}" $extra_flags \
       "file:///data/${page}" >/dev/null 2>&1 || true
 
@@ -201,33 +240,76 @@ run_chrome() {
 # is the third new screen and is deterministic (FakeApi test data, not a live search), so one
 # capture of it is a real regression guard rather than a snapshot of whatever happened to be on
 # screen.
-# **The four shell captures are out, and this is a retreat rather than a decision.**
-# They compare a page generated by whichever Chrome ran --update-goldens against whichever Chrome
-# runs the check. Off Linux this script uses a digest-pinned Docker Chrome; CI uses the runner own
-# Chrome. For these four that difference is not noise: shell-villain-light disagreed by exactly
-# 32,462 pixels across repeated CI runs, unchanged by forcing the colour scheme, while the three
-# below came back pixel-identical on the same runs. A check that fails for a reason unrelated to
-# the change under review teaches people to ignore it, which is worse than not having it.
 #
-# The fix is to generate the goldens in CI, from the Chrome that compares them, and commit those.
-# Until that exists these four are not checked -- said plainly here rather than left to look like
-# coverage. PROGRESS.md carries it as an open item.
+# **The four shell captures were removed once and are back, because the reason they were removed
+# has been fixed rather than tolerated.** They had been comparing a page generated by whichever
+# Chrome ran `--update-goldens` against whichever Chrome ran the check: off Linux this script uses
+# a digest-pinned Docker Chrome, CI uses the runner's own. For these four that difference was not
+# noise — `shell-villain-light` disagreed by exactly 32,462 pixels across repeated CI runs,
+# unchanged by forcing the colour scheme, while the three below came back pixel-identical on the
+# same runs. Dropping them was recorded here as a retreat, with the fix named: generate the
+# goldens in CI, from the Chrome that compares them, and commit those.
 #
-# `explained-sheet` is taller than the rest at 1700, and the figure is measured rather than picked.
-# The two things this page exists to check are whether a dotted underline under forty names reads as
-# marking or as noise, and whether the one open description lands somewhere readable inside a sheet
-# column; neither survives a crop, and a 900px frame cuts it mid-Powers.
+# That is now `.github/workflows/visual-goldens.yml` — `workflow_dispatch` only, because a golden
+# regenerated as a side effect of an unrelated change is a regression signed off by nobody. Every
+# golden under tests/visual-goldens/ is produced by it, so both sides of every comparison below
+# are one renderer and the tolerance no longer has to absorb a Chrome-versus-Chrome difference.
+# **So do not regenerate these from a developer machine**: the Docker path this script still
+# carries is for *looking* at a page locally, and a golden written by it would reintroduce exactly
+# the cross-renderer gap that removed these four in the first place.
 #
-# **1700 is past the end of the content, and that is the point.** At 1400 the crop landed inside the
-# foot's ruled boxes and the check came back 0.022% different on a tree that had not changed -- under
-# tolerance, so green, but a page that jitters at the crop line will eventually jitter over it. The
-# page is ~1640px tall, so the last sixty rows are flat background and there is nothing there to
-# rasterise two ways. Same principle as the pixel check being made deterministic rather than
-# loosened, which is recorded in the log.
+# **And that gap now has a cause rather than a pixel count.** Running this script locally, six of
+# the seven pages come back pixel-identical against the CI-rendered goldens and `shell-villain-light`
+# does not — 35,410 pixels, in one band at (622,835)-(1166,899). Sampling it says what it is:
+#
+#     panel interior elsewhere on the page   255,253,249   (--surface)
+#     page ground elsewhere on the page      248,243,236   (--bg)
+#     the differing band, CI's Chrome        255,253,249   -> panel
+#     the differing band, Docker's Chrome    248,243,236   -> ground
+#
+# The last panel's bottom edge lands a few pixels apart in the two renderers, and on this one page
+# it falls inside the final 65 rows of a 900px viewport — so a sub-pixel layout difference flips a
+# whole band from panel to ground. Not antialiasing, and nothing to do with the palette, which is
+# why forcing the colour scheme never moved it. **This is the original 32,462-pixel disagreement,
+# measured instead of guessed at.**
+#
+# It is left alone deliberately. CI is the authority, CI's goldens are what is committed, and CI is
+# green; what a local run gets is one known page of seven disagreeing for a understood reason. The
+# lever, if somebody wants to close it, is the capture height — put the boundary somewhere other
+# than the viewport edge. **Judge that in CI and not here**: the height has been changed once
+# already and reverted (`d0839ad`, "the flake was local, not CI"), and it would invalidate all
+# seven goldens, so it costs a CI round trip to evaluate and may simply move the knife edge.
+#
+# One thing to expect when looking at the two dark goldens rather than to be alarmed by: the
+# light/dark control in them reads AUTO, not DARK. The page stamps data-theme="dark" on the root so
+# the palette is unambiguous, while the control's pressed state comes from the component's own
+# default in a bUnit render, which nothing here sets. A fidelity gap in the harness, not a fault in
+# the app, where choosing dark does both. These goldens are here for the palette.
+#
+# **Nothing in the string below is a comment.** It is double-quoted, so a `#` line in it is still
+# parsed as a manifest row, and backticks in it are command substitution — a note written inside
+# it ran `data-theme="dark"` as a command. Notes go here, above it.
+#
+# `explained-sheet` is 1700 rather than 900, and it is a **new** page rather than a changed height on
+# an existing one -- the caution above about judging a capture height in CI is about moving one that
+# already has goldens, which this does not. Two things the page exists to check, neither of which
+# survives a crop: whether a dotted underline under forty names reads as marking or as noise, and
+# whether the one open description lands somewhere readable inside a sheet column rather than as a
+# sliver down it. A 900px frame cuts the sheet mid-Powers.
+#
+# **1700 is past the end of the ~1640px page, and that is the point.** At 1400 the crop fell inside
+# the foot's ruled boxes and two Docker runs of the *same* tree disagreed by 0.022% in the last
+# twelve rows -- under tolerance, so green, but that is the knife edge described above, reached
+# locally rather than across renderers. Clearing the content entirely leaves flat background at the
+# boundary and there is nothing there to rasterise two ways.
 manifest="
 front-door-hero-light:proof-front-door-hero-light.html:1280:900:
 front-door-hero-dark:proof-front-door-hero.html:1280:900:--blink-settings=preferredColorScheme=0
 rules-reference:proof-rules-hero.html:1280:900:
+shell-hero-light:proof-shell-hero.html:1280:900:--blink-settings=preferredColorScheme=1
+shell-hero-dark:proof-shell-hero-dark.html:1280:900:
+shell-villain-light:proof-shell-villain.html:1280:900:--blink-settings=preferredColorScheme=1
+shell-villain-dark:proof-shell-villain-dark.html:1280:900:
 explained-sheet:proof-explained-hero.html:1280:1700:
 "
 
@@ -268,8 +350,12 @@ while IFS= read -r line; do
   if [ ! -f "$golden" ]; then
     # A missing golden is not a pass and must not read as one — this is the exact failure shape
     # CLAUDE.md names four times over: a check satisfied by there being nothing to check.
-    echo "::error::$name: NO GOLDEN at tests/visual-goldens/$name.png — run with " \
-         "--update-goldens (on Linux, or let this script's Docker fallback do it) to create one"
+    # And the instruction points at CI rather than at this script's own --update-goldens, which
+    # off Linux writes a Docker-Chrome golden that CI's Chrome then has to agree with — the
+    # cross-renderer gap that cost this check four pages once already.
+    echo "::error::$name: NO GOLDEN at tests/visual-goldens/$name.png — generate it in CI with " \
+         "'gh workflow run visual-goldens.yml --ref <branch>', then download and commit the " \
+         "artifact. Do not write this one from a developer machine."
     missing_golden=1
     continue
   fi

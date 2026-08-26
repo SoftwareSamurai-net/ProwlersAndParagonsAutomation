@@ -17,6 +17,8 @@
                  RankGuide="@ability.RankGuide"
                  RankChanged="rank => SetAbility(id, rank)" />
 
+        <RowFinding Issues="SheetFindings.ForAbility(Validation, id)" />
+
         @if (Modifiers(id) is { Count: > 0 } mods)
         {
             <p class="small muted rank-note">
@@ -59,6 +61,9 @@
 
     protected override void OnInitialized() =>
         _target = Session.Rules.Abilities.FirstOrDefault()?.Id ?? "";
+
+    /// <summary>Read fresh on every render — see <c>Review.razor</c>'s own <c>Validation</c>.</summary>
+    private ValidationResult Validation => Session.Validate();
 
     private int PackageAbilityRank =>
         Session.Sheet.SelectedPackageId is null

@@ -826,7 +826,20 @@ public sealed class CharacterTools
         // "super" is in seventeen Power names — Super Speed and the sixteen Super Senses
         // options — so "super strong" answered with four of them and neither Might nor
         // Strike. It carries no information in this rulebook, which is about supers.
-        "super"
+        "super",
+
+        // The rest of the prepositions and indefinite pronouns already in this list —
+        // "through" is the one PROGRESS.md item 4 names by name: "walks through walls"
+        // put twenty Powers on the same two points for matching nothing but this word,
+        // eighteen of them entries whose only connection to walking through a wall is
+        // that their own description happens to use "through" for something else
+        // entirely. The rest were found the same way "someone"/"something"/"anything"
+        // already were — a query built to reproduce a real sentence turns out to be full
+        // of connective words that are in every third Power's description and say
+        // nothing about what that Power does.
+        "through", "than", "anyone", "everyone", "over", "under", "around", "against",
+        "down", "back", "once", "another", "else", "somewhere", "before", "after",
+        "without", "across", "toward", "towards", "upon", "near"
     };
 
     // ── JSON helpers ──────────────────────────────────────────────────────

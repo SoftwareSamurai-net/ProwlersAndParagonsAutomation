@@ -19,7 +19,7 @@
         <ChosenList>
             @foreach (var item in Session.Sheet.Gear.ToList())
             {
-                <ChosenRow>
+                <ChosenRow Findings="SheetFindings.ForGear(Validation, item.Name)">
                     <Body>@GearFormatter.Describe(item, Session.Rules, Session.Costs)</Body>
                     <Actions>
                         <button type="button" class="btn small" @onclick="() => BeginEdit(item)">Customise</button>
@@ -101,6 +101,9 @@
 <StepButtons Back="build/characteristics" BackLabel="Characteristics" Next="build/derived" NextLabel="Derived stats" />
 
 @code {
+    /// <summary>Read fresh on every render — see <c>Review.razor</c>'s own <c>Validation</c>.</summary>
+    private ValidationResult Validation => Session.Validate();
+
     private string _newItem = "";
     private SelectedGear? _editing;
 

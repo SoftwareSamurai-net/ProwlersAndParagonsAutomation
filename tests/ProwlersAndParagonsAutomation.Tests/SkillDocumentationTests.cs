@@ -22,6 +22,15 @@ public sealed class SkillDocumentationTests
 
     private static string Text => File.ReadAllText(SkillPath);
 
+    /// <summary>
+    /// The document with its line breaks flowed back into spaces, for asserting on a phrase.
+    /// The file is hard-wrapped, so a sentence tested for as a raw substring passes or fails on
+    /// where the wrap happened to land — a test that breaks when somebody reflows a paragraph
+    /// and says nothing when they delete the sentence.
+    /// </summary>
+    private static string Flowed =>
+        new Regex(@"\s+", RegexOptions.None, TimeSpan.FromSeconds(5)).Replace(Text, " ");
+
     private readonly RulesFixture _f;
 
     public SkillDocumentationTests(RulesFixture f) => _f = f;
@@ -109,6 +118,28 @@ public sealed class SkillDocumentationTests
         Assert.Contains("The engine decides", Text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(BuildCommand.Verb, Text, StringComparison.Ordinal);
         Assert.Contains("--from", Text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The default build is the strongest legal one, and the person trades down from it.</b>
+    /// The same principle <see cref="McpQuestionPolicyTests"/> pins for the MCP server, held
+    /// here because the two documents teach the same loop to two different readers and are the
+    /// kind of pair that drifts: this one gained the section second, and nothing but a test on
+    /// both halves keeps them saying the same thing.
+    ///
+    /// <para>The limits are asserted with it. Optimising is not a licence to overrule a stated
+    /// weakness or to exceed the budget, and half the principle is worse than none of it.</para>
+    /// </summary>
+    [Fact]
+    public void TheSkillSaysToBuildAtFullStrengthAndTradeDown()
+    {
+        Assert.Contains("strongest legal", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Trait Cap", Flowed, StringComparison.Ordinal);
+        Assert.Contains("trades", Flowed, StringComparison.OrdinalIgnoreCase);
+
+        // The limits, without which the above rebuilds somebody's character into a better one.
+        Assert.Contains("overruling a weakness they stated", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("going over budget", Flowed, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

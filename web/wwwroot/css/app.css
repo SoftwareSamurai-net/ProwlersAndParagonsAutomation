@@ -813,15 +813,52 @@ label {
 
 .chosen { list-style: none; margin: 0; padding: 0; }
 .chosen > li {
-    display: flex;
-    gap: var(--space-3);
-    align-items: flex-start;
     padding: var(--space-3) 0;
     border-bottom: 1px solid var(--rule);
 }
 .chosen > li:last-child { border-bottom: none; }
+
+/* The row's own content — what ChosenRow used to lay out on the <li> itself. Split out so a
+   RowFinding can sit under it, in the ordinary block direction, and still be one list item. */
+.chosen-row { display: flex; gap: var(--space-3); align-items: flex-start; }
 .chosen .body { flex: 1 1 auto; min-width: 0; }
 .chosen .cost { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+
+/* ── Validation on the row that broke it ─────────────────────────────────── */
+
+/* RowFinding's own markup. Sits under a RankRow or inside a ChosenRow's <li>, and is drawn
+   only while the engine has something to say about that row — see RowFinding.razor. */
+.row-findings { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: grid; gap: var(--space-1); }
+
+/* `--panel`, not `--panel-sunk`: the rows this sits under are already on `--panel`, and
+   `--danger` and `--heading` are only measured against `--panel` in
+   EveryScreenPairInUseHoldsItsContrastFloor. Adding another ground here would need its own
+   measurement for a box that does not need one — the left edge already marks it out. */
+.finding {
+    padding: var(--space-2) var(--space-3);
+    border-left: 3px solid var(--danger);
+    border-radius: 0 var(--radius-small) var(--radius-small) 0;
+    background: var(--panel);
+    font-size: var(--text-sm);
+}
+
+/* Never colour alone (WCAG 1.4.1): the border changes *shape* as well as colour — solid
+   against dashed — and the word in .finding-kind says the same thing again, in text a screen
+   reader announces the same way a sighted reader reads it. */
+.finding.warning { border-left: 3px dashed var(--heading); }
+
+/* Not text-transform: uppercase. The word is already written "Error"/"Warning" in the markup
+   and every rendering test reads it that way; setting it in capitals here would put a second
+   spelling of the same words on the page that UppercasedTextTests holds to the same rank- and
+   citation-safety rule as every other capitalised label, for a treatment that buys nothing
+   this component's messages need — no rank, no citation, ever sits in this two-word label. */
+.finding-kind {
+    font-weight: 700;
+    letter-spacing: var(--label-track);
+    margin-right: var(--space-2);
+}
+.finding.error .finding-kind { color: var(--danger); }
+.finding.warning .finding-kind { color: var(--heading); }
 
 .tag {
     display: inline-block;

@@ -42,30 +42,18 @@
         Two finished Standard-tier characters, filling every section a sheet has.
     </p>
 
-    @* Asks first, and only when there is something to lose. Loading a sample replaces the
-       character outright, and the character is kept in this browser between visits — so this
-       button can destroy work written down nowhere else, with no undo behind it. On an empty
-       sheet it acts on one click, which is the visit where somebody is most likely to want a
-       sample and least likely to have anything at stake. *@
+    @* No question first. Loading a sample replaces the character outright, and the character
+       is kept in this browser between visits — so this button can overwrite work written down
+       nowhere else. It acts at once regardless, and the banner offers to bring back whatever it
+       replaced: friendlier than asking permission up front, and it costs a click only to the
+       reader who turns out to have wanted the old one back. *@
     <div class="inline">
-        @if (_pending is { } pending)
-        {
-            <button type="button" class="btn danger" @onclick="() => Do(pending)">
-                Yes, @pending.Verb
-            </button>
-            <button type="button" class="btn" @onclick="() => _pending = null">
-                Keep this character
-            </button>
-        }
-        else
-        {
-            <button type="button" class="btn" @onclick="() => Ask(Load(SheetMode.Hero))">
-                Load a Hero — Ninth Precinct
-            </button>
-            <button type="button" class="btn" @onclick="() => Ask(Load(SheetMode.Villain))">
-                Load a Villain — The Quiet Hour
-            </button>
-        }
+        <button type="button" class="btn" @onclick="() => Load(SheetMode.Hero)">
+            Load a Hero — Ninth Precinct
+        </button>
+        <button type="button" class="btn" @onclick="() => Load(SheetMode.Villain)">
+            Load a Villain — The Quiet Hour
+        </button>
         @if (_loaded is not null)
         {
             <span class="small muted">Loaded <b>@_loaded</b> — it is on the sheet now.</span>
@@ -86,12 +74,7 @@
 @code {
     private ReplayLibrary? _library;
     private string? _loaded;
-    private Replacement? _pending;
-
     protected override async Task OnInitializedAsync() => _library = await Loader.LoadAsync();
-
-    /// <summary>Something that replaces the character, and what to call it when asking.</summary>
-    private sealed record Replacement(string Verb, Func<Task> Run);
 
     /// <summary>
     /// <b>The palette is not pushed here.</b> It lives on the character, and the layout applies it
@@ -99,25 +82,9 @@
     /// A push here as well would be a second route to the same thing, and a second route is where
     /// the two get to disagree.
     /// </summary>
-    private Replacement Load(SheetMode mode) => new(
-        mode == SheetMode.Hero ? "load the Hero" : "load the Villain",
-        () =>
-        {
-            Session.LoadSample(mode);
-            _loaded = Session.Sheet.Name;
-            return Task.CompletedTask;
-        });
-
-    /// <summary>Asks first, unless the sheet is empty and there is nothing to ask about.</summary>
-    private async Task Ask(Replacement replacement)
+    private void Load(SheetMode mode)
     {
-        if (Session.HasSomethingToLose) _pending = replacement;
-        else await replacement.Run();
-    }
-
-    private async Task Do(Replacement replacement)
-    {
-        _pending = null;
-        await replacement.Run();
+        Session.LoadSample(mode);
+        _loaded = Session.Sheet.Name;
     }
 }

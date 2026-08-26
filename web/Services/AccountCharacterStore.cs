@@ -152,6 +152,31 @@ public sealed class AccountCharacterStore : ICharacterStore
         await _local.DeleteAsync(id);
     }
 
+    /// <summary>
+    /// Put a character back under the id it had, wherever that id lives.
+    ///
+    /// <para><b>The other half of a deleted row's undo</b> — see <see cref="DiscardedCharacter"/>.
+    /// Deliberately not <see cref="SaveAsync(CharacterSheet, SheetMode)"/>, which writes to
+    /// whichever character is <em>open</em>: this names an id, and the point is to restore a row
+    /// that was never the open one.</para>
+    ///
+    /// <para><b>It answers whether the write landed, which every other method here does not.</b>
+    /// An autosave that fails is not worth interrupting somebody over; an undo that silently did
+    /// nothing is the worst possible outcome, because the reader believes their character is
+    /// back. The account cap is the refusal that actually happens: discard a row from a full
+    /// account, build something in its place, and there is no room to put the old one back.</para>
+    /// </summary>
+    public async Task<bool> RestoreAsync(string id, string label, CharacterSheet sheet, SheetMode mode)
+    {
+        if ((await _who.CurrentAsync()).IsSignedIn)
+            return await _inTheAccount.SaveAsync(id, label, sheet, mode) == SaveOutcome.Saved;
+
+        // The browser's own store has no cap and no failure worth reporting — see
+        // SavedCharacters, where a storage refusal is the same case as no character at all. It
+        // hands back the id it wrote, so a mismatch is the only thing that could mean "not done".
+        return await _local.SaveAsync(id, label, sheet, mode) == id;
+    }
+
     /// <summary>Which character the app currently has open, whoever is here.</summary>
     public Task<string> CurrentIdAsync() => _local.CurrentIdAsync();
 

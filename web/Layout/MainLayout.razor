@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject CharacterSession Session
+@inject DiscardedCharacter Discarded
 @inject Theme Theme
 @inject Motion Motion
 @inject NavigationManager Nav
@@ -63,8 +64,42 @@
        why that comparison, and not a bare true/false, is what a save actually has to report.
 
        aria-live rather than a toast: the point is that it can be missed without being alarming,
-       and a screen-reader user is owed the same "it happened" that the sighted page shows. *@
-    <span class="save-status" aria-live="polite">@(JustSaved ? "Saved" : "")</span>
+       and a screen-reader user is owed the same "it happened" that the sighted page shows.
+
+       **The one place undo is offered, and it shares this region rather than opening a second
+       one.** Discarding, loading a sample, importing a file and opening a recorded character all
+       replace the character wherever the reader happens to be standing — the tier page, the
+       portfolio, a recording that then navigates away from itself — so the offer has to live
+       somewhere every one of those routes draws, which only the banner does. It wins the race
+       against "Saved" on purpose: the very change that makes undo available also completes a
+       write-through over what it replaced, so without the ordering below "Saved" would report
+       the autosave and hide the one thing worth announcing. *@
+    @* **Two buffers, one offer, and the order matters.** The session's holds the character that
+       was on screen; `DiscardedCharacter` holds a saved row deleted from the list, which the
+       session has never seen and could not bring back. They can never be armed by the same click —
+       discarding a background row raises no change event, so it does not touch the session's
+       Version — but the session's is checked first because it is the one whose window closes on
+       the very next edit and so the one more likely to be about what just happened. *@
+    <span class="save-status" aria-live="polite">
+        @if (Session.CanUndo)
+        {
+            @UndoOffer
+            <button type="button" class="btn small" @onclick="Undo">Undo</button>
+        }
+        else if (Discarded.CanUndo)
+        {
+            @DiscardedOffer
+            <button type="button" class="btn small" @onclick="UndoDiscard">Undo</button>
+        }
+        else if (Restored is { } restored)
+        {
+            @restored
+        }
+        else if (JustSaved)
+        {
+            <text>Saved</text>
+        }
+    </span>
 
     @* aria-pressed is written out as a string on purpose. Blazor drops a bool attribute
        when it is false and renders it as `aria-pressed=""` when it is true, and an empty
@@ -273,6 +308,51 @@
     /// to run last; see <see cref="CharacterSession.Saved"/>.</para>
     /// </summary>
     private bool JustSaved => _lastSavedVersion == Session.Version;
+
+    /// <summary>The sentence beside the Undo button, naming what was replaced.</summary>
+    private string UndoOffer => $"{Session.UndoLabel} was replaced.";
+
+    private string DiscardedOffer => $"{Discarded.UndoLabel} was discarded.";
+
+    /// <summary>
+    /// What became of the last attempt to put a discarded row back, or null when there has not
+    /// been one.
+    ///
+    /// <para><b>It exists because that write can be refused and an undo that silently did nothing
+    /// is the worst outcome there is</b> — the reader believes their character is back. A full
+    /// account is the refusal that actually happens: discard a row to make room, build something
+    /// in its place, and there is nowhere to put the old one. Cleared by the next edit, the same
+    /// way every other message in this region is.</para>
+    /// </summary>
+    private string? Restored =>
+        _restored is not null && Session.Version == _restoredAtVersion ? _restored : null;
+
+    private string? _restored;
+    private int _restoredAtVersion;
+
+    private void Undo()
+    {
+        _restored = null;
+        Session.Undo();
+    }
+
+    /// <summary>
+    /// Puts a discarded row back, and says so either way.
+    ///
+    /// <para>No <c>StateHasChanged</c> of its own: this is an <c>async Task</c> event handler, so
+    /// Blazor re-renders when it completes. The list itself is redrawn by the manager, which
+    /// reloads on the store's own account event.</para>
+    /// </summary>
+    private async Task UndoDiscard()
+    {
+        var label = Discarded.UndoLabel;
+
+        _restored = await Discarded.UndoAsync()
+            ? $"{label} is back."
+            : $"{label} could not be put back — there is no room for it.";
+
+        _restoredAtVersion = Session.Version;
+    }
 
     private void HandleCharacterChanged() => StateHasChanged();
 

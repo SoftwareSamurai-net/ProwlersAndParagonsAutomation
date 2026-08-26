@@ -2,6 +2,7 @@
 @inject AccountCharacterStore Store
 @inject CharacterSession Session
 @inject Accounts Accounts
+@inject DiscardedCharacter Discarded
 
 @* The characters this browser — or this account — is holding, and the way between them.
 
@@ -10,14 +11,18 @@
    is a strange greeting for somebody who came here to build one. What belongs at the top is what
    you already have.
 
-   Two properties came across from it and both were tested there, so both are tested here:
+   One property came across from it and is tested here as it was there:
 
-   * It asks before throwing a character away, in the page rather than in a browser dialogue, and
-     only when there is something to lose. On an empty sheet it acts on one click — that is the
-     visit where nobody has anything at stake.
    * **The clear lands after the save that emptying the sheet fires.** Setting the session off
      raises its change event, which starts a fire-and-forget write; clearing first races a
      write nobody awaits. `StartAgainTests` asserts the interop ordering, not just the outcome.
+
+   **It no longer asks first.** Discarding used to open a confirm in the page whenever there was
+   something to lose — the same two-step dialogue a browser `confirm()` is, only quieter. Every
+   destructive control here now acts the moment it is clicked and leaves a single-level undo
+   behind it instead, offered from the banner: see `CharacterSession.StartAgain`,
+   `.ReplaceWithUndo` and `UndoTests`. A confirm pays its cost on every use; undo only pays on
+   the uses that turn out to be mistakes.
 
    **The count is stated once, in `Aside`, not repeated in the closing sentence too.** It used to
    be both — "3 of 5" beside the title and "3 of 5 on this account" again at the foot — which is
@@ -68,24 +73,20 @@
                             <button type="button" class="btn" @onclick="() => Open(one.Id)">Open</button>
                         }
 
-                        @* The same ask the old panel made, per row. `Replacement` carries the verb
-                           so the confirming button reads "Yes, discard this character" — the text
-                           StartAgainTests looks for, because the behaviour it guards is this one. *@
-                        @if (_pendingDelete == one.Id)
-                        {
-                            <button type="button" class="btn danger" @onclick="() => Delete(one.Id)">
-                                Yes, discard this character
-                            </button>
-                            <button type="button" class="btn" @onclick="() => _pendingDelete = null">
-                                Keep this character
-                            </button>
-                        }
-                        else
-                        {
-                            <button type="button" class="btn danger" @onclick="() => AskDelete(one.Id)">
-                                Discard
-                            </button>
-                        }
+                        @* No question first — see the comment on the panel above. Both kinds of
+                           row are undoable from the banner the moment this fires: the one on
+                           screen through the character's own buffer, any other row through
+                           `DiscardedCharacter`, which reads it back before deleting it and can
+                           write it to the same id again.
+
+                           **The comment here used to say a different row "was never asked about
+                           either, because switching away from it already left it saved under its
+                           own id, safe from anything this button does".** The first half is true
+                           of Open and the second half is not true of this: `DeleteAsync` is
+                           exactly what destroys that copy, and nothing held it anywhere else. *@
+                        <button type="button" class="btn danger" @onclick="() => Delete(one.Id)">
+                            Discard
+                        </button>
                     </Actions>
                 </ChosenRow>
             }
@@ -100,28 +101,18 @@
     <div class="inline spaced">
         @* "Start a new character" keeps its exact wording. It is what the old panel called this and
            what AreaTests asserts the tier page offers — and the act is the same act, so renaming it
-           would cost a reader the only continuity they have. *@
-        @if (_pendingNew)
-        {
-            <button type="button" class="btn danger" @onclick="StartNew">
-                Yes, discard this character
-            </button>
-            <button type="button" class="btn" @onclick="() => _pendingNew = false">
-                Keep this character
-            </button>
-        }
-        else
-        {
-            @* **Only styled as destructive when it destroys something.** On an empty manager, or
-               on a sheet with nothing on it yet, this is the ordinary way to begin — and a red
-               button as the one action on an otherwise empty panel reads as a warning about
-               nothing. `HasSomethingToLose` is the same question the ask below uses, so the
-               colour and the confirmation can never disagree. *@
-            <button type="button" class="btn @(Session.HasSomethingToLose ? "danger" : "")"
-                    @onclick="AskNew">Start a new character</button>
+           would cost a reader the only continuity they have.
 
-            <ImportCharacter OnImported="Imported" />
-        }
+           **No question first.** It used to ask, in the page, whenever there was something to
+           lose — the same two-step dialogue a browser `confirm()` is, only quieter. Undo is the
+           friendlier shape of the same promise: acting at once and offering to reverse it costs
+           one click either way, but only the reader who was wrong pays it. `HasSomethingToLose`
+           still decides the colour, so the button still looks as serious as what it is about to
+           do — it has just stopped asking permission to do it. *@
+        <button type="button" class="btn @(Session.HasSomethingToLose ? "danger" : "")"
+                @onclick="StartNew">Start a new character</button>
+
+        <ImportCharacter OnImported="Imported" />
     </div>
 
     @if (_full)
@@ -150,9 +141,6 @@
     private string? _currentId;
     private int? _limit;
     private bool _full;
-
-    private string? _pendingDelete;
-    private bool _pendingNew;
 
     private string Aside => _limit is { } limit ? $"{_characters.Count} of {limit}" : "In this browser";
 
@@ -185,58 +173,25 @@
     {
         if (await Store.OpenAsync(id) is { } opened) Session.Restore(opened.Sheet, opened.Mode);
 
-        _pendingDelete = null;
         await Refresh();
     }
 
     /// <summary>
-    /// Asks first, unless there is nothing to lose — the same rule the old panel used, and the same
-    /// question, so the two cannot disagree about what "something to lose" means.
+    /// Throws a character away, current or not — nothing here asks first, and both are undoable.
     ///
-    /// <para><b>It asks about every row, not only the open one, and that was a real hole rather
-    /// than a decision.</b> The condition here used to be <c>id == _currentId &amp;&amp;
-    /// Session.HasSomethingToLose</c>, so a character that was not on screen was discarded on the
-    /// first click with nothing behind it — no question, and no way back, because the session holds
-    /// the sheet being edited and never the others. The row a reader is least likely to be thinking
-    /// carefully about was the one with the least protection.</para>
+    /// <para>The one on screen goes through the session's own buffer, which
+    /// <see cref="CharacterSession.StartAgain"/> arms. Any other row is read back <em>before</em>
+    /// the delete and handed to <see cref="DiscardedCharacter"/>, which is the only thing that
+    /// could put it back: the session has never held that character and the store copy is what
+    /// this is about to remove.</para>
+    ///
+    /// <para><b>Read with <c>ReadAsync</c> and not <c>OpenAsync</c>.</b> The latter moves the
+    /// current-character pointer on the way past, so reading a row in order to remember it would
+    /// switch the app to the character being discarded — and the next autosave would write the
+    /// sheet on screen over the id just restored.</para>
     /// </summary>
-    private async Task AskDelete(string id)
-    {
-        if (await IsWorthAskingAbout(id)) { _pendingDelete = id; return; }
-
-        await Delete(id);
-    }
-
-    /// <summary>
-    /// Whether throwing this row away is worth a question first.
-    ///
-    /// <para><b>One predicate, two places to read the character from.</b> The open row is answered
-    /// from the sheet in memory, which is ahead of storage by however much has not been written
-    /// yet; every other row has no copy anywhere but the store, so it is read back —
-    /// <see cref="AccountCharacterStore.ReadAsync"/> rather than <c>OpenAsync</c>, which would
-    /// switch the app to the character about to be discarded. Both ends ask
-    /// <see cref="CharacterSession.IsWorthKeeping"/>, so "something to lose" cannot come to mean
-    /// two different things depending on which row was clicked.</para>
-    ///
-    /// <para><b>A character that could not be read is asked about, not assumed empty.</b> The
-    /// store answers null for a payload this build cannot trust <em>and</em> for a server it could
-    /// not reach, and those are not the same thing — treating the second as "nothing here" would
-    /// discard somebody's character without a word because their network dropped. Unknown fails
-    /// towards the question, the same direction <see cref="AccountCharacters.IsFull"/> takes for a
-    /// cap it could not ask about.</para>
-    /// </summary>
-    private async Task<bool> IsWorthAskingAbout(string id)
-    {
-        if (id == _currentId) return Session.HasSomethingToLose;
-
-        return await Store.ReadAsync(id) is not { } stored
-            || CharacterSession.IsWorthKeeping(stored.Sheet);
-    }
-
     private async Task Delete(string id)
     {
-        _pendingDelete = null;
-
         // **Order matters and is asserted.** Emptying the session raises its change event, which
         // fires a save nobody awaits; deleting first races that write. So the session is only
         // emptied when the character being deleted is the one on screen, and only after.
@@ -247,32 +202,41 @@
         }
         else
         {
+            // Remembered first: after the delete there is nothing left to read.
+            if (await Store.ReadAsync(id) is { } going)
+            {
+                var label = _characters.FirstOrDefault(c => c.Id == id)?.Label ?? "";
+                await Discarded.RememberAsync(id, label, going.Sheet, going.Mode);
+            }
+            else
+            {
+                // Nothing readable to offer back — and the stale offer from a previous discard
+                // must not be left standing over a row this one could not keep.
+                Discarded.Forget();
+            }
+
             await Store.DeleteAsync(id);
         }
 
         await Refresh();
     }
 
-    private void AskNew()
-    {
-        if (Session.HasSomethingToLose) { _pendingNew = true; return; }
-
-        _ = StartNew();
-    }
-
     private async Task StartNew()
     {
-        _pendingNew = false;
-
         Session.StartAgain();
         await Store.ClearAsync();
 
         await Refresh();
     }
 
+    /// <summary>
+    /// <see cref="CharacterSession.ReplaceWithUndo"/> rather than <c>Restore</c> — an import
+    /// overwrites whatever the current-character pointer is aimed at exactly as loading a sample
+    /// or opening a recording does, so it gets the same one-level undo they do.
+    /// </summary>
     private async Task Imported((CharacterSheet Sheet, SheetMode Mode) character)
     {
-        Session.Restore(character.Sheet, character.Mode);
+        Session.ReplaceWithUndo(character.Sheet, character.Mode);
         await Refresh();
     }
 

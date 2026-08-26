@@ -76,34 +76,17 @@ else
     }
     else if (Conversation.FinalCharacter is { } settled)
     {
-        <Panel Title="Take it further" NoPrint="true">
+        <Panel Title="Take it further" Aside="Replaces anything already on the sheet" NoPrint="true">
             <p class="small">
                 Open the character and every editor in this tool is pointed at it.
             </p>
 
-            @if (_pending)
-            {
-                <div class="inline">
-                    <button type="button" class="btn danger" @onclick="OpenIt">
-                        Yes, replace my character
-                    </button>
-                    <button type="button" class="btn" @onclick="() => _pending = false">
-                        Keep what I have
-                    </button>
-                </div>
-                <p class="small muted spaced">
-                    This replaces the character you have on the go, with no undo.
-                </p>
-            }
-            else
-            {
-                <div class="inline">
-                    <button type="button" class="btn primary" @onclick="Ask">
-                        Open @DisplayName in the editor
-                    </button>
-                    <NavLink class="btn" href="admin/portfolio/replay">Another recording</NavLink>
-                </div>
-            }
+            <div class="inline">
+                <button type="button" class="btn primary" @onclick="OpenIt">
+                    Open @DisplayName in the editor
+                </button>
+                <NavLink class="btn" href="admin/portfolio/replay">Another recording</NavLink>
+            </div>
         </Panel>
 
         @* The sheet, printed from the recorded character rather than from whatever the
@@ -124,7 +107,6 @@ else
     private Transcript? Conversation => _library?.Find(Id);
 
     private int _revealed = 1;
-    private bool _pending;
 
     protected override async Task OnInitializedAsync() => _library = await Loader.LoadAsync();
 
@@ -133,11 +115,7 @@ else
     /// between two routes that differ only in a parameter, so without this, opening a second
     /// recording from the first would start it half-read.
     /// </summary>
-    protected override void OnParametersSet()
-    {
-        _revealed = 1;
-        _pending = false;
-    }
+    protected override void OnParametersSet() => _revealed = 1;
 
     private IReadOnlyList<TranscriptTurn> Shown =>
         Conversation is null ? [] : [.. Conversation.Turns.Take(_revealed)];
@@ -158,21 +136,6 @@ else
     private void ShowEverything() => _revealed = Conversation?.Turns.Count ?? 0;
 
     /// <summary>
-    /// Asks first, and only when there is something to lose — the same bargain the tier page
-    /// strikes over its samples, for the same reason: the character is kept in this browser
-    /// between visits, so a button here can destroy twenty minutes of work written down
-    /// nowhere else.
-    /// </summary>
-    private void Ask()
-    {
-        if (HasSomethingToLose) _pending = true;
-        else OpenIt();
-    }
-
-    /// <summary>Asked of the session, so three pages cannot disagree about it.</summary>
-    private bool HasSomethingToLose => Session.HasSomethingToLose;
-
-    /// <summary>
     /// Hands the recorded character to the editors and lands on the last step, which is where
     /// the sheet, the findings and the download buttons are.
     ///
@@ -181,24 +144,26 @@ else
     /// would let the first edit rewrite the recording — and the replay would then play back a
     /// character somebody had changed. Round-tripping it through the character's own JSON
     /// shape is the copy, and it is the same shape this app already stores.</para>
+    ///
+    /// <para><b>No question first.</b> This can overwrite twenty minutes of work written down
+    /// nowhere else, so it used to ask; <see cref="CharacterSession.ReplaceWithUndo"/> is what
+    /// replaced asking — it acts at once and leaves the banner able to bring back whatever was
+    /// on screen, on whichever page the reader lands on next.</para>
     /// </summary>
     private void OpenIt()
     {
         if (Conversation?.FinalCharacter is not { } settled) return;
-
-        _pending = false;
 
         var mode = Conversation.Villain ? SheetMode.Villain : SheetMode.Hero;
         var copy = CharacterSheetJson.Read(CharacterSheetJson.Write(settled), strict: false);
 
         if (copy is null) return;
 
-        Session.Restore(copy, mode);
-        Session.NotifyChanged();
-
-        // No palette push here. `Restore` records it on the character, and the layout applies it
+        // No palette push here. Restore records it on the character, and the layout applies it
         // on the render that follows — the one route every change of character takes, whether it
         // came from storage, a sample, or a recording.
+        Session.ReplaceWithUndo(copy, mode);
+
         Nav.NavigateTo("build/review");
     }
 }

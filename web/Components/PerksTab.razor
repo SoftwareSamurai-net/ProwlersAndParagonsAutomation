@@ -16,7 +16,8 @@
         <ChosenList>
             @foreach (var sp in Session.Sheet.Perks.ToList())
             {
-                <ChosenRow Cost="@($"{Session.Costs.PerkCost(sp)} HP")">
+                <ChosenRow Cost="@($"{Session.Costs.PerkCost(sp)} HP")"
+                           Findings="SheetFindings.ForPerk(Validation, sp.PerkId)">
                     <Body>
                         <div>
                             <b>@(Session.Rules.GetPerk(sp.PerkId)?.Name ?? sp.PerkId)</b>
@@ -90,6 +91,9 @@ else
 }
 
 @code {
+    /// <summary>Read fresh on every render — see <c>Review.razor</c>'s own <c>Validation</c>.</summary>
+    private ValidationResult Validation => Session.Validate();
+
     private PerkModel? _pending;
     private int _units = 1;
     private string _detail = "";

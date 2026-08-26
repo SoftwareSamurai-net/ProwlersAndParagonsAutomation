@@ -62,9 +62,89 @@ The report:
 written, which comes with an `EXPORTS_NOT_WRITTEN` warning. Check it before telling anyone
 their sheet is ready.
 
+## Build it at full strength first
+
+**The default is the strongest legal character the concept allows**, and the person trades
+*down* from there if they want to. Trading down is a decision they make out loud; trading up is
+a correction they have to notice they need, and a sheet quietly six points weaker than it could
+be looks exactly like a sheet that is not. The instinct to build tastefully — to spend 118 of
+125 because the concept "felt like" a modest character — makes a decision nobody asked for and
+hides it behind prose about the character being unassuming.
+
+Concretely, since the rulebook has no single power axis:
+
+- **`remaining` at zero is the target**, not a ceiling to stay politely under.
+- **Take a package.** It is a discount, not a flavour choice.
+- **Take the headline Trait to the Trait Cap** wherever the concept supports it. Three ranks
+  under the cap is playing a lower tier than the one that was chosen.
+- **Prefer a Power that arrives with a baseline rank** — 27 derive free ranks from a Trait the
+  character is buying anyway, so the same points buy a higher effective rank.
+- **Use the Cons the character would genuinely suffer**, and only those. Cons that never cost
+  them anything in play make a cheaper sheet, not a stronger character.
+- **The derived-stat levers are worth more than a rank each**: Danger Sense replaces Perception
+  in Edge, Lightning Reflexes is a flat +6, Super Speed sets Edge to rank × 3.
+
+**One trade has no right answer and must be said out loud.** Resolve comes off the *gap*
+between the Trait Cap and the highest relevant rank, so taking a headline Trait to the cap
+drives Resolve towards zero. Build the specialist, say what it cost in one sentence, and let
+them take the generalist instead if that is what they wanted.
+
+This licenses none of the following: overruling a weakness they stated, dropping a Flaw or Con
+they asked for, going over budget, or making the character cheaper rather than stronger. The
+goal is the strongest sheet *at* the budget.
+
+### A Villain has no Resolve, and it changes the build
+
+Ch.2 says it twice — *"Only Heroes have Resolve"* — and Ch.5 gives the GM **Adversity** instead,
+spendable "on behalf of any NPC whether they're Villains, Foes, Minions, or Extras". The engine
+builds Heroes, so the report carries a Resolve figure for a Villain anyway. **It is noise; do
+not quote it.** Three consequences:
+
+- **Never buy Determination on a Villain.** It is Hero Points spent on Resolve, and the Resolve
+  is worth nothing — the one purchase that goes from good to dead on this distinction alone.
+- **Plot Hook and Condition Flaws grant nothing mechanical**, since what they grant is starting
+  Resolve. Take one to three anyway; creation requires it and they cost nothing. Choose for the
+  story, not the number.
+- **The Trait Cap trade above does not apply.** Resolve is what a *Hero* pays for a rank at the
+  cap. A Villain pays nothing, so cap every Trait the concept supports.
+
+`IsVillain` is a real field and is **presentation only** — it picks the sheet's palette, and no
+rules code reads it. Flip it and every figure in the report is identical. Ch.9 builds Villains
+by exactly the Hero rules otherwise, and `HP_BUDGET_EXCEEDED` above the tier's points is the
+GM's call rather than a Villain exemption: a GM may overspend on a Hero too.
+
+A **Foe** is not a Villain: Ch.9 says the only mechanical difference is that Foes have about
+half a Villain's Health. This tool builds Heroes and Villains, and does not halve anything.
+
+### A Villain's Flaws are the players' handles
+
+For a Hero a Flaw is a bargain — a drawback bought with the Resolve it pays out. A Villain gets
+no Resolve, so only the drawback is left, which makes the Flaw slots the one place on the sheet
+where the GM decides **how this character can be beaten**. Choose for that and nothing else.
+
+The test is whether the Flaw bites without a Resolve payout to notice it. Absentminded, Clumsy,
+Quirk, Decorum, Notoriety, Creepy, Unusual Looks, Broke and Illiterate do not — pure flavour on a
+Villain. Prefer one from each of these three, so the party can win by fighting, outthinking or
+exposing them rather than only the way the GM imagined:
+
+- **In the fight.** **Vulnerability** is the strongest in the book: active *and* passive defence
+  halved against one attack, effect or weapon, printed as a rule rather than a Resolve trigger.
+  **Severe Reaction** and **Severe Requirement** are impossible to resist by their own text.
+  **Power Limits** is a Con the GM controls and is the whole answer on a one-Power Villain.
+  **Finite Power**, **Light Sensitive**, **Night Blind**, **Impaired Sense**.
+- **In their behaviour.** **Code**, **Severe Compulsion**, **Frenzy**, **Hidden Agenda** — the
+  party baits rather than beats. **Flashbacks/Guilt** carries printed numbers: helpless for a
+  page, or −2d for three.
+- **Outside the fight.** **Secret**, **Secret Identity**, **Relationship**, **Wanted**,
+  **Obligation** — won by investigation, exposure or leverage.
+
+**Never spend a slot on something the fiction carries free.** A rival organisation is an Enemy on
+the sheet and a plot in the campaign, and only the second is load-bearing. Creation allows one to
+three Flaws, so a slot spent on colour is a handle the party does not get.
+
 ## The loop
 
-1. **Propose.** Write the character file from the concept. Guess ranks; do not compute costs.
+1. **Propose.** Write the character file at full strength. Guess ranks; do not compute costs.
 2. **Submit.** `dotnet run -- build --from character.json --no-export`
 3. **Read the report.** Exit 0 and you are done — export the sheets by re-running without
    `--no-export`.
@@ -119,6 +199,7 @@ because no Trait can be lower than 1d. A tier and a flaw alone comes back with e
 ```jsonc
 {
   "Name": "Chrono Jab",
+  "IsVillain": false,                    // presentation only — the sheet's palette, never a cost
   "SelectedTierId": "standard",          // required in practice: it sets the budget and cap
   "SelectedPackageId": "hero_package",   // optional; omit for a character who took none
 
