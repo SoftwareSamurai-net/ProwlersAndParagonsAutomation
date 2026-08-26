@@ -1,14 +1,23 @@
 @* One entry in a <ChosenList>: what was chosen, what it cost, and what can be done to it.
 
-   Both slots are named because Blazor will not mix named child content with unnamed. *@
+   Both slots are named because Blazor will not mix named child content with unnamed.
+
+   **The row's own content sits in a wrapper, `chosen-row`, so a finding can sit below it and
+   still be one list item.** `.chosen > li` used to be the flex row itself; a finding rendered as
+   a fourth flex child would sit beside the buttons rather than under them, on whatever room was
+   left. Moving the flex layout onto the wrapper leaves the `<li>` free to stack the row and the
+   finding in the ordinary block direction. *@
 
 <li>
-    <div class="body">@Body</div>
-    @if (Cost is not null)
-    {
-        <span class="cost">@Cost</span>
-    }
-    @Actions
+    <div class="chosen-row">
+        <div class="body">@Body</div>
+        @if (Cost is not null)
+        {
+            <span class="cost">@Cost</span>
+        }
+        @Actions
+    </div>
+    <RowFinding Issues="Findings" />
 </li>
 
 @code {
@@ -19,4 +28,11 @@
 
     /// <summary>Edit, Remove, Choose — whatever this row offers.</summary>
     [Parameter] public RenderFragment? Actions { get; set; }
+
+    /// <summary>
+    /// Findings the engine has against whatever this row represents, already routed to it by
+    /// <see cref="SheetFindings"/>. Null or empty for a row nothing is wrong with — see
+    /// <see cref="RowFinding"/>.
+    /// </summary>
+    [Parameter] public IReadOnlyList<ValidationIssue>? Findings { get; set; }
 }

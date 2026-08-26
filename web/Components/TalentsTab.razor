@@ -16,6 +16,8 @@
                  Description="@talent.Description"
                  RankGuide="@talent.RankGuide"
                  RankChanged="rank => SetTalent(id, rank)" />
+
+        <RowFinding Issues="SheetFindings.ForTalent(Validation, id)" />
     }
 </Panel>
 
@@ -25,6 +27,9 @@
                    DefaultSourceId="@SourceGrouping.DefaultTalentSourceId" />
 
 @code {
+    /// <summary>Read fresh on every render — see <c>Review.razor</c>'s own <c>Validation</c>.</summary>
+    private ValidationResult Validation => Session.Validate();
+
     private int PackageTalentRank =>
         Session.Sheet.SelectedPackageId is null
             ? 0
