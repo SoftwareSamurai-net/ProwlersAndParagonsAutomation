@@ -65,12 +65,20 @@ public sealed class PrebuiltHeroTests
     /// so a baseline-rank Power's purchased ranks are the difference between the printed
     /// rank and the baseline its Traits provide.
     /// </summary>
-    private CharacterSheet Build(PrebuiltHeroes.Hero hero)
+    private CharacterSheet Build(PrebuiltHeroes.Hero hero) => Build(hero, PrebuiltHeroes.BuildByHero[hero.Name].Package);
+
+    /// <summary>
+    /// Overload used only by <see cref="NoOtherPackageLandsAnyOfTheFourUnclosedHeroesOnExactly125"/>
+    /// to rebuild a Hero under a package other than the one recorded against them, so that test can
+    /// sweep every package rather than trusting the one <see cref="PrebuiltHeroes.BuildByHero"/>
+    /// already picked as closest.
+    /// </summary>
+    private CharacterSheet Build(PrebuiltHeroes.Hero hero, string packageId)
     {
         var sheet = new CharacterSheet
         {
             SelectedTierId    = "standard",
-            SelectedPackageId = PrebuiltHeroes.BuildByHero[hero.Name].Package,
+            SelectedPackageId = packageId,
             AbilityRanks =
             {
                 ["agility"]    = hero.Agility,
@@ -371,6 +379,47 @@ public sealed class PrebuiltHeroTests
 
         Assert.NotEqual(0, residual);
         Assert.Equal(125 + residual, _f.Costs.TotalCost(Build(hero)));
+    }
+
+    /// <summary>
+    /// A per-element breakdown instrument built independently of this file (a scratch console
+    /// project against the same engine, in the session that added this test) recomputed every
+    /// Ability, Talent, Power, Perk and package line for these four by hand from
+    /// <c>data/rules</c> and found no mispriced element — the same negative result
+    /// <c>PROGRESS.md</c> already recorded. One question that instrument could answer cheaply
+    /// and that nothing before it had checked directly: does <em>any</em> package other than the
+    /// one <see cref="PrebuiltHeroes.BuildByHero"/> already records as "closest" land the Hero on
+    /// exactly 125? It does not, for any of the four, for any package whose granted ranks the
+    /// Hero's printed Traits do not fall below. This pins that answer so the "closest package"
+    /// inference is not re-litigated by hand again.
+    /// </summary>
+    [Theory]
+    [InlineData("Herald (Scathach)")]
+    [InlineData("Shadow")]
+    [InlineData("T-Kay")]
+    [InlineData("Vigilant")]
+    public void NoOtherPackageLandsAnyOfTheFourUnclosedHeroesOnExactly125(string name)
+    {
+        var hero     = PrebuiltHeroes.All.Single(h => h.Name == name);
+        var recorded = PrebuiltHeroes.BuildByHero[name].Package;
+
+        var minAbility = new[] { hero.Agility, hero.Intellect, hero.Might, hero.Perception, hero.Toughness, hero.Willpower }.Min();
+        var minTalent  = PrebuiltHeroes.TalentsByHero[name].Min();
+
+        var candidates = _f.Rules.CreationRules.OptionalPackages
+            .Where(p => p.Id != recorded)
+            .Where(p => minAbility >= p.AbilitiesRank && minTalent >= p.TalentsRank)
+            .ToList();
+
+        // A positive control: at least one alternate package must actually be tried, or this
+        // test would pass by having nothing to check — the failure shape CLAUDE.md warns about.
+        Assert.NotEmpty(candidates);
+
+        Assert.All(candidates, package =>
+        {
+            var total = _f.Costs.TotalCost(Build(hero, package.Id));
+            Assert.NotEqual(125, total);
+        });
     }
 
     [Fact]
