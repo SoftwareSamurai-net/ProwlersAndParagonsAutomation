@@ -63,7 +63,7 @@ internal static class ParagraphJoiner
     {
         var gaps = new List<double>(lines.Count);
         foreach (var l in lines)
-            if (l.LeadingGap is double g)
+            if (l.LeadingGap is { } g)
                 gaps.Add(g);
 
         // Fewer than two samples: there is nothing to call "normal" against, so nothing splits.
@@ -82,8 +82,8 @@ internal static class ParagraphJoiner
 
             if (hyphenated)
                 text = text[..^1] + line;
-            else if (normalLeading is double normal
-                     && raw.LeadingGap is double gap
+            else if (normalLeading is { } normal
+                     && raw.LeadingGap is { } gap
                      && gap > normal * Multiplier)
                 text += "\n" + line;
             else

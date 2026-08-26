@@ -52,7 +52,8 @@ if (args is [_, _, "--gaps", _, _, ..])
         if (pdfPage < 1 || pdfPage > two.NumberOfPages) continue;
         foreach (var l in new PageReader().Read(two.GetPage(pdfPage)))
         {
-            if (l.IsHeading || l.LeadingGap is not double gap) continue;
+            if (l.IsHeading || l.LeadingGap is null) continue;
+            var gap = l.LeadingGap.Value;
             var snippet = l.Text.Length > 30 ? l.Text[..30] : l.Text;
             Console.WriteLine($"{printed},{l.Size:F1},{gap:F2},\"{snippet}\"");
         }

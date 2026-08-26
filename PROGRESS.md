@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4730 across **four** suites — 4000 on the engine (11 added this slice: 5 holding `CLAUDE.md` and the guide set to each other, 4 pinning that no other starting package lands any of the four unclosed Ch.8 Heroes on exactly 125 — see item 1 — 1 on the Powers search vocabulary and 1 on the shell's spacing), 550 rendering components with bUnit (1 added this slice, sweeping every surface for a dangling ARIA reference), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4745 across **four** suites — 4015 on the engine (26 added this slice: 15 on the extractor's paragraph joiner and the page reader that feeds it, 5 holding `CLAUDE.md` and the guide set to each other, 4 pinning that no other starting package lands any of the four unclosed Ch.8 Heroes on exactly 125 — see item 1 — 1 on the Powers search vocabulary and 1 on the shell's spacing), 550 rendering components with bUnit (1 added this slice, sweeping every surface for a dangling ARIA reference), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -238,6 +238,39 @@ The presentation side needed no change, as expected: `BookText` renders whatever
 handed and `RulebookProse.Read` already returned the passage's own `\n` splits, so the corpus gaining
 real breaks shows them with no code change on the browser side. `RulebookProseTests` (34 cases, all
 green) is the proof — it drives the real corpus, unmodified.
+
+**Re-verified on merge rather than taken on report, and the first instrument was wrong.** A raw-byte
+comparison of the corpus files said every chapter had gained characters *and lost words* — which
+looks exactly like corruption and is an artefact of the measurement: in JSON a newline is the two
+bytes `\` and `n`, so a byte-level word split stops seeing a break as whitespace and welds the words
+either side of it into one token. **Decode the JSON before comparing it.** Done properly, and
+section by section rather than chapter by chapter: all **1,523** sections have a byte-identical word
+stream to the previous corpus, the section count is unchanged in every chapter, and the breaks added
+total exactly 888. So no word was added, removed or reordered anywhere in the book — the only
+question a check like that leaves open is *where* the breaks landed.
+
+**And re-running the third suite found a real defect the first two could not see.** The corpus is
+*baked* into the accounts server by `scripts/inline-rulebook.mjs`, and regenerating
+`data/rulebook/` does not re-bake it — so `worker/corpus.js` still held the pre-change text while
+the repository held the new. Both .NET suites were green throughout, because neither reads that
+file; `./scripts/test-worker.sh` failed on *"the bake is byte-for-byte the JSON on disk"*, which is
+the guard existing for exactly this. Left alone it would have shipped a `/rules` search serving the
+old flat paragraphs from the server while every local check said the breaks were there. **Re-bake
+after regenerating the corpus, and run all three suites — the trap is that the two loudest ones
+cannot see it.**
+
+On that, the 84 lowercase starts were classified rather than accepted: they fall in **45** sections,
+of which **42 are Chapter 8 stat blocks carrying exactly one each** — the small-capitals case, and
+the break itself is *correct* (Talon's, on p.144, separates his quote from `orIGIn:` precisely where
+the page does). The remaining three sections hold 37 of the 84 between them and are all
+multi-column tables — `SAMPLE THRESHOLDS` (23), `COMBAT STUNTS` (8), `SOURCES` (6) — each already
+scrambled in the previous corpus, which was confirmed by reading the old text rather than assumed.
+`DISTINCTIONS` on p.177 is the clearest case: every one of its fragments was already a bare sentence
+tail before this change touched it. Regenerating from the real PDF afterwards reproduced all ten
+committed chapters **blob-identical**, and the corpus guard was watched to fail end to end — the
+joiner disabled and the corpus regenerated, giving both *"LUCK's description is still one flat run
+of 1343 characters"* and, from the positive control beside it, *"only 0 paragraph breaks were found
+across Chapter 2's Power entries to check"*.
 
 ### 2. What the sheet still cannot say
 
