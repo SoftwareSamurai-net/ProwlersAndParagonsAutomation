@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4717 across **four** suites — 3988 on the engine, 549 rendering components with bUnit, 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4718 across **four** suites — 3989 on the engine, 549 rendering components with bUnit, 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -569,13 +569,21 @@ tip hanging off a word inside a three-column sheet lands somewhere readable rath
 down one column. It is a golden now, at 1280×1700 because a 900px frame cuts the sheet
 mid-Powers and neither judgement survives a crop.
 
-**Its PNG is not in this branch, deliberately.** Master moved golden generation into
-`.github/workflows/visual-goldens.yml` so that both sides of every comparison are the runner's own
-Chrome, and says plainly not to regenerate them from a developer machine. Three existing goldens
-move with this work (both front doors, from the copy trim; the rules reference, from the new passage
-layout) and the explained sheet is new — all four have to come from that workflow. **So the pixel
-check is expected to fail on this branch until it has been run and its artifact committed**, which
-is stated here rather than left to look like a flake.
+**Every golden in this slice came from `.github/workflows/visual-goldens.yml`, not from a local
+run.** Master moved generation into CI so both sides of a comparison are the runner's own Chrome and
+says plainly not to regenerate from a developer machine; a first attempt here did exactly that and
+the PNGs were thrown away and re-made properly.
+
+**All seven moved, and each is accounted for** — an unexplained golden is a regression signed off by
+nobody. The explained sheet is new. Both front doors and the four shell captures moved because the
+shell proof renders the tier page and this slice trimmed three of its paragraphs, so everything below
+shifts up about 24px (18.6% of pixels, in one band from y≈266 down). The rules reference moved
+because a passage now comes apart into a stat line and its options.
+
+**The first CI attempt failed on `shell-villain-light` at 27.6%, and that was not this branch.** It
+is the knife-edge master's own comment describes, and the fix — `--run-all-compositor-stages-before-draw`
+— landed on master (PR #78) while this work was in progress. Merging master again was what made the
+capture deterministic; nothing here needed its own workaround.
 
 ### A discarded row you were not looking at had nothing behind it
 
