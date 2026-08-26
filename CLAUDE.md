@@ -783,6 +783,83 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   fails the PR rather than the way to production. That marker comment is load-bearing — see it.
 
 
+### An account has a name it can change
+
+`display_name` is set once at first sign-in to the email's local part, and `PUT /api/me/display-name`
+is how it stops being that. It needed no migration — the column has existed since `0001_accounts.sql`.
+
+- **Scoped by construction, not by a check.** `db.setDisplayName` takes the id off the session the
+  caller already authenticated with. There is no address and no id in the body, so the route has no
+  way to name a row other than its own.
+- **Uniqueness is deliberately never checked**, on either side. The name a fresh sign-in gets was
+  never unique either, and "is this name taken" is the same oracle the invitation list exists to keep
+  this site from answering, asked about names instead of addresses. A name is what the banner calls
+  somebody; nothing reads it as proof of anything.
+- **What is refused is a shape that cannot be rendered, not a judgement about what somebody calls
+  themselves**: a control character (the banner is one line), and more than 60 characters.
+- **Blank resets to the email's local part rather than being refused.** Storing an empty string
+  would leave the banner naming nobody while `Identity.IsSignedIn` still read true, since that only
+  checks the name is not null. A cleared name should look exactly like one nobody has set.
+- `Identity` still carries a key and a name and **nothing else**. There is a test.
+
+### The error log is visible to an administrator, and that reverses a recorded decision
+
+`/api/admin/error-log` reads the `error_log` table; a panel on `/admin` renders it. Both are gated by
+`invitations.isAdministrator` — 401 signed out, and the same **404** an unrouted address gets for an
+ordinary account, so the endpoint cannot be found by trying. Read-only: there is no route that
+clears or deletes a row.
+
+**`0004_error_log.sql` said there would never be an admin endpoint, and its reasoning was sound at
+the time**: `Identity` carried a key and a name and no role, so "am I an admin" was not a question
+the client could ask, and inventing a role to answer it was a much larger change than the log needed.
+The invitation work made it a question the *server* answers on every single request. So this adds no
+role to `Identity`, no claim in the browser, and no new concept — it is the same gate the invitation
+list already uses, asked once more. The migration comment records the reversal rather than being
+left to contradict the code.
+
+**The live database is `prowlers-and-paragons`.** That comment named `prowlers-accounts`, which does
+not exist, so the worked example in it failed for anybody who followed it.
+
+### Inviting somebody emails them, and the token is the exception rather than the rule
+
+`invitations.add` writes the row and then sends a one-click link. **It sent nothing at all until
+somebody noticed**: adding an address granted permission and told nobody, while being called an
+invitation, so an invited person had no way of knowing they could sign in.
+
+- **`worker/tokens.js` is the only place a token is minted, hashed, or turned into a URL.** Both the
+  public request path and the invitation go through it, so there is one mint rather than two that
+  could drift on the hashing or the link.
+- **`INVITATION_TOKEN_LIFETIME_MS` is three days against the public path's fifteen minutes**, and
+  that is the whole difference: same table, same `used_at` single-use guarantee, same verify path. A
+  longer-lived credential in an inbox is acceptable **only** because an administrator chose that
+  address deliberately, which is not true of the public endpoint — do not carry the three days
+  across.
+- **A dead mail provider must not lose the invitation.** The row is written first; the send is
+  caught; the failure reaches `error_log` as a `mail` category, because the fault that breaks this
+  breaks ordinary sign-in too; and the page says which of the three things happened.
+- **Re-adding an address already on the list sends nothing** and answers `alreadyAllowed`. So an
+  address invited before this existed is not retrospectively mailed — withdraw and re-add.
+
+### The pixel diff, and why the goldens are the fragile part
+
+`scripts/visual-regression.sh` screenshots seven proof pages and compares each against a committed
+golden under `tests/visual-goldens/`, with a per-pixel tolerance. It runs in CI beside the verdict
+harnesses. The PNG codec is ~150 lines against `node:zlib` rather than a dependency.
+
+- **Goldens are Linux-rendered or they are worthless.** On Linux the script drives whatever Chrome
+  is on PATH; everywhere else — including a Windows development machine — it drives a digest-pinned
+  `selenium/standalone-chrome` in Docker. A golden generated from Windows Chrome fails every CI run
+  for ever, which is a check that has to be deleted rather than fixed.
+- **Regenerate with `--update-goldens`, and only ever deliberately.** A golden updated as a side
+  effect of an unrelated change is a regression signed off by nobody.
+- **`--virtual-time-budget` is not optional.** `.panel` carries `animation: rise var(--enter) both`,
+  which starts at `opacity: 0`; a bare screenshot proofs a washed-out lie.
+- **A proof page whose content depends on which test ran last cannot be pixel-checked.** Three pages
+  were written by a `[Theory]` over both palettes into *fixed* filenames, so the palette was a coin
+  toss between runs and the comparison failed against goldens generated from its own tree. The mode
+  belongs in the filename, as the shell proofs have always had it. Nothing before this compared
+  those pages byte for byte, which is why it survived.
+
 ### Hosting
 
 Cloudflare Pages at `superheroes.softwaresamurai.net`, by `.github/workflows/deploy.yml` on push to `master`. Direct upload, not Cloudflare's Git integration — two deploy paths can disagree.

@@ -212,12 +212,25 @@ public sealed class CharacterSession
     /// <para>A tier on its own counts: it is a decision, and it is the one every other choice is
     /// measured against.</para>
     /// </summary>
-    public bool HasSomethingToLose =>
-        Sheet.SelectedTierId is not null
-        || Sheet.SelectedPowers.Count > 0
-        || Sheet.AbilityRanks.Count > 0
-        || Sheet.TalentRanks.Count > 0
-        || !string.IsNullOrWhiteSpace(Sheet.Name);
+    public bool HasSomethingToLose => IsWorthKeeping(Sheet);
+
+    /// <summary>
+    /// The same question as <see cref="HasSomethingToLose"/>, asked of a sheet that is not
+    /// necessarily the one a session is holding.
+    ///
+    /// <para><b>Static because <see cref="ApiCharacterStore"/>'s autosave needs the same answer
+    /// and only ever has the sheet, never a session.</b> That store's write-through PUTs
+    /// unconditionally — it creates the account's row if the id is new — so switching the
+    /// palette or the sandbox toggle before choosing anything else used to create a real,
+    /// listed, empty character the moment either fired. One predicate answers both questions so
+    /// they cannot drift apart the way two copies of this already have once.</para>
+    /// </summary>
+    public static bool IsWorthKeeping(CharacterSheet sheet) =>
+        sheet.SelectedTierId is not null
+        || sheet.SelectedPowers.Count > 0
+        || sheet.AbilityRanks.Count > 0
+        || sheet.TalentRanks.Count > 0
+        || !string.IsNullOrWhiteSpace(sheet.Name);
 
     public int Spent => Costs.TotalCost(Sheet);
 

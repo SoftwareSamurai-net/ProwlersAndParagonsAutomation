@@ -80,6 +80,49 @@ public sealed class AccountTests
     }
 
     /// <summary>
+    /// The defect behind the owner's "empty characters to discard" report about the manager
+    /// panel — found here, in the autosave path, rather than in the panel that only lists what
+    /// this wrote.
+    ///
+    /// <para><b>The write-through PUT creates the account's row if the id is new — there is no
+    /// separate "create" step.</b> Before <see cref="CharacterSession.IsWorthKeeping"/> guarded
+    /// it, switching the palette or the sandbox toggle before choosing a tier fired
+    /// <see cref="CharacterSession.NotifyChanged"/> exactly the way choosing a tier does, and
+    /// this method PUT the untouched sheet through regardless — a real, listed, empty character
+    /// on the account from one click nowhere near "Start a new character".</para>
+    /// </summary>
+    [Fact]
+    public async Task SwitchingThePaletteOnAnUntouchedSheetCreatesNoAccountCharacter()
+    {
+        var app = Build();
+        app.Api.SignedIn = ("acct-7", "player");
+
+        var untouched = new CharacterSheet();
+        await app.Store.SaveAsync(untouched, SheetMode.Villain);
+
+        Assert.Null(app.Api.StoredCharacter);
+        Assert.DoesNotContain(app.Api.Asked, a => a.StartsWith("PUT ", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The positive control for the guard above: a tier on its own is a decision, the same one
+    /// <see cref="CharacterSession.HasSomethingToLose"/> already treats as worth asking about
+    /// before discarding — so the same sheet, once it carries one, autosaves exactly as before.
+    /// </summary>
+    [Fact]
+    public async Task ButChoosingATierStillAutosavesNormally()
+    {
+        var app = Build();
+        app.Api.SignedIn = ("acct-7", "player");
+
+        var sheet = new CharacterSheet { SelectedTierId = "standard" };
+        await app.Store.SaveAsync(sheet, SheetMode.Hero);
+
+        Assert.NotNull(app.Api.StoredCharacter);
+        Assert.Contains(app.Api.Asked, a => a.StartsWith("PUT ", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// The character follows the account, which is the whole slice.
     ///
     /// <para>Two browsers, one account: the second has its own empty local storage and finds the

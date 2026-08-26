@@ -17,6 +17,16 @@ All four run the *same* rules engine — the browser build compiles it to WebAss
 runs `CostCalculator` and `CharacterValidator` as *the same compiled code*, a headless
 `build --from character.json`, and an MCP server. None of them holds a second copy of a rule.
 
+**A front door, a builder, and the whole rulebook searchable.** `/` offers the two things this site
+does; `/build` is the six creation steps; `/rules` searches the printed text of all ten chapters and
+**cites the page it came from**, so an answer is checkable against the book on the table. Matching is
+word by word with a shared-prefix rule rather than by substring — a plausible wrong match is worse
+than none — and the flags on a result say *how* it matched and never what to conclude.
+
+**Hovering an option or a Trait says what it is.** The lists priced things and never said what they
+were; the descriptions were in the rules data the whole time with nothing showing them. Never a
+`title` attribute — on a row the row is the trigger, on a Trait the name is a real button.
+
 **The rules, complete for character creation and locked by tests.** All 141 Powers with their
 printed Range, rank type and cost; 27 baseline-rank Powers; 23 generic Pros and 28 generic Cons
 including the variable-cost ones; the 106 Power-specific Pros and Cons, several of which change a
@@ -60,6 +70,17 @@ had to walk past them. The character builder and everything it needs are still o
 throw it away, and nothing is sent anywhere. A saved character this build cannot read is discarded
 rather than restored: a tool that will not open is worse than one that forgets.
 
+**Invitation only, and no password anywhere.** An account is what opens the rulebook, and it is a
+list somebody maintains rather than a sign-up form. Adding an address emails it a one-click sign-in
+link; the token is single-use and stored only as a SHA-256. Asking for a link always answers the
+same thing whether or not the address is known, so the endpoint cannot be used to ask who has an
+account. → [Setting up accounts](docs/ACCOUNTS-SETUP.md)
+
+**Every screenshot is checked, not eyeballed.** Nine browser harnesses assert measured verdicts —
+does the strip actually stick, does anything overflow at 375px, does the theme survive a reload —
+and seven proof pages are pixel-diffed against goldens rendered on Linux. Four palettes are more
+pixels than a person can hold in their head.
+
 ---
 
 ## Prerequisites
@@ -97,7 +118,9 @@ For the browser front end:
 dotnet run --project web/ProwlersAndParagons.Web.csproj
 ```
 
-Then open the address it prints. It is a static site — `dotnet publish web/ProwlersAndParagons.Web.csproj -c Release` produces a `wwwroot/` that any static host can serve, with no server-side component. The rules JSON is copied into `wwwroot/data/rules/` by the build and fetched over HTTP at startup; `data/rules/` remains the only copy in the repository. The recorded conversations at `/admin/portfolio/replay` are staged from `data/transcripts/` the same way — they are still ordinary files under `wwwroot`, so the account gate on that page is a front door rather than a lock.
+Then open the address it prints. `dotnet publish web/ProwlersAndParagons.Web.csproj -c Release` produces a `wwwroot/` any static host can serve, and **the character generator needs nothing else** — the rules JSON is copied into `wwwroot/data/rules/` by the build and fetched over HTTP at startup, and every cost and every verdict is worked out in the browser. `data/rules/` remains the only copy in the repository.
+
+**What does need a server is the account half**: the rulebook reader, the saved characters, and the recorded conversations. Those are Cloudflare Pages Functions under `functions/` and `worker/`, and the book and the recordings are **bundled into the server rather than staged into `wwwroot`** — a file under `wwwroot` is a public URL, and that placement is the whole access control. There is a test on both sides of the repository.
 
 To cost and validate a character without a terminal:
 
