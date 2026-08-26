@@ -143,6 +143,61 @@ public sealed class AdminPageTests
 
         // And the box is emptied, so a second click cannot re-send the first address.
         Assert.Equal("", page.Find("#invite-email").GetAttribute("value") ?? "");
+
+        // **The reader is told the link actually went**, not merely that the address is on the
+        // list — those are two different facts and the mail path has already failed here once,
+        // silently, without anybody being told.
+        Assert.Contains("sent a link", page.Find("[role=status]").TextContent);
+    }
+
+    /// <summary>
+    /// A mail outage must not read as though nothing happened, and must not read as a refusal
+    /// either — the address really is on the list; only the mail failed to say so.
+    /// </summary>
+    [Fact]
+    public async Task AMailFailureStillAddsTheAddressAndSaysSoHonestly()
+    {
+        await using var ctx = Managing();
+        ctx.Api.InvitationMailSucceeds = false;
+
+        var page = ctx.Render<Admin>();
+        page.Find("#invite-email").Input("newcomer@example.test");
+        await page.Find("form").SubmitAsync();
+
+        // Still added — a broken mail provider does not cost the invitation.
+        await page.WaitForAssertionAsync(() =>
+            Assert.Contains("newcomer@example.test",
+                page.FindAll("li strong").Select(row => row.TextContent.Trim())));
+
+        var status = page.Find("[role=status]").TextContent;
+        Assert.Contains("newcomer@example.test", status);
+        Assert.Contains("could not be sent", status);
+
+        // **Not the sentence a successful send gets.** "Can sign in now" alone is true of both
+        // outcomes, so it cannot be what tells them apart — a mutation collapsing the two
+        // messages into one left this test green when it only checked for that.
+        Assert.DoesNotContain("has been sent a link", status);
+
+        // Not a refusal: nothing here looks like `_problem`'s alert.
+        Assert.Empty(page.FindAll("[role=alert]"));
+    }
+
+    /// <summary>An address already on the list is told so, not told it was just sent something.</summary>
+    [Fact]
+    public async Task AnAddressAlreadyOnTheListIsToldSoRatherThanMailedAgain()
+    {
+        await using var ctx = Managing();
+
+        var page = ctx.Render<Admin>();
+        page.Find("#invite-email").Input("guest@example.test");
+        await page.Find("form").SubmitAsync();
+
+        await page.WaitForAssertionAsync(() =>
+            Assert.NotEmpty(page.FindAll("[role=status]")));
+
+        var status = page.Find("[role=status]").TextContent;
+        Assert.Contains("guest@example.test", status);
+        Assert.Contains("already", status, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -202,5 +257,103 @@ public sealed class AdminPageTests
 
         Assert.Contains("has signed in", boss.TextContent, StringComparison.Ordinal);
         Assert.Contains("manages this list", boss.TextContent, StringComparison.Ordinal);
+    }
+
+    // ── The failure log ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The ordinary case, and it has to read as reassurance rather than as a blank section —
+    /// see <c>CLAUDE.md</c> on the budget's "None yet." for the same rule applied elsewhere.
+    /// </summary>
+    [Fact]
+    public void NoRecordedFailuresReadsAsReassurance()
+    {
+        using var ctx = Managing();
+
+        var page = ctx.Render<Admin>();
+
+        Assert.Contains("Nothing has failed", page.Markup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ARecordedFailureShowsWhatItWasAndHowOften()
+    {
+        using var ctx = Managing();
+        ctx.Api.ErrorLogRows.Add(("mail", "/api/auth/request", "Error",
+            "Resend refused to send (HTTP 422).", 5, 1_000, 2_000, "aa11bb"));
+
+        var page = ctx.Render<Admin>();
+
+        Assert.Contains("sending mail", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("/api/auth/request", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("Resend refused to send (HTTP 422).", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("5 times", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("aa11bb", page.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A row nobody has seen in a while must not read as an ongoing outage — the one row this
+    /// site has ever produced was a resolved outage, and a count with no sense of time reads as
+    /// the site being on fire right now.
+    /// </summary>
+    [Fact]
+    public void AnOldFailureSaysItHasNotHappenedAgain()
+    {
+        using var ctx = Managing();
+        var longAgo = DateTimeOffset.UtcNow.AddDays(-40).ToUnixTimeMilliseconds();
+        ctx.Api.ErrorLogRows.Add(("mail", "/api/auth/request", "Error", "Refused.", 5,
+            longAgo, longAgo, "aa11bb"));
+
+        var page = ctx.Render<Admin>();
+
+        Assert.Contains("not again since", page.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>The positive control for the row above: a fault still within the last day does
+    /// not carry the same reassurance, or the sentence would be meaningless.</summary>
+    [Fact]
+    public void ARecentFailureDoesNotClaimToHaveStopped()
+    {
+        using var ctx = Managing();
+        var justNow = DateTimeOffset.UtcNow.AddMinutes(-5).ToUnixTimeMilliseconds();
+        ctx.Api.ErrorLogRows.Add(("mail", "/api/auth/request", "Error", "Refused.", 1,
+            justNow, justNow, "aa11bb"));
+
+        var page = ctx.Render<Admin>();
+
+        Assert.DoesNotContain("not again since", page.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An account that may not manage the list is never even asked about the failure log.
+    ///
+    /// <para>Weaker than the markup, and the reason it exists anyway: the page's own refusal
+    /// already hides every panel from an account this page is not for, which a mutation removing
+    /// the fetch's own guard does not disturb — the row would simply never reach the markup being
+    /// checked. Reading <see cref="FakeApi.Asked"/> catches that mutation, because it is the one
+    /// observable difference the guard actually makes: without it, the browser would ask an
+    /// endpoint it already knows will refuse it.</para>
+    /// </summary>
+    [Fact]
+    public void AnAccountThatMayNotManageTheListIsNeverAskedAboutTheFailureLog()
+    {
+        using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-2", "player");
+
+        ctx.Render<Admin>();
+
+        Assert.DoesNotContain("GET /api/admin/error-log", ctx.Api.Asked);
+    }
+
+    /// <summary>The positive control: an administrator really is asked, or the assertion above
+    /// would pass whether or not the page ever calls the endpoint at all.</summary>
+    [Fact]
+    public void AnAdministratorIsAskedAboutTheFailureLog()
+    {
+        using var ctx = Managing();
+
+        ctx.Render<Admin>();
+
+        Assert.Contains("GET /api/admin/error-log", ctx.Api.Asked);
     }
 }

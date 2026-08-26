@@ -60,3 +60,7 @@ package-lock.json
 # ignored here rather than relied on to be remembered — the same reasoning that keeps the key
 # out of this repository in the first place.
 .dev.vars
+
+# scripts/visual-regression.sh's scratch space: the screenshots it just took and the diff
+# images it drew. Working output, not source — tests/visual-goldens/ is the committed half.
+.visual-regression/

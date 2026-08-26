@@ -6,6 +6,7 @@
 // there is exactly one routed file — `functions/api/[[path]].js` — and everything else is a
 // module that has to be wired in on purpose to be reachable at all.
 
+import * as adminErrorLog from './adminErrorLog.js';
 import * as auth from './auth.js';
 import * as characters from './characters.js';
 import { CHAPTERS } from './corpus.js';
@@ -16,8 +17,10 @@ import {
 } from './errors.js';
 import { fail } from './http.js';
 import * as invitations from './invitations.js';
-import { sendSignInLink } from './mail.js';
+import { sendInvitationMail, sendSignInLink } from './mail.js';
 import { contents, index, passage, power, search } from './rulebook.js';
+import { transcripts } from './transcripts.js';
+import { TRANSCRIPTS } from './transcripts-corpus.js';
 
 /**
  * Everything the handlers reach for that is not the database.
@@ -32,6 +35,7 @@ export const production = {
     newUserId,
     newInvitationId,
     sendSignInLink,
+    sendInvitationMail,
     newReference,
 };
 
@@ -93,10 +97,23 @@ export async function handle(request, env, deps = production) {
         const category = categoryOf(error);
         const reference = deps.newReference();
 
-        console.error(
-            `Unhandled failure in the accounts API [${reference}] (${category}):`, error);
+        // **The same four fields the table gets, computed once and shared with it** — a second
+        // computation here could redact differently from the row a caller's reference points at.
+        // One JSON object per line rather than a formatted sentence, so `wrangler pages
+        // deployment tail` can filter and read it: the exception's own message never appears,
+        // only what `redact` leaves of it, for the same reason the visitor is not shown it either
+        // — a tail is exactly the artefact most likely to be pasted into an issue.
+        const entry = {
+            category,
+            route: routePattern(request),
+            kind: kindOf(error),
+            detail: redact(error && error.message),
+            reference,
+        };
 
-        await record(env, { category, request, error, reference, now: deps.now() });
+        console.error(JSON.stringify(entry));
+
+        await record(env, { ...entry, now: deps.now() });
 
         return fail(500, 'Something went wrong at this end.', { reference, category });
     }
@@ -114,18 +131,11 @@ export async function handle(request, env, deps = production) {
  * <p>The raw `env.DB` rather than the wrapped one: there is nothing left to classify here, and a
  * tag applied on the way out of a logger that already swallows everything would be decoration.</p>
  */
-async function record(env, { category, request, error, reference, now }) {
+async function record(env, { category, route, kind, detail, reference, now }) {
     try {
         if (!env || !env.DB || typeof env.DB.prepare !== 'function') return;
 
-        await db.recordFailure(env.DB, {
-            category,
-            route: routePattern(request),
-            kind: kindOf(error),
-            detail: redact(error && error.message),
-            reference,
-            now,
-        });
+        await db.recordFailure(env.DB, { category, route, kind, detail, reference, now });
     } catch (secondary) {
         console.error(`Could not record the failure [${reference}]:`, secondary);
     }
@@ -140,10 +150,21 @@ async function route(request, env, deps) {
     if (path === '/api/auth/signout') return only('POST', method, () => auth.signOut(request, env, deps));
     if (path === '/api/me') return only('GET', method, () => auth.me(request, env, deps));
 
+    // Its own address rather than folded into `/api/me`, because the two need different
+    // authentication: `/api/me` answers 401 for an anonymous visitor and that is not a failure,
+    // while a name change with nobody signed in has nothing to change and is refused here before
+    // `auth.setDisplayName` is asked to guess whose row that would be.
+    if (path === '/api/me/display-name') {
+        const user = await auth.currentUser(request, env, deps);
+        if (!user) return fail(401, 'Sign in first.');
+
+        return only('PUT', method, () => auth.setDisplayName(request, env, deps, user));
+    }
+
     // Everything below needs somebody to be signed in, and asks once. A route that fetched its
     // own user would be a route that could forget to.
     if (path === '/api/characters' || path.startsWith('/api/characters/')
-        || path.startsWith('/api/rulebook/')) {
+        || path.startsWith('/api/rulebook/') || path === '/api/transcripts') {
         const user = await auth.currentUser(request, env, deps);
         if (!user) return fail(401, 'Sign in first.');
 
@@ -157,6 +178,11 @@ async function route(request, env, deps) {
         if (path === '/api/rulebook/passage') return only('GET', method, () => passage(request, CHAPTERS));
 
         if (path.startsWith('/api/rulebook/')) return fail(404, 'No such address.');
+
+        // The four recorded conversations the portfolio replays, gated the same way and for the
+        // same reason as the book: bundled into the server rather than staged into `wwwroot`, so
+        // this is the only way in, and it asks who is calling before it answers.
+        if (path === '/api/transcripts') return only('GET', method, () => transcripts(TRANSCRIPTS));
 
         if (path === '/api/characters') {
             return only('GET', method, () => characters.list(request, env, deps, user));
@@ -180,10 +206,17 @@ async function route(request, env, deps) {
     // The check is a database read on every request rather than a claim on the session, because
     // withdrawing somebody's flag has to take effect on their next request and not when their
     // month-old cookie expires.
-    if (path === '/api/admin/invitations' || path.startsWith('/api/admin/invitations/')) {
+    if (path === '/api/admin/invitations' || path.startsWith('/api/admin/invitations/')
+        || path === '/api/admin/error-log') {
         const user = await auth.currentUser(request, env, deps);
         if (!user) return fail(401, 'Sign in first.');
         if (!await invitations.isAdministrator(env, user)) return fail(404, 'No such address.');
+
+        // **Gated by the same question above, not a second one.** Read-only — there is no verb
+        // here beyond GET, because there is nothing to write. See `adminErrorLog.js`.
+        if (path === '/api/admin/error-log') {
+            return only('GET', method, () => adminErrorLog.list(request, env, deps, user));
+        }
 
         if (path === '/api/admin/invitations') {
             if (method === 'GET') return invitations.list(request, env, deps, user);

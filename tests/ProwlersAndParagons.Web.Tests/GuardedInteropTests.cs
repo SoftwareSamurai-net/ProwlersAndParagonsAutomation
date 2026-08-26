@@ -5,13 +5,13 @@ using Microsoft.JSInterop;
 namespace ProwlersAndParagons.Web.Tests;
 
 /// <summary>
-/// The three services that call into this app's own scripts, and swallow it when the script is
+/// The services that call into this app's own scripts, and swallow it when the script is
 /// not there.
 ///
 /// <para><b>Every one of these calls is reached from a render</b>, so an unguarded one throws out
 /// of <c>OnAfterRenderAsync</c> on every page: a missing decoration would take the app with it.
-/// <see cref="Motion"/> established the bargain and <see cref="Shortcuts"/> and <see cref="Theme"/>
-/// make it too.</para>
+/// <see cref="Motion"/> established the bargain and <see cref="Shortcuts"/>, <see cref="Theme"/>
+/// and <see cref="Sliders"/> make it too.</para>
 ///
 /// <para><b>These exist because Qodana noticed nothing read <c>ScriptIsMissing</c>.</b> Both of the
 /// newer classes carried a doc comment saying it was "read by tests" and no test read either — so
@@ -67,6 +67,20 @@ public sealed class GuardedInteropTests
         await theme.Choose(ThemeChoice.Dark);
 
         Assert.True(theme.ScriptIsMissing);
+    }
+
+    /// <summary>
+    /// A missing <c>slider.js</c> leaves Home and End scrolling the document — the defect this
+    /// class exists to fix — rather than taking a rank row's rendering down with it.
+    /// </summary>
+    [Fact]
+    public async Task SlidersSwallowsAMissingScript()
+    {
+        var sliders = new Sliders(new NoScripts());
+
+        await sliders.Guard(default);
+
+        Assert.True(sliders.ScriptIsMissing);
     }
 
     /// <summary>

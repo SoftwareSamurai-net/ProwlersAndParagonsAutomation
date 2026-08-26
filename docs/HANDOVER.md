@@ -30,10 +30,13 @@ Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this 
 
 ## Where things stand
 
-**4303 tests** — 3730 engine, 449 bUnit, 124 accounts — **re-measured on `master` at `9ff148e`
-after the merge**, not carried across from the branch, which is the mistake this row records below.
+**4374 tests** — 3734 engine, 474 bUnit, 166 accounts — **measured on the integration branch after
+every merge**, not carried across from any single branch, which is the mistake this row records
+below.
 Nine browser harnesses driven by headless Chrome in the build workflow (two are new: the front door
-and the rules reference at 375px). Live at **superheroes.softwaresamurai.net**.
+and the rules reference at 375px), plus a tenth added since: `scripts/visual-regression.sh`
+compares seven of those renders pixel-by-pixel against committed goldens — see "What is left" item
+4 below, now closed. Live at **superheroes.softwaresamurai.net**.
 
 **The new server routes were checked in production, not inferred from a green deploy.** All three
 answer `401` with `application/json`:
@@ -56,10 +59,9 @@ dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
 ./scripts/test-worker.sh
 ```
 
-**A whole-tree Qodana scan reports 0**, measured on `master` at `9ff148e` — after the merge, not on
-the branch — from a report that exists rather than from an exit code. It got there by being run four
-times: 23 on the first pass, all in code the redesign added; 2 after fixing them; 0 after the last
-two; 0 again on the merge commit.
+**A whole-tree Qodana scan reports 0**, measured on `5312f32` — from a report that exists rather
+than from an exit code. The follow-up fan-out put ten findings there and all ten were cleared: nine
+fixed, one silenced in `.editorconfig` with the rationale the other three wire surfaces carry.
 
 **Do not repeat that zero without re-running `./scripts/qodana-scan.sh`**, which is a rule this
 repository has broken twice. It needs Docker Desktop running; without it the script exits non-zero
@@ -164,23 +166,65 @@ sits on the near-black navy. Do not take "they went dark" as the lesson.
 2. **Phase 3's undo.** Three buttons can still destroy twenty minutes behind a confirm.
 3. **Serving the transcripts from the worker**, which turns the portfolio's front door into a lock
    and shrinks the startup fetch. Small and self-contained.
-4. **Visual regression testing.** The gap was already acute at four palettes and this slice added
-   three whole screens. Golden PNGs of the proof pages with a per-pixel tolerance would close it;
-   the fonts are self-hosted and CI already drives Chrome at a fixed viewport. **Generate the
-   goldens in CI on Linux, never from a Windows run** — antialiasing differs.
+4. ~~**Visual regression testing.**~~ **Closed.** `scripts/visual-regression.sh` screenshots seven
+   proof pages (the four palettes via `proof-shell-*.html`, the front door light and forced-dark,
+   and the rules reference) at a fixed 1280×900 with `--virtual-time-budget=5000`, and compares
+   each against a committed PNG under `tests/visual-goldens/` with `scripts/visual/diff.mjs` — a
+   plain-Node PNG decoder and differ using only `node:zlib`, because this repository has never had
+   a `package.json` and `npm view pixelmatch version` answering fine is not a reason to start one.
+   Wired into `.github/workflows/build.yml` right after the existing proof-harness step.
+
+   **The Linux-only rule held, and here is how.** On CI's `ubuntu-latest` the script drives the
+   Chrome already on PATH; everywhere else — a developer's own Windows or macOS machine included —
+   it drives `selenium/standalone-chrome` in Docker, which ships real Google Chrome rather than a
+   distro-patched Chromium. The goldens in this repository were generated exactly that way, from a
+   Windows machine, through that Docker path, and verified pixel-identical across two independent
+   runs — so "generate them in CI, or in a documented `docker run`" was satisfied by making the
+   `docker run` the thing the script itself falls back to, rather than a manual step somebody has
+   to remember. Two dead ends worth recording so nobody repeats them: `zenika/alpine-chrome` pulls
+   without any package-manager access at all but renders a forced dark colour scheme differently
+   from `ubuntu-latest`'s real Chrome on the identical flag — which would have meant goldens that
+   agreed with themselves and disagreed with CI forever, the exact Windows-vs-Linux failure moved
+   one level down; and a from-scratch Debian image with `apt-get install google-chrome-stable`
+   failed to build here on `Clearsigned file isn't valid, got 'NOSPLIT'`, this environment's own
+   network mangling Debian's signed release file — a `docker build` in a normal environment would
+   likely be fine, but `selenium/standalone-chrome` needs no package-manager access at all, so it
+   sidesteps the question rather than depending on the answer.
+
+   **Broken and watched to fail.** Hero-light `--primary` was changed from `#1B4F9C` to `#2E8B57`
+   and one screenshot regenerated: the check failed on exactly the three pages that token reaches
+   and stayed green on the four that do not use it, each failure reporting a pixel count, a
+   percentage, and a bounding box. Reverted, re-verified green. Full account in `PROGRESS.md`
+   item 9.
+
+### Four small accessibility items — **done**
+
+> Four items from the list below were bundled into one slice because they all touch the shell and
+> the stylesheet: a skip link and correct landmarks, `aria-live` for the over-budget crossing, a
+> "Saved" indicator for the silent write-through, and the Home/End interop shim this section named
+> as the fix three sessions running. All four are shipped, with a rendered test for each, a CSS
+> assertion where the substance is CSS, a browser harness (`proof-slider.html`) for the one that is
+> JavaScript, and a mutation deliberately applied and watched fail for every one of them. See
+> `PROGRESS.md` for the reasoning behind each.
+>
+> **The bUnit suite went from 455 to 461 on this branch**, not yet re-measured on `master` — the
+> figure two paragraphs up is `master`'s and this work has not merged into it. Re-run rather than
+> adding the two together.
+>
+> **The interop pattern generalised rather than being a one-off.** `Sliders` follows `Motion`,
+> `Shortcuts` and `Theme` exactly — a guarded call into `wwwroot/js/slider.js`, registered in DI
+> beside the other three, with its own `GuardedInteropTests` case. Reach for the same shape before
+> writing a new `try`/`catch` around a JS call.
 
 ### Still open from before, unchanged
 
 - **`.shell` spaces its children by `.panel`'s `margin-bottom`**, so any non-panel child gets no
   spacing. The real fix is a `gap` on `.shell` with the margin removed, but `.shell` also holds the
   sticky budget strip, so it needs proofing on every route.
-- **No `aria-live` anywhere**, so crossing into over-budget is announced to nobody. If you add one
-  it must go on a sibling summary, **never** on `.budget-figure strong`, which `ppCount` rewrites up
-  to 60×/s.
 - **Screen-reader testing is owed** on the command palette, the pips, the sign-in page, the
   light/dark control — and now on the row descriptions and the rules search. `aria-pressed` asserted
-  as the string `"true"` is not the same as having been listened to.
-- **Home and End on a rank slider also scroll the document.** The fix is a small interop shim.
+  as the string `"true"` is not the same as having been listened to. The skip link, the landmarks,
+  the over-budget announcement and the "Saved" word are all new surfaces this applies to as well.
 
 ### What this slice learned, that the next one needs
 
@@ -267,7 +311,13 @@ rule:**
 
 ### The private half
 
-**A table in D1, read by hand in SQL. No admin endpoint.**
+**A table in D1, read by hand in SQL. No admin endpoint** — superseded once the invitation list
+landed: it made "am I an admin" a question the server already answers on every request, so a
+read-only `/api/admin/error-log`, gated by that identical check, added no role to `Identity` and
+no new concept. See the completed entry in [`PROGRESS.md`](../PROGRESS.md) and the reversal
+recorded in `d1/migrations/0004_error_log.sql`. The reasoning below is kept for the same reason
+the section above is: it is still why the table is shaped the way it is, only the "read by hand
+alone" half of the conclusion changed.
 
 - **No admin route, deliberately.** `Identity` carries a key and a name and no role — there is a
   test asserting the wire identity holds nothing else — so "am I an admin" is not a question the

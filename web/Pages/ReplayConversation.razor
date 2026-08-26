@@ -1,5 +1,5 @@
 @page "/admin/portfolio/replay/{Id}"
-@inject ReplayLibrary Replays
+@inject ReplayLoader Loader
 @inject CharacterSession Session
 @inject NavigationManager Nav
 
@@ -7,11 +7,16 @@
 
 <AdminOnly Title="One moment">
 
-@* Two ways to have no recording, and telling somebody the wrong one wastes their time. If
-   the library failed to load then every address is unknown, including a correct one somebody
-   shared — so "your link is wrong" would be a confident lie. Say which it is. *@
-@if (Conversation is null && Replays.Problem is { } problem)
+@if (_library is null)
 {
+    <h1>One moment</h1>
+    <p class="muted">Looking…</p>
+}
+else if (Conversation is null && _library.Problem is { } problem)
+{
+    @* Two ways to have no recording, and telling somebody the wrong one wastes their time. If
+       the library failed to load then every address is unknown, including a correct one
+       somebody shared — so "your link is wrong" would be a confident lie. Say which it is. *@
     <h1>The recordings did not load</h1>
     <p class="muted">
         None of the recordings can be reached at the moment, so there is nothing wrong
@@ -124,10 +129,14 @@ else
     /// <summary>Which recording, from the address.</summary>
     [Parameter] public string? Id { get; set; }
 
-    private Transcript? Conversation => Replays.Find(Id);
+    private ReplayLibrary? _library;
+
+    private Transcript? Conversation => _library?.Find(Id);
 
     private int _revealed = 1;
     private bool _pending;
+
+    protected override async Task OnInitializedAsync() => _library = await Loader.LoadAsync();
 
     /// <summary>
     /// Reset when the address changes. Blazor reuses the component across a navigation

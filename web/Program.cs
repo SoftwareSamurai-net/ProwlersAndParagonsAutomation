@@ -44,6 +44,7 @@ builder.Services.AddScoped<CharacterSession>();
 // reading the anonymous slot specifically, and copying it up on request.
 builder.Services.AddScoped<Accounts>();
 builder.Services.AddScoped<Invitations>();
+builder.Services.AddScoped<ErrorLog>();
 builder.Services.AddScoped<IIdentitySource>(s => s.GetRequiredService<Accounts>());
 builder.Services.AddScoped<CharacterStore>();
 // The plural store, registered separately from CharacterStore even though CharacterStore
@@ -61,19 +62,8 @@ builder.Services.AddScoped<Motion>();
 builder.Services.AddScoped<Commands>();
 builder.Services.AddScoped<Shortcuts>();
 builder.Services.AddScoped<Theme>();
-
-// The recorded conversations, fetched the same way and for the same reason — a browser
-// cannot glob a directory it has no filesystem for, so TranscriptLibrary.FileNames is the
-// contract, as RulesRepository.DataFileNames is above.
-//
-// Unlike the rules, this is allowed to fail: the recordings are a demonstration and the app
-// is a character generator, so a demo file that did not arrive must not stop somebody
-// building a character. That guarantee lives in ReplayLibrary.LoadAsync and is tested there,
-// and the *client* is handed over rather than a fetch: fetching here and passing a delegate
-// that cannot fail puts the throwing call back outside the guard with every test still green.
-// It was a try/catch here, where nothing could reach it at all — deleting the try left the
-// suite green and one 404 took the whole app to a blank page.
-builder.Services.AddSingleton(await ReplayLibrary.LoadAsync(http));
+builder.Services.AddScoped<ReplayLoader>();
+builder.Services.AddScoped<Sliders>();
 
 var host = builder.Build();
 
@@ -140,6 +130,22 @@ if (saved is { } withMode)
 // Every change writes through. The sheet is small and localStorage is synchronous and
 // fast, so there is nothing to gain by batching — and a debounce is one more way to lose
 // the last edit before a refresh, which is the thing this exists to prevent.
-session.Changed += () => _ = store.SaveAsync(session.Sheet, session.Mode);
+//
+// **The "Saved" the shell shows is this await returning, and nothing more.** SaveAsync
+// never throws — see ICharacterStore's own doc comment — so there is no failure path to
+// invent a message for, and no "saving…" state either: nobody out here knows how long a
+// write takes, only that it finished.
+//
+// **The version is captured before the await, not read again after it.** Two saves can be
+// in flight together and finish in either order, so a version read from `session` once this
+// one's write returns could belong to an edit made while this write was still going — session
+// itself weighs the two by number rather than by which callback happened to run last.
+session.Changed += () => _ = SaveThenAnnounce(session.Version);
+
+async Task SaveThenAnnounce(int version)
+{
+    await store.SaveAsync(session.Sheet, session.Mode);
+    session.NotifySaved(version);
+}
 
 await host.RunAsync();

@@ -520,3 +520,75 @@ test('the session cookie never reaches the error log', async () => {
     assert.ok(!stored.includes(verified.cookie.split('=')[1]), stored);
     assert.equal(secret, null, 'a plain GET set a cookie, which this test did not expect');
 });
+
+// ---------------------------------------------------------------------------------------------
+// The tail: `console.error` in the catch is structured, carries the same fields as the row, and
+// applies the same redaction — so a tail is not the one place an address or a token still leaks.
+// ---------------------------------------------------------------------------------------------
+
+test('the structured log line carries the row’s own fields and none of the raw message', async () => {
+    const app = server();
+    mailFailsWith(app, `Resend refused to send to ${ADDRESS} with key ${TOKEN} (HTTP 422).`);
+
+    const original = console.error;
+    const logged = [];
+    console.error = (...args) => logged.push(args);
+
+    try {
+        await askForLink(app, ADDRESS);
+    } finally {
+        console.error = original;
+    }
+
+    // **The positive control, and it is not optional.** Every assertion below is an absence, and
+    // a `console.error` that had been deleted, or that logged nothing about the failure, would
+    // satisfy every one of them. This is the line that says the assertions below measure
+    // something.
+    assert.equal(logged.length, 1, 'nothing was logged, so the assertions below measure nothing');
+
+    const entry = JSON.parse(logged[0][0]);
+
+    // The same fields the row gets, so a tail and the table agree about one failure.
+    assert.equal(entry.category, 'mail');
+    assert.equal(entry.route, '/api/auth/request');
+    assert.equal(entry.kind, 'Error');
+    assert.equal(entry.reference, app.reference);
+    assert.match(entry.detail, /Resend refused to send/);
+    assert.match(entry.detail, /HTTP 422/);
+
+    // And the same redaction — a tail is exactly the artefact most likely to be pasted into an
+    // issue, which is the whole reason the row itself is redacted.
+    const raw = JSON.stringify(logged[0]);
+    assert.ok(!raw.includes(ADDRESS), raw);
+    assert.ok(!raw.includes(TOKEN), raw);
+    assert.ok(!raw.includes('example.test'), raw);
+});
+
+test('the tail and the row are computed once, not twice — they agree because they are the same object', async () => {
+    // The stronger form of the test above: rather than trusting that two independent redactions
+    // happened to agree, this reads both halves of one failure and requires them to be
+    // byte-identical, field by field.
+    const app = server();
+    mailFailsWith(app, `Resend refused to send to ${ADDRESS} with key ${TOKEN} (HTTP 422).`);
+
+    const original = console.error;
+    let logged;
+    console.error = (...args) => { logged = args; };
+
+    try {
+        await askForLink(app, ADDRESS);
+    } finally {
+        console.error = original;
+    }
+
+    assert.ok(logged, 'nothing was logged, so this test measures nothing');
+
+    const entry = JSON.parse(logged[0]);
+    const row = errorRows(app.db)[0];
+
+    assert.equal(row.category, entry.category);
+    assert.equal(row.route, entry.route);
+    assert.equal(row.kind, entry.kind);
+    assert.equal(row.detail, entry.detail);
+    assert.equal(row.reference, entry.reference);
+});

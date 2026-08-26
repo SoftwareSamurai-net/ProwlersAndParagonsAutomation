@@ -2668,62 +2668,49 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
-    /// The browser builds its replay library through the loader that promises a failed fetch
-    /// leaves the app running, rather than open-coding the fetch again.
+    /// <b>The browser does not fetch the recorded conversations at startup.</b>
     ///
-    /// <para>This is the source half of a guarantee whose behaviour is tested in
-    /// <c>ProwlersAndParagons.Web.Tests.ReplayLoadingTests</c>. Both are needed and neither is
-    /// enough: a guarded loader nobody calls guarantees nothing, and it lived here as a
-    /// <c>try</c>/<c>catch</c> in top-level statements that no test could reach — deleting the
-    /// <c>try</c> was green, and one 404 then took the character generator to a blank page.
-    /// </para>
+    /// <para>They used to be fetched before the first render, exactly like the rules — four
+    /// files every visitor paid for, almost none of whom could ever reach the pages that play
+    /// them back, since those are behind an account. The server now refuses
+    /// <c>api/transcripts</c> to anybody not signed in, which is what makes fetching worth
+    /// deferring: a visitor who never opens a recording must never ask for one.
+    /// <c>ReplayLoader</c> is where that fetch happens instead, on the first call a component
+    /// makes to it — this file must not build the library, or even mention what it is loading,
+    /// itself.</para>
+    ///
+    /// <para>This is the source half; the behavioural half —that opening a recording really
+    /// does ask, and that nothing else does— is
+    /// <c>ReplayRenderTests.NothingFetchesTheRecordingsUntilOneIsOpened</c> in the bUnit
+    /// project.</para>
     /// </summary>
     [Fact]
-    public void TheBrowserBuildsItsReplayLibraryThroughTheGuardedLoader()
+    public void TheBrowserDoesNotFetchTheReplayLibraryAtStartup()
     {
         var program = File.ReadAllText(Path.Combine(WebRoot, "Program.cs"));
 
-        Assert.Contains("ReplayLibrary.LoadAsync(http)", program, StringComparison.Ordinal);
-
-        // And nowhere else builds one. Constructing it here is how the guard gets bypassed
-        // without anything looking wrong.
-        Assert.DoesNotContain("new ReplayLibrary(", program, StringComparison.Ordinal);
-
-        // **Nor may it do the fetching itself.** Calling the guarded loader is not the same as
-        // being guarded: an adversarial pass fetched every transcript here, in a bare loop,
-        // and handed the loader a delegate that only read the resulting dictionary. The
-        // throwing call was back outside the try, one 404 took the app to a blank page, and
-        // both this test and every behavioural test stayed green. So the path lives on
-        // ReplayLibrary and this file may not name it.
+        Assert.DoesNotContain("ReplayLibrary", program, StringComparison.Ordinal);
         Assert.DoesNotContain("transcripts", program, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// The address the app asks for and the folder the build stages the recordings into are
-    /// the same, and they are written down in two files that nothing else connects.
+    /// The address the app asks for is the one gated route the server answers this from.
     ///
-    /// <para>The behavioural half — that the loader really requests that path — is
-    /// <c>ReplayLoadingTests.TheLibraryAsksForEachRecordingWhereTheBuildPutsIt</c>. This is the
-    /// other end: that the path it agrees on is where the csproj puts the files. Either alone
-    /// is satisfied by a consistent, wrong answer.</para>
+    /// <para>The recordings used to be ordinary files under a folder the csproj staged into
+    /// <c>wwwroot</c>, and this test compared the address against that folder. They are bundled
+    /// into the worker now, the way the rulebook corpus is, so there is no folder to compare
+    /// against — <c>AccountsContractTests.EveryAddressTheBrowserAsksForIsOneTheServerAnswers</c>
+    /// is what holds the two ends of the actual route together. This just pins the address
+    /// itself, so a rename here does not slip past unnoticed.</para>
     /// </summary>
     [Fact]
-    public void TheRecordingsAreAskedForFromTheFolderTheBuildStagesThemInto()
+    public void TheRecordingsAreAskedForFromTheGatedRoute()
     {
         var served = Rx(@"ServedFrom\s*=\s*""([^""]+)""")
             .Match(File.ReadAllText(Path.Combine(WebRoot, "Services", "ReplayLibrary.cs")));
 
         Assert.True(served.Success, "ReplayLibrary does not say where the recordings are served from.");
-
-        // The folders the build actually stages into, read whole. `Contains` is wrong here and
-        // was: `wwwroot\data\transcript` is a substring of `wwwroot\data\transcripts`, so
-        // dropping the "s" — the exact one-character mistake this test exists to catch — passed.
-        var staged = Rx(@"DestinationFolder=""[^""]*\\wwwroot\\([^""]+)""")
-            .Matches(File.ReadAllText(Path.Combine(WebRoot, "ProwlersAndParagons.Web.csproj")))
-            .Select(m => m.Groups[1].Value)
-            .ToList();
-
-        Assert.Contains(served.Groups[1].Value.Replace('/', '\\'), staged, StringComparer.Ordinal);
+        Assert.Equal("api/transcripts", served.Groups[1].Value);
     }
 
     /// <summary>Widows and orphans, so a paragraph never leaves one line behind.</summary>
@@ -3262,6 +3249,32 @@ public sealed class WebPresentationTests
         // exists to avoid.
         var tooltip = File.ReadAllText(Path.Combine(WebRoot, "Components", "Tooltip.razor"));
         Assert.Matches(Rx(@"id=""@Id""\s+class=""sr-only"""), tooltip);
+    }
+
+    /// <summary>
+    /// <b>The skip link is off-screen until it is focused, and back off-screen the moment focus
+    /// leaves it.</b>
+    ///
+    /// <para>The whole substance of this is in the stylesheet, exactly as
+    /// <see cref="AClosedTipTakesNoLayoutBox"/> is: a bUnit render sees the anchor and its href
+    /// either way, so a rule that stopped moving it on focus — the one thing that makes it
+    /// reachable at all rather than a link nobody can ever see — would leave every rendered
+    /// assertion about <c>MainLayout</c> passing.</para>
+    ///
+    /// <para><c>transform</c>, not <c>display</c> or <c>visibility</c>: both of those would also
+    /// have to be undone on <c>:focus</c>, which is two properties agreeing rather than one, and
+    /// this file has already found that shape wrong in both directions on other elements.</para>
+    /// </summary>
+    [Fact]
+    public void TheSkipLinkIsOffscreenUntilFocused()
+    {
+        var atRest = EffectiveValue(ScreenHalfOfAppCss, ".skip-link", "transform", exact: true);
+        Assert.NotNull(atRest);
+        Assert.NotEqual("none", atRest);
+        Assert.NotEqual("translateY(0)", atRest);
+
+        Assert.Equal("translateY(0)",
+            EffectiveValue(ScreenHalfOfAppCss, ".skip-link:focus", "transform", exact: true));
     }
 
     /// <summary>
@@ -4012,4 +4025,86 @@ public sealed class WebPresentationTests
                 .ToDictionary(m => m.Groups[1].Value, m => Normalise(m.Groups[2].Value),
                     StringComparer.Ordinal);
     }
+
+    /// <summary>
+    /// <b>Every page with a route can be clicked to from somewhere else.</b>
+    ///
+    /// <para>This is the guard that was missing when the front door was built. The recordings and
+    /// the sample characters moved to <c>/admin/portfolio</c>, the banner cross-link that had been
+    /// the only way in was replaced by the new navigation in the same change, and nothing was put
+    /// back — so the page existed, rendered, was tested, and could not be reached by anybody who
+    /// did not already know the address. An audit found it.</para>
+    ///
+    /// <para><b>No rendering test could have.</b> The suite renders these pages by type and asks
+    /// what chrome an address gets once you are already on it; whether a person can get there at
+    /// all is a question about every <i>other</i> file. So this reads the routes out of the
+    /// <c>page</c> directives and looks for each one in somebody's <c>href</c> — and deliberately
+    /// does not count a link a page makes to itself, because a portfolio pointing at its own
+    /// sub-pages is exactly how this escaped.</para>
+    /// </summary>
+    [Fact]
+    public void EveryRoutedPageIsReachableFromAnotherPage()
+    {
+        var pages = Directory.EnumerateFiles(Path.Combine(WebRoot, "Pages"), "*.razor").ToList();
+        Assert.True(pages.Count > 5, $"only {pages.Count} pages found; this test is reading nothing.");
+
+        var links = new List<(string File, string Target)>();
+        var linkPattern = Rx(@"(?:href=""|NavigateTo\(""|Next=""|Back="")([A-Za-z0-9/_-]*)""");
+
+        foreach (var file in Directory.EnumerateFiles(WebRoot, "*.razor", SearchOption.AllDirectories)
+                     .Concat(Directory.EnumerateFiles(WebRoot, "*.cs", SearchOption.AllDirectories))
+                     .Where(NotBuildArtefact))
+        {
+            foreach (Match m in linkPattern.Matches(File.ReadAllText(file)))
+            {
+                links.Add((Path.GetFileName(file), m.Groups[1].Value.Trim('/')));
+            }
+        }
+
+        Assert.True(links.Count > 10,
+            $"only {links.Count} links found; the pattern has stopped matching and this test is "
+            + "asserting nothing.");
+
+        // Reached by the router rather than by a link, and named here so the exemption is a
+        // decision rather than a silence. `App.razor` passes it as `Router`'s `NotFoundPage`, and
+        // the file's own comment says so — a page that is *supposed* to have no way in.
+        string[] reachedWithoutALink = ["NotFoundPage.razor"];
+
+        var unreachable = new List<string>();
+
+        foreach (var page in pages)
+        {
+            var name = Path.GetFileName(page);
+
+            if (reachedWithoutALink.Contains(name, StringComparer.Ordinal)) continue;
+
+            var routes = Rx(@"@page ""/([^""]*)""").Matches(File.ReadAllText(page))
+                .Select(m => m.Groups[1].Value.Trim('/'))
+                // A parameterised route is reached with an id the linking page builds, which this
+                // cannot match textually. Its parent listing is checked instead.
+                .Where(r => !r.Contains('{', StringComparison.Ordinal))
+                .ToList();
+
+            if (routes.Count == 0) continue;
+
+            var reached = routes.Any(route => links.Any(link =>
+                string.Equals(link.Target, route, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(link.File, name, StringComparison.Ordinal)));
+
+            if (!reached)
+            {
+                unreachable.Add($"{name} ({string.Join(", ", routes.Select(r => "/" + r))})");
+            }
+        }
+
+        Assert.True(unreachable.Count == 0,
+            "These pages have a route and nothing outside themselves links to it, so nobody who "
+            + "does not already know the address can reach them:\n  "
+            + string.Join("\n  ", unreachable));
+    }
+
+    /// <summary>Not a build artefact — obj/ and bin/ hold generated copies of every component.</summary>
+    private static bool NotBuildArtefact(string path) =>
+        !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+        && !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal);
 }

@@ -6,6 +6,16 @@
 @inject NavigationManager Nav
 @inject Accounts Accounts
 
+@* The first thing a keyboard reaches on every page, and the only reason it can be is that it
+   is the first thing written here — before the banner, the step band and the budget strip, all
+   of which a reader tabbing from the address bar would otherwise have to pass through to get to
+   the page underneath them.
+
+   Off-screen until it is focused, never `display: none`: an element removed from layout takes
+   its keyboard reachability with it, which is exactly backwards for a control whose whole job
+   is to be reached by keyboard. See `.skip-link` in app.css. *@
+<a class="skip-link" href="#main-content">Skip to main content</a>
+
 @* The fill runs the full width of the window; the contents sit on --column, like the two bands
    below it and the shell below them. That is one element rather than a `calc()` on the padding
    because it makes the banner structurally the same as the others, so one guard covers all four
@@ -41,6 +51,20 @@
     <NavLink class="banner-link" href="signin">
         @(_who?.IsSignedIn == true ? _who.DisplayName : "Sign in")
     </NavLink>
+
+    @* The write-through to storage is silent otherwise — nobody watching the screen can tell
+       an edit was ever kept. Says so once the store reports it happened and nothing before
+       that: there is deliberately no "saving…" state, because nothing out here knows how long
+       a write takes, only that a completed write means one just finished.
+
+       No timer clears it — a still-unsaved edit clears it by itself, because JustSaved compares
+       the version a completed save answered against the character's current one rather than
+       latching a flag from whichever event happened to run last. See CharacterSession.Saved for
+       why that comparison, and not a bare true/false, is what a save actually has to report.
+
+       aria-live rather than a toast: the point is that it can be missed without being alarming,
+       and a screen-reader user is owed the same "it happened" that the sighted page shows. *@
+    <span class="save-status" aria-live="polite">@(JustSaved ? "Saved" : "")</span>
 
     @* aria-pressed is written out as a string on purpose. Blazor drops a bool attribute
        when it is false and renders it as `aria-pressed=""` when it is true, and an empty
@@ -124,7 +148,12 @@
     <HpBudgetBar />
 }
 
-<main class="shell">
+@* id="main-content" is the skip link's target and tabindex="-1" is what lets the jump actually
+   move focus rather than only scroll the page — a plain anchor jump to a non-focusable element
+   moves the viewport and leaves the caret (and so a screen reader) wherever it already was. -1
+   rather than 0: this is a landing spot for a skip, not a stop on the ordinary Tab path, which
+   would otherwise gain a stray empty tab stop on every route. *@
+<main id="main-content" class="shell" tabindex="-1">
     @Body
 </main>
 
@@ -212,7 +241,8 @@
 
     protected override void OnInitialized()
     {
-        Session.Changed += StateHasChanged;
+        Session.Changed += HandleCharacterChanged;
+        Session.Saved += HandleCharacterSaved;
         Accounts.Changed += WhoChanged;
 
         // The shell has to redraw on a navigation as well as on a change to the character:
@@ -222,6 +252,35 @@
         // ...and a view transition has to be *opened* before the navigation, which is a
         // different hook entirely. See OpenTransition.
         _leaving = Nav.RegisterLocationChangingHandler(OpenTransition);
+    }
+
+    /// <summary>
+    /// The highest <see cref="CharacterSession.Version"/> a completed save has reported, or -1
+    /// before the first one. Never higher than a save actually confirms: a later completion
+    /// reporting an <em>older</em> version — the slow save from before a fast one, arriving
+    /// second — leaves this alone rather than stepping backwards.
+    /// </summary>
+    private int _lastSavedVersion = -1;
+
+    /// <summary>
+    /// Whether the "Saved" word beside the account link should show right now.
+    ///
+    /// <para><b>Derived at render time rather than latched by whichever event last ran.</b> The
+    /// edit that clears the word and the save that sets it are two different events, raised by
+    /// two different things, and nothing orders them against each other — a save started before
+    /// the reader's latest keystroke can be reported after it. Comparing versions instead of
+    /// tracking a bare flag is what stays right regardless of which callback the runtime happens
+    /// to run last; see <see cref="CharacterSession.Saved"/>.</para>
+    /// </summary>
+    private bool JustSaved => _lastSavedVersion == Session.Version;
+
+    private void HandleCharacterChanged() => StateHasChanged();
+
+    /// <summary>A write-through has completed. Only forward progress counts — see <see cref="_lastSavedVersion"/>.</summary>
+    private void HandleCharacterSaved(int version)
+    {
+        if (version > _lastSavedVersion) _lastSavedVersion = version;
+        StateHasChanged();
     }
 
     private void Moved(object? sender, LocationChangedEventArgs e) => StateHasChanged();
@@ -316,7 +375,8 @@
 
     public void Dispose()
     {
-        Session.Changed -= StateHasChanged;
+        Session.Changed -= HandleCharacterChanged;
+        Session.Saved -= HandleCharacterSaved;
         Accounts.Changed -= WhoChanged;
         Nav.LocationChanged -= Moved;
         _leaving?.Dispose();

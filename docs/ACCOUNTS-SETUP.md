@@ -331,17 +331,32 @@ database.
 ## Reading what has gone wrong
 
 When somebody reports a failure they will quote a six-character reference. Every failure is also
-written to `error_log`, which is read the same way the cap above is set — by hand, in SQL:
+written to `error_log`, and there are now two ways to read it.
+
+**The page is `/admin`, beside who can sign in.** Whoever manages the invitation list sees this
+panel too — it is gated by the identical check, `invitations.isAdministrator`, so an ordinary
+account reaching for it gets the same refusal it gets for the invitation list, and there is
+nothing here to configure beyond adding that address to the list the way the section above
+describes. It has no delete or clear button; it only reads.
+
+By hand, in SQL, is still there for a deployment with nobody set up as an administrator yet, or
+for a fork run from a machine rather than a browser:
 
 ```bash
 npx wrangler --cwd d1 d1 execute prowlers-and-paragons --remote \
     --command "SELECT category, route, kind, occurrences, detail, reference, datetime(last_at/1000, 'unixepoch') AS last FROM error_log ORDER BY last_at DESC;"
 ```
 
-**There is no admin endpoint and there is not going to be one.** `Identity` carries a key and a
-name and no role — there is a test asserting the wire identity holds nothing else — so "am I an
-admin" is not a question the client can ask, and inventing a role to answer it is a far larger
-change than reading a table by hand. Same reasoning as the cap above.
+**This reverses what this document used to say — "there is no admin endpoint and there is not
+going to be one" — and it is worth saying why.** The reasoning was sound at the time: `Identity`
+carried a key and a name and no role, so "am I an admin" was not a question the client could ask,
+and inventing a role to answer it looked like a far larger change than reading a table by hand.
+What changed is that the invitation-list work made "am I an admin" a question the *server*
+already answers, on every request, for an unrelated reason. Gating a read-only error-log endpoint
+behind that existing check adds no role to `Identity` and no new concept — it is the same
+question `/api/admin/invitations` already asks. The character-limit cap above is a different
+case and is unaffected: raising it is a write with no gate built for it yet, so it stays a
+by-hand `UPDATE`.
 
 **One row per `(category, route)`, counted rather than appended.** A failing dependency throws on
 every request, so a log with a row per occurrence would turn one outage into a full database.
@@ -373,6 +388,11 @@ screenshotted, does not carry somebody's address with it.
 
 Rows nobody has written to for thirty days are swept away on the next sign-in request, beside the
 expired tokens and sessions.
+
+**A failed invitation mail lands here too, under `route = '/api/admin/invitations'`.** Adding an
+address still succeeds even when the mail provider is down — see *Who can sign in* below — and
+this is where that failure is recorded so it does not go unnoticed just because nobody was
+watching the admin page at the time.
 
 ---
 
@@ -407,6 +427,12 @@ There is a test for each, and one that asserts all three together: `AccountTests
   not carry a role field either, so "am I a GM" is not a question the client can ask.
 - **No rules on the server.** The engine runs in the browser and is the authority on what a
   character costs and whether it is legal. The server stores bytes it never parses.
+- **Self-service for your own name, and nothing else.** A fresh sign-in is called by the local
+  part of its email; `/api/me/display-name` lets it change that to anything else, from the
+  account panel. A name is free text shown in a banner, never a permission or a claim of
+  identity — it is not checked for being unique, so two accounts may share one, and nothing
+  about the invitation list, the character cap or an administrator flag can be reached through
+  it.
 
 ---
 
@@ -423,8 +449,13 @@ who is on the list.
   somebody already signed in who may manage the list. There is no link to it in the site's
   navigation and no button that appears only for administrators — the browser holds no claim about
   who anybody is, so the page is reached by its address and refuses politely if it is not yours.
-- **Adding an address sends nothing.** It lets that person ask for a link when they want one; the
-  account is made the first time they sign in.
+- **Adding an address mails it a one-click sign-in link, good for three days** — longer than an
+  ordinary requested link, because this address was chosen deliberately rather than typed in by
+  whoever is holding it. It also lets that person ask for an ordinary link at any time afterwards.
+  The account is made the first time they actually sign in, whichever way they do it.
+- **If that mail fails to send, the address is still added.** The row is what grants permission to
+  sign in; the admin page says plainly when the mail itself did not go, and the same fault is also
+  written to `error_log` under the `mail` category — see *Reading what has gone wrong* above.
 - **Withdrawing an invitation ends any session that address is holding**, so somebody signed in on
   another machine is signed out rather than left there for the rest of the month. **Their
   characters are untouched** — adding the address again gives them back exactly what they had.

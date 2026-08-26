@@ -100,6 +100,19 @@ public sealed class FakeApi : HttpMessageHandler
     /// <summary>A Power's entry, for whoever is allowed to read one.</summary>
     public Dictionary<string, string> Book { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// The recorded conversations, as the server would bundle and answer them — a JSON object
+    /// keyed by file name, matching what <c>worker/transcripts-corpus.js</c> holds. Populated
+    /// with the real files by default; see <c>RenderContext</c>.
+    /// </summary>
+    public string? TranscriptsBundle { get; set; }
+
+    /// <summary>
+    /// Set to have <c>/api/transcripts</c> refuse even a signed-in caller — the shape of a
+    /// server that has the route but not the data, or one that is simply down for a moment.
+    /// </summary>
+    public bool TranscriptsUnavailable { get; set; }
+
     /// <summary>Set to have every call fail the way a missing network does.</summary>
     public bool Unreachable { get; set; }
 
@@ -137,8 +150,23 @@ public sealed class FakeApi : HttpMessageHandler
     /// <summary>The address the server calls "you" in that list. The signed-in account's.</summary>
     public string You { get; set; } = "you@example.test";
 
+    /// <summary>
+    /// Every recorded failure, as the error-log endpoint reports it. Gated by
+    /// <see cref="ManagesInvitations"/>, the same as <see cref="Invited"/> — the real server
+    /// answers both from the identical check.
+    /// </summary>
+    public List<(string Category, string Route, string Kind, string? Detail, int Occurrences,
+        long FirstAt, long LastAt, string Reference)> ErrorLogRows { get; } = [];
+
     /// <summary>Set to have an invitation refuse to be added or withdrawn.</summary>
     public bool RefuseInvitationChanges { get; set; }
+
+    /// <summary>Set to have a display-name change refused, the way the real server refuses one
+    /// that is not a usable string.</summary>
+    public bool RefuseDisplayNameChanges { get; set; }
+
+    /// <summary>Set false to have a newly-added address fail to be mailed. True by default.</summary>
+    public bool InvitationMailSucceeds { get; set; } = true;
 
     /// <summary>
     /// What a request for a sign-in link answers. 204 by default.
@@ -174,6 +202,7 @@ public sealed class FakeApi : HttpMessageHandler
         return path switch
         {
             "/api/me" => Identity(),
+            "/api/me/display-name" => SetDisplayName(request),
 
             "/api/auth/request" => LinkRequestReference is null
                 ? Status(LinkRequestAnswer)
@@ -197,9 +226,13 @@ public sealed class FakeApi : HttpMessageHandler
             "/api/rulebook/search" => Found(request),
             "/api/rulebook/passage" => Passage(request),
 
+            "/api/transcripts" => Transcripts(),
+
             "/api/admin/invitations" => InvitationList(request),
             var p when p.StartsWith("/api/admin/invitations/", StringComparison.Ordinal) =>
                 Invitation(request, p["/api/admin/invitations/".Length..]),
+
+            "/api/admin/error-log" => ErrorLogList(),
 
             _ => Status(HttpStatusCode.NotFound),
         };
@@ -210,6 +243,35 @@ public sealed class FakeApi : HttpMessageHandler
         SignedIn is { } who
             ? Json($$"""{"key":"{{who.Key}}","displayName":"{{who.DisplayName}}"}""")
             : Status(HttpStatusCode.Unauthorized);
+
+    /// <summary>
+    /// Change the signed-in account's own name, or 401.
+    ///
+    /// <para>The real rule — trimmed, capped, refused for a shape it cannot store, blank resets
+    /// to the account's email — is tested against the real server in <c>tests/worker</c>; this
+    /// only has to give the client something to react to, so a name that is not a usable string
+    /// is the one shape refused here.</para>
+    /// </summary>
+    private Task<HttpResponseMessage> SetDisplayName(HttpRequestMessage request)
+    {
+        if (SignedIn is not { } who) return Status(HttpStatusCode.Unauthorized);
+        if (RefuseDisplayNameChanges) return Status(HttpStatusCode.BadRequest);
+
+        var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+        using var sent = JsonDocument.Parse(body);
+
+        if (!sent.RootElement.TryGetProperty("displayName", out var named)
+            || named.ValueKind != JsonValueKind.String)
+        {
+            return Status(HttpStatusCode.BadRequest);
+        }
+
+        // The same identity `/api/me` gives, not a hand-built one — see the note on
+        // `/api/auth/verify` above; the same lesson applies here.
+        SignedIn = (who.Key, named.GetString() ?? who.DisplayName);
+
+        return Identity();
+    }
 
     /// <summary>
     /// The list, and the cap. Ordered most recently touched first, as the real server orders it —
@@ -299,12 +361,15 @@ public sealed class FakeApi : HttpMessageHandler
             var email = sent.RootElement.GetProperty("email").GetString() ?? "";
             var grants = sent.RootElement.TryGetProperty("grantsAdmin", out var g) && g.GetBoolean();
 
-            if (Invited.All(i => i.Email != email))
+            var already = Invited.Any(i => i.Email == email);
+            if (!already)
             {
                 Invited.Add(($"i_{Invited.Count:D22}", email, grants, false, true));
             }
 
-            return Json("""{"alreadyAllowed":false}""");
+            var mailed = !already && InvitationMailSucceeds;
+
+            return Json($$"""{"alreadyAllowed":{{Lower(already)}},"mailed":{{Lower(mailed)}}}""");
         }
 
         var rows = Invited.Select(i => $$"""
@@ -327,6 +392,34 @@ public sealed class FakeApi : HttpMessageHandler
         Invited.RemoveAll(i => i.Id == id);
 
         return Status(HttpStatusCode.NoContent);
+    }
+
+    /// <summary>The recorded failures, or the refusal — gated exactly as <see cref="Invitation"/>.</summary>
+    private Task<HttpResponseMessage> ErrorLogList()
+    {
+        if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
+        if (!ManagesInvitations) return Status(HttpStatusCode.NotFound);
+
+        var rows = ErrorLogRows.Select(r => $$"""
+            {"category":{{Quote(r.Category)}},"route":{{Quote(r.Route)}},"kind":{{Quote(r.Kind)}},
+             "detail":{{(r.Detail is null ? "null" : Quote(r.Detail))}},
+             "occurrences":{{r.Occurrences}},"firstAt":{{r.FirstAt}},"lastAt":{{r.LastAt}},
+             "reference":{{Quote(r.Reference)}}}
+            """);
+
+        return Json($$"""{"rows":[{{string.Join(",", rows)}}]}""");
+    }
+
+    /// <summary>
+    /// The bundle, or the two refusals the real server gives — 401 for nobody signed in, and
+    /// whatever <see cref="TranscriptsUnavailable"/> asks for otherwise.
+    /// </summary>
+    private Task<HttpResponseMessage> Transcripts()
+    {
+        if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
+        if (TranscriptsUnavailable) return Status(HttpStatusCode.NotFound);
+
+        return Json(TranscriptsBundle ?? "{}");
     }
 
     private static string Lower(bool value) => value ? "true" : "false";

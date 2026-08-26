@@ -17,13 +17,13 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4303 across three suites — 3730 on the engine, 449 rendering components with bUnit, 124 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus nine browser harnesses driven by headless Chrome, one of them twice for reduced motion. **Measured on `master` at `9ff148e`, re-run after the merge rather than carried across from the branch.** This row has been wrong twice: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
+| Tests | 4374 across three suites — 3734 on the engine, 474 rendering components with bUnit, 166 driving the accounts server over real SQLite — all run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome, one of them twice for reduced motion, and a pixel diff of the proof pages against Linux goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
-| Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. All four D1 migrations applied to the remote database, the `DB` binding is in place, `/api/me` answers `401` with JSON, and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong) |
+| Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. All four D1 migrations applied to the remote database, the `DB` binding is in place, `/api/me` answers `401` with JSON, and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong). **Adding an address now actually mails it** a one-click, three-day link — see the completed item below; until now the admin page said an address "can sign in now" and nothing ever told them so |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
-| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export of `master` at `9ff148e`, not assumed**. It had drifted to 3 on `master` and to 37 across three reconciled slices before anybody checked, and the redesign slice put 23 there before they were fixed. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
+| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export of `5312f32`, not assumed**. It had drifted to 3 on `master` and to 37 across three reconciled slices before anybody checked, and the redesign slice put 23 there before they were fixed. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
 | Licence | MIT, in `LICENSE`, covering this repository's own code only. The game system is © LakeSide Games. `data/rules/` holds structured metadata and this project's own descriptions; `data/rulebook/` holds the book's text **by the author's permission to this repository's owner**, is not served by the public site, and does not travel with a fork |
 
@@ -226,6 +226,42 @@ Closing it properly needs a set of descriptions with expected answers — twenty
 from the Powers rather than from the scorer — and then a scoring change measured against them.
 That is a slice of its own, and until somebody wants it, an honest label beats a tuned guess.
 
+**The set now exists, and the baseline is measured: `search_powers` meets 24 of the 33 labelled
+expectations.** `PowerSearchExpectations.cs` holds 33 sentences a player might actually say, each
+written by opening `data/rules/powers.json`, reading a Power's own printed `description`, and
+writing the sentence — never by running the search first and recording what came back, which
+would measure the scorer against itself rather than against the rulebook. The two exceptions are
+quoted directly from this entry rather than discovered by searching: "walks through walls" (wants
+Phasing in the top 3; today it lands 11th of 22, matching this entry's own reproduction) and "he
+shoots fire from his hands" (wants Blast; today it is never returned at all, also as recorded
+above). Both fail, as expected going in.
+
+`PowerSearchEvaluationTests.cs` is two tests over that set, deliberately not one:
+
+- **`ReportTheCurrentScore` is a measurement and never fails.** It runs every expectation against
+  the live `search_powers`, prints a table — met/unmet, the position found, the query, the wanted
+  id(s), and the top five ids actually returned — and asserts only that it evaluated every
+  expectation in the set (a positive control on the measurement itself, not on the scorer).
+  Asserting the score here would be a test that starts red and stays red until somebody tunes the
+  scorer, which is not what a measurement is for.
+- **`TheScoreNeverGetsWorse` is the gate.** It asserts the met count stays at or above 24. This is
+  the ratchet the closing work needs: a future scoring change is judged by whether this number
+  goes up, rather than by the two examples above the way the reverted attempt was.
+
+**Broken and watched to fail.** Forcing `search_powers`'s internal row count to 1 regardless of
+the caller's own `limit` argument (the shape a truncation bug would take) drove the measured score
+from 24 of 33 to 16 of 33, and `TheScoreNeverGetsWorse` failed with that exact count in its
+message. Restored immediately afterwards; `git diff` against `mcp/CharacterTools.cs` was empty
+before committing, confirming nothing of the mutation shipped.
+
+Of the 9 that fail today, most are exactly the tie-ordering problem this item is about: a
+description-only match with no distinctive word scores the same 2 points as every other
+description-only match, so a real answer sits behind a wall of coincidences at the same score.
+"He moves faster than anyone can follow" is a clean example — Super Speed's description shares no
+distinctive word with the sentence, and four Powers with a closer *coincidental* wording (`aura`,
+`running`, `tracer`, `animal_mimicry`) outrank it. That is the shape a scoring change should fix;
+this set is what would show whether one did.
+
 ### 5. The browser payload is large — a characteristic, not a defect
 
 **The site works.** It is deployed, it loads, it builds characters — this is not a fault, and it was listed alongside real gaps for too long. The first load is **27 MiB uncompressed**, about a third of that over the wire once Cloudflare applies Brotli, and cached hard afterwards because every framework asset is fingerprinted, so a returning visitor pays nothing. Everything below is what it would take to make that number smaller, kept because the *reasons* are expensive to rediscover — not because anything is broken.
@@ -268,6 +304,64 @@ None of the 33 was a bug in the product. Every one was a **test that did not hol
 to hold**, which is a different and quieter problem: the suite's headline number goes up and its
 grip does not.
 
+### 9. Durable telemetry needs leaving Pages — **researched, costed, and deliberately deferred**
+
+**The owner asked why the Cloudflare observability view is empty. It is empty because this is a
+Pages project, and that is structural rather than a configuration gap.** Cloudflare's own
+Pages-to-Workers compatibility matrix marks every durable observability feature ❌ for Pages —
+**Workers Logs, Logpush, Tail Workers and Source Maps** — and passes only *real-time logs*, the
+ephemeral tail. `observability` is not an inheritable Pages configuration key, so there is nothing
+to switch on and **no plan that unlocks it**. Do not spend a cycle looking for the setting.
+
+**Decision: deferred.** The owner's words — *"error log in /admin is fine for now… can upgrade
+telemetry if we need to."* The durable half already exists and is now readable: the D1 `error_log`
+table, surfaced at `/admin` behind the same gate as the invitation list. That is the thing that was
+actually wanted; the dashboard was the assumed route to it.
+
+**What Pages does have**, and it is a live-debugging tool rather than a record:
+
+```bash
+npx wrangler pages deployment tail --project-name=prowlers-and-paragons --environment production
+```
+
+Useful filters: `--status ok|error|canceled`, `--search <text>` (matches inside `console.log`
+output, so one of the four categories `worker/errors.js` writes is a usable search), `--method`,
+`--ip self`. **It streams only while the command runs**, nothing is stored, and high volume pushes
+it into sampling and drops messages silently. For a fault discovered a week later — which is
+exactly the shape of the mail-key outage this project already had — it tells you nothing, because
+nobody was tailing at the moment it happened. That asymmetry is the whole reason the D1 table
+exists.
+
+**If it is ever wanted, the answer is migrating to Workers with static assets, and it is $0.**
+Workers Logs is on the free plan: 200,000 events a day, 3-day retention — orders of magnitude
+beyond this site's traffic. The migration is bounded and mechanical, and **both constraints this
+repository would raise against it resolve favourably, for reasons worth having written down**:
+
+- **The third-party-cookie objection does not apply.** `CLAUDE.md` says Pages Functions was chosen
+  over "a Worker on `workers.dev`" because a cookie set by another host is partitioned away. That
+  is correct, and it is an objection to **`workers.dev`** — a shared Cloudflare-owned domain — not
+  to Workers. Workers take Custom Domains exactly as Pages does: Cloudflare routes
+  `superheroes.softwaresamurai.net` straight to the Worker. Same-origin holds, on the condition
+  already true today: keep the custom domain and never point the accounts API at `*.workers.dev`.
+- **The `_redirects` SPA fallback survives byte for byte.** `web/wwwroot/_redirects` is one line,
+  `/* /index.html 200`; the Workers equivalent is configuration rather than a file —
+  `assets.not_found_handling: "single-page-application"` — and returns the identical
+  200-with-`index.html`.
+
+**And the migration has one trap that would break the site quietly, so it is recorded here rather
+than rediscovered.** Workers-with-assets checks static files **first** and only reaches the script
+for paths that match none. `/api/*` is not a static file, so in the naive setup **the SPA fallback
+swallows the whole accounts API** — every address answering `index.html` with a 200. That is
+precisely the failure the deploy workflow's "confirm the accounts API answers" step exists to
+catch, and precisely why that step reads the *body* rather than believing the status. The fix is a
+routing directive telling the Worker to run first for that prefix; get it wrong and the site looks
+perfectly healthy while signing nobody in.
+
+Also settled while looking: **OpenTelemetry export is viable but is the option this repository has
+already rejected on principle** — `CLAUDE.md` declines third-party error services on the grounds
+that nothing about who somebody is should leave the Cloudflare account this site deploys to, and
+that property is worth more than a nicer dashboard. That reasoning is unchanged by anything above.
+
 ### 7. The pre-1.0 audit
 
 The last pass before tagging `v1.0.0`, done as a separate slice, both halves cheapest to
@@ -283,9 +377,168 @@ delegate to no-context agents:
 
 Do it once the HTTP API stops moving, so audit targets are not shifting under it.
 
+### 9. Visual regression testing — **closed**
+
+Nine browser harnesses asserted verdicts — sticky, narrow, motion, theme, shortcut, insets — and
+none of them looked at a pixel, so four palettes and three new screens were judged by eye. Closed
+by `scripts/visual-regression.sh`, wired into `.github/workflows/build.yml` right after the
+existing proof-harness step. Full account in `docs/HANDOVER.md`; the short version:
+
+- Screenshots seven proof pages at a fixed 1280×900 viewport (the four palettes via
+  `proof-shell-*.html`, plus the front door in both light and forced dark, plus the rules
+  reference) with `--virtual-time-budget=5000` — the `.panel` entrance animation is the exact
+  trap named throughout this file, and 5000ms clears it with margin.
+- Compares each against a committed PNG under `tests/visual-goldens/` with `scripts/visual/diff.mjs`,
+  a ~150-line plain-Node PNG decoder/differ using only `node:zlib` — no image-diff package is
+  installed, on purpose: this repository has never had a `package.json`, and adding the first npm
+  dependency for a CI convenience is a worse trade than the ~150 lines.
+- **The goldens are Linux-rendered, never from this Windows machine.** On a Linux host (CI) the
+  script drives the Chrome already on PATH; everywhere else it drives `selenium/standalone-chrome`
+  in Docker — real Google Chrome, not a distro-patched Chromium, so a developer's own machine
+  produces the same pixels CI would. The goldens committed here were generated exactly that way,
+  from this Windows machine, through that Docker path — verified pixel-identical across two
+  independent runs.
+- **Broken and watched to fail, not just reasoned about.** `--primary` on the Hero-light palette
+  was changed from `#1B4F9C` to `#2E8B57` and the screenshot regenerated: the check failed on
+  exactly the three pages that token reaches (`shell-hero-light`, `front-door-hero-light`,
+  `rules-reference` — its Search button), reporting pixel counts, percentages and a bounding box
+  each time, and left the other four pages (a different palette or a page not using `--primary`)
+  reporting pixel-identical. Reverted, re-verified green.
+- A first attempt at the Docker path used `zenika/alpine-chrome`, which pulls without any
+  apt access and is the common choice for "headless Chrome in Docker" — and turned out to render
+  a forced dark colour scheme differently from `ubuntu-latest`'s real Google Chrome on the same
+  flag, which would have meant goldens that agreed with themselves and disagreed with CI forever.
+  A from-scratch Debian image with `apt-get install google-chrome-stable` was tried next and hit
+  this environment's network mangling Debian's signed release file
+  (`Clearsigned file isn't valid, got 'NOSPLIT'`) — not a Windows-vs-Linux problem, a
+  this-sandbox-vs-`deb.debian.org` one. `selenium/standalone-chrome` sidesteps both: it is
+  pre-built with real Google Chrome and needs no package-manager access at all.
+
 ---
 
 ## Completed work
+
+### A signed-in visitor can change what they are called
+
+The name a fresh sign-in gets is the email's own local part, and there was no way to change it —
+the owner's own account was stuck reading "tabletop". `PUT /api/me/display-name` changes the
+caller's own row and nobody else's, scoped by the id off the session rather than anything the
+request names; trimmed, refused for not being a usable string, a control character, or more than
+60 characters, and reset to the email's local part rather than refused when it comes in blank
+after trimming — the same value a fresh sign-in already gets, so a cleared name looks like one
+never set rather than a banner naming nobody while `Identity.IsSignedIn` still read true.
+
+**Uniqueness is deliberately not checked**, on either side of the wire — a name is free text
+shown in a banner, never a permission or a claim of identity, and asking "is this name taken" is
+the same oracle the invitation list exists to keep this site from answering about addresses. The
+box is on the account panel already on `/signin`, and the banner and the panel both pick the new
+name up from `Accounts.Changed` without a reload, the same event a sign-in already raises.
+
+Every new guard was broken and watched fail: the control-character check, the length cap, the
+blank-resets-to-email-local-part rule, the same-origin check, the signed-in check, the
+own-row-only scoping in the SQL, and the two client-side syncs that keep the name box and the
+banner from going stale. `docs/ACCOUNTS-SETUP.md` also had `d1/migrations/0004_error_log.sql`'s
+worked example pointed at a database named `prowlers-accounts`, which does not exist — the real
+one is `prowlers-and-paragons`; fixed in the same change since it was found while this was open.
+
+### The recordings move behind the gate, and out of every visitor's startup fetch
+
+**The account gate on the replay pages was a front door rather than a lock, and this closes it.**
+The recordings and the pages that play them back moved behind `AdminOnly` in an earlier slice, and
+that slice said plainly what it had not done: the four transcripts were still ordinary files under
+`wwwroot/data/transcripts`, so anybody who knew a filename could fetch one straight through, and
+every visitor's browser fetched all four before its first render whether or not that visitor could
+ever reach a page that shows them. Both are fixed the same way the rulebook corpus already was.
+
+- **Bundled into the worker, not staged into `wwwroot`.** `worker/transcripts-corpus.js` bakes
+  `data/transcripts/*.json` into an object literal at build time, the way `worker/corpus.js` bakes
+  the rulebook — `scripts/inline-transcripts.mjs` mirrors `scripts/inline-rulebook.mjs` line for
+  line, including reading the directory rather than naming files, so a fifth recording needs no
+  edit to the bake script. A guard in `tests/worker/transcripts.test.mjs` refuses a bake that has
+  drifted from disk, the same shape as the rulebook's own guard.
+- **`api/transcripts` answers a signed-in caller and refuses everybody else**, gated in the same
+  block as the rulebook routes in `worker/index.js` — "signed in", not "administrator", which
+  matches how the rulebook routes are gated and is deliberate: the page above it is
+  administrator-only, but the route underneath asks the same question every other gated route
+  does. The refusal is a plain 401 whose body carries none of the recorded text — asserted with a
+  positive control, since an absence assertion is satisfied by a route that has stopped answering
+  at all.
+- **`ReplayLoader` fetches once, on demand, and caches it for the session.** `web/Program.cs` used
+  to fetch every transcript before the first render and register a `ReplayLibrary` singleton; that
+  line is gone, and nothing replaces it there. The two replay pages and the portfolio page each ask
+  `ReplayLoader` for the library in their own `OnInitializedAsync`, and because Blazor WebAssembly
+  has one DI scope for the whole app, the first ask is the only ask — opening a second recording
+  does not fetch again. `ReplayLibrary.LoadAsync` still owns the guarantee that a failed fetch
+  leaves the app running rather than the page: it fetches the whole bundle in one request now
+  instead of one request per file, parses it, and hands the result to
+  `engine/TranscriptLibrary.ReadAll` exactly as before.
+- **Nothing fetches the recordings until somebody actually opens one.**
+  `WebPresentationTests.TheBrowserDoesNotFetchTheReplayLibraryAtStartup` holds `Program.cs` to
+  never naming `ReplayLibrary` or mentioning transcripts at all, and
+  `ReplayRenderTests.NothingFetchesTheRecordingsUntilOneIsOpened` is the behavioural half, with a
+  positive control: rendering the shell asks nothing, and opening a recording does.
+- **Every new guard was broken and watched fail**, not merely reasoned about: the gate bypassed and
+  the refusal turned to 200, the bake mutated one word and the byte-for-byte guard caught it, the
+  eager-startup-fetch line put back in `Program.cs` and the source guard caught it, an eager fetch
+  reachable from `MainLayout` and the behavioural guard caught it, the cross-language route name
+  changed in both `worker/index.js` and `worker/errors.js` and `AccountsContractTests` caught it,
+  and the outer catch in `ReplayLibrary.LoadAsync` narrowed from `Exception` to `JsonException` and
+  the "one recording missing" test caught the resulting unhandled exception. Each was reverted
+  after.
+- **This reverses the specific sentence CLAUDE.md used to carry twice** — that the portfolio gate
+  is "a front door rather than a lock" and that the transcripts are "still ordinary files under
+  `wwwroot`" — corrected rather than appended to, in "The replay" and in "The accounts server".
+
+Tests: engine + bUnit 4180 (3730 + 450, both unchanged in total shape apart from this slice's own
+additions and renames), accounts 131 (124 + 7 new in `tests/worker/transcripts.test.mjs`). All
+green, `dotnet build -p:ContinuousIntegrationBuild=true` at zero warnings.
+
+### Adding an address to the invitation list now actually tells them, with a one-click link
+
+`worker/invitations.js`'s `add()` wrote the row and returned — nothing was ever mailed. An address
+the owner added had no way of knowing it could sign in unless he told them himself, and the admin
+page's own "*can sign in now*" read as though something had been done about that. Fixed:
+
+- **A real, one-click sign-in link, not a bare pointer at the sign-in page.** The first version of
+  this deliberately carried no token — the reasoning being that a token is minted only when
+  somebody *asks*, and minting one unrequested puts a live credential in a mailbox nobody asked
+  anything of. **The owner reversed that mid-slice**: every invited address has already been
+  chosen deliberately, so a longer-lived credential in that inbox is an acceptable trade for the
+  first sign-in being one click rather than three. `worker/auth.js`'s
+  `INVITATION_TOKEN_LIFETIME_MS` is three days against the public request path's fifteen minutes,
+  and it needed no new migration and no second kind of token: `login_tokens.expires_at` is already
+  per-row, and `used_at` already burns a token on first spend. `worker/tokens.js` is the one place
+  that mints and hashes a token and the one place that builds its URL, so the public request path
+  and the invitation path cannot drift into two ways of doing either.
+- **A mail failure never costs the invitation.** The row is written first; the mail is attempted
+  second and caught in `worker/invitations.js`, so a dead provider still leaves the address able
+  to ask for an ordinary link, and the admin page is told honestly rather than shown a 500 that
+  would read as nothing having happened. **Deliberately still written to `error_log`**, `mail`
+  category, `route = '/api/admin/invitations'` — the same outage breaks every ordinary sign-in
+  too, and the owner should be able to find it from either failure, not only from a visitor who
+  complained.
+- **The admin page now says which of three things happened**: mailed and can sign in now; added,
+  but the mail did not go, so tell them another way; or already on the list, nothing sent.
+  `web/Services/Invitations.cs`'s `AddAsync` used to return a bare `bool` for "was the HTTP status
+  a success", which could not tell "just invited" from "already allowed" apart — it now reads the
+  two booleans the server sends back.
+- **16 new tests on the server, 2 on the page**, on top of the existing 124 and 449: the token is
+  minted and hashed through the shared function, the mail carries it and the database keeps only
+  the hash, it signs the invited address in and burns on first use exactly like a requested link,
+  it survives the public path's fifteen minutes and expires after its own three days,
+  `sweepExpired` actually removes an expired one rather than merely refusing it, a provoked mail
+  failure keeps the row and writes exactly one `error_log` row, and the admin page's three
+  sentences are told apart from each other rather than merely from a refusal. Every one of these
+  guards was broken by hand and watched fail before being restored, per this file's own standing
+  rule about checks that have never been seen to fail — see the git history on
+  `tests/worker/invitations.test.mjs`, `tests/worker/tokens.test.mjs` and
+  `tests/ProwlersAndParagons.Web.Tests/AdminPageTests.cs` for exactly what was mutated each time.
+
+**Not done, and deliberately left for later:** `scripts/probe-mail.mjs` still only diagnoses the
+sign-in message; it was not extended to send a test invitation. Both messages now go through the
+same `send`/refusal-handling function in `worker/mail.js`, so the diagnosis the probe already
+gives — the provider's status and its own machine code — is the same fault either message would
+hit, which is most of why this was left alone rather than because it would be hard.
 
 ### A front door with two avenues, the whole book searchable, and the sheet while you build
 
@@ -405,11 +658,10 @@ through the mutation, which is the whole reason the stylesheet guards exist:
 
 #### What this did not do, and is honest about
 
-- **The portfolio gate is a front door rather than a lock.** The transcripts are still ordinary
-  files under `wwwroot`, so anybody who knows a filename can fetch one; only the *pages* are gated.
-  Making it real means serving them from the worker as the rulebook is, which would also take them
-  out of every visitor's startup fetch. Not attempted here; it is a refactor of
-  `ReplayLibrary.LoadAsync` and of `Program.cs`, and the recordings hold nothing secret.
+- **The portfolio gate was a front door rather than a lock — closed, see below.** This bullet used
+  to say the transcripts were still ordinary files under `wwwroot`, reachable by anybody who knew a
+  filename, and that making it real would need a refactor of `ReplayLibrary.LoadAsync` and of
+  `Program.cs`. That refactor is [the completed item at the top of this section](#the-recordings-move-behind-the-gate-and-out-of-every-visitors-startup-fetch).
 - **The old `/portfolio` and `/replay` addresses now 404.** Deliberate: the content is
   account-gated, so a public link that still worked would be the wrong answer, and one that arrives
   wearing the wrong chrome is worse than one that breaks.
@@ -417,7 +669,8 @@ through the mutation, which is the whole reason the stylesheet guards exist:
   text is and a whole sheet behind every keypress is the render cost the front-end plan warns about.
   Asserted, with a control.
 - **Still no visual regression testing**, and this slice makes the gap worse: three new screens, four
-  palettes, every screenshot judged by eye.
+  palettes, every screenshot judged by eye. **Closed in a later slice** — see item 9 below and
+  `docs/HANDOVER.md`.
 
 #### Merged and deployed
 
@@ -609,8 +862,8 @@ see "A front door with two avenues".)*
 - **Phase 3's validation-on-the-row and undo**, from `docs/FRONT-END-PLAN.md`. **Still open.**
 - ~~**Phase 4, the sheet as a live preview column.**~~ **Done**, with `--column` widened on the
   token at 1500px so all five bands follow it.
-- **No visual regression testing**, unchanged and now worse: three new screens on top of the four
-  palettes, every screenshot judged by eye.
+- ~~**No visual regression testing**~~ **Done.** See item 9 in "Remaining work" and
+  `scripts/visual-regression.sh`.
 
 ### Only invited addresses, and a page that says which
 
@@ -713,12 +966,10 @@ category }` and `SignIn.razor` maps the category to a sentence, replacing the si
   client does not recognise. A taxonomy with no default grows a category for every new failure,
   and the pressure is then to classify by guessing.
 
-**The owner's half is one D1 table read by hand, and there is no admin endpoint.** `Identity`
-carries a key and a name and no role — there is a test asserting the wire identity holds nothing
-else — so "am I an admin" is not a question the client can ask, and inventing a role to answer it
-is a far larger change than this needed. The precedent is `users.character_limit`, raised by hand
-in SQL on the reasoning that a cap you can raise on yourself is not one. `docs/ACCOUNTS-SETUP.md`
-carries the `wrangler d1 execute` command and the table of what each category means.
+**The owner's half was one D1 table read by hand, and there was no admin endpoint — superseded
+below**, once the invitation list made "am I an admin" a question the server could already
+answer. `docs/ACCOUNTS-SETUP.md` still carries the `wrangler d1 execute` command and the table of
+what each category means, for a deployment with nobody set up as an administrator yet.
 
 **Bounded by construction rather than by a cap somebody remembers to enforce.** The primary key is
 `(category, route)` and `route` is a *pattern* from a closed list, so `/api/characters/{id}` is
@@ -768,6 +1019,47 @@ Not done, and deliberately: **no third-party error service** — nothing about w
 currently leaves the Cloudflare account, and that is worth more than a nicer dashboard — and **no
 stack traces to the client in any environment**, since there is no debug build of a deployed site
 and a flag that turns them on is a flag one mistake from being on.
+
+### The error log gets an admin endpoint after all, reversing the decision above
+
+The decision two entries up — "there is no admin endpoint and there is not going to be one" — was
+sound when it was written and is superseded now, on purpose rather than by drift. What changed
+underneath it is the invitation list, built after that decision: the *server* now answers "am I
+an admin" on every request, via `invitations.isAdministrator(env, user)`, to gate
+`/api/admin/invitations`. A read-only `/api/admin/error-log`, gated by the identical check, adds
+no role to `Identity` and no new concept to the client — it is the same question asked once more.
+Both `d1/migrations/0004_error_log.sql` and `docs/ACCOUNTS-SETUP.md` now say so, instead of
+repeating the old refusal.
+
+**Read-only, and deliberately narrow.** There is no route that deletes or clears a row — the
+table is already bounded by its own primary key, so there is nothing to reclaim, and a control
+that could erase a row would be a control that could erase the evidence of the thing it is for.
+If a clear is ever wanted, that is a new decision, not a gap this slice left open.
+
+**A panel on `/admin`, beside who can sign in**, because both are the same gate and a second page
+would only be a second address for the same account to reach. The one row this site has ever
+produced was a resolved outage, so the panel does not just print a count next to a timestamp:
+a row whose most recent failure is more than a day old says plainly that it has not happened
+again, and an empty table reads as "nothing has failed" rather than as a blank section — the same
+discipline the budget bar's "None yet." already follows for an empty list that is empty for its
+own reasons.
+
+**`console.error` in the catch became one JSON object instead of a formatted sentence**, so
+`wrangler pages deployment tail` can filter and read it. It shares the exact object `error_log`
+is written from — category, route pattern, exception kind, redacted detail, reference — computed
+once in `worker/index.js`'s catch and passed to both the log line and the row, so a tail and the
+table cannot redact the same failure two different ways. The exception's raw message is never in
+it, same reason it was never in the row.
+
+**Tests, and what was broken to prove them:** the new route's three-state gate (401 signed out,
+the invitation list's own 404 for a signed-in non-administrator, 200 with rows otherwise) in
+`tests/worker/invitations.test.mjs`, with the gate removed and watched to answer 200 to an
+ordinary account; the structured log's redaction and its agreement with the row in
+`tests/worker/errors.test.mjs`, with the redaction call deleted and watched to leak the planted
+address and token into the tail; and, on the browser side, that an account which may not manage
+the list is never even asked — `Asked` catches this though the markup cannot, since the page's
+own refusal already hides every panel regardless of whether the fetch's own guard is doing
+anything. Test totals moved: the accounts suite from 124 to 130, the bUnit suite from 449 to 455.
 
 ### Characters, plural: a manager, imports, and the export the app was not writing
 
@@ -1031,8 +1323,25 @@ every environment variable the server actually reads — documentation of a conf
 this repository can try out rots silently otherwise.
 
 **One cost, stated rather than hidden:** a failed save is silent. Local storage effectively cannot
-fail; a network can, and the character then exists only in that tab. The honest fix is telling
-somebody, which is the "Saved" feedback Phase 5 of the front-end plan already owes.
+fail; a network can, and the character then exists only in that tab.
+
+> **"Saved" feedback — done, on a branch not yet merged.** `MainLayout` shows the word beside the
+> account link once `CharacterSession.Saved` reports a write-through completed, and nothing before
+> that — there is deliberately no "saving…" state, since nobody outside the store knows how long a
+> write takes. It does not solve the *failed* save this paragraph is actually about: `SaveAsync`
+> still never throws, by design (see `ICharacterStore`'s own doc comment), so a save that genuinely
+> fails still says nothing. What it buys is the more common gap — nobody could tell a *successful*
+> save had happened either, which read as no feedback at all rather than as silence about failure
+> specifically.
+>
+> **The race worth recording:** two saves can be in flight together (a slow account save from one
+> edit, a fast one from the next) and finish in either order. `CharacterSession.Version` — bumped on
+> every `NotifyChanged` — is what a completed save is checked against, rather than a bare
+> `bool` latched by whichever event happens to run last; a stale completion cannot un-confirm a
+> newer one. `SaveStatusTests.AStaleCompletionCannotUnconfirmANewerSave` pins it, though the
+> harness environment resolves the local-storage path synchronously, so what it actually exercises
+> is the version comparison rather than a truly overlapping pair of writes — the closest anything
+> here gets to a real out-of-order race without a controllable double for `ICharacterStore`.
 
 
 ### One site, two areas: the play aide and the portfolio
@@ -1108,12 +1417,21 @@ will not go to tells a screen-reader user something untrue about the control in 
 clicking a pip below that floor clamps up rather than asking for a rank the validator would then
 report.
 
-**Nothing suppresses the browser's default on those keys, and that is a compromise rather than a
-preference.** Blazor fixes `preventDefault` at render time rather than per event, so suppressing it
-on this element would also swallow Tab and trap focus inside a rank row — much worse than what it
-would fix. Home and End therefore still scroll the document. Left and Right are the pair to reach
-for: the pips are horizontal and a CI harness holds this app to no horizontal overflow, so those
-two scroll nothing. A small interop shim would close it properly; a Razor attribute cannot.
+**Nothing suppresses the browser's default on those keys through Blazor, and that is not a gap —
+it is the wrong layer for it.** Blazor fixes `preventDefault` at render time rather than per event,
+so suppressing it on this element would also swallow Tab and trap focus inside a rank row — much
+worse than what it would fix. Left and Right need no such thing: the pips are horizontal and a CI
+harness holds this app to no horizontal overflow, so those two scroll nothing regardless.
+
+> **Home and End — done, on a branch not yet merged.** `Sliders`/`wwwroot/js/slider.js` is the
+> small interop shim this paragraph said would close it: one native `keydown` listener per rank
+> row, attached once on first render, answering to exactly Home and End and nothing else. It
+> follows the same guarded-interop shape as `Motion`, `Shortcuts` and `Theme` — a `try`/`catch`
+> swallowing a missing script rather than throwing out of every rank's render. bUnit cannot see a
+> real `preventDefault`, so the meaningful proof is a browser harness, `proof-slider.html`, driven
+> in the build workflow the same way `proof-motion.html` and `proof-shortcut.html` are; a mutation
+> that suppressed every key (not only Home/End) was applied and watched the harness fail on
+> exactly the Tab-trapping case this note has warned about for three sessions.
 
 **Five mutations, five caught** — the minimum ignoring the package floor, the keys bypassing the
 clamp, a click off by one, the pips exposed as twelve children, and a handler answering every key.
@@ -1125,6 +1443,30 @@ had not: these are `border-box`, so the pip's box went 7px to 11px and its paint
 5px, with the border no longer hugging it. That is a deliberate design quietly altered to fix a
 secondary concern, invisible to every test here and about two pixels to the eye. Reverted. If it is
 revisited, **measure the painted width rather than reasoning about the box model.**
+
+
+### A skip link, and the shell's landmarks — done, on a branch not yet merged
+
+There was neither before this. A reader tabbing from the address bar met the banner's two links and
+five buttons, then the step band, then the sticky budget strip, on every single route, before
+reaching anything the page was actually about.
+
+- **`<a class="skip-link">` is the first thing `MainLayout` writes**, before the banner — order is
+  the whole of what makes it a skip link rather than a link with the right words in the wrong
+  place. Off-screen by `transform`, not `display: none`, so it stays in the accessibility tree and
+  reachable by keyboard while invisible; `:focus` brings it on screen. `<main>` carries
+  `id="main-content"` and `tabindex="-1"` so the jump actually moves focus rather than only
+  scrolling — a plain anchor jump to a non-focusable element moves the viewport and leaves the
+  caret wherever it already was.
+- **The landmarks were already mostly right** — `<header>`, two `<nav>`s each with their own
+  `aria-label`, one `<main>` — this only added the id/tabindex and a test that pins the count and
+  the naming on more than one route, since the step band's own `<nav>` only exists once a tier is
+  being built.
+- **`LandmarkTests` and `WebPresentationTests.TheSkipLinkIsOffscreenUntilFocused`** cover the
+  markup and the CSS separately, for the reason this file states everywhere else: a rendering test
+  cannot see whether a rule actually hides or reveals the link, and a source-reading test cannot
+  see where an element landed in the render order. Mutations applied and watched fail: moving the
+  skip link after the banner, removing a `<nav>`'s `aria-label`, and deleting the `:focus` rule.
 
 
 ### Tooltips, and the attribute that is not one
@@ -1490,8 +1832,16 @@ which is the only thing that separates the two hooks.
   of this API does. Recorded with the numbers so the next session can weigh it rather than
   rediscover it.
 - **There is no `aria-live` anywhere**, so the counting figure spams nothing — but crossing into
-  over-budget is announced to nobody either. Worth adding; **it must go on a sibling summary,
-  never on `.budget-figure strong`**, which `ppCount` rewrites up to 60×/s.
+  over-budget is announced to nobody either.
+
+  > **Done, on a branch not yet merged.** A `sr-only` sibling of `.budget-figure`, never inside it
+  > — exactly the placement this bullet asked for. Its text is computed by a method that compares
+  > the current over-budget state against what it was last time and only writes new words on an
+  > actual flip, so an ordinary change in spend that leaves the character on the same side of the
+  > line says nothing twice, and loading an already-over-budget character announces nothing at
+  > all (there is no crossing to describe — it arrived that way). `BudgetStripTests` pins both
+  > halves, and a mutation that inverted the flip check — announcing on *no* change instead of on
+  > a real one — was applied and watched the crossing test fail.
 
 One latent defect is also recorded: `_midTransition` is released by any render of `MainLayout`,
 not specifically the navigation's, so a render batch flushing in between would close the

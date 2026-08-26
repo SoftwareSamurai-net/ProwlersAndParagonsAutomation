@@ -114,6 +114,19 @@ export async function upsertUser(db, { id, email, displayName, now }) {
     return await userByEmail(db, email);
 }
 
+/**
+ * Change the name on one account.
+ *
+ * <p>Scoped to `id` alone — there is no `email` or anything else in the `WHERE` — so this
+ * statement has no way to reach a row other than the one the caller already authenticated as.
+ * The value is written as given: `auth.js` is where a name is trimmed, capped and defaulted,
+ * because those are decisions about what a name is, not about how one is stored.</p>
+ */
+export async function setDisplayName(db, { userId, displayName }) {
+    await db.prepare('UPDATE users SET display_name = ? WHERE id = ?')
+        .bind(displayName, userId).run();
+}
+
 export async function putLoginToken(db, { tokenHash, email, expiresAt }) {
     await db.prepare('INSERT INTO login_tokens (token_hash, email, expires_at) VALUES (?, ?, ?)')
         .bind(tokenHash, email, expiresAt).run();
@@ -333,4 +346,20 @@ export async function deleteSessionsFor(db, email) {
     await db.prepare(
         'DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE email = ?)')
         .bind(email).run();
+}
+
+/**
+ * Every recorded failure, newest first — the owner's read of `error_log`.
+ *
+ * <p><b>Read-only, and there is nothing else here.</b> No delete, no clear — the table is
+ * already bounded by its primary key, so there is nothing this needs to reclaim, and a control
+ * that could erase a row is a control that could erase the evidence of the thing it is for.</p>
+ */
+export async function listErrorLog(db) {
+    const result = await db.prepare(
+        'SELECT category, route, kind, detail, occurrences, first_at, last_at, reference '
+        + 'FROM error_log ORDER BY last_at DESC')
+        .all();
+
+    return result.results;
 }

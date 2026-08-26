@@ -249,3 +249,67 @@ test('the caller cannot ask for the whole book in one response', async () => {
     assert.ok(body.found > 30, 'this query no longer matches enough to test the cap');
     assert.ok(body.results.length <= 30, 'the limit is caller-controlled: ' + body.results.length);
 });
+
+// ── The work a query can ask for ──────────────────────────────────────────
+//
+// **The output cap bounds the answer; these bound the cost of producing it.** An audit measured a
+// 70KB query of 17,549 distinct three-letter words answering in 2.7 seconds against the real
+// corpus, where an ordinary query takes about 2ms — two super-linear paths, the dedup and the
+// per-term scan over the whole vocabulary, neither bounded by anything. Any signed-in account
+// could reach it, this route has no rate limit, and Workers is billed on CPU per request.
+
+test('a query cannot ask for unbounded work', () => {
+    const letters = 'abcdefghijklmnopqrstuvwxyz';
+    const words = [];
+    for (const a of letters) for (const b of letters) for (const c of letters) words.push(a + b + c);
+    const attack = words.join(' ');
+
+    assert.ok(attack.length > 60_000, 'the attack query is not large enough to be one');
+
+    // Warm the index, so this times the matching rather than the one-off construction.
+    search(CHAPTERS, 'knockback', 5);
+
+    const started = Date.now();
+    const answered = search(CHAPTERS, attack, 30);
+    const took = Date.now() - started;
+
+    // The cap, which is the actual guarantee: however long the query, only so many words are
+    // searched on. Asserted rather than the timing, because a wall clock on a busy CI runner is
+    // not a fact about this code.
+    assert.ok(answered.terms.length <= 60,
+        `${answered.terms.length} terms were searched on; the cap is 60`);
+
+    // ...and a generous ceiling on the time, which is what would actually have caught the
+    // original defect. 2.7s was the measurement; anything near it means a cap stopped applying.
+    assert.ok(took < 1000, `the attack query took ${took}ms, which is the unbounded shape back`);
+
+    // The answer is still honest about what it used, which is what makes truncating acceptable
+    // rather than a silent lie about the search.
+    assert.ok(Array.isArray(answered.terms));
+});
+
+test('the dedup is not quadratic', () => {
+    // 40,000 distinct words cost 2.5 seconds through an array `includes`. The cap alone bounds
+    // this now, but the data structure is the reason it cannot come back by raising the cap.
+    const many = Array.from({ length: 40_000 }, (_, i) => 'w' + i).join(' ');
+
+    const started = Date.now();
+    const used = terms(many);
+    const took = Date.now() - started;
+
+    assert.ok(used.length <= 60, `${used.length} terms kept; the cap is 60`);
+    assert.ok(took < 500, `tokenising 40,000 words took ${took}ms`);
+});
+
+test('an ordinary question is not truncated', () => {
+    // The positive control on the caps: they must be far past anything a person types, or this
+    // whole guard is a bug wearing a test. A real sentence keeps every word that carries meaning.
+    const asked = terms('how does the trait cap work when a power is maintained in combat');
+
+    assert.ok(asked.length >= 4, `only ${asked.length} words survived a real sentence`);
+    assert.ok(asked.includes('trait'));
+    assert.ok(asked.includes('cap'));
+
+    // ...and it still answers.
+    assert.ok(search(CHAPTERS, 'how does the trait cap work', 10).found > 0);
+});

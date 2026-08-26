@@ -119,6 +119,7 @@ jobs:
           proof-motion.html:MOTION: PASS:--force-prefers-reduced-motion
           proof-shortcut.html:SHORTCUT: PASS:
           proof-theme.html:THEME: PASS:
+          proof-slider.html:SLIDER: PASS:
           "
 
           while IFS= read -r line; do
@@ -147,6 +148,32 @@ jobs:
           done <<< "$checks"
 
           exit "$failed"
+
+      - name: Compare screenshots against the visual-regression goldens
+        # The nine checks above assert verdicts — sticky, narrow, motion, theme, shortcut,
+        # insets — and none of them look at a pixel. Four palettes and three new screens were
+        # being judged by eye. This is the tenth: it screenshots the same proof pages this job
+        # already rendered and compares each against a committed golden with a small per-pixel
+        # tolerance, via scripts/visual-regression.sh.
+        #
+        # **`ubuntu-latest` already has the real Chrome the goldens were made from**, so this
+        # runs the script's native path with no Docker involved — the Docker fallback in that
+        # script exists for a developer's own machine, not for here. `PP_PROOF_ALREADY_BUILT=1`
+        # skips re-running the `dotnet test` above, which already wrote fresh proof pages.
+        id: visual
+        env:
+          PP_PROOF_ALREADY_BUILT: "1"
+        run: ./scripts/visual-regression.sh
+
+      - name: Upload visual-regression diffs
+        # Only reachable on a real pixel mismatch, per the step above's own id — a `--out` diff
+        # PNG is written only when a page fails, so there is nothing to upload on a clean run.
+        if: ${{ !cancelled() && steps.visual.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-regression-diffs
+          path: .visual-regression/
+          retention-days: 14
       - name: Publish the browser front end
         # The static site is the deliverable for web/, and publishing exercises things a
         # plain build does not — chiefly staging data/rules into wwwroot.

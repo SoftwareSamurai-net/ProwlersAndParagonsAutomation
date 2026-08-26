@@ -1,7 +1,11 @@
 @page "/admin"
 @inject Invitations Invitations
+@inject ErrorLog ErrorLog
 
-@* Who may have an account here.
+@* Who may have an account here, and what has gone wrong while running the site.
+   Both stay on one page because both are the same gate — the server asks the identical question,
+   `invitations.isAdministrator`, before answering either one, and a second page would only be a
+   second address for the same account to reach.
 
    **This site is not a sign-up.** An account is what keeps somebody's characters with them and
    what opens the rulebook's own text, so who may have one is a decision rather than a form —
@@ -11,7 +15,11 @@
    every single request whether the person asking may manage this list; the browser holds no
    claim, no role and no flag it could get wrong. So it is reached by its address rather than by
    a button that appears for some people — an ordinary account that finds its way here is told,
-   politely, that it is not theirs, and could learn nothing by trying. *@
+   politely, that it is not theirs, and could learn nothing by trying.
+
+   **The failure log is read-only on purpose.** There is nothing here that clears or deletes a
+   row — the server offers no such route, and adding one to this page would be inventing a
+   control the server does not have. *@
 
 <PageTitle>Who can sign in — Prowlers &amp; Paragons</PageTitle>
 
@@ -55,9 +63,9 @@
 
     <Panel Title="Invite somebody">
         <p>
-            Adding an address lets that person ask for a sign-in link. It sends them nothing —
-            they sign in from the sign-in page when they want to, and the account is made the
-            first time they do.
+            Adding an address sends it a link to sign in, good for three days, and lets it ask
+            for another at any time after that. Adding an address already on the list changes
+            and sends nothing.
         </p>
 
         <form @onsubmit="Invite" @onsubmit:preventDefault>
@@ -83,10 +91,30 @@
             </p>
         </form>
 
-        @if (_added is { } added)
+        @if (_addedOutcome is { } addedOutcome)
         {
-            <p role="status">@added can sign in now.</p>
+            <p role="status">@AddedMessage(addedOutcome)</p>
         }
+    </Panel>
+
+    @* The way to the demonstrations, and without it there is none.
+
+       **They were unreachable from anywhere in the app.** The recordings and the two sample
+       characters moved to `/admin/portfolio` when the front door was built, and the banner's old
+       cross-link — the one thing that had ever pointed at them — was replaced in the same change
+       by the Build/Rules nav. Nothing was put back, so even the one audience allowed to see the
+       page had to know the address by heart. Every link into it came from inside it.
+
+       It belongs here rather than in the banner: it is a thing to show somebody, and this is the
+       page for looking after the site rather than using it. An audit found it; no test could,
+       because the suite renders these pages by type and asserts what chrome an address gets once
+       you are already there — never whether anybody can click their way in. *@
+    <Panel Title="Showing it to somebody">
+        <p>
+            Four recorded conversations, and two finished characters that fill in every section a
+            sheet has. Quicker than building one when you want to show what this does.
+        </p>
+        <NavLink class="btn" href="admin/portfolio">Open the demonstrations</NavLink>
     </Panel>
 
     <Panel Title="What withdrawing does">
@@ -105,6 +133,40 @@
             it. The address set on the deployment itself is not offered either — that one is
             changed where the rest of the site's settings are.
         </p>
+    </Panel>
+
+    <Panel Title="What has gone wrong" Aside="@ErrorLogCounted">
+        @if (_errorRows.Count == 0)
+        {
+            <p>Nothing has failed here in the last month.</p>
+        }
+        else
+        {
+            <p>
+                Each row folds every occurrence of one failure into a count, so a fault that kept
+                happening is one line rather than one per attempt. Nothing here is anybody's own
+                data — no address, no character, only what broke and how often.
+            </p>
+
+            <ChosenList>
+                @foreach (var row in _errorRows)
+                {
+                    <ChosenRow>
+                        <Body>
+                            <strong>@CategoryLabel(row.Category)</strong>
+                            <span class="small muted">@row.Route · @row.Kind</span>
+                            @if (!string.IsNullOrEmpty(row.Detail))
+                            {
+                                <p class="small muted">@row.Detail</p>
+                            }
+                            <p class="small muted">
+                                @Occurred(row) Quote reference @row.Reference to report it.
+                            </p>
+                        </Body>
+                    </ChosenRow>
+                }
+            </ChosenList>
+        }
     </Panel>
 }
 else if (_state == ListRequest.NotSignedIn)
@@ -140,11 +202,13 @@ else
     private ListRequest? _state;
     private IReadOnlyList<Invitation> _invitations = [];
     private string? _you;
+    private IReadOnlyList<ErrorLogRow> _errorRows = [];
 
     private string _email = "";
     private bool _grantsAdmin;
     private bool _inviting;
     private string? _added;
+    private InvitationAddResult? _addedOutcome;
     private string? _problem;
 
     /// <summary>The id being withdrawn, so one button reads as busy rather than all of them.</summary>
@@ -152,6 +216,11 @@ else
 
     private string Counted =>
         _invitations.Count == 1 ? "1 address" : $"{_invitations.Count} addresses";
+
+    private string ErrorLogCounted =>
+        _errorRows.Count == 0 ? "none recorded"
+        : _errorRows.Count == 1 ? "1 recorded"
+        : $"{_errorRows.Count} recorded";
 
     protected override async Task OnInitializedAsync() => await Reload();
 
@@ -162,33 +231,93 @@ else
         _state = answer.Result;
         _invitations = answer.Invitations;
         _you = answer.You;
+
+        // Asked for only once this account is known to manage the list — the server gates the
+        // two identically, but there is no reason to make the call before the first answer says
+        // it could possibly succeed.
+        _errorRows = _state == ListRequest.Loaded
+            ? (await ErrorLog.ListAsync()) is { Result: ErrorLogRequest.Loaded } log
+                ? log.Rows
+                : []
+            : [];
     }
+
+    /// <summary>A plain name for the subsystem, matching the words <c>SignIn.razor</c> uses for
+    /// the same four categories — a visitor who reports a failure and whoever reads this row
+    /// should be able to recognise it as the same thing.</summary>
+    private static string CategoryLabel(FailureCategory category) => category switch
+    {
+        FailureCategory.Mail => "sending mail",
+        FailureCategory.Storage => "saving what it was asked to save",
+        FailureCategory.Configuration => "how this deployment is set up",
+        _ => "something unclassified",
+    };
+
+    /// <summary>
+    /// How often, and — the reason this exists — whether it is still happening.
+    ///
+    /// <para>A row here is a fact about the last month, not about right now: the one row this
+    /// site has ever produced was an outage that ended days before anybody read the table. A
+    /// count on its own reads as an ongoing fire; a count next to "hasn't happened again" does
+    /// not.</para>
+    /// </summary>
+    private static string Occurred(ErrorLogRow row)
+    {
+        var times = row.Occurrences == 1 ? "Happened once" : $"Happened {row.Occurrences} times";
+        var last = DateTimeOffset.FromUnixTimeMilliseconds(row.LastAt);
+        var quiet = DateTimeOffset.UtcNow - last > TimeSpan.FromHours(24);
+
+        return quiet
+            ? $"{times}, most recently {When(last)}, and not again since."
+            : $"{times}, most recently {When(last)}.";
+    }
+
+    private static string When(DateTimeOffset at) => at.ToLocalTime().ToString("d MMM, HH:mm");
 
     private async Task Invite()
     {
         _inviting = true;
         _problem = null;
         _added = null;
+        _addedOutcome = null;
 
         var email = _email.Trim();
+        var outcome = await Invitations.AddAsync(email, _grantsAdmin);
 
-        if (await Invitations.AddAsync(email, _grantsAdmin))
-        {
-            _added = email;
-            _email = "";
-            _grantsAdmin = false;
-            await Reload();
-        }
-        else
+        if (outcome == InvitationAddResult.Refused)
         {
             // The server's own refusals are a malformed address and nothing else, so this is the
             // one sentence worth saying. It deliberately does not advise trying again: the same
             // address would be refused the same way.
             _problem = "That was not added. Check it is an email address.";
         }
+        else
+        {
+            _added = email;
+            _addedOutcome = outcome;
+            _email = "";
+            _grantsAdmin = false;
+            await Reload();
+        }
 
         _inviting = false;
     }
+
+    /// <summary>
+    /// The one sentence for whichever of the three ways adding an address can end.
+    ///
+    /// <para>All three are a kind of success — the server never refuses an address it has
+    /// already accepted the shape of — so none of them is <see cref="_problem"/>; they differ
+    /// only in what the reader now needs to do, if anything.</para>
+    /// </summary>
+    private string AddedMessage(InvitationAddResult outcome) => outcome switch
+    {
+        InvitationAddResult.Added => $"{_added} has been sent a link, and can sign in now.",
+        InvitationAddResult.AddedButNotMailed =>
+            $"{_added} can sign in now, but the link could not be sent — let them know another way.",
+        InvitationAddResult.AlreadyAllowed => $"{_added} could already sign in.",
+        _ => "",
+    };
 
     private async Task Withdraw(string id)
     {

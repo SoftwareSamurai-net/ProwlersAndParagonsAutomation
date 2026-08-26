@@ -2,6 +2,8 @@
    what a package granted and what was bought on top. A package buys the ranks it grants,
    so those pips are already paid for — CostCalculator only charges for the rest. *@
 
+@inject Sliders Sliders
+
 <div class="rank-row">
     @* What this Trait is, on hover and on focus.
 
@@ -46,6 +48,7 @@
        **The individual pips stay `aria-hidden`.** They are the slider's own rendering, and a
        reader told "4d Noteworthy, slider" does not also want twelve unlabelled children. *@
     <div class="pips"
+         @ref="_pips"
          role="slider"
          tabindex="0"
          aria-label="@($"{Name} rank")"
@@ -179,13 +182,18 @@
     /// <summary>
     /// The keys a slider is expected to answer to.
     ///
-    /// <para><b>Nothing here suppresses the browser's default, and that is a compromise rather
-    /// than a preference.</b> Blazor fixes <c>preventDefault</c> at render time rather than per
-    /// event, so suppressing it on this element would also swallow Tab and trap focus inside a
-    /// rank row — much worse than what it would fix. The consequence is that Home and End still
-    /// scroll the document as well as moving the rank. Left and Right are the pair to reach for:
-    /// the pips are horizontal, and this app is held to no horizontal overflow by a harness in
-    /// CI, so those two scroll nothing.</para>
+    /// <para><b>Nothing here suppresses the browser's default, and that is not a gap — it is
+    /// the wrong layer for it.</b> Blazor fixes an element's <c>preventDefault</c> at render
+    /// time rather than per event, so suppressing it here would apply to every key this handler
+    /// sees and swallow Tab along with Home and End, trapping focus inside a rank row — much
+    /// worse than what it would fix. Left and Right need no such thing: the pips are
+    /// horizontal, and this app is held to no horizontal overflow by a harness in CI, so those
+    /// two scroll nothing regardless.</para>
+    ///
+    /// <para>Home and End still reach the browser's own scrolling, which is what
+    /// <see cref="Sliders"/> exists to stop — a native listener on <see cref="_pips"/> that
+    /// answers to exactly those two keys and nothing else, registered once the element is on
+    /// the page. See <see cref="OnAfterRenderAsync"/>.</para>
     /// </summary>
     private Task Key(KeyboardEventArgs e) => e.Key switch
     {
@@ -198,4 +206,21 @@
 
     private Task Set(int value) =>
         RankChanged.InvokeAsync(Math.Clamp(value, Min, Max));
+
+    /// <summary>The slider element, guarded against Home/End on first render. See <see cref="Sliders"/>.</summary>
+    private ElementReference _pips;
+
+    /// <summary>
+    /// Attaches the Home/End guard once, when the element first exists.
+    ///
+    /// <para><b>Once per component instance, not once per render.</b> Blazor keeps the same
+    /// DOM node across re-renders of one row — a rank changing does not recreate the element —
+    /// so <paramref name="firstRender"/> is the whole of what is needed; the script's own
+    /// idempotence in <see cref="Sliders.Guard"/> is the second line of defence, not the
+    /// first.</para>
+    /// </summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await Sliders.Guard(_pips);
+    }
 }

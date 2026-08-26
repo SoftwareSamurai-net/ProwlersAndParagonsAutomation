@@ -62,17 +62,48 @@ function stem(word) {
     return word;
 }
 
-/** The words worth searching on: punctuation stripped, filler dropped, each counted once. */
-export function terms(query) {
-    const seen = [];
+/**
+ * How much of a query is read, and how many distinct words are searched on.
+ *
+ * **Both caps exist because neither the output limit nor the gate bounds the *work*.** An audit
+ * measured it: a 70KB query of 17,549 distinct three-letter words answered in **2.7 seconds**
+ * against the real corpus, where an ordinary one-word query takes about 2ms. Two paths are
+ * super-linear in the term count — this function's own dedup, and the per-term scan over the
+ * whole vocabulary in `reached` — and `MOST_RESULTS` in `rulebook.js` caps only how many rows come
+ * back, never how many words were matched to produce them.
+ *
+ * Any signed-in account could reach it, there is no rate limit on that route the way
+ * `/api/auth/request` has one, and Workers is billed and limited on CPU per request. So the cap is
+ * on the input, where the cost actually is.
+ *
+ * **Sixty words is far past any real question.** The longest sensible query somebody types at a
+ * table is a sentence; the stopword filter already removes the filler from it. A query longer than
+ * this is not a question, and truncating rather than refusing keeps an honest answer coming back
+ * for the first sixty words — the reader gets results, and `terms` in the response says exactly
+ * which words were used, which is the same honesty the flags already carry.
+ */
+const MOST_QUERY_BYTES = 2000;
+const MOST_TERMS = 60;
 
-    for (const word of String(query).toLowerCase().split(NOT_A_WORD)) {
+export function terms(query) {
+    // Cut before splitting, so a megabyte of text is never tokenised at all. This is the bound
+    // that matters most: the split itself is linear in the input, and everything after it is worse.
+    const asked = String(query).slice(0, MOST_QUERY_BYTES).toLowerCase();
+
+    // A Set, not an array with `includes`. The array made the dedup O(n²) — measured at 9ms for
+    // 2,000 words and 2.5s for 40,000, which is the shape of that curve. The cap above bounds this
+    // anyway; both are here because the cap is a policy and this is just the right data structure.
+    const seen = new Set();
+
+    for (const word of asked.split(NOT_A_WORD)) {
         if (word.length <= 2) continue;
         if (STOPWORDS.has(word)) continue;
-        if (!seen.includes(word)) seen.push(word);
+
+        seen.add(word);
+        if (seen.size >= MOST_TERMS) break;
     }
 
-    return seen;
+    return [...seen];
 }
 
 function sharedPrefixLength(a, b) {

@@ -189,6 +189,24 @@ public sealed class RankPipTests
     }
 
     /// <summary>
+    /// <b>The row guards its slider against Home and End on first render, and only once.</b>
+    ///
+    /// <para>The keyboard test above, <c>HomeAndEndGoToTheBounds</c>, cannot see this at all —
+    /// bUnit's synthetic <c>KeyDown</c> calls the Blazor handler directly and never touches a
+    /// real <c>preventDefault</c>, so a version of <c>Key</c> that suppressed nothing would pass
+    /// it identically. What is asserted here is the interop call that a browser harness in
+    /// <c>ProofPages</c> then drives for real.</para>
+    /// </summary>
+    [Fact]
+    public void TheSliderIsGuardedOnce()
+    {
+        using var ctx = new RenderContext();
+        Row(ctx);
+
+        Assert.Single(ctx.JSInterop.Invocations, i => i.Identifier == "ppSlider.guard");
+    }
+
+    /// <summary>
     /// The individual pips stay hidden from assistive technology.
     ///
     /// <para>They are the slider's own rendering. A reader told "4d Noteworthy, slider" does not
