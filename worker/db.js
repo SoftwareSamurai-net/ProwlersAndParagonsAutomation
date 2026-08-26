@@ -89,7 +89,10 @@ export async function recordFailure(db, { category, route, kind, detail, referen
         .run();
 }
 
-export async function userByEmail(db, email) {
+// Not exported: upsertUser below is the only caller. A route that wants a user by address
+// gets one from the session join instead — the same restriction the id lookup note above
+// records, so this stays a private helper rather than a second way in.
+async function userByEmail(db, email) {
     return await db.prepare('SELECT id, email, display_name FROM users WHERE email = ?')
         .bind(email).first();
 }
