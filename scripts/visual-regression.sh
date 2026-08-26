@@ -79,6 +79,26 @@
 # frame either way. The capture is therefore the settled page by construction rather than by
 # arriving late enough — which is what a golden should have been all along. The budget stays,
 # because it also covers font loading and layout, and belt-and-braces costs nothing here.
+#
+# ------------------------------------------------------------------------------------------------
+# AND --run-all-compositor-stages-before-draw, WHICH IS THE ONE THAT ACTUALLY ENDED IT.
+#
+# Turning the animation off was correct and did not stop the flake either. The next CI run failed on
+# two *different* pages, in a hard-edged rectangle at the bottom right — and sampling it showed the
+# cards and the panel inside that rectangle painted as `--bg` where the golden has `--surface`. Not
+# faded, not shifted: **not painted at all**, with a straight edge across unrelated elements. That
+# is a compositor tile that had not been rasterised when the frame was taken, and no amount of
+# waiting in *virtual* time fixes it, because the frame is produced on demand rather than after the
+# raster queue drains.
+#
+# `--run-all-compositor-stages-before-draw` is the flag for exactly that: it makes the compositor
+# finish every stage before the frame is handed over. Verified against this exact image before being
+# written in here — it is accepted, and the capture it produces is pixel-identical to the golden
+# taken without it, so it changes nothing except whether the answer is complete.
+#
+# **All three of these are kept.** They fix three different things — a wait for content, an
+# animation that back-fills, and a raster queue — and the symptom of every one of them was the same
+# unpainted region, which is why each in turn looked like the whole answer.
 
 set -euo pipefail
 
@@ -182,7 +202,7 @@ run_chrome() {
     local profile; profile="$(mktemp -d)"
     "$native_chrome" \
       --headless=new --no-sandbox --disable-gpu --allow-file-access-from-files \
-      --hide-scrollbars --user-data-dir="$profile" --virtual-time-budget=5000 --force-prefers-reduced-motion \
+      --hide-scrollbars --user-data-dir="$profile" --virtual-time-budget=5000 --force-prefers-reduced-motion --run-all-compositor-stages-before-draw \
       --window-size="${width},${height}" --screenshot="$out_host" $extra_flags \
       "file://$wwwroot/$page" >/dev/null 2>&1 || true
     rm -rf "$profile"
@@ -213,7 +233,7 @@ run_chrome() {
       "$docker_chrome_image" \
       --headless=new --no-sandbox --disable-gpu --allow-file-access-from-files \
       --hide-scrollbars --user-data-dir="/tmp/pp-chrome-profile-${attempt}" \
-      --virtual-time-budget=5000 --force-prefers-reduced-motion \
+      --virtual-time-budget=5000 --force-prefers-reduced-motion --run-all-compositor-stages-before-draw \
       --window-size="${width},${height}" --screenshot="/data/${out_name}" $extra_flags \
       "file:///data/${page}" >/dev/null 2>&1 || true
 
