@@ -826,6 +826,23 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// <b>A row's finding is on screen, not only reachable through a hidden element</b> — the
+    /// constraint the whole design exists to satisfy: WCAG is explicit that information carried
+    /// only by a tooltip is information some readers do not get, and the rows already had the
+    /// plumbing (<c>aria-describedby</c>, an <c>sr-only</c> twin) for exactly that shape from the
+    /// hover-description work. <c>RowFinding</c> deliberately does not reuse it.
+    /// </summary>
+    [Fact]
+    public void ARowFindingIsOnScreenNotOnlyToAssistiveTechnology()
+    {
+        Assert.Equal("grid", EffectiveValue(ScreenHalfOfAppCss, ".row-findings", "display", exact: true));
+
+        var source = File.ReadAllText(Path.Combine(WebRoot, "Components", "RowFinding.razor"));
+        Assert.DoesNotContain("sr-only", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("aria-describedby", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// No <c>calc()</c> on the screen side names a raw length. If a value is derived from a
     /// spacing rung, it derives from the <b>token</b>.
     ///
