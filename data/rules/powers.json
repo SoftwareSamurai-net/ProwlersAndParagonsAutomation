@@ -51,7 +51,8 @@
     ],
     "tags": [
       "transformation",
-      "shapeshifting"
+      "shapeshifting",
+      "transform"
     ],
     "verified_fields": [
       "range",
@@ -207,7 +208,8 @@
     "tags": [
       "control",
       "objects",
-      "inanimate"
+      "inanimate",
+      "golem"
     ],
     "verified_fields": [
       "range",
@@ -254,7 +256,9 @@
     "tags": [
       "defense",
       "passive",
-      "protection"
+      "protection",
+      "tough",
+      "plated"
     ],
     "verified_fields": [
       "range",
@@ -281,7 +285,9 @@
     "tags": [
       "mental",
       "movement",
-      "incorporeal"
+      "incorporeal",
+      "spirit",
+      "soul"
     ],
     "verified_fields": [
       "range",
@@ -345,7 +351,8 @@
       "attack",
       "damage",
       "touch",
-      "energy"
+      "energy",
+      "burn"
     ],
     "verified_fields": [
       "range",
@@ -372,7 +379,8 @@
     "tags": [
       "control",
       "dimensional",
-      "spirits"
+      "spirits",
+      "exile"
     ],
     "verified_fields": [
       "range",
@@ -432,7 +440,10 @@
       "attack",
       "ranged",
       "damage",
-      "energy"
+      "energy",
+      "fire",
+      "shoot",
+      "shooting"
     ],
     "verified_fields": [
       "range",
@@ -578,7 +589,8 @@
     "tags": [
       "support",
       "enhancement",
-      "buff"
+      "buff",
+      "enhance"
     ],
     "verified_fields": [
       "range",
@@ -696,7 +708,9 @@
     "tags": [
       "utility",
       "communication",
-      "mental"
+      "mental",
+      "radio",
+      "signal"
     ],
     "affects_resolve": false,
     "verified_fields": [
@@ -766,7 +780,8 @@
       "sensory",
       "defense",
       "initiative",
-      "edge"
+      "edge",
+      "premonition"
     ],
     "verified_fields": [
       "range",
@@ -794,7 +809,9 @@
       "control",
       "light",
       "environment",
-      "area"
+      "area",
+      "shadow",
+      "blackout"
     ],
     "verified_fields": [
       "range",
@@ -830,7 +847,8 @@
     "tags": [
       "attack",
       "debuff",
-      "sensory"
+      "sensory",
+      "flash"
     ],
     "verified_fields": [
       "range",
@@ -875,7 +893,9 @@
     "tags": [
       "defense",
       "ranged",
-      "passive"
+      "passive",
+      "block",
+      "bounce"
     ],
     "verified_fields": [
       "range",
@@ -903,7 +923,9 @@
       "transformation",
       "physical",
       "might",
-      "defense"
+      "defense",
+      "heavy",
+      "dense"
     ],
     "verified_fields": [
       "range",
@@ -1040,7 +1062,9 @@
     "tags": [
       "control",
       "counter",
-      "powers"
+      "powers",
+      "cancel",
+      "undo"
     ],
     "verified_fields": [
       "range",
@@ -1089,7 +1113,9 @@
     "tags": [
       "attack",
       "debuff",
-      "attribute"
+      "attribute",
+      "sap",
+      "weaken"
     ],
     "verified_fields": [
       "range",
@@ -1245,7 +1271,9 @@
     "tags": [
       "defense",
       "energy",
-      "absorption"
+      "absorption",
+      "absorb",
+      "soak"
     ],
     "verified_fields": [
       "range",
@@ -1291,7 +1319,10 @@
     "tags": [
       "attack",
       "restraint",
-      "control"
+      "control",
+      "trap",
+      "bind",
+      "web"
     ],
     "verified_fields": [
       "range",
@@ -1354,7 +1385,8 @@
     "tags": [
       "utility",
       "knowledge",
-      "skill"
+      "skill",
+      "specialist"
     ],
     "affects_resolve": false,
     "verified_fields": [
@@ -1449,7 +1481,8 @@
     "tags": [
       "movement",
       "flight",
-      "aerial"
+      "aerial",
+      "soar"
     ],
     "verified_fields": [
       "range",
@@ -1525,7 +1558,9 @@
       "defense",
       "energy",
       "active",
-      "shield"
+      "shield",
+      "barrier",
+      "bubble"
     ],
     "verified_fields": [
       "range",
@@ -1700,7 +1735,9 @@
       "transformation",
       "size",
       "physical",
-      "might"
+      "might",
+      "giant",
+      "huge"
     ],
     "verified_fields": [
       "range",
@@ -1727,7 +1764,8 @@
     "tags": [
       "defense",
       "health",
-      "survival"
+      "survival",
+      "unkillable"
     ],
     "verified_fields": [
       "range",
@@ -1763,7 +1801,12 @@
     "tags": [
       "support",
       "healing",
-      "medical"
+      "medical",
+      "hands",
+      "touch",
+      "wound",
+      "mend",
+      "cure"
     ],
     "verified_fields": [
       "range",
@@ -1828,7 +1871,9 @@
       "attack",
       "breath",
       "area",
-      "cone"
+      "cone",
+      "wind",
+      "gust"
     ],
     "verified_fields": [
       "range",
@@ -1864,7 +1909,10 @@
     "tags": [
       "mental",
       "sensory",
-      "deception"
+      "deception",
+      "fake",
+      "trick",
+      "hallucination"
     ],
     "verified_fields": [
       "range",
@@ -1901,7 +1949,8 @@
       "defense",
       "survival",
       "death",
-      "regeneration"
+      "regeneration",
+      "undying"
     ],
     "verified_fields": [
       "range",
@@ -1929,7 +1978,8 @@
     "tags": [
       "defense",
       "immunity",
-      "passive"
+      "passive",
+      "immune"
     ],
     "verified_fields": [
       "range",
@@ -2040,7 +2090,9 @@
     "tags": [
       "attack",
       "debuff",
-      "chemical"
+      "chemical",
+      "gas",
+      "swarm"
     ],
     "verified_fields": [
       "range",
@@ -2083,7 +2135,8 @@
     "tags": [
       "utility",
       "communication",
-      "social"
+      "social",
+      "translate"
     ],
     "affects_resolve": false,
     "verified_fields": [
@@ -2112,7 +2165,9 @@
       "support",
       "social",
       "team",
-      "buff"
+      "buff",
+      "inspire",
+      "rally"
     ],
     "verified_fields": [
       "range",
@@ -2143,7 +2198,9 @@
     "tags": [
       "movement",
       "physical",
-      "might"
+      "might",
+      "jump",
+      "bound"
     ],
     "verified_fields": [
       "range",
@@ -2287,7 +2344,8 @@
     "tags": [
       "special",
       "probability",
-      "meta"
+      "meta",
+      "fortune"
     ],
     "verified_fields": [
       "range",
@@ -2323,7 +2381,8 @@
     "tags": [
       "control",
       "technology",
-      "machines"
+      "machines",
+      "hack"
     ],
     "verified_fields": [
       "range",
@@ -2372,7 +2431,10 @@
       "melee",
       "unarmed",
       "defense",
-      "combat"
+      "combat",
+      "punch",
+      "kick",
+      "fight"
     ],
     "verified_fields": [
       "range",
@@ -2400,7 +2462,8 @@
       "utility",
       "disguise",
       "social",
-      "deception"
+      "deception",
+      "impersonate"
     ],
     "verified_fields": [
       "range",
@@ -2498,7 +2561,10 @@
     "tags": [
       "mental",
       "control",
-      "psychic"
+      "psychic",
+      "dominate",
+      "command",
+      "puppet"
     ],
     "verified_fields": [
       "range",
@@ -2535,7 +2601,9 @@
     "tags": [
       "control",
       "counter",
-      "powers"
+      "powers",
+      "shut",
+      "area"
     ],
     "verified_fields": [
       "range",
@@ -2603,7 +2671,9 @@
       "movement",
       "incorporeal",
       "defense",
-      "intangible"
+      "intangible",
+      "walls",
+      "walk"
     ],
     "verified_fields": [
       "range",
@@ -2658,7 +2728,9 @@
     "tags": [
       "control",
       "transformation",
-      "attack"
+      "attack",
+      "curse",
+      "transform"
     ],
     "verified_fields": [
       "range",
@@ -2685,7 +2757,9 @@
     "tags": [
       "utility",
       "storage",
-      "dimensional"
+      "dimensional",
+      "stash",
+      "cache"
     ],
     "affects_resolve": false,
     "verified_fields": [
@@ -2723,7 +2797,8 @@
       "mental",
       "control",
       "psychic",
-      "body"
+      "body",
+      "inhabit"
     ],
     "verified_fields": [
       "range",
@@ -2801,7 +2876,10 @@
       "sensory",
       "mental",
       "future",
-      "divination"
+      "divination",
+      "foresee",
+      "predict",
+      "rewind"
     ],
     "verified_fields": [
       "range",
@@ -3027,7 +3105,8 @@
     "tags": [
       "sensory",
       "detection",
-      "perception"
+      "perception",
+      "echolocation"
     ],
     "verified_fields": [
       "range",
@@ -3070,7 +3149,11 @@
     "tags": [
       "defense",
       "healing",
-      "recovery"
+      "recovery",
+      "wound",
+      "mend",
+      "knit",
+      "recover"
     ],
     "verified_fields": [
       "range",
@@ -3101,7 +3184,9 @@
     "tags": [
       "defense",
       "passive",
-      "damage reduction"
+      "damage reduction",
+      "immune",
+      "tough"
     ],
     "verified_fields": [
       "range",
@@ -3142,7 +3227,9 @@
     "tags": [
       "movement",
       "speed",
-      "ground"
+      "ground",
+      "run",
+      "sprint"
     ],
     "verified_fields": [
       "range",
@@ -3197,7 +3284,9 @@
       "attack",
       "area",
       "melee",
-      "force"
+      "force",
+      "boom",
+      "knockback"
     ],
     "verified_fields": [
       "range",
@@ -3225,7 +3314,9 @@
       "transformation",
       "size",
       "stealth",
-      "movement"
+      "movement",
+      "tiny",
+      "small"
     ],
     "verified_fields": [
       "range",
@@ -3290,7 +3381,9 @@
       "control",
       "area",
       "movement",
-      "terrain"
+      "terrain",
+      "ice",
+      "slippery"
     ],
     "verified_fields": [
       "range",
@@ -3318,7 +3411,8 @@
       "sensory",
       "mental",
       "spirit",
-      "divination"
+      "divination",
+      "ghost"
     ],
     "verified_fields": [
       "range",
@@ -3375,7 +3469,9 @@
       "physical",
       "attack",
       "defense",
-      "movement"
+      "movement",
+      "spin",
+      "twirl"
     ],
     "verified_fields": [
       "range",
@@ -3412,7 +3508,8 @@
       "movement",
       "teleportation",
       "portal",
-      "dimensional"
+      "dimensional",
+      "wormhole"
     ],
     "verified_fields": [
       "range",
@@ -3535,7 +3632,12 @@
       "attack",
       "melee",
       "damage",
-      "physical"
+      "physical",
+      "punch",
+      "fist",
+      "opponent",
+      "throw",
+      "hit"
     ],
     "verified_fields": [
       "range",
@@ -3589,7 +3691,9 @@
       "attack",
       "debuff",
       "nonlethal",
-      "control"
+      "control",
+      "knockout",
+      "paralyze"
     ],
     "verified_fields": [
       "range",
@@ -3660,7 +3764,8 @@
     "tags": [
       "control",
       "summoning",
-      "entities"
+      "entities",
+      "conjure"
     ],
     "verified_fields": [
       "range",
@@ -4185,7 +4290,10 @@
       "movement",
       "speed",
       "combat",
-      "edge"
+      "edge",
+      "faster",
+      "quick",
+      "outrun"
     ],
     "affects_resolve": true,
     "verified_fields": [
@@ -4222,7 +4330,8 @@
     "tags": [
       "movement",
       "water",
-      "aquatic"
+      "aquatic",
+      "swim"
     ],
     "verified_fields": [
       "range",
@@ -4258,7 +4367,9 @@
     "tags": [
       "movement",
       "urban",
-      "acrobatic"
+      "acrobatic",
+      "swing",
+      "grapple"
     ],
     "verified_fields": [
       "range",
@@ -4362,7 +4473,8 @@
       "mental",
       "psychic",
       "communication",
-      "sensory"
+      "sensory",
+      "mind"
     ],
     "verified_fields": [
       "range",
@@ -4507,7 +4619,8 @@
     "tags": [
       "utility",
       "memory",
-      "intellect"
+      "intellect",
+      "photographic"
     ],
     "affects_resolve": false,
     "verified_fields": [
@@ -4544,7 +4657,9 @@
     "tags": [
       "sensory",
       "tracking",
-      "detection"
+      "detection",
+      "tag",
+      "follow"
     ],
     "verified_fields": [
       "range",
@@ -4620,7 +4735,9 @@
       "transformation",
       "disguise",
       "identity",
-      "shapeshifting"
+      "shapeshifting",
+      "impersonate",
+      "copy"
     ],
     "verified_fields": [
       "range",
@@ -4765,7 +4882,8 @@
     "tags": [
       "movement",
       "underground",
-      "burrowing"
+      "burrowing",
+      "dig"
     ],
     "verified_fields": [
       "range",
@@ -4793,7 +4911,8 @@
       "physical",
       "stealth",
       "movement",
-      "body"
+      "body",
+      "flat"
     ],
     "verified_fields": [
       "range",
@@ -4904,7 +5023,9 @@
     "tags": [
       "movement",
       "climbing",
-      "physical"
+      "physical",
+      "climb",
+      "stick"
     ],
     "verified_fields": [
       "range",
@@ -4931,7 +5052,9 @@
     "tags": [
       "sensory",
       "combat",
-      "analysis"
+      "analysis",
+      "weak",
+      "spot"
     ],
     "verified_fields": [
       "range",
