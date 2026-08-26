@@ -1,6 +1,5 @@
 using Bunit;
 using ProwlersAndParagonsAutomation.Web.Layout;
-using ProwlersAndParagonsAutomation.Web.Services;
 
 namespace ProwlersAndParagons.Web.Tests;
 
@@ -161,7 +160,7 @@ public sealed class UndoTests
         Assert.Contains(name, status.TextContent, StringComparison.Ordinal);
         Assert.Contains("Undo", status.TextContent, StringComparison.Ordinal);
 
-        status.QuerySelector("button")!.Click();
+        await status.QuerySelector("button")!.ClickAsync();
 
         Assert.Equal(name, ctx.Session.Sheet.Name);
         Assert.DoesNotContain("Undo", layout.Find(".save-status").TextContent, StringComparison.Ordinal);

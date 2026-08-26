@@ -222,13 +222,26 @@ jobs:
         run: ./scripts/visual-regression.sh
 
       - name: Upload visual-regression diffs
-        # Only reachable on a real pixel mismatch, per the step above's own id — a `--out` diff
-        # PNG is written only when a page fails, so there is nothing to upload on a clean run.
+        # Only reachable on a real pixel mismatch or a missing golden, per the step above's own
+        # id — a `--out` diff PNG is written only when a page fails, but `actual/` is written on
+        # every page either way, which is what makes this the place a CI-rendered capture can be
+        # got hold of.
+        #
+        # **`include-hidden-files` is why this step had never once uploaded anything.** The path
+        # is `.visual-regression/`, upload-artifact@v4 excludes dot-prefixed paths by default,
+        # and `if-no-files-found` defaults to `warn` — so the step logged "No files were found
+        # with the provided path" and went green, on every failing run, for as long as it has
+        # existed. That is this repository's oldest failure shape (a check satisfied by there
+        # being nothing to check) wearing a workflow step's clothes. `error` is set as well, so
+        # the same thing cannot happen quietly a second time: if this step runs and finds
+        # nothing, the run fails and says so.
         if: ${{ !cancelled() && steps.visual.outcome == 'failure' }}
         uses: actions/upload-artifact@v4
         with:
           name: visual-regression-diffs
           path: .visual-regression/
+          include-hidden-files: true
+          if-no-files-found: error
           retention-days: 14
       - name: Publish the browser front end
         # The static site is the deliverable for web/, and publishing exercises things a
