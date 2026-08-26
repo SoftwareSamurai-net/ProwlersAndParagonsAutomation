@@ -131,7 +131,6 @@ stylesheet half was simply gone. Two habits catch it and neither is a judgement 
 The deeper rule is the one at the top of this section: a mutation belongs against *committed* work.
 If the fix had been committed before the guard was mutated, there would have been nothing to lose.
 
-
 **And when it goes wrong anyway, git has probably still got it.**
 
 ```bash
@@ -217,7 +216,6 @@ A structural "the verdict expression is derived from the measured variables" che
 and rejected: with no data-flow analysis in this repository's tooling it is a second unbounded
 denylist of the same shape that just failed, and the twin subsumes it by proving behaviour.
 
-
 ## Architecture
 
 Four layers with a strict no-upward-dependency rule, one project each — and three hosts on the
@@ -239,7 +237,6 @@ data/rules/   →   engine/   →   sheets/   →   web/   ←   data/transcript
 
 **These are separate projects on purpose, and splitting them was the point of the Blazor slice.** `engine/` and `sheets/` used to be compiled into the root executable, which a WebAssembly project cannot reference without dragging Spectre.Console in with it. Now the arrows above hold at compile time: `web/` has no calculator of its own and no reference that could reach one. Do not merge them back.
 
-
 ### Key engine types
 
 | Type | Role |
@@ -251,7 +248,6 @@ data/rules/   →   engine/   →   sheets/   →   web/   ←   data/transcript
 | `PowerFormatter` (sheets) | Renders a Power's rulebook stat line (`Self · Baseline Rank (½ Toughness) · 1 HP per rank`) so output can be checked against the book |
 | `CharacterSheetRenderer` (sheets) | Builds the `.txt` and `.json` exports as strings, for whichever host asked |
 | `CharacterValidator` | Returns `ValidationResult` with `Error`/`Warning` severity issues |
-
 
 ## Settled — do not redo
 
