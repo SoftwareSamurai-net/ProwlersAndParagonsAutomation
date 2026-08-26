@@ -372,17 +372,28 @@ public sealed class ProofPages
         reader.Api.SignedIn = ("acct-7", "player");
 
         var page = reader.Render<RulesReference>();
+
+        // **Wait for the page to have finished arriving before touching it, or this proof is a
+        // race.** `OnInitializedAsync` fetches the contents, which draws the "What is here" panel
+        // at the foot; the search below fetches results and then a passage. Each is a real await,
+        // and a proof captured between them is a picture of a page mid-load — which the pixel diff
+        // reported as a 4% difference against a golden taken from the same tree, on CI and not
+        // here. `Find` waits; `FindAll` does not, and an assertion that happens to pass is not the
+        // same as a page that has settled.
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll(".chosen li")));
+
         page.Find("#rules-search").Input("knockback");
         page.Find("form").Submit();
 
         // The positive control: if the search did not run, this proof is a picture of an empty
-        // box captioned as a page of results.
-        Assert.NotEmpty(page.FindAll(".chosen li"));
+        // box captioned as a page of results. Waited for, not merely asserted — the search is a
+        // fetch, and the assertion passing on the first attempt is luck rather than a settled page.
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll("[aria-expanded]")));
 
         // ...and one result opened, so the page shows the book's own words rather than only a
-        // list of places they might be.
-        page.FindAll(".chosen li button")[0].Click();
-        Assert.NotEmpty(page.FindAll(".book-text"));
+        // list of places they might be. The passage is a third fetch; wait for it too.
+        page.FindAll("[aria-expanded]")[0].Click();
+        page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll(".book-text")));
 
         var rules = new StringBuilder();
         Section(rules, "Rules reference — searched, with one passage open", page.Markup);
