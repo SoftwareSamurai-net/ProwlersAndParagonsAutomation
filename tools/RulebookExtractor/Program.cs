@@ -86,10 +86,12 @@ const string ExtractionNote =
   + "whole, so full-width text — every chapter opening is set that way — is not cut in half. The "
   + "running foot, the purchaser watermark and the rotated chapter title in the margin are "
   + "dropped. Headings are detected by typeface, and a heading with no body of its own qualifies "
-  + "the ones beneath it, which is how a character's name reaches their stat block. Two known "
-  + "limits: a heading set in small capitals extracts with its case as stored rather than as "
-  + "printed (Chapter 8's stat-block labels), and a table of three or more columns is read across "
-  + "rather than down.";
+  + "the ones beneath it, which is how a character's name reaches their stat block. A section's "
+  + "own paragraph breaks are kept as \\n, read off the page's own vertical spacing rather than "
+  + "invented from sentence shape. Two known limits: a heading set in small capitals extracts "
+  + "with its case as stored rather than as printed (Chapter 8's stat-block labels), and a table "
+  + "of three or more columns is read across rather than down — which the paragraph logic also "
+  + "splits at row boundaries, without repairing the underlying scramble.";
 
 var reader = new PageReader();
 var options = new JsonSerializerOptions
