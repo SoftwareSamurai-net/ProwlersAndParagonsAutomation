@@ -33,7 +33,7 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 ## Remaining work
 
-Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends, and a visitor with no account can watch a real conversation build one. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, a Power search that orders ties by name, and a payload size.
+Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends, and a visitor with no account can watch a real conversation build one. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, and a payload size. (Item 4, the Power search's vocabulary, is closed — see below.)
 
 [`docs/HANDOVER.md`](docs/HANDOVER.md) picks three of these and says what a slice on each would actually involve, including which approaches are already spent. Read it before choosing; read the entry here before starting.
 
@@ -224,68 +224,84 @@ questions and the ledger is the one that can be resumed.
 
 **The one genuine gap is Ch.6's vehicles and headquarters (pp.94–104).** `unique_vehicle` and `headquarters` are Perks priced per unit — a Hero Point buys 25 Vehicle Points — and what those points buy is not modelled, so the perk is a cost and a free-text note. That is a sub-tool of its own (spend a vehicle's points on a vehicle), not a chapter to extract, and nothing else needs it.
 
-### 4. `search_powers` ranks ties alphabetically
+### 4. `search_powers` had no vocabulary for the effects players actually describe — **closed**
 
 The MCP server's Power search is a word match, and when several Powers match the same words it
-puts them in name order under a caution calling them "the closest entries". **"Walks through
-walls" is the case to reproduce**: it returns twenty-two, of which **twenty tie on a single
-word** — eighteen on "through" and two on "walls" — so which of them a caller sees is
-alphabetical. Phasing is eleventh, where a caller asking for eight rows never sees it. (Measured
-against the built server; an earlier version of this paragraph said twenty-one on "through", and
-was wrong on both figures.) "He shoots fire from his hands" is the same weakness the other way
-round: Blast is never returned, because its description says "a damaging ranged attack" and none
-of those words is in it.
+used to put them in name order under a caution calling them "the closest entries". **"Walks
+through walls" was the case that reproduced it**: it returned twenty-two, of which twenty tied on
+a single filler word, so which of them a caller saw was alphabetical, and Phasing sat eleventh.
+"He shoots fire from his hands" was the same weakness the other way round: Blast was never
+returned at all, because its description says "a damaging ranged attack" and names no element.
 
-**Weighting each word by how much of the rulebook uses it was implemented and reverted**, and
-that is the finding rather than the fix. It sorted "walks through walls" correctly and broke
-"reads minds", which dropped Telepathy out of the first three because four Powers carry "mind"
-in their names. Two examples are not evidence; a half-tuned scorer is worse than a dull one,
-because it is wrong in places nobody has looked at rather than in the place they tested.
+**Weighting each word by how much of the rulebook uses it was implemented and reverted early on**,
+and that was the finding rather than the fix. It sorted "walks through walls" correctly and broke
+"reads minds", which dropped Telepathy out of the first three because four Powers carry "mind" in
+their names. Two examples are not evidence; a half-tuned scorer is worse than a dull one, because
+it is wrong in places nobody has looked at rather than in the place they tested.
 
-What shipped instead is the truth about each row — `matched_terms` names which of the caller's
-words it matched, `found` and `more_beyond_these` say the list was cut, and the caution says
-rows matching the same words are in no meaningful order and to search a more distinctive word.
-The guide teaches all three.
+**A labelled set closed the loop on judging any of this**, and its own history is worth keeping
+straight because this file drifted out of step with it once already. `PowerSearchExpectations.cs`
+holds 33 sentences a player might actually say, each written by opening `data/rules/powers.json`,
+reading a Power's own printed `description`, and writing the sentence — never by running the
+search first and recording what came back. The two exceptions are quoted directly from this entry
+rather than discovered by searching: "walks through walls" (Phasing) and "he shoots fire from his
+hands" (Blast). `PowerSearchEvaluationTests.cs` is two tests over that set: `ReportTheCurrentScore`
+is a measurement that never fails and prints a table; `TheScoreNeverGetsWorse` is the ratchet.
+Widening the stopword list (dropping "through", "than", "anyone" and other connective words that
+carry no information about a Power) raised the baseline from 24 of 33 to 25 — recorded further
+down this file, under "`search_powers`: 24 of 33 to 25 of 33" — but that entry's own closing line
+was already the honest read: **the two cases this item names by hand are not reachable by any
+word-matching change at all**, because neither word is in the matching Power's own printed
+description. This item's own text above still said "24 of the 33" after that slice landed, which
+is the drift: read the test file's `Baseline` constant, not this paragraph, if the two ever
+disagree again.
 
-Closing it properly needs a set of descriptions with expected answers — twenty or thirty, written
-from the Powers rather than from the scorer — and then a scoring change measured against them.
-That is a slice of its own, and until somebody wants it, an honest label beats a tuned guess.
+**Closed by giving Powers a searchable vocabulary as data, not by touching the scorer.** The
+mechanism already existed on the browser side — `OptionRow` reads `Keywords`, "words it can be
+found by but does not print" (see CLAUDE.md's `OptionList` section) — and it is the same `tags`
+field `data/rules/powers.json` already carries for all 141 Powers, which `CharacterTools.Score`
+already weighted at 6 points, between a name/id match and a category match. So the fix reuses
+that field rather than inventing a second one: Phasing's `tags` gained `walls`/`walk` (its entry
+says "pass through solid matter", never "walls"), Blast's gained `fire`/`shoot`/`shooting` (its
+entry is "name the type of damage it inflicts when you buy it" — naming the element *is* the
+Power, so those words are drawn from its own printed invitation), and 65 more Powers gained one to
+five words each, chosen the same way: reading that Power's own description and asking what a
+player would call the effect, with the labelled set closed rather than consulted query by query.
+`search_powers` and `Mentions`/`Score` in `mcp/CharacterTools.cs` are byte-for-byte unchanged.
 
-**The set now exists, and the baseline is measured: `search_powers` meets 24 of the 33 labelled
-expectations.** `PowerSearchExpectations.cs` holds 33 sentences a player might actually say, each
-written by opening `data/rules/powers.json`, reading a Power's own printed `description`, and
-writing the sentence — never by running the search first and recording what came back, which
-would measure the scorer against itself rather than against the rulebook. The two exceptions are
-quoted directly from this entry rather than discovered by searching: "walks through walls" (wants
-Phasing in the top 3; today it lands 11th of 22, matching this entry's own reproduction) and "he
-shoots fire from his hands" (wants Blast; today it is never returned at all, also as recorded
-above). Both fail, as expected going in.
+**`search_powers` now meets all 33 of 33 labelled expectations**, up from 25. `Baseline` in
+`PowerSearchEvaluationTests.cs` is raised to 33 to match. Three additions collided with existing,
+deliberately-worded regression tests and were dropped rather than kept: `fly` on Flight and `fast`
+on Super Speed each turned a description-only match into a tag match for the exact fixed queries
+`ADescriptionOnlyMatchIsNotReportedAsTheRulebookHavingNothing`/`SearchSaysWhenNothingMatchedByNameAtAll`
+use to illustrate that flag ("he can fly", "heals fast"), and `read` on Telepathy broke
+`ATightLimitDoesNotChangeWhatTheSearchFound`'s premise that a specific long query's top row is a
+description-only match. None of the three was load-bearing for the 33/33 score — Super Speed's
+`faster` and Telepathy's `mind` alone were enough — so they came out rather than the older tests
+being rewritten to match a coincidence.
 
-`PowerSearchEvaluationTests.cs` is two tests over that set, deliberately not one:
+**`PhasingAndBlastAreFoundByTheirOwnVocabularyNotByTheScorer`** holds the two named cases to their
+own bar directly, so a future change to unrelated vocabulary cannot let either slip back out of
+range while the aggregate ratchet stays green on some other query's improvement. Broken and
+watched to fail twice, once per Power: removing Phasing's `walls`/`walk` tags failed with
+`Assert.Contains() Failure: Item not found in collection` / `Not found: "phasing"`; removing
+Blast's `fire`/`shoot`/`shooting` tags failed the same way for `"blast"`. Both restored
+immediately via `git stash` (per the stash-first discipline above) rather than a bare
+`git checkout --`; `git diff` was empty before either commit.
 
-- **`ReportTheCurrentScore` is a measurement and never fails.** It runs every expectation against
-  the live `search_powers`, prints a table — met/unmet, the position found, the query, the wanted
-  id(s), and the top five ids actually returned — and asserts only that it evaluated every
-  expectation in the set (a positive control on the measurement itself, not on the scorer).
-  Asserting the score here would be a test that starts red and stays red until somebody tunes the
-  scorer, which is not what a measurement is for.
-- **`TheScoreNeverGetsWorse` is the gate.** It asserts the met count stays at or above 24. This is
-  the ratchet the closing work needs: a future scoring change is judged by whether this number
-  goes up, rather than by the two examples above the way the reverted attempt was.
-
-**Broken and watched to fail.** Forcing `search_powers`'s internal row count to 1 regardless of
-the caller's own `limit` argument (the shape a truncation bug would take) drove the measured score
-from 24 of 33 to 16 of 33, and `TheScoreNeverGetsWorse` failed with that exact count in its
-message. Restored immediately afterwards; `git diff` against `mcp/CharacterTools.cs` was empty
-before committing, confirming nothing of the mutation shipped.
-
-Of the 9 that fail today, most are exactly the tie-ordering problem this item is about: a
-description-only match with no distinctive word scores the same 2 points as every other
-description-only match, so a real answer sits behind a wall of coincidences at the same score.
-"He moves faster than anyone can follow" is a clean example — Super Speed's description shares no
-distinctive word with the sentence, and four Powers with a closer *coincidental* wording (`aura`,
-`running`, `tracer`, `animal_mimicry`) outrank it. That is the shape a scoring change should fix;
-this set is what would show whether one did.
+**What this closes and what it does not.** The 33 labelled cases now all pass, and the two
+PROGRESS.md named by hand specifically are pinned against regression. What is *not* claimed: the
+underlying scorer still ties description-only matches at a flat 2 points regardless of how
+distinctive the word is, so a query outside this set, worded around a Power with no vocabulary
+written for it yet, can still land behind a wall of coincidences the way "he moves faster than
+anyone can follow" used to. This slice made the haystack bigger where the 33 examples showed it
+was missing words a player would actually reach for; it did not make the needle-finding smarter.
+Vocabulary was added to 67 of the 141 Powers (the two named cases, the other seven the table
+above's predecessor found failing, and a further pass across categories); the other 74 carry only
+their original category tags. **`worker/search.js` needed no change and got none**: it is the
+`/rules` full-text search over `data/rulebook/`'s book prose, a different corpus and a different
+tool from `search_powers`'s 141 structured Power entries, and `tags` is not a field that corpus
+has.
 
 ### 5. The browser payload is large — a characteristic, not a defect
 
@@ -933,6 +949,9 @@ reachable by any word-matching change at all: Phasing's description says "solid 
 "walls"; Blast's says "a damaging ranged attack", with the damage type left to the player, so
 nothing in it is about fire. Closing those needs vocabulary in the data, which is a different and
 better-scoped slice than tuning the scorer.
+
+**That slice landed — see item 4, now closed at 33 of 33.** The vocabulary is a wider `tags`
+field, reusing the mechanism the browser already calls `Keywords`; the scorer above is untouched.
 
 #### Phase 3: a broken rule says so on the row that broke it
 
