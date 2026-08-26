@@ -152,18 +152,17 @@ Every row below was actually run, not reasoned about. Each mutation was applied 
 discipline), the affected test was watched go red, and the mutation was then reverted before the
 next row.
 
-| # | Mutation | Expected | Observed |
+| # | Mutation | Expected | Observed (actual `node --test` output) |
 |---|---|---|---|
-| 1 | Removed the mean measure from `diff.mjs` (deleted the `meanWithin` check from `within`, so only the count measure gates) | The uniform-shift tests go red | Both uniform-shift tests failed: `THE HEADLINE CASE` failed because exit code was 0 instead of 1; the `channel-threshold 24` isolation test failed the same way. All other tests still passed. |
-| 2 | Widened `maxDiffPercent`'s default back to `0.05` | The 24×24-block test goes red | The block test failed: exit code was 0 instead of 1 (576/1,152,000 = 0.050% now again `<=` 0.05%). All other tests still passed. |
-| 3 | Made `png.mjs`'s `encodePng` write a constant (every pixel forced to solid red, ignoring the pixels argument) | The round-trip tests go red | `encodePng then decodePng returns the original RGBA pixels unchanged` and `decodePng recovers RGB pixels with alpha forced opaque` (RGB fixture goes through the real `encodePng`... — see note) both failed on the `deepEqual` pixel comparison, confirming the round-trip assertions are reading real pixel content and not merely agreeing with the encoder. |
+| 1 | `scripts/visual/diff.mjs`: changed `const within = countWithin && meanWithin;` to `const within = countWithin;`, removing the mean measure from gating | At least the isolation test (mean measure alone, at the old `channelThreshold=24`) goes red | **13 pass, 1 fail.** Only `not ok 2` — the `channel-threshold 24` isolation test — failed. `not ok 3`, the "headline case" run at this file's own *tightened* default (`channelThreshold=3`), stayed green: at 3, a +20 shift also trips the per-pixel count measure on its own (20 > 3), so removing the mean measure alone does not unmask it there. This is why test 2 exists as a separate, deliberately isolated case: it is the only one of the two that actually proves the mean measure is doing independent work, by explicitly restoring the *old* threshold (24) under which the count measure genuinely cannot see a +20 shift. |
+| 2 | `scripts/visual/diff.mjs`: widened the `maxDiffPercent` default from `0.02` back to `0.05` | The 24×24-block test goes red, nothing else | **13 pass, 1 fail.** Only `not ok 4` — the 24×24 block test — failed (576/1,152,000 = 0.050%, once again `<=` 0.05%). Exactly as expected, nothing else moved. |
+| 3 | `scripts/visual/png.mjs`: `encodePng` ignores its `pixels` argument and always writes solid red for every pixel | The round-trip tests go red | **6 pass, 8 fail.** Broader than the two dedicated round-trip tests: `encodePng` is also how every `diff.test.mjs` fixture is built, so any test comparing two *different* synthesised images (the shift, the block, the single pixel, the bounding-box rectangle, the `--out` visualisation) now compares two identical solid-red images instead and fails or passes for the wrong reason. The two tests that specifically assert the round trip (`encodePng then decodePng returns the original RGBA pixels unchanged`, and the single-pixel round-trip) failed on their `deepEqual`, as expected. Two things stayed green on purpose: `decodePng recovers RGB pixels with alpha forced opaque` uses `encodeRgbPng`, a fixture built by hand in the test file rather than through the mutated `encodePng`, so it is untouched by this mutation and correctly did not report a false failure; and the dedicated "broken encoder... NOT hidden" positive-control test also stayed green, because it *is itself* the reproduction of this exact mutation done inline rather than a caller of the real `encodePng` — it is supposed to demonstrate the failure shape, not fail alongside it. |
 
-Row 3 note: the RGB-decode test in `png.test.mjs` builds its own RGB fixture by hand
-(`encodeRgbPng`) rather than going through `encodePng` (which only ever writes RGBA), so mutating
-`encodePng` alone does not touch it directly — it was the RGBA round-trip test, plus the dedicated
-"broken encoder" positive-control test in the same file, that went red, which is the pair the
-positive-control test exists to prove: a round-trip test alone can pass against a broken encoder
-by construction, and the positive control demonstrates that this file's actually does not.
+The breadth of row 3's failure is itself informative: it shows `encodePng` is the shared fixture
+generator for the whole `diff.test.mjs` file, so a broken encoder does not fail quietly in one
+corner — it fails loudly and everywhere, which is a second, incidental confirmation that these
+tests are exercising real pixel content rather than internally-consistent nonsense.
 
-After each row, the mutation was reverted and the full suite re-run green (14/14) before moving to
-the next row.
+After each row, the mutation was reverted (`git checkout -- <file>`, safe because the fix and
+tests were committed *before* any mutation began) and the full suite re-run green (14/14) before
+moving to the next row — confirmed after row 3 as well.
