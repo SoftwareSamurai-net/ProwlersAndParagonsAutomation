@@ -307,7 +307,7 @@ questions and the ledger is the one that can be resumed.
 
 **The one genuine gap is Ch.6's vehicles and headquarters (pp.94–104).** `unique_vehicle` and `headquarters` are Perks priced per unit — a Hero Point buys 25 Vehicle Points — and what those points buy is not modelled, so the perk is a cost and a free-text note. That is a sub-tool of its own (spend a vehicle's points on a vehicle), not a chapter to extract, and nothing else needs it.
 
-### 4. `search_powers` had no vocabulary for the effects players actually describe — **closed**
+### 4. `search_powers` had no vocabulary for the effects players actually describe — **the 33/33 slice is closed; the benchmark it closed against is widened**
 
 The MCP server's Power search is a word match, and when several Powers match the same words it
 used to put them in name order under a caution calling them "the closest entries". **"Walks
@@ -385,6 +385,40 @@ their original category tags. **`worker/search.js` needed no change and got none
 `/rules` full-text search over `data/rulebook/`'s book prose, a different corpus and a different
 tool from `search_powers`'s 141 structured Power entries, and `tags` is not a field that corpus
 has.
+
+**A benchmark sitting at 33 of 33 stops measuring anything but its own absence of a regression**,
+and that is what this closed slice had become: `TheScoreNeverGetsWorse` could only ever hold or
+fail, never show an improvement, because there was nothing left in the set for one to show up
+against. That is a property of a saturated benchmark, not evidence the search got better than the
+paragraph above already claims — the underlying scorer is unchanged and the previous paragraph's
+"what this does not close" is still exactly true. **The set is widened rather than the search
+re-tuned**, for the same reason the original 33 exists at all: judging a scoring change needs a
+set the change can be judged against, and one that already reads 100% cannot do that job.
+
+39 more entries were added the same way as the first 33 — read a Power's own printed
+`description` in `data/rules/powers.json`, write the sentence a player would say, never run
+`search_powers` first — biased toward the 74 Powers left with only their original category tags
+above, toward an effect landing on someone other than the caster (Blind, Cloud Minds, Emotion
+Control, Life Drain, Power Absorption, Possession, Dazzle, Aura, Polymorph and others), and toward
+four sentences with no Power behind them at all, on the baker's-sentence model. Neither `Score`
+nor `Mentions` changed, and no Power's `tags` changed, for this slice.
+
+**The honest score against the widened set is 60 of 72**, and `Baseline` in
+`PowerSearchEvaluationTests.cs` is raised from 33 to 60 to match — a number below 100% on purpose,
+since a benchmark that cannot fail is the problem this slice exists to fix. All twelve misses are
+real gaps rather than scoring accidents: three of the four "should find nothing" sentences find a
+weak coincidental hit instead (an office report's "numbers" lands on Languages' "a number of extra
+languages" — ordinary English colliding with rulebook vocabulary, not a bug to chase); `cloud_minds`
+and `buff` do not appear anywhere in a 25-row window for their sentences, confirming their Powers
+still lack the "forget" / "rally the team" vocabulary this item already flagged as open;
+`super_senses_lie_detection` misses its bar even though "lying" is the literal word in its own
+printed description, because a description-only match is worth a flat 2 points regardless of how
+distinctive the word is — the exact limitation the paragraph above never claimed to have fixed;
+four more (`elemental_control`, `power_absorption`, `psi_screen`, `form_gaseous`) land just outside
+their window; `gestalt` misses by a wide margin, kept in as a deliberately hard, obscure case
+rather than dropped for being hard. None of the 39 new sentences were edited after this number was
+measured — every miss above is a real gap, not a sentence that could as honestly have named a
+different Power.
 
 ### 5. The browser payload is large — a characteristic, not a defect
 

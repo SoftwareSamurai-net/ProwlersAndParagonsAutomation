@@ -202,6 +202,20 @@ public sealed class PowerSearchEvaluationTests
     /// assertion reads live search output on every run rather than a cached number, and that a
     /// query's <see cref="PowerSearchExpectation.TopN"/> above 1 is what a truncated result
     /// list actually costs.
+    ///
+    /// <para><b>Re-broken against the widened set, since a guard proved against the old 33
+    /// alone would not show the new 39 are actually being measured.</b> The same mutation —
+    /// <c>var wanted = 1;</c> in place of <c>Math.Clamp(limit, 1, 25)</c> in
+    /// <c>CharacterTools.SearchPowers</c> — drove this from 60 of 72 to <b>38 of 72</b> and
+    /// failed with:
+    /// <code>
+    /// search_powers now meets only 38 of 72 labelled expectations, down from the recorded
+    /// baseline of 60. Run ReportTheCurrentScore to see which ones regressed.
+    /// </code>
+    /// A drop of 22, not a no-op — the mutation actually changed the answer, on both the
+    /// original queries and the new ones, which is what makes this a real proof rather than a
+    /// mutation that happened to leave the count untouched. Reverted immediately after;
+    /// <c>git diff mcp/CharacterTools.cs</c> was empty before either commit in this slice.</para>
     /// </summary>
     [Fact]
     public void TheScoreNeverGetsWorse()
