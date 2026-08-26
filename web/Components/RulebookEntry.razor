@@ -12,7 +12,10 @@
    Power's entry is several paragraphs, and it is something to read rather than to glance at.
 
    The mechanics above it come from `data/rules`, which is verified entry by entry and is what
-   the engine costs against. This is the text beside them, never instead of them. *@
+   the engine costs against. This is the text beside them, never instead of them.
+
+   **`BookText` owns how a passage is set**, so this page and the rules reference cannot present
+   the same text two ways. This one only decides *which* passage and where it is printed. *@
 
 @if (_entry is { } entry)
 {
@@ -33,13 +36,9 @@
            carries the state. Same rule as the budget breakdown. *@
         @if (_open)
         {
-            <div class="book-text" id="@BodyId">
-                @foreach (var paragraph in Paragraphs(entry.Text))
-                {
-                    <p>@paragraph</p>
-                }
-
-                <p class="small muted">@entry.SourceRef, printed p.@entry.PrintedPage</p>
+            <div id="@BodyId">
+                <BookText Text="@entry.Text"
+                          Citation="@($"{entry.SourceRef}, printed p.{entry.PrintedPage}")" />
             </div>
         }
     </div>
@@ -68,11 +67,4 @@
 
         _entry = await Book.ForPowerAsync(PowerName);
     }
-
-    /// <summary>
-    /// The entry's own paragraph breaks. The extractor keeps them; running them together would
-    /// turn a Power's entry into a wall.
-    /// </summary>
-    private static IEnumerable<string> Paragraphs(string text) =>
-        text.Split('\n').Select(line => line.Trim()).Where(line => line.Length > 0);
 }

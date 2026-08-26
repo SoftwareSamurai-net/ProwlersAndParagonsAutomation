@@ -2264,7 +2264,16 @@ public sealed class WebPresentationTests
         // it may not be something a second page can write without it.
         ("replay-turn", "ReplayTurn.razor"),
         ("replay-who", "ReplayTurn.razor"),
-        ("replay-figures", "ReplayVerdict.razor")
+        ("replay-figures", "ReplayVerdict.razor"),
+
+        // How a passage of the book is set. Two pages hand-wrote this — the Power editor's
+        // disclosure and the rules reference — and the reference's own comment already claimed
+        // "one idiom for the book's own words, not a second one for the same text on another
+        // page", which is a promise a comment cannot keep. It is `BookText` now, and the stat
+        // line and option blocks it draws are owned with it.
+        ("book-text", "BookText.razor"),
+        ("book-stat", "BookText.razor"),
+        ("book-options", "BookText.razor")
     ];
 
     public static TheoryData<string, string> Owned()
