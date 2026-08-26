@@ -114,6 +114,28 @@ public sealed class AccountCharacterStore : ICharacterStore
     }
 
     /// <summary>
+    /// Read one of them without opening it — same two sources as <see cref="OpenAsync"/> and
+    /// none of its side effect.
+    ///
+    /// <para><b>It exists because the manager has to weigh a character it is not looking at.</b>
+    /// A row's confirmation asks whether there is anything to lose, and for the row that is open
+    /// the session can answer from the sheet in memory; for every other row the only copy is in
+    /// the store, and the question cannot be answered without reading it. <see cref="OpenAsync"/>
+    /// would answer it and move the current-character pointer on the way past — so asking "is
+    /// this worth asking about" would switch the app to the character somebody is about to throw
+    /// away, and the next autosave would write the sheet on screen over it.</para>
+    ///
+    /// <para>Null means the same as everywhere else here: there is no character at that id this
+    /// build can read. A caller deciding whether to protect one should treat that as unknown
+    /// rather than as nothing, the way <see cref="AccountCharacters.IsFull"/> treats a cap it
+    /// could not ask about.</para>
+    /// </summary>
+    public async Task<(CharacterSheet Sheet, SheetMode Mode)?> ReadAsync(string id) =>
+        (await _who.CurrentAsync()).IsSignedIn
+            ? await _inTheAccount.LoadAsync(id)
+            : await _local.LoadAsync(id);
+
+    /// <summary>
     /// Throw one away, wherever it lives.
     ///
     /// <para><b>Not the one that is open unless it is asked for by id.</b> The single-character

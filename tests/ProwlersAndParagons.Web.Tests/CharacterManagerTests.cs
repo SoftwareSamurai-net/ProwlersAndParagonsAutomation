@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using AngleSharp.Dom;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
@@ -131,6 +132,144 @@ public sealed class CharacterManagerTests
         var primary = cut.FindAll("button").Single(b => b.TextContent.Contains("Start a new character", StringComparison.Ordinal));
         Assert.DoesNotContain("small", primary.ClassList);
     }
+
+    // ── Throwing one away ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The row a reader is <b>not</b> looking at is the one this panel used to discard on the
+    /// first click, and the one it could least afford to.
+    ///
+    /// <para>The confirmation was keyed to the open character — <c>id == _currentId &amp;&amp;
+    /// Session.HasSomethingToLose</c> — so a character built twenty minutes ago and since switched
+    /// away from went in one click, with nothing behind it: the session holds the sheet being
+    /// edited and never the others, so there was nothing left in memory to put back either.</para>
+    /// </summary>
+    [Fact]
+    public async Task DiscardingACharacterYouAreNotLookingAtAsksFirst()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        var id = SavedCharacters.NewId();
+        await account.SaveAsync(id, "Ninth Precinct", SampleCharacters.Hero(), SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+        Discard(cut, "Ninth Precinct").Click();
+
+        Assert.Contains("Keep this character", cut.Markup, StringComparison.Ordinal);
+
+        // And nothing has happened yet — the character is still on the account, not merely still
+        // drawn. A panel that had deleted it and then asked would satisfy the assertion above.
+        Assert.Contains((await account.ListAsync()).Characters, c => c.Id == id);
+    }
+
+    /// <summary>Changing your mind leaves it exactly where it was, and offers the row again.</summary>
+    [Fact]
+    public async Task ChangingYourMindLeavesTheOtherCharacterExactlyAsItWas()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        var id = SavedCharacters.NewId();
+        await account.SaveAsync(id, "Ninth Precinct", SampleCharacters.Hero(), SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+        Discard(cut, "Ninth Precinct").Click();
+        Button(cut, "Keep this character").Click();
+
+        Assert.Contains((await account.ListAsync()).Characters, c => c.Id == id);
+        Assert.DoesNotContain("Keep this character", cut.Markup, StringComparison.Ordinal);
+        Assert.NotNull(Discard(cut, "Ninth Precinct"));
+    }
+
+    /// <summary>
+    /// The positive control for the question: it is a question, not a wall. Confirming really does
+    /// throw the character away — and throws away the one that was asked about, which is the other
+    /// half of the same guarantee.
+    /// </summary>
+    [Fact]
+    public async Task ConfirmingDiscardsTheCharacterYouAreNotLookingAt()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        var doomed = SavedCharacters.NewId();
+        var spared = SavedCharacters.NewId();
+        await account.SaveAsync(doomed, "Ninth Precinct", SampleCharacters.Hero(), SheetMode.Hero);
+        await account.SaveAsync(spared, "The Quiet Hour", SampleCharacters.Villain(), SheetMode.Villain);
+
+        var cut = ctx.Render<CharacterManager>();
+        Discard(cut, "Ninth Precinct").Click();
+        Button(cut, "Yes, discard this character").Click();
+
+        var left = (await account.ListAsync()).Characters;
+        Assert.DoesNotContain(left, c => c.Id == doomed);
+        Assert.Contains(left, c => c.Id == spared);
+    }
+
+    /// <summary>
+    /// The other positive control, and the one that says the question is asked for a reason rather
+    /// than out of habit: a character with nothing on it still goes on one click.
+    ///
+    /// <para>Same rule <see cref="CharacterSession.HasSomethingToLose"/> already applied to the
+    /// sheet on screen, asked of a row through <see cref="CharacterSession.IsWorthKeeping"/> — so
+    /// the two cannot come to mean different things depending on which row was clicked. Without
+    /// this, a panel that asked about every row unconditionally would pass every assertion
+    /// above.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnEmptyCharacterYouAreNotLookingAtIsDiscardedOnOneClick()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        var id = SavedCharacters.NewId();
+        await account.SaveAsync(id, "Untouched", new CharacterSheet(), SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+        Discard(cut, "Untouched").Click();
+
+        Assert.DoesNotContain("Keep this character", cut.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain((await account.ListAsync()).Characters, c => c.Id == id);
+    }
+
+    /// <summary>
+    /// A character the store cannot answer for is asked about rather than assumed empty. Null from
+    /// the store means "unreadable payload" and "the server did not answer" alike, and discarding
+    /// somebody's character in silence because their network dropped is the wrong half of that.
+    /// </summary>
+    [Fact]
+    public async Task ACharacterTheStoreCannotAnswerForIsAskedAboutRatherThanAssumedEmpty()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        var id = SavedCharacters.NewId();
+        await account.SaveAsync(id, "Ninth Precinct", SampleCharacters.Hero(), SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+
+        // The list has been drawn; now the server goes away, so reading the row back answers null.
+        ctx.Api.Unreachable = true;
+        Discard(cut, "Ninth Precinct").Click();
+
+        Assert.Contains("Keep this character", cut.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>The "Discard" button belonging to the row with this label, and no other row's.</summary>
+    private static IElement Discard(IRenderedComponent<CharacterManager> cut, string label) =>
+        cut.FindAll("ul.chosen > li")
+            .Single(row => row.QuerySelector(".body")!.TextContent.Contains(label, StringComparison.Ordinal))
+            .QuerySelectorAll("button")
+            .First(b => b.TextContent.Contains("Discard", StringComparison.Ordinal));
+
+    private static IElement Button(IRenderedComponent<CharacterManager> cut, string label) =>
+        cut.FindAll("button").First(b => b.TextContent.Contains(label, StringComparison.Ordinal));
 
     // A `title` attribute is covered by `NoComponentExplainsAnythingWithATitleAttribute` in
     // WebPresentationTests, which scans every .razor file — a per-component copy here would be a

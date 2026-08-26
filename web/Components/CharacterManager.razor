@@ -196,12 +196,45 @@
     /// <summary>
     /// Asks first, unless there is nothing to lose — the same rule the old panel used, and the same
     /// question, so the two cannot disagree about what "something to lose" means.
+    ///
+    /// <para><b>It asks about every row, not only the open one, and that was a real hole rather
+    /// than a decision.</b> The condition here used to be <c>id == _currentId &amp;&amp;
+    /// Session.HasSomethingToLose</c>, so a character that was not on screen was discarded on the
+    /// first click with nothing behind it — no question, and no way back, because the session holds
+    /// the sheet being edited and never the others. The row a reader is least likely to be thinking
+    /// carefully about was the one with the least protection.</para>
     /// </summary>
     private async Task AskDelete(string id)
     {
-        if (id == _currentId && Session.HasSomethingToLose) { _pendingDelete = id; return; }
+        if (await IsWorthAskingAbout(id)) { _pendingDelete = id; return; }
 
         await Delete(id);
+    }
+
+    /// <summary>
+    /// Whether throwing this row away is worth a question first.
+    ///
+    /// <para><b>One predicate, two places to read the character from.</b> The open row is answered
+    /// from the sheet in memory, which is ahead of storage by however much has not been written
+    /// yet; every other row has no copy anywhere but the store, so it is read back —
+    /// <see cref="AccountCharacterStore.ReadAsync"/> rather than <c>OpenAsync</c>, which would
+    /// switch the app to the character about to be discarded. Both ends ask
+    /// <see cref="CharacterSession.IsWorthKeeping"/>, so "something to lose" cannot come to mean
+    /// two different things depending on which row was clicked.</para>
+    ///
+    /// <para><b>A character that could not be read is asked about, not assumed empty.</b> The
+    /// store answers null for a payload this build cannot trust <em>and</em> for a server it could
+    /// not reach, and those are not the same thing — treating the second as "nothing here" would
+    /// discard somebody's character without a word because their network dropped. Unknown fails
+    /// towards the question, the same direction <see cref="AccountCharacters.IsFull"/> takes for a
+    /// cap it could not ask about.</para>
+    /// </summary>
+    private async Task<bool> IsWorthAskingAbout(string id)
+    {
+        if (id == _currentId) return Session.HasSomethingToLose;
+
+        return await Store.ReadAsync(id) is not { } stored
+            || CharacterSession.IsWorthKeeping(stored.Sheet);
     }
 
     private async Task Delete(string id)
