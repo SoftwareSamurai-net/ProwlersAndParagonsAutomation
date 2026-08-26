@@ -127,7 +127,7 @@ public sealed class CharacterSwitcherTests
         // The click handler refreshes the list asynchronously, so the render that shows it lands
         // after the click returns. Waiting for the element is what makes this a test of the
         // component rather than of bUnit dispatch timing.
-        shell.WaitForElement("#character-switch-list li button");
+        await shell.WaitForElementAsync("#character-switch-list li button");
 
         var offered = shell.FindAll("#character-switch-list li button")
             .Select(b => b.TextContent.Trim()).ToList();
@@ -191,7 +191,7 @@ public sealed class CharacterSwitcherTests
 
         var shell = ctx.Render<MainLayout>();
         await shell.Find(".character-switch-name").ClickAsync(new());
-        shell.WaitForElement("#character-switch-list li button");
+        await shell.WaitForElementAsync("#character-switch-list li button");
         await shell.FindAll("#character-switch-list li button")[0].ClickAsync(new());
 
         Assert.Equal(otherName, ctx.Session.Sheet.Name);

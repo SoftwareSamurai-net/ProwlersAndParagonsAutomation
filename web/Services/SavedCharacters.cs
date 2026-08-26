@@ -276,7 +276,7 @@ public sealed class SavedCharacters
     /// </summary>
     public async Task<string> CurrentIdAsync() => await CurrentIdAsync(await _who.CurrentAsync());
 
-    internal async Task<string> CurrentIdAsync(Identity who)
+    private async Task<string> CurrentIdAsync(Identity who)
     {
         try
         {
@@ -289,7 +289,7 @@ public sealed class SavedCharacters
     /// <summary>Switches which character is open. Does not load or save one — only points at it.</summary>
     public async Task SetCurrentAsync(string id) => await SetCurrentAsync(await _who.CurrentAsync(), id);
 
-    internal async Task SetCurrentAsync(Identity who, string id)
+    private async Task SetCurrentAsync(Identity who, string id)
     {
         try { await _js.InvokeVoidAsync("ppStore.save", CurrentKeyFor(PrefixFor(who)), id); }
         catch (Exception e) when (IsStorageFailure(e)) { /* the switch did not take; still no character lost */ }
