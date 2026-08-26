@@ -851,6 +851,52 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// A finding printed under the row that broke it is told apart from a warning by more than
+    /// its colour — WCAG 1.4.1, and the same rule the budget strip's over-fill and the option
+    /// rows' current-cursor ring already carry.
+    ///
+    /// <para><b>The whole substance of this is CSS</b>, which is why it lives here rather than
+    /// in the bUnit suite: <c>RowFinding.razor</c>'s markup already carries the visible word
+    /// "Error"/"Warning" (asserted in <c>RowFindingRenderTests</c>), and this is the other half
+    /// — that the stylesheet does not undo the distinction by drawing both the same shape. An
+    /// error's rule is solid; a warning's is dashed, read as the actually-applying declaration
+    /// rather than assumed from the source.</para>
+    /// </summary>
+    [Fact]
+    public void AFindingsErrorAndWarningStatesDifferInShapeNotOnlyColour()
+    {
+        var error = EffectiveValue(ScreenHalfOfAppCss, ".finding", "border-left", exact: true);
+        var warning = EffectiveValue(ScreenHalfOfAppCss, ".finding.warning", "border-left", exact: true);
+
+        Assert.True(error is not null, "app.css has no rule for .finding at all.");
+        Assert.True(warning is not null, "app.css has no rule for .finding.warning.");
+
+        Assert.Contains("solid", error!, StringComparison.Ordinal);
+        Assert.Contains("dashed", warning!, StringComparison.Ordinal);
+
+        // The colour differs too, but that alone would be exactly the failure this test exists
+        // to catch — so the property under test is the *style* keyword above, not this.
+        Assert.NotEqual(error, warning);
+    }
+
+    /// <summary>
+    /// <b>A row's finding is on screen, not only reachable through a hidden element</b> — the
+    /// constraint the whole design exists to satisfy: WCAG is explicit that information carried
+    /// only by a tooltip is information some readers do not get, and the rows already had the
+    /// plumbing (<c>aria-describedby</c>, an <c>sr-only</c> twin) for exactly that shape from the
+    /// hover-description work. <c>RowFinding</c> deliberately does not reuse it.
+    /// </summary>
+    [Fact]
+    public void ARowFindingIsOnScreenNotOnlyToAssistiveTechnology()
+    {
+        Assert.Equal("grid", EffectiveValue(ScreenHalfOfAppCss, ".row-findings", "display", exact: true));
+
+        var source = File.ReadAllText(Path.Combine(WebRoot, "Components", "RowFinding.razor"));
+        Assert.DoesNotContain("sr-only", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("aria-describedby", source, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// No <c>calc()</c> on the screen side names a raw length. If a value is derived from a
     /// spacing rung, it derives from the <b>token</b>.
     ///
@@ -2210,8 +2256,18 @@ public sealed class WebPresentationTests
         ("stat-block", "StatBlock.razor"),
         ("stat-blocks", "StatBlockRow.razor"),
         ("chosen", "ChosenList.razor"),
+
+        // ChosenRow's own content, split out from the <li> so a finding can sit under it and
+        // still be one list item — see RowFinding below.
+        ("chosen-row", "ChosenRow.razor"),
+
         ("options", "OptionList.razor"),
         ("option", "OptionRow.razor"),
+
+        // Validation on the row that broke it. Two classes because a row can carry more than
+        // one finding — the list itself, and each finding inside it.
+        ("row-findings", "RowFinding.razor"),
+        ("finding", "RowFinding.razor"),
 
         // What a list says when it holds nothing. Owned for the usual reason and one of its
         // own: six copies of this treatment is six chances for an empty state to go back to
