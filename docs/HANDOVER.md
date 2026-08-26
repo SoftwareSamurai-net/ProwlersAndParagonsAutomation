@@ -1,29 +1,20 @@
 # Handover
 
-**The pre-1.0 audit's test half is done, both remaining Phase 3 front-end items are built, and
-[#77](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/77) is green on both
-checks.** Read [`CLAUDE.md`](../CLAUDE.md) and [`PROGRESS.md`](../PROGRESS.md) after this file.
+**`CLAUDE.md` is now an index of 286 lines, and ten guides under [`docs/guide/`](guide/) carry
+the rest.** Read [`CLAUDE.md`](../CLAUDE.md) first and follow its routing table to the guide for
+whatever you are about to touch, then [`PROGRESS.md`](../PROGRESS.md).
 
-A twelve-agent adversarial audit had applied **126 mutations to the three suites and 48 were not
-caught**. Eleven streams closed them, worked in isolated git worktrees and merged one at a time onto
-a single integration branch so that eleven streams cost **one** deploy. Every merge was verified by
-re-running the suites rather than by trusting the stream's own report, and the highest-value guards
-were re-broken by hand afterwards. The full account is the completed entry in `PROGRESS.md`; the
-per-stream mutation tables are in [`docs/notes/`](notes/README.md).
-
-The shape worth reusing: **fan out on file-collision boundaries, merge serially, verify each merge
-yourself.** Two streams reported results I could not reproduce as stated and both mattered — see
-"What this round learned" below.
+This round closed `PROGRESS.md` item 7's snapshotability half, item 4 (`search_powers`), the
+`.shell` spacing item that had sat in this file's "still open" list since before the pre-1.0 audit,
+and re-verified item 1 (the four Heroes) with a second independent instrument. Four streams, worked
+in isolated worktrees and merged serially onto one branch, so four slices cost **one** deploy.
 
 ---
 
 ## Where things stand
 
-**4,653 tests across four suites** — 3,964 engine, 509 bUnit, 166 accounts, and **14 on the pixel
-comparator, which is new**: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had
-no tests at all while being the only thing standing between four palettes and nobody looking.
-
-Measured on the integration branch after the last merge, not carried across from any stream:
+**4,729 tests across four suites** — 4,000 engine, 549 bUnit, 166 accounts, 14 pixel comparator.
+Measured on this branch after the last merge, not carried across from any stream:
 
 ```bash
 dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
@@ -32,133 +23,121 @@ dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
 ```
 
 **`dotnet test` prints one `Passed!` line per project, and there are two.** If you see one, a
-project failed to **build** and its result is simply missing — the same trap as `Catastrophic` in
-another spelling. Count the lines.
+project failed to **build** and its result is simply missing. Count the lines, and grep for
+`Catastrophic` — a crashed process still prints `Passed! - Failed: 0`.
 
-**The browser harnesses now assert nineteen verdicts, not eleven.** Every behavioural harness has a
-**deliberately-broken twin** that CI requires to say `FAIL`, driven by the byte-identical harness
-script. That is the answer to a denylist of hard-coded-verdict spellings, which `|| true` walked
-straight through while reporting `PASS` against a sticky strip that moved 483px.
-
-**A whole-tree Qodana scan reports 0.** `./scripts/qodana-scan.sh`; it needs Docker Desktop running.
-It found 2 on this work and both were fixed. Do not repeat the zero without re-running it.
-
-**Regenerating the rulebook corpus is now a check**, and `CLAUDE.md` used to say nothing did it:
-
-```bash
-dotnet run --project tools/RulebookExtractor -- "docs/Prowlers_&_Paragons_Ultimate_Edition.pdf" data/rulebook
-```
-
-Compare `git hash-object` against `git rev-parse HEAD:<file>`, **not** `git status` — regenerating
-rewrites every file, and on Windows the raw bytes differ by line ending even when the blob does not.
-All ten chapters came back byte-identical, which is what verifies the `PageReader` seam.
+**A whole-tree Qodana scan reported 0** via `./scripts/qodana-scan.sh` (needs Docker Desktop).
+Do not repeat that zero without re-running it.
 
 ---
 
-## The visual check, which is where most of the surprises were
+## The split, and the one thing that would tell you it was wrong
 
-**All seven pages are checked again and all seven come back pixel-identical in CI.** The goldens are
-CI-rendered and committed. Three things had to be found on the way, and two were only findable
-because the comparator had been tightened first — which is the argument for tightening it.
+`CLAUDE.md` went from 1,431 lines to 286. The rule that decided what moved:
 
-- **The step that uploads the diff images had never uploaded anything.** `upload-artifact@v4`
-  excludes dot-prefixed paths by default, the path is `.visual-regression/`, and
-  `if-no-files-found` defaults to `warn`. Every failing run logged *"No files were found with the
-  provided path"* and went green. Found by trying to use it.
-- **The rules reference was flaky the whole time.** Two runs on commits that changed nothing it
-  renders disagreed on 59.6% of its pixels — `.panel`'s entrance animation caught mid-flight, which
-  `--virtual-time-budget` cannot prevent because a wait is a race. Captures now force
-  `prefers-reduced-motion`, so the frame is settled by construction.
-- **The historic 32,462-pixel disagreement was never a renderer difference.** It was the same
-  entrance animation, and the first diagnosis written for it here was wrong — the band where CI
-  painted `--surface` and Docker painted `--bg` is the painted and unpainted state of one panel,
-  not two renderers disagreeing about layout. `animation: none` under reduced motion closed it:
-  the Docker Chrome and the runner's Chrome now produce **byte-for-byte identical PNGs for all
-  seven pages**. The Windows-versus-Linux rule is untouched and still absolute; the
-  Linux-versus-Linux gap is gone because it was never a gap.
+> A rule stays in the index if breaking it costs work regardless of what you were doing. It moves
+> to a guide if you can only break it while working on that area.
 
-**A local run now passes all seven.** Still do not use `--update-goldens` off Linux — the
-Windows/Linux rasteriser difference is real and unrelated.
+**Nothing was cut** — the partition was proved to tile the 1,446-line baseline exactly: 1,446 rows
+covered counting duplicates, 1,446 distinct, zero gaps and zero overlaps, with a positive control
+(dropping one 100-line range reports exactly 100 gaps). `RepositoryGuideTests` now holds the index
+and the guide set to each other, and holds the index to a 400-line budget.
 
-**To regenerate goldens deliberately**, once this is on `master`:
+**Four fresh no-context agents were given trap tasks and all four routed correctly** — each quoted
+the routing table as the thing that sent it to the right guide, and each then found the rule that
+made its task wrong (the `title`-attribute ban, the Item Con, the MCP stdout discipline, the
+four presentation rules). That is the measurement item 7 asked for, and it is better evidence than
+the eleven-agent data point that motivated the item. **A control arm was run with the routing table
+stripped out** — see the completed entry in `PROGRESS.md` for what it showed.
 
-```bash
-gh workflow run visual-goldens.yml --ref <branch>
-gh run download <run-id> --name visual-goldens --dir tests/visual-goldens
-```
+**What would tell you the split was wrong:** an agent breaking a rule that is now in a guide. If
+that happens, suspect the routing table before you suspect the reader — and say so in the entry.
 
-**A `workflow_dispatch` workflow cannot be dispatched until it exists on the default branch** — a
-GitHub rule, not a repository one. Before then the same PNGs come out of the ordinary build's
-`visual-regression-diffs` artifact, whose `actual/` holds every page as CI rendered it.
+**Adding something? Put it in the guide for its area.** The way `CLAUDE.md` got to 1,431 lines was
+one reasonable paragraph at a time, and the cost was not aesthetic: PR #79 shipped four features
+and `CLAUDE.md` recorded one of them, while a bullet describing a confirm that same PR had removed
+sat there being wrong through three more merges.
 
-Look at them before committing them. They are real images, and this is the one check in the
-repository whose whole subject is what something looks like.
+---
+
+## Documentation rot found by doing this, which is the point
+
+Three separate stale claims were found and fixed, none of which any test could have caught:
+
+- `CLAUDE.md`'s undo section said discarding a non-current saved character "is still a confirm,
+  deliberately". PR #79 removed that confirm and shipped `web/Services/DiscardedCharacter.cs`.
+- `CLAUDE.md` was **silent on three of PR #79's four features** — `RulebookProse`/`BookText`, the
+  explained sheet, and `DiscardedCharacter`.
+- **This file** said `.shell` "also holds the sticky budget strip, so it needs proofing on every
+  route." It does not — the strip is a sibling of `<main class="shell">`
+  (`MainLayout.razor:157`), which is why the `.shell` gap fix needed no proofing against it at
+  all. Two bullets in `docs/guide/browser.md` inherited the same staleness and described a
+  negative-margin bleed that `app.css` records as removed along with its guard.
+
+**Read a claim against the code before you act on it.** All three read as true.
 
 ---
 
 ## What is left, in the order I would take it
 
-1. **The snapshotability half of the pre-1.0 audit** — `PROGRESS.md` item 7. Untouched, and the
-   argument for it got stronger: `CLAUDE.md` is over 1,300 lines and `PROGRESS.md` over 4,400, and
-   this slice added to both. One weak data point in favour of the pointer-file answer: eleven agents
-   were each given the two or three `CLAUDE.md` sections their task depended on rather than the
-   whole file, and none went wrong for want of the rest — weak because the sections were chosen by
-   somebody who had read all of it.
-2. **`search_powers` vocabulary — closed.** `PROGRESS.md` item 4 is now at 33 of 33, up from 25,
-   by giving 67 of the 141 Powers a wider `tags` field (the same field the browser already reads
-   as `OptionRow`'s `Keywords`) rather than by touching the scorer, which is unchanged. The two
-   cases item 4 names by hand — Phasing for "walks through walls", Blast for "he shoots fire from
-   his hands" — are both met and separately pinned against regression by
-   `PhasingAndBlastAreFoundByTheirOwnVocabularyNotByTheScorer`. What is *not* claimed: the scorer
-   still ties description-only matches at a flat 2 points regardless of distinctiveness, so a
-   query outside this labelled set, about a Power nobody has written vocabulary for yet, can still
-   land behind a wall of coincidences the way it always could — this slice widened the haystack
-   the 33 examples showed was missing words, it did not change how ties are broken.
-3. **The four published Heroes 1 HP out.** Every cheap explanation is spent.
-4. **Discarding a non-current saved character** still uses a confirm; undoing it is a
-   restore-into-store rather than the sheet buffer, so it was left rather than folded in.
-5. **Durable telemetry**, deferred by the owner — `PROGRESS.md` item 9 has the research and the trap
-   that would break the site silently if anybody migrates.
+1. **The goldens need regenerating on CI**, and the `.shell` change is why — all eight proof pages
+   shift by up to 12px vertically. Measured with `getBoundingClientRect`, every `.shell` child gap
+   is now uniformly 16px. **You cannot regenerate goldens off Linux**; use the workflow:
+   ```bash
+   gh workflow run visual-goldens.yml --ref <branch>
+   gh run download <run-id> --name visual-goldens --dir tests/visual-goldens
+   ```
+   Look at them before committing them. This is the one check whose whole subject is what
+   something looks like.
+2. **The codebase half of item 7**, untouched: dead code, engine hot paths, payload waste, and the
+   token side. `PROGRESS.md` is now over 4,900 lines and is read at the start of every slice by
+   instruction — the same argument that motivated the `CLAUDE.md` split applies to it, and the
+   same answer probably does not, because it is chronological by design. Nobody has costed it.
+3. **The four published Heroes 1 HP out** — item 1. Now a *confirmed* negative from two
+   independent instruments: the residual is not a mispriced element in any of the four, and no
+   alternate starting package lands any of them on 125. What is left is an interaction — a floor,
+   a baseline or a grouping applied where the authors did something else. Do not tune an ambiguous
+   variant to force a zero.
+4. **`search_powers` is at 33 of 33** and the benchmark is therefore **saturated** — it can no
+   longer show an improvement, only a regression. The scorer itself is unchanged: description-only
+   matches still tie flat, so a query about a Power nobody has written vocabulary for can still
+   land behind coincidental ties, and 74 of 141 Powers carry only their original category tags.
+   Widening the expectation set is what would make it a measurement again.
+5. **Item 1c, the extractor's paragraph breaks** — a stream was run on this; see `PROGRESS.md`.
+6. **Durable telemetry**, deferred by the owner — `PROGRESS.md` item 9.
 
 ---
 
 ## Still open from before, unchanged
 
 - **Screen-reader testing is owed** on the command palette, the pips, the sign-in page, the
-  light/dark control, the row descriptions, the rules search — and now the row findings and the undo
+  light/dark control, the row descriptions, the rules search, the row findings and the undo
   announcement. `aria-pressed` asserted as the string `"true"` is not the same as having been
-  listened to.
+  listened to. **No agent in this repository can close this** — it needs a person with a screen
+  reader, and nothing automated is a substitute. Saying otherwise would be the kind of claim this
+  file exists to prevent.
 - **The browser payload is ~27 MiB** because trimming is off — `PROGRESS.md` item 5.
 
 ---
 
 ## What this round learned, that the next one needs
 
-- **An audit's finding can be right about the symptom and wrong about the cause.** "A negative
-  purchased rank makes a character free and legal" was reported as a production bug. It is not —
-  `CheckQuantities` catches it. What was true was the sentence underneath: the guard has no
-  dedicated coverage. The fix was the same either way, and acting on the headline would have meant
-  "fixing" a validator that was already right. **Reproduce the claim before you act on it.**
-- **A stream's report is not a verdict.** Two of eleven reported figures I could not reproduce as
-  stated (one mis-stated its own check count, one had arithmetic wrong in a doc comment it had just
-  written), and one reported a mutation as "predicted" before correcting itself after actually
-  running it. None was dishonest and all were caught by re-running. Re-run.
-- **A seam introduced to make something testable needs its own proof.** `PageReader` gained one
-  because PdfPig's `Page` has no public constructor. Regenerating all ten chapters from the real PDF
-  and comparing blob hashes is what proves it changed nothing — far stronger than the fifteen tests
-  the seam exists to enable.
-- **Halving a threshold does not close a threshold hole.** `channelThreshold: 24` let a uniform +20
-  shift read as pixel-identical; at 12 the exploit is +11. A per-pixel count cannot see a uniform
-  shift at any threshold, so it takes a second, independent measure.
-- **A denylist of spellings cannot make a verdict honest.** Build the broken twin and require it to
-  fail. And require it to say `FAIL` rather than merely not say `PASS` — a harness whose script never
-  ran leaves its resting text, which is neither.
-- **A guard's own doc comment is not evidence the guard exists.** `CLAUDE.md` asserted the engine has
-  no filesystem access in two places, one of them *inside another guard's summary*, and nothing
-  checked it.
-- **Raw bytes are not the blob.** Regenerating the corpus on Windows produces CRLF where the blob is
-  LF, which reads as "the extractor is platform-dependent" and nearly earned a fix. `.gitattributes`
-  already handles it and the blobs are identical. Check the hash before you change the tool.
-- **A shell heredoc is not an editing tool**, which this file has said before in another spelling.
-  A long document containing backticks and quotes broke the heredoc that was writing it. Use the
-  editing tool.
+- **A stream's report is not a verdict — and this round the re-run paid twice.** The `.shell`
+  stream claimed the budget strip was no longer a child of `.shell`, contradicting what this file
+  said; the stream was right and this file was stale. Separately, the search stream's baseline was
+  quoted as 24 in `PROGRESS.md` prose and 25 in the test file's own constant. Re-run, then read.
+- **A mutation can be null because you removed only half of what carries the behaviour.** Breaking
+  the new Powers vocabulary by deleting Phasing's `walls` tag changed nothing, because the same
+  entry also carries `walk` and the query "walks through walls" matches it by shared prefix. The
+  test passed and looked like a guard with a hole; it was a null mutation. Removing the whole set
+  dropped the score 33 → 31 and named `phasing` in the failure. **Check the mutation bit before
+  you conclude anything about the guard.**
+- **A set comparison cannot see reordering**, which is how the extractor audit once rotated 1,492
+  section bodies onto the wrong headings with the suite green. When the question is "did this move
+  lose anything", prove the partition *tiles* the source — count rows with duplicates, count them
+  distinct, and compare both against the total.
+- **`git add -A <dir>` will sweep up untracked files that are not yours.** It caught an unrelated
+  `.docx` sitting in `docs/`. `git rm --cached` undid it without touching the file, but the commit
+  had already been made. Stage by path.
+- **A heredoc is not an editing tool**, again, in a new spelling: a `python - <<EOF` heredoc on a
+  machine with no Python hangs for the full timeout waiting on stdin. Use the editing tool.
