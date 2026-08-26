@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4755 across **four** suites — 4015 on the engine (26 added this slice: 15 on the extractor's paragraph joiner and the page reader that feeds it, 5 holding `CLAUDE.md` and the guide set to each other, 4 pinning that no other starting package lands any of the four unclosed Ch.8 Heroes on exactly 125 — see item 1 — 1 on the Powers search vocabulary and 1 on the shell's spacing), 560 rendering components with bUnit (11 added since: an ARIA-reference sweep over twelve surfaces, and ten on the GM review step's route back to the step a finding came from), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4775 across **four** suites — 4015 on the engine, 580 rendering components with bUnit (20 added this slice: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -452,6 +452,63 @@ rather than dropped for being hard. None of the 39 new sentences were edited aft
 measured — every miss above is a real gap, not a sentence that could as honestly have named a
 different Power.
 
+### 10. Nothing drives the assembled app — **a plan, awaiting the owner's approval**
+
+**Asked for by the owner after a slice where two real defects were found by screenshotting and none
+by the suites.** Both were in the same class: they existed only once markup, stylesheet and layout
+were put together on a page. The question is what would have caught them without a person looking.
+
+**What is verified today, and it is more than it sounds.** Three suites, nineteen browser verdict
+harnesses each with a deliberately-broken twin, and a pixel diff of eight proof pages against
+CI-rendered goldens. `ProofPages` renders components through bUnit into static HTML against the
+real `theme.css` and `app.css`, which headless Chrome then screenshots — that is what catches a
+contrast fault or a broken layout.
+
+**What is not verified, which is narrower and sharper than "the app is untested".** A proof page is
+*markup and CSS*. It is not the running application:
+
+| Not exercised by anything | Consequence |
+|---|---|
+| Blazor WebAssembly actually booting | A boot-time failure is invisible until the deploy |
+| Every `js/*.js` interop — `ppStore`, `theme.js`, `palette.js`, `motion.js` | bUnit answers **null** to every interop read, which is why two tests in this slice had to *plant* a storage pointer to reach the branch they were written for |
+| Client-side routing | `Areas.Of` is asserted by unit test, never by a browser following a link |
+| Pages Functions against the real edge | The worker suite runs on local Node; D1 and the real request pipeline are checked only by the deploy's own JSON smoke check |
+| **Anything behind sign-in** | `/rules`, `/admin`, the portfolio, the replay and every account-storage path — an assistant cannot sign in, so none of it is verified against the deployed stack |
+
+**The proposal, in two stages, because the first needs no permission and the second does.**
+
+**Stage one — the anonymous half, and it is most of the value.** A `scripts/e2e.sh` that publishes
+the site, serves it with `wrangler pages dev` **at the version `.github/workflows/deploy.yml`
+pins** (the marker comment is already load-bearing for exactly this reason), and drives real Chrome
+over the DevTools Protocol. No account, no credential, no bypass. It would cover: the app boots and
+renders; a character can be built, saved, reloaded from storage and swapped; the theme survives a
+reload (today proved by `proof-theme.html` re-executing the module, not by a reload); the four
+palettes; the routes. **No new npm dependency** — this repository has never had a `package.json`,
+and CDP over a WebSocket is a few hundred lines of Node, the same trade already made for the PNG
+codec.
+
+**Stage two — the signed-in half, and this is the part to approve or refuse.** Testing an account
+flow locally needs a session without a mailbox, which means a **development-only seam that mints
+one**. That is the single most dangerous thing that could be added to this repository: an auth
+bypass that reached production would be worse than every gap it closes. It is only worth doing with
+all of these, and the owner should say whether it is worth doing at all:
+
+- keyed on a secret supplied to `wrangler pages dev` and **absent from `wrangler.toml` and every
+  workflow**, so the deployed site has no value to check against;
+- the code path compiled out, or a test asserting the published bundle does not contain it — the
+  `AccountsContractTests` shape, which already reads both sides of the wire;
+- refused unless the request is from localhost.
+
+**A cheaper alternative to stage two, if the answer is no:** point the harness at the *deployed*
+site and drive only what an anonymous visitor can reach. That verifies the real edge, the real
+Functions and the real bundle, and simply cannot test an account. Given the account paths are the
+ones with a shared-machine consequence, that is a real loss — but it is an honest one, and it
+carries no risk at all.
+
+**Not proposed, deliberately.** Screen-reader testing stays owed and no harness closes it: it needs
+a person with a screen reader, and asserting `aria-pressed` is the string `"true"` is not the same
+as having been listened to. `docs/HANDOVER.md` says so and should keep saying so.
+
 ### 5. The browser payload is large — a characteristic, not a defect
 
 **The site works.** It is deployed, it loads, it builds characters — this is not a fault, and it was listed alongside real gaps for too long. The first load is **27 MiB uncompressed**, about a third of that over the wire once Cloudflare applies Brotli, and cached hard afterwards because every framework asset is fingerprinted, so a returning visitor pays nothing. Everything below is what it would take to make that number smaller, kept because the *reasons* are expensive to rediscover — not because anything is broken.
@@ -656,6 +713,128 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 ---
 
 ## Completed work
+
+### Swapping characters from anywhere, and three defects an adversarial review found in the half beneath it
+
+**Two pieces of work, and the second is the one worth reading.**
+
+**The switcher.** `CharacterManager` is a panel on the tier page, so swapping meant navigating to
+step one of six — which reads as starting over. `CharacterSwitcher` names the open character in the
+banner and lists the others, on every builder route and nowhere else, the same rule the step list
+and the budget strip follow. The manager keeps discard, import and start-new; this is the one act
+worth having from everywhere.
+
+**Two of its faults were found by looking at it, and neither was visible to any test.**
+
+- **The disclosure painted behind the step band.** `view-transition-name` on `.banner` creates a
+  stacking context, so a `z-index` on the menu resolves *inside* the banner — and the banner is a
+  static earlier sibling of `.steps`. Fixed on `.banner`, not on the menu.
+- **At 375px it was clipped off the left edge**, because the banner wraps and a right-anchored menu
+  grows leftwards off the window. Anchored left instead.
+
+A third came from the repository's own guard: the name was set in capitals and
+`UppercasedTextTests` objected because the selector appeared on no page it renders. The rule it
+guards is the reason to keep it that way — **a character's name is the person's own words**, and it
+is free text that can hold anything the rulebook writes in mixed case.
+
+---
+
+**The browser cache follows what is open — and the first version of it destroyed people's work.**
+
+The owner asked for the anonymous slot to track the character being worked on, and chose
+clear-on-sign-out over the alternatives when the shared-machine consequence was put to them. What
+shipped into review wrote the copy through the anonymous *current* pointer and cleared
+unconditionally. **Two independent reviews, each given the diff and told nothing else, found the
+same three faults with running evidence:**
+
+| Fault | What it cost |
+|---|---|
+| The clear was unconditional | A draft built before signing in was destroyed by a later sign-out, although no account character was ever opened. Silent, no undo |
+| The clear ran only from the Sign-out **button** | Closing the tab or letting the session expire — how people actually leave a shared machine — left the last account character readable to the next visitor. The leak the clear exists to close, open in the ordinary case |
+| The copy went through the *current* pointer | It overwrote whichever named local character was open, which kept its own label while holding somebody else's data |
+
+**One cause, and the fix is structural rather than defensive.** The copy has a reserved id,
+`SavedCharacters.AccountCopyId`, and is **written at that id rather than through the pointer** —
+the first attempt moved the pointer and trusted the next write to see it, and it did not, which the
+test harness surfaced immediately. The clear removes only that id. `Program.cs` clears it at boot
+when nobody is signed in, which is what covers an expired or revoked session. The reader's own
+characters are never written to, never cleared, and the copy stays out of their index so it never
+appears in their list.
+
+**A guard that asserted nothing, proved by mutation.**
+`OpeningACharacterSignedOutDoesNotDisturbTheAnonymousSlot` read the anonymous slot back after
+opening a character *from that same slot* — a self-write. Removing the `who.IsSignedIn` guard from
+the copy-down left all 581 tests green. It asserts the reserved slot now, and the same mutation
+fails it.
+
+**And a null mutation nearly produced a false finding here too.** Re-breaking the unconditional
+clear appeared to leave the suite green — until `git diff --numstat` showed the pattern had never
+matched and the file was unchanged. Applied properly, **two tests fail**. *Check the mutation bit
+before believing anything about the guard*; this is the second time in two slices.
+
+**What this does not close.** Every assertion about storage here is on which key is written and
+which is cleared, because bUnit answers null to every interop read — three attempts to write these
+tests against a working store failed on their own preconditions. That is the narrowest honest claim
+available, and it is the argument for item 10.
+
+### The anonymous slot now tracks what a signed-in reader has open, and sign-out clears it
+
+The browser's anonymous local-storage slot and an account's server-side characters used to be two
+worlds that never touched: signing in left whatever the browser was holding alone, and opening an
+account character never wrote to it either. The owner asked for two changes together, deliberately
+paired — do one without the other and the pairing is unsafe in one direction or the other:
+
+1. **`AccountCharacterStore.OpenAsync` now copies a signed-in reader's opened account character
+   down into the browser's anonymous slot**, replacing whatever was there.
+2. **Signing out empties the anonymous slot.**
+
+**(2) exists because of (1), and only because of it.** Before this, signing out never touched the
+anonymous slot at all — there was nothing of anybody else's in it to worry about. Once opening an
+account character starts writing it there, leaving it alone on sign-out would let a shared machine
+hand an ex-user's account character to whoever opens that browser next, signed in or not. The
+clear is unconditional — it empties whatever the slot holds, not only a copy this feature itself
+put there — because nothing at that point can tell the two apart, and the owner was shown the
+narrower alternative and chose the simpler, safer rule instead.
+
+- **The write-through lives in `OpenAsync`, not in `LoadAsync` or anywhere sign-in itself runs.**
+  Signing in still does not copy anything by itself — the sign-in page's offer to keep what the
+  browser was holding, only when the account has none, is unchanged and still the only way an
+  anonymous character moves *up*. What changed is the other direction: looking at one of the
+  account's own characters is now also holding it in this browser, the way it always was for an
+  anonymous visitor.
+- **The clear cannot live inside `Accounts.SignOutAsync` itself.** `Accounts` is the
+  `IIdentitySource` both stores are built on (`CharacterStore` and `AccountCharacterStore`, and the
+  `SavedCharacters` beneath them, all take one), so having it depend on either store back would be
+  a constructor cycle. The call is on `SignIn.razor`'s `SignOut`, right after asking the server to
+  sign out — the same page that already makes the one other explicit copy in this design, the
+  keep-the-anonymous-character offer.
+- **The two internal seams this needed were already half-built.** `CharacterStore.LoadAsync(Identity)`
+  existed for reading the anonymous slot specifically (the sign-in page's offer needs it); this
+  added the write-side twin, `CharacterStore.SaveAsync(Identity, sheet, mode)`, and made the
+  existing private `ClearAsync(Identity)` `internal` so `AccountCharacterStore.ClearAnonymousAsync()`
+  could call it. Nothing about `ChosenAsync()` — the per-call routing every ordinary save and load
+  goes through — changed at all.
+- **The sign-in page's copy needed fixing.** "Kept on your account. The one in this browser is
+  untouched." was true the instant it was shown — the keep action itself still does not touch the
+  anonymous slot — but it read as a durable promise, and it no longer is one: the same slot will be
+  emptied the moment this reader signs out, by design. Trimmed to "Kept on your account.", which
+  claims only what stays true.
+- **Proved by breaking each half and watching it go red, not by reasoning about it.** Turning the
+  `OpenAsync` write-through into dead code (`if (false && …)`) put `"Old anonymous work"` where the
+  test asserted `"Their account character"` — the mutation changed the answer, not merely the
+  verdict. Turning `ClearAnonymousAsync` into a no-op left a full `CharacterSheet` where the test
+  asserted `null`. Both restored and rerun green.
+- Five new tests in `tests/ProwlersAndParagons.Web.Tests/AccountTests.cs`: opening an account
+  character replaces whatever the anonymous slot held; opening one while signed out does not
+  disturb it (nothing to copy — it is already where the open went); signing out empties it
+  whatever it holds; ordinary anonymous saving still works right after a sign-out; and the
+  sign-in carry-over offer still only applies while the account has none, unaffected by any of
+  the above. `worker/` needed no change — this is entirely browser-side, and `AccountsContractTests`
+  and the worker suite both stayed green untouched.
+
+Nothing outstanding. `dotnet test --configuration Release -p:ContinuousIntegrationBuild=true` prints
+two `Passed!` lines (4015 engine, 565 web) with no `Catastrophic`; `./scripts/test-worker.sh` still
+reports 166 passing; a whole-tree Qodana scan still reports 0.
 
 ### The optimisation half of the pre-1.0 audit — dead code, hot paths, payload, the token side
 

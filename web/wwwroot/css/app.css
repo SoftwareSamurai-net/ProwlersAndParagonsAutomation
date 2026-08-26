@@ -124,6 +124,20 @@ hr {
     color: var(--on-primary);
     border-bottom: var(--rule-weight) solid var(--rule);
     box-shadow: var(--shadow-2);
+
+    /* **The band has to out-rank the one below it, because something now hangs out of it.**
+       The character switcher's disclosure is absolutely positioned and escapes the banner — and
+       a `z-index` on the disclosure itself does nothing, because **`view-transition-name` creates
+       a stacking context** (see the view-transition block at the foot of this file), so the
+       disclosure's z-index is resolved *inside* the banner and the banner is a static earlier
+       sibling of `.steps`. The result was a menu painted behind the step band: visible, unusable,
+       and reading as a control that does nothing. Found in a screenshot; no rendering test could
+       have seen it, because the markup is identical either way.
+
+       30 sits above `.steps` and the sticky budget strip's 20, and below the command palette's
+       50, which covers the window and must stay over everything. */
+    position: relative;
+    z-index: 30;
 }
 
 /* **The banner centres on --column like the other bands, and the note in MainLayout claimed it
@@ -198,6 +212,79 @@ hr {
 .shell > p { max-width: 68ch; }
 
 /* ── Mode switch ─────────────────────────────────────────────────────────── */
+
+/* Which character is open, and the way to another one.
+
+   **A disclosure hanging out of the banner, so it needs no space until it is asked for.** The
+   band already carries a wordmark, two links, the save-and-undo region and two switches; a list
+   of characters laid out inline would be the thing that finally makes it wrap.
+
+   `--shadow-2`, never `--shadow-3`: the top step belongs to the sticky budget strip and nothing
+   else, asserted by count, and spreading it here would undo the one thing that gives the page a
+   sense of height. `z-index` sits above the strip (20) and below the command palette (50), which
+   covers the window and must stay over everything.
+
+   No `overflow` on `.banner`, so this really does escape the band — checked rather than assumed,
+   because a clipped disclosure would look like a control that does nothing. */
+.character-switch { position: relative; }
+
+.character-switch-name {
+    background: transparent;
+    color: var(--on-primary);
+    border: 1px solid var(--on-primary);
+    border-radius: var(--radius-pill);
+    padding: var(--space-1) var(--space-4);
+    font: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+
+    /* **Not uppercased and not tracked, unlike the two switches beside it**, which are labels the
+       app wrote. This is the name a person typed, and setting somebody's own words in capitals is
+       the app rewriting them. `UppercasedTextTests` objected first — it found the selector
+       uppercased and on no page it renders, so it would have asserted nothing about it — and the
+       rule it guards is the reason to keep it that way whatever the fixture does: a name is free
+       text, so it can hold anything the rulebook writes in mixed case. */
+    max-width: 20ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.character-switch-list {
+    position: absolute;
+    top: 100%;
+
+    /* **Anchored to the button's left edge, not its right, and that is a narrow-viewport fix.**
+       Right-anchored it grows leftwards, and at 375px the banner wraps so the button sits near
+       the left of its row — the menu ran off the window and lost its first few characters on
+       every line. Measured in a screenshot at 375px; nothing in the markup differs, so no
+       rendering test could have seen it. Growing rightwards from a control that is itself never
+       far from the left edge cannot leave the window on the other side. */
+    left: 0;
+    z-index: 40;
+    margin-top: var(--space-2);
+    min-width: 14rem;
+    padding: var(--space-4);
+    background: var(--panel);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-small);
+    box-shadow: var(--shadow-2);
+}
+.character-switch-list ul { list-style: none; margin: 0 0 var(--space-3); padding: 0; }
+.character-switch-list li + li { margin-top: var(--space-1); }
+.character-switch-list li button {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    color: var(--ink);
+    border: none;
+    border-radius: var(--radius-small);
+    padding: var(--space-2) var(--space-3);
+    font: inherit;
+    cursor: pointer;
+}
+.character-switch-list li button:hover { background: var(--panel-sunk); }
 
 .mode-switch,
 .theme-switch {

@@ -85,6 +85,28 @@ var host = builder.Build();
 var store = host.Services.GetRequiredService<ICharacterStore>();
 var session = host.Services.GetRequiredService<CharacterSession>();
 
+// **The copy an account character leaves behind is cleared here as well as on the sign-out
+// button, and this is the half that matters.** Signing out by pressing the button was the only
+// thing that cleared it, so closing the tab or letting the session expire — which is how somebody
+// actually leaves a shared machine — left the last account character they opened readable by the
+// next visitor, under no account at all. That is precisely the leak the clear exists to close, and
+// it was open in the ordinary case. Demonstrated by adversarial review, not by any test.
+//
+// Asking here works because this runs before the first render and the server is the authority on
+// whether the cookie is still good: an expired or revoked session answers "anonymous", and that is
+// the transition nothing else was watching. It removes only `AccountCopyId`, so a visitor who never
+// signed in loses nothing — see AccountCharacterStore.ClearAnonymousAsync.
+try
+{
+    if (!(await host.Services.GetRequiredService<IIdentitySource>().CurrentAsync()).IsSignedIn)
+        await host.Services.GetRequiredService<AccountCharacterStore>().ClearAnonymousAsync();
+}
+catch
+{
+    // Same rule as the two catches below: nothing in this block may stop the app starting. A
+    // leftover copy is worth less than a blank page.
+}
+
 // Both catches are deliberately total, and they are a backstop rather than the strategy:
 // CharacterStore already rejects anything the engine cannot answer questions about. But this
 // runs before the first render, so anything escaping here is not a lost character — it is a

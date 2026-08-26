@@ -6,10 +6,17 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// Puts the character wherever it belongs: on the server for somebody signed in, in this
 /// browser for everybody else.
 ///
-/// <para><b>The anonymous slot is never touched by an account.</b> Signing in on a shared
-/// browser must not overwrite what somebody was building, and signing out must not have eaten
-/// it — so the two stores are two stores, and this only chooses. Copying between them happens
-/// once, by hand, on the sign-in page, and never as a side effect.</para>
+/// <para><b>The anonymous slot tracks what this browser is holding, not what belongs to
+/// nobody.</b> Signing in never rewrites it by itself — an account's characters live in their
+/// own per-identity slot instead, and the sign-in page still offers to copy the browser's
+/// character <em>up</em> rather than doing it automatically, exactly as before. But
+/// <see cref="OpenAsync"/> is a signed-in reader looking at one of their account's characters,
+/// and once that happens this browser is holding it: the anonymous slot is overwritten to
+/// match, replacing whatever was there. That is why signing out has to empty it —
+/// see <see cref="ClearAnonymousAsync"/> — or a shared machine would leave an ex-user's account
+/// character sitting there for whoever opens this browser next, under no account at all. This
+/// reverses what this class used to say: the two stores are no longer untouched by each
+/// other, only kept from colliding by choosing one at a time.</para>
 ///
 /// <para><b>It is a store rather than a branch in <c>Program.cs</c></b> because the choice has
 /// to be made per call, not once at startup: identity changes when somebody signs in, and the
@@ -110,8 +117,54 @@ public sealed class AccountCharacterStore : ICharacterStore
         // write the character on screen over an id the visitor did not choose.
         if (opened is not null) await _local.SetCurrentAsync(id);
 
+        // A signed-in reader opening one of their account's characters is now what this browser is
+        // holding, so it goes into the anonymous side — but into `AccountCopyId` and never over
+        // whatever was open there. Writing it through the anonymous *current* pointer, which is
+        // what this did first, overwrote a real named local character; see that constant.
+        // Nothing to do when nobody is signed in: the anonymous slot already is where this came
+        // from, and writing it back would be a self-write no test could observe.
+        if (who.IsSignedIn && opened is not null)
+            await CopyDownAsync(opened.Value.Sheet, opened.Value.Mode);
+
         return opened;
     }
+
+    /// <summary>
+    /// Empties the browser's anonymous slot.
+    ///
+    /// <para><b>Signing out calls this</b> — see <c>SignIn.razor</c>'s <c>SignOut</c>. It cannot
+    /// live inside <see cref="Accounts.SignOutAsync"/> itself: <see cref="Accounts"/> is the
+    /// <see cref="IIdentitySource"/> this store and the browser store beneath it are built on, so
+    /// having it depend on either store back would be a cycle. A page-level call is the seam that
+    /// is left.</para>
+    ///
+    /// <para><b>Conditional, and the unconditional version was a defect.</b> It used to empty
+    /// whatever the anonymous slot held. That destroyed the reader's own work in two ways nobody
+    /// had traced: a draft built before signing in was deleted by a later sign-out even though no
+    /// account character was ever opened, and a named local character that happened to be open was
+    /// deleted outright. Both were demonstrated by adversarial review, and both are gone because
+    /// the copy now lives at <see cref="SavedCharacters.AccountCopyId"/> and this removes only
+    /// that. Anything of the reader's own is untouched.</para>
+    ///
+    /// <para><b>The pointer goes back to the legacy slot</b>, because leaving it at an id that has
+    /// just been deleted would land the next read on nothing while the reader's own characters sat
+    /// in the list unreachable.</para>
+    /// </summary>
+    public Task ClearAnonymousAsync() =>
+        _local.ClearPayloadAsync(Identity.Anonymous, SavedCharacters.AccountCopyId);
+
+    /// <summary>
+    /// Puts an opened account character into the anonymous side's reserved slot.
+    ///
+    /// <para><b>Written at the id outright, never through the current-character pointer.</b> The
+    /// first version moved the pointer and then saved "the open character", trusting the write to
+    /// see the move — and it did not: the payload landed under the previously-open character's id
+    /// and overwrote it. Naming the id removes the ordering question, leaves the reader's pointer
+    /// where they left it, and keeps the copy out of their index so it never appears in their own
+    /// list.</para>
+    /// </summary>
+    private Task CopyDownAsync(CharacterSheet sheet, SheetMode mode) =>
+        _local.SavePayloadAsync(Identity.Anonymous, SavedCharacters.AccountCopyId, sheet, mode);
 
     /// <summary>
     /// Read one of them without opening it — same two sources as <see cref="OpenAsync"/> and

@@ -1,0 +1,139 @@
+@implements IDisposable
+@inject AccountCharacterStore Store
+@inject CharacterSession Session
+@inject Accounts Accounts
+
+@* Which character is open, and a way to reach another from any step.
+
+   **Swapping used to mean walking back to step one.** `CharacterManager` is a panel on the tier
+   page, so a reader six steps in who wanted their other character had to navigate to the start of
+   a wizard to get there — which reads as starting over. The manager keeps everything it does;
+   this is the one act worth having from everywhere, in the one band that draws on every step.
+
+   **The builder only**, for the reason the step list and the budget strip are: a rules search is
+   not a character, and naming somebody's character over a page that has nothing to do with it is
+   the fault the budget strip was pulled off three areas to fix. `MainLayout` gates it.
+
+   **The name comes from the session, not from the list.** It is live on the finishing step, where
+   somebody is typing it, and a label read out of a list refreshed on save would lag by a
+   keystroke — or by a whole edit, since the list is only re-read when something changes on the
+   server. *@
+<div class="character-switch">
+    @* aria-expanded as a string: Blazor renders a true bool as `aria-pressed=""`, which is
+       invalid ARIA that assistive technology reads as *not* expanded, so the natural spelling
+       announces the opposite of the state. Same rule as both switches beside this one.
+
+       aria-controls only while the list is actually rendered — naming an element inside an @if
+       unconditionally leaves a dangling IDREF, which is the bug the budget disclosure shipped
+       once and `AriaReferenceTests` now sweeps for. *@
+    <button type="button"
+            class="character-switch-name"
+            aria-expanded="@(_open ? "true" : "false")"
+            aria-controls="@(_open ? "character-switch-list" : null)"
+            @onclick="Toggle">@Name</button>
+
+    @if (_open)
+    {
+        <div class="character-switch-list" id="character-switch-list">
+            @if (_others.Count == 0)
+            {
+                <p class="small muted">@(_only ? "This is your only character." : "Nothing else saved yet.")</p>
+            }
+            else
+            {
+                <ul>
+                    @foreach (var one in _others)
+                    {
+                        <li>
+                            <button type="button" @onclick="() => Open(one.Id)">@one.Label</button>
+                        </li>
+                    }
+                </ul>
+            }
+
+            @* The rest of managing them stays on the tier page rather than being duplicated
+               here: this control exists for the one act somebody wants mid-build, and a second
+               copy of discard-and-import in the banner would be two places to keep in step. *@
+            <a class="small" href="build">All your characters</a>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _open;
+    private IReadOnlyList<SavedCharacterSummary> _others = [];
+    private bool _only;
+
+    /// <summary>
+    /// What to call the character that is open.
+    ///
+    /// <para>An unnamed character says so rather than falling back to a blank control — the same
+    /// choice the review step's page title makes, and for the same reason: a control with nothing
+    /// in it reads as broken rather than as empty.</para>
+    /// </summary>
+    private string Name =>
+        string.IsNullOrWhiteSpace(Session.Sheet.Name) ? "Unnamed character" : Session.Sheet.Name;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Session.Changed += Redraw;
+        Accounts.Changed += Reload;
+
+        await Refresh();
+    }
+
+    public void Dispose()
+    {
+        Session.Changed -= Redraw;
+        Accounts.Changed -= Reload;
+    }
+
+    /// <summary>
+    /// The name is read from the session on every render, so a change to the character only has
+    /// to trigger one. The list is not re-read here: it changes when a character is saved,
+    /// discarded or switched, and re-reading storage on every keystroke of the finishing step
+    /// would be a read per letter typed.
+    /// </summary>
+    private void Redraw() => StateHasChanged();
+
+    private void Reload() => _ = InvokeAsync(async () =>
+    {
+        await Refresh();
+        StateHasChanged();
+    });
+
+    /// <summary>
+    /// Everything except the one that is open.
+    ///
+    /// <para><b>Nothing here decides where a character lives.</b> <see cref="AccountCharacterStore"/>
+    /// answers from the account or from this browser depending on who is here, which is the whole
+    /// reason this asks it rather than either store — a component that picked a source would be a
+    /// second place deciding that.</para>
+    /// </summary>
+    private async Task Refresh()
+    {
+        var listed = await Store.ListAsync();
+        var currentId = await Store.CurrentIdAsync();
+
+        _others = [.. listed.Characters.Where(c => c.Id != currentId)];
+        _only = listed.Characters.Count == 1;
+    }
+
+    private async Task Toggle()
+    {
+        _open = !_open;
+
+        // Read on opening rather than on every change: the list is small, and a stale list is
+        // exactly what a reader would act on.
+        if (_open) await Refresh();
+    }
+
+    private async Task Open(string id)
+    {
+        _open = false;
+
+        if (await Store.OpenAsync(id) is { } opened) Session.Restore(opened.Sheet, opened.Mode);
+
+        await Refresh();
+    }
+}

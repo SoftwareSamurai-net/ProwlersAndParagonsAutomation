@@ -5,17 +5,23 @@ the rest.** Read [`CLAUDE.md`](../CLAUDE.md) first and follow its routing table 
 whatever you are about to touch, then [`PROGRESS.md`](../PROGRESS.md).
 
 This round closed `PROGRESS.md` item 7's snapshotability half, item 4 (`search_powers`), item 1c
-(the extractor's paragraph breaks), and the `.shell` spacing item that had sat in this file's "still
-open" list since before the pre-1.0 audit — and re-verified item 1 (the four Heroes) with a second
-independent instrument. Five streams, worked in isolated worktrees and merged serially, so five
-slices cost two deploys.
+(the extractor's paragraph breaks), item 2's route-back half, and the `.shell` spacing item that had
+sat in this file's "still open" list since before the pre-1.0 audit — and re-verified item 1 (the
+four Heroes) with a second independent instrument. Then the owner asked for character management,
+which is [#84](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/84).
+
+**Read the adversarial-review entry in `PROGRESS.md` before touching the anonymous slot.** That
+round shipped three defects into review — one of which silently destroyed a reader's draft on
+sign-out — and two independent reviewers found all three. The fix is structural and the entry says
+why; the shape to keep is that the account copy has a slot of its own and nothing else is ever
+written to or cleared.
 
 ---
 
 ## Where things stand
 
-**4,729 tests across four suites** — 4,000 engine, 549 bUnit, 166 accounts, 14 pixel comparator.
-Measured on this branch after the last merge, not carried across from any stream:
+**4,775 tests across four suites** — 4,015 engine, 580 bUnit, 166 accounts, 14 pixel comparator.
+Measured after the last merge, not carried across from any stream:
 
 ```bash
 dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
@@ -81,17 +87,18 @@ Three separate stale claims were found and fixed, none of which any test could h
 
 ## What is left, in the order I would take it
 
-1. **The goldens need regenerating on CI**, and the `.shell` change is why — all eight proof pages
-   shift by up to 12px vertically. Measured with `getBoundingClientRect`, every `.shell` child gap
-   is now uniformly 16px. **You cannot regenerate goldens off Linux**; use the workflow:
-   ```bash
-   gh workflow run visual-goldens.yml --ref <branch>
-   gh run download <run-id> --name visual-goldens --dir tests/visual-goldens
-   ```
-   Look at them before committing them. This is the one check whose whole subject is what
-   something looks like.
+1. **`PROGRESS.md` item 10 needs a decision, and it is the highest-value thing on this list.**
+   Nothing drives the assembled application: every visual proof is bUnit markup rendered against
+   the real stylesheets and screenshotted, which is *not* the running app — no interop, no routing,
+   no Functions, and nothing behind sign-in. **Two defects in the last slice were found by
+   screenshotting and none by the suites**, and three storage tests had to assert on *which key is
+   written* because bUnit answers null to every interop read. Item 10 splits it: the anonymous half
+   needs no permission; the signed-in half needs a development-only session seam, which is the most
+   dangerous thing that could be added here, so it is the owner's call and there is a zero-risk
+   alternative written up beside it.
+
 2. **The codebase half of item 7**, untouched: dead code, engine hot paths, payload waste, and the
-   token side. `PROGRESS.md` is now over 4,900 lines and is read at the start of every slice by
+   token side. `PROGRESS.md` is now over 5,400 lines and is read at the start of every slice by
    instruction — the same argument that motivated the `CLAUDE.md` split applies to it, and the
    same answer probably does not, because it is chronological by design. Nobody has costed it.
 3. **The four published Heroes 1 HP out** — item 1. Now a *confirmed* negative from two
@@ -99,11 +106,12 @@ Three separate stale claims were found and fixed, none of which any test could h
    alternate starting package lands any of them on 125. What is left is an interaction — a floor,
    a baseline or a grouping applied where the authors did something else. Do not tune an ambiguous
    variant to force a zero.
-4. **`search_powers` is at 33 of 33** and the benchmark is therefore **saturated** — it can no
-   longer show an improvement, only a regression. The scorer itself is unchanged: description-only
-   matches still tie flat, so a query about a Power nobody has written vocabulary for can still
-   land behind coincidental ties, and 74 of 141 Powers carry only their original category tags.
-   Widening the expectation set is what would make it a measurement again.
+4. **`search_powers` measures again: 60 of 72**, widened from a saturated 33 of 33 and ratcheted
+   there. The twelve misses are real gaps, reported rather than tuned away — three are negatives
+   that find weak coincidental hits, and the rest are Powers with no vocabulary written for them
+   yet. `cloud_minds`, `buff`, `power_absorption`, `psi_screen`, `elemental_control` and
+   `form_gaseous` are named, concrete candidates for the next pass. The scorer itself is untouched:
+   description-only matches still tie flat.
 5. **Durable telemetry**, deferred by the owner — `PROGRESS.md` item 9.
 6. **Item 5, the 27 MiB payload**, deliberately not started this round and worth saying why: it
    cannot be verified on this machine (the trimmer needs the `wasm-tools` workload, which needs

@@ -191,6 +191,28 @@ public sealed class ProofPages
     }
 
     /// <summary>
+    /// The banner's character switcher, open, with somebody else to switch to.
+    ///
+    /// <para>Written to be looked at. The control hangs out of the banner, which is the one thing
+    /// about it a rendering test cannot see — a disclosure clipped by its own band looks like a
+    /// button that does nothing.</para>
+    /// </summary>
+    [Fact]
+    public void TheCharacterSwitcher()
+    {
+        if (!Asked) return;
+
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("build/characteristics");
+        ctx.Session.Restore(SampleCharacters.Hero(), SheetMode.Hero);
+
+        var shell = ctx.Render<MainLayout>();
+        shell.Find(".character-switch-name").Click();
+
+        WriteRaw("proof-switcher.html", "hero", shell.Markup);
+    }
+
+    /// <summary>
     /// The GM review step's findings, each naming the step that caused it.
     ///
     /// <para><b>Written to be looked at, and deliberately not added to the pixel manifest.</b> The

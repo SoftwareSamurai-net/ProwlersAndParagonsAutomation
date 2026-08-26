@@ -72,6 +72,26 @@ public sealed class SavedCharacters
     /// </summary>
     public const string LegacyId = "legacy";
 
+    /// <summary>
+    /// The one anonymous slot an account character may be copied into, and the only one signing
+    /// out is allowed to empty.
+    ///
+    /// <para><b>A reserved id rather than "whatever is open", which is the bug this replaced.</b>
+    /// The first version wrote the copy through the anonymous <em>current</em> pointer and cleared
+    /// the same way — so opening an account character wrote over whichever local character the
+    /// reader happened to have open, and signing out deleted it. That is a real, named, deliberately
+    /// saved character, not a scratch slot, and it was destroyed with no confirmation and no undo.
+    /// Two independent adversarial reviews demonstrated it, and a third defect fell out of the same
+    /// cause: because the clear was unconditional, a reader who signed in and out without ever
+    /// opening an account character lost their anonymous draft too.</para>
+    ///
+    /// <para>Keeping the copy in a slot of its own makes all three go away by construction: nothing
+    /// of the reader's is ever written over, the clear knows exactly what it is allowed to remove,
+    /// and "is this slot a copy" is answerable at boot — which is what closes the leak for somebody
+    /// who closes the tab instead of pressing the button.</para>
+    /// </summary>
+    public const string AccountCopyId = "account-copy";
+
     private readonly IJSRuntime _js;
     private readonly IIdentitySource _who;
     private readonly StoredCharacter _payload;
@@ -286,6 +306,38 @@ public sealed class SavedCharacters
     /// play and not only explicit saves; the legacy slot, which starts outside the index by
     /// definition, is left alone until somebody names it.
     /// </summary>
+    /// <summary>
+    /// Writes one payload at an id named outright, for the given identity, touching neither the
+    /// current-character pointer nor the index.
+    ///
+    /// <para><b>By id rather than through "whatever is open", which is the whole point.</b> The
+    /// account copy has a reserved slot of its own
+    /// (<see cref="AccountCopyId"/>); routing its write through the pointer meant moving the
+    /// pointer first and trusting the very next read to see it, which is action at a distance — and
+    /// it is not hypothetical, because the first version of the copy-down did exactly that and put
+    /// the payload under the previously-open character's id. Naming the id removes the ordering
+    /// question entirely.</para>
+    ///
+    /// <para><b>The index is deliberately untouched</b>, so the copy never appears in the reader's
+    /// own list of characters. It is not one of theirs.</para>
+    /// </summary>
+    internal async Task SavePayloadAsync(Identity who, string id, CharacterSheet sheet, SheetMode mode)
+    {
+        try
+        {
+            await _js.InvokeVoidAsync(
+                "ppStore.save", PayloadKeyFor(PrefixFor(who), id), StoredCharacter.Write(sheet, mode));
+        }
+        catch (Exception e) when (IsStorageFailure(e)) { /* same rule as every other write here */ }
+    }
+
+    /// <summary>Removes one payload at an id named outright. The counterpart to <see cref="SavePayloadAsync"/>.</summary>
+    internal async Task ClearPayloadAsync(Identity who, string id)
+    {
+        try { await _js.InvokeVoidAsync("ppStore.clear", PayloadKeyFor(PrefixFor(who), id)); }
+        catch (Exception e) when (IsStorageFailure(e)) { /* nothing left to try */ }
+    }
+
     internal async Task SaveCurrentAsync(Identity who, CharacterSheet sheet, SheetMode mode)
     {
         try

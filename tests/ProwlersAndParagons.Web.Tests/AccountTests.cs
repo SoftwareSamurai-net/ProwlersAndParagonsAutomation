@@ -25,6 +25,9 @@ public sealed class AccountTests
 
     private const string AnonymousKey = "pp.character.v1";
 
+    /// <summary>Where an opened account character is copied to, and the only slot sign-out clears.</summary>
+    private const string AccountCopyKey = $"{AnonymousKey}.{SavedCharacters.AccountCopyId}";
+
     /// <summary>The four pieces the app wires together, built the way <c>Program.cs</c> does.</summary>
     private sealed record Wired(
         FakeApi Api, FakeLocalStorage Storage, Accounts Who, AccountCharacterStore Store);
@@ -182,6 +185,166 @@ public sealed class AccountTests
 
         Assert.NotNull(back);
         Assert.Equal("Anonymous work in progress", back!.Value.Sheet.Name);
+    }
+
+    /// <summary>
+    /// Opening one of an account's own characters copies it into a reserved anonymous slot of its
+    /// own — and leaves the reader's own anonymous work exactly where it was.
+    ///
+    /// <para><b>This asserted the opposite until an adversarial review demonstrated the harm.</b>
+    /// The copy used to go through the anonymous <em>current</em> pointer, so it landed on top of
+    /// whichever local character the reader had open — a real, named, deliberately saved character,
+    /// overwritten with somebody else's data under its own label. It now has
+    /// <see cref="SavedCharacters.AccountCopyId"/> to itself, and the second assertion below is the
+    /// one that would have caught the old behaviour.</para>
+    /// </summary>
+    [Fact]
+    public async Task OpeningAnAccountCharacterIsCopiedIntoItsOwnAnonymousSlot()
+    {
+        var app = Build();
+
+        var priorAnon = SampleCharacters.Hero();
+        priorAnon.Name = "Old anonymous work";
+        await app.Store.SaveAsync(priorAnon, SheetMode.Hero);
+
+        var mineBefore = app.Storage.Peek(AnonymousKey);
+        Assert.NotNull(mineBefore);
+
+        app.Api.SignedIn = ("acct-7", "player");
+        await app.Who.CompleteSignInAsync("a-token");
+
+        var theirs = SampleCharacters.Villain();
+        theirs.Name = "Their account character";
+        await app.Store.SaveAsync(theirs, SheetMode.Villain);
+        var id = (await app.Store.ListAsync()).Characters.Single().Id;
+
+        Assert.NotNull(await app.Store.OpenAsync(id));
+
+        // The copy is in its own slot...
+        Assert.NotNull(app.Storage.Peek(AccountCopyKey));
+
+        // ...and the reader's own anonymous character is byte-for-byte what it was.
+        Assert.Equal(mineBefore, app.Storage.Peek(AnonymousKey));
+    }
+
+    /// <summary>
+    /// Opening a character while nobody is signed in writes no copy — there is nothing to copy
+    /// from, and the reserved slot stays empty.
+    ///
+    /// <para><b>This test used to assert nothing at all, and a mutation proved it.</b> It read the
+    /// anonymous slot back after opening a character from that same slot, which is a self-write:
+    /// removing the <c>who.IsSignedIn</c> guard from the copy-down left the whole suite green.
+    /// Asserting the <em>reserved</em> slot is what makes a spurious copy observable, because a
+    /// signed-out copy would have to land there and there is no other way for it to appear.</para>
+    /// </summary>
+    [Fact]
+    public async Task OpeningACharacterSignedOutWritesNoCopy()
+    {
+        var app = Build();
+
+        var mine = SampleCharacters.Hero();
+        mine.Name = "Mine, anonymously";
+        await app.Store.SaveAsync(mine, SheetMode.Hero);
+
+        var id = (await app.Store.ListAsync()).Characters.Single().Id;
+
+        // The positive control: the open really happened.
+        Assert.NotNull(await app.Store.OpenAsync(id));
+
+        Assert.Null(app.Storage.Peek(AccountCopyKey));
+        Assert.Equal("Mine, anonymously", (await app.Store.LoadAnonymousAsync())!.Value.Sheet.Name);
+    }
+
+    /// <summary>
+    /// Signing out removes the account copy and nothing else.
+    ///
+    /// <para><b>The unconditional version of this was the worst defect in the change.</b> It
+    /// emptied whatever the anonymous slot held, so a reader who built a draft, signed in for any
+    /// reason and signed out again lost that draft — silently, with no undo, having never gone near
+    /// an account character. Both halves are asserted here: the copy goes, and the draft stays.</para>
+    /// </summary>
+    [Fact]
+    public async Task SigningOutRemovesTheAccountCopyAndNothingElse()
+    {
+        var app = Build();
+
+        var mine = SampleCharacters.Hero();
+        mine.Name = "My own draft";
+        await app.Store.SaveAsync(mine, SheetMode.Hero);
+        var mineBefore = app.Storage.Peek(AnonymousKey);
+
+        app.Api.SignedIn = ("acct-7", "player");
+        await app.Who.CompleteSignInAsync("a-token");
+
+        var theirs = SampleCharacters.Villain();
+        theirs.Name = "Their account character";
+        await app.Store.SaveAsync(theirs, SheetMode.Villain);
+        var id = (await app.Store.ListAsync()).Characters.Single().Id;
+        await app.Store.OpenAsync(id);
+
+        // The positive control: the copy really is there before signing out.
+        Assert.NotNull(app.Storage.Peek(AccountCopyKey));
+
+        app.Api.SignedIn = null;
+        await app.Who.SignOutAsync();
+        await app.Store.ClearAnonymousAsync();
+
+        Assert.Null(app.Storage.Peek(AccountCopyKey));
+        Assert.Equal(mineBefore, app.Storage.Peek(AnonymousKey));
+    }
+
+    /// <summary>
+    /// A signed-out reader's ordinary saving still works, unaffected by any of the above — the
+    /// anonymous slot is simply empty rather than gone.
+    /// </summary>
+    [Fact]
+    public async Task OrdinarySavingAfterSigningOutStillWorks()
+    {
+        var app = Build();
+        app.Api.SignedIn = ("acct-7", "player");
+        await app.Who.CompleteSignInAsync("a-token");
+
+        app.Api.SignedIn = null;
+        await app.Who.SignOutAsync();
+        await app.Store.ClearAnonymousAsync();
+
+        var freshlyAnonymous = SampleCharacters.Hero();
+        freshlyAnonymous.Name = "Freshly anonymous";
+        await app.Store.SaveAsync(freshlyAnonymous, SheetMode.Hero);
+
+        var back = await app.Store.LoadAsync();
+        Assert.NotNull(back);
+        Assert.Equal("Freshly anonymous", back!.Value.Sheet.Name);
+    }
+
+    /// <summary>
+    /// The sign-in carry-over offer still reads the anonymous slot correctly: available while
+    /// the account has none, gone once it does — none of which the new copy-on-open behaviour
+    /// changes, because opening a character is a different call from asking whether to offer
+    /// one.
+    /// </summary>
+    [Fact]
+    public async Task TheCarryOverOfferStillOnlyAppliesWhileTheAccountHasNoCharacter()
+    {
+        var app = Build();
+
+        var beingBuilt = SampleCharacters.Hero();
+        beingBuilt.Name = "Half-finished";
+        await app.Store.SaveAsync(beingBuilt, SheetMode.Hero);
+
+        app.Api.SignedIn = ("acct-7", "player");
+        await app.Who.CompleteSignInAsync("a-token");
+
+        // Nothing has opened anything yet, so the offer's premise still holds.
+        Assert.False(await app.Store.AccountHasCharacterAsync());
+        Assert.Equal("Half-finished", (await app.Store.LoadAnonymousAsync())!.Value.Sheet.Name);
+
+        Assert.True(await app.Store.KeepAnonymousCharacterAsync());
+
+        // The account now has one, so a fresh sign-in would offer nothing more — and the
+        // browser's own copy is untouched by the offer itself, exactly as it always was.
+        Assert.True(await app.Store.AccountHasCharacterAsync());
+        Assert.Equal("Half-finished", (await app.Store.LoadAnonymousAsync())!.Value.Sheet.Name);
     }
 
     /// <summary>

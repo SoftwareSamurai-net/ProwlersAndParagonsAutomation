@@ -63,5 +63,11 @@ public sealed class CharacterStore : ICharacterStore
     /// <summary>Forgets the currently open character. What "Start a new character" actually does.</summary>
     public async Task ClearAsync() => await ClearAsync(await _who.CurrentAsync());
 
+    /// <summary>
+    /// Forgets one particular identity's currently open character, whoever is here now.
+    ///
+    /// <para>Exists for one caller: <see cref="AccountCharacterStore.ClearAnonymousAsync"/>,
+    /// which signing out uses to empty the anonymous slot — see its remarks for why.</para>
+    /// </summary>
     private async Task ClearAsync(Identity who) => await _saved.ClearCurrentAsync(who);
 }
