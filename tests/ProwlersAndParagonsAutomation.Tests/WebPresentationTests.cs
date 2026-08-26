@@ -116,6 +116,43 @@ public sealed class WebPresentationTests
     /// earlier version checked hex everywhere but channel functions only in app.css, and a
     /// <c>&lt;style&gt;</c> block dropped into a component walked through carrying
     /// <c>rgb()</c> and <c>hsl()</c>.</para>
+    ///
+    /// <para><b>The channel-function list is a denylist of named CSS Color Module functions,
+    /// and it missed <c>light-dark()</c> until a mutation planted it in a real rule in
+    /// app.css and every case here stayed green.</b> <c>light-dark(white, black)</c> is
+    /// standards-track CSS Color 5, the regex knew none of the six names it had, and its
+    /// arguments follow <c>(</c> and <c>,</c> rather than the <c>:</c> the keyword regex
+    /// required — so all three detectors missed it at once. The list is now <c>rgba?</c>,
+    /// <c>hsla?</c>, <c>hwb</c>, <c>lab</c>, <c>lch</c>, <c>oklab</c>, <c>oklch</c>,
+    /// <c>color</c>, <c>light-dark</c>, <c>color-contrast</c> and <c>device-cmyk</c> — every
+    /// colour-producing function in the CSS Color 4/5 drafts, <c>color-mix()</c> excepted
+    /// (masked below, since this codebase's one use of it takes only tokens). <b>It is still
+    /// a denylist and will rot again</b> if the spec grows another one: an allowlist of the
+    /// functions this codebase actually uses (<c>var</c>, <c>calc</c>, <c>clamp</c>,
+    /// <c>min</c>, <c>max</c>, <c>minmax</c>, <c>repeat</c>, <c>url</c>, <c>translateX/Y</c>,
+    /// <c>cubic-bezier</c>, <c>linear-gradient</c>, <c>inset</c>, <c>brightness</c>, <c>not</c>,
+    /// <c>where</c>, <c>has</c>, <c>nth-child</c>, <c>format</c>, the <c>view-transition-*</c>
+    /// pseudo-functions) flagging anything else was tried and rejected here: the razor scan
+    /// runs over files that mix markup with C#, and a Razor <c>@@code</c> block is full of
+    /// unrelated calls — <c>ToList()</c>, <c>Where()</c>, <c>Select()</c> — that an
+    /// allow-everything-else rule would have to special-case one by one, which is the same
+    /// denylist problem moved one level up. Extending the known-colour list is the honest
+    /// shape for this scan; re-run the function census in the comment above (a grep for
+    /// <c>[a-zA-Z_-]+\(</c> over app.css and the razor tree) if this rots again.</para>
+    ///
+    /// <para><b>The keyword regex's anchor on <c>:\s*</c> was the deeper hole, and it is gone
+    /// now rather than widened.</b> A colour keyword is equally a colour after <c>(</c>, after
+    /// <c>,</c>, or after a bare space in a shorthand like <c>border: 1px solid black</c> —
+    /// none of which follow a colon. The replacement matches the keyword anywhere, bounded on
+    /// both sides by <c>(?&lt;![\w-])</c> / <c>(?![\w-])</c> rather than plain <c>\b</c>,
+    /// because a plain word boundary treats a hyphen as a boundary too and <c>white-space</c>
+    /// — a real property name, not a colour — is "white" immediately followed by one. Checked
+    /// against the whole <c>web/</c> tree with the position requirement dropped entirely: zero
+    /// matches outside comments today, so this is not scoped further than that.</para>
+    ///
+    /// <para><c>currentColor</c> is deliberately <b>not</b> flagged, on the same reasoning as
+    /// <c>transparent</c>: neither names a hue. Both are a reference to something else — the
+    /// absence of paint, or whatever ink already applies — not a colour chosen here.</para>
     /// </summary>
     [Theory]
     [InlineData("app.css")]
@@ -124,8 +161,10 @@ public sealed class WebPresentationTests
     public void NoComponentNamesAColour(string what)
     {
         var hex = Rx(@"#[0-9A-Fa-f]{3,8}\b");
-        var keyword = Rx(@":\s*(red|blue|green|white|black|grey|gray|yellow|orange|purple)\b", RegexOptions.IgnoreCase);
-        var channels = Rx(@"\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch)\s*\(", RegexOptions.IgnoreCase);
+        var keyword = Rx(@"(?<![\w-])(red|blue|green|white|black|grey|gray|yellow|orange|purple)(?![\w-])",
+            RegexOptions.IgnoreCase);
+        var channels = Rx(@"\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|light-dark|color-contrast|device-cmyk)\s*\(",
+            RegexOptions.IgnoreCase);
 
         List<(string, string)> sources = what switch
         {
@@ -149,6 +188,18 @@ public sealed class WebPresentationTests
     /// <list type="bullet">
     ///   <item>Comments. A comment saying "never write rgb() here" failed the test that
     ///     comment exists to explain.</item>
+    ///   <item><b>For a razor file, XML doc comments too</b> — <c>///</c> lines inside
+    ///     <c>@@code</c>. They are C# comments, not <c>@@* *@@</c> Razor ones, so the strip
+    ///     above never touched them, and once the colour-keyword scan stopped requiring a
+    ///     leading colon (see <see cref="NoComponentNamesAColour"/>) one of them started
+    ///     failing the test it was explaining: a <c>&lt;summary&gt;</c> in
+    ///     <c>ChooseTier.razor</c> reads "…about five lines of dead white above their cost
+    ///     rule", which is prose about a screenshot, not a declaration. Same reasoning as the
+    ///     Razor-comment exclusion — a doc comment does not compile into anything the browser
+    ///     paints, so it cannot be a component naming a colour. Scoped to <c>///</c> lines
+    ///     specifically, not general <c>//</c> or <c>/* */</c> C# comments: neither appears
+    ///     carrying this kind of prose anywhere in <c>web/</c> today, so stripping them was
+    ///     not needed to make the real tree pass and is left undone rather than guessed at.</item>
     ///   <item>Numeric HTML entities. <c>&amp;#8212;</c> — an em dash — is four hex-looking
     ///     digits behind a hash, and reads as a colour to the regex.</item>
     ///   <item><c>color-mix()</c>, the one channel function this codebase uses. It mixes
@@ -162,6 +213,9 @@ public sealed class WebPresentationTests
         var stripped = css
             ? Rx(@"/\*.*?\*/", RegexOptions.Singleline).Replace(text, " ")
             : Rx(@"@\*.*?\*@", RegexOptions.Singleline).Replace(text, " ");
+
+        if (!css)
+            stripped = Rx(@"^\s*///.*$", RegexOptions.Multiline).Replace(stripped, " ");
 
         stripped = Rx("&#x?[0-9A-Fa-f]+;").Replace(stripped, " ");
         return Rx(@"\bcolor-mix\s*\(", RegexOptions.IgnoreCase).Replace(stripped, "MIX(");
