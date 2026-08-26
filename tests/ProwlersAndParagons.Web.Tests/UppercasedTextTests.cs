@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
+using AngleSharp.Dom;
 using Bunit;
 using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Pages;
@@ -144,7 +145,7 @@ public sealed class UppercasedTextTests
             {
                 seen++;
 
-                var text = element.TextContent;
+                var text = element.Visible();
 
                 Assert.False(Rank.IsMatch(text),
                     $"'{selector}' is set in capitals and carries a rank: \"{Collapse(text)}\". "

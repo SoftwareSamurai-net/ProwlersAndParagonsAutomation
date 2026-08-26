@@ -10,6 +10,14 @@
    wordmark, no colour scheme. Those are LakeSide Games', and this project ships none of
    their content.
 
+   **Every name on it says what it means, on hover and on focus.** The descriptions are the ones in
+   `data/rules`, which is verified entry by entry; nothing here writes a sentence about a rule. There
+   is no switch for it — it was briefly a separate page reached by a button, which is one more thing
+   to build and one more thing to find. What keeps it off paper is the print block: the marking and
+   the help cursor are stripped, and a tip only ever appears on `:hover` or `:focus-visible`, which a
+   printer has neither of. So the sheet explains itself right up until it is printed, and the printed
+   sheet is unchanged.
+
    Two things follow from the reference sheet being a *form*:
 
      - Every Ability and all twelve Talents are listed whether or not a rank was bought,
@@ -79,7 +87,7 @@
                             @foreach (var ability in Session.Rules.Abilities)
                             {
                                 <tr>
-                                    <td><Term Name="@ability.Name" Text="@ability.Description" Enabled="@Explain" /></td>
+                                    <td><Term Name="@ability.Name" Text="@ability.Description" /></td>
                                     <td>@Rank(Sheet.GetAbilityRank(ability.Id))</td>
                                 </tr>
                             }
@@ -93,7 +101,7 @@
                             @foreach (var talent in Session.Rules.Talents)
                             {
                                 <tr>
-                                    <td><Term Name="@talent.Name" Text="@talent.Description" Enabled="@Explain" /></td>
+                                    <td><Term Name="@talent.Name" Text="@talent.Description" /></td>
                                     <td>@Rank(Sheet.GetTalentRank(talent.Id))</td>
                                 </tr>
                             }
@@ -129,7 +137,7 @@
                            is the only place the sheet says it. "TECH POWERS" does not tell a
                            reader what a Source is for. *@
                         <SheetSection Title="@group.Heading" Class="powers"
-                                      TitleTerm="@(Explain ? group.Source?.Description : null)">
+                                      TitleTerm="@group.Source?.Description">
                             @* An Ability's or Talent's Source is printed here, inside the
                                Power group, and not as a marking on the Abilities table —
                                that is where the published sheets put it. Stronghold's
@@ -153,7 +161,7 @@
                                             whitespace inside an element following an expression,
                                             which printed "Armor8d" here once already. *@
                                             <Term Name="@(power?.Name ?? sp.PowerId)"
-                                                  Text="@power?.Description" Enabled="@Explain" />@Ranked(power, rank)</span>
+                                                  Text="@power?.Description" />@Ranked(power, rank)</span>
                                         <span class="hp">@(CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—") HP</span>
                                     </div>
                                     @if (power is not null)
@@ -201,7 +209,7 @@
                                         <td>
                                             <Term Name="@(Session.Rules.GetPerk(sp.PerkId)?.Name ?? sp.PerkId)"
                                                   Text="@Session.Rules.GetPerk(sp.PerkId)?.Description"
-                                                  Enabled="@Explain" />@(sp.Units > 1 ? $" ×{sp.Units}" : "")
+                                                   />@(sp.Units > 1 ? $" ×{sp.Units}" : "")
                                             @if (sp.NarrativeDetail is not null)
                                             {
                                                 <span class="muted small"> — @sp.NarrativeDetail</span>
@@ -247,8 +255,7 @@
                                     var flaw = Session.Rules.GetFlaw(sf.FlawId);
                                     <tr>
                                         <td>
-                                            <Term Name="@(flaw?.Name ?? sf.FlawId)" Text="@flaw?.Description"
-                                                  Enabled="@Explain" />
+                                            <Term Name="@(flaw?.Name ?? sf.FlawId)" Text="@flaw?.Description" />
                                             @if (sf.NarrativeDetail is not null)
                                             {
                                                 <span class="muted small"> — @sf.NarrativeDetail</span>
@@ -267,7 +274,7 @@
                 @* The four figures a player reads off mid-scene, set as big as the
                    published sheet sets them. Hero Points is the tier budget: a Villain has
                    none (Ch.9), so that box carries what the character cost instead. *@
-                <DerivedStatBlocks Class="quad" WithPoints="true" Explain="@Explain"
+                <DerivedStatBlocks Class="quad" WithPoints="true"
                                    Character="@Character" ShowBudget="@ShowBudget" />
 
                 <SheetSection Title="Origin" Class="fill">
@@ -340,20 +347,6 @@
     /// only the sheet being read differs.</para>
     /// </summary>
     [Parameter] public CharacterSheet? Character { get; set; }
-
-    /// <summary>
-    /// Whether every name on the sheet carries what it means, on hover and on focus.
-    ///
-    /// <para><b>Off by default, and the default is the one that matters.</b> The printed sheet is
-    /// what this whole tool produces and it is one page by a margin; a sheet that gained forty
-    /// controls would be a different document. So the explanations are a screen a reader asks
-    /// for — see <c>ExplainedSheet</c> — and every other place this component is drawn is
-    /// unchanged, which <c>SheetRenderTests</c> holds it to.</para>
-    ///
-    /// <para>The descriptions are the ones in <c>data/rules</c>, which is verified entry by entry
-    /// against the page. Nothing here writes a sentence about a rule.</para>
-    /// </summary>
-    [Parameter] public bool Explain { get; set; }
 
     /// <summary>
     /// Whether the four-figure block measures the spend against a budget. Defaults to the

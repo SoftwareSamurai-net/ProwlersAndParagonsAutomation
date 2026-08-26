@@ -2004,6 +2004,37 @@ label {
 .term .row-tip.dismissed,
 .term:hover .row-tip.dismissed { display: none; }
 
+/* **A sheet holding an open tip stops clipping, and lifts above what follows it.**
+   `.sheet` carries `overflow: hidden` — for the border radius, which is its only job there — and
+   `animation: rise`, which applies a transform. Both defeat an absolutely-positioned tip: the
+   overflow crops it at the sheet's edge, and a transformed element is a stacking context, so the
+   tip's `z-index` is trapped inside the sheet and the next thing on the page paints over it.
+
+   Seen, not reasoned about: the Hero Points tip in the right-hand column came out cut off
+   mid-word at the sheet's right edge, with the section below drawn over what was left.
+
+   Raising and un-clipping the *ancestor* is what works, because a tip cannot escape an ancestor's
+   stacking context or its overflow — exactly the fix `.panel:has(.tip.shown)` already applies for
+   `Tooltip`, and for the same measured reason. `:has()` keeps it to the moment a tip is open, so
+   the radius still clips every other frame. */
+.sheet:has(.term:hover),
+.sheet:has(.term-name:focus-visible) {
+    overflow: visible;
+    position: relative;
+    z-index: 1;
+}
+
+/* **In the right-hand column a tip opens leftwards**, or it runs off the page rather than off the
+   sheet — and no amount of un-clipping helps with that, because the window is the one edge nothing
+   can escape. The two right-hand boxes of the four-figure grid need it for the same reason: they
+   are the rightmost thing on the sheet, and Hero Points is where this was caught. */
+.sheet-col:last-child .term .row-tip,
+.sheet-foot > *:last-child .term .row-tip,
+.stat-blocks.quad > .stat-block:nth-child(even) .term .row-tip {
+    left: auto;
+    right: 0;
+}
+
 /* ── The sheet beside the editors ────────────────────────────────────────── */
 
 /* One column until there is room for two. Below the breakpoint the aside simply falls under the

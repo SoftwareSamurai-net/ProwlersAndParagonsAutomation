@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using AngleSharp.Dom;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using ProwlersAndParagonsAutomation.Engine;
@@ -55,7 +56,7 @@ public sealed class SheetRenderTests
         var run = new Regex(@"[A-Za-z)\]]\d+d\b", RegexOptions.None, TimeSpan.FromSeconds(5));
         var backwards = new Regex(@"\b\d+d[A-Za-z(\[]", RegexOptions.None, TimeSpan.FromSeconds(5));
 
-        foreach (var entry in onSheet.Concat(onTab).Select(e => Collapse(e.TextContent)))
+        foreach (var entry in onSheet.Concat(onTab).Select(e => Collapse(e.Visible())))
         {
             Assert.False(run.IsMatch(entry), $"A rank is printed with no space before it: \"{entry}\"");
             Assert.False(backwards.IsMatch(entry), $"A rank runs into what follows it: \"{entry}\"");
@@ -93,7 +94,7 @@ public sealed class SheetRenderTests
 
         foreach (var entry in ctx.Render<SheetView>().FindAll(".power-entry .head .pname"))
         {
-            var text = Collapse(entry.TextContent);
+            var text = Collapse(entry.Visible());
             var name = expected.Keys.Single(n => text.StartsWith(n, StringComparison.Ordinal));
 
             Assert.Equal(expected[name] is { } rank ? $"{name} {rank}d" : name, text);
@@ -121,8 +122,8 @@ public sealed class SheetRenderTests
         // passed the version of this test that only looked for the shapes.
         var printed = view.FindAll(".trait-table tr")
             .ToDictionary(
-                tr => Collapse(tr.QuerySelector("td")!.TextContent),
-                tr => Collapse(tr.QuerySelector("td:last-child")!.TextContent),
+                tr => Collapse(tr.QuerySelector("td")!.Visible()),
+                tr => Collapse(tr.QuerySelector("td:last-child")!.Visible()),
                 StringComparer.Ordinal);
 
         foreach (var ability in ctx.Session.Rules.Abilities)
@@ -163,9 +164,9 @@ public sealed class SheetRenderTests
         var view = ctx.Render<SheetView>();
 
         var row = view.FindAll(".trait-table tr")
-            .Single(tr => Collapse(tr.QuerySelector("td")!.TextContent) == talent.Name);
+            .Single(tr => Collapse(tr.QuerySelector("td")!.Visible()) == talent.Name);
 
-        Assert.Equal("0d", Collapse(row.QuerySelector("td:last-child")!.TextContent));
+        Assert.Equal("0d", Collapse(row.QuerySelector("td:last-child")!.Visible()));
         Assert.Empty(view.FindAll(".trait-table .rule-line"));
     }
 
@@ -203,7 +204,7 @@ public sealed class SheetRenderTests
         // separator behind, so a forbidden string split across two elements survives a
         // DoesNotContain over the whole page — which is the same hole in the other direction.
         foreach (var line in ctx.Render<SheetView>().FindAll(".power-entry .statline"))
-            Assert.DoesNotContain("toughness)", Collapse(line.TextContent), StringComparison.Ordinal);
+            Assert.DoesNotContain("toughness)", Collapse(line.Visible()), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -217,7 +218,7 @@ public sealed class SheetRenderTests
         using var ctx = new RenderContext().With(SheetMode.Hero);
         var view = ctx.Render<SheetView>();
 
-        var costs = view.FindAll(".hp").Select(e => e.TextContent.Trim()).ToList();
+        var costs = view.FindAll(".hp").Select(e => e.Visible().Trim()).ToList();
 
         Assert.NotEmpty(costs);
         Assert.All(costs, c => Assert.EndsWith("HP", c, StringComparison.Ordinal));
@@ -237,12 +238,12 @@ public sealed class SheetRenderTests
         using var ctx = new RenderContext();
         var sheet = ctx.Render<SheetView>();
 
-        var headings = sheet.FindAll(".sheet-section > h3").Select(h => Collapse(h.TextContent)).ToList();
+        var headings = sheet.FindAll(".sheet-section > h3").Select(h => Collapse(h.Visible())).ToList();
 
         foreach (var heading in new[] { "Abilities", "Talents", "Powers", "Perks", "Gear", "Flaws", "Origin", "Notes" })
             Assert.Contains(headings, h => h.Contains(heading, StringComparison.OrdinalIgnoreCase));
 
-        Assert.Equal("Unnamed", Collapse(sheet.Find(".identity .ident-name").TextContent));
+        Assert.Equal("Unnamed", Collapse(sheet.Find(".identity .ident-name").Visible()));
 
         // Room to write, in every box the engine has nothing to put in — not merely 30 lines
         // somewhere on the page. This is the regression the sheet was rebuilt to remove: an
@@ -252,10 +253,10 @@ public sealed class SheetRenderTests
         {
             var section = sheet.FindAll(".sheet-section")
                 .Single(s => s.QuerySelector("h3") is { } h
-                             && Collapse(h.TextContent).Contains(box, StringComparison.OrdinalIgnoreCase));
+                             && Collapse(h.Visible()).Contains(box, StringComparison.OrdinalIgnoreCase));
 
             Assert.NotEmpty(section.QuerySelectorAll(".rule-line"));
-            Assert.DoesNotContain("None.", Collapse(section.TextContent), StringComparison.Ordinal);
+            Assert.DoesNotContain("None.", Collapse(section.Visible()), StringComparison.Ordinal);
         }
     }
 
@@ -291,7 +292,7 @@ public sealed class SheetRenderTests
         {
             var heading = section.QuerySelector("h3");
             Assert.NotNull(heading);
-            Assert.NotEmpty(Collapse(heading.TextContent));
+            Assert.NotEmpty(Collapse(heading.Visible()));
         }
     }
 
@@ -309,7 +310,7 @@ public sealed class SheetRenderTests
 
         var gear = sheet.FindAll(".sheet-section")
             .Single(s => s.QuerySelector("h3") is { } h
-                         && Collapse(h.TextContent).Contains("Gear", StringComparison.OrdinalIgnoreCase));
+                         && Collapse(h.Visible()).Contains("Gear", StringComparison.OrdinalIgnoreCase));
 
         var spanning = gear.QuerySelectorAll("td[colspan]");
 
@@ -317,7 +318,7 @@ public sealed class SheetRenderTests
         Assert.All(spanning, td => Assert.Equal("2", td.GetAttribute("colspan")));
 
         foreach (var item in ctx.Session.Sheet.Gear)
-            Assert.Contains(spanning, td => Collapse(td.TextContent).Contains(item.Name, StringComparison.Ordinal));
+            Assert.Contains(spanning, td => Collapse(td.Visible()).Contains(item.Name, StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -334,22 +335,22 @@ public sealed class SheetRenderTests
         using var budgeted = new RenderContext().With(SheetMode.Hero);
         var budgetedBox = budgeted.Render<SheetView>().FindAll(".stat-blocks.quad .stat-block")[3];
 
-        Assert.Contains("Hero Points", budgetedBox.TextContent, StringComparison.Ordinal);
-        Assert.Contains("of 125", budgetedBox.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Hero Points", budgetedBox.Visible(), StringComparison.Ordinal);
+        Assert.Contains("of 125", budgetedBox.Visible(), StringComparison.Ordinal);
 
         // A Villain held to a tier's points reads exactly the same, which is the half that would
         // have been missed by simply swapping the trigger over.
         using var villain = new RenderContext().With(SheetMode.Villain);
         var villainBox = villain.Render<SheetView>().FindAll(".stat-blocks.quad .stat-block")[3];
 
-        Assert.Contains("of 125", villainBox.TextContent, StringComparison.Ordinal);
+        Assert.Contains("of 125", villainBox.Visible(), StringComparison.Ordinal);
 
         using var sandbox = new RenderContext().With(SheetMode.Hero);
         sandbox.Session.UnlimitedBudget = true;
         var sandboxBox = sandbox.Render<SheetView>().FindAll(".stat-blocks.quad .stat-block")[3];
 
-        Assert.Contains("Points Spent", sandboxBox.TextContent, StringComparison.Ordinal);
-        Assert.DoesNotContain(" of ", sandboxBox.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Points Spent", sandboxBox.Visible(), StringComparison.Ordinal);
+        Assert.DoesNotContain(" of ", sandboxBox.Visible(), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -363,7 +364,7 @@ public sealed class SheetRenderTests
         using var ctx = new RenderContext().With(SheetMode.Villain);
         var headings = ctx.Render<SheetView>()
             .FindAll(".sheet-section.powers > h3")
-            .Select(h => h.TextContent)
+            .Select(h => h.Visible())
             .ToList();
 
         Assert.Contains("MAGIC POWERS", headings);
@@ -390,7 +391,7 @@ public sealed class SheetRenderTests
 
         var lines = ctx.Render<SheetView>()
             .FindAll(".power-entry .statline")
-            .Select(e => Collapse(e.TextContent))
+            .Select(e => Collapse(e.Visible()))
             .ToList();
 
         Assert.Contains(lines, l => l.StartsWith("Pros: Armor Piercing", StringComparison.Ordinal));
@@ -448,16 +449,16 @@ public sealed class SheetRenderTests
         var sheet = ctx.Render<SheetView>();
 
         Assert.Equal(expected,
-            sheet.FindAll(".power-entry.trait-sources").Select(e => Collapse(e.TextContent)));
+            sheet.FindAll(".power-entry.trait-sources").Select(e => Collapse(e.Visible())));
 
         // Above the Powers in the same box, not appended after them. Read off the rendered
         // order of the whole column, so a line printed in the wrong group fails too.
         foreach (var group in groups.Where(g => g.TraitLines.Count > 0 && g.Powers.Count > 0))
         {
             var box = sheet.FindAll(".sheet-section.powers")
-                .Single(s => Collapse(s.TextContent).StartsWith(group.Heading, StringComparison.Ordinal));
+                .Single(s => Collapse(s.Visible()).StartsWith(group.Heading, StringComparison.Ordinal));
 
-            var entries = box.QuerySelectorAll(".power-entry").Select(e => Collapse(e.TextContent)).ToList();
+            var entries = box.QuerySelectorAll(".power-entry").Select(e => Collapse(e.Visible())).ToList();
 
             Assert.Equal(group.TraitLines, entries.Take(group.TraitLines.Count));
         }
@@ -489,7 +490,7 @@ public sealed class SheetRenderTests
 
         var lines = ctx.Render<SheetView>()
             .FindAll(".power-entry.trait-sources")
-            .Select(e => Collapse(e.TextContent))
+            .Select(e => Collapse(e.Visible()))
             .ToList();
 
         foreach (var name in onDefault)
@@ -525,7 +526,7 @@ public sealed class SheetRenderTests
 
         var heading = SourceGrouping.HeadingFor(unused);
         var boxes = ctx.Render<SheetView>().FindAll(".sheet-section.powers")
-            .Select(e => Collapse(e.TextContent))
+            .Select(e => Collapse(e.Visible()))
             .ToList();
 
         var box = Assert.Single(boxes, b => b.StartsWith(heading, StringComparison.Ordinal));
@@ -548,7 +549,7 @@ public sealed class SheetRenderTests
         Assert.Empty(ctx.Session.Sheet.SelectedPowers);
 
         var sheet = ctx.Render<SheetView>();
-        var boxes = sheet.FindAll(".sheet-section.powers").Select(e => Collapse(e.TextContent)).ToList();
+        var boxes = sheet.FindAll(".sheet-section.powers").Select(e => Collapse(e.Visible())).ToList();
 
         var box = Assert.Single(boxes);
         Assert.StartsWith("TECH POWERS", box, StringComparison.Ordinal);
@@ -569,7 +570,7 @@ public sealed class SheetRenderTests
 
         Assert.Empty(sheet.FindAll(".sheet-section.powers"));
         Assert.Contains(sheet.FindAll(".sheet-section"), s =>
-            Collapse(s.TextContent).StartsWith("Powers", StringComparison.Ordinal));
+            Collapse(s.Visible()).StartsWith("Powers", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -585,7 +586,7 @@ public sealed class SheetRenderTests
         ctx.Session.Sheet.AbilitySources["might"] = "tech";
 
         var origin = ctx.Render<SheetView>().FindAll(".sheet-section")
-            .Select(e => Collapse(e.TextContent))
+            .Select(e => Collapse(e.Visible()))
             .Single(t => t.StartsWith("Origin", StringComparison.Ordinal));
 
         Assert.Contains("Tech", origin, StringComparison.Ordinal);
@@ -607,7 +608,7 @@ public sealed class SheetRenderTests
         ctx.Session.Sheet.AbilitySources["intellect"] = unusedSource.Id;
 
         var headings = ctx.Render<PowersTab>().FindAll("h3")
-            .Select(h => Collapse(h.TextContent))
+            .Select(h => Collapse(h.Visible()))
             .ToList();
 
         Assert.DoesNotContain(SourceGrouping.HeadingFor(unusedSource), headings);
@@ -671,7 +672,7 @@ public sealed class SheetRenderTests
     /// only a tag boundary is not there — and one that is really in the text still is.</para>
     /// </summary>
     private static string Rendered<T>(IRenderedComponent<T> page) where T : IComponent =>
-        string.Concat(page.Nodes.Select(n => n.TextContent));
+        string.Concat(page.Nodes.Select(n => n.Visible()));
 
     /// <summary>
     /// One element's text as a reader sees it. Runs of whitespace collapse to a single space

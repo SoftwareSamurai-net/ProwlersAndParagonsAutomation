@@ -63,7 +63,7 @@ public sealed class ReplayRenderTests
         ctx.Render<ReplayConversation>(p => p.Add(c => c.Id, id));
 
     private static IElement Button(IRenderedComponent<ReplayConversation> page, string label) =>
-        page.FindAll("button").First(b => b.TextContent.Contains(label, StringComparison.Ordinal));
+        page.FindAll("button").First(b => b.Visible().Contains(label, StringComparison.Ordinal));
 
     /// <summary>
     /// One labelled figure off the rendered page — "Spent 72" becomes 72. It reads the whole
@@ -73,7 +73,7 @@ public sealed class ReplayRenderTests
     private static int Figure(IRenderedComponent<ReplayConversation> page, string label)
     {
         var text = page.FindAll(".replay-figures span")
-            .Select(s => s.TextContent.Trim())
+            .Select(s => s.Visible().Trim())
             .First(t => t.StartsWith(label, StringComparison.Ordinal));
 
         // The Trait Cap is a rank and prints as "12d", the way the rulebook writes one. The
@@ -94,7 +94,7 @@ public sealed class ReplayRenderTests
     /// search for two words that are never next to each other on the screen.
     /// </summary>
     private static string Text<T>(IRenderedComponent<T> page) where T : IComponent =>
-        string.Concat(page.Nodes.Select(n => n.TextContent));
+        string.Concat(page.Nodes.Select(n => n.Visible()));
 
     // ── It says it is a recording ───────────────────────────────────────────────
 
@@ -153,12 +153,12 @@ public sealed class ReplayRenderTests
 
         for (var i = 0; i < recorded.Count; i++)
         {
-            var who = rendered[i].QuerySelector(".replay-who")!.TextContent.Trim();
+            var who = rendered[i].QuerySelector(".replay-who")!.Visible().Trim();
 
             // The recorded words and the attribution beside them, together. Checked as a pair
             // so a page that labelled every turn correctly while showing them out of order
             // still fails.
-            Assert.Contains(recorded[i].Text, rendered[i].TextContent, StringComparison.Ordinal);
+            Assert.Contains(recorded[i].Text, rendered[i].Visible(), StringComparison.Ordinal);
             Assert.Equal(
                 recorded[i].Speaker == TranscriptSpeaker.Person ? "The player" : "The assistant",
                 who);
@@ -264,7 +264,7 @@ public sealed class ReplayRenderTests
         // match the character taken above: one recording puts a draft and a settlement on the
         // page and each gets a panel of its own.
         var stats = page.FindAll(".replay-verdict")[0]
-            .QuerySelectorAll(".stat-block").Select(b => b.TextContent).ToList();
+            .QuerySelectorAll(".stat-block").Select(b => b.Visible()).ToList();
         foreach (var (label, value) in new[]
                  {
                      ("Edge", derived.CalculateEdge(character)),
@@ -306,7 +306,7 @@ public sealed class ReplayRenderTests
             return context.Render<ReplayVerdict>(p => p
                     .Add(v => v.Character, subject)
                     .Add(v => v.Villain, villain))
-                .Find(".replay-verdict").TextContent;
+                .Find(".replay-verdict").Visible();
         }
 
         using var ctx = new RenderContext().AsAdministrator();
@@ -341,14 +341,14 @@ public sealed class ReplayRenderTests
         var page = Play(ctx, DidNotFit);
         ShowAll(page);
 
-        var verdicts = page.FindAll(".verdict").Select(v => v.TextContent.Trim()).ToList();
+        var verdicts = page.FindAll(".verdict").Select(v => v.Visible().Trim()).ToList();
 
         Assert.Equal(2, verdicts.Count);
         Assert.Equal("Not legal yet", verdicts[0]);
         Assert.Equal("Legal", verdicts[^1]);
 
         // And the finding itself, in the validator's own words rather than a paraphrase.
-        Assert.Contains("budget", page.FindAll(".issues li").Single().TextContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("budget", page.FindAll(".issues li").Single().Visible(), StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -383,7 +383,7 @@ public sealed class ReplayRenderTests
 
         Assert.Contains(
             page.FindAll(".replay-verdict .issues li"),
-            li => li.TextContent.Contains(overspend.Message, StringComparison.Ordinal));
+            li => li.Visible().Contains(overspend.Message, StringComparison.Ordinal));
 
         var text = Text(page);
         Assert.Contains("Ch.9", text, StringComparison.Ordinal);
@@ -391,7 +391,7 @@ public sealed class ReplayRenderTests
 
         // The budget is not offered as a figure either: there is nothing to measure against.
         Assert.DoesNotContain(
-            page.FindAll(".replay-figures span").Select(s => s.TextContent.Trim()),
+            page.FindAll(".replay-figures span").Select(s => s.Visible().Trim()),
             t => t.StartsWith("Budget", StringComparison.Ordinal));
     }
 
@@ -444,15 +444,15 @@ public sealed class ReplayRenderTests
 
         var sheet = page.Find(".sheet");
 
-        Assert.Contains(recorded.Name, sheet.TextContent, StringComparison.Ordinal);
-        Assert.DoesNotContain(ctx.Session.Sheet.Name, sheet.TextContent, StringComparison.Ordinal);
+        Assert.Contains(recorded.Name, sheet.Visible(), StringComparison.Ordinal);
+        Assert.DoesNotContain(ctx.Session.Sheet.Name, sheet.Visible(), StringComparison.Ordinal);
 
         var block = page.FindAll(".sheet .stat-block")
-            .Single(b => b.QuerySelector(".label")!.TextContent.Trim() == label);
+            .Single(b => b.QuerySelector(".label")!.Visible().Trim() == label);
 
         Assert.Equal(
             Stat(recorded).ToString(System.Globalization.CultureInfo.InvariantCulture),
-            block.QuerySelector(".value")!.TextContent.Trim());
+            block.QuerySelector(".value")!.Visible().Trim());
     }
 
     /// <summary>
@@ -482,7 +482,7 @@ public sealed class ReplayRenderTests
         var page = Play(ctx, Cheap);
         ShowAll(page);
 
-        var entries = page.FindAll(".sheet .power-entry .head").Select(e => e.TextContent).ToList();
+        var entries = page.FindAll(".sheet .power-entry .head").Select(e => e.Visible()).ToList();
 
         foreach (var power in recorded.SelectedPowers)
         {
@@ -536,7 +536,7 @@ public sealed class ReplayRenderTests
         {
             ctx.Session.Restore(sheet, SheetMode.Hero);
             return ctx.Render<SheetView>(p => p.Add(s => s.ShowBudget, true))
-                .Find(".sheet").TextContent;
+                .Find(".sheet").Visible();
         }
 
         using var ctx = new RenderContext().AsAdministrator();
@@ -565,7 +565,7 @@ public sealed class ReplayRenderTests
         var actual = ctx.Render<SheetView>(p => p
                 .Add(s => s.Character, subject)
                 .Add(s => s.ShowBudget, true))
-            .Find(".sheet").TextContent;
+            .Find(".sheet").Visible();
 
         Assert.Equal(expected, actual);
     }
@@ -598,7 +598,7 @@ public sealed class ReplayRenderTests
         Assert.NotEmpty(rankless);
 
         var sheet = ctx.Render<SheetView>(p => p.Add(s => s.Character, printed))
-            .Find(".sheet").TextContent;
+            .Find(".sheet").Visible();
 
         foreach (var power in rankless)
         {
@@ -639,10 +639,10 @@ public sealed class ReplayRenderTests
         ShowAll(page);
 
         var block = page.FindAll(".sheet .stat-block")
-            .Single(b => b.QuerySelector(".label")!.TextContent.Trim() is "Hero Points" or "Points Spent");
+            .Single(b => b.QuerySelector(".label")!.Visible().Trim() is "Hero Points" or "Points Spent");
 
-        Assert.Equal(label, block.QuerySelector(".label")!.TextContent.Trim());
-        Assert.Equal(sub, block.QuerySelector(".sub")?.TextContent.Trim());
+        Assert.Equal(label, block.QuerySelector(".label")!.Visible().Trim());
+        Assert.Equal(sub, block.QuerySelector(".sub")?.Visible().Trim());
     }
 
     /// <summary>
@@ -667,7 +667,7 @@ public sealed class ReplayRenderTests
         });
 
         var page = ctx.Render<SheetView>();
-        var sheet = page.Find(".sheet").TextContent;
+        var sheet = page.Find(".sheet").Visible();
 
         // It rendered at all, which is most of the assertion — and it kept the parts it could
         // still answer for rather than dropping the line, which is the other part.

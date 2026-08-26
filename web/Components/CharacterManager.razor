@@ -221,10 +221,30 @@
         await Refresh();
     }
 
+    /// <summary>
+    /// Begins a second character, keeping the first.
+    ///
+    /// <para><b>The pointer moves before the sheet is emptied, and that order is the fix.</b>
+    /// Emptying the session raises its change event, which fires a write-through — and a write
+    /// that happened while the app still pointed at the old character would land on top of it.
+    /// Switching first means that write goes to the new id, where it is skipped anyway because an
+    /// empty sheet is not worth keeping.</para>
+    ///
+    /// <para>This used to call <c>Store.ClearAsync()</c>, which deletes whichever character is
+    /// open — so starting a second character destroyed the first and the list could never hold
+    /// more than one row. See <see cref="AccountCharacterStore.StartNewAsync"/>.</para>
+    /// </summary>
     private async Task StartNew()
     {
+        // A full account is the one thing that stops this, and it says so rather than appearing to
+        // do nothing: the notice below the list is already the place that sentence lives.
+        if (await Store.StartNewAsync() is null)
+        {
+            _full = true;
+            return;
+        }
+
         Session.StartAgain();
-        await Store.ClearAsync();
 
         await Refresh();
     }

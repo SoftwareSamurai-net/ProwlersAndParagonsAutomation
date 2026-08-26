@@ -127,7 +127,7 @@ public sealed class StartAgainTests
     /// only and does not survive that, which is the trade the whole feature makes.
     /// </summary>
     [Fact]
-    public void DiscardingEmptiesTheSheetAndForgetsTheStoredOne()
+    public void StartingANewCharacterEmptiesTheSheetAndKeepsTheStoredOne()
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
         var page = ctx.Render<ChooseTier>();
@@ -136,7 +136,14 @@ public sealed class StartAgainTests
 
         Assert.Empty(ctx.Session.Sheet.SelectedPowers);
         Assert.Null(ctx.Session.Sheet.SelectedTierId);
-        Assert.Contains(ctx.JSInterop.Invocations, i => i.Identifier == "ppStore.clear");
+
+        // **And nothing was forgotten, which is the reverse of what this asserted before.** It
+        // required a `ppStore.clear`, because "Start a new character" used to delete whichever
+        // character was open — so beginning a second one destroyed the first and the list could
+        // never hold more than one row. The name said "forgets the stored one" and that was exactly
+        // the bug. It mints a fresh id and points at it now; the character that was open stays
+        // where it is, under its own id. See `CharacterManagerTests`.
+        Assert.DoesNotContain(ctx.JSInterop.Invocations, i => i.Identifier == "ppStore.clear");
     }
 
     /// <summary>
@@ -149,9 +156,20 @@ public sealed class StartAgainTests
     public void TheClearLandsAfterTheSaveThatEmptyingTheSheetFires()
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
+
+        // The one row an anonymous visitor can have without an index: the slot this store has
+        // written since before there was a list. It is also what `CurrentIdAsync` defaults to, so
+        // this row *is* the open one — the branch that still empties the session and clears.
+        ctx.JSInterop.Setup<string?>("ppStore.load", "pp.character.v1")
+            .SetResult("""{"Version":1,"Mode":0,"Sheet":{"SelectedTierId":"standard","Name":"Lynchpin"}}""");
+
         var page = ctx.Render<ChooseTier>();
 
-        Button(page, Discard).Click();
+        // **Driven from the row's own Discard, because that is the only control that still
+        // clears.** "Start a new character" used to, and the ordering mattered there for exactly
+        // the reason it still matters here: emptying the session raises its change event, which
+        // fires a write nobody awaits, so a clear that landed first would be undone by that write.
+        page.FindAll("button").First(b => b.Visible().Trim() == "Discard").Click();
 
         var calls = ctx.JSInterop.Invocations
             .Select(i => i.Identifier)

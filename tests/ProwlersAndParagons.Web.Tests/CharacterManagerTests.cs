@@ -133,6 +133,147 @@ public sealed class CharacterManagerTests
         Assert.DoesNotContain("small", primary.ClassList);
     }
 
+    // ── Keeping more than one ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>Starting a second character keeps the first, and this is the bug that made the whole
+    /// tool single-character.</b>
+    ///
+    /// <para>"Start a new character" called <c>Store.ClearAsync()</c>, which deletes whichever
+    /// character is <em>open</em> — so beginning a second one destroyed the first. The list could
+    /// never hold more than one row and there was nothing to go back to. Reported from the running
+    /// app with two screenshots: "1 of 5, Lynchpin", and one click later "0 of 5, nothing built
+    /// yet".</para>
+    ///
+    /// <para>Nothing in this file caught it because every test here saved its characters through
+    /// the store directly and never pressed the button.</para>
+    /// </summary>
+    [Fact]
+    public async Task StartingASecondCharacterKeepsTheFirst()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        var first = SavedCharacters.NewId();
+        await account.SaveAsync(first, "Lynchpin", SampleCharacters.Hero(), SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+        await Button(cut, "Start a new character").ClickAsync();
+
+        // The first character is still on the account, under its own id and its own name.
+        Assert.Contains((await account.ListAsync()).Characters,
+            c => c.Id == first && c.Label == "Lynchpin");
+
+        // And the sheet in front of the reader is empty, ready for the second one.
+        Assert.Null(ctx.Session.Sheet.SelectedTierId);
+        Assert.Empty(ctx.Session.Sheet.SelectedPowers);
+    }
+
+    /// <summary>
+    /// The second character becomes a row of its own once it is worth keeping — so the list really
+    /// does grow, which is the half a "the first one survived" assertion does not cover.
+    /// </summary>
+    [Fact]
+    public async Task TheSecondCharacterBecomesARowOfItsOwn()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        var first = SavedCharacters.NewId();
+        await account.SaveAsync(first, "Lynchpin", SampleCharacters.Hero(), SheetMode.Hero);
+
+        // The store is asked directly here rather than through the button, because the id it mints
+        // is the thing under test and the click discards it. `StartNewAsync` is exactly what the
+        // button calls.
+        var second = await ctx.Services.GetRequiredService<AccountCharacterStore>().StartNewAsync();
+        Assert.NotNull(second);
+        Assert.NotEqual(first, second);
+
+        // Written under the new id, which is the property: if the pointer had not moved this would
+        // land on Lynchpin and there would still be one row. Saved explicitly rather than by
+        // waiting on the autosave, which is fire-and-forget and would make this a race — and which
+        // resolves its id through `ppStore`, where bUnit's loose interop answers null.
+        await account.SaveAsync(second!, "The Quiet Hour", SampleCharacters.Villain(), SheetMode.Villain);
+
+        var listed = (await account.ListAsync()).Characters;
+        Assert.Equal(2, listed.Count);
+        Assert.Contains(listed, c => c.Label == "Lynchpin");
+        Assert.Contains(listed, c => c.Label == "The Quiet Hour");
+    }
+
+    /// <summary>
+    /// And the first one can be opened again, which is what "you can never go back" meant.
+    /// </summary>
+    [Fact]
+    public async Task TheCharacterYouLeftCanBeOpenedAgain()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        var first = SavedCharacters.NewId();
+        await account.SaveAsync(first, "Lynchpin", SampleCharacters.Hero(), SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+        await Button(cut, "Start a new character").ClickAsync();
+        cut.Render();
+
+        // The row is there with a way back into it — an "Open" button, which only appears on a row
+        // that is not the one already on screen.
+        await Row(cut, "Lynchpin").QuerySelectorAll("button")
+            .Single(b => b.TextContent.Trim() == "Open").ClickAsync();
+
+        // The sheet that came back is the one that was stored under that row. Its own Name is the
+        // sample's — "Lynchpin" was the row's label, which is a different field and deliberately so:
+        // the server never parses a character, so the name travels alongside the payload.
+        Assert.Equal(SampleCharacters.Hero().Name, ctx.Session.Sheet.Name);
+        Assert.NotEmpty(ctx.Session.Sheet.SelectedPowers);
+    }
+
+    /// <summary>
+    /// A full account is the one thing that stops it, and it says so rather than appearing to do
+    /// nothing. Silently refusing is how the old behaviour read from the outside.
+    /// </summary>
+    [Fact]
+    public async Task StartingAnotherOnAFullAccountSaysSo()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+        ctx.Api.Limit = 2;
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        await account.SaveAsync(SavedCharacters.NewId(), "Lynchpin", SampleCharacters.Hero(), SheetMode.Hero);
+        await account.SaveAsync(SavedCharacters.NewId(), "The Quiet Hour", SampleCharacters.Villain(), SheetMode.Villain);
+
+        var cut = ctx.Render<CharacterManager>();
+        await Button(cut, "Start a new character").ClickAsync();
+
+        Assert.Contains("account is full", cut.Markup, StringComparison.OrdinalIgnoreCase);
+
+        // Nothing was destroyed to make room, which is the failure mode being guarded.
+        Assert.Equal(2, (await account.ListAsync()).Characters.Count);
+    }
+
+    /// <summary>
+    /// An anonymous visitor has no cap, so a browser-side list is never refused a fresh sheet. The
+    /// server answers <c>null</c> for the limit there, and <c>IsFull</c> deliberately reads unknown
+    /// as full — right when deciding whether to offer to create something, wrong as a reason to
+    /// refuse a new character.
+    /// </summary>
+    [Fact]
+    public async Task AnAnonymousVisitorIsNeverRefusedANewCharacter()
+    {
+        await using var ctx = new RenderContext();
+
+        Assert.NotNull(await ctx.Services.GetRequiredService<AccountCharacterStore>().StartNewAsync());
+    }
+
+    /// <summary>The button belonging to the panel rather than to a row.</summary>
+    private static IElement Button(IRenderedComponent<CharacterManager> cut, string label) =>
+        cut.FindAll("button").First(b => b.TextContent.Contains(label, StringComparison.Ordinal));
+
     // ── Throwing one away ────────────────────────────────────────────────────────────────────
 
     /// <summary>

@@ -177,6 +177,45 @@ public sealed class AccountCharacterStore : ICharacterStore
         return await _local.SaveAsync(id, label, sheet, mode) == id;
     }
 
+    /// <summary>
+    /// Begin a second character: mint an id and point at it, leaving the one that was open exactly
+    /// where it is, under its own id. Answers the new id, or null when there is no room for another.
+    ///
+    /// <para>The id is handed back rather than kept to itself for the reason
+    /// <see cref="SavedCharacters.SaveAsync"/> already hands one back: a caller that has just begun
+    /// a character can then say which one without a second round trip — and a test can watch the
+    /// pointer move, which through <c>ppStore</c> alone it cannot.</para>
+    ///
+    /// <para><b>This is what "start a new character" always should have called, and the bug it
+    /// fixes made the whole tool single-character.</b> It called <see cref="ClearAsync()"/>, which
+    /// deletes <em>whichever character is open</em> — so beginning a second one destroyed the
+    /// first, the list could never hold more than one row, and there was nothing to go back to.
+    /// Reported from the app with two screenshots: "1 of 5, Lynchpin" and then, one click later,
+    /// "0 of 5, nothing built yet".</para>
+    ///
+    /// <para><b>Nothing is written here.</b> The pointer moves and that is all; the new character
+    /// exists as a row only once it is worth keeping, which is the guard that stopped this tool
+    /// creating empty characters every time somebody touched the palette. So the list still shows
+    /// the old character and no new one until a tier is chosen.</para>
+    ///
+    /// <para>The cap is checked the way the manager's own notice checks it — only when the limit is
+    /// <em>known</em>. A server that could not be asked answers <c>null</c>, and
+    /// <see cref="AccountCharacters.IsFull"/> deliberately treats that as full, which is right when
+    /// deciding whether to offer to create something and wrong as a reason to refuse somebody a
+    /// fresh sheet while offline.</para>
+    /// </summary>
+    public async Task<string?> StartNewAsync()
+    {
+        var listed = await ListAsync();
+
+        if (listed.Limit is { } cap && listed.Characters.Count >= cap) return null;
+
+        var id = SavedCharacters.NewId();
+        await _local.SetCurrentAsync(id);
+
+        return id;
+    }
+
     /// <summary>Which character the app currently has open, whoever is here.</summary>
     public Task<string> CurrentIdAsync() => _local.CurrentIdAsync();
 

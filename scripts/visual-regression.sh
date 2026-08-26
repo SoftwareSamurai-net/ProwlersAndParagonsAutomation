@@ -308,7 +308,7 @@ run_chrome() {
 # parsed as a manifest row, and backticks in it are command substitution — a note written inside
 # it ran `data-theme="dark"` as a command. Notes go here, above it.
 #
-# `explained-sheet` is 1700 rather than 900, and it is a **new** page rather than a changed height on
+# `screen-sheet` is 1700 rather than 900, and it is a **new** page rather than a changed height on
 # an existing one -- the caution above about judging a capture height in CI is about moving one that
 # already has goldens, which this does not. Two things the page exists to check, neither of which
 # survives a crop: whether a dotted underline under forty names reads as marking or as noise, and
@@ -328,7 +328,7 @@ shell-hero-light:proof-shell-hero.html:1280:900:--blink-settings=preferredColorS
 shell-hero-dark:proof-shell-hero-dark.html:1280:900:
 shell-villain-light:proof-shell-villain.html:1280:900:--blink-settings=preferredColorScheme=1
 shell-villain-dark:proof-shell-villain-dark.html:1280:900:
-explained-sheet:proof-explained-hero.html:1280:1700:
+screen-sheet:proof-screen-sheet-hero.html:1280:1700:
 "
 
 failed=0

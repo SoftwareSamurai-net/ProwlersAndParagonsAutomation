@@ -3,82 +3,34 @@ using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
-using ProwlersAndParagonsAutomation.Web.Pages;
 
 namespace ProwlersAndParagons.Web.Tests;
 
 /// <summary>
-/// The sheet with every name on it saying what it means.
+/// The sheet with every name on it saying what it means, which is simply what the sheet does.
 ///
 /// <para>The descriptions were in <c>data/rules</c> the whole time and only the editors ever showed
 /// one: a printed sheet says "Presence 6d" and "Plot Hook" and "TECH POWERS" and left a reader to
 /// know what those were.</para>
 ///
-/// <para><b>The negative is the important half of this file.</b> The printed sheet is what the tool
-/// produces, and <c>SheetView</c> is drawn on the review step, beside the editors, and on every
-/// replayed recording. If <c>Explain</c> leaks into any of those, forty names on the deliverable
-/// become controls — so the off case is asserted as hard as the on case.</para>
+/// <para><b>There is no switch, and that is the point.</b> The explanations were briefly a separate
+/// page reached by a button — one more thing to build and one more thing for a reader to find. The
+/// sheet explains itself on screen everywhere it is drawn: the review step, beside the editors, and
+/// every replayed recording.</para>
+///
+/// <para><b>What keeps it off the deliverable is the print block, not a parameter.</b> The marking
+/// and the help cursor are stripped for paper, and a tip only ever appears on <c>:hover</c> or
+/// <c>:focus-visible</c>, which a printer has neither of — asserted in <c>WebPresentationTests</c>
+/// against the resolved cascade rather than the print block's own declarations.</para>
 /// </summary>
-public sealed class ExplainedSheetTests
+public sealed class SheetTermTests
 {
+    /// <summary>
+    /// The sheet, which explains itself. A named helper rather than an inline render because every
+    /// test here wants one and the name is what this file is about.
+    /// </summary>
     private static IRenderedComponent<SheetView> Explained(RenderContext ctx) =>
-        ctx.Render<SheetView>(p => p.Add(v => v.Explain, true));
-
-    /// <summary>
-    /// The elements the sheet is built from that a browser lays out on a line of their own.
-    ///
-    /// <para>A closed list rather than a stylesheet lookup, because these are the block elements
-    /// HTML defines as such and the sheet uses no others; what it must <b>not</b> contain is an
-    /// inline element, for the reason in <see cref="Visible"/>.</para>
-    /// </summary>
-    private static readonly string[] OwnLine =
-        ["ARTICLE", "SECTION", "DIV", "P", "H1", "H2", "H3", "UL", "OL", "LI",
-         "TABLE", "TBODY", "TR", "TD", "TH", "DL", "DT", "DD", "FOOTER", "BR"];
-
-    /// <summary>
-    /// What a reader sees, modelled the way a browser renders it.
-    ///
-    /// <para>Two things are dropped: the <c>sr-only</c> copy of each description, which
-    /// <c>aria-describedby</c> names and nobody sees, and the tip, which is <c>display: none</c>
-    /// until somebody hovers.</para>
-    ///
-    /// <para><b>Nothing is inserted between two inline elements, and that is the whole point.</b>
-    /// A browser concatenates adjacent inline text with no separator, which is why
-    /// <c>&lt;b&gt;Armor&lt;/b&gt;&lt;span&gt;8d&lt;/span&gt;</c> reads "Armor8d" on the page.
-    /// <b>This repository has shipped a test for that bug that was beaten by its own helper</b> —
-    /// the helper replaced every tag with a newline, so the broken markup read "Armor 8d" to the
-    /// assertion written to catch it. So a boundary is a separator here only where the browser
-    /// makes one, which is a block element.</para>
-    ///
-    /// <para>Whitespace already in the markup is <em>collapsed</em>, which is also what a browser
-    /// does and is not the same thing as inserting some: a run of newlines and indentation between
-    /// two inline elements renders as one space, and no whitespace at all renders as none.</para>
-    /// </summary>
-    private static string Visible(INode node)
-    {
-        var lines = Gather(node)
-            .Split('\n')
-            .Select(line => string.Join(" ",
-                line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)))
-            .Where(line => line.Length > 0);
-
-        return string.Join(" ", lines);
-    }
-
-    private static string Gather(INode node)
-    {
-        if (node is IElement hidden &&
-            (hidden.ClassList.Contains("sr-only") || hidden.ClassList.Contains("row-tip")))
-            return "";
-
-        if (node.NodeType == NodeType.Text) return node.TextContent;
-
-        var inside = string.Concat(node.ChildNodes.Select(Gather));
-
-        return node is IElement block && OwnLine.Contains(block.TagName, StringComparer.Ordinal)
-            ? inside + "\n"
-            : inside;
-    }
+        ctx.Render<SheetView>();
 
     /// <summary>
     /// Every Ability and every Talent — all eighteen, bought or not, because the sheet prints them
@@ -145,17 +97,15 @@ public sealed class ExplainedSheetTests
             .Select(p => rules.GetPower(p.PowerId)!)
             .First(p => p.RankType is not ("default" or "special"));
 
-        foreach (var explain in (bool[])[true, false])
-        {
-            // `Visible` rather than TextContent, which would carry both hidden copies of the
-            // Power's description — and rather than markup with the tags replaced, which reads
-            // "Armor 8d" out of a component printing "Armor8d". See the helper.
-            var name = Visible(ctx.Render<SheetView>(p => p.Add(v => v.Explain, explain))
-                .FindAll(".power-entry .pname")
-                .Single(e => Visible(e).StartsWith(ranked.Name, StringComparison.Ordinal)));
+        // `Visible` rather than TextContent, which would carry both hidden copies of the Power's
+        // description — and rather than markup with the tags replaced, which reads "Armor 8d" out
+        // of a component printing "Armor8d". See the helper.
+        var name = Explained(ctx)
+            .FindAll(".power-entry .pname")
+            .Single(e => e.Visible().StartsWith(ranked.Name, StringComparison.Ordinal))
+            .Visible();
 
-            Assert.Matches($@"^{System.Text.RegularExpressions.Regex.Escape(ranked.Name)} \d+d$", name);
-        }
+        Assert.Matches($@"^{System.Text.RegularExpressions.Regex.Escape(ranked.Name)} \d+d$", name);
     }
 
     /// <summary>A Perk and a Flaw carry theirs too — including a Flaw's narrative detail beside it.</summary>
@@ -230,80 +180,32 @@ public sealed class ExplainedSheetTests
     }
 
     /// <summary>
-    /// <b>The sheet drawn without explanations has no control on it at all.</b> This is the guard
-    /// on the deliverable: the review step, the preview beside the editors and every replayed
-    /// recording all draw <c>SheetView</c> and none of them passes <c>Explain</c>.
+    /// <b>Every word the sheet printed before the explanations existed, it still prints.</b>
+    ///
+    /// <para>This replaced a pair of tests asserting that an un-explained sheet carried no control
+    /// — a state that no longer exists, because there is no switch. What has to hold instead is
+    /// that wrapping forty names in a component dropped none of them: a name missing from a sheet
+    /// is the kind of wrong that looks entirely right.</para>
     /// </summary>
     [Fact]
-    public void TheOrdinarySheetGainsNoControls()
+    public void TheSheetStillPrintsEveryNameAndRank()
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
+        var rules = ctx.Services.GetRequiredService<RulesRepository>();
 
-        var plain = ctx.Render<SheetView>();
+        var visible = Explained(ctx).Find(".sheet").Visible();
 
-        Assert.Empty(plain.FindAll(".term"));
-        Assert.Empty(plain.FindAll(".term-name"));
-        Assert.Empty(plain.FindAll(".row-tip"));
+        foreach (var name in rules.Abilities.Select(a => a.Name)
+                     .Concat(rules.Talents.Select(t => t.Name))
+                     .Concat(ctx.Session.Sheet.SelectedPowers
+                         .Select(p => rules.GetPower(p.PowerId)!.Name)))
+        {
+            Assert.Contains(name, visible, StringComparison.Ordinal);
+        }
 
-        // And the positive control beside it: the same character, explained, really does have them.
-        Assert.NotEmpty(Explained(ctx).FindAll(".term-name"));
-    }
-
-    /// <summary>
-    /// The review step in particular, because that is the page whose sheet goes on paper and the
-    /// one somebody would be tempted to switch on in place of a page of its own.
-    /// </summary>
-    [Fact]
-    public void TheReviewStepsSheetIsNotTheExplainedOne()
-    {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
-
-        Assert.Empty(ctx.Render<Review>().FindAll(".term-name"));
-    }
-
-    /// <summary>
-    /// Every word the plain sheet prints, the explained sheet prints too. Wrapping forty names in a
-    /// component is exactly the change that could drop one, and a name missing from a sheet is the
-    /// kind of wrong that looks entirely right.
-    /// </summary>
-    [Fact]
-    public void ExplainingTheSheetChangesNoneOfItsWords()
-    {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
-
-        static string Words(IRenderedComponent<SheetView> sheet) => Visible(sheet.Find(".sheet"));
-
-        // Word for word identical, which is the strongest form this can take: the hidden copies of
-        // each description are what `Visible` drops, so what is left on the explained sheet is
-        // exactly what the plain one prints. Wrapping forty names in a component is precisely the
-        // change that could quietly drop one, and a name missing from a sheet looks entirely right.
-        Assert.Equal(Words(ctx.Render<SheetView>()), Words(Explained(ctx)));
-    }
-
-    /// <summary>The page itself draws the sheet explained, and offers the way back.</summary>
-    [Fact]
-    public void ThePageDrawsTheSheetExplained()
-    {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
-
-        var page = ctx.Render<ExplainedSheet>();
-
-        Assert.NotEmpty(page.FindAll(".sheet .term-name"));
-        Assert.Contains("build/review",
-            page.FindAll("a").Select(a => a.GetAttribute("href")));
-    }
-
-    /// <summary>
-    /// The review step offers a way to it, or nothing does — the page is reachable by address and
-    /// that is not a way anybody finds it.
-    /// </summary>
-    [Fact]
-    public void TheReviewStepOffersAWayToIt()
-    {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
-
-        Assert.Contains("build/sheet",
-            ctx.Render<Review>().FindAll("a").Select(a => a.GetAttribute("href")));
+        // And the figure a player reads off mid-scene.
+        Assert.Contains(ctx.Session.Derived.CalculateEdge(ctx.Session.Sheet).ToString(),
+            visible, StringComparison.Ordinal);
     }
 
     /// <summary>

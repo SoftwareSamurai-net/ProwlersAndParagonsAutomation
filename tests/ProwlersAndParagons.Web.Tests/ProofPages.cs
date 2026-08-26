@@ -223,31 +223,32 @@ public sealed class ProofPages
     }
 
     /// <summary>
-    /// The sheet with every name on it explained, and one description open.
+    /// The sheet on screen, with one description open.
     ///
-    /// <para><b>Its own page, and the tip is opened, because a disclosure proofed shut shows
-    /// nothing and reads as a feature that works.</b> That is the mistake this file already warns
-    /// about for the Power editor's own book entry — and here there are two things to look at that
-    /// no assertion can judge: whether a dotted underline under forty names reads as marking or as
-    /// noise, and whether a tip hanging off a word inside a three-column sheet lands somewhere a
-    /// reader can read it rather than as a sliver down one column.</para>
+    /// <para><b>The tip is opened, because a disclosure proofed shut shows nothing and reads as a
+    /// feature that works</b> — the mistake this file already warns about for the Power editor's own
+    /// book entry. Two things here no assertion can judge: whether a dotted underline under forty
+    /// names reads as marking or as noise, and whether a tip hanging off a word inside a
+    /// three-column sheet lands somewhere readable rather than as a sliver down one column.</para>
     ///
-    /// <para>Hover cannot be captured, so the tip is shown by focusing the term — which is the
-    /// keyboard path and is the one that has to work anyway.</para>
+    /// <para><b>This is the ordinary sheet.</b> The explanations were briefly a separate page
+    /// reached by a button; they are simply what the sheet does on screen now, and
+    /// <c>ThePrintedSheet</c> below is the same component proofed for paper, where the marking is
+    /// stripped.</para>
     /// </summary>
     [Theory]
     [InlineData(SheetMode.Hero)]
     [InlineData(SheetMode.Villain)]
-    public void TheExplainedSheet(SheetMode mode)
+    public void TheSheetOnScreen(SheetMode mode)
     {
         if (!Asked) return;
 
         using var ctx = new RenderContext().With(mode);
 
-        var page = ctx.Render<ExplainedSheet>();
+        var page = ctx.Render<SheetView>();
 
         // The positive control: the names really are terms. A proof of a sheet with no term on it
-        // would look exactly like the ordinary sheet and be captioned as this one.
+        // would look identical to one whose explanations had silently stopped rendering.
         Assert.NotEmpty(page.FindAll(".sheet .term-name"));
 
         // **One description shown, forced open by an inline style rather than by a class.** The
@@ -264,7 +265,7 @@ public sealed class ProofPages
             + "style=\"display:block\" "
             + markup[first..];
 
-        Write($"proof-explained-{Name(mode)}.html", Name(mode), body);
+        Write($"proof-screen-sheet-{Name(mode)}.html", Name(mode), body);
     }
 
     /// <summary>

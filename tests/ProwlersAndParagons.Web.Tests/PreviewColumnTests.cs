@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+using AngleSharp.Dom;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
@@ -54,10 +56,22 @@ public sealed class PreviewColumnTests
         using var ctx = Building();
         ctx.Session.LoadSample(SheetMode.Hero);
 
-        var preview = ctx.Render<Characteristics>().Find(".preview .sheet").InnerHtml;
-        var review = ctx.Render<Review>().Find(".sheet").InnerHtml;
+        // **The handler ids are bUnit's, not the sheet's.** Every name on the sheet is a real
+        // button now, and bUnit numbers event handlers per render tree — so the two renders differ
+        // at `blazor:onkeydown="115"` versus `"225"` while being the same markup in every way a
+        // reader could tell. Stripping only that attribute keeps the comparison on the whole
+        // markup, which is what makes this test worth having: a second sheet component would
+        // differ in the parts that matter and still be caught.
+        var handlerIds = new Regex(@"blazor:on\w+=""\d+""", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        var preview = handlerIds.Replace(
+            ctx.Render<Characteristics>().Find(".preview .sheet").InnerHtml, "");
+        var review = handlerIds.Replace(ctx.Render<Review>().Find(".sheet").InnerHtml, "");
 
         Assert.Equal(review, preview);
+
+        // The positive control: there really was markup to compare, and it really is the sheet.
+        Assert.Contains("sheet-columns", review, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -80,7 +94,7 @@ public sealed class PreviewColumnTests
             .Single(p => p.Id == "flight");
 
         var page = ctx.Render<Characteristics>();
-        Assert.DoesNotContain(flight.Name, page.Find(".preview").TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain(flight.Name, page.Find(".preview").Visible(), StringComparison.Ordinal);
 
         // Through the dispatcher, because notifying the session is what triggers the re-render and
         // Blazor refuses one raised off its own thread. **Awaited rather than blocked on**: a test
@@ -92,7 +106,7 @@ public sealed class PreviewColumnTests
             session.NotifyChanged();
         });
 
-        Assert.Contains(flight.Name, page.Find(".preview").TextContent, StringComparison.Ordinal);
+        Assert.Contains(flight.Name, page.Find(".preview").Visible(), StringComparison.Ordinal);
     }
 
     /// <summary>
