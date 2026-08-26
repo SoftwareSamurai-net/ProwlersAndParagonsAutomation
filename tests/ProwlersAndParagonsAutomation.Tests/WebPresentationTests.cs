@@ -2282,7 +2282,7 @@ public sealed class WebPresentationTests
     /// (<c>string.IsNullOrEmpty(Class) ? "field" : $"field {Class}"</c>), <c>RowClass</c> for
     /// <c>OptionRow</c>'s concatenation, and <c>Lines</c> for the one place a class reaches
     /// the page through <c>RenderTreeBuilder.AddAttribute</c> inside a <c>RenderFragment</c>
-    /// delegate rather than through markup. None of these six member bodies appear as
+    /// delegate rather than through markup. None of these seven member bodies appear as
     /// <c>class="…"</c> in source text, so <see cref="ClassAttributeTokens"/> cannot see them
     /// and must not be asked to guess at a substring instead.
     /// </summary>
@@ -2309,9 +2309,9 @@ public sealed class WebPresentationTests
     /// check unchanged, all fifteen theory cases passed.</para>
     ///
     /// <para>The fix reuses the real tokenizer twenty lines up rather than writing a third
-    /// spelling of it. Nine of the fifteen classes are written straight into a
+    /// spelling of it. Eight of the fifteen classes are written straight into a
     /// <c>class="…"</c> attribute and <see cref="ClassAttributeTokens"/> finds them exactly
-    /// the way <see cref="OnlyOneComponentWritesEachRepeatedClass"/> does. The other six are
+    /// the way <see cref="OnlyOneComponentWritesEachRepeatedClass"/> does. The other seven are
     /// read from the C# member named in <see cref="ClassBuiltInCode"/>, tokenised the same
     /// way — split on whitespace, exact membership, never a prefix — so a rename to
     /// <c>panelish</c> there fails for the identical reason it fails on the markup side: it is
