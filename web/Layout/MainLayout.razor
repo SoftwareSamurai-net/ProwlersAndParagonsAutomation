@@ -63,8 +63,27 @@
        why that comparison, and not a bare true/false, is what a save actually has to report.
 
        aria-live rather than a toast: the point is that it can be missed without being alarming,
-       and a screen-reader user is owed the same "it happened" that the sighted page shows. *@
-    <span class="save-status" aria-live="polite">@(JustSaved ? "Saved" : "")</span>
+       and a screen-reader user is owed the same "it happened" that the sighted page shows.
+
+       **The one place undo is offered, and it shares this region rather than opening a second
+       one.** Discarding, loading a sample, importing a file and opening a recorded character all
+       replace the character wherever the reader happens to be standing — the tier page, the
+       portfolio, a recording that then navigates away from itself — so the offer has to live
+       somewhere every one of those routes draws, which only the banner does. It wins the race
+       against "Saved" on purpose: the very change that makes undo available also completes a
+       write-through over what it replaced, so without the ordering below "Saved" would report
+       the autosave and hide the one thing worth announcing. *@
+    <span class="save-status" aria-live="polite">
+        @if (Session.CanUndo)
+        {
+            @UndoOffer
+            <button type="button" class="btn small" @onclick="Undo">Undo</button>
+        }
+        else if (JustSaved)
+        {
+            <text>Saved</text>
+        }
+    </span>
 
     @* aria-pressed is written out as a string on purpose. Blazor drops a bool attribute
        when it is false and renders it as `aria-pressed=""` when it is true, and an empty
@@ -273,6 +292,11 @@
     /// to run last; see <see cref="CharacterSession.Saved"/>.</para>
     /// </summary>
     private bool JustSaved => _lastSavedVersion == Session.Version;
+
+    /// <summary>The sentence beside the Undo button, naming what was replaced.</summary>
+    private string UndoOffer => $"{Session.UndoLabel} was replaced.";
+
+    private void Undo() => Session.Undo();
 
     private void HandleCharacterChanged() => StateHasChanged();
 

@@ -176,11 +176,13 @@ public sealed class CharacterSession
     /// </summary>
     public void StartAgain()
     {
+        var previous = Sheet;
         var villain = Sheet.IsVillain;
         var unlimited = Sheet.UnlimitedBudget;
 
         Sheet = new CharacterSheet { IsVillain = villain, UnlimitedBudget = unlimited };
         NotifyChanged();
+        Buffer(previous);
     }
 
     /// <summary>
@@ -193,8 +195,112 @@ public sealed class CharacterSession
     /// </summary>
     public void LoadSample(SheetMode mode)
     {
+        var previous = Sheet;
         Sheet = mode == SheetMode.Hero ? SampleCharacters.Hero() : SampleCharacters.Villain();
         Sheet.IsVillain = mode == SheetMode.Villain;
+        NotifyChanged();
+        Buffer(previous);
+    }
+
+    /// <summary>
+    /// The same as <see cref="Restore"/>, for a caller that is overwriting the character on
+    /// screen rather than switching to one that already lives under its own id — importing a
+    /// file, and opening a recorded character.
+    ///
+    /// <para><b>Both keep the current-character pointer exactly where it was</b>, unlike signing
+    /// in, signing out, or opening a different saved character from the manager — all of which
+    /// move which id the next autosave writes to, so the character being left behind is safe in
+    /// its own row. These two do not move that pointer, so the very next write-through overwrites
+    /// the only stored copy of what was on screen — which is what makes this destructive, and
+    /// what <see cref="Buffer"/> exists to undo.</para>
+    ///
+    /// <para>Unlike <see cref="Restore"/> this also raises <see cref="Changed"/> itself, because
+    /// every caller that reaches this wants the redraw and the autosave that follows it — the one
+    /// exception, the app's own boot, calls <see cref="Restore"/> directly.</para>
+    /// </summary>
+    public void ReplaceWithUndo(CharacterSheet sheet, SheetMode mode)
+    {
+        var previous = Sheet;
+        Restore(sheet, mode);
+        NotifyChanged();
+        Buffer(previous);
+    }
+
+    // ── Undo ───────────────────────────────────────────────────────────────
+
+    /// <summary>The character <see cref="Buffer"/> is holding, as JSON — or null if nothing is.</summary>
+    private string? _undoSnapshot;
+    private SheetMode _undoMode;
+    private string _undoLabel = "";
+
+    /// <summary>
+    /// The <see cref="Version"/> the moment the buffer above was filled. <see cref="CanUndo"/>
+    /// requires an exact match, which is what makes the window close on the first edit to the
+    /// character that replaced the buffered one — see <see cref="CanUndo"/>.
+    /// </summary>
+    private int _undoArmedAtVersion;
+
+    /// <summary>
+    /// Keeps <paramref name="previous"/> so <see cref="Undo"/> can bring it back, called by every
+    /// method that replaces <see cref="Sheet"/> outright and would otherwise autosave over the
+    /// only stored copy of what was there.
+    ///
+    /// <para><b>As JSON, never the live object.</b> Holding the <see cref="CharacterSheet"/>
+    /// instance itself would let the very first edit to the character that replaced it rewrite
+    /// this one too — the replay's own recorded bug (handing over a shared instance let the first
+    /// edit rewrite the recording), reached a second way. Writing it out is the same round trip
+    /// <see cref="ICharacterStore"/> already trusts for local storage.</para>
+    ///
+    /// <para>Nothing is kept when there was nothing worth keeping — an empty sheet has nothing
+    /// for <see cref="Undo"/> to bring back, and offering to would be ceremony over nothing.</para>
+    /// </summary>
+    private void Buffer(CharacterSheet previous)
+    {
+        ArgumentNullException.ThrowIfNull(previous);
+
+        if (!IsWorthKeeping(previous)) { _undoSnapshot = null; return; }
+
+        _undoSnapshot = CharacterSheetJson.Write(previous);
+        _undoMode = previous.IsVillain ? SheetMode.Villain : SheetMode.Hero;
+        _undoLabel = string.IsNullOrWhiteSpace(previous.Name) ? "Your character" : previous.Name;
+        _undoArmedAtVersion = Version;
+    }
+
+    /// <summary>
+    /// Whether <see cref="Undo"/> would do anything right now.
+    ///
+    /// <para><b>A fact about this screen, never about the character</b> — it is not exported,
+    /// stored, or read back, and it does not survive a refresh; it lives only as long as this
+    /// session does, the same reason the budget breakdown's open/shut state is a field on a
+    /// component rather than on <see cref="CharacterSheet"/>.</para>
+    ///
+    /// <para><b>Single-level, and self-closing.</b> <see cref="Version"/> has to be exactly what
+    /// it was the instant the buffer was filled — so the first edit to the character that
+    /// replaced the buffered one closes the window, rather than leaving an undo sitting there
+    /// that would also throw that edit away. There is no explicit clear for this reason: any
+    /// mutation at all moves <see cref="Version"/> on, and the comparison below stops matching by
+    /// itself.</para>
+    /// </summary>
+    public bool CanUndo => _undoSnapshot is not null && Version == _undoArmedAtVersion;
+
+    /// <summary>What <see cref="Undo"/> would bring back, for the message beside the offer.</summary>
+    public string UndoLabel => _undoLabel;
+
+    /// <summary>
+    /// Brings back the character <see cref="Buffer"/> is holding, if <see cref="CanUndo"/> is
+    /// still true. One level: this clears the buffer before returning, so a second call in a row
+    /// does nothing — there is no redo, and no way to step back further than the one thing that
+    /// was just replaced.
+    /// </summary>
+    public void Undo()
+    {
+        if (!CanUndo) return;
+
+        var sheet = CharacterSheetJson.Read(_undoSnapshot!, strict: false);
+        _undoSnapshot = null;
+        if (sheet is null) return;
+
+        Restore(sheet, _undoMode);
         NotifyChanged();
     }
 
