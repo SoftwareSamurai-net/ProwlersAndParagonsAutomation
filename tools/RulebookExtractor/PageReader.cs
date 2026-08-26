@@ -3,6 +3,24 @@ using UglyToad.PdfPig.Content;
 namespace ProwlersAndParagonsAutomation.Tools.RulebookExtractor;
 
 /// <summary>
+/// One PDF glyph, reduced to exactly what the reading-order logic below looks at: its text, its
+/// horizontal extent, its baseline, the font it is set in, its point size, and whether it runs
+/// horizontally.
+///
+/// <para><b>This is the seam that makes <see cref="PageReader"/> testable.</b>
+/// <see cref="UglyToad.PdfPig.Content.Page"/> has no public constructor — its only constructor
+/// takes a <c>DictionaryToken</c>, a token scanner and four other internal PDF-parsing types — so
+/// nothing built from a real <see cref="UglyToad.PdfPig.Content.Page"/> can be constructed inside
+/// a test. <see cref="PageReader.Read(Page)"/> stays a one-line adapter that maps PdfPig's own
+/// <c>Letter</c> onto this record; everything that actually decides reading order runs against
+/// <see cref="RawLetter"/> instead, the same way <see cref="ColumnLayout"/> is driven against
+/// <see cref="Span"/> rather than against a page.</para>
+/// </summary>
+internal readonly record struct RawLetter(
+    string Value, double Left, double Right, double Baseline,
+    string FontName, double PointSize, bool IsHorizontal);
+
+/// <summary>
 /// Turns one PDF page into lines of text in reading order.
 ///
 /// <para>The previous extractor split every page at a fixed midpoint and emitted the left half
@@ -38,7 +56,7 @@ public sealed class PageReader
     /// nowhere else in the book: 780 words, which is exactly four per page across 195 pages.
     /// Dropped by font so it cannot depend on spelling the purchaser's name in the source.
     /// </summary>
-    private static bool IsWatermark(Letter l) =>
+    private static bool IsWatermark(RawLetter l) =>
         Family(l.FontName).StartsWith("Helvetica", StringComparison.Ordinal) && l.PointSize <= 6.5;
 
     /// <summary>The display faces. A line set in one of these is a heading, not prose.</summary>
@@ -60,27 +78,36 @@ public sealed class PageReader
 
     private sealed record Word(string Text, double Left, double Right, bool Heading, double Size);
 
-    public IReadOnlyList<Line> Read(Page page)
+    /// <summary>Adapts one real PdfPig page onto <see cref="RawLetter"/> and reads it.</summary>
+    public IReadOnlyList<Line> Read(Page page) =>
+        Read(page.Letters.Select(l => new RawLetter(
+            l.Value, l.BoundingBox.Left, l.BoundingBox.Right, l.StartBaseLine.Y,
+            l.FontName ?? "", l.PointSize, l.TextOrientation == TextOrientation.Horizontal)).ToList(),
+            page.Width);
+
+    /// <summary>
+    /// The actual reading-order logic, taking the seam type so it can be driven against a
+    /// made-up page in a test rather than only against the book.
+    /// </summary>
+    internal IReadOnlyList<Line> Read(IReadOnlyList<RawLetter> letters, double pageWidth)
     {
         // Rotated text is furniture in this book and never prose: the chapter title runs up the
         // outer margin one letter at a time, and the word "chapter" runs beside it — which
         // arrives reversed ("retpahc") and, grouped by baseline, lands inside body lines.
-        var letters = page.Letters
-            .Where(l => l.TextOrientation == TextOrientation.Horizontal)
-            .Where(l => l.StartBaseLine.Y >= FurnitureTop)
+        var kept = letters
+            .Where(l => l.IsHorizontal)
+            .Where(l => l.Baseline >= FurnitureTop)
             .Where(l => !IsWatermark(l))
             .ToList();
 
-
-
-        var lines = letters
-            .GroupBy(l => Math.Round(l.StartBaseLine.Y / 2.0) * 2.0)
-            .Select(g => (Baseline: g.Key, Words: BuildWords(g.OrderBy(l => l.BoundingBox.Left).ToList())))
+        var lines = kept
+            .GroupBy(l => Math.Round(l.Baseline / 2.0) * 2.0)
+            .Select(g => (Baseline: g.Key, Words: BuildWords(g.OrderBy(l => l.Left).ToList())))
             .Where(l => l.Words.Count > 0)
             .OrderByDescending(l => l.Baseline)
             .ToList();
 
-        return Order(lines, page.Width);
+        return Order(lines, pageWidth);
     }
 
     /// <summary>
@@ -89,7 +116,7 @@ public sealed class PageReader
     /// condensed display face a word space is barely wider than the gap between two letters, and
     /// a threshold that separates them there runs a body line into pieces.
     /// </summary>
-    private static List<Word> BuildWords(List<Letter> line)
+    private static List<Word> BuildWords(List<RawLetter> line)
     {
         var words = new List<Word>();
         var text = "";
@@ -116,11 +143,11 @@ public sealed class PageReader
             // alone fused "OVERKILL" and "PHASE SHIFT" into one word — which then sat astride the
             // gutter and was read as a full-width line, merging two entries into one.
             // The threshold is well above the ~1pt that separates letters inside a word at 9pt.
-            if (text.Length > 0 && l.BoundingBox.Left - right > Math.Max(2.5, 0.45 * l.PointSize))
+            if (text.Length > 0 && l.Left - right > Math.Max(2.5, 0.45 * l.PointSize))
                 Close();
 
-            if (text.Length == 0) left = l.BoundingBox.Left;
-            right = l.BoundingBox.Right;
+            if (text.Length == 0) left = l.Left;
+            right = l.Right;
             text += l.Value;
             size = Math.Max(size, l.PointSize);
 

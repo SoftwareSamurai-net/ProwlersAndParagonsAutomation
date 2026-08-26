@@ -429,6 +429,161 @@ public sealed class ProofPages
         WritePage(file, mode, Page(file, mode, body, wrap: false, theme));
 
     /// <summary>
+    /// The negative control every verdict harness below is proofed against.
+    ///
+    /// <para><b>A harness that has never failed is a claim, and the claim is usually wrong</b> — the
+    /// discipline <c>CLAUDE.md</c> states in as many words. It was proved wrong here: appending
+    /// <c>|| true</c> to the sticky harness's verdict computation and to the motion harness's
+    /// <c>checks.every(...)</c> made both report <c>PASS</c> against a genuinely broken sticky strip
+    /// and against the exact reduced-motion inversion the motion harness exists to catch — and
+    /// <see cref="MustNotShow"/> stayed green throughout, because <c>|| true</c> is textually
+    /// distinct from the banned literal <c>say(true</c>. A denylist of source spellings cannot close
+    /// an unbounded spelling space.</para>
+    ///
+    /// <para><b>So the guarantee moves from a source scan to an observation</b>: alongside every real
+    /// proof page this file also writes a <em>twin</em> that reproduces one documented defect the
+    /// harness exists to catch, and CI requires the real page to say <c>PASS</c> and the twin to say
+    /// <c>FAIL</c> in the same step. A harness that reports <c>PASS</c> on both proves nothing, and
+    /// that is now a build failure rather than a silence nobody notices.</para>
+    ///
+    /// <para><b>The twin must drive the same harness script, unmodified — only the thing under test
+    /// differs.</b> A twin with a doctored script proves nothing about the shipped one. Every
+    /// parameterised harness below (<see cref="StickyHarness"/>, <see cref="MotionHarness"/>,
+    /// <see cref="ShortcutHarness"/>, <see cref="ThemeHarness"/>, <see cref="SliderHarness"/>,
+    /// <see cref="MeasureHarness"/>) takes the *target* — the shell page or the script it drives — as
+    /// its only parameter, substituted into the byte-identical template via a placeholder token. The
+    /// verdict logic itself never changes between the real page and its twin.</para>
+    ///
+    /// <para><b>A broken script is derived from the shipped one, never hand-duplicated.</b>
+    /// <see cref="WithDefect"/> reads the real file and substitutes one documented regression — and
+    /// throws if the line it targets has moved, rather than silently writing a twin that no longer
+    /// reproduces anything. A hand-written copy could drift from the file the app actually ships and
+    /// would then be proofing itself, the exact trap <c>MustNotShow</c> already refuses for the
+    /// harness script's own <c>ppMotion</c>/<c>ppSlider</c> object literals.</para>
+    ///
+    /// <para><b>Two kinds of twin, matched to two kinds of harness.</b> The five driven-script
+    /// harnesses each load one shipped file with a single well-understood failure mode, so their
+    /// twins point the same <c>&lt;script src="…"&gt;</c> placeholder at a <c>data:</c> URL carrying
+    /// the broken copy — see <see cref="AsScriptSrc"/> — rather than at a second file under
+    /// <c>wwwroot</c>. <see cref="TheStickyStrip"/> and <see cref="TheBoxInsets"/> instead measure a
+    /// rendered page's layout, so their twins are the same rendered shell with one inline
+    /// <c>&lt;style&gt;</c> injected — the exact defect category this file's own docstrings already
+    /// name (<c>#app</c> wrapping <c>.budget</c>'s containing block; a margin moving one band's
+    /// contents out from under the others). Nothing under <c>web/wwwroot/css</c> is touched by
+    /// either: the defect lives only in the twin page.</para>
+    ///
+    /// <para><b>One twin per harness, not one per page.</b> <c>proof-narrow.html</c>,
+    /// <c>-shell</c>, <c>-front</c> and <c>-rules</c> all call the identical
+    /// <see cref="NarrowHarness"/> function against different targets, so one twin — proofing
+    /// that <see cref="NarrowHarness"/> itself can fail — covers all four; a second twin per
+    /// target would test the same harness logic a second time, not a second harness.</para>
+    /// </summary>
+    private static string ShippedScript(string relativePath) =>
+        File.ReadAllText(Path.Combine(RepoRoot(), "web", "wwwroot", relativePath));
+
+    /// <summary>
+    /// A broken script, as a <c>data:</c> URL rather than a file under <c>wwwroot</c>.
+    ///
+    /// <para><c>web/wwwroot/proof-*.html</c> is gitignored generated output and every twin page
+    /// follows that name, but there is no equivalent pattern for a generated <c>.js</c> file —
+    /// and this file must not edit <c>.gitignore</c>. A <c>&lt;script src="…"&gt;</c> loads a
+    /// <c>data:</c> URL exactly as it loads a same-origin file, so a broken script needs no file
+    /// of its own: it travels inside the twin page that is already ignored.</para>
+    /// </summary>
+    private static string AsScriptSrc(string javaScript) =>
+        "data:text/javascript;base64," + Convert.ToBase64String(Encoding.UTF8.GetBytes(javaScript));
+
+    /// <summary>
+    /// One documented regression, injected into a verbatim copy of a shipped script.
+    ///
+    /// <para><paramref name="find"/> must occur in the file exactly once. If it does not — the
+    /// source moved, or somebody already fixed the very defect this twin exists to name — writing
+    /// the twin anyway would silently stop reproducing what it claims to, which is worse than not
+    /// having a twin at all: a caller reading <c>docs/notes/s4-harness.md</c> would believe the
+    /// negative control still holds. So this throws rather than guessing.</para>
+    /// </summary>
+    private static string WithDefect(string relativePath, string find, string replace)
+    {
+        var real = ShippedScript(relativePath);
+        var occurrences = 0;
+        for (var index = real.IndexOf(find, StringComparison.Ordinal);
+             index >= 0;
+             index = real.IndexOf(find, index + find.Length, StringComparison.Ordinal))
+        {
+            occurrences++;
+        }
+
+        if (occurrences != 1)
+            throw new InvalidOperationException(
+                $"Expected exactly one occurrence of the documented defect line in {relativePath}, " +
+                $"found {occurrences}. The shipped file has moved — update the twin to match it, or " +
+                "the negative control it builds is testing nothing.");
+
+        return real.Replace(find, replace, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <c>js/motion.js</c> with the exact reduced-motion inversion this file's own docstring on
+    /// <see cref="TheMotionScript"/> names: the entry gate for a view transition reads
+    /// <c>!still()</c> instead of <c>still()</c>, which serves the animation to exactly the people
+    /// who asked for none — and, in the other direction, refuses it to everyone who did not. This
+    /// is the exact spelling that defeated an <c>|| true</c>-weakened motion harness; see
+    /// <c>docs/notes/s4-harness.md</c>.
+    /// </summary>
+    private static string MotionBrokenScript() => WithDefect("js/motion.js",
+        "if (!document.startViewTransition || still()) return;",
+        "if (!document.startViewTransition || !still()) return;");
+
+    /// <summary>
+    /// <c>js/palette.js</c> with Ctrl-K reaching the component but the browser default never taken —
+    /// the harness's own check names this exact failure: "Ctrl-K takes the key from the browser...
+    /// a version that listened without suppressing the default would look right here and be
+    /// unusable in a real browser."
+    /// </summary>
+    private static string PaletteBrokenScript() => WithDefect("js/palette.js",
+        "e.preventDefault();",
+        "/* defect: preventDefault removed, so Ctrl-K no longer takes the key from the browser */");
+
+    /// <summary>
+    /// <c>js/slider.js</c> with the same shape of defect as <see cref="PaletteBrokenScript"/>, on
+    /// the other script that exists only to call <c>preventDefault</c> on two keys: Home and End
+    /// reach the guard and are counted as suppressed, but the browser default is never taken.
+    /// </summary>
+    private static string SliderBrokenScript() => WithDefect("js/slider.js",
+        "e.preventDefault();",
+        "/* defect: preventDefault removed, so Home/End no longer take the key from the browser */");
+
+    /// <summary>
+    /// <c>js/theme.js</c> with the exact regression <c>CLAUDE.md</c> records: the
+    /// <c>localStorage.setItem</c> call deleted, so a choice applies for the visit and is forgotten
+    /// on reload. Every C# guard on this preference — that <c>Choose</c> sends the right word to
+    /// <c>ppTheme.set</c>, and that a stored value is read back — stays green against it, because
+    /// persistence happens entirely inside the script and only a browser can see it lost.
+    /// </summary>
+    private static string ThemeBrokenScript() => WithDefect("js/theme.js",
+        "localStorage.setItem(KEY, choice);",
+        "void 0; /* defect: setItem removed, so the choice is never persisted */");
+
+    /// <summary>
+    /// The real shell proof, rendered fresh — the same body <see cref="TheShell"/> writes, without
+    /// writing the file. Shared by <see cref="TheStickyStrip"/> and <see cref="TheBoxInsets"/>, so
+    /// their twins are built from the identical markup the real pages are, and the only difference
+    /// between a twin and the page it is a twin of is the one injected style.
+    /// </summary>
+    private static string HonestShellPage()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        return Page("proof-shell-hero.html", "hero", ShellBody(ctx), wrap: false);
+    }
+
+    /// <summary>
+    /// <see cref="HonestShellPage"/> with one inline <c>&lt;style&gt;</c> injected before
+    /// <c>&lt;/head&gt;</c> — a defect confined to the twin page, never to <c>web/wwwroot/css</c>.
+    /// </summary>
+    private static string ShellWithInjectedDefect(string css) =>
+        HonestShellPage().Replace("</head>", $"<style>{css}</style></head>", StringComparison.Ordinal);
+
+    /// <summary>
     /// Does the budget strip still stick? <b>A measured check, because nothing else can answer it.</b>
     ///
     /// <para><c>position: sticky</c> is bounded by the element's containing block. The strip stays
@@ -470,6 +625,15 @@ public sealed class ProofPages
         if (!Asked) return;
 
         WritePage("proof-sticky.html", "hero", StickyHarness());
+
+        // The negative control — see the docstring on ShippedScript above. Same harness script,
+        // driven against a shell that carries the exact defect its own docstring names: #app
+        // wraps .budget's containing block, which is precisely what Phase 2's View Transitions
+        // work would introduce. If the harness cannot fail here, it proves nothing on the real
+        // page either.
+        WritePage("proof-shell-hero-broken.html", "hero",
+            ShellWithInjectedDefect("#app { overflow-x: hidden }"));
+        WritePage("proof-sticky-broken.html", "hero", StickyHarness("proof-shell-hero-broken.html"));
     }
     /// <summary>
     /// Does the motion script actually behave? <b>A driven check, because the source-reading ones
@@ -508,6 +672,13 @@ public sealed class ProofPages
         if (!Asked) return;
 
         WritePage("proof-motion.html", "hero", MotionHarness());
+
+        // The negative control — see the docstring on ShippedScript above. Same harness script,
+        // driving a copy of js/motion.js with the exact reduced-motion inversion this docstring
+        // names two paragraphs up: `!still()` instead of `still()`. This is the defect that
+        // defeated an `|| true`-weakened motion harness in both directions — see
+        // docs/notes/s4-harness.md.
+        WritePage("proof-motion-broken.html", "hero", MotionHarness(AsScriptSrc(MotionBrokenScript())));
     }
 
     /// <summary>
@@ -539,6 +710,11 @@ public sealed class ProofPages
         if (!Asked) return;
 
         WritePage("proof-shortcut.html", "hero", ShortcutHarness());
+
+        // The negative control — see the docstring on ShippedScript above. Same harness script,
+        // driving a copy of js/palette.js with preventDefault removed: Ctrl-K still reaches the
+        // component, but the browser default (focusing the address bar) is never taken.
+        WritePage("proof-shortcut-broken.html", "hero", ShortcutHarness(AsScriptSrc(PaletteBrokenScript())));
     }
 
     /// <summary>
@@ -574,6 +750,11 @@ public sealed class ProofPages
         if (!Asked) return;
 
         WritePage("proof-theme.html", "hero", ThemeHarness());
+
+        // The negative control — see the docstring on ShippedScript above. Same harness script,
+        // driving a copy of js/theme.js with the exact regression this docstring already names
+        // two paragraphs up: localStorage.setItem deleted, so a choice is forgotten on reload.
+        WritePage("proof-theme-broken.html", "hero", ThemeHarness(AsScriptSrc(ThemeBrokenScript())));
     }
 
     /// <summary>
@@ -599,9 +780,14 @@ public sealed class ProofPages
         if (!Asked) return;
 
         WritePage("proof-slider.html", "hero", SliderHarness());
+
+        // The negative control — see the docstring on ShippedScript above. Same harness script,
+        // driving a copy of js/slider.js with preventDefault removed: Home and End still reach
+        // the guard and are counted as suppressed, but the browser default is never taken.
+        WritePage("proof-slider-broken.html", "hero", SliderHarness(AsScriptSrc(SliderBrokenScript())));
     }
 
-    private static string SliderHarness() =>
+    private static string SliderHarness(string script = "js/slider.js") =>
         """
         <!doctype html>
         <!-- Generated by ProofPages.TheSliderScript. Do not edit: rewritten on every PP_PROOF
@@ -620,7 +806,7 @@ public sealed class ProofPages
         <div id="verdict">measuring…</div>
         <div id="guarded" role="slider" tabindex="0"></div>
         <div id="unguarded" role="slider" tabindex="0"></div>
-        <script src="js/slider.js"></script>
+        <script src="__PP_SLIDER_SCRIPT__"></script>
         <script>
         (() => {
           const box = document.getElementById('verdict');
@@ -691,9 +877,9 @@ public sealed class ProofPages
         </script>
         </body>
         </html>
-        """;
+        """.Replace("__PP_SLIDER_SCRIPT__", script, StringComparison.Ordinal);
 
-    private static string ThemeHarness() =>
+    private static string ThemeHarness(string script = "js/theme.js") =>
         """
         <!doctype html>
         <!-- Generated by ProofPages.TheThemePreference. Do not edit: rewritten on every
@@ -709,7 +895,7 @@ public sealed class ProofPages
           </style>
           <!-- Loaded here, as index.html loads it, so what runs is the shipped file in the
                position it actually occupies. -->
-          <script src="js/theme.js"></script>
+          <script src="__PP_THEME_SCRIPT__"></script>
         </head>
         <body>
         <div id="verdict">measuring…</div>
@@ -776,7 +962,7 @@ public sealed class ProofPages
           const beforeReload = window.ppThemeStats.stamps;
 
           const again = document.createElement('script');
-          again.src = 'js/theme.js';
+          again.src = '__PP_THEME_SCRIPT__';
           again.onload = () => {
             check('a fresh load of the script stamps the stored choice, with nothing calling it',
                   stamped() === 'dark',
@@ -803,7 +989,7 @@ public sealed class ProofPages
           again.onerror = () => {
             document.title = 'THEME: FAIL';
             box.className = 'bad';
-            box.textContent = 'THEME: FAIL\n  FAIL js/theme.js could not be loaded a second time';
+            box.textContent = 'THEME: FAIL\n  FAIL __PP_THEME_SCRIPT__ could not be loaded a second time';
           };
 
           document.head.appendChild(again);
@@ -811,9 +997,9 @@ public sealed class ProofPages
         </script>
         </body>
         </html>
-        """;
+        """.Replace("__PP_THEME_SCRIPT__", script, StringComparison.Ordinal);
 
-    private static string ShortcutHarness() =>
+    private static string ShortcutHarness(string script = "js/palette.js") =>
         """
         <!doctype html>
         <!-- Generated by ProofPages.TheShortcutListener. Do not edit: rewritten on every
@@ -832,7 +1018,7 @@ public sealed class ProofPages
         <div id="verdict">measuring…</div>
         <input id="outside" />
         <input id="inside" />
-        <script src="js/palette.js"></script>
+        <script src="__PP_SHORTCUT_SCRIPT__"></script>
         <script>
         (() => {
           const box = document.getElementById('verdict');
@@ -931,9 +1117,9 @@ public sealed class ProofPages
         </script>
         </body>
         </html>
-        """;
+        """.Replace("__PP_SHORTCUT_SCRIPT__", script, StringComparison.Ordinal);
 
-    private static string MotionHarness() =>
+    private static string MotionHarness(string script = "js/motion.js") =>
         """
         <!doctype html>
         <!-- Generated by ProofPages.TheMotionScript. Do not edit: rewritten on every PP_PROOF run.
@@ -959,7 +1145,7 @@ public sealed class ProofPages
         </head>
         <body>
         <div id="verdict">measuring…</div>
-        <script src="js/motion.js"></script>
+        <script src="__PP_MOTION_SCRIPT__"></script>
         <script>
         (async () => {
           const box = document.getElementById('verdict');
@@ -1309,7 +1495,7 @@ public sealed class ProofPages
         </script>
         </body>
         </html>
-        """;
+        """.Replace("__PP_MOTION_SCRIPT__", script, StringComparison.Ordinal);
 
 
     /// <summary>
@@ -1320,7 +1506,7 @@ public sealed class ProofPages
     /// that scrolls away — a difference of a few hundred pixels — but the failure mode next door is
     /// a strip that sticks to the wrong offset, and a bare yes/no cannot tell those apart.</para>
     /// </summary>
-    private static string StickyHarness() =>
+    private static string StickyHarness(string target = "proof-shell-hero.html") =>
         """
         <!doctype html>
         <!-- Generated by ProofPages.TheStickyStrip. Do not edit: it is rewritten on every
@@ -1339,7 +1525,7 @@ public sealed class ProofPages
         </head>
         <body>
         <div id="verdict">measuring…</div>
-        <iframe id="f" src="proof-shell-hero.html"></iframe>
+        <iframe id="f" src="__PP_STICKY_TARGET__"></iframe>
         <script>
         document.getElementById('f').addEventListener('load', () => {
           const box = document.getElementById('verdict');
@@ -1394,7 +1580,7 @@ public sealed class ProofPages
         </script>
         </body>
         </html>
-        """;
+        """.Replace("__PP_STICKY_TARGET__", target, StringComparison.Ordinal);
 
     /// <summary>
     /// The narrow viewport, measured rather than eyeballed — one harness per page that has to
@@ -1422,6 +1608,15 @@ public sealed class ProofPages
         // 375px — which is the width the 8px overflow this harness exists for showed up at.
         WritePage("proof-narrow-front.html", "hero", NarrowHarness("proof-front-door-hero.html"));
         WritePage("proof-narrow-rules.html", "hero", NarrowHarness("proof-rules-hero.html"));
+
+        // The negative control — see the docstring on ShippedScript above. Same harness script,
+        // measuring a shell twin with a real, generously-wide element — the shape of the "8px
+        // overflow" this harness exists for, made large enough not to be a coin flip against the
+        // 0.5px tolerance the honest checks already carry.
+        WritePage("proof-shell-hero-broken-narrow.html", "hero",
+            ShellWithInjectedDefect(".shell { width: 3000px }"));
+        WritePage("proof-narrow-broken.html", "hero",
+            NarrowHarness("proof-shell-hero-broken-narrow.html"));
     }
 
     /// <summary>
@@ -1555,6 +1750,15 @@ public sealed class ProofPages
         if (!Asked) return;
 
         WritePage("proof-measure.html", "hero", MeasureHarness());
+
+        // The negative control — see the docstring on ShippedScript above. Same harness script,
+        // measuring a shell twin with the exact defect this file's own comments name: a margin
+        // on one band's inner element moves its content 96px out from under the others, which
+        // the band's own box and padding do not show.
+        WritePage("proof-shell-hero-broken-inset.html", "hero",
+            ShellWithInjectedDefect(".banner-inner { margin-left: 96px }"));
+        WritePage("proof-measure-broken.html", "hero",
+            MeasureHarness("proof-shell-hero-broken-inset.html"));
     }
 
     /// <summary>
@@ -1562,7 +1766,7 @@ public sealed class ProofPages
     /// agree rather than believed to. <b>The chrome bands each centre their own contents on
     /// <c>--column</c>; a band that quietly stopped would look almost right.</b>
     /// </summary>
-    private static string MeasureHarness() =>
+    private static string MeasureHarness(string target = "proof-shell-hero.html") =>
         """
         <!doctype html>
         <!-- Generated by ProofPages.TheBoxInsets. Do not edit: rewritten on every PP_PROOF run. -->
@@ -1580,7 +1784,7 @@ public sealed class ProofPages
         </head>
         <body>
         <div id="verdict">measuring…</div>
-        <iframe id="f" src="proof-shell-hero.html"></iframe>
+        <iframe id="f" src="__PP_MEASURE_TARGET__"></iframe>
         <script>
         document.getElementById('f').addEventListener('load', () => {
           const box = document.getElementById('verdict');
@@ -1649,7 +1853,7 @@ public sealed class ProofPages
         </script>
         </body>
         </html>
-        """;
+        """.Replace("__PP_MEASURE_TARGET__", target, StringComparison.Ordinal);
 
     /// <summary>
     /// Everything a proof page must contain to be proofing what it claims to, keyed by file.
@@ -1773,6 +1977,68 @@ public sealed class ProofPages
         ["proof-slider.html"] =
         [
             "js/slider.js", "ppSlider.guard", "ppSliderStats", "positive control",
+            "KeyboardEvent", "defaultPrevented",
+            "guarding twice still leaves one listener",
+            "Tab and the arrows reach the browser untouched",
+            "an unguarded element is left alone",
+            "SLIDER: PASS", "SLIDER: FAIL", "measuring", "document.title",
+        ],
+
+        // ── The negative controls — see ShippedScript's docstring. Same markers as the real
+        // page each twin is a twin of, because it is the identical harness script; the one
+        // thing that must differ is named separately below, in each Fact that writes the twin.
+        ["proof-shell-hero-broken.html"] =
+            ["class=\"banner\"", "class=\"banner-inner\"", "class=\"steps\"", "class=\"budget\"", "class=\"shell\""],
+        ["proof-shell-hero-broken-inset.html"] =
+            ["class=\"banner\"", "class=\"banner-inner\"", "class=\"steps\"", "class=\"budget\"", "class=\"shell\""],
+        ["proof-shell-hero-broken-narrow.html"] =
+            ["class=\"banner\"", "class=\"banner-inner\"", "class=\"steps\"", "class=\"budget\"", "class=\"shell\""],
+        ["proof-sticky-broken.html"] =
+        [
+            ".budget", ".steps", "getBoundingClientRect", "scrollTo",
+            "STICKY: PASS", "STICKY: FAIL", "measuring",
+            "stuck && scrolled", "document.title",
+        ],
+        ["proof-motion-broken.html"] =
+        [
+            "data:text/javascript;base64,", "prefers-reduced-motion", "startViewTransition",
+            "MOTION: PASS", "MOTION: FAIL", "measuring",
+            "checks.every", "document.title",
+            "css/theme.css", "--enter resolves",
+            "ppCount", "ppMotionStats", "positive control",
+            "currentTime", "resting frame is the engine number",
+            "ppLand", "getAnimations", "ease-emphasised",
+        ],
+        ["proof-narrow-broken.html"] =
+        [
+            "375px", "clientWidth", "scrollWidth", "getBoundingClientRect",
+            "NARROW: PASS", "NARROW: FAIL", "measuring", "document.title",
+        ],
+        ["proof-measure-broken.html"] =
+        [
+            ".banner-inner", ".steps-list", ".budget-strip", ".shell",
+            "getBoundingClientRect", "spread",
+            "INSETS: PASS", "INSETS: FAIL", "measuring", "document.title",
+        ],
+        ["proof-shortcut-broken.html"] =
+        [
+            "data:text/javascript;base64,", "ppPalette.listen", "ppPaletteStats", "positive control",
+            "KeyboardEvent", "ctrlKey", "metaKey", "defaultPrevented",
+            "a bare k and a Ctrl-J reach nothing",
+            "activeElement", "keyboard trap",
+            "SHORTCUT: PASS", "SHORTCUT: FAIL", "measuring", "document.title",
+        ],
+        ["proof-theme-broken.html"] =
+        [
+            "data:text/javascript;base64,", "ppTheme.set", "ppThemeStats", "positive control",
+            "pp.theme.v1", "localStorage", "data-theme",
+            "removes the value rather than storing a third word",
+            "with nothing calling it",
+            "THEME: PASS", "THEME: FAIL", "measuring", "document.title",
+        ],
+        ["proof-slider-broken.html"] =
+        [
+            "data:text/javascript;base64,", "ppSlider.guard", "ppSliderStats", "positive control",
             "KeyboardEvent", "defaultPrevented",
             "guarding twice still leaves one listener",
             "Tab and the arrows reach the browser untouched",
@@ -1929,6 +2195,73 @@ public sealed class ProofPages
         AssertMarkers("proof-measure.html", MeasureHarness());
     }
 
+    /// <summary>
+    /// The negative controls: every twin drives the byte-identical harness script and is pointed
+    /// at its own broken target rather than at the real one, and every broken script this file
+    /// generates actually differs from the shipped one it was derived from.
+    ///
+    /// <para><b>The last part is the positive control on the negative control.</b> <c>WithDefect</c>
+    /// throws if the line it targets is missing, which catches the file moving out from under a
+    /// twin — but it would not catch a defect that was accidentally a no-op, the way the counting
+    /// figure's resting frame is a no-op to remove (<c>CLAUDE.md</c> names that exact trap). So this
+    /// asserts each broken script is not equal to the real one, before trusting either half of
+    /// <see cref="TheStickyStrip"/>'s or <see cref="TheMotionScript"/>'s <c>--dump-dom</c> checks.
+    /// Whether a broken script drives the harness to an actual <c>FAIL</c> is checked in a browser,
+    /// in the build workflow — nothing in this project renders a script's runtime behaviour, so
+    /// that half cannot be an xunit assertion.</para>
+    /// </summary>
+    [Fact]
+    public void TheTwinsDriveTheSameScriptAgainstTheirOwnBrokenTarget()
+    {
+        var brokenShell = ShellWithInjectedDefect("#app { overflow-x: hidden }");
+        AssertMarkers("proof-shell-hero-broken.html", brokenShell);
+        Assert.NotEqual(HonestShellPage(), brokenShell);
+
+        var brokenInsetShell = ShellWithInjectedDefect(".banner-inner { margin-left: 96px }");
+        AssertMarkers("proof-shell-hero-broken-inset.html", brokenInsetShell);
+        Assert.NotEqual(HonestShellPage(), brokenInsetShell);
+
+        var brokenNarrowShell = ShellWithInjectedDefect(".shell { width: 3000px }");
+        AssertMarkers("proof-shell-hero-broken-narrow.html", brokenNarrowShell);
+        Assert.NotEqual(HonestShellPage(), brokenNarrowShell);
+
+        var sticky = StickyHarness("proof-shell-hero-broken.html");
+        AssertMarkers("proof-sticky-broken.html", sticky);
+        Assert.Contains("src=\"proof-shell-hero-broken.html\"", sticky, StringComparison.Ordinal);
+
+        var narrow = NarrowHarness("proof-shell-hero-broken-narrow.html");
+        AssertMarkers("proof-narrow-broken.html", narrow);
+        Assert.Contains("src=\"proof-shell-hero-broken-narrow.html\"", narrow, StringComparison.Ordinal);
+
+        var measure = MeasureHarness("proof-shell-hero-broken-inset.html");
+        AssertMarkers("proof-measure-broken.html", measure);
+        Assert.Contains("src=\"proof-shell-hero-broken-inset.html\"", measure, StringComparison.Ordinal);
+
+        var motionScript = MotionBrokenScript();
+        Assert.NotEqual(ShippedScript("js/motion.js"), motionScript);
+        var motion = MotionHarness(AsScriptSrc(motionScript));
+        AssertMarkers("proof-motion-broken.html", motion);
+        Assert.Contains($"src=\"{AsScriptSrc(motionScript)}\"", motion, StringComparison.Ordinal);
+
+        var paletteScript = PaletteBrokenScript();
+        Assert.NotEqual(ShippedScript("js/palette.js"), paletteScript);
+        var shortcut = ShortcutHarness(AsScriptSrc(paletteScript));
+        AssertMarkers("proof-shortcut-broken.html", shortcut);
+        Assert.Contains($"src=\"{AsScriptSrc(paletteScript)}\"", shortcut, StringComparison.Ordinal);
+
+        var themeScript = ThemeBrokenScript();
+        Assert.NotEqual(ShippedScript("js/theme.js"), themeScript);
+        var theme = ThemeHarness(AsScriptSrc(themeScript));
+        AssertMarkers("proof-theme-broken.html", theme);
+        Assert.Contains($"src=\"{AsScriptSrc(themeScript)}\"", theme, StringComparison.Ordinal);
+
+        var sliderScript = SliderBrokenScript();
+        Assert.NotEqual(ShippedScript("js/slider.js"), sliderScript);
+        var slider = SliderHarness(AsScriptSrc(sliderScript));
+        AssertMarkers("proof-slider-broken.html", slider);
+        Assert.Contains($"src=\"{AsScriptSrc(sliderScript)}\"", slider, StringComparison.Ordinal);
+    }
+
     private static void AssertMarkers(string file, string page)
     {
         Assert.True(MustShow.ContainsKey(file), $"No markers are recorded for {file}.");
@@ -1950,6 +2283,17 @@ public sealed class ProofPages
     /// window inside a 1100px column. Every positive marker survives that, because the layout emits
     /// its own <c>&lt;main class="shell"&gt;</c> either way — so the thing to refuse is the
     /// <em>wrapper</em>, which only <c>Write</c> produces.</para>
+    ///
+    /// <para><b>This is a denylist of source spellings, and it was defeated by one.</b> Appending
+    /// <c>|| true</c> to the sticky harness's verdict, and to the motion harness's
+    /// <c>checks.every(...)</c>, made both report <c>PASS</c> against a genuinely broken sticky
+    /// strip and against the motion harness's own reduced-motion inversion — and every entry here
+    /// stayed green, because <c>|| true</c> is textually distinct from the banned literal
+    /// <c>say(true</c>. <b>It still catches the lazy spelling, and it is cheap, so it stays</b> —
+    /// but the spelling space a hard-coded verdict can take is unbounded, and no denylist closes
+    /// an unbounded space. <b>The real guarantee is the twin</b>: every harness with an honest
+    /// negative control is proved to fail on a genuinely broken target, in a browser, every run —
+    /// see the docstring on <see cref="ShippedScript"/> and <c>docs/notes/s4-harness.md</c>.</para>
     /// </summary>
     private static readonly Dictionary<string, string[]> MustNotShow = new(StringComparer.Ordinal)
     {
@@ -1962,6 +2306,11 @@ public sealed class ProofPages
         ["proof-motion.html"] = ["window.ppMotion = {"],
         // Same trap, same fix: a harness that defines its own ppSlider is proofing a copy.
         ["proof-slider.html"] = ["window.ppSlider = {"],
+        // The twins drive the identical harness script — see ShippedScript's docstring — so the
+        // same denylist entries apply to them.
+        ["proof-sticky-broken.html"] = ["say(true"],
+        ["proof-motion-broken.html"] = ["window.ppMotion = {"],
+        ["proof-slider-broken.html"] = ["window.ppSlider = {"],
     };
 
     /// <summary>

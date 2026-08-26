@@ -1,0 +1,52 @@
+@* A broken rule, printed under the row that broke it.
+
+   **Visible, never hover-only.** The rows already carry a term-description tip from the
+   hover-description work, and a finding is tempting to fold into the same plumbing — but WCAG
+   is explicit that information carried only by a tooltip is information some readers do not
+   get, and a rule the character has broken is exactly that kind of information. This renders in
+   the ordinary flow of the page, nothing to hover and nothing to dismiss, whenever the engine
+   has something to say about this row. It is never the only place a finding is said, either —
+   the GM review step still prints every one, in full, with the budget findings this component
+   never sees.
+
+   **The engine decides; this only prints what SheetFindings already routed.** Nothing here
+   prices, validates, or decides which row an issue belongs to — that is SheetFindings' job,
+   reading the SubjectKind/SubjectId/OwnerId CharacterValidator already filled in. This component
+   receives a list already meant for it and draws it.
+
+   **Error and warning are never colour alone.** A printed word leads every sentence, and the
+   left edge differs in *style* as well as in colour — solid against dashed — because a colour
+   difference alone fails WCAG 1.4.1 for the one reader in twelve who cannot use it. *@
+
+@if (Issues is { Count: > 0 })
+{
+    <ul class="row-findings">
+        @foreach (var issue in Issues)
+        {
+            <li class="finding @Kind(issue)">
+                <span class="finding-kind">@Label(issue)</span>
+                @issue.Message
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    /// <summary>
+    /// The findings that belong to this row, already routed by <see cref="SheetFindings"/>.
+    /// Null or empty draws nothing — most rows break no rule, and a row that is fine should look
+    /// exactly like one nobody has looked at yet.
+    /// </summary>
+    [Parameter] public IReadOnlyList<ValidationIssue>? Issues { get; set; }
+
+    // Kept inside @code rather than written as `issue.Severity == ValidationSeverity.Error`
+    // in the markup above: NoPageNamesATypeThisProjectDeclares strips the @code block before
+    // it scans for a compound type name, and does not strip an ordinary C# statement sitting
+    // inside a @foreach in the templated region — a type name written there prints on the
+    // player's screen as far as that guard can tell.
+    private static bool IsError(ValidationIssue issue) => issue.Severity == ValidationSeverity.Error;
+
+    private static string Kind(ValidationIssue issue) => IsError(issue) ? "error" : "warning";
+
+    private static string Label(ValidationIssue issue) => IsError(issue) ? "Error" : "Warning";
+}

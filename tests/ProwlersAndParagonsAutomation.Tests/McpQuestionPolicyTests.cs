@@ -92,6 +92,34 @@ public sealed class McpQuestionPolicyTests
     }
 
     /// <summary>
+    /// <b>The default build is the strongest legal one, and the person trades down from it.</b>
+    /// Without this the model builds tastefully — a modest-sounding concept gets a modest sheet
+    /// that leaves points unspent, and the person never finds out, because a build six points
+    /// weaker than it could be looks exactly like one that is not. The direction is the whole
+    /// content: trading down is a decision somebody makes out loud, trading up is a correction
+    /// they have to notice they need.
+    ///
+    /// <para>The floor and the ceiling are both asserted. Optimising is not a licence to
+    /// overrule a weakness the person stated, to drop what they asked for, or to exceed the
+    /// budget — and a document carrying the first half without the second reads as permission
+    /// to rebuild somebody's character into a better one.</para>
+    /// </summary>
+    [Fact]
+    public void TheGuideSaysToBuildAtFullStrengthAndTradeDown()
+    {
+        Assert.Contains("strongest legal", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("trade", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Trait Cap", Flowed, StringComparison.Ordinal);
+
+        // The limits, without which the above is a licence to overwrite what they asked for.
+        Assert.Contains("does not overrule a weakness", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("does not go over budget", Flowed, StringComparison.OrdinalIgnoreCase);
+
+        // The trade the engine cannot choose: a rank at the cap costs Resolve.
+        Assert.Contains("Resolve", Flowed, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The ordering, in the document that teaches the loop. Every slice that has drifted here
     /// produced a confidently wrong number, so the sentence that forbids it is asserted.
     /// </summary>
@@ -143,8 +171,129 @@ public sealed class McpQuestionPolicyTests
     public void TheGuideSaysWhatToDoWithAVillain()
     {
         Assert.Contains("Villain", Text, StringComparison.Ordinal);
-        Assert.Contains("no Hero Point budget", Flowed, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("HP_BUDGET_EXCEEDED", Text, StringComparison.Ordinal);
+
+        // The budget is the GM's call and was never a fact about Villains. An earlier version of
+        // this document said "a Villain has no Hero Point budget", which is the claim the repo
+        // retired when UnlimitedBudget became a toggle either kind of character can carry.
+        Assert.DoesNotContain("Villain has no Hero Point budget", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("GM's call", Flowed, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Only Heroes have Resolve, and the guide has to follow that through.</b> Ch.2 states it
+    /// twice and Ch.5 gives the GM Adversity instead — spendable "on behalf of any NPC whether
+    /// they're Villains, Foes, Minions, or Extras". The engine builds Heroes, so it returns a
+    /// Resolve figure for a Villain regardless, and that figure is noise a model will otherwise
+    /// quote as though it meant something.
+    ///
+    /// <para>The three consequences are the content, not the fact. Determination is Hero Points
+    /// spent on Resolve and is a dead buy; Plot Hook and Condition Flaws grant starting Resolve
+    /// and so grant nothing; and the Trait Cap trade — Resolve is what a <i>Hero</i> pays for a
+    /// rank at the cap — does not exist for a Villain, which makes capping strictly correct. A
+    /// document stating the rule without them leaves every one of those decisions wrong.</para>
+    /// </summary>
+    [Fact]
+    public void TheGuideSaysAVillainHasNoResolveAndWhatFollowsFromIt()
+    {
+        Assert.Contains("Only Heroes have Resolve", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Adversity", Flowed, StringComparison.Ordinal);
+
+        // The three consequences. The rule without these is a fact nobody acts on.
+        Assert.Contains("Never buy Determination on a Villain", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Plot Hook and Condition Flaws grant nothing", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Trait Cap trade disappears", Flowed, StringComparison.OrdinalIgnoreCase);
+
+        // And that the figure the engine returns anyway is not to be repeated.
+        Assert.Contains("noise", Flowed, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// <b><c>IsVillain</c> exists and decides nothing mechanical.</b> The document said there was
+    /// no such flag, which is two errors: the field is real and a model following that sentence
+    /// omits it, and a model that finds it may then expect it to change a cost. Proved by flipping
+    /// it on a real character — every figure in the report is identical.
+    /// </summary>
+    [Fact]
+    public void TheGuideSaysTheVillainFlagIsPresentationOnly()
+    {
+        Assert.Contains("IsVillain", Text, StringComparison.Ordinal);
+        Assert.Contains("presentation only", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("no Villain flag to set", Flowed, StringComparison.OrdinalIgnoreCase);
+
+        // The positive control on the claim itself: the engine really does ignore it.
+        var hero = Sheet(isVillain: false);
+        var villain = Sheet(isVillain: true);
+
+        Assert.Equal(_f.Costs.TotalCost(hero), _f.Costs.TotalCost(villain));
+        Assert.Equal(_f.Derived.CalculateResolve(hero), _f.Derived.CalculateResolve(villain));
+        Assert.Equal(
+            _f.Validator.Validate(hero).Issues.Select(i => i.Code),
+            _f.Validator.Validate(villain).Issues.Select(i => i.Code));
+    }
+
+    /// <summary>
+    /// <b>A Villain's Flaws are the only place the GM says how the character can be beaten.</b>
+    /// This follows from the Resolve rule rather than standing beside it: for a Hero a Flaw is a
+    /// drawback bought with the Resolve it pays out, and with the payout gone the drawback is all
+    /// there is. A guide that stops at "a Villain has no Resolve" leaves a model picking Flaws by
+    /// flavour, and flavour on a Villain gives the character nothing and the table nothing.
+    ///
+    /// <para>Vulnerability is asserted by name because it is the one Flaw with a printed
+    /// mechanical consequence — defence halved — rather than a Resolve trigger, and it is
+    /// therefore the strongest handle in the book. The three-category split is asserted because
+    /// one handle beats the character only for the party that happens to be able to use it.</para>
+    /// </summary>
+    [Fact]
+    public void TheGuideSaysAVillainsFlawsAreThePlayersHandles()
+    {
+        Assert.Contains("players' handles", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Vulnerability", Flowed, StringComparison.Ordinal);
+        Assert.Contains("Power Limits", Flowed, StringComparison.Ordinal);
+
+        // The three routes, so a party is not left with only the one the GM imagined.
+        Assert.Contains("handle in the fight", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("handle in their behaviour", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("handle outside the fight", Flowed, StringComparison.OrdinalIgnoreCase);
+
+        // And the warning against spending a slot on something the fiction carries free.
+        Assert.Contains("gives the players nothing", Flowed, StringComparison.OrdinalIgnoreCase);
+
+        // Positive control: every Flaw the guide recommends is one the rules actually have, so
+        // the advice cannot quietly name an id that would be refused on submit.
+        foreach (var id in new[]
+                 {
+                     "vulnerability", "severe_reaction", "severe_requirement", "power_limits",
+                     "finite_power", "light_sensitive", "night_blind", "impaired_sense",
+                     "code", "severe_compulsion", "frenzy", "hidden_agenda", "flashbacks_guilt",
+                     "secret", "secret_identity", "relationship", "wanted", "obligation",
+                 })
+        {
+            Assert.NotNull(_f.Rules.GetFlaw(id));
+        }
+    }
+
+    private static CharacterSheet Sheet(bool isVillain)
+    {
+        var sheet = new CharacterSheet
+        {
+            Name = "Flag Probe",
+            IsVillain = isVillain,
+            SelectedTierId = "standard",
+            SelectedPackageId = "civilian_package",
+        };
+
+        foreach (var id in new[] { "might", "agility", "intellect", "perception", "toughness", "willpower" })
+            sheet.AbilityRanks[id] = 2;
+        foreach (var id in new[]
+                 {
+                     "academics", "charm", "command", "covert", "investigation", "medicine",
+                     "professional", "science", "streetwise", "survival", "technology", "vehicles",
+                 })
+            sheet.TalentRanks[id] = 2;
+
+        sheet.Flaws.Add(new SelectedFlaw("code"));
+        return sheet;
     }
 
     /// <summary>

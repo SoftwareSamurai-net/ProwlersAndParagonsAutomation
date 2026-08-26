@@ -99,17 +99,162 @@ public sealed class AccountsContractTests
     }
 
     /// <summary>
-    /// Every address the browser asks for is one the server answers.
+    /// Nothing under <c>engine/</c> or <c>sheets/</c> touches the filesystem directly.
     ///
-    /// <para><b>Both suites are green while these disagree.</b> The server's tests drive the
-    /// server and the browser's tests drive a stub of it, so a renamed route breaks only the
-    /// deployed site — where it appears as an app that starts, works, and quietly signs nobody
-    /// in. This is the only thing that reads both sides.</para>
+    /// <para><b>Nothing enforced this until now, despite it being asserted in prose twice</b> —
+    /// the "### The engine never touches the filesystem" section of <c>CLAUDE.md</c>, and,
+    /// verbatim, inside <see cref="TheEngineHasNoNetwork"/>'s own doc comment above ("The engine
+    /// has no filesystem access by design"). Proved by mutation before this test existed: adding
+    /// <c>System.IO.File.Exists(...)</c> to a real, executed line of <c>CostCalculator
+    /// .AbilityCost</c> — a call that succeeds rather than throwing, so nothing else notices —
+    /// left every one of 3,734 tests green. See <c>docs/notes/s2-contract.md</c>.</para>
+    ///
+    /// <para><b>The rule is not "no <c>System.IO</c>".</b> <c>RulesRepository.FromBasePath</c>
+    /// legitimately calls <c>Path.Combine</c> — pure string manipulation with nothing on the
+    /// far end, the same way <c>Path.GetFullPath</c> would be. What is banned is the four
+    /// spellings that actually reach a disk — <c>File.</c>, <c>Directory.</c>,
+    /// <c>FileStream</c>, <c>StreamReader</c>/<c>StreamWriter</c> — plus a written-out
+    /// <c>using System.IO;</c>, which nothing here needs: the SDK's implicit usings already
+    /// bring the namespace into every file, which is exactly why a stray <c>File.Exists</c>
+    /// compiles silently and needs a guard rather than a missing <c>using</c> to catch it.</para>
+    ///
+    /// <para><b>One sanctioned exception.</b> <c>FileSystemRulesSource.cs</c> is the
+    /// <see cref="Engine.IRulesSource"/> implementation the CLI hands the repository — the
+    /// documented seam a host with a disk is supposed to use — so it is excluded by name rather
+    /// than the ban being loosened for everyone.</para>
+    ///
+    /// <para>Comments are blanked before the scan, the same reason <c>WithoutXmlComments</c>
+    /// does it for the csproj scan below: two of these files carry an architecture comment
+    /// that names <c>File.ReadAllText</c> or <c>AppContext.BaseDirectory</c> as history, not as
+    /// code, and a guard that cannot tell the two apart taxes the explanation.</para>
+    /// </summary>
+    [Fact]
+    public void TheEngineHasNoFilesystemAccess()
+    {
+        var files = RulesSources()
+            .Where(f => !f.EndsWith("FileSystemRulesSource.cs", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        // The positive control: a scan over an empty file list would pass every absence
+        // assertion below, which is how four guards in this repository have shipped measuring
+        // nothing and calling it clean.
+        Assert.True(files.Count > 10,
+            $"only {files.Count} rules source files found (after excluding the one sanctioned "
+            + "exception), so this scan would pass by measuring nothing.");
+
+        var banned = new Regex(
+            @"\bFile\.|\bDirectory\.|\bFileStream\b|\bStreamReader\b|\bStreamWriter\b"
+            + @"|using\s+System\.IO\s*;",
+            RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        var offenders = files
+            .Where(f => banned.IsMatch(WithoutCsComments(File.ReadAllText(f))))
+            .Select(Path.GetFileName)
+            .ToList();
+
+        Assert.True(offenders.Count == 0,
+            "engine/ and sheets/ read rules through IRulesSource and return strings; nothing "
+            + "else here may reach the filesystem. FileSystemRulesSource.cs is the one "
+            + "sanctioned exception — the host-provided implementation of IRulesSource for a "
+            + "host that has a disk. Offending files: " + string.Join(", ", offenders));
+    }
+
+    /// <summary>
+    /// C# source with its comments blanked out, so a match inside an explanatory comment cannot
+    /// anchor a scan meant to read live code. Modelled on <c>WebPresentationTests.WithoutJsComments</c>
+    /// — C# and JavaScript share the same <c>//</c> and <c>/* */</c> comment syntax.
+    /// </summary>
+    private static string WithoutCsComments(string source)
+    {
+        var output = new System.Text.StringBuilder(source.Length);
+        var i = 0;
+
+        while (i < source.Length)
+        {
+            if (i + 1 < source.Length && source[i] == '/' && source[i + 1] == '/')
+            {
+                while (i < source.Length && source[i] != '\n') { output.Append(' '); i++; }
+                continue;
+            }
+
+            if (i + 1 < source.Length && source[i] == '/' && source[i + 1] == '*')
+            {
+                while (i + 1 < source.Length && !(source[i] == '*' && source[i + 1] == '/'))
+                {
+                    output.Append(source[i] == '\n' ? '\n' : ' ');
+                    i++;
+                }
+
+                for (var k = 0; k < 2 && i < source.Length; k++, i++) output.Append(' ');
+                continue;
+            }
+
+            output.Append(source[i]);
+            i++;
+        }
+
+        return output.ToString();
+    }
+
+    /// <summary>
+    /// Every address the browser asks for is one <c>worker/index.js</c> actually routes.
+    ///
+    /// <para><b>This used to be <c>routed.Contains($"'{address}'")</c> over every worker file
+    /// concatenated together, and a route literal appearing anywhere in any worker file
+    /// satisfied it — not only in the routing code.</b> Proved by mutation before this test was
+    /// rewritten: renaming the real routing condition for <c>/api/me</c> in
+    /// <c>worker/index.js</c> to <c>/api/me-renamed-proof-mutation</c> still left the old test
+    /// green, because the literal <c>'/api/me'</c> survives in <c>worker/errors.js</c>'s
+    /// <c>KNOWN_ROUTES</c> — a list built for a different purpose (bounding the error log's row
+    /// count) that happens to name the same addresses. See <c>docs/notes/s2-contract.md</c>.</para>
+    ///
+    /// <para>So the routing is read structurally, out of <c>worker/index.js</c> alone: the exact
+    /// paths compared with <c>===</c> and the prefixes compared with <c>startsWith</c>. An
+    /// address the browser asks for is answered if it equals one of the former or begins with
+    /// one of the latter — which is how <c>/api/characters/{id}</c> and
+    /// <c>/api/admin/invitations/{id}</c> are actually reached: a <c>startsWith</c> check and a
+    /// <c>path.slice</c>, never an exact match, so a model that only knew exact addresses would
+    /// flag both as unrouted on every real request.</para>
+    ///
+    /// <para><b>Both suites are green while the browser and the server disagree</b>, which is
+    /// why this is the only thing that reads both sides: the server's tests drive the server
+    /// and the browser's tests drive a stub of it, so a renamed route breaks only the deployed
+    /// site — where it appears as an app that starts, works, and quietly signs nobody in.</para>
     /// </summary>
     [Fact]
     public void EveryAddressTheBrowserAsksForIsOneTheServerAnswers()
     {
-        var routed = ServerSource();
+        var indexJs = File.ReadAllText(WorkerFile("index.js"));
+
+        // Structural extraction, anchored on the routing boilerplate itself — `path === '...'`
+        // and `path.startsWith('...')` — rather than on a literal appearing anywhere in the
+        // file, which is the shape that let a duplicate elsewhere defeat the guard this
+        // replaces. The character class matches only what a path segment can contain, so this
+        // cannot "swallow" the rest of the file even where the boilerplate recurs.
+        var exact = Regex.Matches(indexJs, @"path\s*===\s*'(/api/[A-Za-z0-9/_.-]*)'",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        var prefixes = Regex.Matches(indexJs, @"path\.startsWith\('(/api/[A-Za-z0-9/_.-]*)'\)",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        // The positive control on the extraction itself. worker/index.js routes thirteen exact
+        // addresses and three prefixes today; the bounds are loose enough that a genuine new
+        // route does not need this test edited, and tight enough to catch a pattern that has
+        // stopped matching (too few — the safe direction, since every address then reads as
+        // unrouted) or one that has started swallowing the file (impossible by construction,
+        // since the capture group admits only path characters immediately after the routing
+        // boilerplate — but bounded anyway, in case that boilerplate itself changes shape).
+        Assert.True(exact.Count is >= 8 and <= 40,
+            $"found {exact.Count} exact routes in worker/index.js: {string.Join(", ", exact)}");
+        Assert.True(prefixes.Count is >= 2 and <= 15,
+            $"found {prefixes.Count} routed prefixes in worker/index.js: "
+            + string.Join(", ", prefixes));
 
         // **The character class was `[a-z/]` and a reviewer walked through it.** Renaming a route
         // to `api/auth/verify-token` made the pattern fail to match the literal at all, so the
@@ -127,12 +272,13 @@ public sealed class AccountsContractTests
             + "matching and this test is asserting nothing.");
 
         var unanswered = asked
-            .Where(address => !routed.Contains($"'{address}'", StringComparison.Ordinal))
+            .Where(address => !exact.Contains(address, StringComparer.Ordinal)
+                            && !prefixes.Any(prefix => address.StartsWith(prefix, StringComparison.Ordinal)))
             .ToList();
 
         Assert.True(unanswered.Count == 0,
-            "The browser asks for these and worker/index.js routes none of them: "
-            + string.Join(", ", unanswered));
+            "The browser asks for these and worker/index.js routes none of them, exactly or by "
+            + "prefix: " + string.Join(", ", unanswered));
     }
 
     /// <summary>

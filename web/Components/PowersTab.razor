@@ -34,7 +34,8 @@ else
                     {
                         var power = Session.Rules.GetPower(sp.PowerId);
                         var rank  = power is null ? 0 : Session.Derived.GetEffectiveRank(sp, Session.Sheet);
-                        <ChosenRow Cost="@($"{CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—"} HP")">
+                        <ChosenRow Cost="@($"{CharacterSession.TryCost(() => Session.Costs.PowerCost(sp))?.ToString() ?? "—"} HP")"
+                                   Findings="SheetFindings.ForPower(Validation, sp.PowerId)">
                             <Body>
                                 @* One expression for the name and the rank. A leading space
                                    inside the following element is stripped by Razor, which
@@ -124,6 +125,12 @@ else
 
     private Editing? _editing;
     private string _category = "";
+
+    /// <summary>
+    /// Read fresh on every render, the same as <c>Review.razor</c>'s own — the engine is cheap
+    /// to ask and a cached answer would go stale the moment a Pro was added.
+    /// </summary>
+    private ValidationResult Validation => Session.Validate();
 
     /// <summary>
     /// Open the Power the palette was asked for, if there is one waiting.
