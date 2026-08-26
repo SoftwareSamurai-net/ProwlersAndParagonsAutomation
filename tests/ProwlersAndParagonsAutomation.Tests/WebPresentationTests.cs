@@ -2126,6 +2126,94 @@ public sealed class WebPresentationTests
     }
 
     /// <summary>
+    /// The longest run of prose in one paragraph on any screen, in words.
+    ///
+    /// <para><b>A ceiling, not a target.</b> Most copy in this app is under ten words and should
+    /// stay there; this is the point past which a paragraph has stopped answering a question and
+    /// started explaining itself.</para>
+    /// </summary>
+    private const int LongestParagraph = 28;
+
+    /// <summary>
+    /// <b>No paragraph on screen is an essay.</b>
+    ///
+    /// <para>The owner read the app and said so: "so much commentary on EVERY button click and
+    /// EVERY step — just cut it to raw process and unclear actions". Before that pass the visible
+    /// prose ran to <b>1,943 words</b> across 53 paragraphs of twelve words or more, the worst of
+    /// them 88 words above a recording and 81 above a list of findings. Four of the offenders were
+    /// three-sentence accounts of what a button would do, printed above the button.</para>
+    ///
+    /// <para><b>It is a word count because nothing subtler is enforceable.</b> No pattern
+    /// separates "turn Headers and footers off" — a real instruction nobody could guess — from a
+    /// paragraph restating the heading above it; <see cref="NoPageExplainsItselfToADeveloper"/> is
+    /// a denylist for the same reason. What a ceiling does catch is the shape the drift always
+    /// takes, which is one more qualifying sentence.</para>
+    ///
+    /// <para><b>Razor control flow splits a paragraph rather than being counted through it.</b>
+    /// The character list's closing sentence is an <c>@if</c> over two eleven-word branches; read
+    /// as one run that is twenty-two words of prose no reader ever sees together.</para>
+    /// </summary>
+    [Fact]
+    public void NoParagraphOnScreenIsAnEssay()
+    {
+        var offenders = new List<string>();
+        var longest = 0;
+
+        foreach (var file in RazorFiles)
+        {
+            foreach (var (words, text) in Paragraphs(File.ReadAllText(file)))
+            {
+                longest = Math.Max(longest, words);
+
+                if (words > LongestParagraph)
+                    offenders.Add($"{Path.GetFileName(file)}: {words} words — \"{text}\"");
+            }
+        }
+
+        // The positive control, and it is not optional: every assertion above is an absence, and
+        // an app whose copy had all been deleted would satisfy every one of them. Something on
+        // screen still has to be a sentence.
+        Assert.True(longest >= 12,
+            $"The longest paragraph in the whole app is {longest} words. That is not this rule "
+            + "working — it is the prose having gone, or this scan having stopped reading it.");
+
+        Assert.True(offenders.Count == 0,
+            $"Copy answers what the reader came to do; over {LongestParagraph} words it is "
+            + "explaining itself. Cut these, or move the reasoning into a @* *@ comment:"
+            + Environment.NewLine + string.Join(Environment.NewLine, offenders));
+    }
+
+    /// <summary>
+    /// Each paragraph of visible prose on a screen, as a word count and the text itself.
+    ///
+    /// <para><c>EmptyState</c> counts as one: it is a paragraph in every way a reader can tell,
+    /// and two of the longest runs in the app were written as one.</para>
+    ///
+    /// <para>Split on Razor's own braces, so an <c>@if</c>/<c>else</c> over two short branches is
+    /// two short paragraphs rather than one long one — which is what a reader gets.</para>
+    /// </summary>
+    private static IEnumerable<(int Words, string Text)> Paragraphs(string razor)
+    {
+        var markup = VisibleMarkup(razor);
+
+        foreach (Match block in Rx(@"<(p|EmptyState)\b[^>]*>(.*?)</\1>", RegexOptions.Singleline)
+                     .Matches(markup))
+        {
+            var text = Rx("<[^>]*>").Replace(block.Groups[2].Value, " ");
+            text = Rx(@"@\([^()]*(\([^()]*\))?[^()]*\)").Replace(text, " ");
+            text = Rx(@"@\w+(\.\w+)*(\([^()]*\))?").Replace(text, " ");
+
+            foreach (var branch in text.Split('{', '}'))
+            {
+                var run = Rx(@"\s+").Replace(branch, " ").Trim();
+                var words = run.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+
+                if (words > 0) yield return (words, run);
+            }
+        }
+    }
+
+    /// <summary>
     /// The other half of the same rule, and the reason it is not simply "delete the jargon":
     /// the rulebook references are the app's best feature.
     ///

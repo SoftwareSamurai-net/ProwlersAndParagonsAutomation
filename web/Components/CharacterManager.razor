@@ -37,11 +37,11 @@
         <EmptyState>
             @if (_limit is not null)
             {
-                <text>Nothing built yet. Start one below and it is remembered on your account, ready on any browser you sign in to.</text>
+                <text>Nothing built yet. Start one below — it is kept on your account.</text>
             }
             else
             {
-                <text>Nothing built yet. Start one below and it is remembered in this browser, so you can close the tab and come back to it.</text>
+                <text>Nothing built yet. Start one below — it is kept in this browser.</text>
             }
         </EmptyState>
     }
@@ -127,8 +127,7 @@
     @if (_full)
     {
         <p class="small muted spaced" role="status">
-            Your account is holding as many characters as it can. Discard one to make room, or
-            keep building this one — it is still saved.
+            Your account is full. Discard one to make room; this one is still saved.
         </p>
     }
 
@@ -139,10 +138,7 @@
         }
         else
         {
-            <text>
-                These are in this browser only — not sent anywhere. Sign in and they follow you
-                instead, or download one from the last step to keep a copy that travels.
-            </text>
+            <text>These are in this browser only. Sign in and they follow you instead.</text>
         }
     </p>
 

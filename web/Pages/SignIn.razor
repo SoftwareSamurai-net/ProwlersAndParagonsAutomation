@@ -24,8 +24,7 @@
 {
     <Panel Title="Signed in">
         <p>
-            You are signed in as <strong>@_who.DisplayName</strong>. Your characters are kept with
-            your account, so they are there in any browser you sign in to.
+            Signed in as <strong>@_who.DisplayName</strong>. Your characters follow the account.
         </p>
 
         <Field For="display-name">
@@ -51,8 +50,7 @@
                theirs at all — a shared machine is exactly where a silent copy would be worst —
                and it is only offered when the account has none, so nothing is ever written over. *@
             <p>
-                This browser was holding a character before you signed in
-                (<strong>@_anonymousName</strong>), and your account has none yet.
+                This browser holds <strong>@_anonymousName</strong>; your account has none.
             </p>
             <p>
                 <button type="button" class="btn" @onclick="KeepAnonymous">
@@ -63,7 +61,7 @@
 
         @if (_kept)
         {
-            <p>Kept. It belongs to your account now, and the one in this browser is untouched.</p>
+            <p>Kept on your account. The one in this browser is untouched.</p>
         }
 
         @* **Offered to everybody signed in, not only to whoever it is for.** Which account
@@ -78,18 +76,12 @@
         <p>
             <button type="button" class="btn danger" @onclick="SignOut">Sign out</button>
         </p>
-        <p class="small muted">
-            Signing out leaves the character this browser was building exactly where it was.
-        </p>
     </Panel>
 }
 else
 {
     <Panel Title="Sign in">
-        <p>
-            An account keeps your characters with you rather than with this browser, and opens the
-            rulebook's own text where you are choosing a Power.
-        </p>
+        <p>An account keeps your characters with you, and opens the rulebook.</p>
 
         @if (_sent)
         {
@@ -104,10 +96,7 @@ else
                back. *@
             @* Kept on one line: SignInPageTests matches the phrase in the markup, so a wrap
                between "its" and "way" fails it. *@
-            <p>
-                Check your inbox — if that address can have an account here, a sign-in link is on its way.
-                The link works once and expires in fifteen minutes.
-            </p>
+            <p>Check your inbox. The link works once, for fifteen minutes.</p>
         }
         else
         {

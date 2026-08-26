@@ -5,19 +5,14 @@
 
 <h1>Gear</h1>
 <p class="muted">
-    Ch.6 makes mundane gear free and explicitly untracked, so most of this list is just a
-    note of what the character carries. A <b>Gear Limit</b> caps the Trait rank you can use
-    with mundane gear; it is not a budget. Signature equipment is a Power with the Item Con,
-    bought on the Powers tab.
+    Mundane gear is free and untracked (Ch.6). Signature equipment is a Power with the Item
+    Con, on the Powers tab.
 </p>
 
 <Panel Title="Carried" Cost="@($"{Session.Costs.TotalGearCost(Session.Sheet)} HP")">
     @if (Session.Sheet.Gear.Count == 0)
     {
-        <EmptyState>
-            Nothing yet. Add whatever the character carries below — ordinary gear is free, so
-            the only thing here that spends Hero Points is a custom feature on an item.
-        </EmptyState>
+        <EmptyState>Nothing yet. Add what the character carries below.</EmptyState>
     }
     else
     {
@@ -46,10 +41,7 @@
 {
     <Panel Title="@target.Name" Cost="@($"{Session.Costs.GearCost(target)} HP")">
         <p class="small muted">
-            Custom features and ordinary Pros and Cons are the only parts of a piece of gear
-            that cost Hero Points, and gear floors at <b>0</b> rather than 1 — Cons discount
-            an item to free and stop there. The Item Con is not credited: Ch.6 says every
-            piece of gear has it as a statement of what gear is, not a discount to claim.
+            Gear floors at <b>0</b>, not 1. The Item Con is not credited.
         </p>
 
         <Field Label="Custom features (Ch.6, p.93)">

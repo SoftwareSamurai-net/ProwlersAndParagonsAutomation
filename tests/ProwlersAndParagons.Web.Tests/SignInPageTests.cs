@@ -61,7 +61,9 @@ public sealed class SignInPageTests
 
         var said = page.Markup;
 
-        Assert.Contains("on its way", said, StringComparison.OrdinalIgnoreCase);
+        // The positive control: a confirmation really was shown, so the three absences below
+        // are absences from something rather than from a page that said nothing at all.
+        Assert.Contains("Check your inbox", said, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("no account", said, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("not found", said, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("does not exist", said, StringComparison.OrdinalIgnoreCase);

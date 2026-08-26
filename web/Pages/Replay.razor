@@ -11,10 +11,8 @@
    over the tier's points and is meant to be, because Ch.9 gives a Villain no budget. The page
    that plays him declines to call him legal, so this one must not promise it. *@
 <p class="muted">
-    Conversations in which somebody described a character in ordinary words and got a costed,
-    checked one back. They are recordings — each was said once, and is played back exactly as
-    it was. The figures beside them are not recorded: every Hero Point cost and every finding
-    is worked out on the page, from the character the recording carries, as you reveal it.
+    Recorded conversations. The figures are not recorded — they are worked out as you reveal
+    each turn.
 </p>
 
 @if (_library is null)
@@ -28,10 +26,7 @@ else
     @if (_library.Problem is not null)
     {
         <Panel Title="The recordings did not load" NoPrint="true">
-            <p class="small">
-                Nothing else on this site is affected — you can build a character normally.
-                What went wrong: @_library.Problem
-            </p>
+            <p class="small">Nothing else is affected. What went wrong: @_library.Problem</p>
         </Panel>
     }
 
@@ -62,16 +57,10 @@ else
        no server, nothing that costs anything to run", which had also stopped being true. A
        reader wants to know whether they can type at it. They can't; that is the whole answer,
        and the second paragraph is the useful half. *@
+    <p class="small">This page cannot answer you back.</p>
     <p class="small">
-        These conversations happened elsewhere, with a real assistant, and are played back
-        word for word. This page cannot answer you back.
-    </p>
-    <p class="small">
-        You <em>can</em> have it live, if you already use Claude. The rules engine on this
-        page also ships as a small program you connect to it, after which you describe a
-        character to your own assistant and it asks the same two or three questions and builds
-        the same character. Setting it up takes about five minutes and the instructions come
-        with the program.
+        You <em>can</em> have it live: the same rules engine ships as a small program you
+        connect to your own Claude.
     </p>
 </Panel>
 </AdminOnly>
