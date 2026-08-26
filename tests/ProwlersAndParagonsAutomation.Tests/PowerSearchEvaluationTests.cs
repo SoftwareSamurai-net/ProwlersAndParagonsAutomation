@@ -56,10 +56,49 @@ public sealed class PowerSearchEvaluationTests
     /// Phasing's tags and "fire"/"shoot"/"shooting" to Blast's — plus a broader pass across 65
     /// more Powers, each word read off that Power's own description — closed the gap. See
     /// PROGRESS.md item 4 for the full before/after table and how each word was chosen.</para>
+    ///
+    /// <para><b>Raised from 33 (of 33) to 60 (of 72) by widening the set, not by touching the
+    /// search.</b> 33 of 33 met meant the ratchet could only ever hold or fail — it had stopped
+    /// telling a working search apart from a regressed one. <c>PowerSearchExpectations.cs</c>
+    /// gained 39 more entries (35 seeking a Power, 4 that should find nothing), written the same
+    /// way as the first 33 and biased toward the 74 Powers PROGRESS.md item 4 records as still
+    /// carrying only their original category tags, toward an effect landing on someone other
+    /// than the caster, and toward a few sentences with no Power behind them at all. Neither
+    /// <c>Score</c> nor <c>Mentions</c> in <c>mcp/CharacterTools.cs</c> changed, and no Power in
+    /// <c>data/rules/powers.json</c> gained a tag for this slice — the number below is the
+    /// search exactly as it already stood, read against a wider question.</para>
+    ///
+    /// <para><b>12 of the 39 new entries miss</b>, and every one is a real gap rather than a
+    /// scoring accident:</para>
+    /// <list type="bullet">
+    /// <item>Three of the four "should find nothing" sentences do find something — office and
+    /// small-talk vocabulary (a report's "numbers", a stamp collection's "countries") lands a
+    /// weak coincidental hit on an unrelated Power's own description. This is what an honest
+    /// word-matching search looks like on ordinary English, not a bug to chase; only the fourth
+    /// ("parallel park") is clean.</item>
+    /// <item><c>cloud_minds</c> and <c>buff</c> do not appear anywhere in a 25-row window for
+    /// their sentences at all — neither Power's vocabulary reaches "forget" or "rally the team",
+    /// which is exactly the class of gap PROGRESS.md item 4 predicts is still open: only 67 of
+    /// 141 Powers were given a wider vocabulary, and these two were not among them.</item>
+    /// <item><c>super_senses_lie_detection</c> misses its bar (position 7 of a top-3 ask) even
+    /// though "lying" is the literal word in its own printed description — a description-only
+    /// match is worth a flat 2 points regardless of how distinctive the word is, so it loses to
+    /// several rows matching two or three ordinary words. This is the exact limitation the
+    /// original 33/33 slice recorded as still open and never claimed to have fixed.</item>
+    /// <item><c>elemental_control</c>, <c>power_absorption</c>, <c>psi_screen</c> and
+    /// <c>form_gaseous</c> land just outside their window (one to three rows short). </item>
+    /// <item><c>gestalt</c> misses by a wide margin (position 16 of a top-8 ask) — recorded in
+    /// its own entry as a deliberately hard, obscure case kept in rather than dropped.</item>
+    /// </list>
+    ///
+    /// <para>None of the 39 new sentences were edited after this number was measured. See the
+    /// class remark's note on ambiguity for why: every miss above is a real gap in the search's
+    /// vocabulary or its scoring weights, not a sentence that could as honestly have named a
+    /// different Power.</para>
     /// </summary>
-    private const int Baseline = 33;
+    private const int Baseline = 60;
 
-    private const int TotalExpectations = 33;
+    private const int TotalExpectations = 72;
 
     /// <summary>
     /// The row cap handed to <c>search_powers</c> for every query here. It has to be at least
@@ -85,6 +124,17 @@ public sealed class PowerSearchEvaluationTests
             var ids = report["matches"]!.AsArray()
                 .Select(m => m!["id"]!.GetValue<string>())
                 .ToList();
+
+            // <b>A sentence meant to find nothing is judged on the search's own `found` count,
+            // never on a position in `matches`.</b> `matches` is already cut to the caller's
+            // window, so an empty `matches` list does not by itself mean nothing matched — see
+            // SearchPowers' own comment on deciding anything from the cut list.
+            if (expectation.ExpectNothing)
+            {
+                var found = report["found"]!.GetValue<int>();
+                outcomes.Add(new Outcome(expectation, found == 0, null, ids.Take(5).ToList()));
+                continue;
+            }
 
             int? position = null;
             for (var i = 0; i < ids.Count; i++)
@@ -119,14 +169,17 @@ public sealed class PowerSearchEvaluationTests
 
         foreach (var o in outcomes.OrderBy(o => o.Met).ThenBy(o => o.Expectation.Query, StringComparer.Ordinal))
         {
-            var wanted = string.Join("/", o.Expectation.AcceptablePowerIds);
+            var wanted = o.Expectation.ExpectNothing
+                ? "(nothing)"
+                : string.Join("/", o.Expectation.AcceptablePowerIds);
+            var want = o.Expectation.ExpectNothing ? "found:0" : "top " + o.Expectation.TopN;
             var at = o.Position?.ToString() ?? "-";
             var query = o.Expectation.Query.Length > 55
                 ? o.Expectation.Query[..52] + "..."
                 : o.Expectation.Query;
 
             table.AppendLine(
-                $"{(o.Met ? "yes" : "NO"),-4} {"top " + o.Expectation.TopN,-13} {at,-4} "
+                $"{(o.Met ? "yes" : "NO"),-4} {want,-13} {at,-4} "
                 + $"{query,-55} {wanted,-20} {string.Join(", ", o.TopIds)}");
         }
 
@@ -149,6 +202,20 @@ public sealed class PowerSearchEvaluationTests
     /// assertion reads live search output on every run rather than a cached number, and that a
     /// query's <see cref="PowerSearchExpectation.TopN"/> above 1 is what a truncated result
     /// list actually costs.
+    ///
+    /// <para><b>Re-broken against the widened set, since a guard proved against the old 33
+    /// alone would not show the new 39 are actually being measured.</b> The same mutation —
+    /// <c>var wanted = 1;</c> in place of <c>Math.Clamp(limit, 1, 25)</c> in
+    /// <c>CharacterTools.SearchPowers</c> — drove this from 60 of 72 to <b>38 of 72</b> and
+    /// failed with:
+    /// <code>
+    /// search_powers now meets only 38 of 72 labelled expectations, down from the recorded
+    /// baseline of 60. Run ReportTheCurrentScore to see which ones regressed.
+    /// </code>
+    /// A drop of 22, not a no-op — the mutation actually changed the answer, on both the
+    /// original queries and the new ones, which is what makes this a real proof rather than a
+    /// mutation that happened to leave the count untouched. Reverted immediately after;
+    /// <c>git diff mcp/CharacterTools.cs</c> was empty before either commit in this slice.</para>
     /// </summary>
     [Fact]
     public void TheScoreNeverGetsWorse()
