@@ -116,6 +116,43 @@ public sealed class WebPresentationTests
     /// earlier version checked hex everywhere but channel functions only in app.css, and a
     /// <c>&lt;style&gt;</c> block dropped into a component walked through carrying
     /// <c>rgb()</c> and <c>hsl()</c>.</para>
+    ///
+    /// <para><b>The channel-function list is a denylist of named CSS Color Module functions,
+    /// and it missed <c>light-dark()</c> until a mutation planted it in a real rule in
+    /// app.css and every case here stayed green.</b> <c>light-dark(white, black)</c> is
+    /// standards-track CSS Color 5, the regex knew none of the six names it had, and its
+    /// arguments follow <c>(</c> and <c>,</c> rather than the <c>:</c> the keyword regex
+    /// required — so all three detectors missed it at once. The list is now <c>rgba?</c>,
+    /// <c>hsla?</c>, <c>hwb</c>, <c>lab</c>, <c>lch</c>, <c>oklab</c>, <c>oklch</c>,
+    /// <c>color</c>, <c>light-dark</c>, <c>color-contrast</c> and <c>device-cmyk</c> — every
+    /// colour-producing function in the CSS Color 4/5 drafts, <c>color-mix()</c> excepted
+    /// (masked below, since this codebase's one use of it takes only tokens). <b>It is still
+    /// a denylist and will rot again</b> if the spec grows another one: an allowlist of the
+    /// functions this codebase actually uses (<c>var</c>, <c>calc</c>, <c>clamp</c>,
+    /// <c>min</c>, <c>max</c>, <c>minmax</c>, <c>repeat</c>, <c>url</c>, <c>translateX/Y</c>,
+    /// <c>cubic-bezier</c>, <c>linear-gradient</c>, <c>inset</c>, <c>brightness</c>, <c>not</c>,
+    /// <c>where</c>, <c>has</c>, <c>nth-child</c>, <c>format</c>, the <c>view-transition-*</c>
+    /// pseudo-functions) flagging anything else was tried and rejected here: the razor scan
+    /// runs over files that mix markup with C#, and a Razor <c>@@code</c> block is full of
+    /// unrelated calls — <c>ToList()</c>, <c>Where()</c>, <c>Select()</c> — that an
+    /// allow-everything-else rule would have to special-case one by one, which is the same
+    /// denylist problem moved one level up. Extending the known-colour list is the honest
+    /// shape for this scan; re-run the function census in the comment above (a grep for
+    /// <c>[a-zA-Z_-]+\(</c> over app.css and the razor tree) if this rots again.</para>
+    ///
+    /// <para><b>The keyword regex's anchor on <c>:\s*</c> was the deeper hole, and it is gone
+    /// now rather than widened.</b> A colour keyword is equally a colour after <c>(</c>, after
+    /// <c>,</c>, or after a bare space in a shorthand like <c>border: 1px solid black</c> —
+    /// none of which follow a colon. The replacement matches the keyword anywhere, bounded on
+    /// both sides by <c>(?&lt;![\w-])</c> / <c>(?![\w-])</c> rather than plain <c>\b</c>,
+    /// because a plain word boundary treats a hyphen as a boundary too and <c>white-space</c>
+    /// — a real property name, not a colour — is "white" immediately followed by one. Checked
+    /// against the whole <c>web/</c> tree with the position requirement dropped entirely: zero
+    /// matches outside comments today, so this is not scoped further than that.</para>
+    ///
+    /// <para><c>currentColor</c> is deliberately <b>not</b> flagged, on the same reasoning as
+    /// <c>transparent</c>: neither names a hue. Both are a reference to something else — the
+    /// absence of paint, or whatever ink already applies — not a colour chosen here.</para>
     /// </summary>
     [Theory]
     [InlineData("app.css")]
@@ -124,8 +161,10 @@ public sealed class WebPresentationTests
     public void NoComponentNamesAColour(string what)
     {
         var hex = Rx(@"#[0-9A-Fa-f]{3,8}\b");
-        var keyword = Rx(@":\s*(red|blue|green|white|black|grey|gray|yellow|orange|purple)\b", RegexOptions.IgnoreCase);
-        var channels = Rx(@"\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch)\s*\(", RegexOptions.IgnoreCase);
+        var keyword = Rx(@"(?<![\w-])(red|blue|green|white|black|grey|gray|yellow|orange|purple)(?![\w-])",
+            RegexOptions.IgnoreCase);
+        var channels = Rx(@"\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|light-dark|color-contrast|device-cmyk)\s*\(",
+            RegexOptions.IgnoreCase);
 
         List<(string, string)> sources = what switch
         {
@@ -149,6 +188,18 @@ public sealed class WebPresentationTests
     /// <list type="bullet">
     ///   <item>Comments. A comment saying "never write rgb() here" failed the test that
     ///     comment exists to explain.</item>
+    ///   <item><b>For a razor file, XML doc comments too</b> — <c>///</c> lines inside
+    ///     <c>@@code</c>. They are C# comments, not <c>@@* *@@</c> Razor ones, so the strip
+    ///     above never touched them, and once the colour-keyword scan stopped requiring a
+    ///     leading colon (see <see cref="NoComponentNamesAColour"/>) one of them started
+    ///     failing the test it was explaining: a <c>&lt;summary&gt;</c> in
+    ///     <c>ChooseTier.razor</c> reads "…about five lines of dead white above their cost
+    ///     rule", which is prose about a screenshot, not a declaration. Same reasoning as the
+    ///     Razor-comment exclusion — a doc comment does not compile into anything the browser
+    ///     paints, so it cannot be a component naming a colour. Scoped to <c>///</c> lines
+    ///     specifically, not general <c>//</c> or <c>/* */</c> C# comments: neither appears
+    ///     carrying this kind of prose anywhere in <c>web/</c> today, so stripping them was
+    ///     not needed to make the real tree pass and is left undone rather than guessed at.</item>
     ///   <item>Numeric HTML entities. <c>&amp;#8212;</c> — an em dash — is four hex-looking
     ///     digits behind a hash, and reads as a colour to the regex.</item>
     ///   <item><c>color-mix()</c>, the one channel function this codebase uses. It mixes
@@ -162,6 +213,9 @@ public sealed class WebPresentationTests
         var stripped = css
             ? Rx(@"/\*.*?\*/", RegexOptions.Singleline).Replace(text, " ")
             : Rx(@"@\*.*?\*@", RegexOptions.Singleline).Replace(text, " ");
+
+        if (!css)
+            stripped = Rx(@"^\s*///.*$", RegexOptions.Multiline).Replace(stripped, " ");
 
         stripped = Rx("&#x?[0-9A-Fa-f]+;").Replace(stripped, " ");
         return Rx(@"\bcolor-mix\s*\(", RegexOptions.IgnoreCase).Replace(stripped, "MIX(");
@@ -2199,12 +2253,9 @@ public sealed class WebPresentationTests
     [MemberData(nameof(Owned))]
     public void OnlyOneComponentWritesEachRepeatedClass(string cssClass, string owner)
     {
-        var attribute = Rx("""class\s*=\s*(?<q>["'])(?<v>[^"']*)\k<q>""");
-
         foreach (var file in RazorFiles.Where(f => Path.GetFileName(f) != owner))
         {
-            var offending = attribute.Matches(File.ReadAllText(file))
-                .Select(m => m.Groups["v"].Value)
+            var offending = ClassAttributeValues(File.ReadAllText(file))
                 .FirstOrDefault(v => v.Split(' ', StringSplitOptions.RemoveEmptyEntries)
                     .Contains(cssClass, StringComparer.Ordinal));
 
@@ -2214,9 +2265,57 @@ public sealed class WebPresentationTests
         }
     }
 
+    /// <summary>Every <c>class="…"</c> attribute value in a razor file's source, unsplit.</summary>
+    private static IEnumerable<string> ClassAttributeValues(string source) =>
+        Rx("""class\s*=\s*(?<q>["'])(?<v>[^"']*)\k<q>""")
+            .Matches(source)
+            .Select(m => m.Groups["v"].Value);
+
+    /// <summary>Every whitespace-split token across every <c>class="…"</c> attribute value.</summary>
+    private static IEnumerable<string> ClassAttributeTokens(string source) =>
+        ClassAttributeValues(source).SelectMany(v => v.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+    /// <summary>
+    /// The seven owned classes that are not written straight into a <c>class="…"</c>
+    /// attribute at all, and the member whose C# body builds them instead — <c>ClassName</c>
+    /// for five components that pick between a bare token and an interpolated one
+    /// (<c>string.IsNullOrEmpty(Class) ? "field" : $"field {Class}"</c>), <c>RowClass</c> for
+    /// <c>OptionRow</c>'s concatenation, and <c>Lines</c> for the one place a class reaches
+    /// the page through <c>RenderTreeBuilder.AddAttribute</c> inside a <c>RenderFragment</c>
+    /// delegate rather than through markup. None of these six member bodies appear as
+    /// <c>class="…"</c> in source text, so <see cref="ClassAttributeTokens"/> cannot see them
+    /// and must not be asked to guess at a substring instead.
+    /// </summary>
+    private static readonly Dictionary<string, string> ClassBuiltInCode = new(StringComparer.Ordinal)
+    {
+        ["panel"] = "ClassName",
+        ["field"] = "ClassName",
+        ["sheet-section"] = "ClassName",
+        ["stat-blocks"] = "ClassName",
+        ["options"] = "ClassName",
+        ["option"] = "RowClass",
+        ["rule-line"] = "Lines",
+    };
+
     /// <summary>
     /// The other half, without which the exemption above is decorative: an owner that stops
     /// writing its class would satisfy the test by writing nothing at all.
+    ///
+    /// <para><b>A bare <c>Contains($"\"{cssClass}", source)</c> is exactly that "nothing at
+    /// all" in disguise, and it took every one of the fifteen cases with it.</b> Renaming
+    /// <c>panel</c> to <c>panelish</c> in <c>Panel.razor</c> — so the component never writes
+    /// the real class again — still leaves the substring <c>"panel</c> in the source, because
+    /// <c>"panelish"</c> starts with it. Watched to fire: with the rename in place and this
+    /// check unchanged, all fifteen theory cases passed.</para>
+    ///
+    /// <para>The fix reuses the real tokenizer twenty lines up rather than writing a third
+    /// spelling of it. Nine of the fifteen classes are written straight into a
+    /// <c>class="…"</c> attribute and <see cref="ClassAttributeTokens"/> finds them exactly
+    /// the way <see cref="OnlyOneComponentWritesEachRepeatedClass"/> does. The other six are
+    /// read from the C# member named in <see cref="ClassBuiltInCode"/>, tokenised the same
+    /// way — split on whitespace, exact membership, never a prefix — so a rename to
+    /// <c>panelish</c> there fails for the identical reason it fails on the markup side: it is
+    /// a different token, not a superstring match.</para>
     /// </summary>
     [Theory]
     [MemberData(nameof(Owned))]
@@ -2224,7 +2323,91 @@ public sealed class WebPresentationTests
     {
         var source = File.ReadAllText(Path.Combine(WebRoot, "Components", owner));
 
-        Assert.Contains($"\"{cssClass}", source, StringComparison.Ordinal);
+        var tokens = ClassBuiltInCode.TryGetValue(cssClass, out var member)
+            ? ClassLiteralTokens(MemberBody(source, member))
+            : ClassAttributeTokens(source);
+
+        Assert.Contains(cssClass, tokens);
+    }
+
+    /// <summary>
+    /// Every whitespace-split token inside a C# string literal in <paramref name="text"/> —
+    /// the literal segments only. An interpolation hole is replaced with a space rather than
+    /// read as text, so <c>$"field {Class}"</c> still yields the single token <c>field</c>
+    /// rather than a token containing a brace.
+    /// </summary>
+    private static IEnumerable<string> ClassLiteralTokens(string text) =>
+        Rx(@"""([^""]*)""")
+            .Matches(text)
+            .SelectMany(m => Rx(@"\{[^{}]*\}").Replace(m.Groups[1].Value, " ")
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+    /// <summary>
+    /// The source of one expression-bodied C# member — from its declaration through the
+    /// expression it returns — found by locating <paramref name="member"/> immediately
+    /// followed by <c>=&gt;</c> (so the markup reference <c>@ClassName</c>, which appears
+    /// earlier in every one of these files, is never mistaken for the declaration) and then
+    /// walking forward tracking <c>(</c>/<c>)</c> and <c>{</c>/<c>}</c> depth, stopping at the
+    /// first <c>;</c> seen at depth zero.
+    ///
+    /// <para><b>String literals are skipped whole, interpolation holes included</b>, so a
+    /// brace inside <c>$"field {Class}"</c> never throws the depth count off and a semicolon
+    /// can never appear inside one to begin with — this file has none that do, but the scan
+    /// does not assume it. Skipping literals this way is also what keeps the result narrow: an
+    /// earlier version that grabbed everything up to the next sibling declaration line pulled
+    /// in the next member's XML doc comment when the following line did not itself start with
+    /// an access modifier, and a broader version that searched the whole file for
+    /// <c>"…"</c> literals picked up unrelated quoted text — <c>OptionRow.razor</c> writes
+    /// <c>role="@(Navigable ? "option" : null)"</c>, an ARIA role that happens to spell the
+    /// same word as the CSS class, which would have kept reporting <c>RowClass</c> as writing
+    /// <c>option</c> even after that property stopped.</para>
+    ///
+    /// <para>Not a C# parser — a lexer scoped to what the six members in
+    /// <see cref="ClassBuiltInCode"/> actually are: an expression-bodied property, or one
+    /// <c>RenderFragment</c> lambda with no member declarations nested inside it.</para>
+    /// </summary>
+    private static string MemberBody(string source, string member)
+    {
+        var declaration = Rx($@"(?<![\w.]){Regex.Escape(member)}\b\s*=>").Match(source);
+        Assert.True(declaration.Success, $"No expression-bodied member named {member}.");
+
+        var depth = 0;
+        var i = declaration.Index;
+
+        for (; i < source.Length; i++)
+        {
+            var c = source[i];
+
+            if (c == '"')
+            {
+                i++;
+                while (i < source.Length && source[i] != '"')
+                {
+                    if (source[i] == '{')
+                    {
+                        var braceDepth = 1;
+                        i++;
+                        while (i < source.Length && braceDepth > 0)
+                        {
+                            if (source[i] == '{') braceDepth++;
+                            else if (source[i] == '}') braceDepth--;
+                            i++;
+                        }
+                        continue;
+                    }
+
+                    i++;
+                }
+
+                continue;
+            }
+
+            if (c is '(' or '{') depth++;
+            else if (c is ')' or '}') depth--;
+            else if (c == ';' && depth == 0) { i++; break; }
+        }
+
+        return source[declaration.Index..Math.Min(i, source.Length)];
     }
 
     /// <summary>
