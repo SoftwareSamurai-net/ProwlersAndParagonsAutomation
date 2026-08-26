@@ -39,7 +39,7 @@ public sealed class FindingRouteTests
     {
         var sheet = ctx.Session.Sheet;
         sheet.SelectedTierId = "standard";
-        sheet.SelectedPackageId = "superhero";
+        sheet.SelectedPackageId = "superhero_package";
 
         foreach (var ability in ctx.Session.Rules.Abilities) sheet.AbilityRanks[ability.Id] = 3;
         foreach (var talent in ctx.Session.Rules.Talents) sheet.TalentRanks[talent.Id] = 3;
@@ -111,6 +111,35 @@ public sealed class FindingRouteTests
         foreach (var talent in ctx.Session.Rules.Talents) sheet.TalentRanks[talent.Id] = 12;
 
         Assert.Null(FindingRoute.For(Only(ctx, "HP_BUDGET_EXCEEDED"), sheet));
+    }
+
+    /// <summary>
+    /// Two findings that are about a step without naming a row on it.
+    ///
+    /// <para><b>Both were found by looking at the rendered page, not by reading the validator.</b>
+    /// They file at <see cref="ValidationSubject.Character"/> because what they are about is a
+    /// count or a choice rather than a row, so the first version of the router left them bare —
+    /// sitting among findings that did have a link, which reads as the feature half-working. A
+    /// screenshot showed it in a second; no markup assertion here would have, because "every
+    /// finding that has a route draws one" is true of a router that routes too little.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("FLAW_MIN_NOT_MET", "build/characteristics", "Flaws")]
+    [InlineData("UNKNOWN_PACKAGE", "build", "Tier")]
+    public void AFindingAboutAStepRatherThanARowStillNamesTheStep(
+        string code, string href, string label)
+    {
+        using var ctx = new RenderContext();
+        var sheet = Legal(ctx);
+
+        // FLAW_MIN_NOT_MET needs no provoking — a character with no Flaws is under the floor.
+        if (code == "UNKNOWN_PACKAGE") sheet.SelectedPackageId = "no_such_package";
+
+        var to = FindingRoute.For(Only(ctx, code), sheet);
+
+        Assert.NotNull(to);
+        Assert.Equal(href, to!.Value.Href);
+        Assert.Equal(label, to.Value.Label);
     }
 
     /// <summary>

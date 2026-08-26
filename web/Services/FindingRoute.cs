@@ -113,6 +113,16 @@ public static class FindingRoute
     /// </summary>
     private static Destination? ForCharacterSubject(ValidationIssue issue, CharacterSheet sheet)
     {
+        // Two findings that are unmistakably about one step and carry no subject to say so,
+        // because the thing they are about is a *count* or a *choice* rather than a row. Both were
+        // found by looking at the rendered page rather than by reading the validator: they sat
+        // there with no link beside findings that had one, which reads as the feature half-working.
+        if (issue.Code is "FLAW_MIN_NOT_MET" or "FLAW_MAX_EXCEEDED")
+            return new Destination(Characteristics, "Flaws", "flaws", null);
+
+        if (issue.Code is "UNKNOWN_PACKAGE")
+            return new Destination("build", "Tier", null, null);
+
         if (issue.SubjectId is { } id
             && PerkCodes.Contains(issue.Code, StringComparer.Ordinal))
             return new Destination(Characteristics, "Perks", "perks", null);
