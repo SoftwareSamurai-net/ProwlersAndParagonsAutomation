@@ -165,7 +165,29 @@ hr {
     letter-spacing: 0.03em;
 }
 
+/* Layout does the spacing between the shell's own direct children, rather than each of them
+   carrying a trailing margin toward whatever comes after it — which is what `.panel`'s
+   `margin-bottom` used to be pressed into doing here. That left any *non*-panel child with no
+   spacing at all: the tier cards sat flush against the "Hero Point limit" panel below them
+   until `.options.cards` grew a margin-bottom of its own to match, one instance of a class of
+   bug `gap` closes for good.
+
+   **This only reaches the shell's own children.** `.panel`'s margin-bottom still does real
+   work everywhere a panel is nested more than one level under a routed page — inside
+   `.editing` on the characteristics step, inside a tab, inside a dialog — so it stays. The
+   override that cancels it for the shell's own children is below, after every rule that sets
+   one, so it wins on source order without a specificity fight.
+
+   **The sticky budget strip is not a child of the shell**, so this gap cannot reach it and
+   there is nothing here to proof against the strip specifically. That used to be the hard
+   part of this change — `.budget` carried a negative-margin bleed to escape the shell's own
+   padding — and the comment on `.budget` below records that the strip was pulled out to be a
+   sibling of `<main class="shell">` in `MainLayout.razor` for an unrelated reason first, which
+   happened to remove the hazard this change would otherwise have had to be proofed against. */
 .shell {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
     max-width: var(--column);
     margin: 0 auto;
     padding: var(--space-6) var(--space-6) var(--space-8);
@@ -956,20 +978,13 @@ label {
        base rule does not set stays out of the file. */
     border-top: none;
     border-bottom: none;
-    /* **Panels space themselves and this is not a panel.** `.panel` carries
-       `margin-bottom: var(--space-5)`, so a column of panels is evenly spaced without the
-       page container doing anything — which means any *non*-panel child of `.shell` gets no
-       spacing at all. The tier grid is the one such child in the app, and it sat flush
-       against the "Hero Point limit" panel below it with the two borders touching.
-
-       Same token as `.panel`, so the gap above that panel matches every other gap on the
-       page rather than being a second, nearly-equal value.
-
-       The general fix is a `gap` on `.shell` with `.panel`'s margin removed — CLAUDE.md's
-       own "let layout do the spacing" rule — but `.shell` also holds the sticky budget
-       strip and its negative-margin bleed, so that change wants proofing on every route
-       rather than being made in passing. Recorded in the handover. */
-    margin-bottom: var(--space-5);
+    /* **This used to carry its own `margin-bottom: var(--space-5)` and no longer does.** It
+       was the fix for exactly the bug the shell's `gap` now closes generally: this grid sat
+       flush against the "Hero Point limit" panel below it, because `.panel`'s own
+       margin-bottom spaced panels apart while a non-panel child of `.shell` got nothing. A
+       margin here now would only double what `gap` already supplies, the same doubling
+       `.shell > *` exists to cancel for every other direct child. See the comment on `.shell`
+       in app.css. */
 }
 .options.cards .option {
     flex-direction: column;
@@ -2188,6 +2203,25 @@ label {
     .panel, .sheet, .breakdown, .palette { animation: none; }
 }
 
+/* **The cancellation for `.shell`'s gap, placed last so it wins every rule above by source
+   order rather than by a specificity fight.** Every element this app puts directly under the
+   shell carries its own trailing margin — `h1`, `p`, `.panel`, `.tabs` all set a
+   `margin-bottom`, and `.nav-buttons` a `margin-top` for the wider gap its rule wants above
+   it — because that is how spacing has always worked in ordinary block flow, where adjoining
+   margins collapse to the larger one. Flex items do not collapse margins with each other, so
+   without this a `.panel` followed by another `.panel` would get its own margin-bottom *and*
+   the shell's gap, stacked rather than replaced.
+
+   `.shell > *` rather than one selector per class: the point of moving to `gap` was that a
+   *new* kind of child should not need adding to a list to get spaced correctly, and a
+   universal child selector is the one form of this rule that stays true after the next
+   class is added under the shell. It reaches every direct child regardless of what set a
+   margin on it, including ones this file does not know about yet. */
+.shell > * {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
 @page {
     size: A4 portrait;
     margin: 14mm 13mm;
@@ -2243,7 +2277,12 @@ label {
         background: var(--surface);
     }
 
-    .shell { max-width: none; margin: 0; padding: 0; }
+    /* `display: block` rather than leaving the screen flex column in place: print already
+       hides every direct child but the sheet itself (`.no-print`, `.nav-buttons`, `h1` all go
+       above), so the gap would draw nothing today — but paper is a different medium with its
+       own scale, and a rem-based `gap` has no business surviving into it either by accident or
+       by a future page that prints a second visible child here. */
+    .shell { display: block; max-width: none; margin: 0; padding: 0; }
 
     /* Nothing arrives on paper; it is already there. An animation with `both` fill can
        leave an element at its starting opacity if print runs before it completes. */

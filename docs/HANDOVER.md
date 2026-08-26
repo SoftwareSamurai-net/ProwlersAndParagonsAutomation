@@ -124,9 +124,6 @@ repository whose whole subject is what something looks like.
 
 ## Still open from before, unchanged
 
-- **`.shell` spaces its children by `.panel`'s `margin-bottom`**, so any non-panel child gets no
-  spacing. The real fix is a `gap` on `.shell` with the margin removed, but `.shell` also holds the
-  sticky budget strip, so it needs proofing on every route.
 - **Screen-reader testing is owed** on the command palette, the pips, the sign-in page, the
   light/dark control, the row descriptions, the rules search — and now the row findings and the undo
   announcement. `aria-pressed` asserted as the string `"true"` is not the same as having been
