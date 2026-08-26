@@ -339,7 +339,7 @@ public sealed class ProofPages
         using var fresh = new RenderContext();
         Section(body, "The front door — nothing on the sheet yet", fresh.Render<Home>().Markup);
 
-        Write("proof-front-door.html", Name(mode), body.ToString());
+        Write($"proof-front-door-{Name(mode)}.html", Name(mode), body.ToString());
 
         // **And the same page in light, because headless Chrome here reports
         // `prefers-color-scheme: dark`** — an un-stamped proof renders the dark palette, so
@@ -347,7 +347,7 @@ public sealed class ProofPages
         // the reason a palette fault was once diagnosed off a screenshot of the wrong theme.
         WritePage($"proof-front-door-{Name(mode)}-light.html",
             Name(mode),
-            Page("proof-front-door.html", Name(mode), body.ToString(), wrap: true, theme: "light"));
+            Page($"proof-front-door-{Name(mode)}.html", Name(mode), body.ToString(), wrap: true, theme: "light"));
 
         // The rules reference, signed in and with a search actually run, because the interesting
         // page is the one with results on it — an unsearched box proves only that a box exists,
@@ -371,7 +371,7 @@ public sealed class ProofPages
 
         var rules = new StringBuilder();
         Section(rules, "Rules reference — searched, with one passage open", page.Markup);
-        Write("proof-rules.html", Name(mode), rules.ToString());
+        Write($"proof-rules-{Name(mode)}.html", Name(mode), rules.ToString());
 
         // The editors beside the sheet. It needs the wide viewport to be two columns at all, so
         // screenshot this one at 1600 wide or it proves the narrow fallback.
@@ -379,7 +379,7 @@ public sealed class ProofPages
         var preview = new StringBuilder();
         Section(preview, "The sheet beside the editors — screenshot this at 1600px or wider",
             building.Render<Characteristics>().Markup);
-        Write("proof-preview.html", Name(mode), preview.ToString());
+        Write($"proof-preview-{Name(mode)}.html", Name(mode), preview.ToString());
     }
 
     private static void Section(StringBuilder body, string heading, string markup) =>
@@ -1394,8 +1394,8 @@ public sealed class ProofPages
         // The two pages this slice added. They are ordinary panel layouts, but the front door is
         // the one screen with a grid that has to collapse, and neither had ever been measured at
         // 375px — which is the width the 8px overflow this harness exists for showed up at.
-        WritePage("proof-narrow-front.html", "hero", NarrowHarness("proof-front-door.html"));
-        WritePage("proof-narrow-rules.html", "hero", NarrowHarness("proof-rules.html"));
+        WritePage("proof-narrow-front.html", "hero", NarrowHarness("proof-front-door-hero.html"));
+        WritePage("proof-narrow-rules.html", "hero", NarrowHarness("proof-rules-hero.html"));
     }
 
     /// <summary>
@@ -1892,13 +1892,13 @@ public sealed class ProofPages
         AssertMarkers("proof-narrow-shell.html", shell);
         Assert.Contains("src=\"proof-shell-hero.html\"", shell, StringComparison.Ordinal);
 
-        var front = NarrowHarness("proof-front-door.html");
+        var front = NarrowHarness("proof-front-door-hero.html");
         AssertMarkers("proof-narrow-front.html", front);
-        Assert.Contains("src=\"proof-front-door.html\"", front, StringComparison.Ordinal);
+        Assert.Contains("src=\"proof-front-door-hero.html\"", front, StringComparison.Ordinal);
 
-        var rules = NarrowHarness("proof-rules.html");
+        var rules = NarrowHarness("proof-rules-hero.html");
         AssertMarkers("proof-narrow-rules.html", rules);
-        Assert.Contains("src=\"proof-rules.html\"", rules, StringComparison.Ordinal);
+        Assert.Contains("src=\"proof-rules-hero.html\"", rules, StringComparison.Ordinal);
 
         AssertMarkers("proof-measure.html", MeasureHarness());
     }
