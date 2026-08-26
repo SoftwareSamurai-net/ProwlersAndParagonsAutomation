@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4755 across **four** suites — 4015 on the engine (26 added this slice: 15 on the extractor's paragraph joiner and the page reader that feeds it, 5 holding `CLAUDE.md` and the guide set to each other, 4 pinning that no other starting package lands any of the four unclosed Ch.8 Heroes on exactly 125 — see item 1 — 1 on the Powers search vocabulary and 1 on the shell's spacing), 560 rendering components with bUnit (11 added since: an ARIA-reference sweep over twelve surfaces, and ten on the GM review step's route back to the step a finding came from), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4760 across **four** suites — 4015 on the engine, 565 rendering components with bUnit (5 added this slice, on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed item below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -656,6 +656,65 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 ---
 
 ## Completed work
+
+### The anonymous slot now tracks what a signed-in reader has open, and sign-out clears it
+
+The browser's anonymous local-storage slot and an account's server-side characters used to be two
+worlds that never touched: signing in left whatever the browser was holding alone, and opening an
+account character never wrote to it either. The owner asked for two changes together, deliberately
+paired — do one without the other and the pairing is unsafe in one direction or the other:
+
+1. **`AccountCharacterStore.OpenAsync` now copies a signed-in reader's opened account character
+   down into the browser's anonymous slot**, replacing whatever was there.
+2. **Signing out empties the anonymous slot.**
+
+**(2) exists because of (1), and only because of it.** Before this, signing out never touched the
+anonymous slot at all — there was nothing of anybody else's in it to worry about. Once opening an
+account character starts writing it there, leaving it alone on sign-out would let a shared machine
+hand an ex-user's account character to whoever opens that browser next, signed in or not. The
+clear is unconditional — it empties whatever the slot holds, not only a copy this feature itself
+put there — because nothing at that point can tell the two apart, and the owner was shown the
+narrower alternative and chose the simpler, safer rule instead.
+
+- **The write-through lives in `OpenAsync`, not in `LoadAsync` or anywhere sign-in itself runs.**
+  Signing in still does not copy anything by itself — the sign-in page's offer to keep what the
+  browser was holding, only when the account has none, is unchanged and still the only way an
+  anonymous character moves *up*. What changed is the other direction: looking at one of the
+  account's own characters is now also holding it in this browser, the way it always was for an
+  anonymous visitor.
+- **The clear cannot live inside `Accounts.SignOutAsync` itself.** `Accounts` is the
+  `IIdentitySource` both stores are built on (`CharacterStore` and `AccountCharacterStore`, and the
+  `SavedCharacters` beneath them, all take one), so having it depend on either store back would be
+  a constructor cycle. The call is on `SignIn.razor`'s `SignOut`, right after asking the server to
+  sign out — the same page that already makes the one other explicit copy in this design, the
+  keep-the-anonymous-character offer.
+- **The two internal seams this needed were already half-built.** `CharacterStore.LoadAsync(Identity)`
+  existed for reading the anonymous slot specifically (the sign-in page's offer needs it); this
+  added the write-side twin, `CharacterStore.SaveAsync(Identity, sheet, mode)`, and made the
+  existing private `ClearAsync(Identity)` `internal` so `AccountCharacterStore.ClearAnonymousAsync()`
+  could call it. Nothing about `ChosenAsync()` — the per-call routing every ordinary save and load
+  goes through — changed at all.
+- **The sign-in page's copy needed fixing.** "Kept on your account. The one in this browser is
+  untouched." was true the instant it was shown — the keep action itself still does not touch the
+  anonymous slot — but it read as a durable promise, and it no longer is one: the same slot will be
+  emptied the moment this reader signs out, by design. Trimmed to "Kept on your account.", which
+  claims only what stays true.
+- **Proved by breaking each half and watching it go red, not by reasoning about it.** Turning the
+  `OpenAsync` write-through into dead code (`if (false && …)`) put `"Old anonymous work"` where the
+  test asserted `"Their account character"` — the mutation changed the answer, not merely the
+  verdict. Turning `ClearAnonymousAsync` into a no-op left a full `CharacterSheet` where the test
+  asserted `null`. Both restored and rerun green.
+- Five new tests in `tests/ProwlersAndParagons.Web.Tests/AccountTests.cs`: opening an account
+  character replaces whatever the anonymous slot held; opening one while signed out does not
+  disturb it (nothing to copy — it is already where the open went); signing out empties it
+  whatever it holds; ordinary anonymous saving still works right after a sign-out; and the
+  sign-in carry-over offer still only applies while the account has none, unaffected by any of
+  the above. `worker/` needed no change — this is entirely browser-side, and `AccountsContractTests`
+  and the worker suite both stayed green untouched.
+
+Nothing outstanding. `dotnet test --configuration Release -p:ContinuousIntegrationBuild=true` prints
+two `Passed!` lines (4015 engine, 565 web) with no `Catastrophic`; `./scripts/test-worker.sh` still
+reports 166 passing; a whole-tree Qodana scan still reports 0.
 
 ### The optimisation half of the pre-1.0 audit — dead code, hot paths, payload, the token side
 

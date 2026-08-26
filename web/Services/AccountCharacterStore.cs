@@ -6,10 +6,17 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// Puts the character wherever it belongs: on the server for somebody signed in, in this
 /// browser for everybody else.
 ///
-/// <para><b>The anonymous slot is never touched by an account.</b> Signing in on a shared
-/// browser must not overwrite what somebody was building, and signing out must not have eaten
-/// it — so the two stores are two stores, and this only chooses. Copying between them happens
-/// once, by hand, on the sign-in page, and never as a side effect.</para>
+/// <para><b>The anonymous slot tracks what this browser is holding, not what belongs to
+/// nobody.</b> Signing in never rewrites it by itself — an account's characters live in their
+/// own per-identity slot instead, and the sign-in page still offers to copy the browser's
+/// character <em>up</em> rather than doing it automatically, exactly as before. But
+/// <see cref="OpenAsync"/> is a signed-in reader looking at one of their account's characters,
+/// and once that happens this browser is holding it: the anonymous slot is overwritten to
+/// match, replacing whatever was there. That is why signing out has to empty it —
+/// see <see cref="ClearAnonymousAsync"/> — or a shared machine would leave an ex-user's account
+/// character sitting there for whoever opens this browser next, under no account at all. This
+/// reverses what this class used to say: the two stores are no longer untouched by each
+/// other, only kept from colliding by choosing one at a time.</para>
 ///
 /// <para><b>It is a store rather than a branch in <c>Program.cs</c></b> because the choice has
 /// to be made per call, not once at startup: identity changes when somebody signs in, and the
@@ -110,8 +117,32 @@ public sealed class AccountCharacterStore : ICharacterStore
         // write the character on screen over an id the visitor did not choose.
         if (opened is not null) await _local.SetCurrentAsync(id);
 
+        // A signed-in reader opening one of their account's characters is now what this browser
+        // is holding — see the class remarks — so it replaces whatever the anonymous slot had.
+        // Nothing to do when nobody is signed in: the anonymous slot already is where this went.
+        if (who.IsSignedIn && opened is not null)
+            await _inThisBrowser.SaveAsync(Identity.Anonymous, opened.Value.Sheet, opened.Value.Mode);
+
         return opened;
     }
+
+    /// <summary>
+    /// Empties the browser's anonymous slot.
+    ///
+    /// <para><b>Signing out calls this</b> — see <c>SignIn.razor</c>'s <c>SignOut</c>. It cannot
+    /// live inside <see cref="Accounts.SignOutAsync"/> itself: <see cref="Accounts"/> is the
+    /// <see cref="IIdentitySource"/> this store and the browser store beneath it are built on, so
+    /// having it depend on either store back would be a cycle. A page-level call is the seam that
+    /// is left.</para>
+    ///
+    /// <para><b>Unconditional, on purpose.</b> This empties whatever the slot holds, not only a
+    /// copy <see cref="OpenAsync"/> left there — the owner was shown the alternative of clearing
+    /// only what this store itself wrote, and chose the simpler, safer rule: a shared machine must
+    /// not hand the next visitor anything that was on screen under somebody else's account, and
+    /// nothing here can tell that copy apart from the visitor's own anonymous work once it has
+    /// been sitting in the slot for a while.</para>
+    /// </summary>
+    public Task ClearAnonymousAsync() => _inThisBrowser.ClearAsync(Identity.Anonymous);
 
     /// <summary>
     /// Read one of them without opening it — same two sources as <see cref="OpenAsync"/> and
