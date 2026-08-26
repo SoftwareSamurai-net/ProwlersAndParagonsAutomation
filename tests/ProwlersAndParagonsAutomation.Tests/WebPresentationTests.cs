@@ -2253,12 +2253,9 @@ public sealed class WebPresentationTests
     [MemberData(nameof(Owned))]
     public void OnlyOneComponentWritesEachRepeatedClass(string cssClass, string owner)
     {
-        var attribute = Rx("""class\s*=\s*(?<q>["'])(?<v>[^"']*)\k<q>""");
-
         foreach (var file in RazorFiles.Where(f => Path.GetFileName(f) != owner))
         {
-            var offending = attribute.Matches(File.ReadAllText(file))
-                .Select(m => m.Groups["v"].Value)
+            var offending = ClassAttributeValues(File.ReadAllText(file))
                 .FirstOrDefault(v => v.Split(' ', StringSplitOptions.RemoveEmptyEntries)
                     .Contains(cssClass, StringComparer.Ordinal));
 
@@ -2268,9 +2265,57 @@ public sealed class WebPresentationTests
         }
     }
 
+    /// <summary>Every <c>class="…"</c> attribute value in a razor file's source, unsplit.</summary>
+    private static IEnumerable<string> ClassAttributeValues(string source) =>
+        Rx("""class\s*=\s*(?<q>["'])(?<v>[^"']*)\k<q>""")
+            .Matches(source)
+            .Select(m => m.Groups["v"].Value);
+
+    /// <summary>Every whitespace-split token across every <c>class="…"</c> attribute value.</summary>
+    private static IEnumerable<string> ClassAttributeTokens(string source) =>
+        ClassAttributeValues(source).SelectMany(v => v.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+    /// <summary>
+    /// The seven owned classes that are not written straight into a <c>class="…"</c>
+    /// attribute at all, and the member whose C# body builds them instead — <c>ClassName</c>
+    /// for five components that pick between a bare token and an interpolated one
+    /// (<c>string.IsNullOrEmpty(Class) ? "field" : $"field {Class}"</c>), <c>RowClass</c> for
+    /// <c>OptionRow</c>'s concatenation, and <c>Lines</c> for the one place a class reaches
+    /// the page through <c>RenderTreeBuilder.AddAttribute</c> inside a <c>RenderFragment</c>
+    /// delegate rather than through markup. None of these six member bodies appear as
+    /// <c>class="…"</c> in source text, so <see cref="ClassAttributeTokens"/> cannot see them
+    /// and must not be asked to guess at a substring instead.
+    /// </summary>
+    private static readonly Dictionary<string, string> ClassBuiltInCode = new(StringComparer.Ordinal)
+    {
+        ["panel"] = "ClassName",
+        ["field"] = "ClassName",
+        ["sheet-section"] = "ClassName",
+        ["stat-blocks"] = "ClassName",
+        ["options"] = "ClassName",
+        ["option"] = "RowClass",
+        ["rule-line"] = "Lines",
+    };
+
     /// <summary>
     /// The other half, without which the exemption above is decorative: an owner that stops
     /// writing its class would satisfy the test by writing nothing at all.
+    ///
+    /// <para><b>A bare <c>Contains($"\"{cssClass}", source)</c> is exactly that "nothing at
+    /// all" in disguise, and it took every one of the fifteen cases with it.</b> Renaming
+    /// <c>panel</c> to <c>panelish</c> in <c>Panel.razor</c> — so the component never writes
+    /// the real class again — still leaves the substring <c>"panel</c> in the source, because
+    /// <c>"panelish"</c> starts with it. Watched to fire: with the rename in place and this
+    /// check unchanged, all fifteen theory cases passed.</para>
+    ///
+    /// <para>The fix reuses the real tokenizer twenty lines up rather than writing a third
+    /// spelling of it. Nine of the fifteen classes are written straight into a
+    /// <c>class="…"</c> attribute and <see cref="ClassAttributeTokens"/> finds them exactly
+    /// the way <see cref="OnlyOneComponentWritesEachRepeatedClass"/> does. The other six are
+    /// read from the C# member named in <see cref="ClassBuiltInCode"/>, tokenised the same
+    /// way — split on whitespace, exact membership, never a prefix — so a rename to
+    /// <c>panelish</c> there fails for the identical reason it fails on the markup side: it is
+    /// a different token, not a superstring match.</para>
     /// </summary>
     [Theory]
     [MemberData(nameof(Owned))]
@@ -2278,7 +2323,91 @@ public sealed class WebPresentationTests
     {
         var source = File.ReadAllText(Path.Combine(WebRoot, "Components", owner));
 
-        Assert.Contains($"\"{cssClass}", source, StringComparison.Ordinal);
+        var tokens = ClassBuiltInCode.TryGetValue(cssClass, out var member)
+            ? ClassLiteralTokens(MemberBody(source, member))
+            : ClassAttributeTokens(source);
+
+        Assert.Contains(cssClass, tokens);
+    }
+
+    /// <summary>
+    /// Every whitespace-split token inside a C# string literal in <paramref name="text"/> —
+    /// the literal segments only. An interpolation hole is replaced with a space rather than
+    /// read as text, so <c>$"field {Class}"</c> still yields the single token <c>field</c>
+    /// rather than a token containing a brace.
+    /// </summary>
+    private static IEnumerable<string> ClassLiteralTokens(string text) =>
+        Rx(@"""([^""]*)""")
+            .Matches(text)
+            .SelectMany(m => Rx(@"\{[^{}]*\}").Replace(m.Groups[1].Value, " ")
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+    /// <summary>
+    /// The source of one expression-bodied C# member — from its declaration through the
+    /// expression it returns — found by locating <paramref name="member"/> immediately
+    /// followed by <c>=&gt;</c> (so the markup reference <c>@ClassName</c>, which appears
+    /// earlier in every one of these files, is never mistaken for the declaration) and then
+    /// walking forward tracking <c>(</c>/<c>)</c> and <c>{</c>/<c>}</c> depth, stopping at the
+    /// first <c>;</c> seen at depth zero.
+    ///
+    /// <para><b>String literals are skipped whole, interpolation holes included</b>, so a
+    /// brace inside <c>$"field {Class}"</c> never throws the depth count off and a semicolon
+    /// can never appear inside one to begin with — this file has none that do, but the scan
+    /// does not assume it. Skipping literals this way is also what keeps the result narrow: an
+    /// earlier version that grabbed everything up to the next sibling declaration line pulled
+    /// in the next member's XML doc comment when the following line did not itself start with
+    /// an access modifier, and a broader version that searched the whole file for
+    /// <c>"…"</c> literals picked up unrelated quoted text — <c>OptionRow.razor</c> writes
+    /// <c>role="@(Navigable ? "option" : null)"</c>, an ARIA role that happens to spell the
+    /// same word as the CSS class, which would have kept reporting <c>RowClass</c> as writing
+    /// <c>option</c> even after that property stopped.</para>
+    ///
+    /// <para>Not a C# parser — a lexer scoped to what the six members in
+    /// <see cref="ClassBuiltInCode"/> actually are: an expression-bodied property, or one
+    /// <c>RenderFragment</c> lambda with no member declarations nested inside it.</para>
+    /// </summary>
+    private static string MemberBody(string source, string member)
+    {
+        var declaration = Rx($@"(?<![\w.]){Regex.Escape(member)}\b\s*=>").Match(source);
+        Assert.True(declaration.Success, $"No expression-bodied member named {member}.");
+
+        var depth = 0;
+        var i = declaration.Index;
+
+        for (; i < source.Length; i++)
+        {
+            var c = source[i];
+
+            if (c == '"')
+            {
+                i++;
+                while (i < source.Length && source[i] != '"')
+                {
+                    if (source[i] == '{')
+                    {
+                        var braceDepth = 1;
+                        i++;
+                        while (i < source.Length && braceDepth > 0)
+                        {
+                            if (source[i] == '{') braceDepth++;
+                            else if (source[i] == '}') braceDepth--;
+                            i++;
+                        }
+                        continue;
+                    }
+
+                    i++;
+                }
+
+                continue;
+            }
+
+            if (c is '(' or '{') depth++;
+            else if (c is ')' or '}') depth--;
+            else if (c == ';' && depth == 0) { i++; break; }
+        }
+
+        return source[declaration.Index..Math.Min(i, source.Length)];
     }
 
     /// <summary>
