@@ -56,8 +56,47 @@ public sealed class PowerSearchEvaluationTests
     /// Phasing's tags and "fire"/"shoot"/"shooting" to Blast's — plus a broader pass across 65
     /// more Powers, each word read off that Power's own description — closed the gap. See
     /// PROGRESS.md item 4 for the full before/after table and how each word was chosen.</para>
+    ///
+    /// <para><b>Raised from 33 (of 33) to 60 (of 72) by widening the set, not by touching the
+    /// search.</b> 33 of 33 met meant the ratchet could only ever hold or fail — it had stopped
+    /// telling a working search apart from a regressed one. <c>PowerSearchExpectations.cs</c>
+    /// gained 39 more entries (35 seeking a Power, 4 that should find nothing), written the same
+    /// way as the first 33 and biased toward the 74 Powers PROGRESS.md item 4 records as still
+    /// carrying only their original category tags, toward an effect landing on someone other
+    /// than the caster, and toward a few sentences with no Power behind them at all. Neither
+    /// <c>Score</c> nor <c>Mentions</c> in <c>mcp/CharacterTools.cs</c> changed, and no Power in
+    /// <c>data/rules/powers.json</c> gained a tag for this slice — the number below is the
+    /// search exactly as it already stood, read against a wider question.</para>
+    ///
+    /// <para><b>12 of the 39 new entries miss</b>, and every one is a real gap rather than a
+    /// scoring accident:</para>
+    /// <list type="bullet">
+    /// <item>Three of the four "should find nothing" sentences do find something — office and
+    /// small-talk vocabulary (a report's "numbers", a stamp collection's "countries") lands a
+    /// weak coincidental hit on an unrelated Power's own description. This is what an honest
+    /// word-matching search looks like on ordinary English, not a bug to chase; only the fourth
+    /// ("parallel park") is clean.</item>
+    /// <item><c>cloud_minds</c> and <c>buff</c> do not appear anywhere in a 25-row window for
+    /// their sentences at all — neither Power's vocabulary reaches "forget" or "rally the team",
+    /// which is exactly the class of gap PROGRESS.md item 4 predicts is still open: only 67 of
+    /// 141 Powers were given a wider vocabulary, and these two were not among them.</item>
+    /// <item><c>super_senses_lie_detection</c> misses its bar (position 7 of a top-3 ask) even
+    /// though "lying" is the literal word in its own printed description — a description-only
+    /// match is worth a flat 2 points regardless of how distinctive the word is, so it loses to
+    /// several rows matching two or three ordinary words. This is the exact limitation the
+    /// original 33/33 slice recorded as still open and never claimed to have fixed.</item>
+    /// <item><c>elemental_control</c>, <c>power_absorption</c>, <c>psi_screen</c> and
+    /// <c>form_gaseous</c> land just outside their window (one to three rows short). </item>
+    /// <item><c>gestalt</c> misses by a wide margin (position 16 of a top-8 ask) — recorded in
+    /// its own entry as a deliberately hard, obscure case kept in rather than dropped.</item>
+    /// </list>
+    ///
+    /// <para>None of the 39 new sentences were edited after this number was measured. See the
+    /// class remark's note on ambiguity for why: every miss above is a real gap in the search's
+    /// vocabulary or its scoring weights, not a sentence that could as honestly have named a
+    /// different Power.</para>
     /// </summary>
-    private const int Baseline = 0; // placeholder — set for real once ReportTheCurrentScore runs
+    private const int Baseline = 60;
 
     private const int TotalExpectations = 72;
 
