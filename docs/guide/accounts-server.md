@@ -206,7 +206,6 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   fails the PR rather than the way to production. That marker comment is load-bearing — see it.
 
 
-
 ## An account has a name it can change
 
 `display_name` is set once at first sign-in to the email's local part, and `PUT /api/me/display-name`
@@ -265,5 +264,4 @@ invitation, so an invited person had no way of knowing they could sign in.
   breaks ordinary sign-in too; and the page says which of the three things happened.
 - **Re-adding an address already on the list sends nothing** and answers `alreadyAllowed`. So an
   address invited before this existed is not retrospectively mailed — withdraw and re-add.
-
 
