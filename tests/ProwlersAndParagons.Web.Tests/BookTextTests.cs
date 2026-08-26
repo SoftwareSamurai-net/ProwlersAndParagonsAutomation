@@ -64,8 +64,12 @@ public sealed class BookTextTests
         // had run all three together.
         Assert.Equal("PRO", options[0].QuerySelector(".kind")!.TextContent);
         Assert.Equal("Control", options[0].QuerySelector("b")!.TextContent);
-        Assert.Equal("+4", options[0].QuerySelector(".hp")!.TextContent);
-        Assert.Equal("+1 per rank", options[1].QuerySelector(".hp")!.TextContent);
+        Assert.Equal("+4", options[0].QuerySelector(".price")!.TextContent);
+
+        // In the case the book printed it, which is why this is not `.hp`: that class sets its
+        // text in capitals and would render this "+1 PER RANK".
+        Assert.Equal("+1 per rank", options[1].QuerySelector(".price")!.TextContent);
+        Assert.Empty(options[1].QuerySelectorAll(".hp"));
     }
 
     /// <summary>

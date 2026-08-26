@@ -164,6 +164,31 @@ after that answered the same cheerful `204` a sent link gets. That is why the si
 was on its way, Resend's dashboard showed nothing and Cloudflare showed nothing: by then nothing
 was being attempted.
 
+### 1c. The extractor loses the book's paragraph breaks
+
+`RulebookProse` pulls a Power's stat line and its Pros and Cons out of the flat run the corpus holds,
+and the description that is left is **still one paragraph** — LUCK's is 120 unbroken words. That is
+as far as honest structure goes from the corpus side: the corpus has no newline in a Power entry to
+split on, and inventing one on sentence count would be a presentation layer deciding where the
+author's paragraphs were.
+
+**The breaks still exist in the PDF, as vertical spacing between lines, and the extractor is where
+they can be read.** `tools/RulebookExtractor` groups words into lines and lines into sections; a line
+whose baseline sits further below its predecessor than the body leading is a paragraph start, and
+that gap is measurable on the page. What makes this a real slice rather than a one-liner is
+everything `CLAUDE.md` already records about this tool: the damage from getting it wrong **reads as
+English**, so it is judged by re-running the extractor and the corpus tests rather than by reading a
+paragraph and finding it plausible. `RulebookCorpusTests` pins the total volume of prose and every
+Power entry's opening stat line, which is what would catch a change that started splitting mid-
+sentence.
+
+What is already done and must not be redone: the presentation side. `BookText` renders whatever
+paragraphs it is handed, and `RulebookProse.Read` returns the passage's own `\n` splits — so a
+corpus that gained real breaks would show them with no change on the browser side at all.
+
+Until then `.book-text` carries `max-width: 68ch` and open leading, which is what presentation can
+honestly do about a long run.
+
 ### 2. What the sheet still cannot say
 
 Found by an adversarial audit during the sheet-polish slice; real, and out of scope for it.
@@ -417,6 +442,118 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 ---
 
 ## Completed work
+
+### The copy answered questions nobody asked
+
+The owner read the app and said so: *"so much commentary on EVERY button click and EVERY step. Just
+cut it to raw process and unclear actions."* The measurement, before touching anything: **1,943
+words** of visible prose across **53 paragraphs of twelve words or more**, the worst of them 88
+words above a recording and 81 above a list of findings. Four separate paragraphs were
+three-sentence accounts of what a button would do, printed above the button.
+
+It is **442 words in 27 paragraphs** now, and the longest is 27.
+
+**What was kept is the test of the rule.** "Turn *Headers and footers* off under *More settings*" is
+an instruction nobody could guess and it stays; "Printing gives you the sheet below on one page, or
+as a PDF if you pick Save as PDF as the destination…" was fifty words of it and is gone. "**Download
+to keep** is the only one that loads back in" replaces fifty-seven words distinguishing four
+buttons. The derived-stats step's three-gotcha paragraph went entirely — it was a **verbatim
+duplicate** of the `Formula` lines already printed under each figure.
+
+**`NoParagraphOnScreenIsAnEssay` is what stops it coming back**, at 28 words per paragraph. A word
+count is crude and it is the only thing enforceable: no pattern separates a real instruction from a
+paragraph restating the heading above it, which is why `NoPageExplainsItselfToADeveloper` next to it
+is a denylist. What a ceiling does catch is the shape the drift actually takes, which is one more
+qualifying sentence. **Razor control flow splits a paragraph** rather than being counted through it —
+the character list's closing sentence is an `@if` over two eleven-word branches, which read as
+twenty-two words to a naive scan and as eleven to every reader. Both halves watched to fail: a long
+paragraph restored (red, naming the file and the count) and the scan pointed at nothing (red on the
+positive control, which is not optional — every other assertion in it is an absence and an app with
+all its copy deleted would satisfy them all).
+
+**One test's positive control had to move rather than the copy.**
+`AskingForALinkSaysNothingAboutWhetherTheAddressHasAnAccount` asserted the page says "on its way",
+which was the confirmation's old wording; the property it guards is the three absences beside it, so
+it now looks for "Check your inbox". Restoring the sentence to keep a test green would have been the
+tail wagging the dog.
+
+### A passage of the book is set as the book sets it
+
+The owner sent a screenshot of the LUCK entry on `/rules`: a stat line, a description and two Pros,
+run together as **one 200-word paragraph**. Both surfaces that show the book's own words had a
+`Paragraphs` helper splitting on `\n` under a comment claiming *"the extractor keeps them"* — and
+for a Power's entry **the corpus holds no newline at all**, so the helper yielded exactly one
+paragraph and the comment was describing a thing that does not happen.
+
+**`sheets/RulebookProse` finds the structure the page prints, and only that.** Three markers, each
+measured across all 1,523 passages before a line was written:
+
+| marker | count | what it is |
+|---|---|---|
+| `Range • RankType • Cost` | **141** | a Power's stat line |
+| `PRO Name (price):` | **102** | a Pro or Con printed inside an entry |
+| `PRO +1 Hero Point` at the start | **51** | a generic option's own section |
+
+**The 141 is the finding worth keeping**: it is exactly `powers.json`'s entry count, and the first
+version of the test asserted 116 — the entries whose corpus heading matches a name in the rules
+data. The other 25 are the Form, Transformation and Super Senses options, each printed with a stat
+line of its own and each its own entry in `powers.json`, filed under headings the rules data spells
+differently. The test reads the number off `RulesRepository` now, so the two stores are witnesses to
+each other rather than one of them being a figure somebody typed.
+
+**What it deliberately does not do is invent a paragraph break** — see the open item below. Splitting
+the remaining description on "For example," or on sentence count would be a presentation layer
+deciding where the author's paragraphs were.
+
+**Six sections share a heading with a Power and are not that Power's entry** — Ch.6's ARMOR gear row
+and COMMUNICATIONS base points, Ch.7's SWIMMING and LEAPING, Ch.4's HEALING, Ch.9's TIME TRAVEL — and
+each is named in a theory, because a count on its own is satisfied by a pattern that fires
+everywhere. `EveryWordOfEveryPassageSurvivesTheSplit` is the other half: 1,523 passages rebuilt from
+their parts and compared word for word, which is the one property counting cannot check and the
+failure hardest to see — a regular expression that swallowed a sentence leaves a passage reading
+perfectly well and saying something else. Three mutations, each caught: a narrowed option marker, an
+over-eager stat line, and a dropped first sentence.
+
+**`BookText` owns how a passage is set**, replacing two hand-written copies of `.book-text` — one of
+which carried a comment promising *"one idiom for the book's own words, not a second one for the same
+text on another page"*, which is a promise a comment cannot keep. It is in `OwnedClasses` now.
+
+**Two things the proof caught that no test could.** The stub's search snippet was the *whole*
+passage, so the rules proof drew a 200-word wall directly above the panel that sets the same text
+out properly — a fixture lying about the server's shape, now windowed. And an option's price was
+`.hp`, which sets its text in capitals, so "+1 per rank" rendered **"+1 PER RANK"**; a price the book
+writes in words is a phrase, not a Hero Point figure.
+
+### The sheet says what every name on it means
+
+`/build/sheet` draws the sheet with every name carrying its `data/rules` description, on hover and on
+focus. The descriptions have been there the whole time and **only the editors ever showed one**: a
+printed sheet says "Presence 6d" and "Plot Hook" and "TECH POWERS" and left a reader to know.
+
+- **`Term` is `RankRow`'s trigger extracted** — a real button, a dotted underline in `--muted`, the
+  description in a separate `sr-only` copy that `aria-describedby` names, and the visible tip
+  `display: none` when shut. Never a `title` attribute. The id is derived from the name, or the
+  replay's strongest guard — two renders of one character being identical — fails on a random one.
+- **Its own address rather than a mode on the review step**, because the printed sheet is the
+  deliverable and turning forty names on it into controls would change the document. `Explain` is off
+  by default and `TheOrdinarySheetGainsNoControls` plus `TheReviewStepsSheetIsNotTheExplainedOne`
+  hold it there; `ExplainingTheSheetChangesNoneOfItsWords` holds the two sheets word-for-word equal.
+- **On paper a term is a word.** The tip never reaches a printer — hovering does not happen there —
+  but the underline and the help cursor would, so the print block drops both, asserted through the
+  resolved cascade rather than off the print block's own declarations. `@media` adds no specificity.
+- **The test helper was nearly the bug.** `Visible` had to model how a browser renders: it drops the
+  two hidden copies, inserts a separator **only at a block boundary**, and collapses whitespace that
+  is already there. A helper that joined children with a space would turn `Armor8d` into "Armor 8d"
+  and report it fixed — which this repository has shipped, twice. Watched: reintroducing the missing
+  space failed the new test *and* the three pre-existing `SheetRenderTests` ones.
+- Five mutations, each caught by exactly the intended test: `Armor8d` back, `Explain` defaulting on,
+  a description wired to the name, a Source heading losing its term, and print keeping the underline.
+
+**The proof page is where the two judgements that matter were made**, neither of them checkable by
+assertion: whether a dotted underline under forty names reads as marking or as noise, and whether a
+tip hanging off a word inside a three-column sheet lands somewhere readable rather than as a sliver
+down one column. It is a fourth golden now, at 1280×1400 because a 900px frame cuts the sheet
+mid-Powers and neither judgement survives a crop.
 
 ### The row you were not looking at was the one with no protection
 

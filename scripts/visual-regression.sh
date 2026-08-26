@@ -212,10 +212,16 @@ run_chrome() {
 # The fix is to generate the goldens in CI, from the Chrome that compares them, and commit those.
 # Until that exists these four are not checked -- said plainly here rather than left to look like
 # coverage. PROGRESS.md carries it as an open item.
+#
+# `explained-sheet` is taller than the rest at 1400 because the sheet is three columns of ruled
+# boxes and a 900px frame cuts it mid-Powers -- and the two things this page exists to check are
+# whether a dotted underline under forty names reads as marking or as noise, and whether the one
+# open description lands somewhere readable inside a sheet column. Neither survives a crop.
 manifest="
 front-door-hero-light:proof-front-door-hero-light.html:1280:900:
 front-door-hero-dark:proof-front-door-hero.html:1280:900:--blink-settings=preferredColorScheme=0
 rules-reference:proof-rules-hero.html:1280:900:
+explained-sheet:proof-explained-hero.html:1280:1400:
 "
 
 failed=0

@@ -1804,6 +1804,21 @@ label {
 
 .book-options p { margin: var(--space-1) 0 0; }
 
+/* What the book charges for the option, in its own words. **Deliberately not `.hp`**: that is the
+   treatment for a Hero Point figure the engine answered and it sets its text in capitals, which
+   turns "+1 per rank" into "+1 PER RANK". A phrase is not a figure. */
+.book-options .price {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+/* The citation, when option blocks come before it. `.book-text p` carries a bottom margin and no
+   top one, so the printed page sat flush against the last option's last line and read as part of
+   it. Seen in the proof; no rendering test could, because the element is there either way. */
+.book-options + p { margin-top: var(--space-3); }
+
 /* PRO and CON are the book's own markers and are read as one word each, so they are set as a tag
    rather than as running text. **Both take `--muted`, not green and red.** A Con is not a warning
    and a Pro is not a success — they are two prices, and colouring them as outcomes would be this

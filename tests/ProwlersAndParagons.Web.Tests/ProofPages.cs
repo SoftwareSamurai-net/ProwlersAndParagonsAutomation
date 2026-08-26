@@ -223,6 +223,51 @@ public sealed class ProofPages
     }
 
     /// <summary>
+    /// The sheet with every name on it explained, and one description open.
+    ///
+    /// <para><b>Its own page, and the tip is opened, because a disclosure proofed shut shows
+    /// nothing and reads as a feature that works.</b> That is the mistake this file already warns
+    /// about for the Power editor's own book entry — and here there are two things to look at that
+    /// no assertion can judge: whether a dotted underline under forty names reads as marking or as
+    /// noise, and whether a tip hanging off a word inside a three-column sheet lands somewhere a
+    /// reader can read it rather than as a sliver down one column.</para>
+    ///
+    /// <para>Hover cannot be captured, so the tip is shown by focusing the term — which is the
+    /// keyboard path and is the one that has to work anyway.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(SheetMode.Hero)]
+    [InlineData(SheetMode.Villain)]
+    public void TheExplainedSheet(SheetMode mode)
+    {
+        if (!Asked) return;
+
+        using var ctx = new RenderContext().With(mode);
+
+        var page = ctx.Render<ExplainedSheet>();
+
+        // The positive control: the names really are terms. A proof of a sheet with no term on it
+        // would look exactly like the ordinary sheet and be captioned as this one.
+        Assert.NotEmpty(page.FindAll(".sheet .term-name"));
+
+        // **One description shown, forced open by an inline style rather than by a class.** The
+        // stylesheet opens a tip on `:hover` and `:focus-visible`, neither of which a rendered
+        // proof can have — and inventing a `.proof-open` rule would put a selector in the shipped
+        // stylesheet that exists only for this file. One tip, not forty: the question is whether a
+        // tip lands somewhere readable inside a sheet column, and forty overlapping ones answer it
+        // for nobody.
+        var markup = page.Markup;
+        var first = markup.IndexOf("class=\"row-tip", StringComparison.Ordinal);
+        Assert.True(first > 0, "no tip in the markup, so this proof would show a sheet and no description.");
+
+        var body = markup[..first]
+            + "style=\"display:block\" "
+            + markup[first..];
+
+        Write($"proof-explained-{Name(mode)}.html", Name(mode), body);
+    }
+
+    /// <summary>
     /// Accounts, on a page of their own.
     ///
     /// <para><b>The screen proof carries these too, and that is not enough.</b> It runs to some
@@ -371,6 +416,22 @@ public sealed class ProofPages
         using var reader = new RenderContext().With(mode);
         reader.Api.SignedIn = ("acct-7", "player");
 
+        // **A Power's entry, as flat as the extraction really leaves one, so this proof shows the
+        // structure `RulebookProse` finds rather than one short sentence.** The shared stub's
+        // passages are all a line long, and a proof of the new stat line and option blocks that
+        // opened one of those would be a picture of a feature that never ran — which is the exact
+        // failure this file warns about four times over. Added here rather than to `FakeApi`
+        // because every other test in the project counts that stub's passages.
+        reader.Api.Chapters[0].Passages.Insert(0, new FakeApi.FakePassage(
+            "LUCK",
+            "Self • Power Rank • 2 Hero Points per rank You are incredibly lucky or so skilled "
+            + "that you make everything look easy. You gain a number of Luck dice equal to your "
+            + "Luck rank at the start of every issue. Luck dice can be added to either side of "
+            + "any challenge roll that involves you. PRO Control (+4): Rather than just being "
+            + "lucky, this Power represents your ability to consciously alter probability fields. "
+            + "PRO Unbelievable (+1 per rank): You can also spend Luck dice to buy yourself "
+            + "lucky breaks, as described in Chapter 5."));
+
         var page = reader.Render<RulesReference>();
 
         // **Wait for the page to have finished arriving before touching it, or this proof is a
@@ -382,7 +443,7 @@ public sealed class ProofPages
         // same as a page that has settled.
         page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll(".chosen li")));
 
-        page.Find("#rules-search").Input("knockback");
+        page.Find("#rules-search").Input("luck");
         page.Find("form").Submit();
 
         // The positive control: if the search did not run, this proof is a picture of an empty
@@ -394,6 +455,16 @@ public sealed class ProofPages
         // list of places they might be. The passage is a third fetch; wait for it too.
         page.FindAll("[aria-expanded]")[0].Click();
         page.WaitForAssertion(() => Assert.NotEmpty(page.FindAll(".book-text")));
+
+        // The second positive control, and the one this proof gained a passage for: the passage
+        // that opened is a Power entry, so it has to have come apart into a stat line and its two
+        // Pros. Without this the page could be captured showing one unbroken paragraph and the
+        // golden would record that as correct.
+        page.WaitForAssertion(() =>
+        {
+            Assert.Equal(3, page.FindAll(".book-stat dd").Count);
+            Assert.Equal(2, page.FindAll(".book-options > li").Count);
+        });
 
         var rules = new StringBuilder();
         Section(rules, "Rules reference — searched, with one passage open", page.Markup);

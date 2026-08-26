@@ -51,7 +51,12 @@
                            is how "Armor8d" reached the sheet twice. *@
                         <span class="kind @option.Kind.ToLowerInvariant()">@option.Kind</span>
                         <b>@option.Name</b>
-                        <span class="hp">@option.Price</span>
+                        @* **Not `.hp`.** That class is for a Hero Point figure the engine
+                           answered — smaller, letter-spaced and set in capitals — and a price the
+                           book writes in words comes out of it as "+1 PER RANK". This is the
+                           book's own phrase, so it is set like the lead: display face, muted, and
+                           in the case it was printed in. *@
+                        <span class="price">@option.Price</span>
                     </div>
                     <p>@option.Text</p>
                 </li>
