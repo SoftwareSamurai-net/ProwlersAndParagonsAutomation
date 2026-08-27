@@ -141,6 +141,15 @@ Services.AddScoped<DiscardedCharacter>();
         // document is the browser's business, not a component's.
         JSInterop.Mode = JSRuntimeMode.Loose;
 
+        // Which key the banner prints beside the palette. Answered here rather than left to
+        // loose mode's null, because null is not "a reader on Windows" — it is a browser with no
+        // palette.js at all, in which the banner deliberately claims no shortcut. Every test and
+        // every proof page would otherwise render the state of a broken deployment.
+        //
+        // False is an ordinary Windows or Linux reader, which is what this machine is. A test
+        // about the other half sets it the other way; GuardedInteropTests owns the null.
+        JSInterop.Setup<bool?>("ppPalette.onAMac").SetResult(false);
+
         // Registered *after* bUnit's own, so this is the one resolved. Everything that is not
         // `ppStore.*` falls through to the same do-nothing answer bUnit's loose mode gives, which
         // is what the guarded services above already expect from a browser that will not play.

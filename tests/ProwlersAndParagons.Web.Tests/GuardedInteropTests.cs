@@ -54,6 +54,12 @@ public sealed class GuardedInteropTests
         await keys.Enter(default);
         await keys.Leave();
 
+        // **The reading call answers null rather than a default**, and that is the half worth a
+        // separate assertion: a swallow returning "Ctrl" would satisfy the flag below while
+        // printing a chord in a banner whose listener does not exist.
+        Assert.Null(await keys.ReadModifier());
+        Assert.Null(keys.Modifier);
+
         Assert.True(keys.ScriptIsMissing);
     }
 

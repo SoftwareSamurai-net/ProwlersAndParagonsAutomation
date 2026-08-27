@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4821 across **four** suites — 4015 on the engine, 626 rendering components with bUnit (46 added this round, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4831 across **four** suites — 4015 on the engine, 636 rendering components with bUnit (10 added this round, on the banner printing the palette's chord — see the completed entry at the top; the round before added 46, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -654,21 +654,26 @@ rearrangement of the same chrome.
   resist growing it*: today the palette offers Powers and navigation, and the rulebook is a
   different corpus behind an account gate.
 
-  **And the shortcut should be printed in the search field itself, as its placeholder** — the
-  owner's amendment, and it is a defect about *today* rather than a note about a future design.
-  `Ctrl`+`K` is bound right now and **nothing on any screen says so**, which makes it a shortcut for
-  the person who wrote it. A search box in the banner reading `Search the rulebook — Ctrl K` teaches
-  it to everybody who never presses it, at the cost of no extra surface: the field has to be there
-  anyway, and the placeholder is otherwise wasted on restating the label.
+  **The discoverability half is done — see the completed entry at the top of this file.** The
+  banner carries a `Search` button with the chord printed beside it, on every route, with the
+  modifier chosen at render time from the platform. **What is left in this bullet is the corpus,
+  not the surface**: putting the *rulebook* behind that control means growing the palette onto a
+  second body of text that is behind an account gate, which is the part `palette.js` says in as
+  many words to resist and which still has to be argued rather than assumed.
 
-  Two things to get right when it is built:
+  **What was decided while closing the first half, so it does not get re-litigated:**
 
-  - **The modifier is the reader's, not the developer's.** `palette.js` accepts `ctrlKey` *or*
-    `metaKey` precisely because it is `Ctrl` on Windows and Linux and `⌘` on a Mac. A placeholder
-    that hard-codes one of them is wrong for the other half of the readers, so it has to be chosen
-    at render time from the platform — or the pair has to be worded so neither is claimed.
-  - **A placeholder is not a label**, and `docs/guide/browser.md`'s presentation rules still apply:
-    it may carry the hint, and it may not be the only place the field is named.
+  - It is a **button and not a text box**. A box that looked like a search field while searching
+    Powers and step names would be the wrong promise twice over. When the rulebook does move
+    behind it, the field is the right shape and the button is what it replaces.
+  - The word is **Search**, and the palette still calls itself "Go to" inside. The label has to
+    survive a glance in a strip of six controls; "Go to" between two underlined links read as a
+    third link with no destination.
+  - The modifier is answered by `ppPalette.onAMac` and worded by `Shortcuts.ReadModifier` — `Ctrl`
+    or `Cmd`, never the looped-square glyph, which is in neither typeface this app names and would
+    fall back to a system face on one platform only.
+  - **A placeholder is not a label** still applies to the field when it arrives: it may carry the
+    hint, and it may not be the only place the field is named.
 - **Account and settings move to the right of the banner.**
 - **The Hero/Villain switch moves into that settings menu**, which completes a decision already
   taken rather than reversing one: `docs/guide/browser.md` records that "Only the builder names the
@@ -911,6 +916,87 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 ---
 
 ## Completed work
+
+### The chord is printed on the screen now, which is the whole of the defect
+
+**`Ctrl`/`⌘`+`K` has opened the command palette since the palette shipped, and the only place the
+chord was written down was inside the palette itself** — on the row of keys along its own foot,
+which is visible to somebody who has already pressed it. The owner named it in item 12 as a defect
+about today rather than a note about a future design, and it is: a keyboard shortcut nobody is
+told about is a shortcut for whoever wrote it, and the palette's own file already carried that
+sentence as a comment over the row of keys nobody could reach.
+
+The banner carries the way in and the key beside it: **Search**, then the chord in two key boxes.
+
+#### The four things that decided the shape
+
+- **On every route.** The chord works on every route, and the step band and the budget strip — the
+  two things drawn in the builder alone — are precedents for *builder-scoped* chrome, not for this.
+  A button that appeared only inside the builder would say the key stops at its edge, which is
+  worse than saying nothing at all. Four routes are pinned by a theory.
+- **The modifier is the reader's, not the developer's**, which is the owner's own amendment to
+  item 12 and the half that is easy to get wrong quietly. `palette.js` listens for `ctrlKey` *or*
+  `metaKey` precisely because it is `Ctrl` on Windows and Linux and Command on a Mac. So the
+  script answers one boolean about the platform — `ppPalette.onAMac` — and `Shortcuts.ReadModifier`
+  decides the word. **A hard-coded `Ctrl` is wrong for half the readers in the way that costs the
+  affordance**: somebody who presses the key they were told about and gets nothing stops reaching
+  for it.
+- **`Cmd`, and not the looped-square glyph the Mac convention actually uses.** That glyph is in
+  neither of the two typefaces this app names, so it would fall back to a system face — silently,
+  on one platform. That is precisely the failure the "no component names a typeface" rule exists
+  to prevent, arriving as a character rather than as a declaration.
+- **A missing script prints no chord at all.** That is the deployment where the key does nothing,
+  so the reading call answers `null` on a swallowed failure rather than a default: **a default
+  there is a claim about the reader's keyboard made by a script that never ran.** The button still
+  opens the palette, because opening it is a click Blazor handles — the same bargain every guarded
+  interop call in this app makes, in a case where the guard has an answer to be wrong about for
+  the first time.
+
+#### What it is not, and why
+
+**A button and not a search box**, though item 12 puts a rules search in this spot eventually. A
+box that looked like a search field while searching Powers and step names would be the wrong
+promise twice over: the rulebook is a different corpus and it is behind an account. Growing the
+palette onto it is the part of item 12 that still has to be argued, and `palette.js` says in as
+many words to resist growing it. **That argument is untouched here** — this closes the
+discoverability half and nothing else in item 12.
+
+**"Search" rather than "Go to"**, which is what the palette calls itself inside. The label has to
+survive being read at a glance in a strip of six other controls, and the first version — "Go to",
+sitting between two underlined links — read as a third link with no destination. Looked at, not
+reasoned about: the shell proof page was screenshotted in both palettes before and after.
+
+#### Five mutations, five reds
+
+Every one against the committed change, and each named the test that should have caught it:
+
+| Mutation | What went red |
+|---|---|
+| `Cmd` → `Ctrl` in `ReadModifier` | the Mac row of `TheChordIsPrintedForTheKeyboardTheReaderHas` |
+| the swallow answers `false` rather than `null` | `ShortcutsSwallowsAMissingScript` |
+| the key boxes deleted from the banner | seven rows across three tests |
+| the button drawn in `Area.Play` only | eight rows — and the `build/tier` row **passed**, which is the positive control |
+| `Commands.Open` → `Commands.Close` | the two tests that press the button |
+
+**The nineteen browser verdicts were re-driven locally against real Chrome**, including all four
+375px narrow proofs, and the twins still say `FAIL`. The banner gained a control and nothing
+overflows at 375px — `clientWidth 360, scrollWidth 360`, measured in the iframe the harness uses
+rather than in a Chrome window, which headless clamps to ~485px and which reads as overflow that
+is not there. That trap is written down in the harness's own header and was nearly walked into
+from a screenshot.
+
+#### And four exemptions that had stopped being true
+
+`UppercasedTextTests` refuses a selector it cannot find on any rendered page, which is the
+assertion added after **13 of 25 uppercased selectors were found to be matching nothing**. Four of
+its exemptions read *"MainLayout, which needs a Body fragment and a router"* — and that was never
+true: `BannerTests` has rendered the layout on its own since the day it was written, `Body` left
+null and every band drawn. The new label tripped the refusal, which is the guard working; the
+honest fix was to render the layout in the sweep and delete the four, so five uppercased banner
+selectors are now actually checked instead of standing behind a reason nobody re-read.
+
+**When a test exempts a subject, the exemption is a claim with a shelf life.** Check it still
+holds before adding a sixth beside it.
 
 ### The character manager, rebuilt around what it actually holds
 

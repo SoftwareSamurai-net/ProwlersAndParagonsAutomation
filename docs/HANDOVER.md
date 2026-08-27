@@ -4,10 +4,16 @@
 the rest.** Read [`CLAUDE.md`](../CLAUDE.md) first and follow its routing table to the guide for
 whatever you are about to touch, then [`PROGRESS.md`](../PROGRESS.md).
 
-**This round closed all three things the owner reported from using the deployed app** — the two
-that were one defect, and the explained sheet — **then rebuilt the character manager's layout to a
-pitched plan, and took a long product conversation that is written down as `PROGRESS.md` items 11,
-12 and 13.**
+**This round printed the command palette's chord on the screen** — the one part of
+`PROGRESS.md` item 12 the owner named as a defect about today rather than a design for later. The
+round before it closed all three things the owner reported from using the deployed app, rebuilt the
+character manager's layout to a pitched plan, and took a long product conversation that is written
+down as `PROGRESS.md` items 11, 12 and 13.
+
+**Item 12's remaining half is the corpus, not the surface.** The banner now carries a `Search`
+button with `Ctrl`/`Cmd`+`K` beside it; putting the *rulebook* behind that control means growing
+the palette onto a second body of text that sits behind an account gate, and `palette.js` says in
+as many words to resist growing it. That argument is untouched.
 
 **Read item 11 before choosing the next slice.** The owner spent a session reading a competitor and
 brought back eight ideas; they are not eight decisions, they are one, and the entry says which. The
@@ -32,8 +38,9 @@ the fix above, including a check that was dead code and read exactly like a guar
 
 ## Where things stand
 
-**4,821 tests across four suites** — 4,015 engine, 626 bUnit, 166 accounts, 14 pixel comparator.
-Measured after the last merge, not carried across from any stream:
+**4,831 tests across four suites** — 4,015 engine, 636 bUnit, 166 accounts, 14 pixel comparator.
+All four were re-run on this round's branch. Re-measure on the integration branch rather than
+copying this line:
 
 ```bash
 dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
@@ -167,12 +174,11 @@ asymmetry is not a flourish; it falls straight out of where the data lives.
    many words to resist growing it), account and settings to the right, and the Hero/Villain switch
    into that settings menu.
 
-   **One part of item 12 is a defect today rather than a design for later**, and the owner named it:
-   `Ctrl`+`K` is bound and **nothing on any screen says so**, which makes it a shortcut for whoever
-   wrote it. The answer is to print it in the search field's own placeholder, where it costs no
-   surface at all. Mind the modifier — `palette.js` takes `ctrlKey` *or* `metaKey` because it is
-   `Ctrl` on Windows and `⌘` on a Mac, so a hard-coded placeholder is wrong for half the readers. Plus two small ones: the Hero Point limit as its own two-card group
-   rather than a full-width panel for one button, and `/rules`' inert "What is here" list.
+   **The defect half of item 12 is closed** — the chord is printed in the banner, on every route,
+   with the modifier chosen at render time from the platform. What is left of that bullet is the
+   rulebook moving behind the same control, which needs the palette argued onto a second corpus.
+   Plus two small ones, both untouched: the Hero Point limit as its own two-card group rather than
+   a full-width panel for one button, and `/rules`' inert "What is here" list.
 
    **Item 13 is the owner's branding and the sign-in email**, which they rate below a competitor's.
    The kit exists outside this repository. Anything sent is outward-facing and costs the hourly
@@ -207,6 +213,41 @@ asymmetry is not a flourish; it falls straight out of where the data lives.
 ---
 
 ## What this round learned, that the next one needs
+
+- **An exemption in a test is a claim with a shelf life, and four of them had expired.**
+  `UppercasedTextTests` names selectors it cannot reach on any rendered page, and four read
+  *"MainLayout, which needs a Body fragment and a router"* — which was never true: `BannerTests`
+  has rendered the layout on its own since the day it was written. A new uppercased class tripped
+  the test's own refusal, which is the guard working, and the honest fix was to render the layout
+  in the sweep and delete all four. **Check an exemption still holds before adding a sixth beside
+  it.**
+- **A screenshot at `--window-size=375` is not a 375px viewport.** Headless Chrome clamps the
+  window to about 485px, so the render is cropped and reads as horizontal overflow that is not
+  there — a pill sliced by the right edge on a page whose narrow harness reports `clientWidth 360,
+  scrollWidth 360`. The harness measures a real 375px **iframe** for exactly this reason and says
+  so in its own header. Screenshot `proof-narrow-shell.html` itself, not the shell at a small
+  window.
+- **This repository moved to a new organisation, and the old account is out of Actions minutes.**
+  It is `SoftwareSamurai-net/ProwlersAndParagonsAutomation` now; `git remote -v` still says
+  `DorianSheiles/…` and redirects for git. A `gh workflow run --ref …` resolved from that remote
+  came back *"the job was not started because recent account payments have failed or your spending
+  limit needs to be increased"* — **which was true of that account** — and the same dispatch with
+  `--repo SoftwareSamurai-net/…` ran in four minutes, because the organisation has its own
+  allowance. The two `master` runs that failed in seconds after the #90 merge are the old
+  account's minutes running out, not a fluke.
+
+  Two things follow, and the second is the one that cost this round a wrong paragraph in a PR
+  body. **Pass `--repo SoftwareSamurai-net/ProwlersAndParagonsAutomation` to every `gh` command**,
+  or `gh pr create` refuses with "No commits between…" and a dispatch spends the wrong account's
+  budget. And **"the same command worked when I changed one flag" does not mean the first failure
+  was spurious** — here it meant the flag changed *which account was paying*, which is a different
+  fact about the world and not a correction of the first one. Read the failure for what it says
+  before deciding it was a red herring.
+- **A guard that has never had an answer to be wrong about is a different guard once it does.**
+  Every call in `Shortcuts` was fire-and-forget, and its own remarks said "no caller reads a result
+  back, so there is no answer to be wrong". The one that reads an answer had to break that
+  sentence rather than inherit it: a swallowed failure answers `null`, not a default, because a
+  default is a claim about the reader's keyboard made by a script that never ran.
 
 - **A check can be dead code and read exactly like a guard.** `SavedCharacters.SaveAsync` returned
   the id it was passed whether or not the write landed, so both callers weighing it compared a

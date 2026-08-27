@@ -7,8 +7,11 @@
 // about the palette is in the component: what it offers, what it looks like, what the arrow
 // keys do once focus is inside it. This file is the doorbell and nothing more.
 //
-// **The whole of it is one listener and two focus calls.** Resist growing it. The reason
-// motion.js is 3.5 KB and not a library is the same reason this is not a keyboard manager.
+// **The whole of it is one listener, two focus calls and one question about the keyboard.**
+// Resist growing it. The reason motion.js is 3.5 KB and not a library is the same reason this is
+// not a keyboard manager — and the fourth export earns its place only because it answers a
+// question about *this chord*: which key the listener below is actually waiting for, so the
+// banner can print it. Anything that is not about this key belongs somewhere else.
 
 // **A positive control.** Every check in this repository that asserts an outcome can be
 // satisfied by a feature that never ran — that has happened four times and is written up in
@@ -70,4 +73,24 @@ window.ppPalette = {
         cameFrom = null;
         if (back && typeof back.focus === "function" && back.isConnected) back.focus();
     },
+
+    /// **The one thing this file knows that a component cannot ask.** The listener above
+    /// takes `ctrlKey` *or* `metaKey` because the chord is Ctrl on Windows and Linux and
+    /// Command on a Mac, and a banner printing the wrong one of those teaches a key nobody
+    /// can press. Naming the key is the same fact as listening for it, so it belongs beside
+    /// the listener rather than in a second script — and this is a getter, not a second
+    /// doorbell.
+    ///
+    /// `userAgentData` where it exists and `platform` where it does not: Safari has never
+    /// shipped the former, which is the browser this answer matters most on. An iPad reports
+    /// `MacIntel`, and an iPad with a keyboard attached does use Command.
+    onAMac: () => {
+        const platform =
+            (navigator.userAgentData && navigator.userAgentData.platform)
+            || navigator.platform
+            || "";
+
+        return /mac|iphone|ipad|ipod/i.test(platform);
+    },
 };
+
