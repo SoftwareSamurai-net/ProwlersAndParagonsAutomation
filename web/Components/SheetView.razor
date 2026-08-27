@@ -388,14 +388,28 @@
     /// recorded sheet to the visitor's own edits, which is the exact influence the replay guard
     /// renders two pages to forbid.</para>
     /// </summary>
+    /// <summary>
+    /// Whether this instance subscribed, latched at initialisation.
+    ///
+    /// <para><b>Re-reading <see cref="Character"/> at disposal was a leak</b>, and it went
+    /// unnoticed until a host existed where the parameter transitions on a reused instance:
+    /// <c>/sheet</c> to <c>/sheet/{id}</c> creates this component with no character and disposes
+    /// it with one, so the condition answered true on the way in and false on the way out and the
+    /// handler stayed attached to <see cref="CharacterSession.Changed"/> for the life of the
+    /// session. Whether it subscribed is a fact about what happened, not a question to ask the
+    /// parameters again later.</para>
+    /// </summary>
+    private bool _subscribed;
+
     protected override void OnInitialized()
     {
-        if (Character is null) Session.Changed += StateHasChanged;
+        _subscribed = Character is null;
+        if (_subscribed) Session.Changed += StateHasChanged;
     }
 
     public void Dispose()
     {
-        if (Character is null) Session.Changed -= StateHasChanged;
+        if (_subscribed) Session.Changed -= StateHasChanged;
     }
 
     /// <summary>

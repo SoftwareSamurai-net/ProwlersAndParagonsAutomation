@@ -97,6 +97,42 @@ the layout on its own since the day it was written, `Body` left null and every b
 uppercased banner selectors were standing behind a reason nobody re-read. **When a test exempts a
 selector, check the reason still holds before adding a sixth.**
 
+## The sheet as a document, at `/sheet`
+
+`/sheet` is the character being built and `/sheet/{id}` is any saved one. Both draw the banner and
+then the sheet — no step band, no budget strip, no switcher, no findings panel. It is the fifth
+area, and the area is what does the work: `MainLayout` draws all three of those bands in `Area.Play`
+alone, so this page **inherits none of them and cannot forget to**. An address under `/build` would
+have inherited all three by construction, which is the whole reason this is not one.
+
+- **It is not the `/build/sheet` that was retired, and the difference has to survive.** That address
+  was the review step with `Explain` flipped, so once explanations became the default it offered a
+  route to the page you were already on. **This page differs by what it omits, never by a setting.**
+  If a panel about *building* the character ever appears above the sheet, the page has become the
+  review step again — which is what `TheDocumentIsAloneOnThePage` refuses, with the sheet's presence
+  asserted first because the other three assertions are absences.
+- **Showing is not opening, and the two methods are one word apart.** `ReadAsync` has no side
+  effect; `OpenAsync` moves the current-character pointer and overwrites the anonymous slot. A page
+  built on the second would mean glancing at an old character switched the app to it, and the next
+  autosave wrote the sheet on screen over what was actually open — the shape of a defect this
+  project has already shipped once. **Reach for `ReadAsync` anywhere a character is displayed rather
+  than edited.**
+- **The subtitle does not name Hero or Villain here**, unlike the builder's. The sheet on screen may
+  be somebody else's, so naming *this* visitor's identity over it is the fault the budget strip was
+  pulled off three areas to fix. Same reason the switcher stays in `Area.Play`.
+- **The read is keyed on the id, not guarded by a bool.** Blazor reuses the component when only the
+  route parameter changes, so a one-shot flag leaves the first character on screen under the
+  second's address — the trap `ReplayConversation` already records.
+- **"Nothing was read" and "no id was asked for" are different states.** Both arrive as a null
+  character, and collapsing them renders the reader's own sheet at somebody else's dead link, which
+  reads as their character having been renamed.
+- **The two controls sit under the sheet** and carry `no-print`, so the first thing on the screen
+  and the first thing on the paper are the same thing.
+- **A route with nothing linking to it is a feature nobody can reach**, and
+  `EveryRoutedPageIsReachableFromAnotherPage` is what says so — it caught this page before it
+  shipped. The links are in the character manager: the open character's block, and `sheet/{id}` on
+  every other row.
+
 ## The front door
 
 `/` presents what the site does and offers a way into each, with **every figure on it the engine's or
