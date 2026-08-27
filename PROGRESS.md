@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4799 across **four** suites — 4015 on the engine, 604 rendering components with bUnit (24 added this slice, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4800 across **four** suites — 4015 on the engine, 605 rendering components with bUnit (25 added this slice, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -773,6 +773,57 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 ---
 
 ## Completed work
+
+### The tier page did not redraw when a control inside it emptied the sheet
+
+**Found by opening the deployed site and pressing the button**, immediately after the change above
+went live. The character was correctly kept and the sheet correctly emptied — and the Standard card
+still read *Selected*, until the page was reloaded.
+
+`CharacterManager` is a child of `ChooseTier`. Pressing its *Start a new character* empties the
+session; the child's own `StateHasChanged` redraws the list of characters, and every tier card above
+it is the parent's. **Nothing on that page subscribed to the session at all**, so the cards were a
+render from before the click. Importing reaches the same gap from the other side: it gives the sheet
+a tier, and no card would have shown it.
+
+**It predates this round** — the control this replaced also emptied the sheet, and the card would
+have gone on saying *Selected* then too. It is fixed now because this is the button it is visible
+on, and because **a page saying a tier is chosen while the engine holds none is the one thing on
+that screen a reader would act on.**
+
+One subscription and a `Dispose`. Every handler on the page already calls `NotifyChanged` for the
+shell's sake, so there are no new call sites, and the page reads its cards straight off the sheet —
+a redraw is all it needs.
+
+**Subscribing changes what a test may do**, and this is the durable part: raising `Changed`
+off-dispatcher now throws on this page rather than redrawing, which is the constraint
+`DiscardedCharacterTests` already records for the layout. `StartAnotherTests`' `Build` helper goes
+through `InvokeAsync`, **awaited and never blocked on** — blocking on a renderer task can deadlock
+against that same dispatcher, and that arrives as a hung CI run rather than a red test.
+
+#### And the reason this entry exists at all: nothing in the suites could have found it
+
+Every check in this repository that touches the tier page renders it and reads its markup. **None of
+them changes the session from inside a child component and then looks at the parent**, because until
+this round no control on that page did anything the parent had to notice. This is
+`PROGRESS.md` item 10's argument again in its smallest form: it took a person opening the deployed
+site and pressing the button. The new test does the same thing in-process, and was watched to fail.
+
+#### `git checkout -- <file>` destroyed the fix, for the fourth recorded time
+
+The guard above was written, the fix was written, the suite went green, and then the mutation
+battery ran `git checkout -- web/Pages/ChooseTier.razor` to undo its own mutation — **taking the
+uncommitted fix with it**, because the fix had never been committed. `git commit` then succeeded
+against a staged test file alone and produced exactly the failure `CLAUDE.md` describes: *"a commit
+message that describes a change the commit does not contain."*
+
+**Both habits `CLAUDE.md` names caught it and neither is a judgement call.** `git status --short`
+after the commit listed one file where two were expected, and `git show --stat HEAD` said the same
+in one line. Nothing was lost, because re-applying a twenty-line change is cheap — but the deeper
+rule is the one that was broken: **a mutation belongs against committed work.** The earlier
+batteries this round were run after a commit, deliberately, and this one was not.
+
+---
 
 ### The character switcher had nothing to list, because nothing ever named a character into the index
 
