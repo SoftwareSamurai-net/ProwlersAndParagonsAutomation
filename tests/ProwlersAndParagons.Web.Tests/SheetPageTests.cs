@@ -310,22 +310,22 @@ public sealed class SheetPageTests
         ctx.Api.SignedIn = ("acct-7", "player");
         Open(ctx, "Lynchpin");
 
-        const string Stored = "c_FFFFFFFFFFFFFFFFFFFFFF";
-        Assert.True(await StoreIn(ctx).RestoreAsync(Stored, "Vandergraff", Character("Vandergraff"), SheetMode.Hero));
+        const string stored = "c_FFFFFFFFFFFFFFFFFFFFFF";
+        Assert.True(await StoreIn(ctx).RestoreAsync(stored, "Vandergraff", Character("Vandergraff"), SheetMode.Hero));
 
         // Hold the stored character's read open, so it is still in flight when the route changes.
         var held = new TaskCompletionSource();
         ctx.Api.BeforeAnsweringCharacter = _ => held.Task;
 
-        var page = ctx.Render<SheetPage>(p => p.Add(c => c.Id, Stored));
+        var page = ctx.Render<SheetPage>(p => p.Add(c => c.Id, stored));
 
         // Away to the open character while that read is still waiting.
         ctx.Api.BeforeAnsweringCharacter = null;
-        page.Render(p => p.Add(c => c.Id, (string?)null));
+        page.Render(p => p.Add(c => c.Id, null));
 
         // The read really was overtaken rather than never started. Without this the whole test is
         // satisfied by a page that never asked the server anything.
-        Assert.Contains(ctx.Api.Asked, a => a.StartsWith("GET /api/characters/" + Stored, StringComparison.Ordinal));
+        Assert.Contains(ctx.Api.Asked, a => a.StartsWith("GET /api/characters/" + stored, StringComparison.Ordinal));
         Assert.Contains("Lynchpin", SheetText.Visible(page.Find(".sheet")), StringComparison.Ordinal);
 
         // Now let the overtaken read finish. Its answer belongs to an address nobody is on.
