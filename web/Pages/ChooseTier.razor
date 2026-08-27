@@ -1,4 +1,5 @@
 @page "/build"
+@implements IDisposable
 @inject CharacterSession Session
 
 <PageTitle>Tier — Prowlers &amp; Paragons</PageTitle>
@@ -116,6 +117,27 @@
              NextDisabled="@(Session.Sheet.SelectedTierId is null)" />
 
 @code {
+    /// <summary>
+    /// Redraw when the character changes, because a control on this page can change it without
+    /// this page being the one that did.
+    ///
+    /// <para><b>Nothing here subscribed, and it showed on the deployed site.</b>
+    /// <see cref="CharacterManager"/> is a child of this page: pressing its "Start a new
+    /// character" empties the sheet, and the child's own re-render redrew the list of characters
+    /// and left every tier card above it stale. So the Standard card went on reading
+    /// <em>Selected</em> while the engine held no tier at all, until the page was reloaded — the
+    /// one thing on that screen a reader would act on, saying the opposite of the truth. Importing
+    /// a character reaches the same gap from the other direction: it gives the sheet a tier, and
+    /// no card would have shown it.</para>
+    ///
+    /// <para>Every handler below already calls <c>NotifyChanged</c> for the shell's sake, so this
+    /// costs one subscription and no new call sites — and the page reads its cards straight off
+    /// the sheet, so a redraw is all it needs.</para>
+    /// </summary>
+    protected override void OnInitialized() => Session.Changed += StateHasChanged;
+
+    public void Dispose() => Session.Changed -= StateHasChanged;
+
     /// <summary>
     /// What choosing this tier means, in one line.
     ///

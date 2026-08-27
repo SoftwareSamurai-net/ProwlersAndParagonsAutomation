@@ -33,13 +33,20 @@ public sealed class StartAnotherTests
     /// <summary>
     /// A character with a name and a tier — enough that <see cref="CharacterSession.IsWorthKeeping"/>
     /// counts it, which is what decides whether it is written down and listed at all.
+    ///
+    /// <para><b>Through the renderer's dispatcher, because the tier page subscribes to the
+    /// session.</b> Raising <c>Changed</c> off-dispatcher throws rather than redrawing — the same
+    /// constraint <c>DiscardedCharacterTests</c> already records for the layout. Awaited rather
+    /// than blocked on: blocking on a renderer task can deadlock against that same dispatcher,
+    /// which arrives as a hung CI run rather than a red test.</para>
     /// </summary>
-    private static void Build(RenderContext ctx, string name)
-    {
-        ctx.Session.Sheet.SelectedTierId = "standard";
-        ctx.Session.Sheet.Name = name;
-        ctx.Session.NotifyChanged();
-    }
+    private static async Task Build(IRenderedComponent<IComponent> page, RenderContext ctx, string name) =>
+        await page.InvokeAsync(() =>
+        {
+            ctx.Session.Sheet.SelectedTierId = "standard";
+            ctx.Session.Sheet.Name = name;
+            ctx.Session.NotifyChanged();
+        });
 
     private static AccountCharacterStore StoreIn(RenderContext ctx) =>
         ctx.Services.GetRequiredService<AccountCharacterStore>();
@@ -59,7 +66,7 @@ public sealed class StartAnotherTests
     {
         await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
 
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
@@ -77,11 +84,11 @@ public sealed class StartAnotherTests
     /// listed, and every assertion about not losing it holds for free.
     /// </summary>
     [Fact]
-    public void TheCharacterOnScreenReallyHadSomethingInItBeforeTheClick()
+    public async Task TheCharacterOnScreenReallyHadSomethingInItBeforeTheClick()
     {
-        using var ctx = new RenderContext(storesForReal: true);
-        ctx.Render<ChooseTier>();
-        Build(ctx, "Lynchpin");
+        await using var ctx = new RenderContext(storesForReal: true);
+        var page = ctx.Render<ChooseTier>();
+        await Build(page, ctx, "Lynchpin");
 
         Assert.True(ctx.Session.HasSomethingToLose);
         Assert.Equal("Lynchpin", ctx.Session.Sheet.Name);
@@ -97,7 +104,7 @@ public sealed class StartAnotherTests
     {
         await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
 
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
@@ -117,10 +124,10 @@ public sealed class StartAnotherTests
         await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
 
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
-        Build(ctx, "Second Wind");
+        await Build(page, ctx, "Second Wind");
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         var listed = await StoreIn(ctx).ListAsync();
@@ -147,12 +154,12 @@ public sealed class StartAnotherTests
         await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
 
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         // Built in the slot the press opened, and nothing else is done: no second press, no
         // import, no switch. Ordinary play, and then the tab is closed.
-        Build(ctx, "Second Wind");
+        await Build(page, ctx, "Second Wind");
 
         var listed = await StoreIn(ctx).ListAsync();
         Assert.Contains(listed.Characters, c => c.Label == "Second Wind");
@@ -170,11 +177,11 @@ public sealed class StartAnotherTests
         await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
 
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
         var lynchpin = await StoreIn(ctx).CurrentIdAsync();
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
-        Build(ctx, "Second Wind");
+        await Build(page, ctx, "Second Wind");
         var secondWind = await StoreIn(ctx).CurrentIdAsync();
 
         Assert.NotNull(await StoreIn(ctx).OpenAsync(lynchpin));
@@ -191,7 +198,7 @@ public sealed class StartAnotherTests
     {
         await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
 
         var before = await StoreIn(ctx).CurrentIdAsync();
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
@@ -211,16 +218,16 @@ public sealed class StartAnotherTests
     /// the same dictionary whichever way round they happened.
     /// </summary>
     [Fact]
-    public void TheKeepAndThePointerMoveBothLandBeforeTheSheetIsEmptied()
+    public async Task TheKeepAndThePointerMoveBothLandBeforeTheSheetIsEmptied()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
 
         var storage = ctx.Storage!;
         var from = storage.Calls.Count;
 
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         var writes = storage.Calls.Skip(from)
             .Where(c => c.Identifier == "ppStore.save")
@@ -260,6 +267,39 @@ public sealed class StartAnotherTests
         Assert.Empty((await StoreIn(ctx).ListAsync()).Characters);
     }
 
+    /// <summary>
+    /// <b>The tier page redraws when a control inside it empties the sheet.</b> Found on the
+    /// deployed site by pressing the button: the character was correctly kept and the sheet
+    /// correctly emptied, and the Standard card still read "Selected" until the page was reloaded.
+    ///
+    /// <para>The cause is one component changing the session and only itself re-rendering:
+    /// <c>CharacterManager</c> is a child of <c>ChooseTier</c>, so its own <c>StateHasChanged</c>
+    /// redrew the list of characters and left every tier card above it stale. Nothing on that page
+    /// subscribed to the session at all.</para>
+    ///
+    /// <para><b>It predates this slice</b> — the control this replaced also emptied the sheet, and
+    /// the card would have gone on saying "Selected" then too. It is fixed here because this is the
+    /// button it is visible on, and because a page that says a tier is chosen while the engine says
+    /// none is the one thing on that screen a reader would act on.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheTierPageStopsSayingATierIsChosenOnceTheSheetIsEmptied()
+    {
+        await using var ctx = new RenderContext(storesForReal: true);
+        var page = ctx.Render<ChooseTier>();
+        await Build(page, ctx, "Lynchpin");
+        page.Render();
+
+        // The positive control: the card really does say so before the click, so "no longer says
+        // Selected" is not vacuously true of a page that never said it.
+        Assert.Contains("Selected", page.Markup, StringComparison.OrdinalIgnoreCase);
+
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
+
+        Assert.Null(ctx.Session.Sheet.SelectedTierId);
+        Assert.DoesNotContain("Selected", page.Markup, StringComparison.OrdinalIgnoreCase);
+    }
+
     // ── The switcher, which is the half the owner could see ──────────────────────────
 
     /// <summary>
@@ -269,15 +309,16 @@ public sealed class StartAnotherTests
     /// than asking the store.
     /// </summary>
     [Fact]
-    public void TheSwitcherOffersTheCharacterThatWasKept()
+    public async Task TheSwitcherOffersTheCharacterThatWasKept()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
-        Build(ctx, "Lynchpin");
-        Button(page, StartNew).Click();
+        await Build(page, ctx, "Lynchpin");
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         var switcher = ctx.Render<CharacterSwitcher>();
-        switcher.FindAll("button").First(b => b.GetAttribute("aria-expanded") is not null).Click();
+        await switcher.FindAll("button").First(b => b.GetAttribute("aria-expanded") is not null)
+            .ClickAsync(new MouseEventArgs());
 
         Assert.Contains("Lynchpin", switcher.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Nothing else saved yet.", switcher.Markup, StringComparison.Ordinal);
@@ -290,14 +331,15 @@ public sealed class StartAnotherTests
     /// case has to be shown to look different.
     /// </summary>
     [Fact]
-    public void WithNothingKeptTheSwitcherSaysThisIsYourOnlyCharacter()
+    public async Task WithNothingKeptTheSwitcherSaysThisIsYourOnlyCharacter()
     {
-        using var ctx = new RenderContext(storesForReal: true);
-        ctx.Render<ChooseTier>();
-        Build(ctx, "Lynchpin");
+        await using var ctx = new RenderContext(storesForReal: true);
+        var page = ctx.Render<ChooseTier>();
+        await Build(page, ctx, "Lynchpin");
 
         var switcher = ctx.Render<CharacterSwitcher>();
-        switcher.FindAll("button").First(b => b.GetAttribute("aria-expanded") is not null).Click();
+        await switcher.FindAll("button").First(b => b.GetAttribute("aria-expanded") is not null)
+            .ClickAsync(new MouseEventArgs());
 
         Assert.Contains("This is your only character.", switcher.Markup, StringComparison.Ordinal);
     }
@@ -318,7 +360,7 @@ public sealed class StartAnotherTests
     {
         await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
 
         await Import(page, Sheet("Someone else's Hero"));
 
@@ -338,7 +380,7 @@ public sealed class StartAnotherTests
     {
         await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
 
         await Import(page, Sheet("Someone else's Hero"));
 
@@ -369,7 +411,7 @@ public sealed class StartAnotherTests
         ctx.Api.Limit = 1;
         var page = ctx.Render<ChooseTier>();
 
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
         await Settle(ctx);
 
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
@@ -389,7 +431,7 @@ public sealed class StartAnotherTests
         ctx.Api.Limit = 5;
         var page = ctx.Render<ChooseTier>();
 
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
         await Settle(ctx);
 
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
@@ -409,7 +451,7 @@ public sealed class StartAnotherTests
         await using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
         var page = ctx.Render<ChooseTier>();
 
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
         await Settle(ctx);
 
         ctx.Api.Unreachable = true;
@@ -428,14 +470,14 @@ public sealed class StartAnotherTests
     /// two. A dead check that read like a guard, and the cost of it was the whole character.
     /// </summary>
     [Fact]
-    public void AStorageRefusalKeepsTheCharacterOnScreenAndSaysSo()
+    public async Task AStorageRefusalKeepsTheCharacterOnScreenAndSaysSo()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
 
         ctx.Storage!.Refuses = true;
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         Assert.Equal("Lynchpin", ctx.Session.Sheet.Name);
         Assert.Equal("standard", ctx.Session.Sheet.SelectedTierId);
@@ -452,7 +494,7 @@ public sealed class StartAnotherTests
     {
         await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
 
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
@@ -479,7 +521,7 @@ public sealed class StartAnotherTests
         ctx.Api.Limit = 5;
         var page = ctx.Render<ChooseTier>();
 
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
         await Settle(ctx);
 
         var from = ctx.Api.Asked.Count;
@@ -507,7 +549,7 @@ public sealed class StartAnotherTests
         ctx.Api.Limit = 1;
         var page = ctx.Render<ChooseTier>();
 
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
         await Settle(ctx);
 
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
@@ -529,7 +571,7 @@ public sealed class StartAnotherTests
     {
         await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
 
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
@@ -555,7 +597,7 @@ public sealed class StartAnotherTests
     {
         await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
 
         ctx.Storage!.Refuses = true;
         await Import(page, Sheet("Someone else's Hero"));
@@ -575,7 +617,7 @@ public sealed class StartAnotherTests
         ctx.Api.Limit = 1;
         var page = ctx.Render<ChooseTier>();
 
-        Build(ctx, "Lynchpin");
+        await Build(page, ctx, "Lynchpin");
         await Settle(ctx);
 
         await Import(page, Sheet("Someone else's Hero"));
