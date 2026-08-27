@@ -450,11 +450,11 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task WithStorageWorkingTheSameSequenceGoesThrough()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
         Build(ctx, "Lynchpin");
 
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         Assert.True(string.IsNullOrEmpty(ctx.Session.Sheet.Name));
         Assert.Contains((await StoreIn(ctx).ListAsync()).Characters, c => c.Label == "Lynchpin");
@@ -475,7 +475,7 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task TheAccountsCharacterIsWrittenBeforeItsCapIsRead()
     {
-        using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
+        await using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
         ctx.Api.Limit = 5;
         var page = ctx.Render<ChooseTier>();
 
@@ -483,7 +483,7 @@ public sealed class StartAnotherTests
         await Settle(ctx);
 
         var from = ctx.Api.Asked.Count;
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         var asked = ctx.Api.Asked.Skip(from).ToList();
 
@@ -503,14 +503,14 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task AnAccountWhoseLastSlotTheKeepFillsRefusesToStartAnother()
     {
-        using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
+        await using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
         ctx.Api.Limit = 1;
         var page = ctx.Render<ChooseTier>();
 
         Build(ctx, "Lynchpin");
         await Settle(ctx);
 
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         // Kept — that half must still have happened — and nothing started.
         Assert.Equal("Lynchpin", ctx.Session.Sheet.Name);
@@ -527,11 +527,11 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task StartingAnotherLeavesNoUndoThatWouldDuplicateTheKeptCharacter()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
         Build(ctx, "Lynchpin");
 
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         Assert.False(ctx.Session.CanUndo);
 
@@ -553,7 +553,7 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task ImportingIsRefusedRatherThanOverwritingWhenTheCharacterCannotBeKept()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
         Build(ctx, "Lynchpin");
 
@@ -571,7 +571,7 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task ImportingIsRefusedOnAFullAccount()
     {
-        using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
+        await using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
         ctx.Api.Limit = 1;
         var page = ctx.Render<ChooseTier>();
 
