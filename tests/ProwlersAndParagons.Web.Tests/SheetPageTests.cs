@@ -121,6 +121,13 @@ public sealed class SheetPageTests
 
         var shell = ctx.Render<MainLayout>();
 
+        // **The positive control, and it is what ties this to Area.Sheet rather than to any area
+        // that happens to draw no bands.** A review pointed out that deleting the `sheet` arm from
+        // `Areas.Of` altogether would leave the three absences below green, because the front door
+        // draws none of these either — so the test named a mechanism it did not assert. The
+        // subtitle is the one thing on the band that only this area produces.
+        Assert.Contains("Character sheet", shell.Find(".banner-title").TextContent, StringComparison.Ordinal);
+
         Assert.Empty(shell.FindAll(".steps"));
         Assert.Empty(shell.FindAll(".budget"));
 
@@ -136,14 +143,45 @@ public sealed class SheetPageTests
     /// <para>Same rule the rules reference is held to, and for a sharper reason: the sheet on
     /// screen may not be this visitor's character at all.</para>
     /// </summary>
+    /// <para><b>Both halves, because the negative one alone was satisfied by the wrong answer.</b>
+    /// A review deleted the subtitle's whole <c>Area.Sheet</c> arm and both suites stayed green:
+    /// the front door's fallback contains no "Villain" either, so the absence held while the
+    /// banner said something else entirely. `AreaTests.OnlyTheBuilderNamesThePalette` pairs a
+    /// positive with its negative for exactly this reason and this copy of it had kept only the
+    /// negative.</para>
     [Fact]
     public void TheBannerDoesNotNameThisVisitorsIdentity()
     {
         using var ctx = new RenderContext().With(SheetMode.Villain);
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("sheet");
 
-        Assert.DoesNotContain("Villain",
-            ctx.Render<MainLayout>().Find(".banner-title").TextContent, StringComparison.Ordinal);
+        var title = ctx.Render<MainLayout>().Find(".banner-title").TextContent;
+
+        Assert.Contains("Character sheet", title, StringComparison.Ordinal);
+        Assert.DoesNotContain("Villain", title, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The identity switch is the builder's, and is not drawn over a document.
+    ///
+    /// <para><b>The sharpest of the four findings an adversarial review returned.</b> Those buttons
+    /// always act on the character that is <em>open</em>, but <c>/sheet/{id}</c> draws one that is
+    /// not it — so pressing "Villain" there recoloured the foreign sheet on screen while silently
+    /// flipping and saving <c>IsVillain</c> on somebody else's character. The reviewer's own
+    /// phrasing is the fair one: this page's subtitle is deliberately not "Hero" or "Villain"
+    /// because the sheet may be somebody else's, and then the two controls acting on exactly that
+    /// conflation were left in the band above it.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("sheet", false)]
+    [InlineData("sheet/c_AAAAAAAAAAAAAAAAAAAAAA", false)]
+    [InlineData("build", true)]
+    public void TheIdentitySwitchBelongsToTheBuilderAlone(string path, bool expected)
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo(path);
+
+        Assert.Equal(expected, ctx.Render<MainLayout>().FindAll(".mode-switch").Count > 0);
     }
 
     // ── A saved character, shown rather than opened ──────────────────────────────────
@@ -176,8 +214,12 @@ public sealed class SheetPageTests
     /// open.</para>
     ///
     /// <para><b>Broken and watched to fail:</b> swapping <c>ReadAsync</c> for <c>OpenAsync</c> in
-    /// <c>SheetPage</c> turns this red on both assertions. That is a mutation that changes the
-    /// answer rather than one the page is indifferent to.</para>
+    /// <c>SheetPage</c> turns this red. <b>On the pointer assertion alone</b> — this docstring
+    /// claimed "both" and an adversarial review checked it: <c>OpenAsync</c> never touches
+    /// <c>Session.Sheet</c>, so the session assertion survives that mutation. It is kept because
+    /// it is a real invariant, not because it is what catches this; the pointer is what catches
+    /// this. <b>A claim about which assertion fires is worth as little as any other untested
+    /// claim.</b></para>
     /// </summary>
     [Fact]
     public async Task ShowingIsNotOpening()
@@ -242,6 +284,106 @@ public sealed class SheetPageTests
         var shown = SheetText.Visible(page.Find(".sheet"));
         Assert.Contains("Halfmask", shown, StringComparison.Ordinal);
         Assert.DoesNotContain("Vandergraff", shown, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A read that loses a race does not write its answer.</b>
+    ///
+    /// <para><b>Found by an adversarial review, which built a throwaway probe to demonstrate
+    /// it.</b> The address was claimed before the read finished, so a second navigation arriving
+    /// while the first was in flight let the losing read overwrite the winner's answer — and
+    /// because the key already held the new id, nothing would ever re-read to correct it. It stuck
+    /// until the tab was reloaded.</para>
+    ///
+    /// <para><b>Signed in on purpose.</b> Anonymously the read is one synchronous storage call and
+    /// the window barely exists; on an account it is an HTTP round trip, which is where this
+    /// actually bites — and no other test in this file exercises that branch at all.</para>
+    ///
+    /// <para>The reviewer demonstrated three shapes and this is the worst of them: <c>/sheet</c>,
+    /// which must show the character being built, showing a stored one instead.</para>
+    /// </summary>
+    [Fact]
+    public async Task AReadThatLosesARaceDoesNotWriteItsAnswer()
+    {
+        await using var ctx = new RenderContext(storesForReal: true);
+        ctx.Api.SignedIn = ("acct-7", "player");
+        Open(ctx, "Lynchpin");
+
+        const string Stored = "c_FFFFFFFFFFFFFFFFFFFFFF";
+        Assert.True(await StoreIn(ctx).RestoreAsync(Stored, "Vandergraff", Character("Vandergraff"), SheetMode.Hero));
+
+        // Hold the stored character's read open, so it is still in flight when the route changes
+        // out from under it.
+        var held = new TaskCompletionSource();
+        ctx.Api.BeforeAnsweringCharacter = _ => held.Task;
+
+        var page = ctx.Render<SheetPage>(p => p.Add(c => c.Id, Stored));
+
+        // Away to the open character while that read is still waiting.
+        ctx.Api.BeforeAnsweringCharacter = null;
+        page.Render(p => p.Add(c => c.Id, (string?)null));
+
+        // Now let the overtaken read finish. Its answer belongs to an address nobody is on.
+        held.SetResult();
+        await page.InvokeAsync(() => Task.CompletedTask);
+
+        var shown = SheetText.Visible(page.Find(".sheet"));
+        Assert.Contains("Lynchpin", shown, StringComparison.Ordinal);
+        Assert.DoesNotContain("Vandergraff", shown, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A saved character reads the same way on an account as it does in a browser.
+    ///
+    /// <para><b>Every other test in this file runs signed out</b>, which a review pointed out
+    /// leaves <c>AccountCharacterStore.ReadAsync</c>'s account arm — a real HTTP <c>GET</c> through
+    /// <c>ApiCharacterStore</c> — never taken from this page at all. That is the branch the app is
+    /// mostly used through.</para>
+    /// </summary>
+    [Fact]
+    public async Task ASavedCharacterReadsTheSameWayOnAnAccount()
+    {
+        await using var ctx = new RenderContext(storesForReal: true);
+        ctx.Api.SignedIn = ("acct-7", "player");
+        Open(ctx, "Lynchpin");
+        var id = await Seed(ctx, "c_GGGGGGGGGGGGGGGGGGGGGG", "Vandergraff");
+
+        var before = await SavedIn(ctx).CurrentIdAsync();
+        var page = ctx.Render<SheetPage>(p => p.Add(c => c.Id, id));
+
+        Assert.Contains("Vandergraff", SheetText.Visible(page.Find(".sheet")), StringComparison.Ordinal);
+
+        // The account arm really was taken, rather than a local copy answering.
+        Assert.Contains(ctx.Api.Asked, a => a.StartsWith("GET /api/characters/" + id, StringComparison.Ordinal));
+
+        // And showing still is not opening on this branch either.
+        Assert.Equal("Lynchpin", ctx.Session.Sheet.Name);
+        Assert.Equal(before, await SavedIn(ctx).CurrentIdAsync());
+    }
+
+    /// <summary>
+    /// A character with no Hero Point limit is drawn without one, whoever is reading it.
+    ///
+    /// <para>The entry takes a decision about exactly this expression — it is
+    /// <c>!UnlimitedBudget</c> read off the sheet being shown, not the visitor's mode — and a
+    /// review pointed out that nothing exercised the false case.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACharacterBuiltWithoutALimitIsShownWithoutOne()
+    {
+        await using var ctx = new RenderContext(storesForReal: true);
+
+        var sandbox = Character("Vandergraff");
+        sandbox.UnlimitedBudget = true;
+        Assert.True(await StoreIn(ctx).RestoreAsync("c_HHHHHHHHHHHHHHHHHHHHHH", "Vandergraff", sandbox, SheetMode.Hero));
+
+        var page = ctx.Render<SheetPage>(p => p.Add(c => c.Id, "c_HHHHHHHHHHHHHHHHHHHHHH"));
+
+        // Positive control: the character really is on screen, so the absence below is about a
+        // sheet that rendered rather than one that did not.
+        Assert.Contains("Vandergraff", SheetText.Visible(page.Find(".sheet")), StringComparison.Ordinal);
+
+        Assert.DoesNotContain("of 125", SheetText.Visible(page.Find(".sheet")), StringComparison.Ordinal);
     }
 
     /// <summary>
