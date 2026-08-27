@@ -423,7 +423,7 @@ public sealed class SheetPageTests
         var page = ctx.Render<SheetPage>(p => p.Add(c => c.Id, id));
         Assert.Contains("Vandergraff", SheetText.Visible(page.Find(".sheet")), StringComparison.Ordinal);
 
-        page.Render(p => p.Add(c => c.Id, (string?)null));
+        page.Render(p => p.Add(c => c.Id, null));
         Assert.Contains("Lynchpin", SheetText.Visible(page.Find(".sheet")), StringComparison.Ordinal);
 
         // Rename the character being built, the way the finishing step does.
