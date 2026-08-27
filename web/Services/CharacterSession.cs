@@ -166,7 +166,7 @@ public sealed class CharacterSession
     }
 
     /// <summary>
-    /// Throws the character away. The tier page offers this; nothing else does.
+    /// Empties the sheet on screen.
     ///
     /// <para><b>The palette and the sandbox setting survive it, and now have to be carried
     /// deliberately.</b> Both used to sit beside the character and were untouched by a new one;
@@ -174,7 +174,21 @@ public sealed class CharacterSession
     /// to Hero colours and switch the sandbox off. Neither is a fact about the character being
     /// discarded — they are how the person is working.</para>
     /// </summary>
-    public void StartAgain()
+    /// <param name="offerUndo">
+    /// Whether to keep what was on screen for <see cref="Undo"/>.
+    ///
+    /// <para><b>False when the caller has already written that character down somewhere of its
+    /// own, and this is not a nicety.</b> <see cref="Undo"/> restores into the sheet and does not
+    /// move the current-character pointer — so undoing after the pointer has moved writes a second
+    /// copy of the kept character into the fresh slot, and the reader ends up with it listed twice.
+    /// An adversarial review demonstrated exactly that against "Start a new character". It is the
+    /// same reason importing does not buffer: an undo is a rescue, and offering one from a
+    /// character that was never in danger costs more than it gives.</para>
+    ///
+    /// <para>True for a caller that really is throwing the character away — discarding the row
+    /// that is open, which empties the slot as well.</para>
+    /// </param>
+    public void StartAgain(bool offerUndo = true)
     {
         var previous = Sheet;
         var villain = Sheet.IsVillain;
@@ -182,7 +196,8 @@ public sealed class CharacterSession
 
         Sheet = new CharacterSheet { IsVillain = villain, UnlimitedBudget = unlimited };
         NotifyChanged();
-        Buffer(previous);
+
+        if (offerUndo) Buffer(previous);
     }
 
     /// <summary>

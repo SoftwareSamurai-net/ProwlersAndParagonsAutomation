@@ -60,16 +60,61 @@ public sealed class StartAgainTests
     /// <summary>
     /// The positive control for the guard above: there really was something on the sheet
     /// before the click, so "replaced" is not vacuously true of an already-empty one.
+    ///
+    /// <para><b>Only the sample, because the two controls no longer agree about undo.</b> Loading
+    /// one replaces the character on screen without moving the current-character pointer, so the
+    /// only copy of what was there is the one the buffer holds. See the pair below for what
+    /// "Start a new character" does instead, and why.</para>
     /// </summary>
-    [Theory]
-    [InlineData(Discard)]
-    [InlineData(LoadHero)]
-    public void TheCharacterReplacedReallyHadSomethingInIt(string control)
+    [Fact]
+    public void TheCharacterReplacedByASampleReallyHadSomethingInIt()
     {
         using var ctx = new RenderContext().AsAdministrator().With(SheetMode.Hero);
         Assert.NotEmpty(ctx.Session.Sheet.SelectedPowers);
 
-        Button(PageFor(ctx, control), control).Click();
+        Button(PageFor(ctx, LoadHero), LoadHero).Click();
+
+        Assert.True(ctx.Session.CanUndo);
+    }
+
+    /// <summary>
+    /// <b>Starting another character arms no undo, and that is a fix rather than an omission.</b>
+    /// <see cref="CharacterSession.Undo"/> restores into the sheet and does not move the
+    /// current-character pointer — which by then is on the fresh slot — so an undo here would write
+    /// a second copy of the character just kept, and the reader would find it listed twice. An
+    /// adversarial review demonstrated exactly that against an earlier version of this change.
+    ///
+    /// <para>Nothing is lost by it: the character is a row in the list, which is the way back. It
+    /// is the same reason importing does not buffer either.</para>
+    /// </summary>
+    [Fact]
+    public void StartingAnotherArmsNoUndoBecauseNothingWasDestroyed()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+
+        // The positive control: there really was a character to lose, so "no undo offered" is not
+        // vacuously true of an empty sheet — an empty one never buffers anything anyway.
+        Assert.NotEmpty(ctx.Session.Sheet.SelectedPowers);
+        Assert.True(ctx.Session.HasSomethingToLose);
+
+        Button(PageFor(ctx, Discard), Discard).Click();
+
+        Assert.Empty(ctx.Session.Sheet.SelectedPowers);
+        Assert.False(ctx.Session.CanUndo);
+    }
+
+    /// <summary>
+    /// And discarding the row that is open still does buffer, which is the other half: that one
+    /// really does throw the character away — it empties the slot as well — so the buffer is the
+    /// only copy there is.
+    /// </summary>
+    [Fact]
+    public void DiscardingTheOpenRowStillArmsAnUndo()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        Assert.NotEmpty(ctx.Session.Sheet.SelectedPowers);
+
+        ctx.Session.StartAgain();
 
         Assert.True(ctx.Session.CanUndo);
     }
@@ -96,11 +141,13 @@ public sealed class StartAgainTests
     /// asked of the engine's own answers, not a field list, the same way the persistence
     /// round-trip test in this project is.
     /// </summary>
-    [Theory]
-    [InlineData(Discard)]
-    [InlineData(LoadHero)]
-    public void UndoingBringsBackTheCharacterThatWasReplaced(string control)
+    /// <para><b>The sample alone, since "Start a new character" stopped buffering</b> — see
+    /// <see cref="StartingAnotherArmsNoUndoBecauseNothingWasDestroyed"/> for why.</para>
+    [Fact]
+    public void UndoingBringsBackTheCharacterASampleReplaced()
     {
+        const string control = LoadHero;
+
         using var ctx = new RenderContext().AsAdministrator().With(SheetMode.Hero);
         var page = PageFor(ctx, control);
 
@@ -122,12 +169,19 @@ public sealed class StartAgainTests
     }
 
     /// <summary>
-    /// Discarding empties the sheet <b>and</b> forgets the stored one, so a reader who does not
-    /// undo before closing the tab really has started over — the single-level buffer is memory
-    /// only and does not survive that, which is the trade the whole feature makes.
+    /// Starting another character empties the sheet and <b>keeps</b> the stored one, which is the
+    /// reversal this control needed. It used to clear the slot the character was in — the owner
+    /// pressed it after importing a character and lost it. Nothing is thrown away here now, so
+    /// there is no <c>ppStore.clear</c> to find; <c>StartAnotherTests</c> is where the keeping
+    /// itself is proved, against a storage that actually stores.
+    ///
+    /// <para>The buffer is still armed, and still matters for the same reason it always did: the
+    /// sheet on screen was replaced, and a reader who meant to keep editing it wants it back
+    /// without walking to the manager. It is memory only and does not survive closing the tab —
+    /// but the character does now, which it did not before.</para>
     /// </summary>
     [Fact]
-    public void DiscardingEmptiesTheSheetAndForgetsTheStoredOne()
+    public void StartingAnotherEmptiesTheSheetAndThrowsNothingAway()
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
         var page = ctx.Render<ChooseTier>();
@@ -136,31 +190,16 @@ public sealed class StartAgainTests
 
         Assert.Empty(ctx.Session.Sheet.SelectedPowers);
         Assert.Null(ctx.Session.Sheet.SelectedTierId);
-        Assert.Contains(ctx.JSInterop.Invocations, i => i.Identifier == "ppStore.clear");
+        Assert.DoesNotContain(ctx.JSInterop.Invocations, i => i.Identifier == "ppStore.clear");
     }
 
-    /// <summary>
-    /// The clear has to land <b>after</b> the write-through save that emptying the sheet
-    /// fires, or the save puts the old character straight back. <c>RenderContext</c> subscribes
-    /// that handler exactly as <c>Program.cs</c> does, so the race is present here rather than
-    /// argued about in a comment.
-    /// </summary>
-    [Fact]
-    public void TheClearLandsAfterTheSaveThatEmptyingTheSheetFires()
-    {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
-        var page = ctx.Render<ChooseTier>();
-
-        Button(page, Discard).Click();
-
-        var calls = ctx.JSInterop.Invocations
-            .Select(i => i.Identifier)
-            .Where(id => id is "ppStore.save" or "ppStore.clear")
-            .ToList();
-
-        Assert.Equal("ppStore.clear", calls[^1]);
-        Assert.Contains("ppStore.save", calls);
-    }
+    // **The ordering property is not asserted here, and that is deliberate.** The keep has to land
+    // before the write-through save that emptying the sheet fires, or that save writes the empty
+    // sheet over the character being kept — but this context's storage answers null to every read,
+    // so the pointer move it records is invisible to the very next call that reads the pointer.
+    // A test written here would watch the autosave land on the old key and would have to either
+    // assert that (blessing the bug) or assert nothing. `StartAnotherTests` owns it instead,
+    // against a storage that actually stores.
 
     private static IElement Button(IRenderedComponent<IComponent> page, string label) =>
         page.FindAll("button").First(b => b.TextContent.Contains(label, StringComparison.Ordinal));

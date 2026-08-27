@@ -47,11 +47,20 @@ public sealed record SavedCharacterSummary(string Id, string Label, long Updated
 /// differently on purpose.</b> An index entry naming a character that is not actually
 /// there — deleted by hand, or by a version of this class that failed midway — is dropped
 /// from the list rather than shown broken; storage is the source of truth for what
-/// <em>exists</em>. A character that exists in storage but is missing from the index can
-/// only ever be the legacy slot, because every other character is discovered <em>through</em>
-/// the index (there is no enumeration to find a stray key some other way) — and that
-/// direction is exactly what the legacy-slot handling above already covers: it is checked
-/// directly, every time, rather than through the index at all.</para>
+/// <em>exists</em>. A character that exists in storage but is missing from the index is
+/// <em>unreachable</em>, because every other character is discovered <em>through</em> the
+/// index (there is no enumeration to find a stray key some other way) — the legacy slot is
+/// the one exception, checked directly every time.</para>
+///
+/// <para><b>The paragraph above used to say the orphan direction "can only ever be the legacy
+/// slot", and that stopped being true when the autosave started adding entries</b> — it was true
+/// while nothing but an explicit labelled save ever added one. It is corrected rather than
+/// reordered around: an adversarial review proposed writing the index first so that a half-failed
+/// pair leaves an entry naming nothing rather than a character nothing names, and that was traced
+/// through and rejected. <see cref="WriteIndexAsync"/> swallows its own failures, so an index write
+/// that fails does not abort the pair and both orders end identically; the one case where they
+/// differ favours payload-first, because a payload write that throws has then touched nothing at
+/// all. The next autosave writes both again regardless, which is what actually repairs it.</para>
 ///
 /// <para><b>Nothing here may throw.</b> Every one of the methods below is asked from a
 /// page, or from <see cref="CharacterStore"/> on the path to the very first render, and a
@@ -140,6 +149,17 @@ public sealed class SavedCharacters
         return $"c_{text}";
     }
 
+    /// <summary>
+    /// The name to list a character under. Trimmed, and never empty — an unnamed character is an
+    /// ordinary state rather than a fault, and a blank row reads as broken rather than as unnamed.
+    ///
+    /// <para>Internal and shared with <see cref="ApiCharacterStore"/> because both autosave paths
+    /// need it and a character must not be listed under one name in this browser and another on
+    /// the account. There were two copies of this before, which is how they would have drifted.</para>
+    /// </summary>
+    internal static string LabelFor(CharacterSheet sheet) =>
+        string.IsNullOrWhiteSpace(sheet.Name) ? "Unnamed character" : sheet.Name.Trim();
+
     // ── Reading and writing the index ───────────────────────────────────────────────
 
     private async Task<List<SavedCharacterSummary>> ReadIndexAsync(string prefix)
@@ -187,15 +207,27 @@ public sealed class SavedCharacters
                 // dropped from the list rather than shown broken.
             }
 
-            // The legacy slot is never in the index until somebody has explicitly saved or
-            // relabelled it through this class — it predates the index entirely. So it is
-            // checked directly, every visit, rather than discovered through the index the
-            // way every other character is.
+            // The legacy slot predates the index entirely, so it is checked directly rather than
+            // discovered through the index the way every other character is. It reaches the index
+            // on its first worth-keeping autosave now, which is where the real label comes from;
+            // this is the fallback for a payload written before that, by a browser that has not
+            // been back since.
             if (result.TrueForAll(e => e.Id != LegacyId))
             {
                 var raw = await _js.InvokeAsync<string?>("ppStore.load", prefix);
-                if (!string.IsNullOrWhiteSpace(raw))
-                    result.Add(new SavedCharacterSummary(LegacyId, "Unnamed character", 0));
+
+                // **Read rather than merely counted, and that is a change.** It used to list any
+                // payload at all, so a visitor who had done nothing but switch the palette — which
+                // autosaves an otherwise empty sheet — was shown a row called "Unnamed character"
+                // for a character that did not exist. Nothing else in this class lists an empty
+                // sheet; this was the one place that did, and it is the one place where the cost of
+                // reading a payload to draw a row is worth paying, because it is exactly one.
+                if (!string.IsNullOrWhiteSpace(raw)
+                    && _payload.Read(raw) is { } slot
+                    && CharacterSession.IsWorthKeeping(slot.Sheet))
+                {
+                    result.Add(new SavedCharacterSummary(LegacyId, LabelFor(slot.Sheet), 0));
+                }
             }
 
             result.Sort((a, b) => b.UpdatedAt.CompareTo(a.UpdatedAt));
@@ -220,13 +252,22 @@ public sealed class SavedCharacters
     /// Create or replace a character. Passing <paramref name="id"/> as null mints a fresh
     /// one; passing an existing id overwrites that character's payload and label in place.
     /// Returns the id that was actually written, so a caller that just created a character
-    /// learns its id without a second round trip.
+    /// learns its id without a second round trip — and whether anything was written at all.
+    ///
+    /// <para><b>The second half of that answer was missing and the miss was silent.</b> This
+    /// used to return the id alone, and it returned it whether the write landed or was swallowed
+    /// by a browser that refuses storage. Both callers weighing the result compared it against the
+    /// id they passed in — which, for a non-null id, is the same string either way, so the check
+    /// was dead code that read like a guard. One of them was the undo behind a discarded row and
+    /// the other was "keep this character and start another": both would report success over a
+    /// character that had gone nowhere. An adversarial review demonstrated the second.</para>
     ///
     /// <para>Unbounded here on purpose — the cap is the account's, not this browser's; see
     /// <c>docs/CHARACTERS-API.md</c>. Nothing in this class refuses a save for having "too
     /// many" characters.</para>
     /// </summary>
-    public async Task<string> SaveAsync(string? id, string label, CharacterSheet sheet, SheetMode mode)
+    public async Task<(string Id, bool Stored)> SaveAsync(
+        string? id, string label, CharacterSheet sheet, SheetMode mode)
     {
         var resolvedId = id ?? NewId();
 
@@ -244,9 +285,11 @@ public sealed class SavedCharacters
             index.Add(new SavedCharacterSummary(resolvedId, resolvedLabel, updatedAt));
             await WriteIndexAsync(prefix, index);
         }
-        catch (Exception e) when (IsStorageFailure(e)) { /* nothing persisted; the id is still handed back */ }
+        // The id is still handed back — a caller that minted one wants it either way — but the
+        // second half of the answer is now false, which is the whole point of there being one.
+        catch (Exception e) when (IsStorageFailure(e)) { return (resolvedId, false); }
 
-        return resolvedId;
+        return (resolvedId, true);
     }
 
     /// <summary>Forgets one character. Forgetting the one that is open falls back to the legacy slot.</summary>
@@ -298,15 +341,6 @@ public sealed class SavedCharacters
     // ── The single-slot surface CharacterStore autosaves through ────────────────────
 
     /// <summary>
-    /// Writes to whichever character is currently open, for the given identity — what
-    /// <see cref="CharacterStore.SaveAsync"/> calls on every change. Does not touch the
-    /// label: an ordinary edit is not a rename. If the open character is already in the
-    /// index (it has been saved or relabelled through the manager surface at least once)
-    /// its <c>UpdatedAt</c> is bumped so "most recently touched first" reflects ordinary
-    /// play and not only explicit saves; the legacy slot, which starts outside the index by
-    /// definition, is left alone until somebody names it.
-    /// </summary>
-    /// <summary>
     /// Writes one payload at an id named outright, for the given identity, touching neither the
     /// current-character pointer nor the index.
     ///
@@ -338,6 +372,41 @@ public sealed class SavedCharacters
         catch (Exception e) when (IsStorageFailure(e)) { /* nothing left to try */ }
     }
 
+    /// <summary>
+    /// Writes to whichever character is currently open, for the given identity — what
+    /// <see cref="CharacterStore.SaveAsync"/> calls on every change.
+    ///
+    /// <para><b>It puts the open character into the index, and that was the missing half of the
+    /// whole feature.</b> This used to bump an existing entry's <c>UpdatedAt</c> and do nothing at
+    /// all when there was no entry — so a character only ever reached the list by way of
+    /// <see cref="SaveAsync(string?, string, CharacterSheet, SheetMode)"/>, which nothing outside
+    /// this assembly called. The list, the switcher and both undo buffers all read the index, so
+    /// every one of them worked perfectly against a list that could never have more than the
+    /// legacy slot in it. Adding the entry here is what makes a second character exist: the
+    /// account's store has always worked this way (its <c>PUT</c> creates the row on the first
+    /// autosave), and the two sides disagreeing is what hid this.</para>
+    ///
+    /// <para><b>The label follows the sheet's own name</b>, for the same reason and on the same
+    /// terms as <c>ApiCharacterStore.SaveAsync</c>: this is the autosave path, there is nobody to
+    /// ask, and a list that still shows the name a character had when it was first written down is
+    /// a list that lies about a character somebody has since named. This reverses the older note
+    /// that "an ordinary edit is not a rename" — that was written when the only way into the index
+    /// was an explicit labelled save, and it made the label a thing you could set and never change.
+    /// </para>
+    ///
+    /// <para><b>Nothing empty is ever listed</b> — <see cref="CharacterSession.IsWorthKeeping"/>,
+    /// the same predicate the account's store applies before its own write. The payload is still
+    /// written either way, because emptying the current slot is how starting over leaves it; what
+    /// is guarded is only the row a person sees. Without this, minting a fresh id and opening it
+    /// would create a listed, empty character the instant the palette was switched — exactly the
+    /// defect that guard was added to the account side to fix.</para>
+    ///
+    /// <para><b>The legacy slot is indexed too, once it is worth listing.</b> It was left out
+    /// while nothing could name it, and <see cref="ListAsync"/> synthesised a row reading "Unnamed
+    /// character" for it — which is what somebody's imported, named character was being called.
+    /// The synthesised row stays as the fallback for a slot holding something this predicate does
+    /// not count; an index entry simply wins over it.</para>
+    /// </summary>
     internal async Task SaveCurrentAsync(Identity who, CharacterSheet sheet, SheetMode mode)
     {
         try
@@ -345,18 +414,29 @@ public sealed class SavedCharacters
             var prefix = PrefixFor(who);
             var id = await CurrentIdAsync(who);
 
+            // **The payload first, then the index — and this order was questioned and kept.** An
+            // adversarial review argued the reverse: that an index write failing after a successful
+            // payload write leaves a character nothing names, which is unreachable because every
+            // non-legacy character is discovered *through* the index. The mechanism is real and the
+            // conclusion does not follow, because `WriteIndexAsync` swallows its own failures — so
+            // an index write that fails does not abort this method, and both orders end in exactly
+            // the same state: a payload with no entry. The orders differ in only one case, and it
+            // favours this one. If the *payload* write throws, this order has not yet touched the
+            // index and nothing is written at all; the reverse order would already have added an
+            // entry naming a character that is not there, which `ListAsync` then has to drop on
+            // every future visit.
             await _js.InvokeVoidAsync("ppStore.save", PayloadKeyFor(prefix, id), StoredCharacter.Write(sheet, mode));
 
-            if (id != LegacyId)
-            {
-                var index = await ReadIndexAsync(prefix);
-                var i = index.FindIndex(e => e.Id == id);
-                if (i >= 0)
-                {
-                    index[i] = index[i] with { UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
-                    await WriteIndexAsync(prefix, index);
-                }
-            }
+            if (!CharacterSession.IsWorthKeeping(sheet)) return;
+
+            var index = await ReadIndexAsync(prefix);
+            var entry = new SavedCharacterSummary(
+                id, LabelFor(sheet), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
+            var i = index.FindIndex(e => e.Id == id);
+            if (i >= 0) index[i] = entry; else index.Add(entry);
+
+            await WriteIndexAsync(prefix, index);
         }
         catch (Exception e) when (IsStorageFailure(e)) { /* an autosave failing is not worth reporting */ }
     }

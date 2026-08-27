@@ -177,7 +177,7 @@ public sealed class ApiCharacterStore : ICharacterStore
     {
         if (!CharacterSession.IsWorthKeeping(sheet)) return;
 
-        _ = await SaveAsync(await CurrentIdAsync(), LabelFor(sheet), sheet, mode);
+        _ = await SaveAsync(await CurrentIdAsync(), SavedCharacters.LabelFor(sheet), sheet, mode);
     }
 
     /// <summary>The open character, or null.</summary>
@@ -207,8 +207,16 @@ public sealed class ApiCharacterStore : ICharacterStore
     /// <para>Read from this browser, for the reason in the class remarks. The legacy id is the
     /// pointer's own default and means "the one slot this browser has always had" — on the server
     /// it is not a legal id, so it is mapped to a real one the first time an account saves.</para>
+    ///
+    /// <para><b>Internal rather than private because keeping a character before opening a fresh
+    /// slot has to name the same id this would.</b> <c>AccountCharacterStore.StartAnotherAsync</c>
+    /// writes the character on screen down explicitly rather than trusting the autosave that fired
+    /// on the last edit, and the browser's raw pointer is not the id to write it at: it may still
+    /// say <see cref="SavedCharacters.LegacyId"/>, which the server refuses as ill-formed. Asking
+    /// here rather than assuming an autosave has already adopted one removes an ordering
+    /// assumption, which is exactly the kind of thing that has been wrong here before.</para>
     /// </summary>
-    private async Task<string> CurrentIdAsync()
+    internal async Task<string> CurrentIdAsync()
     {
         var current = await _local.CurrentIdAsync();
 
@@ -245,13 +253,6 @@ public sealed class ApiCharacterStore : ICharacterStore
 
         return adopted;
     }
-
-    /// <summary>
-    /// The name to show in a list. Trimmed, and never empty — an unnamed character is an ordinary
-    /// state, and the server would default it anyway.
-    /// </summary>
-    private static string LabelFor(CharacterSheet sheet) =>
-        string.IsNullOrWhiteSpace(sheet.Name) ? "Unnamed character" : sheet.Name.Trim();
 
     /// <summary>
     /// Every way the server can fail to answer. All of them mean the same thing here.

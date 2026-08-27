@@ -11,18 +11,25 @@
    is a strange greeting for somebody who came here to build one. What belongs at the top is what
    you already have.
 
-   One property came across from it and is tested here as it was there:
+   **Starting another character and importing one keep the character on screen, and that is new.**
+   Both used to write over it — "Start a new character" emptied the slot it was in, and an import
+   overwrote whatever the current-character pointer was aimed at — so this browser could hold
+   exactly one character however many the list was built to draw. Both now go through
+   `AccountCharacterStore.StartAnotherAsync`, which writes the character down under its own id and
+   moves the pointer before anything here touches the session. The rows above are the result.
 
-   * **The clear lands after the save that emptying the sheet fires.** Setting the session off
-     raises its change event, which starts a fire-and-forget write; clearing first races a
-     write nobody awaits. `StartAgainTests` asserts the interop ordering, not just the outcome.
+   The ordering property that came across from the old panel still holds and still matters, only
+   the other way up: **the keep lands before the session is emptied.** Setting the session off
+   raises its change event, which starts a fire-and-forget write; emptying first races that write
+   against the move and can put an empty sheet over the character being kept. `StartAgainTests`
+   asserts the interop ordering, not just the outcome.
 
-   **It no longer asks first.** Discarding used to open a confirm in the page whenever there was
-   something to lose — the same two-step dialogue a browser `confirm()` is, only quieter. Every
-   destructive control here now acts the moment it is clicked and leaves a single-level undo
-   behind it instead, offered from the banner: see `CharacterSession.StartAgain`,
-   `.ReplaceWithUndo` and `UndoTests`. A confirm pays its cost on every use; undo only pays on
-   the uses that turn out to be mistakes.
+   **Discarding no longer asks first.** It used to open a confirm in the page whenever there was
+   something to lose — the same two-step dialogue a browser `confirm()` is, only quieter. It now
+   acts the moment it is clicked and leaves a single-level undo behind it instead, offered from
+   the banner: see `CharacterSession.StartAgain`, `.ReplaceWithUndo` and `UndoTests`. A confirm
+   pays its cost on every use; undo only pays on the uses that turn out to be mistakes. It is the
+   one destructive control left on this panel.
 
    **The count is stated once, in `Aside`, not repeated in the closing sentence too.** It used to
    be both — "3 of 5" beside the title and "3 of 5 on this account" again at the foot — which is
@@ -103,19 +110,31 @@
            what AreaTests asserts the tier page offers — and the act is the same act, so renaming it
            would cost a reader the only continuity they have.
 
-           **No question first.** It used to ask, in the page, whenever there was something to
-           lose — the same two-step dialogue a browser `confirm()` is, only quieter. Undo is the
-           friendlier shape of the same promise: acting at once and offering to reverse it costs
-           one click either way, but only the reader who was wrong pays it. `HasSomethingToLose`
-           still decides the colour, so the button still looks as serious as what it is about to
-           do — it has just stopped asking permission to do it. *@
-        <button type="button" class="btn @(Session.HasSomethingToLose ? "danger" : "")"
-                @onclick="StartNew">Start a new character</button>
+           **No question first, and now nothing to ask about.** It used to empty the slot the
+           character was in, so it was the most destructive control on the page and was drawn in
+           the danger colour to say so. It now keeps that character under its own id and opens a
+           fresh slot beside it — see `AccountCharacterStore.StartAnotherAsync` — so there is
+           nothing to lose and nothing to warn about, and the red is gone with the danger. The
+           reader's other characters are the rows above this button. *@
+        <button type="button" class="btn" @onclick="StartNew">Start a new character</button>
 
         <ImportCharacter OnImported="Imported" />
     </div>
 
-    @if (_full)
+    @* **A refused click has to say so, or it reads as a broken button.** Starting another
+       character and importing one both keep what is on screen rather than writing over it, so
+       when there is nowhere to put the new one they do nothing at all — and doing nothing is
+       indistinguishable from a control that is not wired up. `role="status"` because this appears
+       in response to a click and is the only report of it.
+
+       It takes the place of the standing "account is full" line rather than sitting beside it:
+       that line already says the same thing, and two sentences about the same cap under one
+       button is the fact-read-twice this panel's own comment warns about. *@
+    @if (_refusal is not null)
+    {
+        <p class="small muted spaced" role="status">@_refusal</p>
+    }
+    else if (_full)
     {
         <p class="small muted spaced" role="status">
             Your account is full. Discard one to make room; this one is still saved.
@@ -142,6 +161,12 @@
     private int? _limit;
     private bool _full;
 
+    /// <summary>
+    /// What to say about the last refused click, or null when nothing has been refused. Cleared at
+    /// the start of every attempt, so it never describes an act two clicks ago.
+    /// </summary>
+    private string? _refusal;
+
     private string Aside => _limit is { } limit ? $"{_characters.Count} of {limit}" : "In this browser";
 
     protected override async Task OnInitializedAsync()
@@ -155,6 +180,11 @@
     /// </summary>
     private async Task Refresh()
     {
+        // Any re-read clears the last refusal. Discarding a row to make room is the obvious way a
+        // reader answers "your account is full", and a message that outlived the thing it was
+        // about would then be telling them it did not work.
+        _refusal = null;
+
         var listed = await Store.ListAsync();
 
         _characters = listed.Characters;
@@ -221,23 +251,92 @@
         await Refresh();
     }
 
+    /// <summary>
+    /// Keeps the character on screen and opens an empty one beside it.
+    ///
+    /// <para><b>It used to empty the slot instead, and that is the defect this closes.</b>
+    /// <c>StartAgain</c> plus <c>ClearAsync</c> threw the character away — the owner imported one,
+    /// pressed this, and lost it. Keeping it is <see cref="AccountCharacterStore.StartAnotherAsync"/>,
+    /// which writes it down under its own id and moves the pointer before anything here empties the
+    /// session.</para>
+    ///
+    /// <para><b>The session is emptied only once the keep has landed.</b> Emptying raises the
+    /// session's change event, which starts a write nobody awaits; doing it first would race that
+    /// write against the move and could put an empty sheet over the character being kept. On a
+    /// refusal the session is not touched at all, so the character is still on screen and still
+    /// where it was.</para>
+    /// </summary>
     private async Task StartNew()
     {
-        Session.StartAgain();
-        await Store.ClearAsync();
+        if (await Keep() is false) return;
+
+        // **No undo, because nothing was destroyed and an undo here would duplicate.** `Undo`
+        // restores into the sheet without moving the current-character pointer, which by now is on
+        // the fresh slot — so undoing would write a second copy of the character just kept, and it
+        // would be listed twice. The kept character is a row above this button; that is the way
+        // back. See `CharacterSession.StartAgain`.
+        Session.StartAgain(offerUndo: false);
 
         await Refresh();
     }
 
     /// <summary>
-    /// <see cref="CharacterSession.ReplaceWithUndo"/> rather than <c>Restore</c> — an import
-    /// overwrites whatever the current-character pointer is aimed at exactly as loading a sample
-    /// or opening a recording does, so it gets the same one-level undo they do.
+    /// An imported character goes into a slot of its own rather than over the one on screen.
+    ///
+    /// <para><b>It used to overwrite, which is half of what the owner reported.</b> The old call
+    /// was <see cref="CharacterSession.ReplaceWithUndo"/>, whose whole purpose is the one-level
+    /// undo that makes overwriting survivable — and it is the right call for the two things that
+    /// really do replace the character on screen without moving the pointer, loading a sample and
+    /// opening a recording. This no longer does: the character being left behind is written down
+    /// under its own id first, so there is nothing to undo and an undo would only put a duplicate
+    /// of it into the imported character's slot. <c>Restore</c> plus a notification is the honest
+    /// pair — the same thing without the buffer.</para>
     /// </summary>
     private async Task Imported((CharacterSheet Sheet, SheetMode Mode) character)
     {
-        Session.ReplaceWithUndo(character.Sheet, character.Mode);
+        if (await Keep() is false) return;
+
+        Session.Restore(character.Sheet, character.Mode);
+        Session.NotifyChanged();
+
         await Refresh();
+    }
+
+    /// <summary>
+    /// Writes the character on screen down under its own id and opens a fresh slot, reporting in
+    /// words when it could not. False means nothing moved and the caller must leave the session
+    /// exactly as it is.
+    ///
+    /// <para>Shared by both controls above because they are the same act with different things put
+    /// into the new slot, and because a refusal must read the same either way — two copies of this
+    /// would be two chances for one of them to forget to say anything.</para>
+    /// </summary>
+    private async Task<bool> Keep()
+    {
+        var outcome = await Store.StartAnotherAsync(Session.Sheet, Session.Mode);
+
+        if (outcome == StartAnotherOutcome.Started) return true;
+
+        // Refreshed first, then the reason written over what that cleared: a refusal is about the
+        // list as it stands after the attempt, and re-reading it is also how a full account whose
+        // cap has since changed stops claiming to be full.
+        await Refresh();
+
+        _refusal = outcome switch
+        {
+            StartAnotherOutcome.NoRoom =>
+                "Your account is full. Discard one to make room; the character you have is still saved.",
+
+            // Kept, but no room could be confirmed — so the sentence says the character is safe,
+            // which the one below it must not, because there it is not.
+            StartAnotherOutcome.NotStarted =>
+                "Your character is saved. Nothing new could be started just now — try again in a moment.",
+
+            _ => "Your character could not be saved just now, so nothing new was started. "
+                 + "Try again in a moment.",
+        };
+
+        return false;
     }
 
     public void Dispose() => Accounts.Changed -= Reload;

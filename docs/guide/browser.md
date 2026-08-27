@@ -158,6 +158,89 @@ the Trait Cap was silent on its own row until the end. `web/Services/SheetFindin
   would be worse than one shown where it belongs.
 
 
+## Many characters: what actually puts one into the list
+
+**The index is the list. A payload nothing indexed is a character nobody can get back to** —
+`SavedCharacters.ListAsync` discovers every character *through* the index, because a `localStorage`
+that can be enumerated is a new interop surface and the fake in the tests is a flat dictionary with
+no way to list keys. The one exception is the legacy slot, checked directly every visit.
+
+- **`SaveCurrentAsync` adds the open character to the index, and that is not an optimisation.** It
+  used to bump an existing entry's timestamp and do nothing at all when there was none, so the only
+  way into the index was an explicit labelled save — which nothing outside `web/Services/` called.
+  The list, the banner's switcher, `DiscardedCharacter` and both undo buffers all read that index,
+  all were tested, and none of them could ever have had two characters to work with. **The account's
+  store never had this bug**: its `PUT` creates the row on the first autosave. The two sides
+  disagreeing is what hid it for a whole slice.
+- **Nothing empty is ever listed**, on either side — `CharacterSession.IsWorthKeeping`, one
+  predicate. The payload is still written when the sheet is empty, because emptying the current slot
+  is how starting over leaves it; what is guarded is the row a person sees. Without it, minting a
+  fresh id and opening it creates a listed, empty character the instant the palette is switched.
+- **The label is the sheet's own name, refreshed on every autosave**, and there is one spelling of
+  that rule (`SavedCharacters.LabelFor`) because there were two and they would have drifted. The
+  older note here said "an ordinary edit is not a rename" — true only while the index could be
+  reached by an explicit save alone, which made the label a thing you set once and never changed.
+- **The legacy row is read off its payload, not synthesised from the fact that one exists.** That
+  slot predates the index, so it cannot be discovered through it; but drawing a row for any payload
+  at all listed a character called "Unnamed character" whatever it was really named, and listed one
+  for an empty sheet that autosaved because somebody switched the palette. It is one read of one
+  payload, which is the only place in this class where reading a payload to draw a row is worth it.
+
+## Keeping a character while starting another
+
+**"Start a new character" and "Import a character" keep what is on screen. They used to destroy it.**
+`StartNew` was `StartAgain` plus `ClearAsync` — it emptied the slot the character was in — and on an
+account `ClearAsync` is an HTTP `DELETE`, so it removed the row from the server. Import overwrote
+whatever the current-character pointer was aimed at. Both now go through
+`AccountCharacterStore.StartAnotherAsync`.
+
+- **The order is the whole of the correctness.** Write the character down under its own id, move the
+  pointer, and only then let the caller empty the session. Emptying raises the session's change
+  event, which starts a write nobody awaits; doing it first races that write against the move and
+  puts the empty sheet over the character being kept. Both steps are awaited, so the autosave reads
+  a pointer that has already moved. This is the old ordering rule the other way up — it used to be
+  "the clear lands *after* the save", because the last thing that had to happen was the slot being
+  emptied.
+- **The caller passes the sheet in.** The store has never known a session exists, and naming the
+  sheet is what lets the keep run *before* the session is emptied.
+- **The character is written down before the cap is asked about, and the reverse raced.** A list
+  read straight after an edit can answer from before that edit's row existed, because the ordinary
+  autosave is fire-and-forget over HTTP — so an account one short of its cap reads as having room, a
+  slot opens, and everything typed into it is refused by a `409` the autosave path has nowhere to
+  report. The write is awaited, so the list after it cannot be stale. A cap that could not be read
+  counts as no room, the same direction `AccountCharacters.IsFull` takes.
+- **A refusal is said out loud, under the button.** A control that keeps rather than overwrites does
+  *nothing* when it cannot proceed, and doing nothing is indistinguishable from a control that is
+  not wired up. This is the same rule `DiscardedCharacter`'s refusal follows. There are three
+  refusals and they are three sentences, not one: kept-but-no-room, kept-but-the-cap-is-unreadable,
+  and not-kept-at-all. "Your character could not be saved" over a character that *was* saved is the
+  false alarm that teaches somebody to distrust every message the app gives them.
+- **Whether a write landed is a thing the store has to answer, not something a caller can infer.**
+  `SavedCharacters.SaveAsync` returns `(Id, Stored)`. It used to return the id alone, and both
+  callers weighing it compared that against the id they had just passed in — the same string either
+  way, so the check was dead code that read like a guard. On a browser refusing storage it reported
+  success over a character that had gone nowhere.
+- **Nothing here arms an undo, and `Undo` is the reason.** It restores into the sheet and never
+  moves the current-character pointer, so an undo offered after the pointer has moved writes a
+  second copy of the kept character into the fresh slot. `CharacterSession.StartAgain` takes
+  `offerUndo` for exactly this; true only for discarding the row that is open, which really does
+  empty the slot.
+- **Import arms no undo, and that is not an oversight.** `ReplaceWithUndo` is for the two things
+  that really do replace the character on screen without moving the pointer — a sample, a recording.
+  An import moves the pointer, so nothing is destroyed, and an undo would put a *duplicate* of the
+  kept character into the imported one's slot.
+- **Loading a sample still overwrites**, with its one-level undo. A demonstration replacing what you
+  are looking at is not a second character.
+
+**`RenderContext(storesForReal: true)` exists because of all of the above.** bUnit's `IJSRuntime`
+answers null to every read, so every storage test in this project had to assert on *which key was
+written* — and a feature can satisfy every one of those while being unreachable by anybody using the
+app, which is exactly what happened. It swaps in a storage that actually holds what is written, at
+the cost of `JSInterop.Invocations`; `FakeLocalStorage.Calls` is the replacement recorder, and order
+is what several of these tests are about and cannot be read off the end state. Reach for it whenever
+the question is "does pressing this actually reach the store", and leave the default alone for
+everything else.
+
 ## Three controls could destroy twenty minutes; now seven act at once and can be undone
 
 - **The plan's "three buttons on the tier page" no longer described anything.** The samples had

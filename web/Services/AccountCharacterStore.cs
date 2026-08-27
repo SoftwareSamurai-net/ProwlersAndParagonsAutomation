@@ -2,6 +2,44 @@ using ProwlersAndParagonsAutomation.Engine;
 
 namespace ProwlersAndParagonsAutomation.Web.Services;
 
+/// <summary>What happened when somebody asked to keep the character they have and open a fresh slot.</summary>
+public enum StartAnotherOutcome
+{
+    /// <summary>
+    /// A fresh slot is open. Whatever was on screen is kept under its own id and is in the list.
+    /// </summary>
+    Started,
+
+    /// <summary>
+    /// Nothing was started, because the account has no room for another character. The character
+    /// on screen is untouched — which is the whole difference from what this replaced.
+    /// </summary>
+    NoRoom,
+
+    /// <summary>
+    /// Nothing was started, because the character on screen could not be written down — the server
+    /// refused it, the browser refused storage, or neither could be reached at all.
+    ///
+    /// <para><b>Refusing is the only safe answer here, and it is not the cautious one by
+    /// accident.</b> Opening a fresh slot is what stops the next autosave landing on the character
+    /// being left behind; if that character has not actually been stored, moving on abandons it
+    /// with no copy anywhere. So a write that did not land stops the whole act rather than half
+    /// of it.</para>
+    /// </summary>
+    NotKept,
+
+    /// <summary>
+    /// The character on screen is kept and safe, but no fresh slot was opened: the account's cap
+    /// could not be read, so whether there is room for another is unknown.
+    ///
+    /// <para><b>It is a separate answer from <see cref="NotKept"/> because the sentence a reader
+    /// gets is different, and the wrong one of the two is a lie about their character.</b> "Your
+    /// character could not be saved" over a character that was saved is exactly the kind of false
+    /// alarm that teaches somebody to distrust every message the app gives them.</para>
+    /// </summary>
+    NotStarted,
+}
+
 /// <summary>
 /// Puts the character wherever it belongs: on the server for somebody signed in, in this
 /// browser for everybody else.
@@ -224,10 +262,100 @@ public sealed class AccountCharacterStore : ICharacterStore
         if ((await _who.CurrentAsync()).IsSignedIn)
             return await _inTheAccount.SaveAsync(id, label, sheet, mode) == SaveOutcome.Saved;
 
-        // The browser's own store has no cap and no failure worth reporting — see
-        // SavedCharacters, where a storage refusal is the same case as no character at all. It
-        // hands back the id it wrote, so a mismatch is the only thing that could mean "not done".
-        return await _local.SaveAsync(id, label, sheet, mode) == id;
+        // The browser's own store has no cap, but it does have a browser that can refuse storage
+        // — and this is the one method here that has to say so, because an undo that silently did
+        // nothing leaves the reader believing their character is back. It used to compare the
+        // returned id against the one passed in, which is the same string either way.
+        return (await _local.SaveAsync(id, label, sheet, mode)).Stored;
+    }
+
+    /// <summary>
+    /// Keeps the character on screen under its own id and opens a fresh, empty slot beside it.
+    ///
+    /// <para><b>This is the path that did not exist, and its absence was the defect.</b> "Start a
+    /// new character" was <c>StartAgain</c> plus <see cref="ClearAsync()"/> — it emptied the slot
+    /// the character was in rather than leaving it there and pointing somewhere else, so making a
+    /// second character meant destroying the first. Importing had the same shape by a different
+    /// route: it overwrote whatever the pointer was aimed at. Nothing anywhere in the app ever
+    /// added a character to the index, so the manager's list, the banner's switcher and both undo
+    /// buffers — all of which read that index and all of which were tested — could only ever have
+    /// had the one slot to work with.</para>
+    ///
+    /// <para><b>The order is the whole of the correctness here.</b> The character is written down
+    /// <em>first</em>, then the pointer moves, and only then may the caller empty the session. Both
+    /// steps are awaited, so the fire-and-forget autosave that emptying fires reads a pointer that
+    /// has already moved and lands on the new slot. Doing it the other way round — the shape the
+    /// account copy-down shipped once — writes the empty sheet over the character being kept.</para>
+    ///
+    /// <para><b>The caller passes the sheet rather than this reading one</b>, because the character
+    /// on screen is the session's and this class has never known a session exists. It is the same
+    /// sheet the autosave would write; naming it here is what lets this run before the session is
+    /// emptied.</para>
+    ///
+    /// <para><b>An empty sheet is kept by doing nothing to it.</b> There is nothing to write down
+    /// and nothing to lose, so the pointer stays where it is and the slot is simply reused. That
+    /// also means starting over from an untouched sheet costs no id and leaves no empty row.</para>
+    /// </summary>
+    public async Task<StartAnotherOutcome> StartAnotherAsync(CharacterSheet sheet, SheetMode mode)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        var who = await _who.CurrentAsync();
+
+        if (!CharacterSession.IsWorthKeeping(sheet))
+        {
+            // Nothing to keep, so nothing to move away from. Reusing the slot rather than minting
+            // one keeps a reader who pressed this twice from collecting empty ids.
+            return StartAnotherOutcome.Started;
+        }
+
+        if (who.IsSignedIn)
+        {
+            // **The character is written down first, and only then is the cap asked about.** The
+            // order used to be the other way round and it raced the very thing it was there to
+            // prevent: the ordinary autosave is fire-and-forget over HTTP, so a list read straight
+            // after an edit can answer from before that edit's row existed. On an account one short
+            // of its cap that reads as room, a fresh slot opens, and the character built in it is
+            // refused with a 409 that the autosave path has nowhere to report — everything typed
+            // into it goes quietly nowhere. An adversarial review demonstrated exactly that.
+            //
+            // Writing first removes the race rather than narrowing it: the write is awaited, so the
+            // list that follows it cannot be answering from before the character existed.
+            //
+            // The account's own resolved id, not the browser's raw pointer: that pointer may still
+            // read `legacy`, which is this browser's private name for a slot and which the server
+            // refuses. Asking the account's store is what maps it. And it is written explicitly
+            // rather than trusted to the autosave that fired on the last edit, because nobody
+            // awaits that one.
+            var kept = await _inTheAccount.SaveAsync(
+                await _inTheAccount.CurrentIdAsync(), SavedCharacters.LabelFor(sheet), sheet, mode);
+
+            if (kept != SaveOutcome.Saved)
+                return kept == SaveOutcome.AccountIsFull
+                    ? StartAnotherOutcome.NoRoom
+                    : StartAnotherOutcome.NotKept;
+
+            // Now the cap, counting the character just kept. A cap that could not be read is not
+            // room — the same direction `AccountCharacters.IsFull` takes — but it is `NotStarted`
+            // rather than `NotKept`, because by here the character demonstrably is kept.
+            var listed = await _inTheAccount.ListAsync();
+            if (listed.Limit is null) return StartAnotherOutcome.NotStarted;
+            if (listed.Characters.Count >= listed.Limit) return StartAnotherOutcome.NoRoom;
+        }
+        else
+        {
+            // **Whether the write landed, not whether the id came back.** This used to compare the
+            // returned id against the one passed in, which for a non-null id is the same string
+            // whether or not anything was stored — a dead check that read like a guard, and on a
+            // browser refusing storage it reported success over a character that had gone nowhere.
+            var id = await _local.CurrentIdAsync();
+            if (!(await _local.SaveAsync(id, SavedCharacters.LabelFor(sheet), sheet, mode)).Stored)
+                return StartAnotherOutcome.NotKept;
+        }
+
+        await _local.SetCurrentAsync(SavedCharacters.NewId());
+
+        return StartAnotherOutcome.Started;
     }
 
     /// <summary>Which character the app currently has open, whoever is here.</summary>
