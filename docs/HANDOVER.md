@@ -4,30 +4,27 @@
 the rest.** Read [`CLAUDE.md`](../CLAUDE.md) first and follow its routing table to the guide for
 whatever you are about to touch, then [`PROGRESS.md`](../PROGRESS.md).
 
-This round closed `PROGRESS.md` item 7's snapshotability half, item 4 (`search_powers`), item 1c
-(the extractor's paragraph breaks), item 2's route-back half, and the `.shell` spacing item that had
-sat in this file's "still open" list since before the pre-1.0 audit — and re-verified item 1 (the
-four Heroes) with a second independent instrument. Then the owner asked for character management,
-which is [#84](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/84).
+**This round closed all three things the owner reported from using the deployed app** — the two
+that were one defect, and the explained sheet. See the section below for what each was and what
+replaced it.
 
-**Read the adversarial-review entry in `PROGRESS.md` before touching the anonymous slot.** That
-round shipped three defects into review — one of which silently destroyed a reader's draft on
-sign-out — and two independent reviewers found all three. The fix is structural and the entry says
-why; the shape to keep is that the account copy has a slot of its own and nothing else is ever
-written to or cleared.
+**The lesson of the round is one sentence, and it is `PROGRESS.md` item 10's argument.** A feature
+was built, tested, adversarially reviewed by two independent agents and shipped, while nothing in
+the application ever put a character into the store it read from. Every check passed, and passed
+honestly, because every check called the store directly — and **a test that reaches the machinery by
+hand cannot notice that nothing else reaches it.** Nothing in this repository asks whether a feature
+is reachable by an ordinary person doing an ordinary thing.
 
-**The owner has since reported three things from using the deployed app, and they come first — see
-the section immediately below.** Two of them are one defect and it is the more serious kind: a
-feature that was built, tested, reviewed and shipped while nothing in the app ever put a character
-into the store it reads from. Every check passed because every check exercised the machinery
-directly. **Nothing in this repository asks whether a feature is reachable by an ordinary person
-doing an ordinary thing**, which is `PROGRESS.md` item 10's argument in one sentence.
+**Read the adversarial-review entries in `PROGRESS.md` before touching character storage.** There
+are two of them now and both are worth the ten minutes: the earlier one shipped three defects into
+review, one of which silently destroyed a reader's draft on sign-out; this one found three more in
+the fix above, including a check that was dead code and read exactly like a guard.
 
 ---
 
 ## Where things stand
 
-**4,775 tests across four suites** — 4,015 engine, 580 bUnit, 166 accounts, 14 pixel comparator.
+**4,800 tests across four suites** — 4,015 engine, 605 bUnit, 166 accounts, 14 pixel comparator.
 Measured after the last merge, not carried across from any stream:
 
 ```bash
@@ -40,8 +37,12 @@ dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
 project failed to **build** and its result is simply missing. Count the lines, and grep for
 `Catastrophic` — a crashed process still prints `Passed! - Failed: 0`.
 
-**A whole-tree Qodana scan reported 0** via `./scripts/qodana-scan.sh` (needs Docker Desktop).
-Do not repeat that zero without re-running it.
+**A whole-tree Qodana scan reported 0** via `./scripts/qodana-scan.sh` (needs Docker Desktop), on
+both of this round's branches. Do not repeat that zero without re-running it — **and expect the new
+test files to put findings there.** Both branches scanned dirty the first time, on the same three
+rules every time: `UseAwaitUsing` for an `IAsyncDisposable` context in an `async` test,
+`MethodHasAsyncOverload` for `Click()` where `ClickAsync` exists, and a `using` a global one already
+covers. Run the scan before the push rather than after the PR.
 
 ---
 
@@ -92,83 +93,106 @@ Three separate stale claims were found and fixed, none of which any test could h
 
 ---
 
-## The owner reported three things. Start here
+## The owner's three reports are closed
 
-**These came from the owner using the deployed app, and they outrank everything below.**
+All three came from using the deployed app and all three are done. **Two of them were one defect**,
+and it is the more serious kind: a feature built, tested, adversarially reviewed and shipped while
+nothing in the application ever put a character into the store it read from.
 
-### 1 and 2 are the same defect: nothing ever names a character into the index
+### 1 and 2 — the switcher had nothing to list
 
-> *"I don't see the web UI character switcher working yet? If I import Lynchpin, my character, there
-> is no option to start a new character that doesn't blow away my old one?"*
+`CharacterManager.StartNew()` was `StartAgain()` plus `ClearAsync()`: it emptied the slot the
+character was in rather than leaving it there and pointing somewhere else, which is the "blows away
+my old one" the owner hit. Import overwrote whatever the pointer was aimed at. And because nothing
+ever added a character to `SavedCharacters`'s index, the list, the switcher and both undo buffers —
+all of which read that index, all of which had tests — could never have held more than one row. On
+an account it was worse: `ApiCharacterStore.ClearAsync` is an HTTP `DELETE`, so "Start a new
+character" removed the row from the server.
 
-**The multi-character machinery exists and nothing populates it.** `SavedCharacters` has an index,
-`CharacterManager` draws rows, and the banner switcher lists them — but `RestoreAsync`, the only
-labelled-save path, **has no caller anywhere outside `web/Services/`**. Everything else autosaves
-into the *current* slot, which for an anonymous visitor is the single legacy slot. So:
+Both controls now go through `AccountCharacterStore.StartAnotherAsync`. **The order is the whole of
+the correctness**: write the character down under its own id, move the pointer, and only then empty
+the session — the reverse races the fire-and-forget autosave and puts the empty sheet over what was
+being kept.
 
-- `CharacterManager.StartNew()` is `Session.StartAgain()` + `Store.ClearAsync()` — it **empties the
-  current slot** rather than saving it and opening a fresh one. That is the "blows away my old one"
-  the owner hit.
-- Import goes through `ReplaceWithUndo`, which overwrites whatever the pointer is aimed at.
-- Because nothing is ever added to the index, `ListAsync` returns at most one row, so the switcher
-  always says *"Nothing else saved yet."* **It is not broken — it has nothing to list.** I read that
-  as correct-for-an-empty-browser when verifying #84 live, and it was the symptom.
+### 3 — the sheet explains itself
 
-**What is needed is a "keep this one and start another" path** — a labelled save that mints an id
-and adds it to the index, wired to the manager's *Start a new character* and to import. The undo
-buffer, the discard undo and the switcher all already work off the index, so they come along free.
-Check whether the account side has the same gap; `ApiCharacterStore.SaveAsync(id, label, …)` exists,
-so the seam is there on both sides.
-
-### 3. The explained sheet should be how the sheet renders, not a second address
-
-> *"the 'explain this character sheet' button is still present, instead of that just being the
-> default way the sheet renders."*
-
-`SheetView` takes `Explain`, off everywhere except `/build/sheet` (`ExplainedSheet.razor` renders
-`<SheetView Explain="true" />`), and `Review.razor` carries an *Explain this sheet* link to it. The
-owner wants the explanations on by default. Two things to work out rather than assume: what happens
-to `/build/sheet` (keep as an address, or retire it and drop the link), and **whether `Term` should
-be doing anything on the printed page at all** — `docs/guide/printed-sheet.md` is the guide, print
-is the deliverable, and a tooltip has no meaning on paper. `ExplainedSheetTests` and the
-`explained-sheet` golden both exist and will move.
+`SheetView.Explain` defaults to `true`, and `/build/sheet` and its link are retired. **The question
+the handover said to decide — whether `Term` should do anything on paper — turned out to be already
+answered in the print stylesheet**: `.tip-wrap` is hidden, a tip is shut unless hovered, `.term-name`
+gives up its underline and cursor, and the description's other copy is `.sr-only`. The old default
+was off specifically to protect the printed page, and the printed page never needed protecting. That
+was true before the change and **nothing tested it** — one stylesheet edit from being false on every
+sheet the tool produces.
 
 ---
 
 ## What is left, in the order I would take it
 
-1. **`PROGRESS.md` item 10 needs a decision, and it is the highest-value thing on this list.**
-   Nothing drives the assembled application: every visual proof is bUnit markup rendered against
-   the real stylesheets and screenshotted, which is *not* the running app — no interop, no routing,
-   no Functions, and nothing behind sign-in. **Two defects in the last slice were found by
-   screenshotting and none by the suites**, and three storage tests had to assert on *which key is
-   written* because bUnit answers null to every interop read. Item 10 splits it: the anonymous half
-   needs no permission; the signed-in half needs a development-only session seam, which is the most
-   dangerous thing that could be added here, so it is the owner's call and there is a zero-risk
-   alternative written up beside it.
+1. **`PROGRESS.md` item 10 still needs the owner's decision, and this round sharpened its
+   argument.** Stage one needs no permission; stage two — the development-only session seam — is
+   the owner's call, with a zero-risk alternative written up beside it. Nothing was implemented.
+   **Read the new subsection in that item before proposing anything**, because it corrects the
+   item's own framing: the defect above was not an *assembly* fault, which is what item 10 argues
+   about. Every unit test passed honestly because every one of them called the store directly, and a
+   test that reaches the machinery by hand cannot notice that nothing else reaches it.
 
-2. **The codebase half of item 7**, untouched: dead code, engine hot paths, payload waste, and the
-   token side. `PROGRESS.md` is now over 5,400 lines and is read at the start of every slice by
-   instruction — the same argument that motivated the `CLAUDE.md` split applies to it, and the
-   same answer probably does not, because it is chronological by design. Nobody has costed it.
-3. **The four published Heroes 1 HP out** — item 1. Now a *confirmed* negative from two
-   independent instruments: the residual is not a mispriced element in any of the four, and no
-   alternate starting package lands any of them on 125. What is left is an interaction — a floor,
-   a baseline or a grouping applied where the authors did something else. Do not tune an ambiguous
+   **One row of item 10's table is now partly closed in-process.** `RenderContext(storesForReal:
+   true)` swaps bUnit's recorder — which answers null to every interop read — for a storage that
+   actually holds what is written. It closes `ppStore` and nothing else: no boot, no routing, no
+   Functions, nothing behind sign-in, and `theme.js`/`palette.js`/`motion.js` still answered by a
+   recorder.
+
+2. **The codebase half of item 7**, untouched: dead code, engine hot paths, payload waste, the token
+   side. `PROGRESS.md` is now over 5,600 lines and is read at the start of every slice by
+   instruction. Nobody has costed it.
+3. **The four published Heroes 1 HP out** — item 1. A confirmed negative from two independent
+   instruments. What is left is an interaction, not a mispriced element. Do not tune an ambiguous
    variant to force a zero.
-4. **`search_powers` measures again: 60 of 72**, widened from a saturated 33 of 33 and ratcheted
-   there. The twelve misses are real gaps, reported rather than tuned away — three are negatives
-   that find weak coincidental hits, and the rest are Powers with no vocabulary written for them
-   yet. `cloud_minds`, `buff`, `power_absorption`, `psi_screen`, `elemental_control` and
-   `form_gaseous` are named, concrete candidates for the next pass. The scorer itself is untouched:
-   description-only matches still tie flat.
-5. **Durable telemetry**, deferred by the owner — `PROGRESS.md` item 9.
-6. **Item 5, the 27 MiB payload**, deliberately not started this round and worth saying why: it
-   cannot be verified on this machine (the trimmer needs the `wasm-tools` workload, which needs
-   elevation), its failure mode is a *silently empty rules set at runtime* rather than a build
-   error, and deploy fires on merge. It is the one open item where a mistake ships live and quiet.
-   `PROGRESS.md` records the source-generation attempt that already failed and the test that caught
-   it; whatever is done needs a check that loads the published site and reads a rule out of it.
+4. **`search_powers` measures 60 of 72.** `cloud_minds`, `buff`, `power_absorption`, `psi_screen`,
+   `elemental_control` and `form_gaseous` are named candidates for the next pass.
+5. **Durable telemetry**, deferred by the owner — item 9.
+6. **Item 5, the 27 MiB payload.** The one open item where a mistake ships live and quiet: it cannot
+   be verified on this machine, and its failure mode is a silently empty rules set at runtime.
+
+---
+
+## What this round learned, that the next one needs
+
+- **A check can be dead code and read exactly like a guard.** `SavedCharacters.SaveAsync` returned
+  the id it was passed whether or not the write landed, so both callers weighing it compared a
+  string against itself. One of them was the undo behind a discarded row — the one method documented
+  as answering whether the write landed, "because an undo that silently did nothing is the worst
+  possible outcome". **Ask what the failure branch returns**, not only whether there is one.
+- **A disciplined suite can have a hole shaped exactly like the thing it was written about.** Every
+  account test in the new file calls `Settle` before clicking, deliberately, so the fire-and-forget
+  write finishes first. That is right for determinism and it removes the exact race the check under
+  test existed to close. The fix is to assert the *order of the requests* rather than to race a
+  timer: `FakeApi.Asked` records each with its method, so "the `PUT` comes before the `GET`" is a
+  plain assertion and does not test this machine's scheduler.
+- **An adversarial review and an end-to-end harness are not substitutes.** Three defects were found
+  by a reader told only to look for data loss; a harness would have caught at most one of them, and
+  the race not at all reliably. A harness answers "is this reachable"; a hostile reader answers
+  "what does this do when something goes wrong".
+- **Trace a review finding before applying it.** A fourth finding — write the index before the
+  payload — was demonstrated-sounding and wrong: `WriteIndexAsync` swallows its own failures, so it
+  does not abort the pair and both orders end identically. The paragraph the reviewer was reading
+  *had* gone stale, so the fix was to the comment. Applying the reorder would have been churn that
+  no mutation could have justified.
+- **`git checkout <branch>` carries uncommitted changes across with it.** Two branches were in play
+  this round and a switch took one branch's edits onto the other, silently and with no warning —
+  including a staged `git rm`. `git stash push -u` then switch then `git stash pop` moved them back
+  with nothing lost, which is the rule at the top of `CLAUDE.md` earning its place a fourth time.
+  **`git status` immediately after every switch.**
+- **A heredoc is not an editing tool, in a third spelling.** `python - <<'PY'` with a long payload
+  failed twice with `unexpected EOF while looking for matching` — the content never reached Python.
+  Writing the script to a file with the editing tool and running `python <file>` worked every time
+  and is also re-runnable when a match fails. The existing note about heredocs hanging on a machine
+  with no Python is a different failure with the same lesson.
+- **When a mutation leaves the suite green, find out why before recording a hole.** Dropping the
+  index-add from the autosave was green — not because the guard was fine, but because the *kept*
+  character is indexed by the explicit save that keeps it, so nothing noticed that the character
+  being **built** in the new slot was never listed at all. A real hole, one slot further along, and
+  it is now closed.
 
 ---
 
@@ -190,19 +214,15 @@ is the deliverable, and a tooltip has no meaning on paper. `ExplainedSheetTests`
   conditional `aria-controls` — because those are cheap at the time and expensive to retrofit. That
   is the whole of what is expected here for now.
 
-  What *was* added is one structural check that clears the plumbing out of the way first:
-  `AriaReferenceTests` sweeps twelve surfaces and resolves every token of `aria-describedby`,
-  `aria-labelledby` and `aria-controls`, so a dangling IDREF cannot reach a person doing the real
-  work. It catches the class rather than an instance — `RowDescriptionTests` already resolved one
-  row's target — and it carries a count as its positive control, because every assertion in it is
-  an absence and a sweep that rendered nothing satisfies all of them. Broken both ways and watched
-  to fail: a dangled reference names the id, and an empty sweep reports `Only 0`. **It cannot hear
-  an announcement**, and it is not progress against the eight surfaces above.
+  **That sweep carries a count as its positive control**, because every assertion in it is an
+  absence and a sweep that rendered nothing satisfies all of them; it was broken both ways and
+  watched to fail. **It cannot hear an announcement**, and it is not progress against the eight
+  surfaces above.
 - **The browser payload is ~27 MiB** because trimming is off — `PROGRESS.md` item 5.
 
 ---
 
-## What this round learned, that the next one needs
+## From the round before, and all of it still applies
 
 - **A stream's report is not a verdict — and this round the re-run paid twice.** The `.shell`
   stream claimed the budget strip was no longer a child of `.shell`, contradicting what this file
