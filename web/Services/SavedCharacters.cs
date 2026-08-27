@@ -18,7 +18,24 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// server — see <c>docs/CHARACTERS-API.md</c>.</param>
 /// <param name="UpdatedAt">Unix milliseconds. Used to sort "most recently touched first"
 /// and nothing else.</param>
-public sealed record SavedCharacterSummary(string Id, string Label, long UpdatedAt);
+/// <param name="CampaignId">
+/// The campaign this character belongs to, or null for one that belongs to none.
+///
+/// <para><b>Duplicated out of the payload on purpose, and it is the one field here that is.</b>
+/// The whole reason this record exists is that a list of many characters must not have to
+/// deserialize and cost every one of them to draw a row — so "which of my characters are in this
+/// game" would otherwise be exactly what that remark refuses, once per row. It is supplied by the
+/// client on both sides, exactly as <c>Label</c> is; the server never derives it, never validates
+/// it and never joins it to anything, because the server does not know what a character is. See
+/// <c>docs/CHARACTERS-API.md</c>.</para>
+///
+/// <para><b>It defaults, and the default is load-bearing.</b> An index written before this field
+/// existed is three values long, and a fourth positional parameter with no default would make
+/// every one of those entries fail to deserialize — which is a browser whose list of characters
+/// silently empties. There is a test that reads a literal three-field index.</para>
+/// </param>
+public sealed record SavedCharacterSummary(
+    string Id, string Label, long UpdatedAt, string? CampaignId = null);
 
 /// <summary>
 /// Many characters, kept in this browser's local storage.
@@ -226,7 +243,8 @@ public sealed class SavedCharacters
                     && _payload.Read(raw) is { } slot
                     && CharacterSession.IsWorthKeeping(slot.Sheet))
                 {
-                    result.Add(new SavedCharacterSummary(LegacyId, LabelFor(slot.Sheet), 0));
+                    result.Add(new SavedCharacterSummary(
+                        LegacyId, LabelFor(slot.Sheet), 0, slot.Sheet.CampaignId));
                 }
             }
 
@@ -282,7 +300,8 @@ public sealed class SavedCharacters
 
             var index = await ReadIndexAsync(prefix);
             index.RemoveAll(e => e.Id == resolvedId);
-            index.Add(new SavedCharacterSummary(resolvedId, resolvedLabel, updatedAt));
+            index.Add(new SavedCharacterSummary(
+                resolvedId, resolvedLabel, updatedAt, sheet.CampaignId));
             await WriteIndexAsync(prefix, index);
         }
         // The id is still handed back — a caller that minted one wants it either way — but the
@@ -431,7 +450,8 @@ public sealed class SavedCharacters
 
             var index = await ReadIndexAsync(prefix);
             var entry = new SavedCharacterSummary(
-                id, LabelFor(sheet), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                id, LabelFor(sheet), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                sheet.CampaignId);
 
             var i = index.FindIndex(e => e.Id == id);
             if (i >= 0) index[i] = entry; else index.Add(entry);

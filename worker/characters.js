@@ -22,6 +22,12 @@ import { fail, json, noContent, readJson, sameOrigin } from './http.js';
  */
 const ID_PATTERN = /^c_[A-Za-z0-9_-]{22}$/;
 
+/**
+ * The campaign id shape, the same pattern `campaigns.js` validates its own keys with, spelled
+ * here because this is the one other place a caller can put one into the database.
+ */
+const CAMPAIGN_ID_PATTERN = /^g_[A-Za-z0-9_-]{22}$/;
+
 const MAX_LABEL_LENGTH = 80;
 const DEFAULT_LABEL = 'Unnamed character';
 
@@ -34,7 +40,15 @@ export async function list(request, env, deps, user) {
 
     return json({
         limit,
-        characters: rows.map(row => ({ id: row.id, label: row.label, updatedAt: row.updated_at })),
+        characters: rows.map(row => ({
+            id: row.id,
+            label: row.label,
+            updatedAt: row.updated_at,
+            // Handed back exactly as it was handed in. The server never derived this, never
+            // checked it against the `campaigns` table, and does not know what it means — see
+            // `normaliseCampaignId` below.
+            campaignId: row.campaign_id ?? null,
+        })),
     });
 }
 
@@ -81,8 +95,11 @@ export async function write(request, env, deps, user, id) {
     const label = normaliseLabel(body.value.label);
     if (label === undefined) return fail(400, 'That label is too long.');
 
+    const campaignId = normaliseCampaignId(body.value.campaignId);
+    if (campaignId === undefined) return fail(400, 'That is not a campaign id this server uses.');
+
     const stored = await db.putCharacter(env.DB,
-        { userId: user.id, id, label, payload, now: deps.now() });
+        { userId: user.id, id, label, payload, campaignId, now: deps.now() });
 
     if (!stored) {
         const limit = await db.characterLimit(env.DB, user.id);
@@ -115,6 +132,31 @@ export async function remove(request, env, deps, user, id) {
     await db.deleteCharacter(env.DB, user.id, id);
 
     return noContent();
+}
+
+/**
+ * `campaignId`, checked for being a well-formed key and nothing else.
+ *
+ * **The client supplies it, exactly as it supplies `label`, and this server never derives it.**
+ * It cannot: the campaign a character belongs to is a field inside the payload, and the payload
+ * is never parsed here. So it travels alongside, and what is checked is the same thing that is
+ * checked about an id anywhere in this file — that it is a string this table can hold as a key.
+ *
+ * **It is deliberately not checked against the `campaigns` table.** A character may name a
+ * campaign that has been deleted, or one that lives in another browser and has never been
+ * uploaded; both are ordinary, and both are reported by the browser rather than refused here.
+ * Validating the reference would make this server the authority on whether a character is in a
+ * legal state, which is exactly the job it does not have.
+ *
+ * Missing or null is the ordinary state — a character in no campaign. `undefined` out of this
+ * function means a refusal: something that is not a usable id at all.
+ */
+function normaliseCampaignId(value) {
+    if (value === undefined || value === null) return null;
+    if (typeof value !== 'string') return undefined;
+    if (value === '') return null;
+
+    return CAMPAIGN_ID_PATTERN.test(value) ? value : undefined;
 }
 
 function isJson(text) {

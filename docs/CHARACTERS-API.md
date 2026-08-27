@@ -18,6 +18,17 @@ That is why a stored character carries a **client-supplied `label`** rather than
 a name out of the payload. The label is presentation — it is what the manager list shows — and the
 server treats it as an opaque string too, bounded only in length.
 
+**`campaignId` is the second field of exactly that kind, and it is a duplicate on purpose.** The
+campaign a character belongs to is a field *inside* the payload; the server cannot read it, so the
+client supplies it alongside, exactly as it supplies `label`. The server stores the string against
+the row and hands it back in the list. It **never derives it, never validates the reference, and
+never joins it to anything** — a character may name a campaign that lives in another browser and
+was never uploaded, or one that has since been deleted, and both are ordinary states the browser
+reports rather than states the server refuses. The only check is the same one an id anywhere here
+gets: that it is a well-formed key (`g_` followed by 22 URL-safe characters). Duplicating it is what
+lets a list group characters by game without deserializing and costing every payload it draws a row
+for, which is the thing `SavedCharacterSummary` exists to avoid.
+
 ## Addresses
 
 | | | |
@@ -26,6 +37,10 @@ server treats it as an opaque string too, bounded only in length.
 | `GET` | `/api/characters/{id}` | one character's payload, verbatim |
 | `PUT` | `/api/characters/{id}` | create or replace |
 | `DELETE` | `/api/characters/{id}` | remove one |
+| `GET` | `/api/campaigns` | the list — **no cap** |
+| `GET` | `/api/campaigns/{id}` | one campaign's payload, verbatim |
+| `PUT` | `/api/campaigns/{id}` | create or replace |
+| `DELETE` | `/api/campaigns/{id}` | remove one |
 
 Every one requires a session; without one, 401. All of them are scoped to the caller's own account
 — an `id` belonging to somebody else answers 404, never 403, because "that exists but is not yours"
@@ -74,6 +89,29 @@ The 409 body names the limit:
 ```json
 { "error": "This account already holds 5 characters.", "limit": 5 }
 ```
+
+## Campaigns
+
+A campaign is another opaque blob beside a character, and every rule above applies to it word for
+word: the client mints the id (`g_` plus 22 URL-safe characters, the character shape with a
+different letter so neither can be passed where the other is meant), the label is a client-supplied
+string defaulting to `"Unnamed campaign"`, the payload is checked for being parseable JSON and
+stored verbatim, `DELETE` answers 204 either way, and a session is required for all four.
+
+```json
+{ "campaigns": [ { "id": "g_…", "label": "The Long Winter", "updatedAt": 1755600000000 } ] }
+```
+
+Three differences from characters, and each is a decision rather than an omission:
+
+- **No `limit`, and no 409.** `users.character_limit` is a cap on *characters*. There is no campaign
+  cap, and answering with one would invent a rule this contract does not have.
+- **Deleting a campaign leaves its members naming it.** No cascade, no `SET NULL`, and deliberately
+  no foreign key on `characters.campaign_id`. A character whose campaign is gone is *reported* by
+  the browser as naming a campaign that is not here — the same shape an unknown tier takes — which
+  keeps restoring the campaign, or opening the browser that still holds it, a complete undo.
+- **The trait cap on a campaign is carried, never applied.** It is stored and returned like every
+  other byte of the payload; nothing on either side enforces it in this slice.
 
 ## The cap
 

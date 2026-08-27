@@ -206,6 +206,48 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   fails the PR rather than the way to production. That marker comment is load-bearing — see it.
 
 
+## A campaign is another opaque blob, and the server never learns what one is
+
+`worker/campaigns.js` is `worker/characters.js` with a different table, and **it has to stay that
+boring**. Four addresses under `/api/campaigns`, a client-minted `g_`-prefixed id, a client-supplied
+label, a payload checked for being parseable JSON and stored verbatim. `d1/migrations/0005` adds the
+table beside `characters` with the same five columns. The contract is `docs/CHARACTERS-API.md`.
+
+- **It holds no rule and must never gain one** — the same sentence this file already applies to a
+  character, and it bites harder here because a campaign's payload contains a *tier*, a *Trait Cap*
+  and a *budget flag*, all of which look exactly like things a server could usefully check. It
+  cannot: the engine is the authority on every one of them and it runs in the browser. A second
+  place that understood a tier is a second place to keep in step.
+- **The routes are inside the existing signed-in block, not beside it.** The gate is the thing
+  being shared — "signed in, nothing more" — and a second block asking the same question is a
+  second block that could forget to. `AccountsContractTests.TheCampaignAddressesAreRouted` reads
+  that condition structurally and requires the campaign prefix to be in it.
+- **`worker/errors.js` needs both halves, and they buy different things.** `/api/campaigns` in
+  `KNOWN_ROUTES` lets the list be filed under its own name; the `path.startsWith('/api/campaigns/')`
+  arm in `routePattern` stops every failure at a caller-chosen campaign id being filed as `other`.
+  **Note what that arm does *not* buy**: an unrecognised path already falls to `other`, which is one
+  row, so the table was never at risk of a row per invented id. What is at risk without it is the
+  log being *legible* — a broken campaign route indistinguishable from a passing crawler.
+  `EveryRoutedPrefixHasARoutePatternForTheErrorLog` holds the two files together.
+- **`characters.campaign_id` is a duplicate of something inside the payload, and the owner approved
+  it explicitly.** The server cannot derive it, so the client sends it beside `label` and the server
+  stores and returns it — never deriving, never validating the reference, never joining. It exists
+  so a list can group characters by game without deserializing and costing every payload it draws a
+  row for, which is exactly what `SavedCharacterSummary` was created to avoid.
+- **There is no foreign key, and deleting a campaign leaves its members naming it.** Owner-approved.
+  A cascade would delete characters; a `SET NULL` would silently edit characters somebody did not
+  have open, and neither can be undone by restoring the campaign. The browser reports the state
+  instead — `UNKNOWN_CAMPAIGN`, deliberately the same shape as the engine's `UNKNOWN_TIER`.
+- **No cap and no 409.** `users.character_limit` caps characters. `db.putCampaign` is therefore an
+  ordinary upsert rather than the `INSERT … SELECT … WHERE` that makes `putCharacter`'s cap check
+  race-free — **and if a campaign cap is ever added it has to be written the same way**, inside the
+  statement, not as a read in front of it.
+- **Nothing bumped `StoredCharacter.CurrentVersion`, and nothing may.** It is 1, a mismatch is
+  discarded in silence, and an absent `campaignId` deserialises to null — which correctly means
+  "belongs to no campaign". Bumping it would empty every returning visitor's browser *and* every
+  account. `0005` is an `ALTER TABLE`, not a rebuild, for the same reason: `campaign_id` is not part
+  of a primary key, so nothing has to be copied and nothing can be lost copying it.
+
 ## An account has a name it can change
 
 `display_name` is set once at first sign-in to the email's local part, and `PUT /api/me/display-name`

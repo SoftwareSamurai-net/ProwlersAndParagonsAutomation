@@ -114,7 +114,14 @@ public sealed class RenderContext : BunitContext
         Services.AddScoped<ApiCharacterStore>();
         Services.AddScoped<CharacterImport>();
         Services.AddScoped<AccountCharacterStore>();
-Services.AddScoped<DiscardedCharacter>();
+        Services.AddScoped<DiscardedCharacter>();
+
+        // Campaigns: the same two stores and the same chooser the app registers. No component
+        // asks for one yet — the storage half ships before the screens — but the shell resolves
+        // what Program.cs registers, and a service missing here fails every render test at once.
+        Services.AddScoped<SavedCampaigns>();
+        Services.AddScoped<ApiCampaignStore>();
+        Services.AddScoped<AccountCampaignStore>();
         Services.AddScoped<ICharacterStore>(s => s.GetRequiredService<AccountCharacterStore>());
         Services.AddScoped<RulebookReader>();
 

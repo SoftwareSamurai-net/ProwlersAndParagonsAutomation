@@ -132,7 +132,7 @@ export function taggedMail(send) {
 const KNOWN_ROUTES = Object.freeze([
     '/api/auth/request', '/api/auth/verify', '/api/auth/signout', '/api/me',
     '/api/me/display-name',
-    '/api/characters', '/api/rulebook/power',
+    '/api/characters', '/api/campaigns', '/api/rulebook/power',
     '/api/rulebook/search', '/api/rulebook/contents', '/api/rulebook/passage',
     '/api/admin/error-log',
     '/api/transcripts',
@@ -158,6 +158,13 @@ export function routePattern(request) {
 
     if (KNOWN_ROUTES.includes(path)) return path;
     if (path.startsWith('/api/characters/')) return '/api/characters/{id}';
+
+    // **A campaign id is caller-chosen exactly as a character id is, so it needs this arm for
+    // exactly the same reason.** Without it, a caller asking for a thousand invented campaign ids
+    // falls to `other` — which is one row, so the table is still bounded, but every one of those
+    // failures is then indistinguishable from a failure at an address nobody routes. With it, the
+    // campaign routes are as legible in the log as the character ones and still cost one row.
+    if (path.startsWith('/api/campaigns/')) return '/api/campaigns/{id}';
 
     return 'other';
 }
