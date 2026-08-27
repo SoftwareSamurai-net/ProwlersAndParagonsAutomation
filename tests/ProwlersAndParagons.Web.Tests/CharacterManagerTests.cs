@@ -395,6 +395,40 @@ public sealed class CharacterManagerTests
     }
 
     /// <summary>
+    /// <b>A time earns its place only once there is something to tell apart.</b> Beside a single
+    /// other character it is noise on a row that needs none; with several it is how a reader picks
+    /// the right one. Free either way — the index already holds the stamp — so this is a judgement
+    /// about the reader rather than about cost.
+    ///
+    /// <para>Found by a mutation: setting the rule to "always" left the whole suite green, because
+    /// every other fixture in this file happens to hold two characters. A rule nothing asserts is a
+    /// rule the next person will delete without noticing.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    public async Task ATimeIsShownOnlyOnceThereAreTwoCharactersToTellApart(int saved, bool expected)
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        for (var i = 0; i < saved; i++)
+        {
+            await account.SaveAsync(
+                SavedCharacters.NewId(), $"Character {i}", SampleCharacters.Hero(), SheetMode.Hero);
+        }
+
+        var cut = ctx.Render<CharacterManager>();
+
+        // The positive control: the rows really are on screen either way, so "no time" is about the
+        // time and not about a panel that drew nothing.
+        Assert.Equal(saved, cut.FindAll("ul.character-list > li").Count);
+
+        Assert.Equal(expected, cut.FindAll("ul.character-list > li .meta").Count > 0);
+    }
+
+    /// <summary>
     /// Whatever the panel is drawing for the character with this label — the block for the one on
     /// screen, or a row in the list for any other.
     ///
