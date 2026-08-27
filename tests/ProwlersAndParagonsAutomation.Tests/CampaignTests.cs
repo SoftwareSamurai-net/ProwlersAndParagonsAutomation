@@ -69,11 +69,12 @@ public sealed class CampaignTests : IClassFixture<RulesFixture>
     /// </summary>
     private static CharacterSheet InACampaign(string? campaignId)
     {
-        var sheet = new CharacterSheet { SelectedTierId = "standard", CampaignId = campaignId };
-        sheet.AbilityRanks["might"] = 8;
-        sheet.AbilityRanks["agility"] = 6;
-        sheet.TalentRanks["athletics"] = 4;
-
-        return sheet;
+        return new CharacterSheet
+        {
+            SelectedTierId = "standard",
+            CampaignId = campaignId,
+            AbilityRanks = { ["might"] = 8, ["agility"] = 6 },
+            TalentRanks = { ["athletics"] = 4 },
+        };
     }
 }

@@ -116,10 +116,13 @@ public sealed class CampaignStorageTests
 
         foreach (var tier in Rules.Tiers)
         {
-            var sheet = new CharacterSheet { SelectedTierId = tier.Id, Name = $"A {tier.Name} build" };
-            sheet.AbilityRanks["might"] = 6;
-            sheet.AbilityRanks["agility"] = 4;
-            sheet.TalentRanks["athletics"] = 3;
+            var sheet = new CharacterSheet
+            {
+                SelectedTierId = tier.Id,
+                Name = $"A {tier.Name} build",
+                AbilityRanks = { ["might"] = 6, ["agility"] = 4 },
+                TalentRanks = { ["athletics"] = 3 },
+            };
 
             yield return ($"a {tier.Id} fixture", sheet);
         }
@@ -169,8 +172,12 @@ public sealed class CampaignStorageTests
         var storage = new FakeLocalStorage();
         var characters = FreshCharacters(storage);
 
-        var sheet = new CharacterSheet { SelectedTierId = "street_level", Name = "Ninefold" };
-        sheet.AbilityRanks["might"] = 6;
+        var sheet = new CharacterSheet
+        {
+            SelectedTierId = "street_level",
+            Name = "Ninefold",
+            AbilityRanks = { ["might"] = 6 },
+        };
 
         var campaign = ACampaign(tierId: "legendary", unlimited: true);
         Assert.True(await FreshCampaigns(storage).SaveAsync(campaign));
@@ -196,6 +203,12 @@ public sealed class CampaignStorageTests
         var finding = CampaignJoin.Inspect(restored.Value.Sheet, campaign);
         Assert.NotNull(finding);
         Assert.Equal("CAMPAIGN_TIER_MISMATCH", finding!.Code);
+        Assert.Contains("different tier", finding.Message, StringComparison.Ordinal);
+
+        // The sentence names neither tier: an id is not what a tier is called, and a screen looks
+        // both up. The two ids travel as fields instead.
+        Assert.DoesNotContain("street_level", finding.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("legendary", finding.Message, StringComparison.Ordinal);
         Assert.Equal("street_level", finding.CharacterTierId);
         Assert.Equal("legendary", finding.CampaignTierId);
     }
@@ -247,6 +260,7 @@ public sealed class CampaignStorageTests
         var finding = CampaignJoin.Inspect(sheet, await store.ForAsync(sheet));
         Assert.NotNull(finding);
         Assert.Equal("UNKNOWN_CAMPAIGN", finding!.Code);
+        Assert.Contains("not here", finding.Message, StringComparison.Ordinal);
     }
 
     // ── Nothing already stored is disturbed ──────────────────────────────────────────────
@@ -396,7 +410,46 @@ public sealed class CampaignStorageTests
 
         Assert.True(await campaigns.SaveAsync(campaign));
 
-        Assert.Equal(campaign, await campaigns.LoadAsync(campaign.Id));
+        var restored = await campaigns.LoadAsync(campaign.Id);
+
+        Assert.Equal(campaign, restored);
+
+        // Field by field as well as by record equality, and the cap especially: it is the one
+        // field nothing in the application reads yet, so record equality is the only thing that
+        // would notice it going missing — and record equality is exactly what a serializer
+        // dropping an unknown key would still satisfy if the expectation were rebuilt from the
+        // same round trip.
+        Assert.Equal("The Long Winter", restored!.Name);
+        Assert.Equal("high_level", restored.TierId);
+        Assert.Equal(14, restored.TraitCapRank);
+        Assert.True(restored.UnlimitedBudget);
+    }
+
+    /// <summary>
+    /// The chooser puts an anonymous visitor's campaigns in this browser, on every one of the four
+    /// things it can be asked to do.
+    ///
+    /// <para>Signed-in is deliberately not exercised here: what the server does with a campaign is
+    /// driven against the real server, in real SQLite, by <c>tests/worker/campaigns.test.mjs</c>.
+    /// What this pins is that the chooser reaches the store it says it does.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheChooserKeepsAnAnonymousVisitorsCampaignsInThisBrowser()
+    {
+        var storage = new FakeLocalStorage();
+        var store = FreshStore(storage);
+        var campaign = ACampaign();
+
+        Assert.True(await store.SaveAsync(campaign));
+        Assert.NotNull(storage.Peek($"pp.campaign.v1.{campaign.Id}"));
+
+        Assert.Equal(campaign, await store.LoadAsync(campaign.Id));
+        Assert.Equal("The Long Winter", Assert.Single(await store.ListAsync()).Label);
+
+        await store.DeleteAsync(campaign.Id);
+
+        Assert.Null(await store.LoadAsync(campaign.Id));
+        Assert.Empty(await store.ListAsync());
     }
 
     /// <summary>
