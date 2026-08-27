@@ -1,11 +1,38 @@
 name: Qodana
 
+# **It no longer runs on every pull request, and that is a deliberate trade.** Qodana was 39 of
+# the last 100 runs, 214 of their 403 minutes, and **all 10 GB** of this repository's Actions
+# cache — one ~420 MB entry per branch, against a 10 GB ceiling, so the caches were evicting each
+# other and every run started cold.
+#
+# What makes the trade safe is that **the pull request was never where this check first ran**.
+# `CLAUDE.md`'s own process requires `./scripts/qodana-scan.sh` locally, reading zero, before a
+# pull request is opened — so the CI copy was re-proving a thing already proved, at five and a
+# half minutes a push. What is kept is the part local runs cannot give: a scan of `master` as
+# merged, which is a different claim from a scan of the branches that went into it.
+#
+# The weekly run is the backstop for the case the local step is skipped. If this starts finding
+# things on `master` that the local scan should have caught, the answer is that the local step is
+# not being run — not that this should go back on every push.
 on:
   workflow_dispatch:
-  pull_request:
   push:
     branches:
       - master
+  schedule:
+    # 07:00 UTC on Mondays. Nothing depends on the hour; it is off the top of the hour because
+    # GitHub's scheduled runs queue heavily there.
+    - cron: '13 7 * * 1'
+
+# **Supersede a run rather than racing it.** A force-push to a pull request branch — a rebase, a
+# fixup, a corrected commit message — used to leave the previous run burning to completion on a
+# commit nobody would ever merge. Four of those in one session is most of an hour.
+#
+# Keyed on the workflow and the ref, so two different branches never cancel each other.
+# `deploy.yml` deliberately does the opposite and should stay that way.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

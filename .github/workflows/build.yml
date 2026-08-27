@@ -3,9 +3,46 @@ name: Build
 on:
   workflow_dispatch:
   pull_request:
+    # **Two files, and the list is short on purpose.** Almost every Markdown file in this
+    # repository is read by a test — `CLAUDE.md` and `docs/guide/*.md` by `RepositoryGuideTests`,
+    # `docs/ACCOUNTS-SETUP.md` by `AccountsContractTests`, `docs/MCP-SETUP.md` and `README.md` by
+    # `McpSetupDocumentationTests`, `mcp/QUESTION-POLICY.md` by `McpQuestionPolicyTests` — so
+    # "it is only docs" is false here far more often than it looks. Editing the index past its
+    # line budget, or adding a guide the routing table does not name, is a red build.
+    #
+    # These two are the exceptions: nothing reads them, they are the two that change on every
+    # slice, and they were the whole content of two pull requests that each spent nine minutes
+    # of Actions time proving nothing. `WorkflowFilterTests` holds this list to that claim.
+    paths-ignore:
+      - 'PROGRESS.md'
+      - 'docs/HANDOVER.md'
   push:
     branches:
       - master
+    # **Two files, and the list is short on purpose.** Almost every Markdown file in this
+    # repository is read by a test — `CLAUDE.md` and `docs/guide/*.md` by `RepositoryGuideTests`,
+    # `docs/ACCOUNTS-SETUP.md` by `AccountsContractTests`, `docs/MCP-SETUP.md` and `README.md` by
+    # `McpSetupDocumentationTests`, `mcp/QUESTION-POLICY.md` by `McpQuestionPolicyTests` — so
+    # "it is only docs" is false here far more often than it looks. Editing the index past its
+    # line budget, or adding a guide the routing table does not name, is a red build.
+    #
+    # These two are the exceptions: nothing reads them, they are the two that change on every
+    # slice, and they were the whole content of two pull requests that each spent nine minutes
+    # of Actions time proving nothing. `WorkflowFilterTests` holds this list to that claim.
+    paths-ignore:
+      - 'PROGRESS.md'
+      - 'docs/HANDOVER.md'
+
+# **Supersede a run rather than racing it.** A force-push to a pull request branch — a rebase, a
+# fixup, a corrected commit message — used to leave the previous run burning to completion on a
+# commit nobody would ever merge. Four of those in one session is most of an hour.
+#
+# Keyed on the workflow and the ref, so two different branches never cancel each other.
+# `deploy.yml` deliberately does the opposite (`cancel-in-progress: false`) and should stay that
+# way: cancelling a half-finished deploy is how a site ends up serving a partial upload.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
