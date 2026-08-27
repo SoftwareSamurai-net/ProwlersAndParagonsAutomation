@@ -47,11 +47,20 @@ public sealed record SavedCharacterSummary(string Id, string Label, long Updated
 /// differently on purpose.</b> An index entry naming a character that is not actually
 /// there — deleted by hand, or by a version of this class that failed midway — is dropped
 /// from the list rather than shown broken; storage is the source of truth for what
-/// <em>exists</em>. A character that exists in storage but is missing from the index can
-/// only ever be the legacy slot, because every other character is discovered <em>through</em>
-/// the index (there is no enumeration to find a stray key some other way) — and that
-/// direction is exactly what the legacy-slot handling above already covers: it is checked
-/// directly, every time, rather than through the index at all.</para>
+/// <em>exists</em>. A character that exists in storage but is missing from the index is
+/// <em>unreachable</em>, because every other character is discovered <em>through</em> the
+/// index (there is no enumeration to find a stray key some other way) — the legacy slot is
+/// the one exception, checked directly every time.</para>
+///
+/// <para><b>The paragraph above used to say the orphan direction "can only ever be the legacy
+/// slot", and that stopped being true when the autosave started adding entries</b> — it was true
+/// while nothing but an explicit labelled save ever added one. It is corrected rather than
+/// reordered around: an adversarial review proposed writing the index first so that a half-failed
+/// pair leaves an entry naming nothing rather than a character nothing names, and that was traced
+/// through and rejected. <see cref="WriteIndexAsync"/> swallows its own failures, so an index write
+/// that fails does not abort the pair and both orders end identically; the one case where they
+/// differ favours payload-first, because a payload write that throws has then touched nothing at
+/// all. The next autosave writes both again regardless, which is what actually repairs it.</para>
 ///
 /// <para><b>Nothing here may throw.</b> Every one of the methods below is asked from a
 /// page, or from <see cref="CharacterStore"/> on the path to the very first render, and a
@@ -243,13 +252,22 @@ public sealed class SavedCharacters
     /// Create or replace a character. Passing <paramref name="id"/> as null mints a fresh
     /// one; passing an existing id overwrites that character's payload and label in place.
     /// Returns the id that was actually written, so a caller that just created a character
-    /// learns its id without a second round trip.
+    /// learns its id without a second round trip — and whether anything was written at all.
+    ///
+    /// <para><b>The second half of that answer was missing and the miss was silent.</b> This
+    /// used to return the id alone, and it returned it whether the write landed or was swallowed
+    /// by a browser that refuses storage. Both callers weighing the result compared it against the
+    /// id they passed in — which, for a non-null id, is the same string either way, so the check
+    /// was dead code that read like a guard. One of them was the undo behind a discarded row and
+    /// the other was "keep this character and start another": both would report success over a
+    /// character that had gone nowhere. An adversarial review demonstrated the second.</para>
     ///
     /// <para>Unbounded here on purpose — the cap is the account's, not this browser's; see
     /// <c>docs/CHARACTERS-API.md</c>. Nothing in this class refuses a save for having "too
     /// many" characters.</para>
     /// </summary>
-    public async Task<string> SaveAsync(string? id, string label, CharacterSheet sheet, SheetMode mode)
+    public async Task<(string Id, bool Stored)> SaveAsync(
+        string? id, string label, CharacterSheet sheet, SheetMode mode)
     {
         var resolvedId = id ?? NewId();
 
@@ -267,9 +285,11 @@ public sealed class SavedCharacters
             index.Add(new SavedCharacterSummary(resolvedId, resolvedLabel, updatedAt));
             await WriteIndexAsync(prefix, index);
         }
-        catch (Exception e) when (IsStorageFailure(e)) { /* nothing persisted; the id is still handed back */ }
+        // The id is still handed back — a caller that minted one wants it either way — but the
+        // second half of the answer is now false, which is the whole point of there being one.
+        catch (Exception e) when (IsStorageFailure(e)) { return (resolvedId, false); }
 
-        return resolvedId;
+        return (resolvedId, true);
     }
 
     /// <summary>Forgets one character. Forgetting the one that is open falls back to the legacy slot.</summary>
@@ -394,6 +414,17 @@ public sealed class SavedCharacters
             var prefix = PrefixFor(who);
             var id = await CurrentIdAsync(who);
 
+            // **The payload first, then the index — and this order was questioned and kept.** An
+            // adversarial review argued the reverse: that an index write failing after a successful
+            // payload write leaves a character nothing names, which is unreachable because every
+            // non-legacy character is discovered *through* the index. The mechanism is real and the
+            // conclusion does not follow, because `WriteIndexAsync` swallows its own failures — so
+            // an index write that fails does not abort this method, and both orders end in exactly
+            // the same state: a payload with no entry. The orders differ in only one case, and it
+            // favours this one. If the *payload* write throws, this order has not yet touched the
+            // index and nothing is written at all; the reverse order would already have added an
+            // entry naming a character that is not there, which `ListAsync` then has to drop on
+            // every future visit.
             await _js.InvokeVoidAsync("ppStore.save", PayloadKeyFor(prefix, id), StoredCharacter.Write(sheet, mode));
 
             if (!CharacterSession.IsWorthKeeping(sheet)) return;

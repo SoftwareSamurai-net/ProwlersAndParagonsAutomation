@@ -270,7 +270,12 @@
     {
         if (await Keep() is false) return;
 
-        Session.StartAgain();
+        // **No undo, because nothing was destroyed and an undo here would duplicate.** `Undo`
+        // restores into the sheet without moving the current-character pointer, which by now is on
+        // the fresh slot — so undoing would write a second copy of the character just kept, and it
+        // would be listed twice. The kept character is a row above this button; that is the way
+        // back. See `CharacterSession.StartAgain`.
+        Session.StartAgain(offerUndo: false);
 
         await Refresh();
     }
@@ -317,9 +322,19 @@
         // cap has since changed stops claiming to be full.
         await Refresh();
 
-        _refusal = outcome == StartAnotherOutcome.NoRoom
-            ? "Your account is full. Discard one to make room; the character you have is still saved."
-            : "Your character could not be saved just now, so nothing new was started. Try again in a moment.";
+        _refusal = outcome switch
+        {
+            StartAnotherOutcome.NoRoom =>
+                "Your account is full. Discard one to make room; the character you have is still saved.",
+
+            // Kept, but no room could be confirmed — so the sentence says the character is safe,
+            // which the one below it must not, because there it is not.
+            StartAnotherOutcome.NotStarted =>
+                "Your character is saved. Nothing new could be started just now — try again in a moment.",
+
+            _ => "Your character could not be saved just now, so nothing new was started. "
+                 + "Try again in a moment.",
+        };
 
         return false;
     }

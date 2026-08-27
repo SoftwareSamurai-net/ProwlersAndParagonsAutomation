@@ -276,7 +276,7 @@ public sealed class DiscardedCharacterTests
 
         // Through the renderer's dispatcher: the layout subscribes to the session's change event,
         // so raising it off-dispatcher throws rather than redrawing.
-        await layout.InvokeAsync(ctx.Session.StartAgain);
+        await layout.InvokeAsync(() => ctx.Session.StartAgain());
 
         // The positive control, and it earned itself: `StartAgain` raises `Changed` *before* it
         // fills the buffer, so the redraw that event triggers still sees `CanUndo` false. In the

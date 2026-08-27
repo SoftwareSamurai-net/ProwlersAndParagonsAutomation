@@ -419,6 +419,171 @@ public sealed class StartAnotherTests
         Assert.Contains("could not be saved", page.Markup, StringComparison.OrdinalIgnoreCase);
     }
 
+    // ── The three an adversarial review demonstrated ────────────────────────────────
+
+    /// <summary>
+    /// <b>A browser that refuses storage keeps the character on screen.</b> Nothing was written
+    /// down, so there is nowhere to move on to — and the old code could not tell, because the store
+    /// handed back the id it was passed whether or not the write landed and the check compared the
+    /// two. A dead check that read like a guard, and the cost of it was the whole character.
+    /// </summary>
+    [Fact]
+    public void AStorageRefusalKeepsTheCharacterOnScreenAndSaysSo()
+    {
+        using var ctx = new RenderContext(storesForReal: true);
+        var page = ctx.Render<ChooseTier>();
+        Build(ctx, "Lynchpin");
+
+        ctx.Storage!.Refuses = true;
+        Button(page, StartNew).Click();
+
+        Assert.Equal("Lynchpin", ctx.Session.Sheet.Name);
+        Assert.Equal("standard", ctx.Session.Sheet.SelectedTierId);
+        Assert.Contains("could not be saved", page.Markup, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The positive control for the one above: with storage working, the identical sequence goes
+    /// through. Otherwise "the sheet still says Lynchpin" would be satisfied by a button that never
+    /// does anything at all.
+    /// </summary>
+    [Fact]
+    public async Task WithStorageWorkingTheSameSequenceGoesThrough()
+    {
+        using var ctx = new RenderContext(storesForReal: true);
+        var page = ctx.Render<ChooseTier>();
+        Build(ctx, "Lynchpin");
+
+        Button(page, StartNew).Click();
+
+        Assert.True(string.IsNullOrEmpty(ctx.Session.Sheet.Name));
+        Assert.Contains((await StoreIn(ctx).ListAsync()).Characters, c => c.Label == "Lynchpin");
+    }
+
+    /// <summary>
+    /// <b>The account's cap is asked about only once the character is actually on the server.</b>
+    /// The check used to come first and raced the very thing it was there to prevent: the ordinary
+    /// autosave is fire-and-forget over HTTP, so a list read straight after an edit can answer from
+    /// before that edit's row existed — reading as room on an account that has none, opening a slot,
+    /// and letting everything typed into it be refused by a 409 nobody reports.
+    ///
+    /// <para><b>Asserted on the order of the requests, not by racing a timer.</b> A test that
+    /// slept would be testing this machine's scheduler. What has to be true is that the write is
+    /// awaited before the list is read, and <c>FakeApi.Asked</c> records both with their
+    /// methods.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheAccountsCharacterIsWrittenBeforeItsCapIsRead()
+    {
+        using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
+        ctx.Api.Limit = 5;
+        var page = ctx.Render<ChooseTier>();
+
+        Build(ctx, "Lynchpin");
+        await Settle(ctx);
+
+        var from = ctx.Api.Asked.Count;
+        Button(page, StartNew).Click();
+
+        var asked = ctx.Api.Asked.Skip(from).ToList();
+
+        var wrote = asked.FindIndex(a => a.StartsWith("PUT /api/characters/", StringComparison.Ordinal));
+        var read = asked.FindIndex(a => a == "GET /api/characters");
+
+        Assert.True(wrote >= 0, "the character on screen was never written to the account.");
+        Assert.True(read >= 0, "the account's cap was never read at all.");
+        Assert.True(wrote < read, "the cap was read before the character was written, which is the race.");
+    }
+
+    /// <summary>
+    /// <b>An account one short of its cap refuses, counting the character just kept.</b> This is the
+    /// case the ordering above exists for: the keep fills the last slot, so there is no room for
+    /// another — and asking after the write is what makes that answer right.
+    /// </summary>
+    [Fact]
+    public async Task AnAccountWhoseLastSlotTheKeepFillsRefusesToStartAnother()
+    {
+        using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
+        ctx.Api.Limit = 1;
+        var page = ctx.Render<ChooseTier>();
+
+        Build(ctx, "Lynchpin");
+        await Settle(ctx);
+
+        Button(page, StartNew).Click();
+
+        // Kept — that half must still have happened — and nothing started.
+        Assert.Equal("Lynchpin", ctx.Session.Sheet.Name);
+        Assert.Contains("account is full", page.Markup, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains((await StoreIn(ctx).ListAsync()).Characters, c => c.Label == "Lynchpin");
+    }
+
+    /// <summary>
+    /// <b>Undoing after starting another does not put a second copy of the kept character into the
+    /// new slot.</b> <c>Undo</c> restores into the sheet and never moves the current-character
+    /// pointer, so an undo armed here would be a rescue from a danger that did not exist — and the
+    /// reader would find their character listed twice. The buffer is simply not armed.
+    /// </summary>
+    [Fact]
+    public async Task StartingAnotherLeavesNoUndoThatWouldDuplicateTheKeptCharacter()
+    {
+        using var ctx = new RenderContext(storesForReal: true);
+        var page = ctx.Render<ChooseTier>();
+        Build(ctx, "Lynchpin");
+
+        Button(page, StartNew).Click();
+
+        Assert.False(ctx.Session.CanUndo);
+
+        // And calling it anyway changes nothing — the guard is the buffer being empty, not a
+        // caller remembering not to ask.
+        ctx.Session.Undo();
+
+        var listed = (await StoreIn(ctx).ListAsync()).Characters;
+        Assert.Single(listed, c => c.Label == "Lynchpin");
+    }
+
+    // ── The refusals reach importing too, since both go through the same keep ───────
+
+    /// <summary>
+    /// Importing shares the keep, so it shares the refusals — and it has to, or the branch that
+    /// protects the character on screen would be tested on one of the two controls that uses it.
+    /// A refused import leaves both the character and the message where a reader can see them.
+    /// </summary>
+    [Fact]
+    public async Task ImportingIsRefusedRatherThanOverwritingWhenTheCharacterCannotBeKept()
+    {
+        using var ctx = new RenderContext(storesForReal: true);
+        var page = ctx.Render<ChooseTier>();
+        Build(ctx, "Lynchpin");
+
+        ctx.Storage!.Refuses = true;
+        await Import(page, Sheet("Someone else's Hero"));
+
+        Assert.Equal("Lynchpin", ctx.Session.Sheet.Name);
+        Assert.Contains("could not be saved", page.Markup, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// And on a full account the same: the import is refused rather than written over the character
+    /// the reader already has.
+    /// </summary>
+    [Fact]
+    public async Task ImportingIsRefusedOnAFullAccount()
+    {
+        using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
+        ctx.Api.Limit = 1;
+        var page = ctx.Render<ChooseTier>();
+
+        Build(ctx, "Lynchpin");
+        await Settle(ctx);
+
+        await Import(page, Sheet("Someone else's Hero"));
+
+        Assert.Equal("Lynchpin", ctx.Session.Sheet.Name);
+        Assert.Contains("account is full", page.Markup, StringComparison.OrdinalIgnoreCase);
+    }
+
     /// <summary>
     /// Lets the fire-and-forget write-through that an edit fires actually finish before the next
     /// step reads the server. The account's store is asynchronous over HTTP in a way the browser's

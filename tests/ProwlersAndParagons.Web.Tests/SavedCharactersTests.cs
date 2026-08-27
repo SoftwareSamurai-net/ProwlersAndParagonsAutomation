@@ -188,7 +188,9 @@ public sealed class SavedCharactersTests
     {
         var storage = new FakeLocalStorage();
 
-        var id = await FreshSaved(storage).SaveAsync(null, "Ninefold", SampleCharacters.Hero(), SheetMode.Hero);
+        var (id, stored) = await FreshSaved(storage).SaveAsync(null, "Ninefold", SampleCharacters.Hero(), SheetMode.Hero);
+
+        Assert.True(stored, "the minted character was not actually written down.");
 
         Assert.StartsWith("c_", id);
         var suffix = id["c_".Length..];
@@ -210,8 +212,8 @@ public sealed class SavedCharactersTests
         var second = SampleCharacters.Hero();
         second.Name = "Second";
 
-        var id1 = await saved.SaveAsync(null, "One", first, SheetMode.Hero);
-        var id2 = await saved.SaveAsync(null, "Two", second, SheetMode.Hero);
+        var id1 = (await saved.SaveAsync(null, "One", first, SheetMode.Hero)).Id;
+        var id2 = (await saved.SaveAsync(null, "Two", second, SheetMode.Hero)).Id;
 
         Assert.NotEqual(id1, id2);
 
@@ -229,11 +231,11 @@ public sealed class SavedCharactersTests
         var storage = new FakeLocalStorage();
         var saved = FreshSaved(storage);
 
-        var id = await saved.SaveAsync(null, "First name", SampleCharacters.Hero(), SheetMode.Hero);
+        var id = (await saved.SaveAsync(null, "First name", SampleCharacters.Hero(), SheetMode.Hero)).Id;
 
         var renamed = SampleCharacters.Hero();
         renamed.Name = "Renamed";
-        var again = await saved.SaveAsync(id, "Second name", renamed, SheetMode.Hero);
+        var again = (await saved.SaveAsync(id, "Second name", renamed, SheetMode.Hero)).Id;
 
         Assert.Equal(id, again);
 
@@ -251,7 +253,7 @@ public sealed class SavedCharactersTests
         var saved = FreshSaved(storage);
         var original = SampleCharacters.Villain();
 
-        var id = await saved.SaveAsync(null, "Ninefold", original, SheetMode.Villain);
+        var id = (await saved.SaveAsync(null, "Ninefold", original, SheetMode.Villain)).Id;
         var restored = (await saved.LoadAsync(id))!.Value;
 
         Assert.Equal(SheetMode.Villain, restored.Mode);
@@ -267,7 +269,7 @@ public sealed class SavedCharactersTests
     {
         var storage = new FakeLocalStorage();
         var saved = FreshSaved(storage);
-        var id = await saved.SaveAsync(null, "Temporary", SampleCharacters.Hero(), SheetMode.Hero);
+        var id = (await saved.SaveAsync(null, "Temporary", SampleCharacters.Hero(), SheetMode.Hero)).Id;
 
         await saved.DeleteAsync(id);
 
@@ -281,7 +283,7 @@ public sealed class SavedCharactersTests
     {
         var storage = new FakeLocalStorage();
         var saved = FreshSaved(storage);
-        var id = await saved.SaveAsync(null, "Currently open", SampleCharacters.Hero(), SheetMode.Hero);
+        var id = (await saved.SaveAsync(null, "Currently open", SampleCharacters.Hero(), SheetMode.Hero)).Id;
         await saved.SetCurrentAsync(id);
 
         await saved.DeleteAsync(id);
@@ -295,8 +297,8 @@ public sealed class SavedCharactersTests
     {
         var storage = new FakeLocalStorage();
         var saved = FreshSaved(storage);
-        var open = await saved.SaveAsync(null, "Open", SampleCharacters.Hero(), SheetMode.Hero);
-        var other = await saved.SaveAsync(null, "Other", SampleCharacters.Villain(), SheetMode.Villain);
+        var open = (await saved.SaveAsync(null, "Open", SampleCharacters.Hero(), SheetMode.Hero)).Id;
+        var other = (await saved.SaveAsync(null, "Other", SampleCharacters.Villain(), SheetMode.Villain)).Id;
         await saved.SetCurrentAsync(open);
 
         await saved.DeleteAsync(other);
@@ -322,7 +324,7 @@ public sealed class SavedCharactersTests
     {
         var storage = new FakeLocalStorage();
         var saved = FreshSaved(storage);
-        var id = await saved.SaveAsync(null, "Ninefold", SampleCharacters.Hero(), SheetMode.Hero);
+        var id = (await saved.SaveAsync(null, "Ninefold", SampleCharacters.Hero(), SheetMode.Hero)).Id;
 
         await saved.SetCurrentAsync(id);
 
@@ -436,7 +438,7 @@ public sealed class SavedCharactersTests
 
         // The manager creates a second character and switches to it.
         var second = SampleCharacters.Villain();
-        var id = await saved.SaveAsync(null, "Second character", second, SheetMode.Villain);
+        var id = (await saved.SaveAsync(null, "Second character", second, SheetMode.Villain)).Id;
         await saved.SetCurrentAsync(id);
 
         // The next autosave — CharacterStore has no idea anything switched — lands on the
@@ -463,8 +465,8 @@ public sealed class SavedCharactersTests
         var saved = FreshSaved(storage, who);
         var store = FreshStore(storage, who);
 
-        var older = await saved.SaveAsync(null, "Older", SampleCharacters.Hero(), SheetMode.Hero);
-        var newer = await saved.SaveAsync(null, "Newer", SampleCharacters.Villain(), SheetMode.Villain);
+        var older = (await saved.SaveAsync(null, "Older", SampleCharacters.Hero(), SheetMode.Hero)).Id;
+        var newer = (await saved.SaveAsync(null, "Newer", SampleCharacters.Villain(), SheetMode.Villain)).Id;
 
         // Both pinned to timestamps long before "now", so the autosave below — which stamps
         // the real current time — is unambiguously the more recent one however fast the

@@ -60,16 +60,61 @@ public sealed class StartAgainTests
     /// <summary>
     /// The positive control for the guard above: there really was something on the sheet
     /// before the click, so "replaced" is not vacuously true of an already-empty one.
+    ///
+    /// <para><b>Only the sample, because the two controls no longer agree about undo.</b> Loading
+    /// one replaces the character on screen without moving the current-character pointer, so the
+    /// only copy of what was there is the one the buffer holds. See the pair below for what
+    /// "Start a new character" does instead, and why.</para>
     /// </summary>
-    [Theory]
-    [InlineData(Discard)]
-    [InlineData(LoadHero)]
-    public void TheCharacterReplacedReallyHadSomethingInIt(string control)
+    [Fact]
+    public void TheCharacterReplacedByASampleReallyHadSomethingInIt()
     {
         using var ctx = new RenderContext().AsAdministrator().With(SheetMode.Hero);
         Assert.NotEmpty(ctx.Session.Sheet.SelectedPowers);
 
-        Button(PageFor(ctx, control), control).Click();
+        Button(PageFor(ctx, LoadHero), LoadHero).Click();
+
+        Assert.True(ctx.Session.CanUndo);
+    }
+
+    /// <summary>
+    /// <b>Starting another character arms no undo, and that is a fix rather than an omission.</b>
+    /// <see cref="CharacterSession.Undo"/> restores into the sheet and does not move the
+    /// current-character pointer — which by then is on the fresh slot — so an undo here would write
+    /// a second copy of the character just kept, and the reader would find it listed twice. An
+    /// adversarial review demonstrated exactly that against an earlier version of this change.
+    ///
+    /// <para>Nothing is lost by it: the character is a row in the list, which is the way back. It
+    /// is the same reason importing does not buffer either.</para>
+    /// </summary>
+    [Fact]
+    public void StartingAnotherArmsNoUndoBecauseNothingWasDestroyed()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+
+        // The positive control: there really was a character to lose, so "no undo offered" is not
+        // vacuously true of an empty sheet — an empty one never buffers anything anyway.
+        Assert.NotEmpty(ctx.Session.Sheet.SelectedPowers);
+        Assert.True(ctx.Session.HasSomethingToLose);
+
+        Button(PageFor(ctx, Discard), Discard).Click();
+
+        Assert.Empty(ctx.Session.Sheet.SelectedPowers);
+        Assert.False(ctx.Session.CanUndo);
+    }
+
+    /// <summary>
+    /// And discarding the row that is open still does buffer, which is the other half: that one
+    /// really does throw the character away — it empties the slot as well — so the buffer is the
+    /// only copy there is.
+    /// </summary>
+    [Fact]
+    public void DiscardingTheOpenRowStillArmsAnUndo()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        Assert.NotEmpty(ctx.Session.Sheet.SelectedPowers);
+
+        ctx.Session.StartAgain();
 
         Assert.True(ctx.Session.CanUndo);
     }
@@ -96,11 +141,13 @@ public sealed class StartAgainTests
     /// asked of the engine's own answers, not a field list, the same way the persistence
     /// round-trip test in this project is.
     /// </summary>
-    [Theory]
-    [InlineData(Discard)]
-    [InlineData(LoadHero)]
-    public void UndoingBringsBackTheCharacterThatWasReplaced(string control)
+    /// <para><b>The sample alone, since "Start a new character" stopped buffering</b> — see
+    /// <see cref="StartingAnotherArmsNoUndoBecauseNothingWasDestroyed"/> for why.</para>
+    [Fact]
+    public void UndoingBringsBackTheCharacterASampleReplaced()
     {
+        const string control = LoadHero;
+
         using var ctx = new RenderContext().AsAdministrator().With(SheetMode.Hero);
         var page = PageFor(ctx, control);
 
