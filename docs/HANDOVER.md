@@ -24,7 +24,7 @@ the fix above, including a check that was dead code and read exactly like a guar
 
 ## Where things stand
 
-**4,800 tests across four suites** — 4,015 engine, 605 bUnit, 166 accounts, 14 pixel comparator.
+**4,804 tests across four suites** — 4,015 engine, 609 bUnit, 166 accounts, 14 pixel comparator.
 Measured after the last merge, not carried across from any stream:
 
 ```bash
@@ -169,6 +169,13 @@ sheet the tool produces.
   test existed to close. The fix is to assert the *order of the requests* rather than to race a
   timer: `FakeApi.Asked` records each with its method, so "the `PUT` comes before the `GET`" is a
   plain assertion and does not test this machine's scheduler.
+- **Breaking a guard and watching it fail is not enough if you break something the guard was never
+  about.** The print-safety test was broken by removing `.tip-wrap` from the print block and it went
+  red, which looked like proof. `.tip-wrap` belongs to `Tooltip`; a `Term`'s tip is `.row-tip`, kept
+  off paper by its own base `display: none`, which the test never touched. A reviewer set that line
+  to `display: block` and put every description on the printed page with the suite green.
+  **Ask what the mechanism is before choosing what to break** — this is the null mutation
+  `CLAUDE.md` records, wearing a disguise.
 - **An adversarial review and an end-to-end harness are not substitutes.** Three defects were found
   by a reader told only to look for data loss; a harness would have caught at most one of them, and
   the race not at all reliably. A harness answers "is this reachable"; a hostile reader answers
@@ -188,6 +195,11 @@ sheet the tool produces.
   Writing the script to a file with the editing tool and running `python <file>` worked every time
   and is also re-runnable when a match fails. The existing note about heredocs hanging on a machine
   with no Python is a different failure with the same lesson.
+- **`dotnet test` on its own is not the CI build, and the difference is analyzers.** Two xUnit
+  analyzer faults in new test code — `Assert.NotNull` on a value tuple, which is always true, and a
+  `Where` before `Assert.Single` — passed a plain `dotnet test` and failed
+  `--configuration Release -p:ContinuousIntegrationBuild=true`. `CLAUDE.md` already lists that
+  command; run it before the push, not after CI says so.
 - **When a mutation leaves the suite green, find out why before recording a hole.** Dropping the
   index-add from the autosave was green — not because the guard was fine, but because the *kept*
   character is indexed by the explicit save that keeps it, so nothing noticed that the character

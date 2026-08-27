@@ -369,9 +369,12 @@ public sealed partial class ExplainedSheetTests
         var print = css[css.IndexOf("@media print", StringComparison.Ordinal)..];
         Assert.True(print.Length > 0, "app.css no longer has a print block at all.");
 
-        var rule = Rules(print).SingleOrDefault(r => r.Selector == ".term-name");
-        Assert.NotNull(rule);
-        Assert.Contains("text-decoration: none", rule!.Body, StringComparison.Ordinal);
+        // `Single`, not `SingleOrDefault` plus a null check: these are value tuples, so the
+        // default is ("", "") rather than null and the check would always pass. The CI build's
+        // analyzers caught that; a plain `dotnet test` did not.
+        var rule = Assert.Single(Rules(print), r => r.Selector == ".term-name");
+
+        Assert.Contains("text-decoration: none", rule.Body, StringComparison.Ordinal);
         Assert.Contains("cursor: auto", rule.Body, StringComparison.Ordinal);
     }
 
@@ -383,10 +386,9 @@ public sealed partial class ExplainedSheetTests
     [Fact]
     public void TheDescriptionsOtherCopyIsAClippedBox()
     {
-        var rule = Rules(Stylesheet()).SingleOrDefault(r => r.Selector == ".sr-only");
+        var rule = Assert.Single(Rules(Stylesheet()), r => r.Selector == ".sr-only");
 
-        Assert.NotNull(rule);
-        Assert.Contains("clip-path: inset(50%)", rule!.Body, StringComparison.Ordinal);
+        Assert.Contains("clip-path: inset(50%)", rule.Body, StringComparison.Ordinal);
         Assert.Contains("position: absolute", rule.Body, StringComparison.Ordinal);
     }
 
