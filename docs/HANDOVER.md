@@ -39,8 +39,8 @@ the fix above, including a check that was dead code and read exactly like a guar
 ## Where things stand
 
 **4,831 tests across four suites** — 4,015 engine, 636 bUnit, 166 accounts, 14 pixel comparator.
-The bUnit figure is measured on this round's branch; the other three are unchanged and were not
-re-run here. Re-measure on the integration branch rather than copying this line:
+All four were re-run on this round's branch. Re-measure on the integration branch rather than
+copying this line:
 
 ```bash
 dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
@@ -227,6 +227,14 @@ asymmetry is not a flourish; it falls straight out of where the data lives.
   scrollWidth 360`. The harness measures a real 375px **iframe** for exactly this reason and says
   so in its own header. Screenshot `proof-narrow-shell.html` itself, not the shell at a small
   window.
+- **`git remote -v` points at the old owner, and `gh` can fail in a way that looks like billing.**
+  This repository is `SoftwareSamurai-net/ProwlersAndParagonsAutomation` now; the remote still
+  says `DorianSheiles/…` and redirects. `gh workflow run --ref …` resolved from that remote came
+  back *"the job was not started because recent account payments have failed or your spending
+  limit needs to be increased"* — which reads exactly like the account's Actions being switched
+  off, and is not: the same dispatch with `--repo SoftwareSamurai-net/…` ran in four minutes. Two
+  runs on `master` that failed in seconds after the #90 merge have the same explanation. **Pass
+  `--repo` explicitly, and do not conclude anything about billing from that message.**
 - **A guard that has never had an answer to be wrong about is a different guard once it does.**
   Every call in `Shortcuts` was fire-and-forget, and its own remarks said "no caller reads a result
   back, so there is no answer to be wrong". The one that reads an answer had to break that
