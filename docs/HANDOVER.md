@@ -16,6 +16,13 @@ sign-out — and two independent reviewers found all three. The fix is structura
 why; the shape to keep is that the account copy has a slot of its own and nothing else is ever
 written to or cleared.
 
+**The owner has since reported three things from using the deployed app, and they come first — see
+the section immediately below.** Two of them are one defect and it is the more serious kind: a
+feature that was built, tested, reviewed and shipped while nothing in the app ever put a character
+into the store it reads from. Every check passed because every check exercised the machinery
+directly. **Nothing in this repository asks whether a feature is reachable by an ordinary person
+doing an ordinary thing**, which is `PROGRESS.md` item 10's argument in one sentence.
+
 ---
 
 ## Where things stand
@@ -85,6 +92,49 @@ Three separate stale claims were found and fixed, none of which any test could h
 
 ---
 
+## The owner reported three things. Start here
+
+**These came from the owner using the deployed app, and they outrank everything below.**
+
+### 1 and 2 are the same defect: nothing ever names a character into the index
+
+> *"I don't see the web UI character switcher working yet? If I import Lynchpin, my character, there
+> is no option to start a new character that doesn't blow away my old one?"*
+
+**The multi-character machinery exists and nothing populates it.** `SavedCharacters` has an index,
+`CharacterManager` draws rows, and the banner switcher lists them — but `RestoreAsync`, the only
+labelled-save path, **has no caller anywhere outside `web/Services/`**. Everything else autosaves
+into the *current* slot, which for an anonymous visitor is the single legacy slot. So:
+
+- `CharacterManager.StartNew()` is `Session.StartAgain()` + `Store.ClearAsync()` — it **empties the
+  current slot** rather than saving it and opening a fresh one. That is the "blows away my old one"
+  the owner hit.
+- Import goes through `ReplaceWithUndo`, which overwrites whatever the pointer is aimed at.
+- Because nothing is ever added to the index, `ListAsync` returns at most one row, so the switcher
+  always says *"Nothing else saved yet."* **It is not broken — it has nothing to list.** I read that
+  as correct-for-an-empty-browser when verifying #84 live, and it was the symptom.
+
+**What is needed is a "keep this one and start another" path** — a labelled save that mints an id
+and adds it to the index, wired to the manager's *Start a new character* and to import. The undo
+buffer, the discard undo and the switcher all already work off the index, so they come along free.
+Check whether the account side has the same gap; `ApiCharacterStore.SaveAsync(id, label, …)` exists,
+so the seam is there on both sides.
+
+### 3. The explained sheet should be how the sheet renders, not a second address
+
+> *"the 'explain this character sheet' button is still present, instead of that just being the
+> default way the sheet renders."*
+
+`SheetView` takes `Explain`, off everywhere except `/build/sheet` (`ExplainedSheet.razor` renders
+`<SheetView Explain="true" />`), and `Review.razor` carries an *Explain this sheet* link to it. The
+owner wants the explanations on by default. Two things to work out rather than assume: what happens
+to `/build/sheet` (keep as an address, or retire it and drop the link), and **whether `Term` should
+be doing anything on the printed page at all** — `docs/guide/printed-sheet.md` is the guide, print
+is the deliverable, and a tooltip has no meaning on paper. `ExplainedSheetTests` and the
+`explained-sheet` golden both exist and will move.
+
+---
+
 ## What is left, in the order I would take it
 
 1. **`PROGRESS.md` item 10 needs a decision, and it is the highest-value thing on this list.**
@@ -124,12 +174,21 @@ Three separate stale claims were found and fixed, none of which any test could h
 
 ## Still open from before, unchanged
 
-- **Screen-reader testing is owed** on the command palette, the pips, the sign-in page, the
+- **Screen-reader testing is deferred by the owner, and this is a decision rather than a backlog
+  item.** *"I don't care about accessibility / screen reader stuff. So defer until the application
+  is finished. Which it is far from."* — 2026-08-27. **Do not spend a slice on it, and do not offer
+  it as the next thing to do.** It stays recorded because the debt is real and the app will
+  eventually be finished: it is owed on the command palette, the pips, the sign-in page, the
   light/dark control, the row descriptions, the rules search, the row findings and the undo
-  announcement. `aria-pressed` asserted as the string `"true"` is not the same as having been
-  listened to. **No agent in this repository can close this** — it needs a person with a screen
-  reader, and nothing automated is a substitute. Saying otherwise would be the kind of claim this
-  file exists to prevent.
+  announcement, and `aria-pressed` asserted as the string `"true"` is not the same as having been
+  listened to.
+
+  **The structural half is done and does not need revisiting**: `AriaReferenceTests` sweeps twelve
+  surfaces and resolves every `aria-describedby`, `aria-labelledby` and `aria-controls` token, so a
+  dangling IDREF cannot reach whoever eventually does the real work. Keep writing components to the
+  rules in `docs/guide/browser.md` — the `title`-attribute ban, string-valued ARIA booleans,
+  conditional `aria-controls` — because those are cheap at the time and expensive to retrofit. That
+  is the whole of what is expected here for now.
 
   What *was* added is one structural check that clears the plumbing out of the way first:
   `AriaReferenceTests` sweeps twelve surfaces and resolves every token of `aria-describedby`,
