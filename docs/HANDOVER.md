@@ -45,12 +45,18 @@ dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
 project failed to **build** and its result is simply missing. Count the lines, and grep for
 `Catastrophic` — a crashed process still prints `Passed! - Failed: 0`.
 
-**A whole-tree Qodana scan reported 0** via `./scripts/qodana-scan.sh` (needs Docker Desktop), on
-both of this round's branches. Do not repeat that zero without re-running it — **and expect the new
-test files to put findings there.** Both branches scanned dirty the first time, on the same three
-rules every time: `UseAwaitUsing` for an `IAsyncDisposable` context in an `async` test,
-`MethodHasAsyncOverload` for `Click()` where `ClickAsync` exists, and a `using` a global one already
-covers. Run the scan before the push rather than after the PR.
+**A whole-tree Qodana scan reported 0** via `./scripts/qodana-scan.sh` (needs Docker Desktop) — on
+each of this round's **five** branches and then **on `master` after the merges**, which is the
+figure worth having, because separately-clean branches are not the same claim as a clean merge of
+them. Do not repeat that zero without re-running it.
+
+**And expect a new test file to put findings there.** Every branch this round scanned dirty the
+first time, on five rules between them: `UseAwaitUsing` for an `IAsyncDisposable` context in an `async`
+test, `MethodHasAsyncOverload` for `Click()` where `ClickAsync` exists, `RedundantUsingDirective`
+for a `using` a global one already covers, `RedundantNameQualifier`, and `InvalidXmlDocComment` for
+a `<para>` left unclosed. **Run the scan before the push rather than after the PR** — and run the CI
+build, not just `dotnet test`, because the analyzers that catch `Assert.NotNull` on a value type are
+errors only under `--configuration Release -p:ContinuousIntegrationBuild=true`.
 
 ---
 
