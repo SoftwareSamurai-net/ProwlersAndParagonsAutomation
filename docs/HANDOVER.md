@@ -227,14 +227,22 @@ asymmetry is not a flourish; it falls straight out of where the data lives.
   scrollWidth 360`. The harness measures a real 375px **iframe** for exactly this reason and says
   so in its own header. Screenshot `proof-narrow-shell.html` itself, not the shell at a small
   window.
-- **`git remote -v` points at the old owner, and `gh` can fail in a way that looks like billing.**
-  This repository is `SoftwareSamurai-net/ProwlersAndParagonsAutomation` now; the remote still
-  says `DorianSheiles/…` and redirects. `gh workflow run --ref …` resolved from that remote came
-  back *"the job was not started because recent account payments have failed or your spending
-  limit needs to be increased"* — which reads exactly like the account's Actions being switched
-  off, and is not: the same dispatch with `--repo SoftwareSamurai-net/…` ran in four minutes. Two
-  runs on `master` that failed in seconds after the #90 merge have the same explanation. **Pass
-  `--repo` explicitly, and do not conclude anything about billing from that message.**
+- **This repository moved to a new organisation, and the old account is out of Actions minutes.**
+  It is `SoftwareSamurai-net/ProwlersAndParagonsAutomation` now; `git remote -v` still says
+  `DorianSheiles/…` and redirects for git. A `gh workflow run --ref …` resolved from that remote
+  came back *"the job was not started because recent account payments have failed or your spending
+  limit needs to be increased"* — **which was true of that account** — and the same dispatch with
+  `--repo SoftwareSamurai-net/…` ran in four minutes, because the organisation has its own
+  allowance. The two `master` runs that failed in seconds after the #90 merge are the old
+  account's minutes running out, not a fluke.
+
+  Two things follow, and the second is the one that cost this round a wrong paragraph in a PR
+  body. **Pass `--repo SoftwareSamurai-net/ProwlersAndParagonsAutomation` to every `gh` command**,
+  or `gh pr create` refuses with "No commits between…" and a dispatch spends the wrong account's
+  budget. And **"the same command worked when I changed one flag" does not mean the first failure
+  was spurious** — here it meant the flag changed *which account was paying*, which is a different
+  fact about the world and not a correction of the first one. Read the failure for what it says
+  before deciding it was a red herring.
 - **A guard that has never had an answer to be wrong about is a different guard once it does.**
   Every call in `Shortcuts` was fire-and-forget, and its own remarks said "no caller reads a result
   back, so there is no answer to be wrong". The one that reads an answer had to break that
