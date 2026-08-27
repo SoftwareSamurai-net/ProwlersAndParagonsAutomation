@@ -933,6 +933,113 @@ label {
 .chosen .body { flex: 1 1 auto; min-width: 0; }
 .chosen .cost { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
 
+/* ── The character manager ───────────────────────────────────────────────────
+
+   **The panel holds one kind of thing and offers four actions on it, and its old layout
+   encoded neither.** A row was a name at the left edge and two buttons at the right across a
+   gap that grew with the window, so the commonest action — opening a character — was the
+   smallest, furthest thing on the row, while the rarest and most reversible one was the only
+   thing in danger red. See `CharacterManager.razor` for the three moves; these are their
+   shapes. */
+
+/* The character on screen. Marked by a left edge in --accent rather than a fill: --accent is
+   a FILL token elsewhere but this is a 3px rule, not a ground, and the panel already sits on
+   --panel — a second filled ground here would be the third surface in one box. */
+.character-open {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: var(--panel-sunk);
+    border: var(--rule-weight) solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-small);
+}
+.character-open .who { flex: 1 1 auto; min-width: 0; }
+.character-open .lbl {
+    display: block;
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    font-size: var(--text-xs);
+    color: var(--heading);
+}
+.character-open .nm { font-size: var(--text-lg); }
+/* Between the name and the figure, not under it: they are one sentence about one character,
+   and stacking them would make the block two lines tall for a panel that is meant to be
+   glanced at. */
+.character-open .meta { color: var(--muted); font-size: var(--text-sm); margin-left: var(--space-2); }
+
+.others-head {
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    font-size: var(--text-xs);
+    color: var(--muted);
+    margin: var(--space-5) 0 var(--space-2);
+}
+
+.character-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.character-list > li { display: flex; align-items: center; gap: var(--space-3); }
+
+/* **The row is the button.** Full width, left-aligned, and a real <button> — so the large easy
+   target is the safe act and the small one beside it is the destructive act, which is the way
+   round Fitts's law should be pointed. It borrows the button chrome rather than `.btn` itself:
+   `.btn` is `inline-block` and centres its text, and a row of names has to align left and fill
+   the line. */
+.open-target {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-3);
+    font: inherit;
+    text-align: left;
+    padding: var(--space-2) var(--space-4);
+    background: var(--panel);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-small);
+    cursor: pointer;
+}
+.open-target:hover { background: var(--panel-sunk); border-color: var(--heading); }
+.open-target:active { transform: translateY(1px); }
+.open-target .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Pushed to the far end of the row's own button rather than sitting against the name: it is
+   the thing a reader scans down a column to compare, and a column needs an edge to line up on. */
+.open-target .meta {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: var(--text-sm);
+    white-space: nowrap;
+}
+
+/* **Quiet, not danger red, and that reverses a deliberate choice.** The red was picked so a
+   destructive control looked as serious as what it does — but the confirm was removed *because*
+   undo makes discarding cheap, and red repeated on every row made the loudest thing in the
+   panel its rarest and most reversible action. `--muted` is held to 4.5:1 on `--panel` in both
+   families, so this is a demotion in weight and not in legibility. */
+.btn.quiet { border-color: var(--rule); color: var(--muted); }
+.btn.quiet:hover:not(:disabled) { background: var(--panel-sunk); color: var(--ink); border-color: var(--heading); }
+
+/* One bar, two equal doors. Starting fresh and importing are the same kind of act — both make
+   a character that does not exist yet — so the group's own rule separates them from the list
+   above, which is the job `ImportCharacter`'s `.small` was doing alone by simply being smaller
+   than its neighbour. */
+.make-another {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: var(--rule-weight) solid var(--rule);
+}
+/* Both doors take an equal share of the bar down to the width where sharing stops making
+   sense, at which point they wrap and each fills the line. */
+.make-another > .btn,
+.make-another > label.btn { flex: 1 1 14rem; text-align: center; }
+
 /* ── Validation on the row that broke it ─────────────────────────────────── */
 
 /* RowFinding's own markup. Sits under a RankRow or inside a ChosenRow's <li>, and is drawn

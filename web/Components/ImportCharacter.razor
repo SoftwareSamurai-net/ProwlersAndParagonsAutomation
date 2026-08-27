@@ -14,10 +14,17 @@
    right here rather than a page that stops rendering.
 
    **The trigger is a real, styled `<label>`, not the operating system's own "Choose File" chip.**
-   Every other control on the manager panel this sits in is themed and sized to the app; the raw
-   control read as an afterthought bolted beside "Start a new character" and, being the same size,
-   competed with it rather than sitting behind it. `.small` is the same demotion `.btn.small`
-   already gives a secondary action elsewhere.
+   Every other control on the manager panel this sits in is themed and sized to the app, and the
+   raw control read as an afterthought bolted beside "Start a new character".
+
+   **It used to be `.small` as well, and that is gone.** The demotion was a fix for the same
+   problem — the raw chip "competed with" its neighbour rather than sitting behind it — and it
+   worked by making this visibly the lesser of two controls. But **these two are peers**: both make
+   a character that does not exist yet, and one of them is not an afterthought. Size was doing a
+   separating job that belongs to a container, so `.make-another` now draws a rule above the pair
+   and gives them an equal share of it, and this goes back to full size inside it. The owner
+   reported the old arrangement as "skinnier and adjacent but also floating", which is all three
+   faults in one phrase.
 
    The `<input>` itself is `.sr-only` — clipped, not `display: none`, so it is still in the
    accessibility tree and still reachable by keyboard — and the visible label is what a reader
@@ -30,7 +37,7 @@
 
 <InputFile id="import-character-file" class="sr-only" accept=".json,application/json"
            disabled="@_busy" OnChange="HandleSelected" />
-<label class="btn small@(_busy ? " disabled" : "")" for="import-character-file">
+<label class="btn@(_busy ? " disabled" : "")" for="import-character-file">
     Import a character
 </label>
 

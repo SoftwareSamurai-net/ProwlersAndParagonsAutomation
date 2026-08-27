@@ -109,28 +109,55 @@ public sealed class CharacterManagerTests
     }
 
     /// <summary>
-    /// The import trigger is a real, styled control beside "Start a new character" — not the
-    /// operating system's own file-picker chrome, and not a second control competing with the
-    /// primary action for the reader's eye.
+    /// <b>The import trigger is a real, styled control, and it is now the same size as the button
+    /// beside it.</b> It used to carry <c>.small</c> — a fix for the operating system's raw
+    /// "Choose File" chip, which read as an afterthought bolted beside "Start a new character".
+    /// That fix worked by making this visibly the lesser of the two, and the owner reported the
+    /// result: "skinnier and adjacent but also floating".
+    ///
+    /// <para><b>They are peers.</b> Both make a character that does not exist yet. Separating them
+    /// from the list is a container's job, not a font size's — so <c>.make-another</c> draws a rule
+    /// above the pair and gives them an equal share of the bar, and this goes back to full
+    /// size inside it.</para>
+    ///
+    /// <para>What has not changed, and is asserted here because it is the fragile half: the input
+    /// is still <c>.sr-only</c> rather than <c>display: none</c>, so it keeps its place in the
+    /// accessibility tree and its keyboard reachability, and exactly one label points at it.</para>
     /// </summary>
     [Fact]
-    public void TheImportTriggerIsAStyledSecondaryControl()
+    public void TheImportTriggerIsAStyledControlOfEqualWeight()
     {
         using var ctx = new RenderContext();
-
         var cut = ctx.Render<CharacterManager>();
 
         var input = cut.Find("input[type=file]");
         Assert.Contains("sr-only", input.ClassList);
 
         var label = cut.Find("label.btn");
-        Assert.Contains("small", label.ClassList);
-        Assert.Equal(input.GetAttribute("id"), label.GetAttribute("for"));
+        Assert.Equal("import-character-file", label.GetAttribute("for"));
+        Assert.Equal(input.Id, label.GetAttribute("for"));
 
-        // Smaller than the primary action, not the same weight — `.btn.small` is a narrower
-        // class list than the plain `.btn` (or `.btn.danger`) "Start a new character" carries.
-        var primary = cut.FindAll("button").Single(b => b.TextContent.Contains("Start a new character", StringComparison.Ordinal));
-        Assert.DoesNotContain("small", primary.ClassList);
+        // One label, because `for`/`id` is the whole of the association — a second, wrapping one
+        // would give the same input two, which is the trap a hidden-input pattern usually falls into.
+        Assert.Single(cut.FindAll("label[for=import-character-file]"));
+
+        // **Equal, which is the reversal.** No `.small`, and the same class list the primary
+        // carries apart from the one that makes it primary.
+        Assert.DoesNotContain("small", label.ClassList);
+
+        var start = cut.FindAll("button")
+            .Single(b => b.TextContent.Contains("Start a new character", StringComparison.Ordinal));
+
+        Assert.Contains("primary", start.ClassList);
+        Assert.DoesNotContain("small", start.ClassList);
+
+        // And both sit in the one bar, which is what separates them from the list above. Asserted
+        // by query rather than by comparing element instances: `Find` hands back a bUnit wrapper and
+        // `QuerySelectorAll` hands back the raw AngleSharp element, so the two never compare equal.
+        var bar = cut.Find(".make-another");
+        Assert.NotNull(bar.QuerySelector("label[for=import-character-file]"));
+        Assert.Contains(bar.QuerySelectorAll("button"),
+            b => b.TextContent.Contains("Start a new character", StringComparison.Ordinal));
     }
 
     // ── Throwing one away ────────────────────────────────────────────────────────────────────
@@ -237,10 +264,28 @@ public sealed class CharacterManagerTests
     /// spells out the historical key: it is a storage layout two files have to agree on, and a
     /// test that derived it from the code under test could not catch the layout changing.</para>
     /// </summary>
+    /// <summary>
+    /// A saved character with the pointer aimed at it — and the session holding it, which is the
+    /// half this used to leave out.
+    ///
+    /// <para><b>It plants a pointer, so it has to plant the whole state that pointer implies.</b>
+    /// Opening a character moves the pointer <em>and</em> restores the character into the session;
+    /// the app's own boot does both. Leaving the session empty made a fixture no running app can be
+    /// in, and the redesign found it: the open character's name is now read from the session — live,
+    /// because somebody may be typing it on the finishing step — so a planted pointer with an empty
+    /// session drew a block called "Unnamed character" over a store holding "Ninth Precinct".</para>
+    ///
+    /// <para>The sheet is named after the label for the same reason: a character's label
+    /// <em>is</em> its sheet's name, everywhere else in the app — <c>SavedCharacters.LabelFor</c>
+    /// derives one from the other. A fixture where they disagree is testing a state the app cannot
+    /// produce.</para>
+    /// </summary>
     private static async Task<string> OpenRow(RenderContext ctx, string label, CharacterSheet sheet)
     {
         var who = await ctx.Services.GetRequiredService<IIdentitySource>().CurrentAsync();
         var id = SavedCharacters.NewId();
+
+        sheet.Name = label;
 
         await ctx.Services.GetRequiredService<ApiCharacterStore>()
             .SaveAsync(id, label, sheet, SheetMode.Hero);
@@ -248,16 +293,22 @@ public sealed class CharacterManagerTests
         ctx.JSInterop.Setup<string?>("ppStore.load", $"pp.character.v1.{who.Key}.current")
             .SetResult(id);
 
+        ctx.Session.Restore(sheet, SheetMode.Hero);
+
         return id;
     }
 
     /// <summary>
-    /// The positive control for the two below: the pointer really did land, so the row under test
-    /// really is the open one. Without it they would both be passing against a panel where nothing
-    /// matched <c>_currentId</c> — which is exactly the state they were written to leave.
+    /// <b>The positive control for every test that plants a pointer.</b> If the plant did not take,
+    /// each of them would be quietly asserting about an ordinary row instead of the open one — and
+    /// they would pass, because a row of that name is on screen either way.
+    ///
+    /// <para>Under the redesign the character on screen is not a row at all: it has its own block
+    /// above the list, marked <em>Open now</em> and carrying its spend, because the panel used to be
+    /// unable to say which character you were in.</para>
     /// </summary>
     [Fact]
-    public async Task ThePlantedPointerReallyMarksTheRowOpen()
+    public async Task ThePlantedPointerReallyMarksTheCharacterOpen()
     {
         await using var ctx = new RenderContext();
         ctx.Api.SignedIn = ("acct-7", "player");
@@ -265,11 +316,16 @@ public sealed class CharacterManagerTests
 
         var cut = ctx.Render<CharacterManager>();
 
-        Assert.Contains("open now", Row(cut, "Ninth Precinct").TextContent, StringComparison.Ordinal);
+        var open = cut.Find(".character-open");
+        Assert.Contains("Ninth Precinct", open.QuerySelector(".nm")!.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Open now", open.TextContent, StringComparison.Ordinal);
 
-        // And the row that is open offers no "Open" button, since there is nowhere to go.
-        Assert.DoesNotContain(
-            Row(cut, "Ninth Precinct").QuerySelectorAll("button"),
+        // And it is not also in the list below, which would be the same character drawn twice.
+        Assert.DoesNotContain("Ninth Precinct",
+            cut.FindAll("ul.character-list > li").Select(li => li.TextContent));
+
+        // The character that is open offers no "Open", since there is nowhere to go.
+        Assert.DoesNotContain(open.QuerySelectorAll("button"),
             b => b.TextContent.Trim() == "Open");
     }
 
@@ -300,30 +356,60 @@ public sealed class CharacterManagerTests
     }
 
     /// <summary>
-    /// The open row's positive control: an empty sheet arms neither buffer. That is the visit where
-    /// nobody has anything at stake, and an offer to bring back nothing is noise.
+    /// <b>An empty open slot offers nothing to discard, and that is the state the redesign was
+    /// built for.</b> Straight after "Start a new character" the pointer is on a fresh slot holding
+    /// nothing, the list holds the character you kept, and the panel used to be unable to say so at
+    /// all. It now names the empty slot outright — and draws no Discard beside it, because a button
+    /// that would throw away nothing is worse than no button.
+    ///
+    /// <para>This replaces a test that clicked Discard on an open slot whose session was empty. That
+    /// fixture cannot happen in the app — the boot restores whatever the pointer names — and the
+    /// guarantee it was reaching for is stronger stated this way: not "discarding an empty slot arms
+    /// no undo", but "there is nothing there to discard".</para>
     /// </summary>
     [Fact]
-    public async Task AnEmptyOpenRowArmsNoUndoAtAll()
+    public async Task AnEmptyOpenSlotIsNamedAndOffersNothingToDiscard()
     {
         await using var ctx = new RenderContext();
         ctx.Api.SignedIn = ("acct-7", "player");
-        var id = await OpenRow(ctx, "Ninth Precinct", SampleCharacters.Hero());
+
+        // One character kept, and the sheet on screen left empty — exactly what the keep-and-start
+        // path leaves behind.
+        await ctx.Services.GetRequiredService<ApiCharacterStore>()
+            .SaveAsync(SavedCharacters.NewId(), "Ninth Precinct", SampleCharacters.Hero(), SheetMode.Hero);
 
         var cut = ctx.Render<CharacterManager>();
-        await Discard(cut, "Ninth Precinct").ClickAsync();
 
-        Assert.DoesNotContain(
-            (await ctx.Services.GetRequiredService<ApiCharacterStore>().ListAsync()).Characters,
-            c => c.Id == id);
+        var open = cut.Find(".character-open");
+        Assert.Contains("Nothing chosen yet", open.TextContent, StringComparison.Ordinal);
+        Assert.DoesNotContain(open.QuerySelectorAll("button"),
+            b => b.TextContent.Contains("Discard", StringComparison.Ordinal));
+
+        // The positive control: the kept character really is on screen, in the list, with its own
+        // Discard — so "no Discard" above is about the empty slot and not about a panel that failed
+        // to draw anything.
+        Assert.Contains("Discard", Row(cut, "Ninth Precinct").TextContent, StringComparison.Ordinal);
 
         Assert.False(ctx.Session.CanUndo);
         Assert.False(ctx.Services.GetRequiredService<DiscardedCharacter>().CanUndo);
     }
 
+    /// <summary>
+    /// Whatever the panel is drawing for the character with this label — the block for the one on
+    /// screen, or a row in the list for any other.
+    ///
+    /// <para><b>Both shapes, because the redesign gave the open character its own.</b> The panel
+    /// could not say which character you were in: one reaches the list only once it is worth
+    /// keeping, so straight after "Start a new character" the list showed the one you kept and
+    /// nothing marked open at all. The open character now sits above the list in a block of its
+    /// own — so a helper that only knew about rows would quietly stop finding half of them.</para>
+    ///
+    /// <para>These two helpers are the only thing in this file that knows the panel's markup. That
+    /// is deliberate and it paid: the layout was rebuilt and every test below it was untouched.</para>
+    /// </summary>
     private static IElement Row(IRenderedComponent<CharacterManager> cut, string label) =>
-        cut.FindAll("ul.chosen > li")
-            .Single(row => row.QuerySelector(".body")!.TextContent.Contains(label, StringComparison.Ordinal));
+        cut.FindAll(".character-open, ul.character-list > li")
+            .Single(row => row.QuerySelector(".nm")!.TextContent.Contains(label, StringComparison.Ordinal));
 
     /// <summary>The "Discard" button belonging to the row with this label, and no other row's.</summary>
     private static IElement Discard(IRenderedComponent<CharacterManager> cut, string label) =>
