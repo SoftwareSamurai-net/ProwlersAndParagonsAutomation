@@ -295,21 +295,21 @@ public sealed class StartAnotherTests
         // all times by design — that is the whole point of a two-card group. A scan of the markup
         // would find its "Selected" and call this red for a reason that has nothing to do with
         // tiers.
-        List<IElement> tierCards() => page.FindAll(".options.cards .option")
+        List<IElement> TierCards() => page.FindAll(".options.cards .option")
             .Where(c => c.Closest(".budget-choice") is null)
             .ToList();
 
         // The positive control: the card really does say so before the click, so "no longer says
         // Selected" is not vacuously true of a page that never said it.
-        Assert.NotEmpty(tierCards());
-        Assert.Contains(tierCards(),
+        Assert.NotEmpty(TierCards());
+        Assert.Contains(TierCards(),
             c => c.TextContent.Contains("Selected", StringComparison.OrdinalIgnoreCase));
 
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         Assert.Null(ctx.Session.Sheet.SelectedTierId);
-        Assert.NotEmpty(tierCards());
-        Assert.DoesNotContain(tierCards(),
+        Assert.NotEmpty(TierCards());
+        Assert.DoesNotContain(TierCards(),
             c => c.TextContent.Contains("Selected", StringComparison.OrdinalIgnoreCase));
     }
 
