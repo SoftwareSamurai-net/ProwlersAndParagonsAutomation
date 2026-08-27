@@ -284,6 +284,12 @@
     private string Subtitle => Where switch
     {
         Area.Play => $"Character creation — {(Session.Mode == SheetMode.Hero ? "Hero" : "Villain")}",
+
+        // Deliberately not named Hero or Villain, unlike the builder above. The sheet on screen
+        // may be somebody else's — /sheet/{id} reads a saved character without opening it — and
+        // the banner naming *this* visitor's identity over it is the same fault the budget strip
+        // was pulled off three areas to fix.
+        Area.Sheet => "Character sheet",
         Area.Rules => "Rules reference",
         Area.Account => "Your account",
         _ => "Characters, and the rules behind them",

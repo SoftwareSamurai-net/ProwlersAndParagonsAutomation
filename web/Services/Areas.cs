@@ -20,6 +20,23 @@ public enum Area
     Play,
 
     /// <summary>
+    /// One character, as a document rather than as a job in progress.
+    ///
+    /// <para><b>Its own area because the builder's chrome is exactly what it exists to drop.</b>
+    /// The six numbered steps and the Hero Point strip say "you are part-way through making
+    /// this"; a sheet on the table is finished by definition, and it is the thing somebody reads
+    /// during play or hands to a printer. An address under <c>/build</c> would inherit both bands
+    /// by construction — see <see cref="Areas.Of"/> — which is the whole reason this is not one.</para>
+    ///
+    /// <para><b>It is not the <c>/build/sheet</c> that was retired.</b> That address was the
+    /// review step with one toggle flipped, and it went when explanations became the sheet's
+    /// default: it offered a route to the page you were already on. This one differs by what it
+    /// omits rather than by a setting, which is the test to hold it to if anybody adds a panel
+    /// here.</para>
+    /// </summary>
+    Sheet,
+
+    /// <summary>
     /// The rules reference: the book's own text, searchable, cited by printed page. The thing
     /// somebody has open at a table when a question comes up mid-session.
     ///
@@ -69,6 +86,14 @@ public static class Areas
     /// <summary>The first path segment that marks the rules reference.</summary>
     private const string RulesPrefix = "rules";
 
+    /// <summary>
+    /// The first path segment that marks one character read as a document.
+    ///
+    /// <para>Matched on the segment like every other, so <c>/sheet</c> and <c>/sheet/{id}</c> are
+    /// one area and a later <c>/sheets</c> would not be.</para>
+    /// </summary>
+    private const string SheetPrefix = "sheet";
+
     /// <summary>The first path segment that marks the administration pages.</summary>
     private const string AccountPrefix = "admin";
 
@@ -104,6 +129,7 @@ public static class Areas
         var first = relativePath.Split('/', '?', '#')[0];
 
         if (Is(first, PlayPrefix)) return Area.Play;
+        if (Is(first, SheetPrefix)) return Area.Sheet;
         if (Is(first, RulesPrefix)) return Area.Rules;
         if (Is(first, AccountPrefix) || Is(first, SignInPrefix)) return Area.Account;
 
