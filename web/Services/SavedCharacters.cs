@@ -29,10 +29,16 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// it and never joins it to anything, because the server does not know what a character is. See
 /// <c>docs/CHARACTERS-API.md</c>.</para>
 ///
-/// <para><b>It defaults, and the default is load-bearing.</b> An index written before this field
-/// existed is three values long, and a fourth positional parameter with no default would make
-/// every one of those entries fail to deserialize — which is a browser whose list of characters
-/// silently empties. There is a test that reads a literal three-field index.</para>
+/// <para><b>An index written before this field existed still lists, and the reason is measured
+/// rather than assumed.</b> This paragraph first claimed the <c>= null</c> was what made that
+/// work; it is not. Removing the default was tried, and every test stayed green: for a positional
+/// record, <c>System.Text.Json</c> supplies the parameter's own default for a key that is absent
+/// from the JSON, and <c>default(string?)</c> is null either way. The default is here for C#
+/// callers, and the compatibility is the serializer's behaviour — which is exactly why it is
+/// pinned by a test that reads a literal three-field index rather than by a note. <b>What would
+/// really break it is a <c>JsonRequired</c> or a <c>required</c> member on this parameter</b>,
+/// which was tried too and does break it: every entry in every returning visitor's index fails to
+/// deserialize and their list of characters silently empties.</para>
 /// </param>
 public sealed record SavedCharacterSummary(
     string Id, string Label, long UpdatedAt, string? CampaignId = null);

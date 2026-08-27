@@ -300,15 +300,18 @@ public sealed class CampaignStorageTests
     /// <summary>
     /// An index written before <c>CampaignId</c> existed still lists every character in it.
     ///
-    /// <para><b>Measured rather than reasoned about, which is the whole reason this exists.</b>
-    /// Whether <c>System.Text.Json</c> tolerates a missing positional parameter depends on the
-    /// parameter having a default, and reading that off the documentation is exactly the kind of
-    /// claim this repository has been wrong about. So a literal three-field index is deserialised
-    /// here, and the same index is put through <see cref="SavedCharacters.ListAsync"/> — because a
-    /// record that deserialises fine is no use if the list that reads it throws.</para>
+    /// <para><b>Measured rather than reasoned about, and the measurement corrected the reason.</b>
+    /// This was written believing the new parameter's <c>= null</c> default was what made an old
+    /// index readable. It is not: removing the default was tried and this test stayed green,
+    /// because <c>System.Text.Json</c> supplies a positional parameter's own default for a key
+    /// absent from the JSON, and <c>default(string?)</c> is null anyway. <b>The guard is real and
+    /// was watched to fail</b> — marking the parameter <c>JsonRequired</c> makes every entry throw
+    /// and the list come back empty, which is a returning visitor's characters silently
+    /// disappearing.</para>
     ///
-    /// <para>Without the default, every entry in every returning visitor's index fails and their
-    /// list of characters silently empties.</para>
+    /// <para>A literal three-field index is deserialised here, and the same index is put through
+    /// <see cref="SavedCharacters.ListAsync"/> — because a record that deserialises fine is no use
+    /// if the list that reads it throws.</para>
     /// </summary>
     [Fact]
     public async Task AnIndexWrittenBeforeCampaignsStillLists()
