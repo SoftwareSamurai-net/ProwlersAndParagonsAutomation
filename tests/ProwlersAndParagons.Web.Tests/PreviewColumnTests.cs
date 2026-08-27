@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
@@ -17,7 +18,7 @@ namespace ProwlersAndParagons.Web.Tests;
 /// assertion here passes with that rule deleted and the preview stacked under the editors, which
 /// is a worse page rather than a broken one.</para>
 /// </summary>
-public sealed class PreviewColumnTests
+public sealed partial class PreviewColumnTests
 {
     private static RenderContext Building()
     {
@@ -54,10 +55,23 @@ public sealed class PreviewColumnTests
         using var ctx = Building();
         ctx.Session.LoadSample(SheetMode.Hero);
 
-        var preview = ctx.Render<Characteristics>().Find(".preview .sheet").InnerHtml;
-        var review = ctx.Render<Review>().Find(".sheet").InnerHtml;
+        // **Blazor's own event-handler ids are stripped, and nothing else is.** The sheet
+        // explains every name on it now, so each term's button carries `blazor:onkeydown="N"` where
+        // N is a per-renderer counter — two renders of the identical component get different
+        // numbers, and comparing the raw markup would fail on a difference no reader could ever
+        // see. This is the same trap `Term` already documents for its own ids and solves by
+        // deriving them from the name; these are Blazor's and cannot be derived from anything.
+        static string Stable(string markup) =>
+            HandlerId().Replace(markup, "blazor:$1=\"\"");
+
+        var preview = Stable(ctx.Render<Characteristics>().Find(".preview .sheet").InnerHtml);
+        var review = Stable(ctx.Render<Review>().Find(".sheet").InnerHtml);
 
         Assert.Equal(review, preview);
+
+        // The positive control: something really was stripped, so a change that stopped the sheet
+        // rendering its terms at all could not pass this by making both sides trivially equal.
+        Assert.Contains("blazor:onkeydown", preview, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -188,4 +202,8 @@ public sealed class PreviewColumnTests
         // where the preview is rather than about it having been removed.
         Assert.Single(ctx.Render<Characteristics>().FindAll(".preview"));
     }
+
+    /// <summary>Blazor's per-render event-handler ids, which mean nothing to a reader.</summary>
+    [GeneratedRegex(@"blazor:(on[a-z]+)=""\d+""")]
+    private static partial Regex HandlerId();
 }

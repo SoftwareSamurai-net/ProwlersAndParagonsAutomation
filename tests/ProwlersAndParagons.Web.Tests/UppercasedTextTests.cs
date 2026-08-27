@@ -144,7 +144,11 @@ public sealed class UppercasedTextTests
             {
                 seen++;
 
-                var text = element.TextContent;
+                // **What a reader sees, not `TextContent`.** The sheet explains every name on it
+                // now, so a Trait cell set in capitals also holds two hidden copies of that Trait's
+                // description — and a description that happens to say "1d=50 lbs" would fail this
+                // for text nobody can see. The rule is about what is *set* in capitals.
+                var text = SheetText.Visible(element);
 
                 Assert.False(Rank.IsMatch(text),
                     $"'{selector}' is set in capitals and carries a rank: \"{Collapse(text)}\". "

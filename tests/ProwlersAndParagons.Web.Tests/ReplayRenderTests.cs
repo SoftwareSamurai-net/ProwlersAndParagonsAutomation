@@ -447,12 +447,14 @@ public sealed class ReplayRenderTests
         Assert.Contains(recorded.Name, sheet.TextContent, StringComparison.Ordinal);
         Assert.DoesNotContain(ctx.Session.Sheet.Name, sheet.TextContent, StringComparison.Ordinal);
 
+        // **`SheetText.Visible`, not `TextContent`.** The sheet explains every name on it now, so
+        // a figure's label carries two hidden copies of the rule behind it.
         var block = page.FindAll(".sheet .stat-block")
-            .Single(b => b.QuerySelector(".label")!.TextContent.Trim() == label);
+            .Single(b => SheetText.Visible(b.QuerySelector(".label")!) == label);
 
         Assert.Equal(
             Stat(recorded).ToString(System.Globalization.CultureInfo.InvariantCulture),
-            block.QuerySelector(".value")!.TextContent.Trim());
+            SheetText.Visible(block.QuerySelector(".value")!));
     }
 
     /// <summary>
@@ -482,7 +484,7 @@ public sealed class ReplayRenderTests
         var page = Play(ctx, Cheap);
         ShowAll(page);
 
-        var entries = page.FindAll(".sheet .power-entry .head").Select(e => e.TextContent).ToList();
+        var entries = page.FindAll(".sheet .power-entry .head").Select(SheetText.Visible).ToList();
 
         foreach (var power in recorded.SelectedPowers)
         {
@@ -639,10 +641,10 @@ public sealed class ReplayRenderTests
         ShowAll(page);
 
         var block = page.FindAll(".sheet .stat-block")
-            .Single(b => b.QuerySelector(".label")!.TextContent.Trim() is "Hero Points" or "Points Spent");
+            .Single(b => SheetText.Visible(b.QuerySelector(".label")!) is "Hero Points" or "Points Spent");
 
-        Assert.Equal(label, block.QuerySelector(".label")!.TextContent.Trim());
-        Assert.Equal(sub, block.QuerySelector(".sub")?.TextContent.Trim());
+        Assert.Equal(label, SheetText.Visible(block.QuerySelector(".label")!));
+        Assert.Equal(sub, block.QuerySelector(".sub") is { } s ? SheetText.Visible(s) : null);
     }
 
     /// <summary>

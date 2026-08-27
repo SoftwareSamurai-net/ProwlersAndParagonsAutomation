@@ -344,16 +344,25 @@
     /// <summary>
     /// Whether every name on the sheet carries what it means, on hover and on focus.
     ///
-    /// <para><b>Off by default, and the default is the one that matters.</b> The printed sheet is
-    /// what this whole tool produces and it is one page by a margin; a sheet that gained forty
-    /// controls would be a different document. So the explanations are a screen a reader asks
-    /// for — see <c>ExplainedSheet</c> — and every other place this component is drawn is
-    /// unchanged, which <c>SheetRenderTests</c> holds it to.</para>
+    /// <para><b>On by default, which reverses what this said.</b> It used to be off everywhere but
+    /// one address, on the argument that "the printed sheet is what this whole tool produces and a
+    /// sheet that gained forty controls would be a different document". The premise was right and
+    /// the conclusion did not follow: **the printed sheet gains nothing.** The print block
+    /// neutralises a term outright — <c>.row-tip</c> is shut unless hovered and paper cannot be
+    /// hovered, the <c>sr-only</c> copy is a clipped 1px box, and <c>.term-name</c> gives up its
+    /// underline and its cursor — so the page that comes out of the printer is identical either
+    /// way. What the old default actually cost was the screen: a second address for the same sheet,
+    /// and a reader who had to know to ask.</para>
+    ///
+    /// <para><b>Off is still a real setting and is still exercised</b>, because the fallback it
+    /// selects is not decoration: <c>Term</c> draws the bare name when there is nothing to say, and
+    /// that path has to keep rendering exactly what the sheet rendered before. It is what
+    /// <c>ExplainedSheetTests</c> compares the explained sheet against, word for word.</para>
     ///
     /// <para>The descriptions are the ones in <c>data/rules</c>, which is verified entry by entry
     /// against the page. Nothing here writes a sentence about a rule.</para>
     /// </summary>
-    [Parameter] public bool Explain { get; set; }
+    [Parameter] public bool Explain { get; set; } = true;
 
     /// <summary>
     /// Whether the four-figure block measures the spend against a budget. Defaults to the

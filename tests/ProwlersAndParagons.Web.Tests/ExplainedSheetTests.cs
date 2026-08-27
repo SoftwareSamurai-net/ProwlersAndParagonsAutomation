@@ -14,10 +14,15 @@ namespace ProwlersAndParagons.Web.Tests;
 /// one: a printed sheet says "Presence 6d" and "Plot Hook" and "TECH POWERS" and left a reader to
 /// know what those were.</para>
 ///
-/// <para><b>The negative is the important half of this file.</b> The printed sheet is what the tool
-/// produces, and <c>SheetView</c> is drawn on the review step, beside the editors, and on every
-/// replayed recording. If <c>Explain</c> leaks into any of those, forty names on the deliverable
-/// become controls — so the off case is asserted as hard as the on case.</para>
+/// <para><b>They are on by default now, and this file&apos;s negative half changed shape with it.</b>
+/// It used to guard against <c>Explain</c> leaking out of its one address onto the review step, the
+/// preview and every replayed recording — on the argument that forty names becoming controls would
+/// change the deliverable. <b>It does not</b>: the print block shuts a tip outright, so the page out
+/// of the printer is identical either way, and <c>PrintingASheetIsUnchangedByTheExplanations</c>
+/// pins that. What the off case guards now is <c>Term</c>&apos;s fallback — the bare name it draws
+/// when there is nothing to say — which is a live path and has to keep rendering exactly what the
+/// sheet rendered before. So the off case is still asserted as hard as the on case, for a different
+/// reason.</para>
 /// </summary>
 public sealed class ExplainedSheetTests
 {
@@ -25,60 +30,24 @@ public sealed class ExplainedSheetTests
         ctx.Render<SheetView>(p => p.Add(v => v.Explain, true));
 
     /// <summary>
-    /// The elements the sheet is built from that a browser lays out on a line of their own.
-    ///
-    /// <para>A closed list rather than a stylesheet lookup, because these are the block elements
-    /// HTML defines as such and the sheet uses no others; what it must <b>not</b> contain is an
-    /// inline element, for the reason in <see cref="Visible"/>.</para>
+    /// The sheet with the explanations turned off outright — which nothing in the app now does, and
+    /// which is exercised here precisely because nothing does. It selects <c>Term</c>&apos;s
+    /// bare-name fallback, and that path has to keep rendering what the sheet rendered before
+    /// explanations existed; a setting nothing uses and nothing tests is a setting that rots.
     /// </summary>
-    private static readonly string[] OwnLine =
-        ["ARTICLE", "SECTION", "DIV", "P", "H1", "H2", "H3", "UL", "OL", "LI",
-         "TABLE", "TBODY", "TR", "TD", "TH", "DL", "DT", "DD", "FOOTER", "BR"];
+    private static IRenderedComponent<SheetView> Plain(RenderContext ctx) =>
+        ctx.Render<SheetView>(p => p.Add(v => v.Explain, false));
 
     /// <summary>
-    /// What a reader sees, modelled the way a browser renders it.
+    /// What a reader sees, modelled the way a browser renders it — <see cref="SheetText"/>.
     ///
-    /// <para>Two things are dropped: the <c>sr-only</c> copy of each description, which
-    /// <c>aria-describedby</c> names and nobody sees, and the tip, which is <c>display: none</c>
-    /// until somebody hovers.</para>
-    ///
-    /// <para><b>Nothing is inserted between two inline elements, and that is the whole point.</b>
-    /// A browser concatenates adjacent inline text with no separator, which is why
-    /// <c>&lt;b&gt;Armor&lt;/b&gt;&lt;span&gt;8d&lt;/span&gt;</c> reads "Armor8d" on the page.
-    /// <b>This repository has shipped a test for that bug that was beaten by its own helper</b> —
-    /// the helper replaced every tag with a newline, so the broken markup read "Armor 8d" to the
-    /// assertion written to catch it. So a boundary is a separator here only where the browser
-    /// makes one, which is a block element.</para>
-    ///
-    /// <para>Whitespace already in the markup is <em>collapsed</em>, which is also what a browser
-    /// does and is not the same thing as inserting some: a run of newlines and indentation between
-    /// two inline elements renders as one space, and no whitespace at all renders as none.</para>
+    /// <para><b>It used to live here, and moved when the sheet started explaining itself by
+    /// default.</b> While one address drew terms, this file was the only one that had to model a
+    /// reader's eye; now every sheet test does, because a term's cell holds the name and two copies
+    /// of its description. Kept as a one-line forward so the assertions below read as they did.</para>
     /// </summary>
-    private static string Visible(INode node)
-    {
-        var lines = Gather(node)
-            .Split('\n')
-            .Select(line => string.Join(" ",
-                line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)))
-            .Where(line => line.Length > 0);
+    private static string Visible(INode node) => SheetText.Visible(node);
 
-        return string.Join(" ", lines);
-    }
-
-    private static string Gather(INode node)
-    {
-        if (node is IElement hidden &&
-            (hidden.ClassList.Contains("sr-only") || hidden.ClassList.Contains("row-tip")))
-            return "";
-
-        if (node.NodeType == NodeType.Text) return node.TextContent;
-
-        var inside = string.Concat(node.ChildNodes.Select(Gather));
-
-        return node is IElement block && OwnLine.Contains(block.TagName, StringComparer.Ordinal)
-            ? inside + "\n"
-            : inside;
-    }
 
     /// <summary>
     /// Every Ability and every Talent — all eighteen, bought or not, because the sheet prints them
@@ -230,35 +199,58 @@ public sealed class ExplainedSheetTests
     }
 
     /// <summary>
-    /// <b>The sheet drawn without explanations has no control on it at all.</b> This is the guard
-    /// on the deliverable: the review step, the preview beside the editors and every replayed
-    /// recording all draw <c>SheetView</c> and none of them passes <c>Explain</c>.
+    /// <b>The sheet explains every name on it without being asked.</b> This is the owner&apos;s
+    /// report: <i>"the &apos;explain this character sheet&apos; button is still present, instead of
+    /// that just being the default way the sheet renders."</i> Asserted on the bare component with
+    /// no parameter passed, so it is the default under test and not an argument this test supplied.
     /// </summary>
     [Fact]
-    public void TheOrdinarySheetGainsNoControls()
+    public void TheSheetExplainsEveryNameOnItByDefault()
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
 
-        var plain = ctx.Render<SheetView>();
+        var sheet = ctx.Render<SheetView>();
+
+        Assert.NotEmpty(sheet.FindAll(".term"));
+        Assert.NotEmpty(sheet.FindAll(".term-name"));
+        Assert.NotEmpty(sheet.FindAll(".row-tip"));
+    }
+
+    /// <summary>
+    /// And off is still off — <c>Term</c>&apos;s bare-name fallback draws no control at all.
+    /// Nothing in the app selects this any more, which is exactly why it is asserted: the same
+    /// fallback is what a Power with no description in the rules data gets, and that is not
+    /// hypothetical.
+    ///
+    /// <para>The positive controls are beside it, because "no controls found" is satisfied
+    /// completely by a sheet that failed to render.</para>
+    /// </summary>
+    [Fact]
+    public void ASheetDrawnWithoutExplanationsHasNoControlOnItAtAll()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+
+        var plain = Plain(ctx);
 
         Assert.Empty(plain.FindAll(".term"));
         Assert.Empty(plain.FindAll(".term-name"));
         Assert.Empty(plain.FindAll(".row-tip"));
 
-        // And the positive control beside it: the same character, explained, really does have them.
-        Assert.NotEmpty(Explained(ctx).FindAll(".term-name"));
+        Assert.NotEmpty(plain.FindAll(".sheet-section"));
+        Assert.NotEmpty(ctx.Render<SheetView>().FindAll(".term-name"));
     }
 
     /// <summary>
-    /// The review step in particular, because that is the page whose sheet goes on paper and the
-    /// one somebody would be tempted to switch on in place of a page of its own.
+    /// The review step in particular, because that is the page whose sheet goes on paper — and it
+    /// is the page the owner was looking at when they reported the button. This assertion is the
+    /// exact reverse of the one it replaces.
     /// </summary>
     [Fact]
-    public void TheReviewStepsSheetIsNotTheExplainedOne()
+    public void TheReviewStepsSheetIsTheExplainedOne()
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
 
-        Assert.Empty(ctx.Render<Review>().FindAll(".term-name"));
+        Assert.NotEmpty(ctx.Render<Review>().FindAll(".term-name"));
     }
 
     /// <summary>
@@ -277,33 +269,85 @@ public sealed class ExplainedSheetTests
         // each description are what `Visible` drops, so what is left on the explained sheet is
         // exactly what the plain one prints. Wrapping forty names in a component is precisely the
         // change that could quietly drop one, and a name missing from a sheet looks entirely right.
-        Assert.Equal(Words(ctx.Render<SheetView>()), Words(Explained(ctx)));
-    }
-
-    /// <summary>The page itself draws the sheet explained, and offers the way back.</summary>
-    [Fact]
-    public void ThePageDrawsTheSheetExplained()
-    {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
-
-        var page = ctx.Render<ExplainedSheet>();
-
-        Assert.NotEmpty(page.FindAll(".sheet .term-name"));
-        Assert.Contains("build/review",
-            page.FindAll("a").Select(a => a.GetAttribute("href")));
+        // **Explicitly off against the default, rather than the default against `Explain="true"`.**
+        // Now that the default is on, the second of those would compare a render with itself — a
+        // test that passes by construction and proves nothing about dropping a name.
+        Assert.Equal(Words(Plain(ctx)), Words(ctx.Render<SheetView>()));
     }
 
     /// <summary>
-    /// The review step offers a way to it, or nothing does — the page is reachable by address and
-    /// that is not a way anybody finds it.
+    /// <b>There is no second address for the same sheet, and nothing offers one.</b> Both the link
+    /// and the <c>/build/sheet</c> page it pointed at are gone: with the sheet below already
+    /// explained, the link offered a way to the page you were already on.
+    ///
+    /// <para>The positive control matters here more than usual — "no link to <c>build/sheet</c>" is
+    /// satisfied by a review step that rendered no links at all. So the panel&apos;s other controls
+    /// and the sheet itself are asserted present in the same breath.</para>
     /// </summary>
     [Fact]
-    public void TheReviewStepOffersAWayToIt()
+    public void NothingOffersASecondAddressForTheSameSheet()
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
+        var review = ctx.Render<Review>();
 
-        Assert.Contains("build/sheet",
-            ctx.Render<Review>().FindAll("a").Select(a => a.GetAttribute("href")));
+        Assert.DoesNotContain("build/sheet",
+            review.FindAll("a").Select(a => a.GetAttribute("href")));
+        Assert.DoesNotContain("Explain this sheet", review.Markup, StringComparison.Ordinal);
+
+        Assert.Contains("Print this sheet", review.Markup, StringComparison.Ordinal);
+        Assert.NotEmpty(review.FindAll(".sheet"));
+    }
+
+    /// <summary>
+    /// <b>The printed page is unchanged by the explanations, which is the whole reason the default
+    /// could move.</b> The old default was off on the argument that the printed sheet is the
+    /// deliverable and a sheet that gained forty controls would be a different document. The premise
+    /// is right and the conclusion did not follow, because the print block already takes the
+    /// controls back off. That was true before this change and nothing tested it — it was one
+    /// stylesheet edit away from being false on every sheet the tool produces.
+    ///
+    /// <para>Asserted against the stylesheet rather than a render, because it is a fact about the
+    /// print cascade and there is no printer in a test. Three things have to hold: the tip is
+    /// hidden, the term keeps neither underline nor pointer, and the description&apos;s other copy
+    /// is <c>sr-only</c>, which is a clipped 1px box.</para>
+    /// </summary>
+    [Fact]
+    public void PrintingASheetIsUnchangedByTheExplanations()
+    {
+        var css = File.ReadAllText(
+            Path.Combine(RepoRoot(), "web", "wwwroot", "css", "app.css"));
+
+        var at = css.IndexOf("@media print", StringComparison.Ordinal);
+        Assert.True(at > 0, "app.css no longer has a print block at all.");
+        var print = css[at..];
+
+        // A tip is a control for asking a question, and paper cannot be asked.
+        Assert.Contains(".tip-wrap", print, StringComparison.Ordinal);
+
+        // And the term itself gives up every mark that says it was ever one. Read out of the block
+        // that follows the selector, not out of the whole file, or a rule anywhere in app.css would
+        // satisfy this.
+        var term = print.IndexOf(".term-name", StringComparison.Ordinal);
+        Assert.True(term > 0, "the print block no longer neutralises .term-name.");
+        var rule = print[term..(print.IndexOf('}', term) + 1)];
+        Assert.Contains("text-decoration: none", rule, StringComparison.Ordinal);
+        Assert.Contains("cursor: auto", rule, StringComparison.Ordinal);
+
+        // The description's visible copy is `.row-tip`, shut unless hovered — and hover does not
+        // happen on paper. Its other copy is `.sr-only`, a clipped 1px box.
+        Assert.Contains("clip-path: inset(50%)", css, StringComparison.Ordinal);
+    }
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (dir.GetFiles("*.sln").Length > 0) return dir.FullName;
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate the repository root.");
     }
 
     /// <summary>

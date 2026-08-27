@@ -281,14 +281,19 @@ public sealed class ProofPages
     }
 
     /// <summary>
-    /// The sheet with every name on it explained, and one description open.
+    /// The sheet, with one description open.
     ///
-    /// <para><b>Its own page, and the tip is opened, because a disclosure proofed shut shows
-    /// nothing and reads as a feature that works.</b> That is the mistake this file already warns
-    /// about for the Power editor's own book entry — and here there are two things to look at that
-    /// no assertion can judge: whether a dotted underline under forty names reads as marking or as
-    /// noise, and whether a tip hanging off a word inside a three-column sheet lands somewhere a
-    /// reader can read it rather than as a sliver down one column.</para>
+    /// <para><b>The tip is opened, because a disclosure proofed shut shows nothing and reads as a
+    /// feature that works.</b> That is the mistake this file already warns about for the Power
+    /// editor's own book entry — and here there are two things to look at that no assertion can
+    /// judge: whether a dotted underline under forty names reads as marking or as noise, and
+    /// whether a tip hanging off a word inside a three-column sheet lands somewhere a reader can
+    /// read it rather than as a sliver down one column.</para>
+    ///
+    /// <para><b>It renders `SheetView` rather than a page of its own, and the page is gone.</b>
+    /// The explanations are how the sheet renders now, so `/build/sheet` was a second address for
+    /// the sheet the review step already draws. What is left worth proofing is the open tip, which
+    /// is the half no golden and no assertion can settle.</para>
     ///
     /// <para>Hover cannot be captured, so the tip is shown by focusing the term — which is the
     /// keyboard path and is the one that has to work anyway.</para>
@@ -302,10 +307,12 @@ public sealed class ProofPages
 
         using var ctx = new RenderContext().With(mode);
 
-        var page = ctx.Render<ExplainedSheet>();
+        var page = ctx.Render<SheetView>();
 
         // The positive control: the names really are terms. A proof of a sheet with no term on it
-        // would look exactly like the ordinary sheet and be captioned as this one.
+        // would look exactly like the ordinary sheet and be captioned as this one — and now that
+        // the explanations are the default rather than a parameter this method passes, nothing
+        // else here would notice them going away.
         Assert.NotEmpty(page.FindAll(".sheet .term-name"));
 
         // **One description shown, forced open by an inline style rather than by a class.** The
