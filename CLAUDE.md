@@ -10,6 +10,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This used to live in two places (the README roadmap and a gaps list further down this file) and drifted out of step with the code. Both now point at `PROGRESS.md`. Do not reintroduce a second list.
 
+## Name a pull request the way a changelog would
+
+**Conventional Commits, and the subject says what the change *does*.** `feat: swap characters from
+any step`, `fix: stop sign-out deleting an untouched draft`, `docs: record the owner's reports`,
+`test:`, `refactor:`, `chore:`. The owner reads these as notifications — a title is often the whole
+of what they see, so it has to carry the change on its own.
+
+**What that rules out** is the shape this repository kept producing: a title that narrates the
+session rather than the diff. *"Record the owner's three reports, and defer accessibility"* says
+what somebody did for an afternoon; `docs: record reported defects and defer a11y work` says what
+landed. Keep the body for the reasoning — it can be as long as the change deserves, and the entries
+in `PROGRESS.md` are where the argument really lives.
+
 ## Where the rest of this lives
 
 **This file was 1,431 lines. It is now the part that applies whatever you are working on**, and
