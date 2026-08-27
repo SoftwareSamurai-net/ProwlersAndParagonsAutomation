@@ -45,7 +45,7 @@ public sealed class AriaReferenceTests
     /// satisfies "no dangling reference" completely — the failure shape this repository has
     /// shipped four times.</para>
     /// </summary>
-    private static int ResolveEveryReference(IRenderedComponent<Microsoft.AspNetCore.Components.IComponent> page, string surface)
+    private static int ResolveEveryReference(IRenderedComponent<IComponent> page, string surface)
     {
         var found = 0;
 
