@@ -17,7 +17,7 @@
 
    **Two addresses, and the second is the one that earns the page.** `/sheet` is the character
    being built; `/sheet/{id}` is any saved one, read *without opening it*. That distinction is the
-   whole of the correctness — see Show below.
+   whole of the correctness — see the read below.
 
    The chrome is dropped by `Areas.Of` returning `Area.Sheet`, not by anything on this page:
    `MainLayout` draws the step band, the budget strip and the character switcher in `Area.Play`
@@ -25,7 +25,7 @@
 
 <PageTitle>@Title — Prowlers &amp; Paragons</PageTitle>
 
-@if (Missing)
+@if (_missing)
 {
     @* An id nobody can read. Not an error page: the ordinary way to get here is a stale link or
        a character thrown away in another tab, and neither is a fault of the reader's. *@
@@ -47,7 +47,7 @@ else
        `ShowBudget` is passed only for a named character, for the reason SheetView's own remarks
        give: whether *that* character has a Hero Point limit has nothing to do with the mode this
        visitor happens to be in. *@
-    <SheetView Character="Show" ShowBudget="ShowBudget" />
+    <SheetView Character="_show" ShowBudget="_showBudget" />
 
     @* Under the sheet rather than over it, so the first thing on the screen and the first thing
        on the paper are the same thing. `no-print` takes them off the page — the print block
@@ -83,19 +83,19 @@ else
     /// hypothetical: it is the shape of the defect that cost this project a character, recorded
     /// in <c>PROGRESS.md</c>. <b>Showing is not opening.</b></para>
     /// </summary>
-    private CharacterSheet? Show;
+    private CharacterSheet? _show;
 
     /// <summary>Whether the named character has a Hero Point limit. Null for the session's own.</summary>
-    private bool? ShowBudget;
+    private bool? _showBudget;
 
     /// <summary>
     /// Whether an id was asked for and nothing could be read at it.
     ///
-    /// <para>Distinct from <c>Show is null</c>, which is also true for <c>/sheet</c> — where null
+    /// <para>Distinct from <c>_show is null</c>, which is also true for <c>/sheet</c> — where null
     /// is the ordinary answer meaning "the session's character". Collapsing the two would render
     /// the visitor's own sheet at somebody else's dead link.</para>
     /// </summary>
-    private bool Missing;
+    private bool _missing;
 
     /// <summary>Whether a read has been attempted for the id currently in the route.</summary>
     private string? _read;
@@ -106,9 +106,9 @@ else
     /// Same reasoning as the review step's title, and the same fallback for an unnamed one.
     /// </summary>
     private string Title =>
-        Missing ? "No such character"
-        : string.IsNullOrWhiteSpace((Show ?? Session.Sheet).Name) ? "Unnamed character"
-        : (Show ?? Session.Sheet).Name;
+        _missing ? "No such character"
+        : string.IsNullOrWhiteSpace((_show ?? Session.Sheet).Name) ? "Unnamed character"
+        : (_show ?? Session.Sheet).Name;
 
     /// <summary>
     /// Redraw when the character being built changes — and only then.
@@ -134,9 +134,9 @@ else
         if (_read == Id) return;
         _read = Id;
 
-        Show = null;
-        ShowBudget = null;
-        Missing = false;
+        _show = null;
+        _showBudget = null;
+        _missing = false;
 
         if (string.IsNullOrWhiteSpace(Id)) return;
 
@@ -144,18 +144,18 @@ else
 
         if (found is not { } character)
         {
-            Missing = true;
+            _missing = true;
             return;
         }
 
-        Show = character.Sheet;
+        _show = character.Sheet;
 
         // The stored character's own limit, read off the character rather than off this visitor.
         // It is the same expression CharacterSession.ShowBudget uses, applied to the sheet being
         // shown — deliberately *not* the mode: "a Villain has no Hero Point budget" stopped being
         // a fact about Villains when UnlimitedBudget was split out of IsVillain, and either kind
         // of character can carry it.
-        ShowBudget = !character.Sheet.UnlimitedBudget;
+        _showBudget = !character.Sheet.UnlimitedBudget;
     }
 
     private Task Print() => Js.InvokeVoidAsync("print").AsTask();
