@@ -325,21 +325,27 @@ public sealed partial class ExplainedSheetTests
     {
         var css = Stylesheet();
 
+        // **Split on commas, because a selector list is not one selector.** A rule reading
+        // `.option:hover .row-tip, .sheet .row-tip { display: block }` opens the tip
+        // unconditionally through its second branch while the string `:hover` is still present in
+        // the first — and asking the combined selector let exactly that mutation through. Found by
+        // running it, which is the only way this kind of hole is ever found.
         var opens = Rules(css)
-            .Where(r => r.Selector.Contains("row-tip", StringComparison.Ordinal))
             .Where(r => r.Body.Contains("display: block", StringComparison.Ordinal))
+            .SelectMany(r => r.Selector.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            .Where(branch => branch.Contains("row-tip", StringComparison.Ordinal))
             .ToList();
 
         // The positive control: some rule really does open it, or a stylesheet that had stopped
         // styling the tip at all would satisfy every assertion below by having nothing to check.
         Assert.NotEmpty(opens);
 
-        foreach (var rule in opens)
+        foreach (var branch in opens)
         {
             Assert.True(
-                rule.Selector.Contains(":hover", StringComparison.Ordinal)
-                || rule.Selector.Contains(":focus-visible", StringComparison.Ordinal),
-                $"`{rule.Selector}` opens a term's description without asking for hover or focus, "
+                branch.Contains(":hover", StringComparison.Ordinal)
+                || branch.Contains(":focus-visible", StringComparison.Ordinal),
+                $"`{branch}` opens a term's description without asking for hover or focus, "
                 + "so it would open on paper too — and the printed sheet is the deliverable.");
         }
 
