@@ -650,8 +650,36 @@ a defect that a campaign is the place to fix:
    the rulebook made it campaign-scoped in print rather than by inference: the Perk is already in
    `data/rules/perks.json` at 1 HP per unit for 3 Base Points, and its own text reads **"Multiple
    Heroes can apply their Base Points to the same headquarters."** A shared object the app has
-   nowhere to put. What is missing is Chapter 6's base-construction rules, which are *not*
-   extracted — only Ch.6's custom **gear** features are.
+   nowhere to put.
+
+   **This entry used to say Chapter 6's base-construction rules were "not extracted", and that was
+   wrong in the way that makes a bounded job look like an unbounded one.** They are in
+   `data/rulebook/ch06-equipment.json` in full — `BASE FEATURES` on printed page 100, then
+   **22 named features** from `ALTERNATE HEADQUARTERS` to `WORKSHOPS` across pp.100–103, counted
+   rather than estimated. **No PDF work is needed and none should be started.** What is missing is
+   the *structuring* of that prose into `data/rules/`, which is a different and much smaller job:
+   the existing 12 custom **gear** features in `data/rules/gear_features.json` are the template, and
+   20 of the 22 fit it as it stands.
+
+   **Item 3 of this list made exactly this mistake before**, about chapters 3–9, and the note there
+   already says what it cost: *"That was wrong, and it made a finished job look unfinished."* Twice
+   now the error has been the same one — reading "not in `data/rules/`" as "not extracted", when
+   `data/rulebook/` is a second store holding the book's own text. **They are different claims about
+   different files.**
+
+   **The two that do not fit the gear template**, so nobody rediscovers them:
+
+   - **Size** is priced *1 to 3* Base Points. `GearFeatureModel.CostRange`'s own doc comment pins
+     itself to "the two features the rulebook prices at 1 to 2 HP", so this is a model change and
+     not a data-only addition.
+   - **Mobile** costs 0 and carries a cross-Perk dependency — the base's vehicular characteristics
+     are bought with the Unique Vehicles Perk, which is itself unmodelled.
+
+   **And the cheapness claim above survives the correction only for the extraction half.** The Perk's
+   own printed text pools Base Points across several Heroes, and every engine type — `CharacterSheet`,
+   `CostCalculator`, `RulesRepository` — is scoped to exactly one character. Somewhere for a shared
+   headquarters to live, be costed and be jointly funded is a separate piece of work that nobody has
+   sized, and it is downstream of the campaign rather than beside it.
 3. **A dice roller.** P&P is a d6 pool system and the engine already knows every Trait's rank, so a
    roller on the sheet can offer "roll Might 6d" in one click. **That is the only version worth
    building**: a roller that does not know your character is a worse copy of an app everybody

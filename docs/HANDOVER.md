@@ -187,8 +187,13 @@ asymmetry is not a flourish; it falls straight out of where the data lives.
    **Headquarters is the cheapest of the eight and the strongest argument for doing the campaign
    first**, because the rulebook made it campaign-scoped in print: the Perk is already in
    `data/rules/perks.json` and its own text reads "Multiple Heroes can apply their Base Points to
-   the same headquarters". What is missing for it is Chapter 6's base-construction rules, which
-   are *not* extracted — only Ch.6's custom **gear** features are.
+   the same headquarters". **What is missing is not an extraction** — this said so and was wrong.
+   Chapter 6's base-construction rules are in `data/rulebook/ch06-equipment.json` in full, 22 named
+   features across printed pp.100–103, counted. What is missing is structuring them into
+   `data/rules/`, for which the 12 custom gear features are the template and 20 of the 22 fit it.
+   See the item for the two that do not, and for the part that is genuinely not cheap: the Perk
+   pools Base Points across several Heroes, and nothing in the engine models an object that is not
+   one character's sheet.
 
    **Item 12 is the other thing that could be done tomorrow** — three doors on the front door
    (which item 11's answer confirms rather than gambles on), the rules search into the banner on
