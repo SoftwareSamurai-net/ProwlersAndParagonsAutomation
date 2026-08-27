@@ -317,7 +317,8 @@ public sealed class StartAnotherTests
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         var switcher = ctx.Render<CharacterSwitcher>();
-        switcher.FindAll("button").First(b => b.GetAttribute("aria-expanded") is not null).Click();
+        await switcher.FindAll("button").First(b => b.GetAttribute("aria-expanded") is not null)
+            .ClickAsync(new MouseEventArgs());
 
         Assert.Contains("Lynchpin", switcher.Markup, StringComparison.Ordinal);
         Assert.DoesNotContain("Nothing else saved yet.", switcher.Markup, StringComparison.Ordinal);
@@ -337,7 +338,8 @@ public sealed class StartAnotherTests
         await Build(page, ctx, "Lynchpin");
 
         var switcher = ctx.Render<CharacterSwitcher>();
-        switcher.FindAll("button").First(b => b.GetAttribute("aria-expanded") is not null).Click();
+        await switcher.FindAll("button").First(b => b.GetAttribute("aria-expanded") is not null)
+            .ClickAsync(new MouseEventArgs());
 
         Assert.Contains("This is your only character.", switcher.Markup, StringComparison.Ordinal);
     }
