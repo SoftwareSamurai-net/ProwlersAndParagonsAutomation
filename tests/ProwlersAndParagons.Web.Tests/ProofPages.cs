@@ -191,6 +191,66 @@ public sealed class ProofPages
     }
 
     /// <summary>
+    /// The banner's settings menu, open, with both palette switches in it.
+    ///
+    /// <para>Written to be looked at, and for the one reason a rendering test cannot cover it: the
+    /// menu is absolutely positioned and hangs out of the band, and <c>view-transition-name</c> on
+    /// <c>.banner</c> creates a stacking context — so a <c>z-index</c> on the menu is resolved
+    /// <em>inside</em> the banner, which is a static earlier sibling of <c>.steps</c>. The
+    /// character switcher shipped exactly that bug and it was found in a screenshot: a menu painted
+    /// behind the step band, visible, unusable, reading as a control that does nothing. The markup
+    /// is identical either way.</para>
+    ///
+    /// <para><b>This one is right-anchored where the switcher's is left-anchored</b>, which is a
+    /// second thing only a picture answers: it sits at the right end of the bar, so a menu growing
+    /// rightwards would leave the window.</para>
+    /// </summary>
+    [Fact]
+    public void TheSettingsMenu()
+    {
+        if (!Asked) return;
+
+        WriteRaw("proof-settings.html", "hero", DisclosedSettingsBody());
+    }
+
+    /// <summary>
+    /// The shell with its settings menu open. Shared with
+    /// <see cref="TheSettingsMenuOnTheProofIsOpen"/>, so what is asserted is the markup that is
+    /// actually written rather than a second render that happens to agree with it.
+    /// </summary>
+    private static string DisclosedSettingsBody()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("build/characteristics");
+
+        var shell = ctx.Render<MainLayout>();
+        shell.Find(".settings-open").Click();
+
+        return shell.Markup;
+    }
+
+    /// <summary>
+    /// <b>The menu the settings proof captions as open is actually open.</b>
+    ///
+    /// <para>Same trap as <see cref="TheOpenedRulebookEntryOnTheProofIsOpen"/>, and it has caught a
+    /// real instance here before: deleting the click left a page showing a shut band that a reader
+    /// would have taken as evidence the open state had been looked at. Checked on every run, not
+    /// only under <c>PP_PROOF</c>, because the writing is what is conditional and the markers are
+    /// not.</para>
+    ///
+    /// <para><b>The shut state is asserted first</b>, so "open" is a state the page reached rather
+    /// than one it was always in.</para>
+    /// </summary>
+    [Fact]
+    public void TheSettingsMenuOnTheProofIsOpen()
+    {
+        using var shut = new RenderContext().With(SheetMode.Hero);
+        Assert.Empty(shut.Render<MainLayout>().FindAll(".settings-menu-list"));
+
+        AssertMarkers("proof-settings.html", DisclosedSettingsBody());
+    }
+
+    /// <summary>
     /// The banner's character switcher, open, with somebody else to switch to.
     ///
     /// <para>Written to be looked at. The control hangs out of the banner, which is the one thing
@@ -2189,6 +2249,15 @@ public sealed class ProofPages
         [
             "tab-count untouched", "empty-state",
             "Powers on this character", "Perks", "Flaws", "Carried",
+        ],
+        // The settings menu, disclosed. **Both switches by name and the list itself**, because a
+        // proof of a disclosure captured shut shows an empty band and reads as a feature that
+        // works — the trap this file already records for the palette, the budget breakdown and the
+        // rulebook entry.
+        ["proof-settings.html"] =
+        [
+            "class=\"banner\"", "settings-menu-list", "mode-switch", "theme-switch",
+            "aria-expanded=\"true\"",
         ],
         // The alignment harness: the measurement it takes, both verdicts, the resting text that
         // is neither, and the positive control that stops a banner with one control left in it

@@ -381,6 +381,14 @@ hr {
     border: var(--rule-weight) solid var(--rule);
     border-radius: var(--radius-pill);
     overflow: hidden;
+
+    /* **`fit-content`, and it is a fix rather than a tidy-up.** On the band these were flex items
+       and sized to their own contents; in the menu they are block-level, so they stretched to the
+       menu's width and the last button's fill stopped short of the pill's rounded end — a white
+       crescent inside the border, on the pressed button, in every palette. Found in a screenshot
+       of `proof-settings.html`; no rendering test could have seen it, because the markup and the
+       classes are identical either way. */
+    width: fit-content;
 }
 .mode-switch button,
 .theme-switch button {
