@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4775 across **four** suites — 4015 on the engine, 580 rendering components with bUnit (20 added this slice: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4792 across **four** suites — 4015 on the engine, 597 rendering components with bUnit (17 added this slice, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -713,6 +713,125 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 ---
 
 ## Completed work
+
+### The character switcher had nothing to list, because nothing ever named a character into the index
+
+**The owner reported two things and they are one defect.**
+
+> *"I don't see the web UI character switcher working yet? If I import Lynchpin, my character,
+> there is no option to start a new character that doesn't blow away my old one?"*
+
+`SavedCharacters` had an index, `CharacterManager` drew rows off it, the banner's switcher listed
+it, `DiscardedCharacter` restored into it and the undo buffers closed around it. All of it worked.
+**Nothing in the application ever put a character into it.** `RestoreAsync` — the only labelled-save
+path — had no caller outside `web/Services/`, and everything else autosaved into the *current* slot,
+which for an anonymous visitor is the single legacy slot this browser has held since before there
+was a list. So:
+
+- `CharacterManager.StartNew()` was `Session.StartAgain()` plus `Store.ClearAsync()`. It **emptied
+  the slot the character was in** rather than leaving it there and pointing somewhere else. That is
+  the "blows away my old one" — the owner imported a character, pressed it, and lost it.
+- Import went through `ReplaceWithUndo`, which overwrites whatever the pointer is aimed at.
+- `ListAsync` therefore returned at most one row, so the switcher always said *"Nothing else saved
+  yet."* **It was not broken. It had nothing to list**, and that was read as correct-for-an-empty-
+  browser when #84 was verified live.
+
+**On an account the same control was worse.** `ApiCharacterStore.ClearAsync` is
+`DeleteAsync(currentId)` — an HTTP `DELETE`. "Start a new character" did not empty a local slot
+there, it removed the row from the server.
+
+#### What was built
+
+`AccountCharacterStore.StartAnotherAsync(sheet, mode)` — one operation, wired to both controls:
+
+1. Write the character on screen down under its own id, with the label taken from its own name.
+2. Move the current-character pointer to a freshly minted id.
+3. Only then may the caller empty the session.
+
+**The order is the whole of the correctness.** Emptying the session raises its change event, which
+starts a write nobody awaits; doing it first races that write against the move and puts the empty
+sheet over the character being kept. Both steps are awaited, so the autosave reads a pointer that
+has already moved. This is the same ordering property the old control had, the other way up: it used
+to be "the clear lands *after* the save", because the last thing that had to happen was the slot
+being emptied. The last thing that happens now is the empty sheet landing in a *different* slot.
+
+Three supporting changes, each of which is a defect in its own right:
+
+- **`SavedCharacters.SaveCurrentAsync` now puts the open character into the index** on its first
+  worth-keeping autosave, instead of only bumping an entry that was already there. The account's
+  store has always worked this way — its `PUT` creates the row — and **the two sides disagreeing is
+  what hid this**. Without it, a character built in the slot the keep just opened has a payload and
+  no index entry, and the list is discovered *through* the index: it would be a character nobody
+  could get back to.
+- **The label follows the sheet's own name**, which reverses the older note that "an ordinary edit
+  is not a rename". That was written when the only way into the index was an explicit labelled save,
+  and it made the label a thing you could set once and never change. `ApiCharacterStore` already
+  derived it from the sheet on every autosave; there were two copies of that one-line rule and there
+  is now one, `SavedCharacters.LabelFor`.
+- **`ListAsync` reads the legacy slot's payload rather than synthesising a row from the bare fact
+  that one exists.** Two things fall out. A named character is listed under its name instead of as
+  *"Unnamed character"* — which is what the owner's imported Lynchpin was being called in the one
+  row the list could draw. And an *empty* sheet in that slot is no longer listed at all: switching
+  the palette autosaves an otherwise untouched sheet, so a visitor who had done nothing but that was
+  shown a row for a character who did not exist.
+
+**The account's cap is asked about before anything moves, and a refusal is said out loud.** A
+character created lazily by its first autosave is refused with a `409` that path has nowhere to
+report — so on a full account everything typed into the new character would go quietly nowhere. A
+cap that could not be read counts as no room, the same direction `AccountCharacters.IsFull` already
+takes. Both refusals — no room, and a server that could not be reached — put a sentence under the
+button, because a control that keeps rather than overwrites does *nothing* when it cannot proceed,
+and doing nothing is indistinguishable from a control that is not wired up.
+
+**Import no longer arms an undo**, and that is not an oversight. `ReplaceWithUndo` exists for the
+two things that really do replace the character on screen without moving the pointer — loading a
+sample, opening a recording. An import moves the pointer now, so nothing is destroyed, and an undo
+would put a *duplicate* of the kept character into the imported one's slot: a rescue offered from a
+character that was never in danger.
+
+#### The tests, and why they are shaped this way
+
+**This is item 10's argument with a name on it.** A feature was built, tested, adversarially reviewed
+by two independent agents and shipped, while nothing in the application ever wrote to the store it
+read from. Every check passed because every check called the store directly — so no test could have
+noticed that nothing else did, and no test could ever have had two characters in it.
+
+So `RenderContext` gained `storesForReal: true`, which registers a local storage that actually holds
+what is written to it in place of bUnit's recorder (which answers null to every read). Every test in
+`StartAnotherTests` presses a control a person presses and then asks what is actually stored.
+`FakeLocalStorage` gained a call log, because bUnit's `JSInterop.Invocations` is not recording once
+its runtime has been replaced — and because **order is what several of these are about and cannot be
+read off the end state**: a write and a clear of one key leave the same dictionary whichever way
+round they happened, and which way round they happened is the difference between keeping a character
+and losing one.
+
+**Seven mutations, six red on the first pass, and the seventh was the finding.** Dropping the
+index-add from `SaveCurrentAsync` left the whole suite green. It is *not* a null mutation: the kept
+character is indexed by the explicit save that keeps it, so nothing noticed that the character
+actually being **built** in the newly minted slot was never listed at all — the same defect this
+entry is about, one slot further along.
+`ACharacterBuiltInTheNewSlotIsListedWithoutBeingKeptAgain` and
+`SwitchingAwayFromTheNewCharacterLeavesItWhereItWas` close it, and the mutation was re-run against
+them and goes red. The other six: reverting `StartNew` to empty the slot (9 red), never moving the
+pointer (5), listing an empty sheet (3), never asking the account's cap (1), import back to
+`ReplaceWithUndo` (2), and synthesising the legacy row from bare existence (3).
+
+**One test was deleted rather than kept, and the reason is worth recording.**
+`StartAgainTests.TheClearLandsAfterTheSaveThatEmptyingTheSheetFires` became an ordering claim its own
+context cannot see: with storage answering null to every read, the pointer move it records is
+invisible to the very next call that reads the pointer, so a test written there would watch the
+autosave land on the old key and would have to either bless that or assert nothing. A comment now
+sits where it was, naming where the property is actually proved.
+
+#### What this does not do
+
+- **Loading a sample still overwrites the character on screen**, with the one-level undo it has
+  always had. That is a demonstration replacing what you are looking at, not a second character, and
+  it was outside what was reported.
+- **There is no rename.** A character is listed under whatever its sheet's name says, which is the
+  right default and is not the same as being able to file two characters under labels of their own.
+
+---
 
 ### Swapping characters from anywhere, and three defects an adversarial review found in the half beneath it
 
