@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,71 +15,40 @@ namespace ProwlersAndParagons.Web.Tests;
 /// one: a printed sheet says "Presence 6d" and "Plot Hook" and "TECH POWERS" and left a reader to
 /// know what those were.</para>
 ///
-/// <para><b>The negative is the important half of this file.</b> The printed sheet is what the tool
-/// produces, and <c>SheetView</c> is drawn on the review step, beside the editors, and on every
-/// replayed recording. If <c>Explain</c> leaks into any of those, forty names on the deliverable
-/// become controls — so the off case is asserted as hard as the on case.</para>
+/// <para><b>They are on by default now, and this file&apos;s negative half changed shape with it.</b>
+/// It used to guard against <c>Explain</c> leaking out of its one address onto the review step, the
+/// preview and every replayed recording — on the argument that forty names becoming controls would
+/// change the deliverable. <b>It does not</b>: the print block shuts a tip outright, so the page out
+/// of the printer is identical either way, and <c>PrintingASheetIsUnchangedByTheExplanations</c>
+/// pins that. What the off case guards now is <c>Term</c>&apos;s fallback — the bare name it draws
+/// when there is nothing to say — which is a live path and has to keep rendering exactly what the
+/// sheet rendered before. So the off case is still asserted as hard as the on case, for a different
+/// reason.</para>
 /// </summary>
-public sealed class ExplainedSheetTests
+public sealed partial class ExplainedSheetTests
 {
     private static IRenderedComponent<SheetView> Explained(RenderContext ctx) =>
         ctx.Render<SheetView>(p => p.Add(v => v.Explain, true));
 
     /// <summary>
-    /// The elements the sheet is built from that a browser lays out on a line of their own.
-    ///
-    /// <para>A closed list rather than a stylesheet lookup, because these are the block elements
-    /// HTML defines as such and the sheet uses no others; what it must <b>not</b> contain is an
-    /// inline element, for the reason in <see cref="Visible"/>.</para>
+    /// The sheet with the explanations turned off outright — which nothing in the app now does, and
+    /// which is exercised here precisely because nothing does. It selects <c>Term</c>&apos;s
+    /// bare-name fallback, and that path has to keep rendering what the sheet rendered before
+    /// explanations existed; a setting nothing uses and nothing tests is a setting that rots.
     /// </summary>
-    private static readonly string[] OwnLine =
-        ["ARTICLE", "SECTION", "DIV", "P", "H1", "H2", "H3", "UL", "OL", "LI",
-         "TABLE", "TBODY", "TR", "TD", "TH", "DL", "DT", "DD", "FOOTER", "BR"];
+    private static IRenderedComponent<SheetView> Plain(RenderContext ctx) =>
+        ctx.Render<SheetView>(p => p.Add(v => v.Explain, false));
 
     /// <summary>
-    /// What a reader sees, modelled the way a browser renders it.
+    /// What a reader sees, modelled the way a browser renders it — <see cref="SheetText"/>.
     ///
-    /// <para>Two things are dropped: the <c>sr-only</c> copy of each description, which
-    /// <c>aria-describedby</c> names and nobody sees, and the tip, which is <c>display: none</c>
-    /// until somebody hovers.</para>
-    ///
-    /// <para><b>Nothing is inserted between two inline elements, and that is the whole point.</b>
-    /// A browser concatenates adjacent inline text with no separator, which is why
-    /// <c>&lt;b&gt;Armor&lt;/b&gt;&lt;span&gt;8d&lt;/span&gt;</c> reads "Armor8d" on the page.
-    /// <b>This repository has shipped a test for that bug that was beaten by its own helper</b> —
-    /// the helper replaced every tag with a newline, so the broken markup read "Armor 8d" to the
-    /// assertion written to catch it. So a boundary is a separator here only where the browser
-    /// makes one, which is a block element.</para>
-    ///
-    /// <para>Whitespace already in the markup is <em>collapsed</em>, which is also what a browser
-    /// does and is not the same thing as inserting some: a run of newlines and indentation between
-    /// two inline elements renders as one space, and no whitespace at all renders as none.</para>
+    /// <para><b>It used to live here, and moved when the sheet started explaining itself by
+    /// default.</b> While one address drew terms, this file was the only one that had to model a
+    /// reader's eye; now every sheet test does, because a term's cell holds the name and two copies
+    /// of its description. Kept as a one-line forward so the assertions below read as they did.</para>
     /// </summary>
-    private static string Visible(INode node)
-    {
-        var lines = Gather(node)
-            .Split('\n')
-            .Select(line => string.Join(" ",
-                line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)))
-            .Where(line => line.Length > 0);
+    private static string Visible(INode node) => SheetText.Visible(node);
 
-        return string.Join(" ", lines);
-    }
-
-    private static string Gather(INode node)
-    {
-        if (node is IElement hidden &&
-            (hidden.ClassList.Contains("sr-only") || hidden.ClassList.Contains("row-tip")))
-            return "";
-
-        if (node.NodeType == NodeType.Text) return node.TextContent;
-
-        var inside = string.Concat(node.ChildNodes.Select(Gather));
-
-        return node is IElement block && OwnLine.Contains(block.TagName, StringComparer.Ordinal)
-            ? inside + "\n"
-            : inside;
-    }
 
     /// <summary>
     /// Every Ability and every Talent — all eighteen, bought or not, because the sheet prints them
@@ -154,7 +124,7 @@ public sealed class ExplainedSheetTests
                 .FindAll(".power-entry .pname")
                 .Single(e => Visible(e).StartsWith(ranked.Name, StringComparison.Ordinal)));
 
-            Assert.Matches($@"^{System.Text.RegularExpressions.Regex.Escape(ranked.Name)} \d+d$", name);
+            Assert.Matches($@"^{Regex.Escape(ranked.Name)} \d+d$", name);
         }
     }
 
@@ -230,35 +200,58 @@ public sealed class ExplainedSheetTests
     }
 
     /// <summary>
-    /// <b>The sheet drawn without explanations has no control on it at all.</b> This is the guard
-    /// on the deliverable: the review step, the preview beside the editors and every replayed
-    /// recording all draw <c>SheetView</c> and none of them passes <c>Explain</c>.
+    /// <b>The sheet explains every name on it without being asked.</b> This is the owner&apos;s
+    /// report: <i>"the &apos;explain this character sheet&apos; button is still present, instead of
+    /// that just being the default way the sheet renders."</i> Asserted on the bare component with
+    /// no parameter passed, so it is the default under test and not an argument this test supplied.
     /// </summary>
     [Fact]
-    public void TheOrdinarySheetGainsNoControls()
+    public void TheSheetExplainsEveryNameOnItByDefault()
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
 
-        var plain = ctx.Render<SheetView>();
+        var sheet = ctx.Render<SheetView>();
+
+        Assert.NotEmpty(sheet.FindAll(".term"));
+        Assert.NotEmpty(sheet.FindAll(".term-name"));
+        Assert.NotEmpty(sheet.FindAll(".row-tip"));
+    }
+
+    /// <summary>
+    /// And off is still off — <c>Term</c>&apos;s bare-name fallback draws no control at all.
+    /// Nothing in the app selects this any more, which is exactly why it is asserted: the same
+    /// fallback is what a Power with no description in the rules data gets, and that is not
+    /// hypothetical.
+    ///
+    /// <para>The positive controls are beside it, because "no controls found" is satisfied
+    /// completely by a sheet that failed to render.</para>
+    /// </summary>
+    [Fact]
+    public void ASheetDrawnWithoutExplanationsHasNoControlOnItAtAll()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+
+        var plain = Plain(ctx);
 
         Assert.Empty(plain.FindAll(".term"));
         Assert.Empty(plain.FindAll(".term-name"));
         Assert.Empty(plain.FindAll(".row-tip"));
 
-        // And the positive control beside it: the same character, explained, really does have them.
-        Assert.NotEmpty(Explained(ctx).FindAll(".term-name"));
+        Assert.NotEmpty(plain.FindAll(".sheet-section"));
+        Assert.NotEmpty(ctx.Render<SheetView>().FindAll(".term-name"));
     }
 
     /// <summary>
-    /// The review step in particular, because that is the page whose sheet goes on paper and the
-    /// one somebody would be tempted to switch on in place of a page of its own.
+    /// The review step in particular, because that is the page whose sheet goes on paper — and it
+    /// is the page the owner was looking at when they reported the button. This assertion is the
+    /// exact reverse of the one it replaces.
     /// </summary>
     [Fact]
-    public void TheReviewStepsSheetIsNotTheExplainedOne()
+    public void TheReviewStepsSheetIsTheExplainedOne()
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
 
-        Assert.Empty(ctx.Render<Review>().FindAll(".term-name"));
+        Assert.NotEmpty(ctx.Render<Review>().FindAll(".term-name"));
     }
 
     /// <summary>
@@ -277,33 +270,226 @@ public sealed class ExplainedSheetTests
         // each description are what `Visible` drops, so what is left on the explained sheet is
         // exactly what the plain one prints. Wrapping forty names in a component is precisely the
         // change that could quietly drop one, and a name missing from a sheet looks entirely right.
-        Assert.Equal(Words(ctx.Render<SheetView>()), Words(Explained(ctx)));
-    }
-
-    /// <summary>The page itself draws the sheet explained, and offers the way back.</summary>
-    [Fact]
-    public void ThePageDrawsTheSheetExplained()
-    {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
-
-        var page = ctx.Render<ExplainedSheet>();
-
-        Assert.NotEmpty(page.FindAll(".sheet .term-name"));
-        Assert.Contains("build/review",
-            page.FindAll("a").Select(a => a.GetAttribute("href")));
+        // **Explicitly off against the default, rather than the default against `Explain="true"`.**
+        // Now that the default is on, the second of those would compare a render with itself — a
+        // test that passes by construction and proves nothing about dropping a name.
+        Assert.Equal(Words(Plain(ctx)), Words(ctx.Render<SheetView>()));
     }
 
     /// <summary>
-    /// The review step offers a way to it, or nothing does — the page is reachable by address and
-    /// that is not a way anybody finds it.
+    /// <b>There is no second address for the same sheet, and nothing offers one.</b> Both the link
+    /// and the <c>/build/sheet</c> page it pointed at are gone: with the sheet below already
+    /// explained, the link offered a way to the page you were already on.
+    ///
+    /// <para>The positive control matters here more than usual — "no link to <c>build/sheet</c>" is
+    /// satisfied by a review step that rendered no links at all. So the panel&apos;s other controls
+    /// and the sheet itself are asserted present in the same breath.</para>
     /// </summary>
     [Fact]
-    public void TheReviewStepOffersAWayToIt()
+    public void NothingOffersASecondAddressForTheSameSheet()
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
+        var review = ctx.Render<Review>();
 
-        Assert.Contains("build/sheet",
-            ctx.Render<Review>().FindAll("a").Select(a => a.GetAttribute("href")));
+        Assert.DoesNotContain("build/sheet",
+            review.FindAll("a").Select(a => a.GetAttribute("href")));
+        Assert.DoesNotContain("Explain this sheet", review.Markup, StringComparison.Ordinal);
+
+        Assert.Contains("Print this sheet", review.Markup, StringComparison.Ordinal);
+        Assert.NotEmpty(review.FindAll(".sheet"));
+    }
+
+    /// <summary>
+    /// <b>The printed page is unchanged by the explanations, which is the whole reason the default
+    /// could move.</b> The old default was off on the argument that the printed sheet is the
+    /// deliverable and a sheet that gained forty controls would be a different document. The premise
+    /// is right and the conclusion did not follow, because the description never reaches paper.
+    ///
+    /// <para><b>This test asserted the wrong three things first, and an adversarial review broke the
+    /// real mechanism and watched it stay green.</b> It checked that <c>.tip-wrap</c> was in the
+    /// print block's hide list — but <c>.tip-wrap</c> belongs to <c>Tooltip</c> and a <c>Term</c>
+    /// has no such ancestor — and that <c>clip-path</c> appeared *somewhere* in the file. Both are
+    /// true and neither is what keeps a description off paper. Setting <c>.row-tip</c>'s own rule to
+    /// <c>display: block</c> left the whole suite passing and put every description on the printed
+    /// page, which is the exact regression this exists to prevent. <b>Breaking a guard and watching
+    /// it fail is not enough if you break something the guard was never about</b> — that is the
+    /// null mutation this repository already records, wearing a disguise.</para>
+    ///
+    /// <para>What actually holds is one rule: <c>.row-tip</c> is <c>display: none</c> and is opened
+    /// only by <c>:hover</c> and <c>:focus-visible</c>, neither of which a sheet of paper can be in.
+    /// So that is what is asserted, at the selector level rather than by looking for a string
+    /// anywhere in the file.</para>
+    /// </summary>
+    [Fact]
+    public void NoRuleOpensATermsDescriptionExceptOnHoverOrFocus()
+    {
+        var css = Stylesheet();
+
+        // **Split on commas, because a selector list is not one selector.** A rule reading
+        // `.option:hover .row-tip, .sheet .row-tip { display: block }` opens the tip
+        // unconditionally through its second branch while the string `:hover` is still present in
+        // the first — and asking the combined selector let exactly that mutation through. Found by
+        // running it, which is the only way this kind of hole is ever found.
+        var opens = Rules(css)
+            .Where(r => r.Body.Contains("display: block", StringComparison.Ordinal))
+            .SelectMany(r => r.Selector.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            .Where(branch => branch.Contains("row-tip", StringComparison.Ordinal))
+            .ToList();
+
+        // The positive control: some rule really does open it, or a stylesheet that had stopped
+        // styling the tip at all would satisfy every assertion below by having nothing to check.
+        Assert.NotEmpty(opens);
+
+        foreach (var branch in opens)
+        {
+            Assert.True(
+                branch.Contains(":hover", StringComparison.Ordinal)
+                || branch.Contains(":focus-visible", StringComparison.Ordinal),
+                $"`{branch}` opens a term's description without asking for hover or focus, "
+                + "so it would open on paper too — and the printed sheet is the deliverable.");
+        }
+
+        // And the shut rule is really there, unqualified: without it the selectors above would be
+        // opening something that was never closed.
+        Assert.Contains(
+            Rules(css).Where(r => r.Selector == ".row-tip"),
+            r => r.Body.Contains("display: none", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// And the term itself gives up every mark that says it was ever a control, so the word prints
+    /// as a word. This half was always right — it is the print block's own doing, and it is the only
+    /// part of a term's print behaviour that the print block is responsible for at all.
+    /// </summary>
+    [Fact]
+    public void PrintingATermPrintsThePlainWord()
+    {
+        var css = Stylesheet();
+
+        var print = css[css.IndexOf("@media print", StringComparison.Ordinal)..];
+        Assert.True(print.Length > 0, "app.css no longer has a print block at all.");
+
+        // `Single`, not `SingleOrDefault` plus a null check: these are value tuples, so the
+        // default is ("", "") rather than null and the check would always pass. The CI build's
+        // analyzers caught that; a plain `dotnet test` did not.
+        var rule = Assert.Single(Rules(print), r => r.Selector == ".term-name");
+
+        Assert.Contains("text-decoration: none", rule.Body, StringComparison.Ordinal);
+        Assert.Contains("cursor: auto", rule.Body, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The description's other copy — the one <c>aria-describedby</c> names, which cannot be
+    /// <c>display: none</c> without leaving the accessibility tree — is a clipped 1px box, and a
+    /// clipped box contributes nothing to a printed page.
+    /// </summary>
+    [Fact]
+    public void TheDescriptionsOtherCopyIsAClippedBox()
+    {
+        var rule = Assert.Single(Rules(Stylesheet()), r => r.Selector == ".sr-only");
+
+        Assert.Contains("clip-path: inset(50%)", rule.Body, StringComparison.Ordinal);
+        Assert.Contains("position: absolute", rule.Body, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Nothing the sheet explains shares a name with anything else it explains.</b> A term's id
+    /// is derived from its name, so two different things called the same word would put one id on
+    /// two elements carrying <em>different</em> sentences — and <c>aria-describedby</c> resolves to
+    /// the first, so the second would be described by the wrong one, silently.
+    ///
+    /// <para><b>It holds today and nothing was pinning it.</b> The five categories the sheet draws
+    /// terms for — Abilities, Talents, Powers, Perks, Flaws — collide on no name at all. Two
+    /// collisions do exist in the rules data (<c>Collapsible</c>, <c>Repair</c>) and neither
+    /// reaches a term: both are between a Power's own Con and something in another file, and Pros
+    /// and Cons print as a stat line rather than as terms. That is a fact about today's data, not a
+    /// property of the design, which is exactly why it needs a test — it costs nothing now and
+    /// catches the entry that would break it.</para>
+    ///
+    /// <para><b>What this deliberately does not forbid</b> is the same Power selected twice, which
+    /// <c>CharacterValidator</c> allows with a warning. Those two terms share an id and share a
+    /// sentence, so whichever one <c>aria-describedby</c> resolves to is right — the collision
+    /// <c>Term</c>'s own remarks already call the one worth having.</para>
+    /// </summary>
+    [Fact]
+    public void NoTwoThingsTheSheetExplainsShareAName()
+    {
+        using var ctx = new RenderContext();
+        var rules = ctx.Services.GetRequiredService<RulesRepository>();
+
+        var named = rules.Abilities.Select(a => (Kind: "Ability", a.Name))
+            .Concat(rules.Talents.Select(t => (Kind: "Talent", t.Name)))
+            .Concat(rules.Powers.Select(p => (Kind: "Power", p.Name)))
+            .Concat(rules.Perks.Select(p => (Kind: "Perk", p.Name)))
+            .Concat(rules.Flaws.Select(f => (Kind: "Flaw", f.Name)))
+            .ToList();
+
+        // The positive control: all five categories really were read, so "no collisions" is not
+        // the answer an empty list gives.
+        Assert.True(named.Count > 150, $"only {named.Count} names read; the sheet explains more.");
+
+        var clashes = named
+            .GroupBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Select(n => n.Kind).Distinct(StringComparer.Ordinal).Count() > 1)
+            .Select(g => $"{g.Key} is a {string.Join(" and a ", g.Select(n => n.Kind).Distinct(StringComparer.Ordinal))}")
+            .ToList();
+
+        Assert.True(clashes.Count == 0,
+            "Two things the sheet explains share a name, so one id would carry two different "
+            + "descriptions and aria-describedby would resolve to the wrong one: "
+            + string.Join("; ", clashes));
+    }
+
+    private static string Stylesheet() =>
+        File.ReadAllText(Path.Combine(RepoRoot(), "web", "wwwroot", "css", "app.css"));
+
+    /// <summary>
+    /// Every rule in a stylesheet as a selector and a body, comments stripped.
+    ///
+    /// <para><b>Rules rather than a search for a string in the whole file</b>, which is the fault
+    /// the test above was written with: <c>clip-path</c> appearing somewhere in <c>app.css</c> says
+    /// nothing about which selector carries it, and a guard that cannot name the rule it is about
+    /// cannot notice that rule changing.</para>
+    ///
+    /// <para>Nested blocks — <c>@media</c>, <c>@supports</c> — have their own braces, so the
+    /// at-rule's opening line is skipped rather than treated as a selector, and the rules inside it
+    /// come back as ordinary rules. That is what lets a caller slice the print block off the front
+    /// and ask the same question of it.</para>
+    /// </summary>
+    private static IEnumerable<(string Selector, string Body)> Rules(string css)
+    {
+        var text = CssComment().Replace(css, " ");
+
+        foreach (var match in CssRule().Matches(text).Cast<Match>())
+        {
+            var selector = match.Groups[1].Value.Trim();
+            if (selector.StartsWith('@') || selector.Length == 0) continue;
+
+            yield return (Collapse(selector), match.Groups[2].Value);
+        }
+    }
+
+    private static string Collapse(string text) =>
+        string.Join(" ", text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    [GeneratedRegex(@"/\*.*?\*/", RegexOptions.Singleline)]
+    private static partial Regex CssComment();
+
+    /// <summary>A selector and the declarations between its braces. Nested braces are not matched,
+    /// which is what makes an <c>@media</c> line fall out as an at-rule rather than a selector.</summary>
+    [GeneratedRegex(@"([^{}]+)\{([^{}]*)\}")]
+    private static partial Regex CssRule();
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (dir.GetFiles("*.sln").Length > 0) return dir.FullName;
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate the repository root.");
     }
 
     /// <summary>

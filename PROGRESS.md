@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4800 across **four** suites — 4015 on the engine, 605 rendering components with bUnit (25 added this slice, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4804 across **four** suites — 4015 on the engine, 609 rendering components with bUnit (29 added this round, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -774,6 +774,163 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 
 ## Completed work
 
+### The explained sheet is how the sheet renders, and the second address is gone
+
+> *"the 'explain this character sheet' button is still present, instead of that just being the
+> default way the sheet renders."*
+
+**`SheetView.Explain` defaults to `true`.** Every call site already drew `<SheetView />` with no
+argument — the review step, the preview beside the editors, every replayed recording — so one
+default moved all of them. `/build/sheet` and the *Explain this sheet* link on the review step are
+gone with it: with the sheet below already explained, the link offered a way to the page you were
+already on.
+
+#### The argument the old default rested on, and why it does not hold
+
+`SheetView`'s own comment said it plainly: *"Off by default, and the default is the one that
+matters. The printed sheet is what this whole tool produces and it is one page by a margin; a sheet
+that gained forty controls would be a different document."*
+
+**The premise is right and the conclusion does not follow, because the printed sheet gains
+nothing.** The print block already takes every control back off:
+
+- `.tip-wrap` is in the `display: none` list, and the tip itself is `display: none` unless hovered —
+  which paper cannot be.
+- `.term-name` gives up `text-decoration` and `cursor`, so the word prints as a word with nothing to
+  say it was ever a button.
+- The description's other copy — the one `aria-describedby` names, which cannot be `display: none`
+  or it leaves the accessibility tree — is `.sr-only`, a clipped 1px box.
+
+So the page out of the printer is identical whether the explanations are on or off. **That was true
+before this change and nothing tested it**: it was one stylesheet edit away from being false on
+every sheet the tool produces, and nobody would have found out until a sheet came out of a printer
+with forty dotted underlines on it. `PrintingASheetIsUnchangedByTheExplanations` reads the cascade
+out of `app.css` and pins all three, and both halves were broken and watched to fail.
+
+**So `Term` needs to do nothing on paper, and already does nothing.** That was the second question
+this item said to decide rather than assume, and the answer was already in the stylesheet with a
+comment explaining itself.
+
+#### What the flip actually cost, which was not the printer
+
+**Seventeen tests across four files failed at once, and all of them were asking the same question.**
+A term's cell holds the name *and* two copies of its description, so `TextContent` on a Trait cell
+reads `"PresenceHow forceful…How forceful…"`. Every one of those tests was using `TextContent` as a
+stand-in for "what the sheet says", which it had been while exactly one address drew terms.
+
+`ExplainedSheetTests` already had the right helper — a `Visible` that drops `.sr-only` and
+`.row-tip` and inserts a separator only where a browser would, carrying its own recorded trap
+(*"this repository has shipped a test for that bug that was beaten by its own helper"*, which
+replaced every tag with a newline and so read the broken markup as correct). **It is shared as
+`SheetText` rather than copied**, which is the whole of the fix for sixteen of the seventeen.
+
+**The seventeenth was different and is worth recording.** `PreviewColumnTests` compares the
+preview's markup against the review step's, character for character, and terms carry
+`blazor:onkeydown="N"` where N is a per-renderer counter — so two renders of an identical component
+disagree on a number no reader could ever see. Blazor's handler ids are stripped and nothing else
+is, with a positive control asserting something really was stripped, so a change that stopped the
+sheet rendering terms at all could not pass by making both sides trivially equal. **This is the same
+trap `Term` already documents for its own ids** and solves by deriving them from the name; these are
+Blazor's and cannot be derived from anything.
+
+#### Off is still a real setting, and is asserted as hard as on
+
+Nothing in the app passes `Explain="false"` any more, which is exactly why it is tested. It selects
+`Term`'s bare-name fallback — **the same path a Power with no description in the rules data takes**,
+which is not hypothetical — and that path has to keep rendering what the sheet rendered before
+explanations existed. `ExplainingTheSheetChangesNoneOfItsWords` compares off against the default
+rather than the default against `Explain="true"`; the latter would be comparing a render with itself
+and would pass by construction.
+
+#### Measured, and the one number worth knowing
+
+The explained render is **34,250 bytes against 8,835** for the same character — a Hero sheet's 33
+terms, each adding a button and two copies of its description. **No change to what is downloaded**:
+`Term`, `Tooltip` and their CSS already shipped in the bundle, because `/build/sheet` already used
+them. What grows is the rendered DOM, and the place that matters is the preview column beside the
+editors, which redraws on every rank, Power and Perk change above 1500px. Render time was not
+measured; if it ever reads as slow, that is a measurement to take rather than a reason to give the
+preview a second, quieter sheet.
+
+#### The adversarial review broke the print guard and watched it stay green
+
+**The test that was the whole evidence for "the printed sheet gains nothing" did not test the
+mechanism.** It checked that `.tip-wrap` was in the print block's hide list, that `.term-name` gave
+up its underline and cursor, and that `clip-path` appeared *somewhere* in `app.css`. All three are
+true. Only the second is about a `Term` at all: **`.tip-wrap` belongs to `Tooltip`, and a `Term`'s
+tip has no such ancestor.** What keeps a description off paper is `.row-tip`'s own base rule,
+`display: none`, opened only by `:hover` and `:focus-visible` — and the test never looked at it.
+
+A reviewer set that one line to `display: block`, ran the suite, and got 581 green. Then rendered
+the markup against the mutated stylesheet, printed it with headless Chrome and read the PDF back:
+**the description was on the page**, and the file had doubled in size. That is the exact regression
+the test exists to prevent.
+
+**This was broken and watched to fail, and that was not enough.** The mutation removed `.tip-wrap`
+from the print block and the test went red — so it looked like a working guard. It was a null
+mutation wearing a disguise: the guard reacted, to a change that could not have affected a sheet.
+`CLAUDE.md` already says a semantically null mutation does not count; the sharper form is that
+**breaking something the guard was never about is the same failure.** Ask what the mechanism is
+before choosing what to break.
+
+The one test is now three, each naming its own mechanism, and a `Rules()` helper reads `app.css` as
+selectors and bodies rather than as a string to search — *"a guard that cannot name the rule it is
+about cannot notice that rule changing."*
+
+**And the new guard had a hole of its own, found the same way.** It asked whether the selector
+contained `:hover`; a selector *list* is not one selector, so
+`.option:hover .row-tip, .sheet .row-tip { display: block }` opens the tip unconditionally through
+its second branch while the string is still present in the first. That mutation came back green,
+was traced rather than recorded as a null result, and the guard now splits on commas. All four
+mutations go red.
+
+#### Two findings recorded rather than fixed, and why
+
+**Duplicate ids are reachable, and the only reachable case is the harmless one.**
+`Term`'s id is derived from its name, so two things called the same word put one id on two elements
+— and before this change `Review` carried no ids at all, because it drew the sheet unexplained. The
+reviewer demonstrated it by selecting one Power twice, which `CharacterValidator` allows with a
+warning.
+
+**Traced, and the harm depends entirely on whether the two sentences differ.** They do not, in any
+reachable case: the five categories the sheet draws terms for — Abilities, Talents, Powers, Perks,
+Flaws — **collide on no name at all** in the shipped data. Two collisions do exist (`Collapsible`,
+`Repair`) and neither reaches a term: both are between a Power's own Con and an entry in another
+file, and Pros and Cons print as a stat line. So the only duplicate anybody can produce is the same
+Power twice, where both terms carry the identical sentence and whichever one `aria-describedby`
+resolves to is right — the collision `Term`'s remarks already call the one worth having.
+
+**What was missing was any guarantee that it stays that way**, and that is what was added:
+`NoTwoThingsTheSheetExplainsShareAName` fails on the entry that would put two *different*
+descriptions under one id. Changing the id scheme was considered and rejected — a generated id
+breaks the replay guard that requires two renders of one character to be identical, which is a trap
+`Term` already records, and the benefit while both copies say the same sentence is nil.
+
+**The preview column gained 33 tab stops, and that is a decision rather than an oversight.**
+`Characteristics` draws the same sheet beside the editors, so above 1500px the preview now holds 33
+focusable buttons where it held none — against 19 real controls for the open tab and the step
+buttons. `docs/guide/browser.md` records the project's stance on exactly this cost for a different
+component: *"141 extra tab stops would undo `OptionList`'s one-tab-stop keyboard model."*
+
+It is accepted, and the alternative is why: turning the explanations off for the preview alone is a
+second, quieter sheet — the shape the owner's report was against — and the preview is the same
+document, not a summary of it. **The number is recorded here because it was not measured before and
+because the owner may want it back**: the change is one parameter on one call site. Keyboard cost is
+not the same question as the screen-reader work the owner has deferred, and it is stated plainly
+rather than folded into that deferral.
+
+#### What moved
+
+`ExplainedSheet.razor` deleted; the link removed from `Review.razor`. Two `ExplainedSheetTests`
+assertions inverted, two deleted with the page, one repointed so it is not vacuous, two added.
+`ProofPages.TheExplainedSheet` renders `SheetView` directly and keeps its one forced-open tip, which
+is still the half no golden and no assertion can settle. The `explained-sheet` golden moved and was
+regenerated on CI's own Chrome.
+
+**A stale address is not left behind and that follows precedent rather than setting it.** `App.razor`
+renders its own "no such page" for anything unrouted, `_redirects` names no specific path, and the
+sample characters moved from the tier page to `/portfolio` to `/admin/portfolio` with no redirect
+stub kept at any of the old addresses.
 ### The tier page did not redraw when a control inside it emptied the sheet
 
 **Found by opening the deployed site and pressing the button**, immediately after the change above
@@ -1506,7 +1663,12 @@ writes in words is a phrase, not a Hero Point figure.
 
 ### The sheet says what every name on it means
 
-`/build/sheet` draws the sheet with every name carrying its `data/rules` description, on hover and on
+> **Superseded in part, and the address is gone.** This shipped as a page of its own at
+> `/build/sheet`; the owner then reported the link to it as the defect — explaining the sheet was
+> never something to ask for — so `SheetView.Explain` defaults to on and that address is retired. See
+> the entry above. Everything below about `Term` itself still holds; only where it is drawn changed.
+
+`/build/sheet` drew the sheet with every name carrying its `data/rules` description, on hover and on
 focus. The descriptions have been there the whole time and **only the editors ever showed one**: a
 printed sheet says "Presence 6d" and "Plot Hook" and "TECH POWERS" and left a reader to know.
 

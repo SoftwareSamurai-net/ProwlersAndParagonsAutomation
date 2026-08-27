@@ -93,7 +93,11 @@ public sealed class SheetRenderTests
 
         foreach (var entry in ctx.Render<SheetView>().FindAll(".power-entry .head .pname"))
         {
-            var text = Collapse(entry.TextContent);
+            // **`SheetText.Visible`, not `TextContent`.** The sheet explains every name on it now,
+            // so a Power's name carries two hidden copies of its description and `TextContent` reads
+            // "Flight Move through the air…Move through the air…". What is asserted here is what the
+            // sheet prints, which is the visible half.
+            var text = SheetText.Visible(entry);
             var name = expected.Keys.Single(n => text.StartsWith(n, StringComparison.Ordinal));
 
             Assert.Equal(expected[name] is { } rank ? $"{name} {rank}d" : name, text);
@@ -121,8 +125,8 @@ public sealed class SheetRenderTests
         // passed the version of this test that only looked for the shapes.
         var printed = view.FindAll(".trait-table tr")
             .ToDictionary(
-                tr => Collapse(tr.QuerySelector("td")!.TextContent),
-                tr => Collapse(tr.QuerySelector("td:last-child")!.TextContent),
+                tr => SheetText.Visible(tr.QuerySelector("td")!),
+                tr => SheetText.Visible(tr.QuerySelector("td:last-child")!),
                 StringComparer.Ordinal);
 
         foreach (var ability in ctx.Session.Rules.Abilities)
@@ -163,9 +167,9 @@ public sealed class SheetRenderTests
         var view = ctx.Render<SheetView>();
 
         var row = view.FindAll(".trait-table tr")
-            .Single(tr => Collapse(tr.QuerySelector("td")!.TextContent) == talent.Name);
+            .Single(tr => SheetText.Visible(tr.QuerySelector("td")!) == talent.Name);
 
-        Assert.Equal("0d", Collapse(row.QuerySelector("td:last-child")!.TextContent));
+        Assert.Equal("0d", SheetText.Visible(row.QuerySelector("td:last-child")!));
         Assert.Empty(view.FindAll(".trait-table .rule-line"));
     }
 
@@ -334,22 +338,27 @@ public sealed class SheetRenderTests
         using var budgeted = new RenderContext().With(SheetMode.Hero);
         var budgetedBox = budgeted.Render<SheetView>().FindAll(".stat-blocks.quad .stat-block")[3];
 
-        Assert.Contains("Hero Points", budgetedBox.TextContent, StringComparison.Ordinal);
-        Assert.Contains("of 125", budgetedBox.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Hero Points", SheetText.Visible(budgetedBox), StringComparison.Ordinal);
+        Assert.Contains("of 125", SheetText.Visible(budgetedBox), StringComparison.Ordinal);
 
         // A Villain held to a tier's points reads exactly the same, which is the half that would
         // have been missed by simply swapping the trigger over.
         using var villain = new RenderContext().With(SheetMode.Villain);
         var villainBox = villain.Render<SheetView>().FindAll(".stat-blocks.quad .stat-block")[3];
 
-        Assert.Contains("of 125", villainBox.TextContent, StringComparison.Ordinal);
+        Assert.Contains("of 125", SheetText.Visible(villainBox), StringComparison.Ordinal);
 
         using var sandbox = new RenderContext().With(SheetMode.Hero);
         sandbox.Session.UnlimitedBudget = true;
         var sandboxBox = sandbox.Render<SheetView>().FindAll(".stat-blocks.quad .stat-block")[3];
 
-        Assert.Contains("Points Spent", sandboxBox.TextContent, StringComparison.Ordinal);
-        Assert.DoesNotContain(" of ", sandboxBox.TextContent, StringComparison.Ordinal);
+        Assert.Contains("Points Spent", SheetText.Visible(sandboxBox), StringComparison.Ordinal);
+
+        // **Read visibly, and this one would be a false pass otherwise.** The four figures carry
+        // the rule behind them now, and "Every Hero Point you have spent, out of the tier's
+        // budget" contains " of " — so a sandbox box with no denominator on screen still fails
+        // this assertion when it is read off `TextContent`.
+        Assert.DoesNotContain(" of ", SheetText.Visible(sandboxBox), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -363,7 +372,7 @@ public sealed class SheetRenderTests
         using var ctx = new RenderContext().With(SheetMode.Villain);
         var headings = ctx.Render<SheetView>()
             .FindAll(".sheet-section.powers > h3")
-            .Select(h => h.TextContent)
+            .Select(SheetText.Visible)
             .ToList();
 
         Assert.Contains("MAGIC POWERS", headings);

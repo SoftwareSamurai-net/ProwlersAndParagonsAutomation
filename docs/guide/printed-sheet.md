@@ -21,6 +21,20 @@ Two consequences of the reference being a **form** rather than a summary, both d
 
 `web/wwwroot/css/app.css` ends with the print stylesheet and it is load-bearing. **Judge it by the PDF, never by the screen** — computed styles cannot tell you whether a page break lands mid-entry.
 
+- **The sheet explains every name on it, and the printed page is unchanged by that.** `SheetView.Explain`
+  defaults to on, so the review step, the preview beside the editors and every replayed recording all
+  draw terms. **This does not reach paper, and know which rule is doing the work.** The tip is
+  `.row-tip`, and it is **its own base `display: none`** that keeps it off the page — opened only by
+  `:hover` and `:focus-visible`, neither of which paper can be in. The print block never mentions it.
+  (`.tip-wrap` *is* in the print block's hide list and is **not** the mechanism: that class belongs to
+  `Tooltip`, and a `Term` has no such ancestor. A guard written against it passed while a reviewer
+  put every description on the printed page.) The print block's own contribution is `.term-name`
+  giving up `text-decoration` and `cursor`, so the word prints as a word; and the description's other
+  copy — the one `aria-describedby` names, which cannot be `display: none` without leaving the
+  accessibility tree — is `.sr-only`, a clipped 1px box that contributes nothing to a printed page. The default used to be off precisely to protect this page, on
+  the argument that a sheet gaining forty controls would be a different document. The premise is
+  right and the printed sheet gains nothing, which was true before the flip and untested:
+  `PrintingASheetIsUnchangedByTheExplanations` reads the cascade and pins all three.
 - **The sheet is one page and should stay one page.** The three columns are equal height and the box marked `fill` in each — Notes and Origin — absorbs the difference, so a short character still prints a full page instead of a third of one. That is a flex `flex: 1` on `.sheet-section.fill` plus `justify-content: space-between` on its rules, not a tuned line count; do not go back to counting lines.
 - **The browser prints its own header, and no page can stop it.** The URL, the date and the page number across the top are the print dialogue's "Headers and footers" setting, which belongs to the person printing. The review step tells them where the switch is; that is the only lever there is. Do not add a `@page` margin box or a page counter to try — Chrome supports neither.
 
