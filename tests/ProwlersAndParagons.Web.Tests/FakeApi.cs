@@ -305,7 +305,29 @@ public sealed class FakeApi : HttpMessageHandler
         return Json($$"""{"limit":{{Limit}},"characters":[{{string.Join(",", mine)}}]}""");
     }
 
-    private Task<HttpResponseMessage> Character(HttpRequestMessage request, string id)
+    /// <summary>
+    /// Held open before a character is answered, so a test can decide what order two reads finish
+    /// in.
+    ///
+    /// <para><b>A slow response is a state the real server genuinely has</b>, which is the bar this
+    /// class sets for itself — a stub that answers something the real server never would is worse
+    /// than no stub. Every read here is a network round trip in the deployed app and any two of
+    /// them can land out of order; without this, that is unreachable in a test, because the fake
+    /// answers synchronously and closes the window the fault lives in.</para>
+    ///
+    /// <para>Null is the ordinary case and every other test is unaffected.</para>
+    /// </summary>
+    public Func<string, Task>? BeforeAnsweringCharacter { get; set; }
+
+    private async Task<HttpResponseMessage> Character(HttpRequestMessage request, string id)
+    {
+        if (request.Method == HttpMethod.Get && BeforeAnsweringCharacter is { } gate)
+            await gate(id);
+
+        return await CharacterAnswer(request, id);
+    }
+
+    private Task<HttpResponseMessage> CharacterAnswer(HttpRequestMessage request, string id)
     {
         // Scoped to whoever is asking, like the real server's `WHERE user_id = ? AND id = ?`. A
         // stub that answered from one slot could not tell a working ownership check from a missing

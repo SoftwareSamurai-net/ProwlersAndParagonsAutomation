@@ -1,0 +1,197 @@
+@page "/sheet"
+@page "/sheet/{Id}"
+@implements IDisposable
+@inject CharacterSession Session
+@inject AccountCharacterStore Characters
+@inject IJSRuntime Js
+
+@* One character, read as a document. No steps, no budget strip, no validation panel — the
+   banner and then the sheet.
+
+   **This is not the `/build/sheet` that was retired**, and the difference is worth stating here
+   because the shapes look alike from a distance. That address was the review step with
+   `Explain` flipped, and it went when explanations became the default: it offered a route to the
+   page you were already on. This one differs by what it *omits*. If a panel about building the
+   character ever appears above the sheet, this page has become the review step again and the
+   omission is the thing to restore.
+
+   **Two addresses, and the second is the one that earns the page.** `/sheet` is the character
+   being built; `/sheet/{id}` is any saved one, read *without opening it*. That distinction is the
+   whole of the correctness — see the read below.
+
+   The chrome is dropped by `Areas.Of` returning `Area.Sheet`, not by anything on this page:
+   `MainLayout` draws the step band, the budget strip and the character switcher in `Area.Play`
+   alone, so a page that is not the builder inherits none of them and cannot forget to. *@
+
+<PageTitle>@Title — Prowlers &amp; Paragons</PageTitle>
+
+@if (_missing)
+{
+    @* An id nobody can read. Not an error page: the ordinary way to get here is a stale link or
+       a character thrown away in another tab, and neither is a fault of the reader's. *@
+    <h1>Character not shown</h1>
+    @* **It says the read failed, not that the character is gone**, and the difference is the whole
+       of this copy. `ReadAsync` answers null for a character that was thrown away *and* for a 401
+       whose session expired while the tab sat open, a network failure, and a payload this build
+       cannot read. Its own remarks say a caller should treat that as unknown rather than as
+       nothing — this was the first caller to do the opposite, and it did it in a sentence shown to
+       somebody whose character was sitting safe on the server.
+
+       Short, because the reader's question is "where is my character" and the causes are a guess
+       this page cannot check. *@
+    <EmptyState>
+        That character could not be read. <a href="build">Open one of your characters</a>.
+    </EmptyState>
+}
+else
+{
+    @* `Character` is null for the session's own sheet, which is what makes `SheetView` subscribe
+       and redraw; for a named one it is passed, and the component deliberately does *not*
+       subscribe — a saved character is fixed for the life of this render and tying it to the
+       visitor's edits is the influence the replay renders two pages to forbid.
+
+       `ShowBudget` is passed only for a named character, for the reason SheetView's own remarks
+       give: whether *that* character has a Hero Point limit has nothing to do with the mode this
+       visitor happens to be in. *@
+    @* **`@key` on the id, and it is load-bearing rather than tidy.** `SheetView` subscribes to the
+       session only when it is drawing the session's own character, and this page is the first host
+       where that parameter flips on a live instance — Blazor reuses the component when only the
+       route parameter changes, which is the same reuse the read below relies on. Two adversarial
+       reviewers found it independently and measured both directions: going to a named character
+       left a handler attached for the life of the session, and coming *back* to `/sheet` left a
+       component that had never subscribed, so the bare address quietly stopped following the
+       character being built — which is the one thing it is for.
+
+       Keying on the id makes each address its own instance, so the component is created and
+       disposed with the same answer to "is this the session's character" that it was born with. *@
+    <SheetView @key="Id" Character="_show" ShowBudget="_showBudget" />
+
+    @* Under the sheet rather than over it, so the first thing on the screen and the first thing
+       on the paper are the same thing. `no-print` takes them off the page — the print block
+       already hides that class, so nothing new was needed for it. *@
+    <div class="inline no-print spaced">
+        <button type="button" class="btn primary" @onclick="Print">Print</button>
+        <a class="btn" href="build">Back to building</a>
+    </div>
+    <p class="small muted no-print">
+        One page. Turn <b>Headers and footers</b> off under <b>More settings</b> to drop the
+        browser's own address-and-date band.
+    </p>
+}
+
+@code {
+    /// <summary>
+    /// Which saved character to show, or null for the one being built.
+    ///
+    /// <para>A route parameter rather than a query string because it names <em>which document
+    /// this page is</em>, which is what a path segment is for — and because <see cref="Areas.Of"/>
+    /// matches on the first segment, so both addresses are one area with no special case.</para>
+    /// </summary>
+    [Parameter] public string? Id { get; set; }
+
+    /// <summary>
+    /// The saved character being shown, or null when this is the session's own.
+    ///
+    /// <para><b>Read, never opened.</b> <see cref="AccountCharacterStore.ReadAsync"/> is the
+    /// method with no side effect; <c>OpenAsync</c> beside it moves the current-character pointer
+    /// and overwrites this browser's anonymous slot, so using it here would mean looking at
+    /// somebody's old character quietly switched the app to it — and the next autosave would
+    /// write the sheet on screen over whatever they actually had open. That is not a
+    /// hypothetical: it is the shape of the defect that cost this project a character, recorded
+    /// in <c>PROGRESS.md</c>. <b>Showing is not opening.</b></para>
+    /// </summary>
+    private CharacterSheet? _show;
+
+    /// <summary>Whether the named character has a Hero Point limit. Null for the session's own.</summary>
+    private bool? _showBudget;
+
+    /// <summary>
+    /// Whether an id was asked for and nothing could be read at it.
+    ///
+    /// <para>Distinct from <c>_show is null</c>, which is also true for <c>/sheet</c> — where null
+    /// is the ordinary answer meaning "the session's character". Collapsing the two would render
+    /// the visitor's own sheet at somebody else's dead link.</para>
+    /// </summary>
+    private bool _missing;
+
+    /// <summary>Whether a read has been attempted for the id currently in the route.</summary>
+    private string? _read;
+
+    /// <summary>
+    /// What the browser prints in its own page header, which is the one thing that repeats on
+    /// every printed page — so it identifies page two of a sheet lying face-up on a table.
+    /// Same reasoning as the review step's title, and the same fallback for an unnamed one.
+    /// </summary>
+    private string Title =>
+        _missing ? "No such character"
+        : string.IsNullOrWhiteSpace((_show ?? Session.Sheet).Name) ? "Unnamed character"
+        : (_show ?? Session.Sheet).Name;
+
+    /// <summary>
+    /// Redraw when the character being built changes — and only then.
+    ///
+    /// <para><see cref="SheetView"/> subscribes for itself when it is drawing the session's
+    /// character, but the page title above it reads the same sheet and nothing else would tell
+    /// this component the name had been typed.</para>
+    /// </summary>
+    protected override void OnInitialized() => Session.Changed += StateHasChanged;
+
+    public void Dispose() => Session.Changed -= StateHasChanged;
+
+    /// <summary>
+    /// Read the named character, once per id.
+    ///
+    /// <para><b>Keyed on the id rather than guarded by a bool</b>, because Blazor reuses this
+    /// component when the route parameter changes: walking from one saved character to another
+    /// re-runs this method on the same instance, and a one-shot flag would leave the first
+    /// character on screen under the second one's address.</para>
+    ///
+    /// <para><b>And the id is re-checked after the read, which the first version did not do.</b>
+    /// Setting <c>_read</c> before awaiting claims the address for a read that has not finished,
+    /// so a second navigation arriving while the first is in flight left the losing read free to
+    /// write its answer over the winner's — and because <c>_read</c> already held the *new* id,
+    /// nothing would ever re-read to correct it. It stuck until the tab was reloaded. An
+    /// adversarial review demonstrated all three shapes: B's address showing A's character, and
+    /// worse, <c>/sheet</c> showing a stored character instead of the one being built, and
+    /// <c>/sheet</c> announcing "nothing is saved at that address" over a character somebody was
+    /// actively building. <b>It is a signed-in fault above all</b>, because there the read is a
+    /// real HTTP round trip rather than one synchronous storage call.</para>
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_read == Id) return;
+
+        var asked = Id;
+        _read = asked;
+
+        _show = null;
+        _showBudget = null;
+        _missing = false;
+
+        if (string.IsNullOrWhiteSpace(asked)) return;
+
+        var found = await Characters.ReadAsync(asked);
+
+        // Another navigation overtook this read. Its own pass has already reset the fields and
+        // will write its own answer; anything written here would be the wrong character under the
+        // right address, with nothing left to notice.
+        if (!string.Equals(_read, asked, StringComparison.Ordinal)) return;
+
+        if (found is not { } character)
+        {
+            _missing = true;
+            return;
+        }
+
+        _show = character.Sheet;
+
+        // The stored character's own limit, read off the character rather than off this visitor.
+        // It is the same expression CharacterSession.ShowBudget uses, applied to the sheet being
+        // shown — deliberately *not* the mode: "a Villain has no Hero Point budget" stopped being
+        // a fact about Villains when UnlimitedBudget was split out of IsVillain, and either kind
+        // of character can carry it.
+        _showBudget = !character.Sheet.UnlimitedBudget;
+    }
+
+    private Task Print() => Js.InvokeVoidAsync("print").AsTask();
+}

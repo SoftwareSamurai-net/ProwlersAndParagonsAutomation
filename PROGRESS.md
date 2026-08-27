@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4840 across **four** suites — 4024 on the engine (9 added by the CI-minutes slice, on the two workflow filters), 636 rendering components with bUnit (10 added this round, on the banner printing the palette's chord — see the completed entry at the top; the round before added 46, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4866 across **four** suites — 4024 on the engine (9 added by the CI-minutes slice, on the two workflow filters), 662 rendering components with bUnit (**26 added this round**, on the sheet's own address: nine cases on `SheetPage` — the document alone on the page, showing not opening, the two nulls kept apart — and nine inline cases extending `AreaTests` to the fifth area, plus the theory that already existed. **This figure is the sheet branch's, not a post-merge measurement**, and the row's own rule below applies: re-run rather than carry it. The round before added 10, on the banner printing the palette's chord — see the completed entry at the top; the round before added 46, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -990,6 +990,159 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 ---
 
 ## Completed work
+
+### The sheet gets its own address, and it is not the one that was retired
+
+> *"Id like to add a pure 'Sheet' view page to the application"* — the owner, 2026-08-27
+
+**`/sheet` is the character being built; `/sheet/{id}` is any saved one.** Both draw the banner and
+then the sheet, and nothing else: no step band, no Hero Point strip, no character switcher, no
+findings panel. It is the character as a **document** rather than as a job in progress — the thing
+somebody reads at the table or hands to a printer, which is a surface [item
+11](#11-answered-it-is-a-tool-for-running-and-playing-pp)'s answer makes sense of and which a tool
+for building alone would not need.
+
+#### It had to be argued against the address that was deleted three rounds ago
+
+`/build/sheet` existed and went, and the completed entry below says why: it was **the review step
+with `Explain` flipped**, so once explanations became the default it offered a route to the page you
+were already on. That is a real objection to putting a second sheet address back, and it is answered
+rather than ignored: **this page differs by what it omits, never by a setting.**
+
+That is not a sentence anybody has to remember. `TheDocumentIsAloneOnThePage` refuses a `.panel`, a
+`.nav-buttons` and the review step's own heading on this route — **with the sheet's presence asserted
+first**, because every one of those is an absence and a page that rendered nothing satisfies all
+three. Break it by putting a panel above the sheet and it goes red; that was done.
+
+#### The chrome is dropped by the address, not by the page
+
+**A fifth area.** `Areas.Of` answers `Area.Sheet` on the first segment, and `MainLayout` already
+draws the step band, the budget strip and the switcher in `Area.Play` alone — so the page inherits
+none of them **and cannot forget to**. An address under `/build` would have inherited all three by
+construction, which is the whole reason this is not one.
+
+The switcher mattering here is not incidental. On `/sheet/{id}` the sheet may be somebody else's,
+and a banner naming *this* visitor's character over it is exactly the fault the budget strip was
+pulled off three areas to fix. The subtitle is `Character sheet` for the same reason — deliberately
+not Hero or Villain, unlike the builder's.
+
+Mutating `Areas.Of` to answer `Area.Play` for the segment turns **nine** tests red across two files.
+
+#### Showing is not opening, which is the whole of the correctness
+
+**`/sheet/{id}` reads a saved character through `AccountCharacterStore.ReadAsync`, which has no side
+effect.** `OpenAsync` beside it moves the current-character pointer and overwrites this browser's
+anonymous slot — so a page built on it would mean that **glancing at an old character quietly
+switched the app to it, and the next autosave wrote the sheet on screen over whatever was actually
+open.** That is not hypothetical; it is the shape of the defect recorded in the switcher entry
+below, which cost somebody a character.
+
+`ShowingIsNotOpening` asserts the session's character and the pointer are both untouched, with the
+named character's presence asserted first as the positive control. **Swapping `ReadAsync` for
+`OpenAsync` turns exactly that one test red** — measured, not reasoned about.
+
+#### Two nulls that had to stay apart
+
+"No character was read" and "no id was asked for" both arrive as a null character. Collapsing them
+renders **the reader's own sheet at somebody else's dead link**, which reads as their character
+having been renamed. `Missing` is a separate flag for that reason, and deleting it turns
+`AnAddressWithNothingBehindItSaysSo` red.
+
+#### Two guards in the existing suite caught real gaps, which is the part worth recording
+
+Neither was anticipated, and both were right:
+
+- **`EveryRoutedPageIsReachableFromAnotherPage` failed.** Nothing linked to `/sheet`. The page was
+  a working feature nobody could reach — the exact class of fault [item
+  10](#10-nothing-drives-the-assembled-app--a-plan-awaiting-the-owners-approval) argues about, and
+  here a test already covers it. The fix is two links in the character manager: the open character's
+  block gets one, and **every other row gets `sheet/{id}`**, which is the read-without-opening the
+  second address exists for. The pitch had guessed those placements; the test is what made them
+  non-optional.
+- **`NoParagraphOnScreenIsAnEssay` failed** at 37 words. The empty state was explaining *why* a
+  character might be missing — thrown away, or a link from another browser — which is a guess the
+  page cannot check, printed as though it were a finding. Cut to the reader's actual question.
+
+#### Decided while building, so it is not re-litigated
+
+- **`ShowBudget` is read off the character being shown, not off the visitor.** The first version
+  wrote `Mode == Hero && !UnlimitedBudget`, which conflates two things that were deliberately
+  split: "a Villain has no Hero Point budget" stopped being a fact about Villains when
+  `UnlimitedBudget` came out of `IsVillain`, and either kind of character can carry it. It is the
+  same expression `CharacterSession.ShowBudget` uses, applied to the sheet on screen.
+- **`SheetView` subscribes only for the session's own character**, which is its existing rule and is
+  correct here rather than incidental: a saved character is fixed for the life of the render, and
+  tying it to the visitor's edits is the influence the replay renders two pages to forbid. The page
+  itself subscribes, because the page *title* reads the same sheet.
+- **The read is keyed on the id, not guarded by a bool.** Blazor reuses the component when only the
+  route parameter changes, so a one-shot flag would leave the first character on screen under the
+  second one's address — the same trap `ReplayConversation` already records.
+- **The controls sit under the sheet**, so the first thing on the screen and the first thing on the
+  paper are the same thing. They carry `no-print`, which the print block already hides.
+
+#### Two adversarial reviews found six things, and the best of them was in a test
+
+Two agents were told nothing about the change — one asked only "can this lose somebody's
+character", one asked only "do these guards guard". **They agreed on one defect neither was told
+about and each found things the other did not.**
+
+- **A read that lost a race wrote its answer anyway, permanently.** The address was claimed
+  *before* the await and never re-checked, so a second navigation arriving mid-read let the losing
+  read overwrite the winner — and because the key already held the new id, nothing would ever
+  re-read to correct it. It stuck until the tab was reloaded. The reviewer built a probe and
+  demonstrated three shapes; the worst is `/sheet` announcing *"nothing is saved at that address"*
+  over a character somebody was actively building. **It is a signed-in fault above all**, because
+  there the read is an HTTP round trip rather than one synchronous storage call.
+- **"Could not be read" was printed as "does not exist".** `ReadAsync` answers null for a discarded
+  character *and* for a 401 whose session expired while the tab sat open, a network failure, and an
+  unreadable payload. Its own remarks say to treat that as **unknown rather than as nothing** — and
+  this was the first caller to do the opposite, in a sentence shown to somebody whose character was
+  sitting safe on the server.
+- **The identity switch acted on a character that was not on screen.** Those buttons always write
+  to the character that is *open*; `/sheet/{id}` draws one that is not it, so pressing "Villain"
+  recoloured the foreign sheet while silently flipping and saving `IsVillain` on somebody else's.
+  The reviewer's phrasing is the fair one: **the page's own subtitle is deliberately not "Hero" or
+  "Villain" because the sheet may be somebody else's, and then the two controls acting on exactly
+  that conflation were left in the band above it.** It is now the builder's, like the step band.
+- **`SheetView`'s subscription was decided twice and could disagree with itself.** It branched on
+  `Character is null` at initialisation *and* at disposal, and this page is the first host where
+  that flips on a live instance. Measured, both directions: going to a named character leaked a
+  handler for the life of the session; **coming back left a component that had never subscribed, so
+  `/sheet` silently stopped following the character being built** — the one thing it is for.
+  `@key` on the id fixes all of it by making each address its own instance.
+- **The new subtitle was guarded by nothing.** Deleting its whole arm left both suites green,
+  because the test asserted only the *absence* of "Villain" — which the front door's fallback
+  satisfies just as well. `OnlyTheBuilderNamesThePalette` pairs a positive with its negative for
+  precisely this reason and this copy of it had kept only the negative.
+- **A doc comment overclaimed which assertion fires.** It said the `OpenAsync` mutation reddens
+  `ShowingIsNotOpening` "on both assertions"; only the pointer one fails, because `OpenAsync` never
+  touches the session. **A claim about which assertion catches a bug is worth as little as any
+  other untested claim**, and both reviewers checked it independently.
+
+#### And the first attempt at the race guard passed for the wrong reason
+
+Worth recording because it is the failure this repository keeps having, in a new spelling. The
+obvious test — hold the response, release it, assert — **stayed green under the mutation that
+removes the fix.** Not because the fix was unnecessary: because nothing made the stale continuation
+run before the assertion, so the test was racing a scheduler and winning by accident.
+
+A second attempt navigated *inside* the gate to force the ordering; bUnit refuses a re-entrant
+render. What works is **waiting for the wrong state and requiring that it never arrives**. The time
+budget there is deliberately one-sided: a page that writes the stale answer does so as soon as the
+continuation is scheduled, so the mutation is caught in about a second, and the budget is spent only
+on the path where nothing goes wrong. That is the opposite trade from racing a timer for a
+*positive* result, which is the mistake this file already records.
+
+**Every one of the four fixes has a guard that was broken and watched to fail**: removing the
+re-check reddens the race guard, removing `@key` reddens the follow-the-character guard, deleting
+the subtitle arm reddens three tests, and drawing the identity switch everywhere reddens two.
+
+**Not done, and deliberately:** no banner door. Three doors are build, run a game and look something
+up; a sheet is a view of a character, not a fourth avenue.
+
+**Left open, and named so it is not lost:** the command palette gives step six the alias `"sheet"`,
+so typing that word still goes to `/build/review`. Not wrong — this entry declines a banner door on
+purpose — but the word now names two destinations and one of them is a page called the sheet.
 
 ### CI cost three times what it needed to, and the measurement is the interesting part
 

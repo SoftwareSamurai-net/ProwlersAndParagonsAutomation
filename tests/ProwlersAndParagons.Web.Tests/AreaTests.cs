@@ -22,6 +22,8 @@ public sealed class AreaTests
     [InlineData("build/characteristics", Area.Play)]
     [InlineData("build/review", Area.Play)]
     [InlineData("rules", Area.Rules)]
+    [InlineData("sheet", Area.Sheet)]
+    [InlineData("sheet/c_AAAAAAAAAAAAAAAAAAAAAA", Area.Sheet)]
     [InlineData("admin", Area.Account)]
     [InlineData("Admin", Area.Account)]
     [InlineData("admin/portfolio", Area.Account)]
@@ -39,6 +41,8 @@ public sealed class AreaTests
     [InlineData("Build", Area.Play)]
     [InlineData("BUILD/gear", Area.Play)]
     [InlineData("Rules", Area.Rules)]
+    [InlineData("Sheet", Area.Sheet)]
+    [InlineData("SHEET/c_AAAAAAAAAAAAAAAAAAAAAA", Area.Sheet)]
     [InlineData("SignIn", Area.Account)]
     public void TheMatchIsCaseInsensitive(string path, Area expected) =>
         Assert.Equal(expected, Areas.Of(path));
@@ -53,6 +57,8 @@ public sealed class AreaTests
     [InlineData("buildings")]
     [InlineData("build-a-team")]
     [InlineData("ruleset")]
+    [InlineData("sheets")]
+    [InlineData("sheet-music")]
     [InlineData("administrators")]
     public void APageMerelyBeginningWithAPrefixIsNot(string path) =>
         Assert.Equal(Area.Home, Areas.Of(path));
@@ -80,6 +86,8 @@ public sealed class AreaTests
     [InlineData("build/characteristics", true)]
     [InlineData("", false)]
     [InlineData("rules", false)]
+    [InlineData("sheet", false)]
+    [InlineData("sheet/c_AAAAAAAAAAAAAAAAAAAAAA", false)]
     [InlineData("signin", false)]
     [InlineData("admin", false)]
     [InlineData("admin/portfolio/replay/the-conductor", false)]
@@ -107,6 +115,7 @@ public sealed class AreaTests
     [InlineData("")]
     [InlineData("build")]
     [InlineData("rules")]
+    [InlineData("sheet")]
     [InlineData("admin")]
     public void EveryAvenueIsOfferedFromEverywhere(string path)
     {

@@ -149,14 +149,27 @@
         <CharacterSwitcher />
     }
 
-    <div class="mode-switch" role="group" aria-label="Hero or Villain">
-        <button type="button"
-                aria-pressed="@Pressed(SheetMode.Hero)"
-                @onclick="() => SetMode(SheetMode.Hero)">Hero</button>
-        <button type="button"
-                aria-pressed="@Pressed(SheetMode.Villain)"
-                @onclick="() => SetMode(SheetMode.Villain)">Villain</button>
-    </div>
+    @* **Not over a document**, and an adversarial review is what sharpened this into a defect
+       rather than an inconsistency. These buttons always act on the character that is *open* —
+       but `/sheet/{id}` draws a character that is not it, and pressing "Villain" there recolours
+       the foreign sheet on screen while silently flipping and saving `IsVillain` on somebody
+       else's. The reviewer's phrasing is the honest one: this page's own subtitle is deliberately
+       not "Hero" or "Villain" because the sheet may be somebody else's, and then the two controls
+       that act on exactly that conflation were left in the band above it.
+
+       The identity switch is the builder's, like the step band, the budget strip and the
+       switcher. *@
+    @if (Where != Area.Sheet)
+    {
+        <div class="mode-switch" role="group" aria-label="Hero or Villain">
+            <button type="button"
+                    aria-pressed="@Pressed(SheetMode.Hero)"
+                    @onclick="() => SetMode(SheetMode.Hero)">Hero</button>
+            <button type="button"
+                    aria-pressed="@Pressed(SheetMode.Villain)"
+                    @onclick="() => SetMode(SheetMode.Villain)">Villain</button>
+        </div>
+    }
 
     @* Light or dark, beside the identity switch because both are the palette and a reader
        looking for one will look here for the other.
@@ -284,6 +297,12 @@
     private string Subtitle => Where switch
     {
         Area.Play => $"Character creation — {(Session.Mode == SheetMode.Hero ? "Hero" : "Villain")}",
+
+        // Deliberately not named Hero or Villain, unlike the builder above. The sheet on screen
+        // may be somebody else's — /sheet/{id} reads a saved character without opening it — and
+        // the banner naming *this* visitor's identity over it is the same fault the budget strip
+        // was pulled off three areas to fix.
+        Area.Sheet => "Character sheet",
         Area.Rules => "Rules reference",
         Area.Account => "Your account",
         _ => "Characters, and the rules behind them",
