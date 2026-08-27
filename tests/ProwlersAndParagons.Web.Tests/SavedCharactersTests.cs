@@ -55,9 +55,15 @@ public sealed class SavedCharactersTests
     /// The one thing this whole slice would break if it got wrong. A visitor who saved a
     /// character before the manager existed must see it in the list on their very first
     /// visit afterwards — not an empty manager next to a character that is still there.
+    ///
+    /// <para><b>Under its own name</b>, which it was not. This row used to read "Unnamed
+    /// character" whatever the character was actually called, because it was synthesised from the
+    /// bare fact that a payload existed rather than from the payload. So somebody's imported,
+    /// named character — the owner's report — was listed as unnamed in the one row the list could
+    /// draw. It costs one read of one payload, which is the trade this slot alone is worth.</para>
     /// </summary>
     [Fact]
-    public async Task AVisitorWithOnlyTheHistoricalKeySeesOneEntryInTheList()
+    public async Task AVisitorWithOnlyTheHistoricalKeySeesItListedUnderItsOwnName()
     {
         var storage = new FakeLocalStorage();
         storage.Poke(HistoricalKey, MinimalPayload("Built before the manager"));
@@ -66,7 +72,40 @@ public sealed class SavedCharactersTests
 
         var entry = Assert.Single(list);
         Assert.Equal(SavedCharacters.LegacyId, entry.Id);
+        Assert.Equal("Built before the manager", entry.Label);
+    }
+
+    /// <summary>
+    /// A character with no name still gets a row, under the placeholder — an unnamed character is
+    /// an ordinary state, and a blank row reads as broken rather than as unnamed. The positive
+    /// control for the test above: without this, "reads the name off the payload" and "always says
+    /// Unnamed character" would be indistinguishable for every character nobody named.
+    /// </summary>
+    [Fact]
+    public async Task AnUnnamedLegacyCharacterIsStillListed()
+    {
+        var storage = new FakeLocalStorage();
+        storage.Poke(HistoricalKey, """{"Version":1,"Mode":0,"Sheet":{"SelectedTierId":"standard"}}""");
+
+        var entry = Assert.Single(await FreshSaved(storage).ListAsync());
         Assert.Equal("Unnamed character", entry.Label);
+    }
+
+    /// <summary>
+    /// An empty sheet in the legacy slot is not a character and is not listed.
+    ///
+    /// <para><b>It used to be.</b> Switching the palette autosaves an otherwise untouched sheet,
+    /// which put a payload at this key — and the list drew a row called "Unnamed character" for a
+    /// character nobody had started. Nothing else in this class lists an empty sheet; this was the
+    /// one place that did.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnEmptySheetInTheLegacySlotIsNotACharacter()
+    {
+        var storage = new FakeLocalStorage();
+        storage.Poke(HistoricalKey, """{"Version":1,"Mode":0,"Sheet":{}}""");
+
+        Assert.Empty(await FreshSaved(storage).ListAsync());
     }
 
     /// <summary>

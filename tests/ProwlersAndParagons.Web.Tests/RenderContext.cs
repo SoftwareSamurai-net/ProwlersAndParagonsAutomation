@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.JSInterop;
 using ProwlersAndParagonsAutomation.Engine;
 
 namespace ProwlersAndParagons.Web.Tests;
@@ -26,13 +27,35 @@ public sealed class RenderContext : BunitContext
     /// </summary>
     public FakeApi Api { get; } = new();
 
+    /// <summary>
+    /// This browser's local storage, when the context was asked for one that really stores.
+    /// Null otherwise — see the <c>storesForReal</c> parameter.
+    /// </summary>
+    public FakeLocalStorage? Storage { get; }
+
+    /// <param name="storesForReal">
+    /// Set to give the app a local storage that actually holds what is written to it, instead of
+    /// bUnit's recorder, which answers null to every read.
+    ///
+    /// <para><b>It exists because every storage test in this project had to assert on which key was
+    /// written rather than on what came back</b>, and a feature can satisfy every one of those while
+    /// being unreachable by anybody using the app. That is not hypothetical here: the list of
+    /// characters, the banner's switcher and both undo buffers were built, tested and shipped
+    /// reading an index that nothing in the app ever added a character to, and the reason no test
+    /// noticed is that no test could ever have had two characters in it. A context that stores lets
+    /// a test press the button a person presses and then ask what is actually there.</para>
+    ///
+    /// <para>Opt-in rather than the default because it replaces bUnit's <c>IJSRuntime</c>, and with
+    /// it <c>JSInterop.Invocations</c> — which most of this project's interop assertions read.
+    /// <see cref="FakeLocalStorage.Calls"/> is the replacement for a test that takes this.</para>
+    /// </param>
     /// <param name="recordingsUnavailable">
     /// Set to render the app as it is when the recordings could not be fetched — an empty
     /// library carrying the reason, which is what <see cref="ReplayLoader"/> answers when the
     /// gated route refuses or fails. There is no way to reach that state through the UI, and it
     /// is the state in which the replay pages have to say something true rather than guess.
     /// </param>
-    public RenderContext(bool recordingsUnavailable = false)
+    public RenderContext(bool recordingsUnavailable = false, bool storesForReal = false)
     {
         var rules     = RulesRepository.FromBasePath(RepoRoot());
         var costs     = new CostCalculator(rules);
@@ -117,6 +140,15 @@ Services.AddScoped<DiscardedCharacter>();
         // calls and answers nothing, which is right here: what those calls do to the
         // document is the browser's business, not a component's.
         JSInterop.Mode = JSRuntimeMode.Loose;
+
+        // Registered *after* bUnit's own, so this is the one resolved. Everything that is not
+        // `ppStore.*` falls through to the same do-nothing answer bUnit's loose mode gives, which
+        // is what the guarded services above already expect from a browser that will not play.
+        if (storesForReal)
+        {
+            Storage = new FakeLocalStorage();
+            Services.AddSingleton<IJSRuntime>(Storage);
+        }
 
         Session = Services.GetRequiredService<CharacterSession>();
 

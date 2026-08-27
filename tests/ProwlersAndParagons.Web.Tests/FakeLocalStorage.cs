@@ -18,16 +18,33 @@ public sealed class FakeLocalStorage : IJSRuntime
     /// <summary>Set to throw from every call, as a browser with storage disabled does.</summary>
     public bool Refuses { get; set; }
 
+    private readonly List<(string Identifier, string Key)> _calls = [];
+
     /// <summary>Writes a value behind the store's back, to stand in for hand-edited storage.</summary>
     public void Poke(string key, string value) => _items[key] = value;
 
     public string? Peek(string key) => _items.GetValueOrDefault(key);
+
+    /// <summary>
+    /// Every call that reached here, in order, as identifier and the key it named.
+    ///
+    /// <para><b>Order is the thing several of these tests are actually about</b>, and it cannot be
+    /// read off the end state: a write and a clear of the same key leave the same dictionary
+    /// whichever way round they happened, and which way round they happened is exactly the
+    /// difference between keeping a character and losing one. bUnit's own
+    /// <c>JSInterop.Invocations</c> records this for a component test, but only while bUnit's
+    /// runtime is the one wired up — a context that swapped this in for it would have no
+    /// recorder at all without this list.</para>
+    /// </summary>
+    public IReadOnlyList<(string Identifier, string Key)> Calls => _calls;
 
     public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args)
     {
         if (Refuses) throw new JSException("Storage is disabled in this browser.");
 
         var key = args is [string k, ..] ? k : "";
+
+        _calls.Add((identifier, key));
 
         switch (identifier)
         {
