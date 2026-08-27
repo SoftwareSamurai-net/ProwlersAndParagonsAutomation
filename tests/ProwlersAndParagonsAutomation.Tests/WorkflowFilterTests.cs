@@ -170,7 +170,7 @@ public sealed class WorkflowFilterTests
     [Fact]
     public void ThePullRequestAndThePushSkipTheSameThings()
     {
-        var blocks = Regex.Matches(BuildWorkflow, @"paths-ignore:", RegexOptions.None, TimeSpan.FromSeconds(5));
+        var blocks = Regex.Matches(BuildWorkflow, "paths-ignore:", RegexOptions.None, TimeSpan.FromSeconds(5));
 
         Assert.Equal(2, blocks.Count);
         Assert.Equal(KnownInert.Length * 2, Ignored().Count);
