@@ -130,6 +130,58 @@ public sealed class StartAnotherTests
     }
 
     /// <summary>
+    /// <b>A character built in a freshly minted slot is listed by its own autosave</b>, without
+    /// anybody pressing anything again. That is what makes the second character reachable: the
+    /// list is discovered through the index, so a payload nothing indexed is a character nobody
+    /// can get back to.
+    ///
+    /// <para>This test exists because a mutation found the hole. Dropping the index-add from the
+    /// autosave left every other test here green — the kept character is indexed by the explicit
+    /// save that keeps it, so nothing noticed that the character actually being <em>built</em> was
+    /// never listed at all. That is the same shape as the defect this whole slice is about, one
+    /// slot further along.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACharacterBuiltInTheNewSlotIsListedWithoutBeingKeptAgain()
+    {
+        using var ctx = new RenderContext(storesForReal: true);
+        var page = ctx.Render<ChooseTier>();
+
+        Build(ctx, "Lynchpin");
+        Button(page, StartNew).Click();
+
+        // Built in the slot the press opened, and nothing else is done: no second press, no
+        // import, no switch. Ordinary play, and then the tab is closed.
+        Build(ctx, "Second Wind");
+
+        var listed = await StoreIn(ctx).ListAsync();
+        Assert.Contains(listed.Characters, c => c.Label == "Second Wind");
+        Assert.Contains(listed.Characters, c => c.Label == "Lynchpin");
+    }
+
+    /// <summary>
+    /// And it survives being switched away from. Opening the other character moves the pointer,
+    /// and the one left behind has to still be there under its own id afterwards — which is the
+    /// whole promise the switcher makes.
+    /// </summary>
+    [Fact]
+    public async Task SwitchingAwayFromTheNewCharacterLeavesItWhereItWas()
+    {
+        using var ctx = new RenderContext(storesForReal: true);
+        var page = ctx.Render<ChooseTier>();
+
+        Build(ctx, "Lynchpin");
+        var lynchpin = await StoreIn(ctx).CurrentIdAsync();
+        Button(page, StartNew).Click();
+
+        Build(ctx, "Second Wind");
+        var secondWind = await StoreIn(ctx).CurrentIdAsync();
+
+        Assert.NotNull(await StoreIn(ctx).OpenAsync(lynchpin));
+        Assert.Equal("Second Wind", (await StoreIn(ctx).ReadAsync(secondWind))?.Sheet.Name);
+    }
+
+    /// <summary>
     /// The character on screen after the press is the empty one, and it is not the same slot the
     /// kept character is in. Without the pointer moving, the very next autosave writes the empty
     /// sheet over what was just kept — which is the same loss by a slower route.
