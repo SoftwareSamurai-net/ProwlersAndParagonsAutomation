@@ -106,6 +106,11 @@
                and a button that would do nothing is worse than no button. *@
             @if (Session.HasSomethingToLose)
             {
+                @* The same character, read as a document — no steps, no budget strip, the shape
+                   that goes to a printer or sits on the table during play. Gated the same way as
+                   Discard beside it and for the same reason: an empty slot's sheet is a page of
+                   blank rules, which is the published form and still not worth offering. *@
+                <a class="btn small quiet" href="sheet">Sheet</a>
                 <button type="button" class="btn small quiet" @onclick="DiscardOpen">Discard</button>
             }
         </div>
@@ -142,6 +147,13 @@
                            cheap, and red repeated on every row made the loudest thing in the panel
                            its rarest and most reversible action. Red is kept for what cannot be
                            undone. *@
+                        @* **Read this one without opening it**, which is the whole reason the
+                           address takes an id. The row's own button switches the app to this
+                           character; this link does not touch the current-character pointer, so
+                           looking at an old one cannot make the next autosave write over what is
+                           actually open. See `SheetPage`. *@
+                        <a class="btn small quiet" href="sheet/@one.Id">Sheet</a>
+
                         <button type="button" class="btn small quiet" @onclick="() => Delete(one.Id)">
                             Discard
                         </button>
