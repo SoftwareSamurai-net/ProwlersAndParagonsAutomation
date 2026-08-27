@@ -15,12 +15,22 @@ button with `Ctrl`/`Cmd`+`K` beside it; putting the *rulebook* behind that contr
 the palette onto a second body of text that sits behind an account gate, and `palette.js` says in
 as many words to resist growing it. That argument is untouched.
 
-**Read item 11 before choosing the next slice.** The owner spent a session reading a competitor and
-brought back eight ideas; they are not eight decisions, they are one, and the entry says which. The
-short version is that three things already in this repository answer it without anybody having
-decided: the tier and Trait Cap are campaign facts stored per character, `UnlimitedBudget` is
-documented as "a GM building to whatever a scene needs", and Adversity — a settled, GM-scoped
-currency — appears in **no code at all**.
+**Item 11 is answered, and it was the thing holding up the next eight slices.** The question was
+*player or GM?*; the owner's answer dissolves it —
+
+> *"Its just simply both. Its a 'Running & Playing P&P Tool'."* — 2026-08-27
+
+— so all eight of item 11's list are in scope and the build order stands, because dependencies
+were always what ordered them (campaign → headquarters → dice → log → analytics → combat → GM
+screen). **Read the entry rather than this paragraph before starting one**, because it now records
+what the answer does *not* license: the combat simulator is still a second engine beside
+`engine/` and not an extension of it, an illegal character is still reported and never repaired,
+and a campaign is still single-user-first with no sharing.
+
+**And three things already in the repository stop being evidence and become the first work**: the
+tier and Trait Cap are campaign facts stored per character, `UnlimitedBudget` is documented as "a
+GM building to whatever a scene needs" and lives on the sheet, and Adversity — a settled,
+GM-scoped currency — appears in **no code at all**. A campaign is where the first two belong.
 
 **The lesson of the round is one sentence, and it is `PROGRESS.md` item 10's argument.** A feature
 was built, tested, adversarially reviewed by two independent agents and shipped, while nothing in
@@ -162,17 +172,23 @@ asymmetry is not a flourish; it falls straight out of where the data lives.
 
 ## What is left, in the order I would take it
 
-0. **The product question, `PROGRESS.md` item 11 — and it outranks everything below it, because
-   the answer changes what "left" even means.** *Is this a tool for a player building a character,
-   or a table aid for a GM running a game?* Item 11 lays out the eight things waiting on it, in the
-   order their dependencies force (campaign → headquarters → dice → log → analytics → combat → GM
-   screen), and the evidence already in the codebase that the answer is "GM".
+0. **`PROGRESS.md` item 11's first entry — a campaign — because item 11 is answered and every one
+   of its eight is now unblocked.** The order is forced by dependencies, not by taste: campaign →
+   headquarters → dice → log → analytics → combat → GM screen. **A campaign is a name, a power
+   level, a trait cap, a sandbox flag, and the characters that belong to it**, and it needs
+   nothing new from the server — single-user first, another opaque blob beside the characters.
+   **Headquarters is the cheapest of the eight and the strongest argument for doing the campaign
+   first**, because the rulebook made it campaign-scoped in print: the Perk is already in
+   `data/rules/perks.json` and its own text reads "Multiple Heroes can apply their Base Points to
+   the same headquarters". What is missing for it is Chapter 6's base-construction rules, which
+   are *not* extracted — only Ch.6's custom **gear** features are.
 
-   **Item 12 needs none of that and could be done tomorrow** — three doors on the front door, the
-   rules search into the banner on `Ctrl`+`K` (which *already opens the command palette*, so it is
-   an extension of an existing surface and has to be argued with `js/palette.js`, which says in as
-   many words to resist growing it), account and settings to the right, and the Hero/Villain switch
-   into that settings menu.
+   **Item 12 is the other thing that could be done tomorrow** — three doors on the front door
+   (which item 11's answer confirms rather than gambles on), the rules search into the banner on
+   `Ctrl`+`K` (which *already opens the command palette*, so it is an extension of an existing
+   surface and has to be argued with `js/palette.js`, which says in as many words to resist
+   growing it), account and settings to the right, and the Hero/Villain switch into that settings
+   menu.
 
    **The defect half of item 12 is closed** — the chord is printed in the banner, on every route,
    with the modifier chosen at render time from the platform. What is left of that bullet is the
