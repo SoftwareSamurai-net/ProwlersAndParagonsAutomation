@@ -78,22 +78,22 @@ public sealed class UppercasedTextTests
     /// </summary>
     [Theory]
     [MemberData(nameof(UppercasedSelectors))]
-    public void NothingSetInCapitalsCarriesARankOrACitation(string selector)
+    public async Task NothingSetInCapitalsCarriesARankOrACitation(string selector)
     {
-        using var ctx = new RenderContext().With(SheetMode.Hero);
+        await using var ctx = new RenderContext().With(SheetMode.Hero);
 
         // The Hero sample costs about 105, so putting it on the 75-point tier drives the budget
         // strip's over-budget branch — which carries `.over-text`, and which nothing else here
         // renders. A branch that only appears when something is wrong is exactly the branch a
         // test set built from the happy path never reaches.
-        using var over = new RenderContext().With(SheetMode.Hero);
+        await using var over = new RenderContext().With(SheetMode.Hero);
         over.Session.Sheet.SelectedTierId = "street_level";
 
         // A Power editor belonging to somebody signed in, because the book's own entry — and so
         // `.book-toggle` — renders for nobody else. Without this the selector is reachable on no
         // page in the list, which this theory refuses rather than exempts: a guard that grows
         // subjects without growing coverage is worth less each time.
-        using var signedIn = new RenderContext().With(SheetMode.Hero);
+        await using var signedIn = new RenderContext().With(SheetMode.Hero);
         signedIn.Api.SignedIn = ("acct-7", "player");
         signedIn.Api.Book["Armor"] = "Self • Half Toughness • 1 Hero Point per rank\n"
             + "Armor reduces the damage you take, as described on p.21.";
@@ -101,8 +101,35 @@ public sealed class UppercasedTextTests
         var armor = signedIn.Services.GetRequiredService<RulesRepository>().Powers
             .Single(p => p.Id == "armor");
 
+        // **A manager holding more than one character**, because two of its labels appear on no
+        // other page in this list: the caption over the other characters, and the mark on the one
+        // that is open. The caption in particular is drawn only once there is a second character to
+        // caption — so without this the sweep would find that selector nowhere and this theory
+        // would refuse it, which is the positive control at the foot working exactly as intended.
+        // **Signed in before the sample is loaded, and the order is load-bearing.** `Accounts`
+        // resolves who is here once and holds the answer; anything that touches the session first
+        // settles that question as "nobody", and the panel then reads the browser's empty local
+        // store instead of this account's two characters.
+        await using var holding = new RenderContext();
+        holding.Api.SignedIn = ("acct-11", "player");
+        holding.With(SheetMode.Hero);
+
+        var account = holding.Services.GetRequiredService<ApiCharacterStore>();
+        await account.SaveAsync(
+            SavedCharacters.NewId(), "Ninth Precinct", SampleCharacters.Hero(), SheetMode.Hero);
+        await account.SaveAsync(
+            SavedCharacters.NewId(), "The Quiet Hour", SampleCharacters.Villain(), SheetMode.Villain);
+
+        // **Waited for, not assumed.** The panel reads its list in `OnInitializedAsync`, so the
+        // first render draws the character on screen and no list at all; the caption this page is
+        // here to expose arrives on the render after that.
+        var manager = holding.Render<CharacterManager>();
+        await manager.WaitForElementAsync(".others-head");
+
         var pages = new List<IRenderedComponent<Microsoft.AspNetCore.Components.IComponent>>
         {
+            manager,
+
             signedIn.Render<PowerEditor>(p => p.Add(e => e.Power, armor)),
 
             // A passage of the book, drawn open. `PowerEditor` above reaches `.book-toggle` and
