@@ -203,13 +203,28 @@ whatever the current-character pointer was aimed at. Both now go through
   emptied.
 - **The caller passes the sheet in.** The store has never known a session exists, and naming the
   sheet is what lets the keep run *before* the session is emptied.
-- **The account's cap is asked about before anything moves.** A character created lazily by its
-  first autosave is refused with a `409` that path has nowhere to report, so on a full account
-  everything typed into the new one goes quietly nowhere. A cap that could not be read counts as no
-  room — the same direction `AccountCharacters.IsFull` already takes, and for the same reason.
+- **The character is written down before the cap is asked about, and the reverse raced.** A list
+  read straight after an edit can answer from before that edit's row existed, because the ordinary
+  autosave is fire-and-forget over HTTP — so an account one short of its cap reads as having room, a
+  slot opens, and everything typed into it is refused by a `409` the autosave path has nowhere to
+  report. The write is awaited, so the list after it cannot be stale. A cap that could not be read
+  counts as no room, the same direction `AccountCharacters.IsFull` takes.
 - **A refusal is said out loud, under the button.** A control that keeps rather than overwrites does
   *nothing* when it cannot proceed, and doing nothing is indistinguishable from a control that is
-  not wired up. This is the same rule `DiscardedCharacter`'s refusal follows.
+  not wired up. This is the same rule `DiscardedCharacter`'s refusal follows. There are three
+  refusals and they are three sentences, not one: kept-but-no-room, kept-but-the-cap-is-unreadable,
+  and not-kept-at-all. "Your character could not be saved" over a character that *was* saved is the
+  false alarm that teaches somebody to distrust every message the app gives them.
+- **Whether a write landed is a thing the store has to answer, not something a caller can infer.**
+  `SavedCharacters.SaveAsync` returns `(Id, Stored)`. It used to return the id alone, and both
+  callers weighing it compared that against the id they had just passed in — the same string either
+  way, so the check was dead code that read like a guard. On a browser refusing storage it reported
+  success over a character that had gone nowhere.
+- **Nothing here arms an undo, and `Undo` is the reason.** It restores into the sheet and never
+  moves the current-character pointer, so an undo offered after the pointer has moved writes a
+  second copy of the kept character into the fresh slot. `CharacterSession.StartAgain` takes
+  `offerUndo` for exactly this; true only for discarding the row that is open, which really does
+  empty the slot.
 - **Import arms no undo, and that is not an oversight.** `ReplaceWithUndo` is for the two things
   that really do replace the character on screen without moving the pointer — a sample, a recording.
   An import moves the pointer, so nothing is destroyed, and an undo would put a *duplicate* of the

@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4792 across **four** suites — 4015 on the engine, 597 rendering components with bUnit (17 added this slice, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4799 across **four** suites — 4015 on the engine, 604 rendering components with bUnit (24 added this slice, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -822,6 +822,68 @@ context cannot see: with storage answering null to every read, the pointer move 
 invisible to the very next call that reads the pointer, so a test written there would watch the
 autosave land on the old key and would have to either bless that or assert nothing. A comment now
 sits where it was, naming where the property is actually proved.
+
+#### Then an adversarial review found three data-loss defects in the fix, and a fourth that was not one
+
+**All three were demonstrated rather than argued**, by a reviewer given the diff and told nothing
+about how it was built. Every one of them is a sequence an ordinary person can perform.
+
+- **`SavedCharacters.SaveAsync` returned the id it was passed whether or not the write landed.**
+  Both callers weighing the result compared it against the id they had just handed in — which, for a
+  non-null id, is the same string either way. A dead check that read exactly like a guard. On a
+  browser that refuses storage, "keep this one and start another" reported success over a character
+  that had gone nowhere and then emptied the sheet. **The undo behind a discarded row had the same
+  bug and predates this slice** — `AccountCharacterStore.RestoreAsync` is the one method in that
+  class documented as answering whether the write landed, "because an undo that silently did nothing
+  is the worst possible outcome", and it could not. It now answers `(Id, Stored)`.
+
+- **The account's cap was read before the character was written, which raced the very thing the
+  check exists to prevent.** The ordinary autosave is fire-and-forget over HTTP, so a list read
+  straight after an edit can answer from before that edit's row existed: an account one short of its
+  cap reads as having room, a fresh slot opens, and everything typed into it is refused by a `409`
+  the autosave path has nowhere to report. Write first, then read — the write is awaited, so the
+  list cannot be answering from before the character existed. **A fourth outcome,
+  `NotStarted`**, keeps the sentence honest for the case that now exists: kept, but the cap could not
+  be read. "Your character could not be saved" over a character that *was* saved is the kind of false
+  alarm that teaches somebody to distrust every message the app gives them.
+
+- **"Start a new character" still armed the undo buffer.** `Undo` restores into the sheet and never
+  moves the current-character pointer — which by then is on the fresh slot — so undoing wrote a
+  second copy of the kept character there and the reader found it listed twice. **This is the exact
+  failure the import path had already been changed to avoid**, and the same fix was simply not
+  carried across: "an undo would put a duplicate of the kept character into the imported one's slot".
+  `StartAgain` now takes `offerUndo`, false here and true for discarding the row that is open, which
+  really does throw the character away.
+
+**The fourth finding was traced and rejected, and that matters as much as the three.** It argued
+for writing the index before the payload, on the grounds that a half-failed pair should leave an
+entry naming nothing (which `ListAsync` drops) rather than a character nothing names (which is
+unreachable). The mechanism is real and the conclusion does not follow: `WriteIndexAsync` swallows
+its own failures, so an index write that fails does not abort the pair and **both orders end in
+exactly the same state**. The one case where they differ favours the existing order — a payload
+write that throws has then touched nothing at all, where the reverse would already have added an
+entry `ListAsync` must drop on every future visit. The order is unchanged and the class remarks are
+corrected instead, because the *paragraph* the reviewer was reading really had gone stale: "a
+character that exists in storage but is missing from the index can only ever be the legacy slot" was
+true while nothing but an explicit labelled save added an entry, and stopped being true the moment
+the autosave started adding one.
+
+**Three mutations, each reverting one fix, and each goes red on the tests written for it** —
+`AStorageRefusalKeepsTheCharacterOnScreenAndSaysSo`,
+`TheAccountsCharacterIsWrittenBeforeItsCapIsRead`, and
+`StartingAnotherLeavesNoUndoThatWouldDuplicateTheKeptCharacter`, plus a second test each.
+
+**The cap-ordering test asserts the order of the requests rather than racing a timer**, which is the
+only honest way to test it here: a test that slept would be testing this machine's scheduler.
+`FakeApi.Asked` records each request with its method, so "the `PUT` comes before the `GET`" is a
+plain assertion. **And the shipped account tests could not have caught this**, for a reason worth
+recording: every one of them calls `Settle` before clicking, deliberately, so the fire-and-forget
+write finishes first — which is right for determinism and removes the race the check existed to
+close. A suite can be disciplined, have positive controls throughout, and still have a hole shaped
+exactly like the thing it was written about.
+
+**Importing shares the keep and therefore shares the refusals, and only "Start a new character" had
+tests for them.** Both refusal branches are now exercised on both controls.
 
 #### What this does not do
 
