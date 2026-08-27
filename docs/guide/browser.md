@@ -240,6 +240,25 @@ the cost of `JSInterop.Invocations`; `FakeLocalStorage.Calls` is the replacement
 is what several of these tests are about and cannot be read off the end state. Reach for it whenever
 the question is "does pressing this actually reach the store", and leave the default alone for
 everything else.
+## Reading a rendered sheet in a test
+
+**`SheetText.Visible`, never `TextContent`.** Every name on the sheet is a `Term`, so its cell holds
+the name *and* two copies of the description — the `sr-only` one `aria-describedby` names, and the
+tip. `TextContent` on a Trait cell reads `"PresenceHow forceful…How forceful…"`. Seventeen tests
+across four files failed on the day `Explain` defaulted to on, all of them using `TextContent` as a
+stand-in for what the sheet says, which it had been while one address drew terms.
+
+- **It inserts a separator only where a browser would**, which is a block boundary. This repository
+  has shipped a test for the `Armor8d` bug that was beaten by its own helper, because the helper
+  replaced every tag with a newline and read the broken markup as correct.
+- **Comparing raw markup needs Blazor's handler ids stripped.** A term's button carries
+  `blazor:onkeydown="N"`, a per-renderer counter, so two renders of an identical component disagree
+  on a number no reader can see. `PreviewColumnTests` strips exactly that and nothing else, with a
+  positive control asserting something really was stripped. Same trap `Term` documents for its own
+  ids and solves by deriving them from the name; these cannot be derived from anything.
+- **`Explain="false"` is still exercised even though nothing in the app passes it**, because it
+  selects `Term`'s bare-name fallback — the same path a Power with no description in the rules data
+  takes. A setting nothing uses and nothing tests is a setting that rots.
 
 ## Three controls could destroy twenty minutes; now seven act at once and can be undone
 
