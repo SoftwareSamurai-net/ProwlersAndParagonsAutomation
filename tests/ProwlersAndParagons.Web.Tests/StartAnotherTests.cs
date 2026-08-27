@@ -1,11 +1,11 @@
 using AngleSharp.Dom;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Pages;
-using ProwlersAndParagonsAutomation.Web.Services;
 
 namespace ProwlersAndParagons.Web.Tests;
 
@@ -57,11 +57,11 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task StartingAnotherKeepsTheOneOnScreenAndOpensAnEmptyOne()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
         Build(ctx, "Lynchpin");
 
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         Assert.Null(ctx.Session.Sheet.SelectedTierId);
         Assert.True(string.IsNullOrEmpty(ctx.Session.Sheet.Name));
@@ -95,11 +95,11 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task TheKeptCharacterIsListedUnderItsOwnName()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
         Build(ctx, "Lynchpin");
 
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         var listed = await StoreIn(ctx).ListAsync();
         var kept = Assert.Single(listed.Characters);
@@ -114,14 +114,14 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task PressingItTwiceLeavesTwoCharactersBehind()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
 
         Build(ctx, "Lynchpin");
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         Build(ctx, "Second Wind");
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         var listed = await StoreIn(ctx).ListAsync();
         Assert.Equal(
@@ -144,11 +144,11 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task ACharacterBuiltInTheNewSlotIsListedWithoutBeingKeptAgain()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
 
         Build(ctx, "Lynchpin");
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         // Built in the slot the press opened, and nothing else is done: no second press, no
         // import, no switch. Ordinary play, and then the tab is closed.
@@ -167,12 +167,12 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task SwitchingAwayFromTheNewCharacterLeavesItWhereItWas()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
 
         Build(ctx, "Lynchpin");
         var lynchpin = await StoreIn(ctx).CurrentIdAsync();
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         Build(ctx, "Second Wind");
         var secondWind = await StoreIn(ctx).CurrentIdAsync();
@@ -189,12 +189,12 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task ThePointerMovesOffTheCharacterThatWasKept()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
         Build(ctx, "Lynchpin");
 
         var before = await StoreIn(ctx).CurrentIdAsync();
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
         var after = await StoreIn(ctx).CurrentIdAsync();
 
         Assert.NotEqual(before, after);
@@ -251,11 +251,11 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task AnUntouchedSheetIsNotKeptAndLeavesNoEmptyRow()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
 
-        Button(page, StartNew).Click();
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         Assert.Empty((await StoreIn(ctx).ListAsync()).Characters);
     }
@@ -316,7 +316,7 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task ImportingKeepsTheCharacterAlreadyOpen()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
         Build(ctx, "Lynchpin");
 
@@ -336,7 +336,7 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task ImportingArmsNoUndoBecauseNothingWasReplaced()
     {
-        using var ctx = new RenderContext(storesForReal: true);
+        await using var ctx = new RenderContext(storesForReal: true);
         var page = ctx.Render<ChooseTier>();
         Build(ctx, "Lynchpin");
 
@@ -365,14 +365,14 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task AFullAccountRefusesToStartAnotherAndKeepsWhatIsOpen()
     {
-        using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
+        await using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
         ctx.Api.Limit = 1;
         var page = ctx.Render<ChooseTier>();
 
         Build(ctx, "Lynchpin");
         await Settle(ctx);
 
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         Assert.Equal("Lynchpin", ctx.Session.Sheet.Name);
         Assert.Contains("account is full", page.Markup, StringComparison.OrdinalIgnoreCase);
@@ -385,14 +385,14 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task AnAccountWithRoomStartsAnotherAndSaysNothingAboutBeingFull()
     {
-        using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
+        await using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
         ctx.Api.Limit = 5;
         var page = ctx.Render<ChooseTier>();
 
         Build(ctx, "Lynchpin");
         await Settle(ctx);
 
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         Assert.True(string.IsNullOrEmpty(ctx.Session.Sheet.Name));
         Assert.DoesNotContain("account is full", page.Markup, StringComparison.OrdinalIgnoreCase);
@@ -406,14 +406,14 @@ public sealed class StartAnotherTests
     [Fact]
     public async Task AServerThatCannotBeReachedStartsNothingAndSaysSo()
     {
-        using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
+        await using var ctx = new RenderContext(storesForReal: true).AsAdministrator();
         var page = ctx.Render<ChooseTier>();
 
         Build(ctx, "Lynchpin");
         await Settle(ctx);
 
         ctx.Api.Unreachable = true;
-        Button(page, StartNew).Click();
+        await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         Assert.Equal("Lynchpin", ctx.Session.Sheet.Name);
         Assert.Contains("could not be saved", page.Markup, StringComparison.OrdinalIgnoreCase);
