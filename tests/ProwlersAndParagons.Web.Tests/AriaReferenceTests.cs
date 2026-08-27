@@ -2,6 +2,9 @@ using Bunit;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Pages;
+using ProwlersAndParagonsAutomation.Web.Layout;
+using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ProwlersAndParagons.Web.Tests;
 
@@ -97,6 +100,32 @@ public sealed class AriaReferenceTests
             total += ResolveEveryReference(ctx.Render<ChooseTier>(), "ChooseTier");
             total += ResolveEveryReference(ctx.Render<Review>(), "Review");
             total += ResolveEveryReference(ctx.Render<SheetView>(), "SheetView");
+
+            // **The banner, in both states of both its disclosures**, which this sweep had never
+            // reached — and it is where the trap this test was written for lives. The character
+            // switcher and the settings menu each render their list inside an `@if`, so an
+            // `aria-controls` written unconditionally on either dangles whenever it is shut,
+            // which is exactly the budget disclosure's shipped bug in two more places.
+            //
+            // Shut first, because that is the state the reference must be *absent* in and the
+            // one every route draws. Then opened, because a name that resolves only while the
+            // element is missing resolves for the wrong reason.
+            ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("build/tier");
+
+            var shut = ctx.Render<MainLayout>();
+            total += ResolveEveryReference(shut, "MainLayout (menus shut)");
+
+            var opened = ctx.Render<MainLayout>();
+            opened.Find(".settings-open").Click();
+            opened.Find(".character-switch-name").Click();
+
+            // The positive control on this pair. A click that opened nothing leaves a page with
+            // no references to resolve, which satisfies every assertion in the sweep — the
+            // failure shape this file's own docstring names four times over.
+            Assert.Single(opened.FindAll(".settings-menu-list"));
+            Assert.Single(opened.FindAll(".character-switch-list"));
+
+            total += ResolveEveryReference(opened, "MainLayout (menus open)");
         }
 
         // The positive control, and it is the point of the count. Every assertion above is an
