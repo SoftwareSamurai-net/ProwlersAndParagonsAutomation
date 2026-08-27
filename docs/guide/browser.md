@@ -186,6 +186,38 @@ no way to list keys. The one exception is the legacy slot, checked directly ever
   for an empty sheet that autosaved because somebody switched the palette. It is one read of one
   payload, which is the only place in this class where reading a payload to draw a row is worth it.
 
+## The character manager's layout, and the one constraint that decided it
+
+**The panel holds one kind of thing and offers four actions on it, and its first layout encoded
+neither.** A row was a name at the left edge with two buttons at the right across a gap that grew
+with the window, and the two ways to make a character floated beneath it unequal and uncontained.
+Three rules came out of rebuilding it:
+
+- **The row is the control.** A character's name is a real, full-width `<button>` that opens it —
+  the same idiom a Trait row's name uses — and Discard is a quiet trailing button. The large easy
+  target is the safe act and the small distant one is the destructive act. It costs no extra tab
+  stops: two controls per row before, two after.
+- **The character on screen has its own block above the list, and it is the only row that may carry
+  a figure.** `SavedCharacters` keeps labels and timestamps in the index and each payload under its
+  own key, so a Hero Point figure on an ordinary row is a read, a cost and a validate *per row* —
+  which that class's remarks refuse. The open character is free because the session is already
+  holding it. **Every other row carries a time instead** (`Ages.Since`, null for the legacy slot's
+  absent stamp rather than "over a year ago"), and only once there are two characters to tell apart.
+- **Nothing on this panel is drawn in `--danger`.** The red was there so a destructive control looked
+  as serious as what it does, and then the confirm was removed *because* undo makes discarding
+  cheap — leaving the loudest thing in the panel attached to its rarest and most reversible action,
+  repeated per row. Red is kept for what cannot be undone.
+
+**And the reason `ImportCharacter` is no longer `.small`:** the demotion was itself a fix, for the
+operating system's raw file chip competing with its neighbour, and it worked by making one of two
+peers visibly lesser. Both make a character that does not exist yet. Separating them from the list is
+a container's job — `.make-another` draws the rule and splits the bar — not a font size's.
+
+**The block reads the session, so the panel subscribes to it.** The name is live on the finishing
+step where somebody is typing it, which is the same reason the banner's switcher reads the session
+rather than the list. The list itself is *not* re-read on every change — that would be a storage read
+per letter typed.
+
 ## Keeping a character while starting another
 
 **"Start a new character" and "Import a character" keep what is on screen. They used to destroy it.**

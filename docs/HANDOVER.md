@@ -5,8 +5,16 @@ the rest.** Read [`CLAUDE.md`](../CLAUDE.md) first and follow its routing table 
 whatever you are about to touch, then [`PROGRESS.md`](../PROGRESS.md).
 
 **This round closed all three things the owner reported from using the deployed app** — the two
-that were one defect, and the explained sheet. See the section below for what each was and what
-replaced it.
+that were one defect, and the explained sheet — **then rebuilt the character manager's layout to a
+pitched plan, and took a long product conversation that is written down as `PROGRESS.md` items 11,
+12 and 13.**
+
+**Read item 11 before choosing the next slice.** The owner spent a session reading a competitor and
+brought back eight ideas; they are not eight decisions, they are one, and the entry says which. The
+short version is that three things already in this repository answer it without anybody having
+decided: the tier and Trait Cap are campaign facts stored per character, `UnlimitedBudget` is
+documented as "a GM building to whatever a scene needs", and Adversity — a settled, GM-scoped
+currency — appears in **no code at all**.
 
 **The lesson of the round is one sentence, and it is `PROGRESS.md` item 10's argument.** A feature
 was built, tested, adversarially reviewed by two independent agents and shipped, while nothing in
@@ -24,7 +32,7 @@ the fix above, including a check that was dead code and read exactly like a guar
 
 ## Where things stand
 
-**4,804 tests across four suites** — 4,015 engine, 609 bUnit, 166 accounts, 14 pixel comparator.
+**4,821 tests across four suites** — 4,015 engine, 626 bUnit, 166 accounts, 14 pixel comparator.
 Measured after the last merge, not carried across from any stream:
 
 ```bash
@@ -124,9 +132,39 @@ was off specifically to protect the printed page, and the printed page never nee
 was true before the change and **nothing tested it** — one stylesheet edit from being false on every
 sheet the tool produces.
 
+### And then the manager was redesigned rather than adjusted
+
+The owner asked for a plan first, which is in `PROGRESS.md`'s completed entry with the argument
+intact. Three faults — actions stranded at the panel's right edge, two peer controls drawn unequal
+("skinnier and adjacent but also floating"), and no way to tell which character you were in — and
+three moves: the row becomes the button, the open character gets its own block carrying its spend,
+and the two ways to make a character become one bar under a rule.
+
+**One constraint decided the rest and is worth carrying forward:** `SavedCharacters` holds labels
+and timestamps in its index and each payload under its own key, so a row can carry a **time** for
+free and a **cost** never — except the open character, which the session is already holding. That
+asymmetry is not a flourish; it falls straight out of where the data lives.
+
 ---
 
 ## What is left, in the order I would take it
+
+0. **The product question, `PROGRESS.md` item 11 — and it outranks everything below it, because
+   the answer changes what "left" even means.** *Is this a tool for a player building a character,
+   or a table aid for a GM running a game?* Item 11 lays out the eight things waiting on it, in the
+   order their dependencies force (campaign → headquarters → dice → log → analytics → combat → GM
+   screen), and the evidence already in the codebase that the answer is "GM".
+
+   **Item 12 needs none of that and could be done tomorrow** — three doors on the front door, the
+   rules search into the banner on `Ctrl`+`K` (which *already opens the command palette*, so it is
+   an extension of an existing surface and has to be argued with `js/palette.js`, which says in as
+   many words to resist growing it), account and settings to the right, and the Hero/Villain switch
+   into that settings menu. Plus two small ones: the Hero Point limit as its own two-card group
+   rather than a full-width panel for one button, and `/rules`' inert "What is here" list.
+
+   **Item 13 is the owner's branding and the sign-in email**, which they rate below a competitor's.
+   The kit exists outside this repository. Anything sent is outward-facing and costs the hourly
+   allowance to test, so it is proofed with `scripts/probe-mail.mjs` and not against a real inbox.
 
 1. **`PROGRESS.md` item 10 still needs the owner's decision, and this round sharpened its
    argument.** Stage one needs no permission; stage two — the development-only session seam — is
@@ -195,6 +233,19 @@ sheet the tool produces.
   Writing the script to a file with the editing tool and running `python <file>` worked every time
   and is also re-runnable when a match fails. The existing note about heredocs hanging on a machine
   with no Python is a different failure with the same lesson.
+- **A fixture can be a state no running app can reach, and only a redesign will tell you.**
+  `CharacterManagerTests.OpenRow` planted a current-character pointer at a saved character and never
+  put that character into the session — but opening one does both, as the app's own boot does. It
+  went unnoticed for as long as the open character was an ordinary row. **Ask what else is true
+  whenever a fixture plants one half of a state.**
+- **A stub that answers something the real server never would is worse than no stub — and
+  `FakeApi` was one.** Its clock handed out 1, 2, 3: timestamps a millisecond after the epoch, where
+  the real server writes `Date.now()`. Nothing asserted on the value, so it was invisible until a
+  panel printed a time and every proof page read "over a year ago". That class's own remarks state
+  the rule it was breaking.
+- **When a mutation leaves the suite green, the answer is usually that every fixture happens to
+  satisfy the rule.** "Show a time only with two characters" survived being set to always-on,
+  because every fixture in that file holds two. Not a null mutation — an untested rule.
 - **`dotnet test` on its own is not the CI build, and the difference is analyzers.** Two xUnit
   analyzer faults in new test code — `Assert.NotNull` on a value tuple, which is always true, and a
   `Where` before `Assert.Single` — passed a plain `dotnet test` and failed

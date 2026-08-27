@@ -124,7 +124,7 @@ public sealed class UppercasedTextTests
         // first render draws the character on screen and no list at all; the caption this page is
         // here to expose arrives on the render after that.
         var manager = holding.Render<CharacterManager>();
-        manager.WaitForElement(".others-head");
+        await manager.WaitForElementAsync(".others-head");
 
         var pages = new List<IRenderedComponent<Microsoft.AspNetCore.Components.IComponent>>
         {

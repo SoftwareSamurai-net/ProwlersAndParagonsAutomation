@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4804 across **four** suites — 4015 on the engine, 609 rendering components with bUnit (29 added this round, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4821 across **four** suites — 4015 on the engine, 626 rendering components with bUnit (46 added this round, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -569,6 +569,128 @@ development-only session seam — is still the owner's call and is still the mos
 could be added to this repository**, along with the zero-risk alternative written up beside it.
 Nothing here has been implemented.
 
+### 11. One product question, and eight things waiting on its answer
+
+**The owner spent a session reading a competitor (PNP Ready) and brought back eight ideas. They are
+not eight decisions. They are one, and everything else falls out of it:**
+
+> **Is this a tool for a player building a character, or a table aid for a GM running a game?**
+
+Answer "player" and most of what follows is overhead a reader navigates past. Answer "GM" and it is
+the missing half of the application — and the build order is forced, because each one needs the one
+before it.
+
+**Nothing below is started.** It is written down because a queue held in a conversation is a queue
+that rots.
+
+#### The evidence that the answer is already "GM", whether or not anybody decided it
+
+Three things in this repository point the same way and none of them was put there on purpose:
+
+- **The tier and the Trait Cap are campaign facts stored per character.** `Sheet.SelectedTierId` is
+  on the sheet and `TraitCap` derives from it, so five characters in one game can silently disagree
+  about the power level and nothing notices. The rulebook puts these on the *game*: `ChooseTier`'s
+  own copy says "The tier sets the Hero Point budget and the Trait Cap", and this file already
+  records Iconic's 200+ as **GM discretion**, which is a sentence about a table.
+- **`UnlimitedBudget` is a campaign setting wearing a character's clothes.** Its own remarks call it
+  "a GM building to whatever a scene needs" — a way of working, stored on the sheet. It was split
+  out of `IsVillain` for exactly this kind of reason; this is the same split one level up.
+- **Adversity has nowhere to live.** The settled list says "Only Heroes have Resolve; the GM gets
+  Adversity, spendable on any NPC." The word appears in two Flaw descriptions and **nowhere in any
+  code at all** — measured. It is a GM-scoped currency the app models not once.
+
+#### The eight, in the order their dependencies force
+
+1. **A campaign.** A name, a power level, a trait cap, a sandbox flag, and the characters that
+   belong to it — which then inherit those settings instead of each carrying their own.
+   **Single-user first, no sharing**, because that needs nothing new from the server: a campaign is
+   another opaque blob beside the characters.
+2. **Headquarters.** *The cheapest of the eight and the strongest argument for the first*, because
+   the rulebook made it campaign-scoped in print rather than by inference: the Perk is already in
+   `data/rules/perks.json` at 1 HP per unit for 3 Base Points, and its own text reads **"Multiple
+   Heroes can apply their Base Points to the same headquarters."** A shared object the app has
+   nowhere to put. What is missing is Chapter 6's base-construction rules, which are *not*
+   extracted — only Ch.6's custom **gear** features are.
+3. **A dice roller.** P&P is a d6 pool system and the engine already knows every Trait's rank, so a
+   roller on the sheet can offer "roll Might 6d" in one click. **That is the only version worth
+   building**: a roller that does not know your character is a worse copy of an app everybody
+   already has.
+4. **A roll log**, per campaign.
+5. **Dice analytics.** Successes, sixes, most-rolled Traits. It is fourth in a chain and its value
+   is novelty until the three above exist — the competitor's own empty state admits the dependency.
+6. **A combat simulator.** **This reverses item 3 of this list**, which says chapters 3–5 are play
+   rules and "mostly not this tool's business". It is the pivot from character creator to play aid,
+   and it is the honest reason to build 3 and 4. Architecturally it is a **second engine beside
+   `engine/`, not an extension of it**: today's engine is the authority on cost and validity and
+   knows nothing about resolving an action. Opposed pools, active defence, Resolve and Adversity
+   spends, conditions — same `data/rules/`, a different question.
+7. **A GM screen.** Whatever a GM wants to hand during play. Last, because it is a presentation of
+   everything above.
+8. **The information architecture that holds them**, which is the one item that needs none of the
+   others and could be done tomorrow — see the next entry.
+
+#### And the architecture is already expecting it
+
+`docs/guide/browser.md` on the banner, written before any of this was discussed:
+
+> Both avenues are offered from everywhere, rather than one link naming whichever half you are not
+> in. That flipping label works for two rooms and **fails for three**.
+
+The banner was built anticipating a third room. That is a strong signal the shape is right.
+
+---
+
+### 12. The interface the owner asked for, which needs none of item 11
+
+**Four moves, none of which waits on a campaign existing.** Recorded together because they are one
+rearrangement of the same chrome.
+
+- **Three doors on the front door**, vertical: build a character, run a game, look something up.
+  `Areas.Of` already reads the first path segment and `EveryAvenueIsOfferedFromEverywhere` already
+  pins the offer on four routes, so the third is an addition rather than a rework.
+- **The rules search moves into the banner, on `Ctrl`+`K`.** **`Ctrl`/`⌘`+`K` already opens the
+  command palette** — `js/palette.js` binds it — so this is an extension of an existing surface, not
+  a new one. It has to be argued rather than assumed, because that file *says in as many words to
+  resist growing it*: today the palette offers Powers and navigation, and the rulebook is a
+  different corpus behind an account gate.
+- **Account and settings move to the right of the banner.**
+- **The Hero/Villain switch moves into that settings menu**, which completes a decision already
+  taken rather than reversing one: `docs/guide/browser.md` records that "Only the builder names the
+  palette in the banner. A rules search is not a Hero or a Villain."
+
+#### Two smaller things from the same reading
+
+- **The Hero Point limit does not need a full-width panel for one button.** The chrome — heading,
+  rule, "Optional" aside — outweighs the control about four to one. The owner suggested two cards in
+  the tier grid. **They cannot be tiers 7 and 8**: a tier is a pick-one-of-six and the budget limit
+  is an orthogonal boolean, and you still pick a tier in sandbox mode because the Trait Cap still
+  applies. As **its own two-option group under a rule** it works, and it fixes a real defect for
+  free: **the current toggle's label flips between naming the action and naming the state** — off it
+  reads "Hold me to the tier's budget" (what will happen), on it reads "Building without a limit"
+  (what is happening), so a glance cannot tell which it is reporting. Two cards, both always
+  visible, one selected, removes the ambiguity entirely.
+- **`/rules`' "What is here" panel is inert rather than pointless.** It looks like a list of links
+  and is not one. And the passage counts — "742 passages" — are a statistic about how the extractor
+  split the text, which is the app describing its own internals to a reader who asked about a
+  rulebook. The chapter names and page ranges earn their place: they say whether a thing is in the
+  book and where to find it in a physical copy. Drop the counts; make each row run a search scoped
+  to that chapter.
+
+---
+
+### 13. The owner's branding, and the sign-in email
+
+**`superheroes.softwaresamurai.net` is the owner's domain and the app carries none of their
+identity.** A kit exists — an SVG logo and two favicon packs, HTML5 and ASP.NET — outside this
+repository.
+
+**And the sign-in email is the weakest thing the project sends.** The owner compared it against a
+competitor's and the competitor's is better. It is built by `signInMessage` in `worker/mail.js`,
+which `scripts/probe-mail.mjs` imports rather than reassembling — see item 8's account of why that
+matters. Any change here is **outward-facing and costs the hourly allowance to test**, so it is
+proofed against the probe and not against a real inbox.
+
+
 ### 5. The browser payload is large — a characteristic, not a defect
 
 **The site works.** It is deployed, it loads, it builds characters — this is not a fault, and it was listed alongside real gaps for too long. The first load is **27 MiB uncompressed**, about a third of that over the wire once Cloudflare applies Brotli, and cached hard afterwards because every framework asset is fingerprinted, so a returning visitor pays nothing. Everything below is what it would take to make that number smaller, kept because the *reasons* are expensive to rediscover — not because anything is broken.
@@ -773,6 +895,105 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 ---
 
 ## Completed work
+
+### The character manager, rebuilt around what it actually holds
+
+**The owner asked for a redesign and asked to see a plan first**, which is why this entry has an
+argument in it rather than a list of CSS changes. The panel holds one kind of thing and offers four
+actions on it, and its layout encoded neither.
+
+> *"'import a character' being skinnier and adjacent but also floating is just awkward."*
+
+#### What the layout was getting wrong
+
+Three faults, and each had exactly one answer:
+
+| Fault | What it cost |
+|---|---|
+| **Stranded actions** | A row was a name at the left edge and two buttons at the right, across a gap that grew with the window. The commonest act in the panel — opening a character — was the smallest thing on the row and the furthest away |
+| **Mismatched peers** | *Start a new character* and *Import a character* both make a character that does not exist yet, and one was drawn `.small`. Nothing contained either |
+| **No "you are here"** | A character reaches the list only once it is worth keeping, so straight after *Start a new character* the list showed the one you kept and **nothing marked open at all** |
+
+#### The weights were upside down, measured against the actions themselves
+
+| Action | Reversible | How often | Was drawn as |
+|---|---|---|---|
+| Open | yes — open the other back | most often | a small button, far right |
+| Discard | yes — one level of undo | rarely | **danger red, on every row** |
+| Start a new character | nothing is lost | sometimes | a normal button |
+| Import a character | nothing is lost | rarely | **a smaller button, floating beside it** |
+
+The loudest thing in the panel was its rarest and most reversible action, repeated per row. The
+red had a reason — a destructive control should look as serious as what it does — but **the confirm
+was removed *because* undo makes discarding cheap**, and the colour was never revisited to match.
+
+#### The three moves
+
+- **The row is the control.** A character's name is a real, full-width button that opens it, the
+  same idiom a Trait row's name already uses. Discard is a quiet trailing button. The large easy
+  target is the safe act and the small distant one is the destructive act, which is the way round
+  Fitts's law should be pointed. **No new tab stops** — two controls per row before, two after; what
+  changed is which one is big.
+- **The open character has its own block, above the list, always.** It carries the spend.
+- **The two ways to make a character are one bar**, equal weight, under a rule. `ImportCharacter`
+  loses `.small`: the demotion was itself a fix — for the operating system's raw file chip, which
+  "competed with" its neighbour — and it worked by making one of two peers visibly lesser.
+  Separating them from the list is a container's job, not a font size's.
+
+#### One constraint decided the data on a row, and it is worth stating
+
+**A row carries a time and never a cost.** `SavedCharacters` keeps an index of labels and timestamps
+and holds each character's payload under its own key; its own remarks refuse a list that
+"deserialize[s] and cost[s] every one of them just to print a label and a timestamp". So `UpdatedAt`
+is free and a Hero Point figure is a read, a cost and a validate **per row**.
+
+**The open character is the one exception, because the session is already holding it** — which is
+the whole reason its block can carry a figure when no row can. That asymmetry is not a design flourish;
+it falls straight out of where the data lives.
+
+`Ages.Since` turns the stamp into a phrase, and **answers null for a stamp of zero**: the legacy slot
+is synthesised into the list with no timestamp, because nothing ever recorded one, and formatted
+naively that reads "over a year ago" beside somebody's oldest character — a confident answer to a
+question nobody can answer. Times appear only once there are **two** characters to tell apart.
+
+#### Four things the build found that the pitch did not
+
+- **The planted-pointer fixture was a state no running app can be in.** `OpenRow` moved the pointer
+  and saved a character but never put it into the session — and opening a character does both, as
+  the app's own boot does. It went unnoticed while the open character was an ordinary row; the
+  redesign reads its name from the session, live, because somebody may be typing it on the finishing
+  step, so the fixture drew "Unnamed character" over a store holding "Ninth Precinct".
+- **`FakeApi` was answering 1970.** Its clock was a bare counter handing out 1, 2, 3 — timestamps a
+  millisecond after the epoch — where the real server writes `Date.now()`. Nothing asserted on the
+  value, so it went unnoticed until a panel started printing a time and **every proof page read
+  "over a year ago"**. That class's own remarks name the rule it was breaking: *a stub that answers
+  something the real server never would is worse than no stub.*
+- **The manager's proof page needed `storesForReal`.** bUnit's interop answers null to every read, so
+  the current-character pointer never round-tripped — and the proof drew the open character in its
+  own block *and* again in the list, because the panel could not tell they were the same one. A
+  picture of a bug the app does not have.
+- **`UppercasedTextTests` caught the new caption with its own positive control**, refusing rather
+  than exempting: *"'.others-head' is set in capitals and this test found it on no page."* Showing it
+  the surface meant giving the sweep a manager holding two characters — and **the fixture had to sign
+  in before loading the sample**, because `Accounts` resolves who is here once and anything touching
+  the session first settles that question as "nobody".
+
+#### Six mutations, five red on the first pass, and the sixth was a real hole
+
+Setting "show times always" left the whole suite green — **not a null mutation**: every other fixture
+in that file happens to hold two characters, so the rule was never asserted at all.
+`ATimeIsShownOnlyOnceThereAreTwoCharactersToTellApart` closes it and the mutation now goes red. The
+other five: not excluding the open character from the list, removing the *Open now* mark, offering a
+Discard beside an empty slot, demoting the import again, and giving the legacy slot a confident age.
+
+#### What was pitched and deliberately not built
+
+The pitch put four questions to the owner with a recommendation on each, and all four were taken.
+Nothing was built beyond them — in particular **there is still no rename**, so a character is listed
+under whatever its sheet's name says. That is the right default and it is not the same as being able
+to file two characters under labels of their own.
+
+---
 
 ### The explained sheet is how the sheet renders, and the second address is gone
 
