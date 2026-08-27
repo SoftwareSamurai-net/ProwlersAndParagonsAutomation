@@ -369,7 +369,12 @@ public sealed class ProofPages
         //   loose: `ppStore.save` is recorded and `ppStore.load` answers null, so nothing written to
         //   local storage can be read back. `FakeApi` is a real in-memory store, so the account is
         //   the only side that can actually hold a character for a proof to render.
-        await using var holding = new RenderContext();
+        // **`storesForReal`, because the pointer has to round-trip for this proof to be honest.**
+        // bUnit's own interop answers null to every read, so the current-character pointer the
+        // account's store writes is never read back — and the panel then draws the character on
+        // screen in its own block *and* again in the list below, because it cannot tell that they
+        // are the same one. That is a picture of a bug the app does not have.
+        await using var holding = new RenderContext(storesForReal: true);
         holding.Api.SignedIn = ("acct-7", "player");
         holding.With(mode);
 

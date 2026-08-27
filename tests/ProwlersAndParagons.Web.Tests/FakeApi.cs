@@ -52,7 +52,22 @@ public sealed class FakeApi : HttpMessageHandler
     /// the order has to be deterministic — a real timestamp would let two saves in the same
     /// millisecond order themselves either way and make a passing test a coin toss.
     /// </summary>
-    private long _clock;
+    /// <summary>
+    /// The stamp the next stored character gets, moving forward one step at a time.
+    ///
+    /// <para><b>It starts from now rather than from zero, and that is a correctness fix rather
+    /// than a nicety.</b> A bare counter handed out 1, 2, 3 — timestamps a millisecond after the
+    /// epoch — and the real server writes <c>Date.now()</c>. Nothing asserted on the value, so it
+    /// went unnoticed until a panel started printing "edited …" beside a character and every proof
+    /// page in the project read <em>over a year ago</em>. This class's own remarks name the rule it
+    /// was breaking: a stub that answers something the real server never would is worse than no
+    /// stub.</para>
+    ///
+    /// <para>Still a counter underneath, because ordering is the only property anything here reads
+    /// — the list comes back most-recently-touched first — and a counter cannot hand out two equal
+    /// stamps the way a fast clock can.</para>
+    /// </summary>
+    private long _clock = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     /// <summary>This account's cap, as the list endpoint reports it. Five, like the server's default.</summary>
     public int Limit { get; set; } = 5;
