@@ -115,6 +115,37 @@ on the site nobody had checked.
   of the app answers with. They are the same engine's answers.
 
 
+## Two cards are how this app asks a yes-or-no question
+
+**The Hero Point limit is a pair of `OptionRow` cards under a rule on the tier page, and it used to
+be one button in a panel.** What made the pair worth the extra markup is not the chrome it saved —
+it is that a single toggle has to label itself with either the action or the state, and the one
+here did both by turns: off it read "Hold me to the tier's budget", which is what pressing it would
+do, and on it read "Building without a limit", which is what was already happening. A glance could
+not tell which of the two it was reporting. **Reach for two cards whenever a boolean is a state
+somebody will read at a glance rather than an action they are about to take.**
+
+- **Both labels name the same kind of thing as each other** — two states or two choices, never one
+  of each. That is the whole fix, so it is asserted rather than left to taste: the two are written
+  as a parallel construction a test can read.
+- **Both cards are always visible and exactly one is pressed.** Hiding the unselected one is the
+  flipping label again in another spelling.
+- **`OptionRow.Pressed` is a `bool?` and renders `"true"`/`"false"` as a string.** Blazor drops a
+  false bool attribute and renders a true one as `aria-pressed=""`, which is invalid ARIA that
+  assistive technology reads as *not* pressed — the trap `MainLayout`'s switches already document.
+  It draws nothing at all inside a listbox, where `aria-selected` is what says which row is the
+  answer; a row carrying both would be two answers to one question.
+- **A card group under a rule is not the grid above it.** The tier cards and these are drawn in one
+  idiom deliberately — they are the same kind of thing to look at — but a tier is a
+  pick-one-of-six and the limit is an orthogonal boolean. `.budget-choice` is `border-top` and
+  padding, the same separation `.make-another` uses, and it is load-bearing: dropped into the grid
+  the pair would read as two more tiers, and **you still pick a tier without a limit, because the
+  Trait Cap still applies**.
+- **Choosing the state already in force is not an edit.** The session's setter returns early, so
+  the `Version` counter does not move — and an edit recorded there would close an undo window
+  somebody was still inside.
+
+
 ## The rules reference
 
 `/rules` searches the whole book and cites the printed page. The corpus is bundled into the worker
