@@ -1328,6 +1328,46 @@ label {
 }
 .banner-link:hover { opacity: 0.75; }
 
+/* The way into the command palette, and the only place the chord is written down.
+
+   **Shaped after `.banner-link` and deliberately not one.** It opens an overlay rather than
+   going anywhere, so it carries no underline: the rule on `.banner-link` is what says "this is a
+   destination", and wearing it here would make the one control in the strip that stays on the
+   page look like the fourth that leaves it.
+
+   `align-items: baseline` so the key boxes sit on the label's line rather than centring on a box
+   taller than the text. */
+/* The keys sit tighter to each other than to the word, because Ctrl and K are one chord and
+   the label is a separate thing beside it. Equal gaps read as three items in a row. */
+.palette-open {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-0);
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--on-primary);
+    font: inherit;
+    cursor: pointer;
+    transition: opacity var(--swap) var(--ease);
+}
+.palette-open:hover { opacity: 0.75; }
+
+/* The label alone takes the display face, and the keys stay in the body face beside it. A key
+   is a name printed on a physical keyboard — setting it in capitals would say CTRL, which is not
+   what is written on the key. */
+.palette-open-label {
+    margin-right: var(--space-1);
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    letter-spacing: var(--label-track);
+    text-transform: uppercase;
+}
+.palette-open .key {
+    border-color: currentColor;
+    font-size: var(--text-xs);
+}
+
 /* Confirms a write-through completed, next to the account it belongs to. Body face and lower
    case, unlike .banner-link beside it: this is not a destination, and setting it the same way
    as one would make it read like a fourth link nobody can click.
@@ -1949,13 +1989,18 @@ label {
 
 /* A span rather than <kbd>. The element would be right, and it is banned on purpose: every
    monospace element defaults to a typeface no palette here names, and the guard that catches
-   that is a scan for the tag rather than for the computed family. The box is drawn here. */
-.palette-keys .key {
+   that is a scan for the tag rather than for the computed family. The box is drawn here.
+
+   **The box is `.key` and the ink is its context's**, because the two places a key is printed
+   sit on different grounds: this footer is on `--panel-sunk`, and the banner's button is on
+   `--primary`, where a `--rule` border is invisible. `currentColor` there rather than a second
+   token — the border of a key box is the same ink as the letter inside it, wherever it lands. */
+.key {
     border: var(--rule-weight) solid var(--rule);
     border-radius: var(--radius-hair);
     padding: var(--space-0) var(--space-1);
-    margin-right: var(--space-1);
 }
+.palette-keys .key { margin-right: var(--space-1); }
 
 /* The book's own entry for a Power, shown under the mechanics rather than instead of
    them. It is set apart the way a quotation is — sunk ground and a rule down the left

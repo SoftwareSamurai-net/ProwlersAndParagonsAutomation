@@ -4,6 +4,7 @@ using ProwlersAndParagonsAutomation.Engine;
 using Bunit;
 using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Pages;
+using ProwlersAndParagonsAutomation.Web.Layout;
 
 namespace ProwlersAndParagons.Web.Tests;
 
@@ -161,6 +162,16 @@ public sealed class UppercasedTextTests
             // sheet, because that is the branch carrying a figure — the empty one shows a
             // catalogue count and would leave the spend's label unexercised.
             over.Render<Home>(),
+
+            // **The banner, which four of the exemptions below used to stand in for.** They read
+            // "MainLayout, which needs a Body fragment and a router", and that was not true: the
+            // layout renders on its own — `BannerTests` has rendered it since the day it was
+            // written — with `Body` left null and every band drawn. Four uppercased selectors sat
+            // unchecked behind a reason nobody re-read, which is the same shape as the thirteen
+            // this test's own closing assertion was added to catch.
+            //
+            // From `over`, so the subtitle names a character rather than the front door.
+            over.Render<MainLayout>(),
         };
 
         var seen = 0;
@@ -201,10 +212,6 @@ public sealed class UppercasedTextTests
         string[] unreachable =
         [
             ".boot-title",   // index.html's pre-WebAssembly screen; no component renders it.
-            ".banner-title", // MainLayout, which needs a Body fragment and a router.
-            ".banner-link",  // ditto.
-            ".mode-switch button", // ditto.
-            ".theme-switch button", // ditto — the light/dark control sits beside it in the banner.
             ".replay-who",   // a recorded turn; ReplayRenderTests covers that surface.
             ".sheet-footer", // print-only; `display: none` on screen.
             ".panel.replay-label b:first-child", // the replay notice; same surface as above.

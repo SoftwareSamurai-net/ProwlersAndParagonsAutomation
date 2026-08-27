@@ -6,6 +6,8 @@
 @inject Motion Motion
 @inject NavigationManager Nav
 @inject Accounts Accounts
+@inject Commands Commands
+@inject Shortcuts Keys
 
 @* The first thing a keyboard reaches on every page, and the only reason it can be is that it
    is the first thing written here — before the banner, the step band and the budget strip, all
@@ -42,6 +44,38 @@
         <NavLink class="banner-link" href="@Commands.FirstStep">Build</NavLink>
         <NavLink class="banner-link" href="rules">Rules</NavLink>
     </nav>
+
+    @* **The only thing on any screen that says the command palette exists.**
+
+       The chord has been bound since the palette shipped and nothing anywhere named it, which
+       makes a keyboard shortcut an affordance for whoever wrote it. The key is printed beside
+       the control it opens, where somebody who will never press it still learns what the control
+       is called — and the control is here rather than on the builder alone because the chord
+       works on every route, and a button that appeared on some of them would understate a key
+       that does not.
+
+       **The modifier is the reader's, not this machine's.** `palette.js` listens for `ctrlKey`
+       *or* `metaKey` because the chord is Ctrl on Windows and Linux and Command on a Mac, so the
+       word is asked of the browser once and printed; see Shortcuts.Modifier. Until it answers —
+       and it never answers if the script is missing, which is the deployment where the key does
+       nothing — the button says what it does and claims no shortcut at all.
+
+       A button and not a text box. The owner's design puts a rules search here eventually, and a
+       box that looked like one while searching Powers and step names would be the wrong promise
+       twice over: the rulebook is a different corpus and it is behind an account.
+
+       "Search" and not "Go to", which is what the palette calls itself inside. The word here has
+       to survive being read at a glance in a strip of five other controls, and it is the word a
+       reader scans for; "Go to" between two underlined links read as a third link with no
+       destination. What the palette offers — the six steps and every Power — is unchanged, and
+       its own box still says so in full. *@
+    <button type="button" class="palette-open" @onclick="Commands.Open">
+        <span class="palette-open-label">Search</span>
+        @if (Keys.Modifier is { } modifier)
+        {
+            <span class="key">@modifier</span><span class="key">K</span>
+        }
+    </button>
 
     @* The account, in the one place it is visible from every page.
 
@@ -266,16 +300,21 @@
     /// value fetched at startup.</para>
     /// </summary>
     /// <summary>
-    /// Who the banner names, and which light/dark choice its control shows as current.
+    /// Who the banner names, which light/dark choice its control shows as current, and which
+    /// modifier key the palette's button prints.
     ///
     /// <para>The theme itself is already on the document by now — <c>js/theme.js</c> stamped it
     /// before the first paint, seconds before this ran. What is read here is only what the
     /// <em>control</em> should show, which is why nothing flickers when it arrives.</para>
+    ///
+    /// <para>The key is asked once, here, rather than per render: the answer is a fact about the
+    /// machine and cannot change while the tab is open.</para>
     /// </summary>
     protected override async Task OnInitializedAsync()
     {
         _who = await Accounts.CurrentAsync();
         await Theme.ReadChoice();
+        await Keys.ReadModifier();
     }
 
     private void WhoChanged() => _ = InvokeAsync(async () =>

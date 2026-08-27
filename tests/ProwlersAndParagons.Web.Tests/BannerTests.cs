@@ -1,4 +1,5 @@
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using ProwlersAndParagonsAutomation.Web.Layout;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
@@ -94,6 +95,123 @@ public sealed class BannerTests
         Assert.Contains("Dorian", BannerLinks(layout));
         Assert.DoesNotContain("player", BannerLinks(layout));
     }
+
+    /// <summary>
+    /// <b>The banner says the palette's chord exists, which nothing on any screen used to do.</b>
+    ///
+    /// <para>The key was bound from the day the palette shipped and was written down only
+    /// <em>inside</em> the palette — visible to somebody who had already pressed it, which is
+    /// the whole of what a shortcut for whoever wrote it means. This asserts the two halves
+    /// together: the button names the thing it opens, and the chord is printed beside it.</para>
+    /// </summary>
+    [Fact]
+    public void TheBannerNamesThePalettesChord()
+    {
+        using var ctx = new RenderContext();
+
+        var layout = ctx.Render<MainLayout>();
+
+        var trigger = layout.Find(".palette-open");
+
+        Assert.Contains("Search", trigger.TextContent, StringComparison.Ordinal);
+        Assert.Equal(["Ctrl", "K"], Keys(layout));
+    }
+
+    /// <summary>
+    /// <b>The modifier is the reader's, not the developer's.</b>
+    ///
+    /// <para><c>palette.js</c> listens for <c>ctrlKey</c> <em>or</em> <c>metaKey</c> precisely
+    /// because the chord is Ctrl on Windows and Linux and Command on a Mac, so a hard-coded word
+    /// is wrong for half the readers — and wrong in the way that costs the affordance, since
+    /// somebody who presses the key they were told about and gets nothing stops reaching for
+    /// it.</para>
+    ///
+    /// <para>Both rows, because either alone is satisfied by a constant.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(false, "Ctrl")]
+    [InlineData(true, "Cmd")]
+    public void TheChordIsPrintedForTheKeyboardTheReaderHas(bool mac, string expected)
+    {
+        using var ctx = new RenderContext();
+        ctx.JSInterop.Setup<bool?>("ppPalette.onAMac").SetResult(mac);
+
+        var layout = ctx.Render<MainLayout>();
+
+        Assert.Equal([expected, "K"], Keys(layout));
+    }
+
+    /// <summary>
+    /// <b>A deployment with no <c>palette.js</c> promises no shortcut, and still offers the way
+    /// in.</b>
+    ///
+    /// <para>The script is the listener: without it the chord does nothing at all, so printing
+    /// it would teach a key that is not there. The button is a click Blazor handles and keeps
+    /// working, which is why this is a missing hint rather than a missing control — the same
+    /// bargain every guarded interop call in this app makes.</para>
+    /// </summary>
+    [Fact]
+    public void AMissingScriptPrintsNoChordAndStillOpensThePalette()
+    {
+        using var ctx = new RenderContext();
+        ctx.JSInterop.Setup<bool?>("ppPalette.onAMac").SetResult((bool?)null);
+
+        var layout = ctx.Render<MainLayout>();
+
+        Assert.Empty(Keys(layout));
+
+        layout.Find(".palette-open").Click();
+
+        Assert.True(ctx.Services.GetRequiredService<Commands>().IsOpen);
+    }
+
+    /// <summary>
+    /// <b>The button opens the palette.</b>
+    ///
+    /// <para>Asserted through the rendered overlay rather than through the service alone: a
+    /// handler that set the flag and drew nothing is the state a reader would read as the
+    /// control being broken.</para>
+    /// </summary>
+    [Fact]
+    public void TheButtonOpensThePalette()
+    {
+        using var ctx = new RenderContext();
+
+        var layout = ctx.Render<MainLayout>();
+        Assert.Empty(layout.FindAll(".palette"));
+
+        layout.Find(".palette-open").Click();
+
+        Assert.Single(layout.FindAll(".palette"));
+    }
+
+    /// <summary>
+    /// <b>It is offered on every route, because the chord works on every route.</b>
+    ///
+    /// <para>The step band and the budget strip are the builder's and are drawn there alone;
+    /// this is not one of those. A shortcut that works everywhere and is named in one place is
+    /// the same defect one step smaller, and a reader who met the button only inside the builder
+    /// would reasonably conclude the key stops at its edge.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("build/tier")]
+    [InlineData("rules")]
+    [InlineData("signin")]
+    public void TheWayIntoThePaletteIsOfferedEverywhere(string route)
+    {
+        using var ctx = new RenderContext();
+        ctx.Services.GetRequiredService<NavigationManager>()
+           .NavigateTo(route);
+
+        var layout = ctx.Render<MainLayout>();
+
+        Assert.Equal(["Ctrl", "K"], Keys(layout));
+    }
+
+    /// <summary>The words in the key boxes of the banner's palette button, in order.</summary>
+    private static List<string> Keys(IRenderedComponent<MainLayout> layout) =>
+        layout.FindAll(".palette-open .key").Select(k => k.TextContent.Trim()).ToList();
 
     /// <summary>
     /// <b>Exactly one of the two mode buttons announces itself as pressed.</b>
