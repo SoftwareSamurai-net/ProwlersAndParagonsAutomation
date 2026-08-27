@@ -53,6 +53,50 @@ pages. `MainLayout` draws the step list and the budget strip in `Play` alone.
   with it — the fault the budget strip was pulled off three areas to fix.
 
 
+## The chord is printed where somebody who has never pressed it will see it
+
+`Ctrl`/`⌘`+`K` opened the command palette from the day it shipped, and the only place the chord
+was written down was **inside the palette** — on the row of keys along its own foot, visible to
+somebody who had already pressed it. That is the whole of what "a shortcut for whoever wrote it"
+means, and the owner named it as a defect about today rather than a note about a future design.
+
+The banner carries a `.palette-open` button now: the word **Search**, and the chord beside it in
+two `.key` boxes.
+
+- **On every route, because the chord works on every route.** The step band and the budget strip
+  are the builder's and are drawn there alone; this is not one of those. A button that appeared
+  only inside the builder would say the key stops at its edge, which is worse than saying nothing.
+- **The modifier is the reader's, not the developer's.** `palette.js` listens for `ctrlKey` *or*
+  `metaKey` precisely because it is `Ctrl` on Windows and Linux and Command on a Mac, so
+  `ppPalette.onAMac` answers one boolean about the platform and `Shortcuts.ReadModifier` decides
+  the word. A hard-coded `Ctrl` is wrong for half the readers, and wrong in the way that costs
+  the affordance: somebody who presses the key they were told about and gets nothing stops
+  reaching for it.
+- **`Cmd`, not the looped-square glyph.** That glyph is the Mac convention and it is in neither
+  typeface this app names, so it would fall back to a system face — silently, on one platform,
+  which is exactly what the "no component names a typeface" rule exists to prevent.
+- **A missing script prints no chord at all.** That is the deployment where the key does nothing,
+  so `Shortcuts`' reading call answers `null` on a swallowed failure rather than a default — a
+  default there is a claim about a keyboard made by a script that never ran. The button still
+  opens the palette, because that is a click Blazor handles. `RenderContext` answers `false` for
+  every test and proof page, so what renders is an ordinary Windows reader rather than a broken
+  deployment; `GuardedInteropTests` owns the `null`.
+- **A button and not a text box**, though [`PROGRESS.md`](../../PROGRESS.md) item 12 puts a rules
+  search here eventually. A box that looked like a search field while searching Powers and step
+  names would be the wrong promise twice over: the rulebook is a different corpus and it is behind
+  an account, and growing the palette onto it is the part of item 12 that still has to be argued —
+  `palette.js` says in as many words to resist growing it.
+- **The word is "Search" and the palette still calls itself "Go to".** The label here has to
+  survive being read at a glance in a strip of six other controls; "Go to" between two underlined
+  links read as a third link with no destination. What the palette offers is unchanged and its own
+  box says so in full.
+
+**And four exemptions in `UppercasedTextTests` went when this landed.** They read "MainLayout,
+which needs a Body fragment and a router", and that was never true — `BannerTests` has rendered
+the layout on its own since the day it was written, `Body` left null and every band drawn. Five
+uppercased banner selectors were standing behind a reason nobody re-read. **When a test exempts a
+selector, check the reason still holds before adding a sixth.**
+
 ## The front door
 
 `/` presents what the site does and offers a way into each, with **every figure on it the engine's or
