@@ -159,7 +159,13 @@ asymmetry is not a flourish; it falls straight out of where the data lives.
    rules search into the banner on `Ctrl`+`K` (which *already opens the command palette*, so it is
    an extension of an existing surface and has to be argued with `js/palette.js`, which says in as
    many words to resist growing it), account and settings to the right, and the Hero/Villain switch
-   into that settings menu. Plus two small ones: the Hero Point limit as its own two-card group
+   into that settings menu.
+
+   **One part of item 12 is a defect today rather than a design for later**, and the owner named it:
+   `Ctrl`+`K` is bound and **nothing on any screen says so**, which makes it a shortcut for whoever
+   wrote it. The answer is to print it in the search field's own placeholder, where it costs no
+   surface at all. Mind the modifier — `palette.js` takes `ctrlKey` *or* `metaKey` because it is
+   `Ctrl` on Windows and `⌘` on a Mac, so a hard-coded placeholder is wrong for half the readers. Plus two small ones: the Hero Point limit as its own two-card group
    rather than a full-width panel for one button, and `/rules`' inert "What is here" list.
 
    **Item 13 is the owner's branding and the sign-in email**, which they rate below a competitor's.

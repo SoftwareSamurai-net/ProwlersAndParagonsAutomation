@@ -653,6 +653,22 @@ rearrangement of the same chrome.
   a new one. It has to be argued rather than assumed, because that file *says in as many words to
   resist growing it*: today the palette offers Powers and navigation, and the rulebook is a
   different corpus behind an account gate.
+
+  **And the shortcut should be printed in the search field itself, as its placeholder** — the
+  owner's amendment, and it is a defect about *today* rather than a note about a future design.
+  `Ctrl`+`K` is bound right now and **nothing on any screen says so**, which makes it a shortcut for
+  the person who wrote it. A search box in the banner reading `Search the rulebook — Ctrl K` teaches
+  it to everybody who never presses it, at the cost of no extra surface: the field has to be there
+  anyway, and the placeholder is otherwise wasted on restating the label.
+
+  Two things to get right when it is built:
+
+  - **The modifier is the reader's, not the developer's.** `palette.js` accepts `ctrlKey` *or*
+    `metaKey` precisely because it is `Ctrl` on Windows and Linux and `⌘` on a Mac. A placeholder
+    that hard-codes one of them is wrong for the other half of the readers, so it has to be chosen
+    at render time from the platform — or the pair has to be worded so neither is claimed.
+  - **A placeholder is not a label**, and `docs/guide/browser.md`'s presentation rules still apply:
+    it may carry the hint, and it may not be the only place the field is named.
 - **Account and settings move to the right of the banner.**
 - **The Hero/Villain switch moves into that settings menu**, which completes a decision already
   taken rather than reversing one: `docs/guide/browser.md` records that "Only the builder names the
