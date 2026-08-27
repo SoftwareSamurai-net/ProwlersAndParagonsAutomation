@@ -48,9 +48,10 @@ the fix above, including a check that was dead code and read exactly like a guar
 
 ## Where things stand
 
-**4,831 tests across four suites** — 4,015 engine, 636 bUnit, 166 accounts, 14 pixel comparator.
-All four were re-run on this round's branch. Re-measure on the integration branch rather than
-copying this line:
+**4,840 tests across four suites** — 4,024 engine, 636 bUnit, 166 accounts, 14 pixel comparator.
+**Measured on `master` after all three of this round's pull requests merged**, which is the figure
+worth having: three separately-green branches are not the same claim as a green merge of them.
+Re-measure rather than copying this line:
 
 ```bash
 dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
@@ -61,6 +62,12 @@ dotnet test --configuration Release -p:ContinuousIntegrationBuild=true
 **`dotnet test` prints one `Passed!` line per project, and there are two.** If you see one, a
 project failed to **build** and its result is simply missing. Count the lines, and grep for
 `Catastrophic` — a crashed process still prints `Passed! - Failed: 0`.
+
+**Qodana no longer runs on a pull request** — the trigger was taken off because it was 214 of one
+session's 403 Actions minutes and all 10 GB of the cache; it runs on `master` and weekly. **So the
+local scan is not a belt-and-braces step any more: skip it and the first thing that sees your
+branch is `master` after the merge.** `docs/guide/hosting.md` carries the measurement and
+`docs/guide/testing.md` the consequence.
 
 **A whole-tree Qodana scan reported 0** via `./scripts/qodana-scan.sh` (needs Docker Desktop) — on
 each of this round's **five** branches and then **on `master` after the merges**, which is the
