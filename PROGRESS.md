@@ -1506,7 +1506,12 @@ writes in words is a phrase, not a Hero Point figure.
 
 ### The sheet says what every name on it means
 
-`/build/sheet` draws the sheet with every name carrying its `data/rules` description, on hover and on
+> **Superseded in part, and the address is gone.** This shipped as a page of its own at
+> `/build/sheet`; the owner then reported the link to it as the defect — explaining the sheet was
+> never something to ask for — so `SheetView.Explain` defaults to on and that address is retired. See
+> the entry above. Everything below about `Term` itself still holds; only where it is drawn changed.
+
+`/build/sheet` drew the sheet with every name carrying its `data/rules` description, on hover and on
 focus. The descriptions have been there the whole time and **only the editors ever showed one**: a
 printed sheet says "Presence 6d" and "Plot Hook" and "TECH POWERS" and left a reader to know.
 
