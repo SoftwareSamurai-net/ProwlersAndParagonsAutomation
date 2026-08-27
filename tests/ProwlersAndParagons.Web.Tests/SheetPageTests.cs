@@ -1,4 +1,5 @@
 using Bunit;
+using Bunit.Extensions.WaitForHelpers;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
@@ -312,8 +313,7 @@ public sealed class SheetPageTests
         const string Stored = "c_FFFFFFFFFFFFFFFFFFFFFF";
         Assert.True(await StoreIn(ctx).RestoreAsync(Stored, "Vandergraff", Character("Vandergraff"), SheetMode.Hero));
 
-        // Hold the stored character's read open, so it is still in flight when the route changes
-        // out from under it.
+        // Hold the stored character's read open, so it is still in flight when the route changes.
         var held = new TaskCompletionSource();
         ctx.Api.BeforeAnsweringCharacter = _ => held.Task;
 
@@ -323,13 +323,27 @@ public sealed class SheetPageTests
         ctx.Api.BeforeAnsweringCharacter = null;
         page.Render(p => p.Add(c => c.Id, (string?)null));
 
+        // The read really was overtaken rather than never started. Without this the whole test is
+        // satisfied by a page that never asked the server anything.
+        Assert.Contains(ctx.Api.Asked, a => a.StartsWith("GET /api/characters/" + Stored, StringComparison.Ordinal));
+        Assert.Contains("Lynchpin", SheetText.Visible(page.Find(".sheet")), StringComparison.Ordinal);
+
         // Now let the overtaken read finish. Its answer belongs to an address nobody is on.
         held.SetResult();
-        await page.InvokeAsync(() => Task.CompletedTask);
 
-        var shown = SheetText.Visible(page.Find(".sheet"));
-        Assert.Contains("Lynchpin", shown, StringComparison.Ordinal);
-        Assert.DoesNotContain("Vandergraff", shown, StringComparison.Ordinal);
+        // **Waiting for the WRONG state to appear, and requiring that it never does.** The obvious
+        // spelling — release, then assert — was written first and the mutation that removes the
+        // guard left it green: nothing made the stale continuation run before the assertion, so it
+        // passed for the wrong reason and would have shipped as a guard that guards nothing.
+        //
+        // The budget is one-sided on purpose. A page that writes the stale answer does so as soon
+        // as the continuation is scheduled, so the mutation is caught in milliseconds; the second
+        // is slack for a loaded CI runner, spent only on the path where nothing goes wrong. That
+        // is the opposite trade from racing a timer for a *positive* result, which is the shape
+        // this repository already records as a mistake.
+        Assert.Throws<WaitForFailedException>(() => page.WaitForState(
+            () => SheetText.Visible(page.Find(".sheet")).Contains("Vandergraff", StringComparison.Ordinal),
+            TimeSpan.FromSeconds(2)));
     }
 
     /// <summary>
@@ -384,6 +398,42 @@ public sealed class SheetPageTests
         Assert.Contains("Vandergraff", SheetText.Visible(page.Find(".sheet")), StringComparison.Ordinal);
 
         Assert.DoesNotContain("of 125", SheetText.Visible(page.Find(".sheet")), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Coming back from a named character, <c>/sheet</c> still follows the character being built.
+    ///
+    /// <para><b>Both adversarial reviewers found this independently and one measured it.</b>
+    /// <c>SheetView</c> decides whether to subscribe to the session at initialisation, and this
+    /// page is the first host where that answer flips on a live instance — Blazor reuses the
+    /// component when only the route parameter changes. Going to a named character left a handler
+    /// attached for the life of the session; coming <em>back</em> left a component that had never
+    /// subscribed, so the bare address silently stopped updating, which is the one thing it is
+    /// for. <c>@key</c> on the id makes each address its own instance.</para>
+    ///
+    /// <para>Removing that <c>@key</c> turns this red.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheBareAddressStillFollowsTheCharacterAfterANamedOne()
+    {
+        await using var ctx = new RenderContext(storesForReal: true);
+        Open(ctx, "Lynchpin");
+        var id = await Seed(ctx, "c_JJJJJJJJJJJJJJJJJJJJJJ", "Vandergraff");
+
+        var page = ctx.Render<SheetPage>(p => p.Add(c => c.Id, id));
+        Assert.Contains("Vandergraff", SheetText.Visible(page.Find(".sheet")), StringComparison.Ordinal);
+
+        page.Render(p => p.Add(c => c.Id, (string?)null));
+        Assert.Contains("Lynchpin", SheetText.Visible(page.Find(".sheet")), StringComparison.Ordinal);
+
+        // Rename the character being built, the way the finishing step does.
+        await page.InvokeAsync(() =>
+        {
+            ctx.Session.Sheet.Name = "Halfmask";
+            ctx.Session.NotifyChanged();
+        });
+
+        Assert.Contains("Halfmask", SheetText.Visible(page.Find(".sheet")), StringComparison.Ordinal);
     }
 
     /// <summary>
