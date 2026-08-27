@@ -509,6 +509,66 @@ carries no risk at all.
 a person with a screen reader, and asserting `aria-pressed` is the string `"true"` is not the same
 as having been listened to. `docs/HANDOVER.md` says so and should keep saying so.
 
+#### The argument sharpened, by a defect that proves a different point from the one this item was making
+
+**A feature was built, tested, adversarially reviewed by two independent agents and shipped, while
+nothing in the application ever wrote to the store it read from.** The manager's list, the banner's
+switcher, `DiscardedCharacter` and both undo buffers all read `SavedCharacters`'s index; nothing
+ever added a character to it. See the completed entry at the top of this file.
+
+**That is not the defect class this item was written about, and the difference matters.** Everything
+here so far argues about *assembly* — markup plus stylesheet plus layout, interop, routing, the real
+edge. This one was none of those. Every unit and component test passed, and passed honestly, because
+**every one of them called the store directly.** A test that reaches the machinery by hand cannot
+notice that nothing else reaches it. **Nothing in this repository asks whether a feature is reachable
+by an ordinary person doing an ordinary thing**, and an end-to-end harness is the only kind of check
+that asks that question by construction, because it has no other way in.
+
+So stage one's value is higher than this item claimed, and for a reason not listed above.
+
+#### One row of the table is now partly closed, in-process, and it is worth knowing how far
+
+> *Every `js/*.js` interop — bUnit answers **null** to every interop read, which is why two tests in
+> this slice had to plant a storage pointer to reach the branch they were written for.*
+
+`RenderContext(storesForReal: true)` registers a local storage that actually holds what is written
+to it, in place of bUnit's recorder. A test can now press the control a person presses and then ask
+what is in storage — which is what the sixteen tests in `StartAnotherTests` do, and what made the
+defect above visible at all.
+
+**It closes `ppStore` and nothing else.** `theme.js`, `palette.js` and `motion.js` are still
+answered by a recorder; there is still no boot, no routing, no Functions and nothing behind sign-in.
+And it is a *fake* — a dictionary that behaves the way `localStorage` is documented to behave, not
+the browser's own. It narrows one row of the table; it does not remove it.
+
+**The cost of it is one thing to remember**: it replaces bUnit's `IJSRuntime`, and with it
+`JSInterop.Invocations`, which most of this project's interop assertions read. `FakeLocalStorage`
+grew a call log for that. So it is opt-in, and every existing test is untouched.
+
+#### And an honest limit on what stage one would have bought here
+
+**Three further defects in the same slice were found by an adversarial review, and a harness would
+have caught at most one of them.** They were: a store reporting a successful write over a browser
+that had refused storage; a cap read before the write it was meant to gate, racing a fire-and-forget
+autosave; and an undo left armed that would have duplicated the character it was offered to rescue.
+
+A driver reproduces the third if somebody thinks to press Undo after starting another character. It
+will not reproduce the first without a browser configured to refuse storage, and it will not
+reproduce the second at all reliably — a race that depends on a network round trip losing to a
+button press is not something a harness *drives*, it is something a harness gets lucky about. All
+three were found by a reader who was told to look for data loss and given nothing else.
+
+**So the two are not substitutes and should not be argued for as one.** A harness answers "is this
+reachable"; a hostile reader answers "what does this do when something goes wrong". This slice
+needed both and neither would have been enough.
+
+#### The decision this item is waiting for has not changed
+
+Stage one needs no permission and is now better motivated than it was. **Stage two — the
+development-only session seam — is still the owner's call and is still the most dangerous thing that
+could be added to this repository**, along with the zero-risk alternative written up beside it.
+Nothing here has been implemented.
+
 ### 5. The browser payload is large — a characteristic, not a defect
 
 **The site works.** It is deployed, it loads, it builds characters — this is not a fault, and it was listed alongside real gaps for too long. The first load is **27 MiB uncompressed**, about a third of that over the wire once Cloudflare applies Brotli, and cached hard afterwards because every framework asset is fingerprinted, so a returning visitor pays nothing. Everything below is what it would take to make that number smaller, kept because the *reasons* are expensive to rediscover — not because anything is broken.
