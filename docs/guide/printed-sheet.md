@@ -23,11 +23,15 @@ Two consequences of the reference being a **form** rather than a summary, both d
 
 - **The sheet explains every name on it, and the printed page is unchanged by that.** `SheetView.Explain`
   defaults to on, so the review step, the preview beside the editors and every replayed recording all
-  draw terms. **This does not reach paper and there is a test.** `.tip-wrap` is in the print block's
-  `display: none` list and a tip is shut unless hovered, which paper cannot be; `.term-name` gives up
-  `text-decoration` and `cursor`, so the word prints as a word; and the description's other copy — the
-  one `aria-describedby` names, which cannot be `display: none` without leaving the accessibility tree
-  — is `.sr-only`, a clipped 1px box. The default used to be off precisely to protect this page, on
+  draw terms. **This does not reach paper, and know which rule is doing the work.** The tip is
+  `.row-tip`, and it is **its own base `display: none`** that keeps it off the page — opened only by
+  `:hover` and `:focus-visible`, neither of which paper can be in. The print block never mentions it.
+  (`.tip-wrap` *is* in the print block's hide list and is **not** the mechanism: that class belongs to
+  `Tooltip`, and a `Term` has no such ancestor. A guard written against it passed while a reviewer
+  put every description on the printed page.) The print block's own contribution is `.term-name`
+  giving up `text-decoration` and `cursor`, so the word prints as a word; and the description's other
+  copy — the one `aria-describedby` names, which cannot be `display: none` without leaving the
+  accessibility tree — is `.sr-only`, a clipped 1px box that contributes nothing to a printed page. The default used to be off precisely to protect this page, on
   the argument that a sheet gaining forty controls would be a different document. The premise is
   right and the printed sheet gains nothing, which was true before the flip and untested:
   `PrintingASheetIsUnchangedByTheExplanations` reads the cascade and pins all three.

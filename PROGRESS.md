@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4800 across **four** suites — 4015 on the engine, 605 rendering components with bUnit (25 added this round, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4803 across **four** suites — 4015 on the engine, 608 rendering components with bUnit (28 added this round, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -851,6 +851,73 @@ them. What grows is the rendered DOM, and the place that matters is the preview 
 editors, which redraws on every rank, Power and Perk change above 1500px. Render time was not
 measured; if it ever reads as slow, that is a measurement to take rather than a reason to give the
 preview a second, quieter sheet.
+
+#### The adversarial review broke the print guard and watched it stay green
+
+**The test that was the whole evidence for "the printed sheet gains nothing" did not test the
+mechanism.** It checked that `.tip-wrap` was in the print block's hide list, that `.term-name` gave
+up its underline and cursor, and that `clip-path` appeared *somewhere* in `app.css`. All three are
+true. Only the second is about a `Term` at all: **`.tip-wrap` belongs to `Tooltip`, and a `Term`'s
+tip has no such ancestor.** What keeps a description off paper is `.row-tip`'s own base rule,
+`display: none`, opened only by `:hover` and `:focus-visible` — and the test never looked at it.
+
+A reviewer set that one line to `display: block`, ran the suite, and got 581 green. Then rendered
+the markup against the mutated stylesheet, printed it with headless Chrome and read the PDF back:
+**the description was on the page**, and the file had doubled in size. That is the exact regression
+the test exists to prevent.
+
+**This was broken and watched to fail, and that was not enough.** The mutation removed `.tip-wrap`
+from the print block and the test went red — so it looked like a working guard. It was a null
+mutation wearing a disguise: the guard reacted, to a change that could not have affected a sheet.
+`CLAUDE.md` already says a semantically null mutation does not count; the sharper form is that
+**breaking something the guard was never about is the same failure.** Ask what the mechanism is
+before choosing what to break.
+
+The one test is now three, each naming its own mechanism, and a `Rules()` helper reads `app.css` as
+selectors and bodies rather than as a string to search — *"a guard that cannot name the rule it is
+about cannot notice that rule changing."*
+
+**And the new guard had a hole of its own, found the same way.** It asked whether the selector
+contained `:hover`; a selector *list* is not one selector, so
+`.option:hover .row-tip, .sheet .row-tip { display: block }` opens the tip unconditionally through
+its second branch while the string is still present in the first. That mutation came back green,
+was traced rather than recorded as a null result, and the guard now splits on commas. All four
+mutations go red.
+
+#### Two findings recorded rather than fixed, and why
+
+**Duplicate ids are reachable, and the only reachable case is the harmless one.**
+`Term`'s id is derived from its name, so two things called the same word put one id on two elements
+— and before this change `Review` carried no ids at all, because it drew the sheet unexplained. The
+reviewer demonstrated it by selecting one Power twice, which `CharacterValidator` allows with a
+warning.
+
+**Traced, and the harm depends entirely on whether the two sentences differ.** They do not, in any
+reachable case: the five categories the sheet draws terms for — Abilities, Talents, Powers, Perks,
+Flaws — **collide on no name at all** in the shipped data. Two collisions do exist (`Collapsible`,
+`Repair`) and neither reaches a term: both are between a Power's own Con and an entry in another
+file, and Pros and Cons print as a stat line. So the only duplicate anybody can produce is the same
+Power twice, where both terms carry the identical sentence and whichever one `aria-describedby`
+resolves to is right — the collision `Term`'s remarks already call the one worth having.
+
+**What was missing was any guarantee that it stays that way**, and that is what was added:
+`NoTwoThingsTheSheetExplainsShareAName` fails on the entry that would put two *different*
+descriptions under one id. Changing the id scheme was considered and rejected — a generated id
+breaks the replay guard that requires two renders of one character to be identical, which is a trap
+`Term` already records, and the benefit while both copies say the same sentence is nil.
+
+**The preview column gained 33 tab stops, and that is a decision rather than an oversight.**
+`Characteristics` draws the same sheet beside the editors, so above 1500px the preview now holds 33
+focusable buttons where it held none — against 19 real controls for the open tab and the step
+buttons. `docs/guide/browser.md` records the project's stance on exactly this cost for a different
+component: *"141 extra tab stops would undo `OptionList`'s one-tab-stop keyboard model."*
+
+It is accepted, and the alternative is why: turning the explanations off for the preview alone is a
+second, quieter sheet — the shape the owner's report was against — and the preview is the same
+document, not a summary of it. **The number is recorded here because it was not measured before and
+because the owner may want it back**: the change is one parameter on one call site. Keyboard cost is
+not the same question as the screen-reader work the owner has deferred, and it is stated plainly
+rather than folded into that deferral.
 
 #### What moved
 
