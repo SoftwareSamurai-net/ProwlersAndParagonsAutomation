@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using ProwlersAndParagonsAutomation.Web.Layout;
@@ -24,8 +25,45 @@ namespace ProwlersAndParagons.Web.Tests;
 /// </summary>
 public sealed class BannerTests
 {
+    /// <summary>
+    /// What the account control says.
+    ///
+    /// <para><b>It is read off <c>.banner-account</c> and not <c>.banner-link</c>, and the
+    /// change is the point rather than a rename.</b> That class carries the underline marking the
+    /// two avenues as destinations; an identity is not one, and the account wore it while being
+    /// none of those things. The tools cluster — Search, the account, Settings — is one idiom
+    /// with no underline on any of it.</para>
+    ///
+    /// <para>The old spelling is also what made these tests necessary in the first place:
+    /// <c>Find(".banner-link")</c> returns the first match, which was an avenue, so the account
+    /// was reached by nothing. A class of its own cannot be shadowed by a neighbour.</para>
+    /// </summary>
     private static IEnumerable<string> BannerLinks(IRenderedComponent<MainLayout> layout) =>
-        layout.FindAll(".banner-link").Select(a => a.TextContent.Trim());
+        layout.FindAll(".banner-account").Select(a => a.TextContent.Trim());
+
+    /// <summary>
+    /// Opens the settings menu and hands back the layout, because both palette switches live
+    /// behind it now.
+    ///
+    /// <para><b>The click is asserted to have done something before anything is read out of the
+    /// menu.</b> A disclosure that rendered no list satisfies every "exactly one is pressed"
+    /// check completely — there being no buttons at all — which is this repository's single most
+    /// common way for a guard to be wrong.</para>
+    /// </summary>
+    private static IRenderedComponent<MainLayout> WithSettingsOpen(RenderContext ctx)
+    {
+        var layout = ctx.Render<MainLayout>();
+
+        Assert.Equal("false", layout.Find(".settings-open").GetAttribute("aria-expanded"));
+        Assert.Empty(layout.FindAll(".settings-menu-list"));
+
+        layout.Find(".settings-open").Click();
+
+        Assert.Equal("true", layout.Find(".settings-open").GetAttribute("aria-expanded"));
+        Assert.Single(layout.FindAll(".settings-menu-list"));
+
+        return layout;
+    }
 
     [Fact]
     public void AVisitorWithNoAccountIsOfferedOne()
@@ -231,7 +269,10 @@ public sealed class BannerTests
         using var ctx = new RenderContext();
         ctx.Session.Mode = mode;
 
-        var layout = ctx.Render<MainLayout>();
+        // The switch is inside the settings menu now, so the assertion follows it there rather
+        // than being dropped. `WithSettingsOpen` proves the disclosure actually opened first: a
+        // menu that rendered nothing satisfies every claim below by having no buttons at all.
+        var layout = WithSettingsOpen(ctx);
 
         var pressed = layout.FindAll(".mode-switch button")
             .Where(b => b.GetAttribute("aria-pressed") == "true")
@@ -269,7 +310,7 @@ public sealed class BannerTests
         using var ctx = new RenderContext();
         ctx.JSInterop.Setup<string?>("ppTheme.current").SetResult(stored);
 
-        var layout = ctx.Render<MainLayout>();
+        var layout = WithSettingsOpen(ctx);
 
         var buttons = layout.FindAll(".theme-switch button");
         Assert.Equal(3, buttons.Count);
@@ -296,7 +337,7 @@ public sealed class BannerTests
     {
         using var ctx = new RenderContext();
 
-        var layout = ctx.Render<MainLayout>();
+        var layout = WithSettingsOpen(ctx);
         var dark = layout.FindAll(".theme-switch button").Single(b => b.TextContent.Trim() == "Dark");
 
         dark.Click();
@@ -329,7 +370,7 @@ public sealed class BannerTests
 
         var before = CharacterSheetJson.Write(ctx.Session.Sheet);
 
-        var layout = ctx.Render<MainLayout>();
+        var layout = WithSettingsOpen(ctx);
         layout.FindAll(".theme-switch button").Single(b => b.TextContent.Trim() == "Dark").Click();
         layout.FindAll(".theme-switch button").Single(b => b.TextContent.Trim() == "Light").Click();
 
@@ -340,5 +381,183 @@ public sealed class BannerTests
         layout.FindAll(".mode-switch button").Single(b => b.TextContent.Trim() == "Hero").Click();
 
         Assert.NotEqual(before, CharacterSheetJson.Write(ctx.Session.Sheet));
+    }
+
+    /// <summary>
+    /// <b>The rearranged bar still offers everything the old one did, on every route.</b>
+    ///
+    /// <para>This change moved four things and deleted none, which is exactly the claim a
+    /// rearrangement is least able to make about itself: the two switches went into a menu, the
+    /// account changed class, "Saved" moved across the bar, and every one of those is a diff a
+    /// reviewer reads as "still there". So the four survivors are asserted together, per route —
+    /// both avenues, the way into the palette, the account, and the control that opens the
+    /// menu.</para>
+    ///
+    /// <para><b>Per route, because three of the bar's five groups are gated on the address.</b>
+    /// The step band, the budget strip and the character switcher are the builder's; these are
+    /// not, and a control that appeared on some routes and not others would say the thing behind
+    /// it stops at the builder's edge.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("build/tier")]
+    [InlineData("rules")]
+    [InlineData("signin")]
+    public void TheBarOffersBothAvenuesTheSearchTheAccountAndTheSettingsOnEveryRoute(string route)
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo(route);
+
+        var layout = ctx.Render<MainLayout>();
+
+        var avenues = layout.Find(".avenue-nav").TextContent;
+        Assert.Contains("Build", avenues, StringComparison.Ordinal);
+        Assert.Contains("Rules", avenues, StringComparison.Ordinal);
+
+        Assert.Single(layout.FindAll(".palette-open"));
+        Assert.Single(layout.FindAll(".banner-account"));
+        Assert.Single(layout.FindAll(".settings-open"));
+    }
+
+    /// <summary>
+    /// <b>The three tools are one idiom, and the account is no longer wearing navigation's
+    /// clothes.</b>
+    ///
+    /// <para>The underline on <c>.banner-link</c> is what says "this is a destination". Search
+    /// never carried it, correctly — it opens an overlay — and the account did, while being an
+    /// identity rather than a place. Asserted as a pair: the account is in the tools cluster and
+    /// is <em>not</em> a <c>.banner-link</c>, and the two avenues still are, because a test that
+    /// only checked the first half passes just as well with the underline taken off everything,
+    /// which would delete the distinction rather than apply it.</para>
+    /// </summary>
+    [Fact]
+    public void TheAccountIsATooAndNotAnAvenue()
+    {
+        using var ctx = new RenderContext();
+
+        var layout = ctx.Render<MainLayout>();
+
+        var account = layout.Find(".banner-account");
+        Assert.DoesNotContain("banner-link", account.GetAttribute("class") ?? "", StringComparison.Ordinal);
+        Assert.Contains("banner-tool", account.GetAttribute("class") ?? "", StringComparison.Ordinal);
+
+        // All three tools carry the shared class, and they are the only three.
+        Assert.Equal(3, layout.FindAll(".banner-tools .banner-tool").Count);
+
+        // The positive control: the avenues kept the marking that makes them destinations.
+        var avenues = layout.FindAll(".avenue-nav .banner-link");
+        Assert.Equal(2, avenues.Count);
+    }
+
+    /// <summary>
+    /// <b>"Saved" sits with the character it reports, not with the account.</b>
+    ///
+    /// <para>It reports a write of the <em>document</em>. Beside the account link it read as a
+    /// comment on whoever was signed in — and on a shared machine that is the reading that
+    /// matters. It is in the character cluster now, with the switcher.</para>
+    ///
+    /// <para><b>And the live region is <em>not</em> gated on the builder, though the switcher
+    /// is.</b> That asymmetry is the load-bearing part: the same region carries the undo offer
+    /// for four acts that replace the character wherever the reader happens to be standing — the
+    /// portfolio's two sample buttons and a recording that then navigates away from itself are
+    /// both outside the builder. Gating it with the switcher would take the offer off the two
+    /// routes that need it most. Asserted on a route where the switcher is absent, or the claim
+    /// is untested.</para>
+    /// </summary>
+    [Fact]
+    public void TheSaveRegionSitsWithTheCharacterAndSurvivesLeavingTheBuilder()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("build/tier");
+
+        var building = ctx.Render<MainLayout>();
+
+        Assert.Single(building.FindAll(".banner-character .character-switch"));
+        Assert.Single(building.FindAll(".banner-character .save-status"));
+
+        // ...and nothing of the character's is in the tools cluster any more.
+        Assert.Empty(building.FindAll(".banner-tools .save-status"));
+
+        using var reading = new RenderContext().With(SheetMode.Hero);
+        reading.Services.GetRequiredService<NavigationManager>().NavigateTo("admin/portfolio");
+
+        var elsewhere = reading.Render<MainLayout>();
+
+        // The switcher is the builder's and is gone; the region it sits beside is not and stays.
+        Assert.Empty(elsewhere.FindAll(".character-switch"));
+        Assert.Single(elsewhere.FindAll(".save-status"));
+        Assert.Equal("polite", elsewhere.Find(".save-status").GetAttribute("aria-live"));
+    }
+
+    /// <summary>
+    /// <b>Nothing the settings menu draws reaches paper.</b>
+    ///
+    /// <para>Both switches used to be named in <c>app.css</c>'s <c>@@media print</c> block by their
+    /// own classes. They have moved inside a disclosure, and a selector that has stopped matching
+    /// anything is a print rule that quietly does nothing — the failure shape
+    /// <c>ThePrintedSheetLeavesOutTheToolAroundIt</c> already guards the other direction of.</para>
+    ///
+    /// <para><b>It crosses the two halves, which is the only way to see it.</b> The classes come
+    /// from a rendered, opened menu — whatever the component actually writes today — and each is
+    /// looked for in the stylesheet's print block. A list of names in this file would go stale the
+    /// first time somebody renamed one, which is precisely the event it exists to catch.</para>
+    /// </summary>
+    [Fact]
+    public void TheSettingsMenusControlsDoNotPrint()
+    {
+        using var ctx = new RenderContext();
+
+        var layout = WithSettingsOpen(ctx);
+
+        var drawn = layout.FindAll(".settings-menu-list [role=\"group\"]")
+            .SelectMany(g => (g.GetAttribute("class") ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        // The positive control. An opened menu that drew no groups would satisfy every claim
+        // below by iterating nothing at all — three of this repository's four historical guard
+        // faults are that exact shape.
+        Assert.Equal(2, drawn.Count);
+
+        var print = PrintBlockOfAppCss();
+
+        foreach (var name in drawn)
+            Assert.Contains($".{name}", print, StringComparison.Ordinal);
+
+        // And the disclosure itself, which is what actually holds them on the page.
+        Assert.Contains(".settings-menu", print, StringComparison.Ordinal);
+        Assert.Contains("display: none", print, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The <c>@@media print</c> block of <c>app.css</c>, comments stripped.
+    ///
+    /// <para>Comments stripped because that block's own prose names three of the selectors it
+    /// hides while explaining why they are named separately — so a scan of the raw text finds
+    /// every one of them whether or not the rule still does.</para>
+    /// </summary>
+    private static string PrintBlockOfAppCss()
+    {
+        var css = File.ReadAllText(Path.Combine(RepoRoot(), "web", "wwwroot", "css", "app.css"));
+
+        css = new Regex(@"/\*.*?\*/", RegexOptions.Singleline, TimeSpan.FromSeconds(5))
+            .Replace(css, " ");
+
+        var at = css.IndexOf("@media print", StringComparison.Ordinal);
+        Assert.True(at >= 0, "app.css no longer has a print block at all.");
+
+        return css[at..];
+    }
+
+    private static string RepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (dir.GetFiles("*.sln").Length > 0) return dir.FullName;
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate the repository root.");
     }
 }

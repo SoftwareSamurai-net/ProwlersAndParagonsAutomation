@@ -3101,6 +3101,8 @@ public sealed class WebPresentationTests
     [InlineData(".budget")]
     [InlineData(".tabs")]
     [InlineData(".mode-switch")]
+    [InlineData(".theme-switch")]
+    [InlineData(".settings-menu")]
     [InlineData(".banner-link")]
     [InlineData(".replay")]
     [InlineData(".no-print")]

@@ -156,10 +156,43 @@ hr {
     margin: 0 auto;
     padding: var(--space-4) var(--space-6);
     display: flex;
-    align-items: center;
     gap: var(--space-5);
     flex-wrap: wrap;
+
+    /* **`baseline`, not `center`, and this is the whole of the owner's report.**
+
+       "Search is vertically elevated" was true and measured: the three plain links had their
+       text line centred at 29.13px and the SEARCH label at 27.88px, 1.25px above and the single
+       most elevated thing in the strip. `center` was doing exactly what it says — every item's
+       *box* was centred on 30.30px, correctly — and the strip still looked crooked, because each
+       item's *text* sits a different distance from its own box centre. An ordinary link is
+       skewed 1.17px up by the underline hanging below it; `.palette-open` is skewed 2.42px up
+       because its own `align-items: baseline` pins the label flush to the button's top edge
+       while the `.key` boxes' border and padding hang below the shared baseline.
+
+       So the fix is to align the thing that was misaligned. `baseline` puts every item's text on
+       one line whatever box it is drawn in, which measures 0.00px of spread — see
+       `proof-align.html`, which asserts under 0.5px on every CI run against a twin that
+       reproduces `center` and must report FAIL.
+
+       **Three fixes were measured and two rejected.** `align-items: center` on `.palette-open`
+       moves the error to +1.00px, which is a wash. A tuned `line-height` on `.key` gets to
+       +0.01px and is a magic number depending on three tokens — it would rot the first time any
+       of them moved, silently, in the direction this comment exists to explain. */
+    align-items: baseline;
 }
+
+/* **The wordmark opts out of the row's baseline on purpose, and is the only thing that does.**
+
+   It is two lines — the name and the subtitle under it — so it has no single text line to share
+   with a strip of one-line controls. On the shared baseline its *first* line would sit level with
+   Build and Search and the subtitle would hang below the band's optical centre, which reads as a
+   heading that has slipped. Centred, the pair sits about the middle of a row everything else is
+   lined up across.
+
+   This is also why `proof-align.html` measures every banner item *except* this one and says so:
+   including a two-line block in a spread of text-line centres compares two different things and
+   would make the measurement unreadable rather than strict. */
 .banner-title {
     font-family: var(--font-display);
     font-weight: 700;
@@ -167,7 +200,44 @@ hr {
     letter-spacing: var(--banner-track);
     font-size: var(--text-xl);
     line-height: var(--display-leading);
-    margin-right: auto;
+    align-self: center;
+}
+
+/* **Three groups on one row: what the site is, whose character is open, and the tools.**
+
+   The bar used to be seven controls in a flat list with one `margin-right: auto` after the
+   wordmark, so the only thing it said about them was that six of them were "not the title". They
+   are three different kinds of thing and the strip now says so: the avenues belong to the site,
+   the switcher and the save region belong to the character, and Search, the account and Settings
+   are tools that act on whatever is on screen.
+
+   `margin-left: auto` on the tools rather than `margin-right: auto` on the title, so the middle
+   group floats with the left side instead of being pushed against the right. The character is
+   the builder's and is absent on four routes out of five; with the push on the title, the empty
+   middle would have left a gap the width of the window between the avenues and the tools. */
+.banner-character {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-4);
+}
+
+/* **One idiom, and a hairline saying where it starts.**
+
+   The two sides are separated by a rule rather than by a gap alone, because a gap says "further
+   apart" and this is a different kind of thing rather than a more distant one. It is as tall as
+   the tools' own text — an item on a baseline-aligned row is its content's height — which is what
+   makes it read as a separator between two runs of type rather than as a border on a box.
+
+   `color-mix` against `--on-primary` rather than `--rule`: this sits on `--primary`, where the
+   hairline token used between sections of a panel is invisible. Same reasoning as `.key`'s
+   `currentColor` border two hundred lines down. */
+.banner-tools {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-5);
+    margin-left: auto;
+    padding-left: var(--space-6);
+    border-left: var(--rule-weight) solid color-mix(in srgb, var(--on-primary) 35%, transparent);
 }
 .banner-title small {
     display: block;
@@ -286,18 +356,36 @@ hr {
 }
 .character-switch-list li button:hover { background: var(--panel-sunk); }
 
+/* **Both switches are inside the settings menu now, so they are drawn on `--panel` rather than
+   on `--primary`** — which is a real change and not a re-skin. On the band they were bordered
+   and lettered in `--on-primary`, the only ink that reads on the banner's fill; in the menu that
+   ink is invisible and the pair that reads is `--ink` on `--panel`. Both are in
+   `EveryScreenPairInUseHoldsItsContrastFloor`, as is the pressed state's `--on-primary` on
+   `--primary`, so this introduces no unmeasured pair in any of the four palettes.
+
+   **The padding step is gone rather than tuned, and that was the point of moving them.** On the
+   band the light/dark control took `--space-3` where the identity one took `--space-4`, so that
+   three buttons and two would fit in a strip that also held a wordmark, two links, a button and
+   a pill — one of the five idioms whose mismatch the owner read as a crooked bar. Off the band
+   there is nothing to fit around and they are the same control twice.
+
+   **The shape is still shared by selector list rather than by a shared class**, and that is not
+   a style preference. `.mode-switch` names the Hero/Villain control; putting it on this one too
+   made `.mode-switch button` match five buttons, so the identity switch reported three pressed
+   states at once. Its own test caught it within a minute. A class that names a shape and a class
+   that names a control are different things, and this file has one of each here. */
 .mode-switch,
 .theme-switch {
     display: flex;
     gap: 0;
-    border: 1px solid var(--on-primary);
+    border: var(--rule-weight) solid var(--rule);
     border-radius: var(--radius-pill);
     overflow: hidden;
 }
 .mode-switch button,
 .theme-switch button {
     background: transparent;
-    color: var(--on-primary);
+    color: var(--ink);
     border: none;
     padding: var(--space-1) var(--space-4);
     font: inherit;
@@ -308,30 +396,64 @@ hr {
     text-transform: uppercase;
     transition: background-color var(--swap) var(--ease), color var(--swap) var(--ease);
 }
+/* `--panel-sunk` and not a tint of the accent: `--heading` on `--accent-soft` measures 4.08:1
+   and `--danger` on `--danger-soft` 3.94:1, both under what text needs, and WCAG 1.4.3 applies
+   to a hover state. This file already records that fault being found twice, live, on exactly
+   this kind of rule. */
 .mode-switch button:hover:not([aria-pressed="true"]),
 .theme-switch button:hover:not([aria-pressed="true"]) {
-    background: color-mix(in srgb, var(--on-primary) 22%, transparent);
+    background: var(--panel-sunk);
 }
 .mode-switch button[aria-pressed="true"],
 .theme-switch button[aria-pressed="true"] {
-    background: var(--on-primary);
-    color: var(--primary);
+    background: var(--primary);
+    color: var(--on-primary);
     font-weight: 700;
 }
 
-/* The light/dark control is the same pill as the identity one — every rule above names both —
-   with one difference: three buttons rather than two, on a banner that now holds two links and
-   five buttons. The padding comes in a step so the pair fits without the banner wrapping at
-   widths it did not wrap at before.
+/* ── The settings menu ───────────────────────────────────────────────────── */
 
-   **The shape is shared by selector list rather than by a shared class**, and that is not a
-   style preference. `.mode-switch` names the Hero/Villain control; putting it on this one too
-   made `.mode-switch button` match five buttons, so the identity switch reported three pressed
-   states at once. Its own test caught it within a minute. A class that names a shape and a
-   class that names a control are different things, and this file has one of each here. */
-.theme-switch button {
-    padding: var(--space-1) var(--space-3);
+/* The two palette switches, off the bar and behind one control.
+
+   **Same disclosure as the character switcher, and reusing it is the whole reason this was
+   cheap.** That control already solved the one thing about hanging a menu off this band that no
+   rendering test can see: `view-transition-name` on `.banner` creates a stacking context, so a
+   `z-index` here is resolved *inside* the banner, and the banner is a static earlier sibling of
+   `.steps`. The menu painted behind the step band — visible, unusable, and reading as a control
+   that does nothing. `.banner`'s own `z-index: 30` is what fixes it, for both menus at once.
+
+   Right-anchored, unlike the character switcher's list, and for the mirror of that control's
+   reason: this sits at the right end of the bar, so a menu growing rightwards would leave the
+   window. The switcher grows rightwards because it sits near the left edge at every width. */
+.settings-menu { position: relative; }
+
+.settings-menu-list {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 40;
+    margin-top: var(--space-2);
+    min-width: 14rem;
+    padding: var(--space-4);
+    background: var(--panel);
+    color: var(--ink);
+    border: var(--rule-weight) solid var(--rule);
+    border-radius: var(--radius-small);
+    box-shadow: var(--shadow-2);
 }
+
+/* Which palette each pill sets. Two unlabelled pills in a menu is two rows of five words with
+   nothing saying that the first is about the character and the second about the screen — the
+   distinction the app spent a whole slice separating onto two axes. */
+.settings-menu-head {
+    margin: 0 0 var(--space-2);
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    letter-spacing: var(--label-track);
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.settings-menu-list .mode-switch { margin-bottom: var(--space-4); }
 
 /* ── Step navigation ─────────────────────────────────────────────────────── */
 
@@ -1328,18 +1450,30 @@ label {
 }
 .banner-link:hover { opacity: 0.75; }
 
-/* The way into the command palette, and the only place the chord is written down.
+/* ── The banner's tools ──────────────────────────────────────────────────── */
 
-   **Shaped after `.banner-link` and deliberately not one.** It opens an overlay rather than
-   going anywhere, so it carries no underline: the rule on `.banner-link` is what says "this is a
-   destination", and wearing it here would make the one control in the strip that stays on the
-   page look like the fourth that leaves it.
+/* **Search, the account and Settings are one idiom, and that is the substance of this change.**
 
-   `align-items: baseline` so the key boxes sit on the label's line rather than centring on a box
-   taller than the text. */
-/* The keys sit tighter to each other than to the word, because Ctrl and K are one chord and
-   the label is a separate thing beside it. Equal gaps read as three items in a row. */
-.palette-open {
+   The strip used to hold five ways of drawing a control — a wordmark, two underlined links, a
+   bare button carrying two key boxes, and two bordered pills with different horizontal padding —
+   inside about eleven centimetres. The owner read the result as "search is vertically elevated",
+   which was the measurable symptom; the cause was that nothing in the row was the same kind of
+   thing, and aligning five idioms leaves five idioms.
+
+   So the two pills went into the settings menu and the three that are left share this rule: same
+   face, same size, same tracking, same optical line, no underline on any of them. **None is a
+   destination** — Search opens an overlay, Settings drops a menu, and the account is an identity
+   rather than a place. The underline lives on `.banner-link`, which is what marks the two
+   avenues as somewhere to go, and the account wore it while being none of those things: the app
+   saying a reader's own name in navigation's voice.
+
+   `align-items: baseline` so a tool carrying a taller child — the palette button's key boxes —
+   still sets its own text on the row's line rather than centring on a box taller than the type.
+
+   **A button, a link and a disclosure, styled as one thing.** `font: inherit` first because two
+   of the three are `<button>` and inherit nothing from the page otherwise; the display face is
+   then named once, here, rather than three times. */
+.banner-tool {
     display: flex;
     align-items: baseline;
     gap: var(--space-0);
@@ -1348,29 +1482,61 @@ label {
     padding: 0;
     color: var(--on-primary);
     font: inherit;
-    cursor: pointer;
-    transition: opacity var(--swap) var(--ease);
-}
-.palette-open:hover { opacity: 0.75; }
-
-/* The label alone takes the display face, and the keys stay in the body face beside it. A key
-   is a name printed on a physical keyboard — setting it in capitals would say CTRL, which is not
-   what is written on the key. */
-.palette-open-label {
-    margin-right: var(--space-1);
     font-family: var(--font-display);
     font-size: var(--text-sm);
     letter-spacing: var(--label-track);
     text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+    transition: opacity var(--swap) var(--ease);
 }
+.banner-tool:hover { opacity: 0.75; }
+
+/* The caret, and the only thing that tells the three tools apart. It says this one opens a menu
+   rather than going somewhere or covering the page.
+
+   **Drawn, not written.** A triangle character is in neither typeface this app names, so it
+   would fall back to a system face on some platforms and not others — silently, which is the
+   exact failure the "no component names a typeface" rule exists to prevent and the reason the
+   palette prints `Cmd` rather than the looped-square glyph. Borders name no family. */
+.caret {
+    width: 0;
+    height: 0;
+    margin-left: var(--space-1);
+    border-left: var(--space-1) solid transparent;
+    border-right: var(--space-1) solid transparent;
+    border-top: var(--space-1) solid currentColor;
+
+    /* It is a box with no text of its own, so it has no baseline to sit on and would drop to the
+       bottom of the line box. Nudged onto the row's optical line the same way the key boxes are:
+       by being told where its own baseline is. */
+    align-self: center;
+}
+
+/* The word alone takes the tracking; the keys stay in the body face beside it. A key is a name
+   printed on a physical keyboard — setting it in capitals would say CTRL, which is not what is
+   written on the key.
+
+   The keys sit tighter to each other than to the word, because Ctrl and K are one chord and the
+   label is a separate thing beside it. Equal gaps read as three items in a row. */
+.palette-open-label { margin-right: var(--space-1); }
+
 .palette-open .key {
     border-color: currentColor;
     font-size: var(--text-xs);
+    text-transform: none;
+    letter-spacing: normal;
+    font-family: var(--font-body);
 }
 
-/* Confirms a write-through completed, next to the account it belongs to. Body face and lower
-   case, unlike .banner-link beside it: this is not a destination, and setting it the same way
-   as one would make it read like a fourth link nobody can click.
+/* Confirms a write-through completed, next to the character it belongs to. Body face and lower
+   case, unlike the avenues: this is not a destination, and setting it the same way as one would
+   make it read like a link nobody can click.
+
+   **It used to sit beside the account and that said the wrong thing about what it reports.** A
+   write of the *document* is not a fact about the identity that owns it, and read left to right
+   it landed as a comment on whoever was signed in. It is against the switcher now, which is the
+   control that names the character the message is about.
 
    `:empty` is the whole of the fade — the element renders no text between saves, so there is
    nothing to fade *to* until the next one lands, and the opacity rule below only ever applies
@@ -2497,6 +2663,13 @@ label {
        the banner" would have made `.mode-switch button` five buttons wide — which it briefly
        was, and which the banner's own test caught. */
     .theme-switch,
+    /* **The menu the two above now live in, named here as well as they are.** `.banner` above
+       already covers all three, because the menu hangs off the band rather than out of the
+       document — but a selector that is only correct because of another selector is one
+       rearrangement away from being wrong, and hiding a control on paper is the kind of thing
+       nobody re-checks. The two names stay whatever happens to this one, for the same reason:
+       they are the controls, and this is where they are kept. */
+    .settings-menu,
     /* Open only while somebody is using it, so it should never meet a printer — but a
        print triggered from the keyboard with it open would otherwise put a veil and a
        list of shortcuts over the sheet, which is the deliverable. */

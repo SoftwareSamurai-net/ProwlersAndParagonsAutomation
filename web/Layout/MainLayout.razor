@@ -24,6 +24,29 @@
    because it makes the banner structurally the same as the others, so one guard covers all four
    — see the comment on `.banner-inner` in app.css. *@
 <header class="banner">
+  @* **Two sides and one row, and the rearrangement is what made the row line up.**
+
+     The owner's report was "can we get a more uniform looking header bar? Search is vertically
+     elevated" — measured, and true: the three plain links sat with their text line centred at
+     29.13px and the SEARCH label at 27.88px, 1.25px above, the most elevated thing in the strip.
+     But the mechanism was not a stray margin. `.banner-inner` centred each item's *box*
+     correctly; what differed was how far each item's *text* sat from its own box centre, and
+     that differed because the strip held five different kinds of control. An ordinary link is
+     pulled 1.17px up by the underline hanging below it; the palette button 2.42px up because
+     its `align-items: baseline` pins the label to the top edge while the key boxes' border and
+     padding hang below the shared baseline.
+
+     **So there are two fixes here and only one of them is arithmetic.** `align-items: baseline`
+     on `.banner-inner` puts every item's text on one shared baseline, which lands the spread at
+     0.00 and is measured by `proof-align.html` on every CI run. The other is this structure: the
+     bar is a left side (what this site *is*, and where you can go), the character's own things
+     in the middle, and a right side of tools — and the tools are now one idiom instead of three,
+     because the two palette pills went into the settings menu.
+
+     **A third avenue costs nothing.** `.avenue-nav` is a flex list of links and `Areas.Of`
+     already reads the first path segment, so the door PROGRESS.md item 12 reserves for running a
+     game is one `NavLink`. It is not here, because there is nothing behind it yet and a door
+     onto an empty room is worse than a wall. *@
   <div class="banner-inner">
     <div class="banner-title">
         <NavLink class="banner-home" href="" Match="NavLinkMatch.All">Prowlers &amp; Paragons</NavLink>
@@ -45,139 +68,135 @@
         <NavLink class="banner-link" href="rules">Rules</NavLink>
     </nav>
 
-    @* **The only thing on any screen that says the command palette exists.**
+    @* **The character's own two things, attached to each other and to neither side.**
 
-       The chord has been bound since the palette shipped and nothing anywhere named it, which
-       makes a keyboard shortcut an affordance for whoever wrote it. The key is printed beside
-       the control it opens, where somebody who will never press it still learns what the control
-       is called — and the control is here rather than on the builder alone because the chord
-       works on every route, and a button that appeared on some of them would understate a key
-       that does not.
+       "Saved" used to sit beside the account link, which said the wrong thing about what it
+       reports: a write of the *document* is not a fact about the identity that owns it, and
+       reading left to right it landed as a comment on whoever was signed in. It belongs against
+       the control that names the character it is about.
 
-       **The modifier is the reader's, not this machine's.** `palette.js` listens for `ctrlKey`
-       *or* `metaKey` because the chord is Ctrl on Windows and Linux and Command on a Mac, so the
-       word is asked of the browser once and printed; see Shortcuts.Modifier. Until it answers —
-       and it never answers if the script is missing, which is the deployment where the key does
-       nothing — the button says what it does and claims no shortcut at all.
-
-       A button and not a text box. The owner's design puts a rules search here eventually, and a
-       box that looked like one while searching Powers and step names would be the wrong promise
-       twice over: the rulebook is a different corpus and it is behind an account.
-
-       "Search" and not "Go to", which is what the palette calls itself inside. The word here has
-       to survive being read at a glance in a strip of five other controls, and it is the word a
-       reader scans for; "Go to" between two underlined links read as a third link with no
-       destination. What the palette offers — the six steps and every Power — is unchanged, and
-       its own box still says so in full. *@
-    <button type="button" class="palette-open" @onclick="Commands.Open">
-        <span class="palette-open-label">Search</span>
-        @if (Keys.Modifier is { } modifier)
+       **The switcher is the builder's and the region is not**, which is why only the first of
+       these is gated. The step list and the budget strip are drawn in the builder alone, for the
+       reason the switcher's own comment gives — naming somebody's character over a rules search
+       is the fault the budget strip was pulled off three areas to fix. The live region below is
+       the opposite case: it carries the undo offer for four acts that replace the character
+       *wherever the reader is standing* — the tier page, the portfolio, a recording that then
+       navigates away from itself — so it has to live somewhere every one of those routes draws,
+       and only this band does. Gating it with the switcher would take the offer off the two
+       routes that need it most. *@
+    <div class="banner-character">
+        @if (Where == Area.Play)
         {
-            <span class="key">@modifier</span><span class="key">K</span>
+            <CharacterSwitcher />
         }
-    </button>
 
-    @* The account, in the one place it is visible from every page.
+        @* The write-through to storage is silent otherwise — nobody watching the screen can tell
+           an edit was ever kept. Says so once the store reports it happened and nothing before
+           that: there is deliberately no "saving…" state, because nothing out here knows how long
+           a write takes, only that a completed write means one just finished.
 
-       It names whoever is signed in rather than only offering a door, because the character on
-       screen belongs to somebody and a shared machine is where that matters. Anonymous is the
-       app's ordinary state, not a state to be nagged about, so the offer is a link and there is
-       no banner, no badge and no interruption. *@
-    <NavLink class="banner-link" href="signin">
-        @(_who?.IsSignedIn == true ? _who.DisplayName : "Sign in")
-    </NavLink>
+           No timer clears it — a still-unsaved edit clears it by itself, because JustSaved compares
+           the version a completed save answered against the character's current one rather than
+           latching a flag from whichever event happened to run last. See CharacterSession.Saved for
+           why that comparison, and not a bare true/false, is what a save actually has to report.
 
-    @* The write-through to storage is silent otherwise — nobody watching the screen can tell
-       an edit was ever kept. Says so once the store reports it happened and nothing before
-       that: there is deliberately no "saving…" state, because nothing out here knows how long
-       a write takes, only that a completed write means one just finished.
+           aria-live rather than a toast: the point is that it can be missed without being alarming,
+           and a screen-reader user is owed the same "it happened" that the sighted page shows.
 
-       No timer clears it — a still-unsaved edit clears it by itself, because JustSaved compares
-       the version a completed save answered against the character's current one rather than
-       latching a flag from whichever event happened to run last. See CharacterSession.Saved for
-       why that comparison, and not a bare true/false, is what a save actually has to report.
-
-       aria-live rather than a toast: the point is that it can be missed without being alarming,
-       and a screen-reader user is owed the same "it happened" that the sighted page shows.
-
-       **The one place undo is offered, and it shares this region rather than opening a second
-       one.** Discarding, loading a sample, importing a file and opening a recorded character all
-       replace the character wherever the reader happens to be standing — the tier page, the
-       portfolio, a recording that then navigates away from itself — so the offer has to live
-       somewhere every one of those routes draws, which only the banner does. It wins the race
-       against "Saved" on purpose: the very change that makes undo available also completes a
-       write-through over what it replaced, so without the ordering below "Saved" would report
-       the autosave and hide the one thing worth announcing. *@
-    @* **Two buffers, one offer, and the order matters.** The session's holds the character that
-       was on screen; `DiscardedCharacter` holds a saved row deleted from the list, which the
-       session has never seen and could not bring back. They can never be armed by the same click —
-       discarding a background row raises no change event, so it does not touch the session's
-       Version — but the session's is checked first because it is the one whose window closes on
-       the very next edit and so the one more likely to be about what just happened. *@
-    <span class="save-status" aria-live="polite">
-        @if (Session.CanUndo)
-        {
-            @UndoOffer
-            <button type="button" class="btn small" @onclick="Undo">Undo</button>
-        }
-        else if (Discarded.CanUndo)
-        {
-            @DiscardedOffer
-            <button type="button" class="btn small" @onclick="UndoDiscard">Undo</button>
-        }
-        else if (Restored is { } restored)
-        {
-            @restored
-        }
-        else if (JustSaved)
-        {
-            <text>Saved</text>
-        }
-    </span>
-
-    @* aria-pressed is written out as a string on purpose. Blazor drops a bool attribute
-       when it is false and renders it as `aria-pressed=""` when it is true, and an empty
-       value is invalid ARIA that assistive technology reads as *not* pressed — so the
-       natural spelling announces the exact opposite of the state on both buttons. *@
-    @* Which character is open, and the way to another one, on every step of the builder.
-
-       **The builder alone**, exactly as the step list and the budget strip below are: naming the
-       visitor's character over a rules search or a recording of somebody else's is the fault
-       those two were pulled off three areas to fix. *@
-    @if (Where == Area.Play)
-    {
-        <CharacterSwitcher />
-    }
-
-    <div class="mode-switch" role="group" aria-label="Hero or Villain">
-        <button type="button"
-                aria-pressed="@Pressed(SheetMode.Hero)"
-                @onclick="() => SetMode(SheetMode.Hero)">Hero</button>
-        <button type="button"
-                aria-pressed="@Pressed(SheetMode.Villain)"
-                @onclick="() => SetMode(SheetMode.Villain)">Villain</button>
+           **The one place undo is offered, and it shares this region rather than opening a second
+           one.** Discarding, loading a sample, importing a file and opening a recorded character all
+           replace the character wherever the reader happens to be standing, so the offer has to live
+           somewhere every one of those routes draws, which only the banner does. It wins the race
+           against "Saved" on purpose: the very change that makes undo available also completes a
+           write-through over what it replaced, so without the ordering below "Saved" would report
+           the autosave and hide the one thing worth announcing. *@
+        @* **Two buffers, one offer, and the order matters.** The session's holds the character that
+           was on screen; `DiscardedCharacter` holds a saved row deleted from the list, which the
+           session has never seen and could not bring back. They can never be armed by the same click —
+           discarding a background row raises no change event, so it does not touch the session's
+           Version — but the session's is checked first because it is the one whose window closes on
+           the very next edit and so the one more likely to be about what just happened. *@
+        <span class="save-status" aria-live="polite">
+            @if (Session.CanUndo)
+            {
+                @UndoOffer
+                <button type="button" class="btn small" @onclick="Undo">Undo</button>
+            }
+            else if (Discarded.CanUndo)
+            {
+                @DiscardedOffer
+                <button type="button" class="btn small" @onclick="UndoDiscard">Undo</button>
+            }
+            else if (Restored is { } restored)
+            {
+                @restored
+            }
+            else if (JustSaved)
+            {
+                <text>Saved</text>
+            }
+        </span>
     </div>
 
-    @* Light or dark, beside the identity switch because both are the palette and a reader
-       looking for one will look here for the other.
+    @* **The tools, and they are one idiom rather than three.**
 
-       **Three buttons rather than a two-state toggle**, because there are three states and the
-       third is not "off": following the system is a live setting that changes with the machine,
-       and a toggle can only ever land somebody on whichever value their system held at the
-       moment they touched it. "Auto" is the word for it on the screen; `system` is the word
-       everywhere else, and they are the same state.
+       Search, the account and the settings menu are the same face, size and optical line, none of
+       them underlined, with a caret on the only one that opens a menu. That is the substance of
+       this change rather than its tidying: the underline on `.banner-link` is what says "this is
+       a destination", and the account wore it while being an identity — navigation's clothes on
+       something that is not a place. Search never wore it, correctly, and so read as a different
+       kind of thing again.
 
-       aria-pressed is a string here for the reason the switch above gives. *@
-    <div class="theme-switch" role="group" aria-label="Light or dark">
-        <button type="button"
-                aria-pressed="@Chose(ThemeChoice.Light)"
-                @onclick="() => SetTheme(ThemeChoice.Light)">Light</button>
-        <button type="button"
-                aria-pressed="@Chose(ThemeChoice.Dark)"
-                @onclick="() => SetTheme(ThemeChoice.Dark)">Dark</button>
-        <button type="button"
-                aria-pressed="@Chose(ThemeChoice.System)"
-                @onclick="() => SetTheme(ThemeChoice.System)">Auto</button>
+       **The hairline and the wider gap are in the stylesheet, not here**, because they are one
+       edge between two groups rather than a marking on any control. *@
+    <div class="banner-tools">
+        @* **The only thing on any screen that says the command palette exists.**
+
+           The chord has been bound since the palette shipped and nothing anywhere named it, which
+           makes a keyboard shortcut an affordance for whoever wrote it. The key is printed beside
+           the control it opens, where somebody who will never press it still learns what the control
+           is called — and the control is here rather than on the builder alone because the chord
+           works on every route, and a button that appeared on some of them would understate a key
+           that does not.
+
+           **The modifier is the reader's, not this machine's.** `palette.js` listens for `ctrlKey`
+           *or* `metaKey` because the chord is Ctrl on Windows and Linux and Command on a Mac, so the
+           word is asked of the browser once and printed; see Shortcuts.Modifier. Until it answers —
+           and it never answers if the script is missing, which is the deployment where the key does
+           nothing — the button says what it does and claims no shortcut at all.
+
+           A button and not a text box. The owner's design puts a rules search here eventually, and a
+           box that looked like one while searching Powers and step names would be the wrong promise
+           twice over: the rulebook is a different corpus and it is behind an account.
+
+           "Search" and not "Go to", which is what the palette calls itself inside. The word here has
+           to survive being read at a glance beside two other tools, and it is the word a reader
+           scans for. What the palette offers — the six steps and every Power — is unchanged, and
+           its own box still says so in full. *@
+        <button type="button" class="banner-tool palette-open" @onclick="Commands.Open">
+            <span class="palette-open-label">Search</span>
+            @if (Keys.Modifier is { } modifier)
+            {
+                <span class="key">@modifier</span><span class="key">K</span>
+            }
+        </button>
+
+        @* The account, in the one place it is visible from every page.
+
+           It names whoever is signed in rather than only offering a door, because the character on
+           screen belongs to somebody and a shared machine is where that matters. Anonymous is the
+           app's ordinary state, not a state to be nagged about, so the offer is a quiet control and
+           there is no banner, no badge and no interruption.
+
+           **It is not a `.banner-link` any more, and that is the point of this cluster.** That class
+           carries the underline that marks the two avenues as destinations; an identity is not one,
+           and wearing the marking made the app say a reader's own name in navigation's voice. It is
+           still a real link and still goes to the sign-in page. *@
+        <NavLink class="banner-tool banner-account" href="signin">
+            @(_who?.IsSignedIn == true ? _who.DisplayName : "Sign in")
+        </NavLink>
+
+        <SettingsMenu />
     </div>
   </div>
 </header>
@@ -246,22 +265,6 @@
 <CommandPalette />
 
 @code {
-    private string Pressed(SheetMode mode) => Session.Mode == mode ? "true" : "false";
-
-    /// <summary>Whether the light/dark control shows this choice as the current one.</summary>
-    private string Chose(ThemeChoice choice) => Theme.Choice == choice ? "true" : "false";
-
-    /// <summary>
-    /// The light/dark switch.
-    ///
-    /// <para>Unlike <see cref="SetMode"/> this does push to the document itself, and the
-    /// difference is real rather than an inconsistency: the palette follows the <em>character</em>
-    /// and so has to be applied on any render that changes which character is being built, while
-    /// the theme follows the <em>reader</em> and changes on nothing but this click. There is one
-    /// route into each and neither has two.</para>
-    /// </summary>
-    private Task SetTheme(ThemeChoice choice) => Theme.Choose(choice).AsTask();
-
     /// <summary>
     /// Which of the two things this site is the reader is currently in.
     ///
@@ -299,30 +302,35 @@
     private Identity? _who;
 
     /// <summary>
-    /// The name in the banner follows a sign-in without a reload.
-    ///
-    /// <para>Asked once here and then re-asked when <see cref="Accounts"/> says it has changed —
-    /// which is the whole reason identity is a service that can change its mind rather than a
-    /// value fetched at startup.</para>
-    /// </summary>
-    /// <summary>
-    /// Who the banner names, which light/dark choice its control shows as current, and which
-    /// modifier key the palette's button prints.
-    ///
-    /// <para>The theme itself is already on the document by now — <c>js/theme.js</c> stamped it
-    /// before the first paint, seconds before this ran. What is read here is only what the
-    /// <em>control</em> should show, which is why nothing flickers when it arrives.</para>
+    /// Who the banner names, and which modifier key the palette's button prints.
     ///
     /// <para>The key is asked once, here, rather than per render: the answer is a fact about the
     /// machine and cannot change while the tab is open.</para>
+    ///
+    /// <para><b>The light/dark choice is no longer read here</b>, and that is not a tidy-up. The
+    /// control that shows it moved into <see cref="Components.SettingsMenu"/>, which is not in
+    /// the document until somebody opens the menu — so the component that owns the buttons asks
+    /// the question, and this one keeps only what it draws itself. Two readers of one value is
+    /// one more than can be kept in step.</para>
     /// </summary>
     protected override async Task OnInitializedAsync()
     {
         _who = await Accounts.CurrentAsync();
-        await Theme.ReadChoice();
         await Keys.ReadModifier();
     }
 
+    /// <summary>
+    /// The name in the banner follows a sign-in without a reload.
+    ///
+    /// <para>Re-asked when <see cref="Accounts"/> says identity has changed — which is the whole
+    /// reason identity is a service that can change its mind rather than a value fetched at
+    /// startup.</para>
+    ///
+    /// <para><b>This doc comment was stranded on the wrong member and had been for some time</b>,
+    /// leaving <c>OnInitializedAsync</c> carrying two <c>&lt;summary&gt;</c> blocks. Nothing
+    /// reports that — <c>docs/guide/testing.md</c> records it as measured, on a Qodana run that
+    /// found six other things — so it is found by reading and by nothing else.</para>
+    /// </summary>
     private void WhoChanged() => _ = InvokeAsync(async () =>
     {
         _who = await Accounts.CurrentAsync();
@@ -481,21 +489,6 @@
         _midTransition = false;
         await Motion.End();
     }
-
-    /// <summary>
-    /// The Hero/Villain switch. It records the choice on the character and stops there.
-    ///
-    /// <para>The palette is a <c>data-mode</c> attribute on the document element, set through
-    /// interop rather than by re-rendering: it has to reach index.html's own markup, which is
-    /// outside the component tree. <see cref="ApplyPalette"/> is where that happens.</para>
-    ///
-    /// <para><b>It deliberately does not push the palette itself.</b> Setting the mode raises the
-    /// session's change event, which redraws this component, which applies the palette on the way
-    /// out — the same path a restored character, a loaded sample and a character taken from a
-    /// recording all take. Pushing here as well would be a second route to the same thing, and a
-    /// second route is where the two get to disagree.</para>
-    /// </summary>
-    private void SetMode(SheetMode mode) => Session.Mode = mode;
 
     /// <summary>
     /// Push the character's own palette onto the document element.
