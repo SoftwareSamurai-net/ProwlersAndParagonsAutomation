@@ -124,7 +124,7 @@ public sealed partial class ExplainedSheetTests
                 .FindAll(".power-entry .pname")
                 .Single(e => Visible(e).StartsWith(ranked.Name, StringComparison.Ordinal)));
 
-            Assert.Matches($@"^{System.Text.RegularExpressions.Regex.Escape(ranked.Name)} \d+d$", name);
+            Assert.Matches($@"^{Regex.Escape(ranked.Name)} \d+d$", name);
         }
     }
 
@@ -313,7 +313,7 @@ public sealed partial class ExplainedSheetTests
     /// <c>display: block</c> left the whole suite passing and put every description on the printed
     /// page, which is the exact regression this exists to prevent. <b>Breaking a guard and watching
     /// it fail is not enough if you break something the guard was never about</b> — that is the
-    /// null mutation this repository already records, wearing a disguise.
+    /// null mutation this repository already records, wearing a disguise.</para>
     ///
     /// <para>What actually holds is one rule: <c>.row-tip</c> is <c>display: none</c> and is opened
     /// only by <c>:hover</c> and <c>:focus-visible</c>, neither of which a sheet of paper can be in.
