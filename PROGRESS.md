@@ -33,7 +33,10 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 ## Remaining work
 
-Roughly in the order that unblocks the most. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends, and a visitor with no account can watch a real conversation build one. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, and a payload size. (Item 4, the Power search's vocabulary, is closed — see below.)
+Roughly in the order that unblocks the most. **[Item 11](#11-answered-it-is-a-tool-for-running-and-playing-pp)
+is answered and is the entry to read first** — the owner has said this is a tool for running *and*
+playing P&P, which unblocks all eight of the things that entry lists and widens what item 3 counts
+as in scope. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends, and a visitor with no account can watch a real conversation build one. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, and a payload size. (Item 4, the Power search's vocabulary, is closed — see below.)
 
 [`docs/HANDOVER.md`](docs/HANDOVER.md) picks three of these and says what a slice on each would actually involve, including which approaches are already spent. Read it before choosing; read the entry here before starting.
 
@@ -318,7 +321,16 @@ It was enforced nowhere, and it costs Hero Points: without a package a character
 
 Now `TRAIT_BELOW_MINIMUM`, with `TRAIT_BELOW_PACKAGE` beside it for the other floor — a package's granted ranks cannot be lowered, which is the rule that proved Airmid's attribution impossible and was a test over the published Heroes before it was a check here. Both samples had to gain their missing Talents; both were illegal characters shipped as examples.
 
-### 3. Remaining rulebook chapters — mostly not this tool's business
+### 3. Remaining rulebook chapters — mostly not this tool's business **while it was only a character generator**
+
+> **Read [item 11](#11-answered-it-is-a-tool-for-running-and-playing-pp) first, which has moved
+> the ground under this entry.** Every "No — play" in the table below is an answer to the question
+> *does a character generator need this?*, and the owner has since said the tool is for running
+> **and** playing P&P. That does not make the table wrong — it is still a correct account of what
+> character *creation* needs, and it is still why nobody should extract Ch.3–5 to finish the
+> wizard. It does mean the column heading is now the narrower of the two questions this project
+> asks, and that chapters 3, 4 and 5 are candidates for extraction on their own merits the moment
+> anything under item 11 needs them. Item 11's combat simulator says so in as many words.
 
 **Which pages have actually been read is now tracked page by page in
 [`docs/RULEBOOK-COVERAGE.md`](docs/RULEBOOK-COVERAGE.md)**, with a resume marker, because this
@@ -569,23 +581,52 @@ development-only session seam — is still the owner's call and is still the mos
 could be added to this repository**, along with the zero-risk alternative written up beside it.
 Nothing here has been implemented.
 
-### 11. One product question, and eight things waiting on its answer
+### 11. Answered: it is a tool for running *and* playing P&P
 
-**The owner spent a session reading a competitor (PNP Ready) and brought back eight ideas. They are
-not eight decisions. They are one, and everything else falls out of it:**
+**The owner spent a session reading a competitor (PNP Ready) and brought back eight ideas.** This
+entry used to open by putting them behind one question — *is this a tool for a player building a
+character, or a table aid for a GM running a game?* — on the argument that answering "player"
+made most of what follows overhead a reader navigates past.
 
-> **Is this a tool for a player building a character, or a table aid for a GM running a game?**
+**The owner has answered, and the answer dissolves the question rather than picking a side:**
 
-Answer "player" and most of what follows is overhead a reader navigates past. Answer "GM" and it is
-the missing half of the application — and the build order is forced, because each one needs the one
-before it.
+> *"Its just simply both. Its a 'Running & Playing P&P Tool'."* — 2026-08-27
 
-**Nothing below is started.** It is written down because a queue held in a conversation is a queue
-that rots.
+**So all eight are in scope, and the build order below stands** — not because a decision selected
+them, but because their dependencies were always what ordered them. Nothing changes about *what*
+gets built; what changes is that nothing below is blocked any more, and that "is this for the GM?"
+stops being a question worth re-asking of each one.
 
-#### The evidence that the answer is already "GM", whether or not anybody decided it
+#### What that answer settles, and what it does not
 
-Three things in this repository point the same way and none of them was put there on purpose:
+- **It settles the front door.** Item 12's three doors — build a character, run a game, look
+  something up — were pitched before this was decided and read as a bet on the answer. They are
+  not: three doors is what a tool for both halves has. `docs/guide/browser.md` already records
+  that the banner was built anticipating a third room, because a flipping two-room label "fails
+  for three".
+- **It settles the three loose ends below from being *evidence* into being *work*.** The tier and
+  Trait Cap stored per character, `UnlimitedBudget` living on the sheet, and Adversity appearing
+  in no code at all were listed here as signs the answer was already "GM". They are now simply
+  three things that are wrong for a tool that runs a game, and the first item — a campaign — is
+  where the first two belong.
+- **It does not license the engine growing a second job.** The combat simulator is still a
+  **second engine beside `engine/`**, for the reason given under item 6 below: today's engine is
+  the authority on cost and validity and knows nothing about resolving an action. "Both" is a
+  statement about the product, not permission to put play rules into the thing that prices a
+  character.
+- **It does not reverse "an illegal character is reported, never repaired."** A GM-facing tool
+  makes that rule more load-bearing, not less: the settled list already says the engine is a judge
+  and does not make design decisions about somebody's character, and a table aid that quietly
+  fixed a Hero would be doing exactly that on behalf of somebody not in the room.
+- **It does not decide sharing.** Item 1 below is explicitly **single-user first, no sharing**,
+  because that needs nothing new from the server — a campaign is another opaque blob beside the
+  characters. Two people at one table is a separate decision and is not taken here.
+
+#### The three loose ends, which were the evidence and are now the first work
+
+Three things in this repository point the same way and none of them was put there on purpose.
+They were written down as evidence for an answer nobody had given; with the answer given, each is
+a defect that a campaign is the place to fix:
 
 - **The tier and the Trait Cap are campaign facts stored per character.** `Sheet.SelectedTierId` is
   on the sheet and `TraitCap` derives from it, so five characters in one game can silently disagree
@@ -629,21 +670,26 @@ Three things in this repository point the same way and none of them was put ther
 8. **The information architecture that holds them**, which is the one item that needs none of the
    others and could be done tomorrow — see the next entry.
 
-#### And the architecture is already expecting it
+#### And the architecture was already expecting it
 
 `docs/guide/browser.md` on the banner, written before any of this was discussed:
 
 > Both avenues are offered from everywhere, rather than one link naming whichever half you are not
 > in. That flipping label works for two rooms and **fails for three**.
 
-The banner was built anticipating a third room. That is a strong signal the shape is right.
+The banner was built anticipating a third room. **That was offered here as a signal the shape was
+right, and it now reads as the shape the answer asks for** — but it is worth being honest about
+what it is: a note somebody wrote about a two-link nav, not a decision about the product. The
+decision is the owner's sentence at the top of this entry.
 
 ---
 
-### 12. The interface the owner asked for, which needs none of item 11
+### 12. The interface the owner asked for, which needed none of item 11's answer
 
 **Four moves, none of which waits on a campaign existing.** Recorded together because they are one
-rearrangement of the same chrome.
+rearrangement of the same chrome — and with [item 11](#11-answered-it-is-a-tool-for-running-and-playing-pp)
+answered, the first of them is no longer a bet on which way it would go: **three doors is what a
+tool for running and playing has.**
 
 - **Three doors on the front door**, vertical: build a character, run a game, look something up.
   `Areas.Of` already reads the first path segment and `EveryAvenueIsOfferedFromEverywhere` already
