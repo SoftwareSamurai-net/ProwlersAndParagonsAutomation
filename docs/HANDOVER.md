@@ -237,6 +237,32 @@ asymmetry is not a flourish; it falls straight out of where the data lives.
 
 ## What this round learned, that the next one needs
 
+- **Measure where the cost is before optimising it, and then check the bill is where you think.**
+  CI was trimmed from a real measurement — 403 minutes across 98 runs, Qodana 214 of them and *all
+  10 GB* of the repository's Actions cache — and the trimming was worth doing. But **the account
+  that had actually run out was the personal one**, and by then the repository had moved: Actions
+  bill to whoever owned the repository at the time, and the organisation's own meter read 77
+  minutes, net $0. The work was right and it was not what unblocked anything. Say which of those
+  two a change is.
+
+- **`actions/cache/usage` lags and is not the endpoint to check.** After deleting every cache, the
+  authoritative list (`actions/caches`) reported `total_count: 0` while the usage aggregate went on
+  reporting 21 caches and 8.84 GB for hours. Believing the aggregate would have looked exactly like
+  a deletion that had silently failed.
+
+- **A path-filtered job reports no status at all**, so on a repository with required status checks
+  it leaves a pull request permanently unmergeable. That is the usual reason not to filter. It does
+  not apply here — branch protection is unavailable on this plan — **and that was checked by asking
+  rather than reasoned about**, because it stops being true the moment the plan changes.
+  `docs/guide/hosting.md` records it beside the filter for exactly that reason.
+
+- **"It is only docs" is false in this repository more often than it looks.** `CLAUDE.md` and
+  `docs/guide/*.md`, `docs/ACCOUNTS-SETUP.md`, `docs/MCP-SETUP.md`, `README.md` and
+  `mcp/QUESTION-POLICY.md` are all read by tests. Exactly two Markdown files are inert enough for
+  the build to skip — `PROGRESS.md` and `docs/HANDOVER.md` — and `WorkflowFilterTests` is what keeps
+  that list honest. It proves the direction that matters (nothing a test opens is skipped) and is
+  explicit that the other direction is an allowlist, because a file being unread cannot be proved.
+
 - **An exemption in a test is a claim with a shelf life, and four of them had expired.**
   `UppercasedTextTests` names selectors it cannot reach on any rendered page, and four read
   *"MainLayout, which needs a Body fragment and a router"* — which was never true: `BannerTests`

@@ -963,6 +963,109 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 
 ## Completed work
 
+### CI cost three times what it needed to, and the measurement is the interesting part
+
+**Asked for after the owner hit an Actions limit.** The answer began with numbers rather than
+guesses, and the numbers pointed somewhere unexpected.
+
+Over the last 100 runs — roughly one busy session — **403 minutes across 98 runs**:
+
+| Workflow | Runs | Minutes | Avg |
+|---|---|---|---|
+| **Qodana** | 39 | **214** | 5.5 |
+| **Build** | 40 | **150** | 3.7 |
+| Deploy | 11 | 25 | 2.3 |
+| Regenerate visual goldens | 8 | 14 | 1.8 |
+
+Re-measure rather than repeating those figures:
+
+```bash
+gh run list --limit 100 --json name,status,createdAt,updatedAt --jq '
+[.[] | select(.status=="completed") | {name, secs: ((.updatedAt|fromdateiso8601) - (.createdAt|fromdateiso8601))}]
+| group_by(.name) | map({workflow: .[0].name, runs: length, total_min: ((map(.secs)|add)/60|round)})
+| sort_by(-.total_min)[]'
+```
+
+**And the cache was worse than the minutes.** 10.08 GB across 24 entries, **every one of them
+Qodana** — roughly 420 MB per branch against a 10 GB per-repository ceiling, so the caches were
+evicting one another and every run started cold. They were deleted; the authoritative list
+(`actions/caches`) reports `total_count: 0`. The `actions/cache/usage` aggregate went on reporting
+the old figure for hours afterwards and **is not the endpoint to check** — it lags, and believing it
+would have looked like the deletion had failed.
+
+#### Three changes
+
+- **Superseded runs are cancelled** — `concurrency` keyed on workflow and ref, on Build and Qodana.
+  A force-push used to leave the previous run burning to completion on a commit nobody would merge.
+  **`deploy.yml` keeps the opposite setting deliberately**: cancelling a half-finished deploy is how
+  a site ends up serving a partial upload.
+- **Two documentation files are skipped by the build, and only two** — `PROGRESS.md` and
+  `docs/HANDOVER.md`. **"It is only docs" is false here far more often than it looks**: `CLAUDE.md`
+  and `docs/guide/*.md` are read by `RepositoryGuideTests`, `docs/ACCOUNTS-SETUP.md` by
+  `AccountsContractTests`, `docs/MCP-SETUP.md` and `README.md` by `McpSetupDocumentationTests`,
+  `mcp/QUESTION-POLICY.md` by `McpQuestionPolicyTests`. Editing the index past its line budget, or
+  adding a guide the routing table does not name, is a red build.
+- **Qodana came off every pull request** and runs on `master` and weekly. **What makes that safe is
+  that the pull request was never where the check first ran**: `CLAUDE.md`'s process already requires
+  `./scripts/qodana-scan.sh` locally, reading zero, before one is opened. What is kept is the part a
+  local run cannot give — a scan of `master` **as merged**, which is a different claim from a scan of
+  the branches that went into it — plus a weekly backstop for a skipped local step. If that weekly
+  run starts finding things, the answer is that the local step is being skipped, not that this
+  should go back on every push.
+
+**Measured immediately: a pull request that would have cost about 9.5 minutes across three checks
+now costs 4 across one.**
+
+#### The trap that did not apply here, checked rather than assumed
+
+A path-filtered job reports **no status at all**, so on a repository with required status checks it
+leaves a pull request permanently unmergeable. That is the usual reason not to do this.
+
+**It does not apply**: branch protection is unavailable on this plan, so nothing is required —
+verified by asking, not by reasoning. `docs/guide/hosting.md` records it, because it would not be
+true of a repository on a different plan and the pattern is the sort of thing that gets copied.
+
+#### `WorkflowFilterTests` holds the filter to its claim, and is honest about which half it can prove
+
+- **Provable, and the direction whose failure costs a missed regression:** no file a test opens by
+  name is skipped. Collected by scanning the test sources themselves, so no list is kept by hand.
+- **Not provable, so an allowlist that says so:** a file being *unread* cannot be shown — a test
+  could compose a path no scan sees. Growing `paths-ignore` therefore has to be deliberate, and this
+  is what makes it one.
+- Plus: the guide directory is never skipped wholesale, both triggers carry the same list, `deploy`
+  still refuses to cancel, and Qodana still watches `master` and still has a schedule.
+
+**Five mutations, all red**: skipping the guide set, skipping `CLAUDE.md`, dropping the cancellation,
+filtering one trigger and not the other, and taking Qodana off `master`.
+
+**Two of the nine tests exist because the first run failed honestly.** The scan found its own
+allowlist — the file that vouches for a path necessarily names it — and the cancellation check
+matched the words inside the comment explaining why `deploy.yml` differs. Both are guards that would
+have passed for the wrong reason.
+
+#### Where the minutes were actually going, which was not where the trimming happened
+
+**The account that ran out was the owner's personal one, and the repository had already moved.**
+Actions bill to whoever owned the repository at the time, so the session measured above billed to
+`DorianSheiles`; the organisation's own meter read **77 minutes, net $0** — about 4% of its
+allowance. The move to `SoftwareSamurai-net` was made deliberately for that fresh meter.
+
+So the trimming was worth doing and was **not** what unblocked anything, and the entry says so
+rather than claiming a rescue. Two things it is worth for on their own: a pull request that
+finishes in four minutes instead of nine and a half, and a cache that has stopped evicting itself.
+
+**Read usage from the organisation, not the user** — and note the endpoint moved:
+
+```bash
+gh api "organizations/SoftwareSamurai-net/settings/billing/usage" --jq '
+[.usageItems[] | select(.product=="actions")] | {minutes: (map(.quantity)|add), net_usd: (map(.netAmount)|add)}'
+```
+
+`orgs/…/settings/billing/actions` answers `410 Gone`, and the equivalent user endpoint needs a
+`user` scope this token does not carry.
+
+---
+
 ### The chord is printed on the screen now, which is the whole of the defect
 
 **`Ctrl`/`⌘`+`K` has opened the command palette since the palette shipped, and the only place the
