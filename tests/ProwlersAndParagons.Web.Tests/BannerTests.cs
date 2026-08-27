@@ -154,7 +154,7 @@ public sealed class BannerTests
     public void AMissingScriptPrintsNoChordAndStillOpensThePalette()
     {
         using var ctx = new RenderContext();
-        ctx.JSInterop.Setup<bool?>("ppPalette.onAMac").SetResult((bool?)null);
+        ctx.JSInterop.Setup<bool?>("ppPalette.onAMac").SetResult(null);
 
         var layout = ctx.Render<MainLayout>();
 
