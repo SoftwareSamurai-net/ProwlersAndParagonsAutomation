@@ -1,5 +1,8 @@
+using Bunit;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
+using ProwlersAndParagonsAutomation.Web.Pages;
 using ProwlersAndParagonsAutomation.Sheets;
 
 namespace ProwlersAndParagons.Web.Tests;
@@ -203,7 +206,13 @@ public sealed class CampaignApprovalTests
     public void NoRowNamesAFieldOfAStoredCharacter()
     {
         var before = new CharacterSheet();
-        var after = ASheet(flight: 4);
+
+        // **A tier whose id carries an underscore, and that is the fixture's whole job.** It was
+        // `standard` at first, and a mutation printing the tier's *id* instead of its printed name
+        // left this test green — `standard` has no underscore and is not in the named list below,
+        // so the leak the test exists to catch walked through its own fixture. `high_level` prints
+        // as "High Level", which the underscore rule can tell apart.
+        var after = ASheet(tier: "high_level", flight: 4);
         after.Perks.Add(new SelectedPerk("headquarters", 3));
         after.Flaws.Add(new SelectedFlaw("alter_ego"));
         after.Gear.Add(new SelectedGear("A borrowed van"));
@@ -770,5 +779,198 @@ public sealed class CampaignApprovalTests
             RegexOptions.None, TimeSpan.FromSeconds(5));
 
         return markup;
+    }
+    // ── The screens, rendered ────────────────────────────────────────────────────────────
+    //
+    // **A source-reading test cannot see a bug in rendered output**, which is the whole reason
+    // this project has two test suites — and the version check is the one thing in this slice
+    // whose failure is a defect rather than a feature that does not work. The four cases below
+    // render the real page and press the real buttons.
+
+    /// <summary>
+    /// A GM's context, with a campaign and one player's snapshot waiting in it.
+    ///
+    /// <para>Built through the store rather than by poking the stub's dictionaries, so a test about
+    /// the screen cannot pass against a join or a submission that has stopped working.</para>
+    /// </summary>
+    private static async Task<(RenderContext Ctx, string Membership)> AWaitingRequest(
+        CharacterSheet? submitted = null)
+    {
+        var ctx = new RenderContext();
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        var code = ctx.Api.Campaign(
+            "g_0000000000000000000000", "Nightfall",
+            StoredCampaign.Write(
+                new Campaign("g_0000000000000000000000", "Nightfall", "standard", 8, false)));
+
+        var store = ctx.Services.GetRequiredService<ApiMembershipStore>();
+
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        var joined = await store.JoinAsync(code, PlayerCharacter, "Ninefold");
+        Assert.NotNull(joined);
+
+        Assert.NotNull(await store.SubmitAsync(
+            joined!.Value.Id, submitted ?? ASheet(might: 6), SheetMode.Hero));
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        return (ctx, joined.Value.Id);
+    }
+
+    /// <summary>
+    /// <b>The approval screen draws the diff, and the diff says how much it compared.</b>
+    ///
+    /// <para>The rendered page rather than the service, because a figure that is right in a record
+    /// and missing from the markup is a screen that tells a GM nothing — which is the split the two
+    /// test projects exist for.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheApprovalScreenDrawsTheDiffAndSaysHowMuchItCompared()
+    {
+        var (ctx, _) = await AWaitingRequest();
+        using var _ctx = ctx;
+
+        var page = ctx.Render<CampaignApproval>(
+            p => p.Add(c => c.Id, "g_0000000000000000000000"));
+
+        // The row is there before anything is clicked, which is the control on the read itself.
+        Assert.Contains("Ninefold", page.Markup, StringComparison.Ordinal);
+
+        page.Find(".campaign-row .btn").Click();
+
+        var diff = page.Find(".campaign-diff").TextContent;
+
+        // The spend leads it, and it is the engine's figure for the snapshot.
+        Assert.Contains("Hero Points", diff, StringComparison.Ordinal);
+
+        // **The positive control, on the screen.** A diff showing nothing and a diff that failed
+        // to run look identical to a reader, so the page prints how much was examined.
+        Assert.Contains("fields compared", diff, StringComparison.Ordinal);
+        Assert.Matches(@"\d+ fields compared", diff);
+
+        // And the rows are in the book's words, not in a payload's.
+        Assert.Contains("Tier", diff, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelectedTierId", diff, StringComparison.Ordinal);
+        Assert.DoesNotContain("_", diff, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Approving a snapshot that changed while the GM was reading it is refused, and the screen
+    /// says so.</b>
+    ///
+    /// <para><b>This is the one case in the slice where a bug costs somebody's decision.</b> The GM
+    /// opens the diff; the player resubmits; the GM presses Approve. If the page sent the
+    /// <em>current</em> version rather than the one it drew, the second snapshot — which nobody has
+    /// looked at — would become the campaign's clone, silently.</para>
+    ///
+    /// <para><b>The resubmission lands after the diff is drawn and before the click</b>, which is
+    /// the real sequence and — this took a mutation to establish — the only one that
+    /// discriminates. A first version of this test put the resubmission between the click and the
+    /// request, through a seam on the stub; the mutation it exists to catch (read the current
+    /// version, approve that) sailed through, because its extra read happens <em>before</em> that
+    /// seam fires and so still sees the old version. A seam in the wrong place is a test that
+    /// races nothing. Proved by mutation, twice.</para>
+    /// </summary>
+    [Fact]
+    public async Task ApprovingWhatChangedWhileItWasOnScreenIsRefusedByThePage()
+    {
+        var (ctx, membership) = await AWaitingRequest();
+        using var _ctx = ctx;
+
+        var store = ctx.Services.GetRequiredService<ApiMembershipStore>();
+
+        var page = ctx.Render<CampaignApproval>(
+            p => p.Add(c => c.Id, "g_0000000000000000000000"));
+
+        page.Find(".campaign-row .btn").Click();
+
+        // What the GM is looking at, asserted before the race — so a page that had drawn the wrong
+        // snapshot all along would fail here rather than at the end.
+        Assert.Contains("6d", page.Find(".campaign-diff").TextContent, StringComparison.Ordinal);
+
+        // The player resubmits while the diff sits on screen. The page is not told and must not
+        // ask: the version it drew is the version it decides about.
+        ctx.Api.SignedIn = ("u_player", "The Player");
+        Assert.Equal(2, await store.SubmitAsync(membership, ASheet(might: 12), SheetMode.Hero));
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        // The control on the race: the screen still shows the snapshot it drew, unchanged.
+        Assert.Contains("6d", page.Find(".campaign-diff").TextContent, StringComparison.Ordinal);
+
+        page.FindAll(".campaign-diff .btn")
+            .First(b => b.TextContent.Contains("Approve", StringComparison.Ordinal))
+            .Click();
+
+        // The screen says it changed…
+        Assert.Contains("changed while you were reading it", page.Markup, StringComparison.Ordinal);
+
+        // …and, the assertion that makes this about a defect: the unseen snapshot is NOT the clone.
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+        var after = await store.ReadAsync(membership);
+
+        Assert.Null(after!.Approved);
+        Assert.Equal(12, after.Pending!.AbilityRanks["might"]);
+
+        // The positive control: pressing Approve again, on the version now drawn, does land — so
+        // "refused" is not what this page always does.
+        page.FindAll(".campaign-diff .btn")
+            .First(b => b.TextContent.Contains("Approve", StringComparison.Ordinal))
+            .Click();
+
+        Assert.Equal(12, (await store.ReadAsync(membership))!.Approved!.AbilityRanks["might"]);
+    }
+
+    /// <summary>
+    /// An account that runs no campaign at that address is told so, and learns nothing by asking.
+    /// </summary>
+    [Fact]
+    public async Task ACampaignThatIsNotYoursSaysSoAndNothingMore()
+    {
+        var (ctx, _) = await AWaitingRequest();
+        using var _ctx = ctx;
+
+        ctx.Api.SignedIn = ("u_stranger", "Somebody Else");
+
+        var page = ctx.Render<CampaignApproval>(
+            p => p.Add(c => c.Id, "g_0000000000000000000000"));
+
+        Assert.Contains("no game here for this account", page.Markup, StringComparison.Ordinal);
+
+        // Nothing about the campaign or the character reaches the page.
+        Assert.DoesNotContain("Nightfall", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ninefold", page.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The campaign screen refuses an anonymous visitor before it offers a control.</b>
+    ///
+    /// <para>A campaign kept in one browser could never receive a submission, and its join code
+    /// would be a code nobody could redeem — so the page says so first rather than offering a
+    /// button that does nothing, which is indistinguishable from one that is not wired up.</para>
+    /// </summary>
+    [Fact]
+    public void TheCampaignScreenRefusesAnAnonymousVisitorFirst()
+    {
+        using var ctx = new RenderContext();
+
+        var page = ctx.Render<Campaigns>();
+
+        Assert.Contains("Sign in", page.Markup, StringComparison.Ordinal);
+
+        // No control that would do nothing.
+        Assert.DoesNotContain("Name a campaign", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Join", page.Markup, StringComparison.Ordinal);
+
+        // The positive control: signed in, the page really does offer them.
+        using var signedIn = new RenderContext();
+        signedIn.Api.SignedIn = ("u_gm", "The GM");
+
+        var offered = signedIn.Render<Campaigns>().Markup;
+
+        Assert.Contains("Name a campaign", offered, StringComparison.Ordinal);
+        Assert.Contains("Join", offered, StringComparison.Ordinal);
     }
 }

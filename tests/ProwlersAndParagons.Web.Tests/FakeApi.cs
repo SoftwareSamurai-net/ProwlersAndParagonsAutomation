@@ -514,14 +514,13 @@ public sealed class FakeApi : HttpMessageHandler
     /// </summary>
     public bool JoinIsRateLimited { get; set; }
 
-    /// <summary>
-    /// Held open before a decision is answered, so a test can let a resubmission land in between.
-    ///
-    /// <para><b>That window is where the whole compare-and-swap lives.</b> Without it the stub
-    /// answers synchronously and the state the version check exists for is unreachable — which is
-    /// the same seam <see cref="BeforeAnsweringCharacter"/> opens one store down.</para>
-    /// </summary>
-    public Func<string, Task>? BeforeDeciding { get; set; }
+    // A `BeforeDeciding` seam lived here — a hook fired between a decision arriving and being
+    // answered, so a test could let a resubmission land in between. **It is gone because it does
+    // not discriminate**, which a mutation established: the fault it was meant to catch (a page
+    // reading the *current* version rather than the one it drew) does its extra read before such a
+    // seam could fire, so the test passed against the broken page. The real race is between the
+    // diff being drawn and the button being pressed, and a test can drive that with no seam at
+    // all — see `CampaignApprovalTests`. A seam nothing races reads as a guarantee and is not one.
 
     /// <summary>
     /// Put a campaign on the server directly, and hand back its join code.
@@ -787,9 +786,6 @@ public sealed class FakeApi : HttpMessageHandler
             }
 
             var version = v.GetInt32();
-
-            // The seam a test uses to let a resubmission land while a decision is in flight.
-            if (BeforeDeciding is { } gate) await gate(id);
 
             row = _memberships[id];
 
