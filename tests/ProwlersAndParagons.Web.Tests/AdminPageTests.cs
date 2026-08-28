@@ -127,7 +127,7 @@ public sealed class AdminPageTests
         await using var ctx = Managing();
 
         var page = ctx.Render<Admin>();
-        page.Find("#invite-email").Input("newcomer@example.test");
+        await page.Find("#invite-email").InputAsync("newcomer@example.test");
         await page.Find("form").SubmitAsync();
 
         Assert.Contains("POST /api/admin/invitations", ctx.Api.Asked);
@@ -161,7 +161,7 @@ public sealed class AdminPageTests
         ctx.Api.InvitationMailSucceeds = false;
 
         var page = ctx.Render<Admin>();
-        page.Find("#invite-email").Input("newcomer@example.test");
+        await page.Find("#invite-email").InputAsync("newcomer@example.test");
         await page.Find("form").SubmitAsync();
 
         // Still added — a broken mail provider does not cost the invitation.
@@ -189,7 +189,7 @@ public sealed class AdminPageTests
         await using var ctx = Managing();
 
         var page = ctx.Render<Admin>();
-        page.Find("#invite-email").Input("guest@example.test");
+        await page.Find("#invite-email").InputAsync("guest@example.test");
         await page.Find("form").SubmitAsync();
 
         await page.WaitForAssertionAsync(() =>
