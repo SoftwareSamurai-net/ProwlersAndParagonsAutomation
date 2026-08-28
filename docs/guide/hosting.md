@@ -10,7 +10,7 @@ Read before touching `.github/workflows/deploy.yml`, `web/wwwroot/_headers`, `_r
 
 ## Hosting
 
-Cloudflare Pages at `superheroes.softwaresamurai.net`, by `.github/workflows/deploy.yml` on push to `master`. Direct upload, not Cloudflare's Git integration — two deploy paths can disagree.
+Cloudflare Pages at `superheroes.softwaresamurai.net`, by `.github/workflows/deploy.yml` on push to `main`. Direct upload, not Cloudflare's Git integration — two deploy paths can disagree.
 
 - **The deploy workflow must never trigger on `pull_request`.** That trigger runs a contributor's workflow file with the base repository's secrets in scope, which puts the Cloudflare token one PR away from anyone. Adding it would be the single most damaging change available in this repository.
 - **`_headers` is generated, never hand-edited.** `scripts/write-cloudflare-headers.sh` hashes the inline import map Blazor writes into `index.html`, whose contents change whenever the framework assets are re-fingerprinted — a hard-coded hash would rot silently and stop the app booting on some later deploy. The script exits non-zero if it finds no inline script rather than shipping a policy that would break the site, and CI runs it too, so a broken policy fails on the PR.
@@ -123,7 +123,7 @@ gh run list --limit 100 --json name,status,createdAt,updatedAt --jq '
   and that direction is the one whose failure costs a missed regression. That a file is *unread*
   cannot be proved at all — a test could compose a path no scan sees — so the list is also an
   allowlist, and adding to it has to be a deliberate act.
-- **Qodana runs on `master` and weekly, not on every pull request.** It was 39 of 100 runs, 214 of
+- **Qodana runs on `main` and weekly, not on every pull request.** It was 39 of 100 runs, 214 of
   403 minutes, and **all 10 GB** of the repository's Actions cache: one ~420 MB entry per branch
   against a 10 GB ceiling, so the caches evicted each other and every run started cold.
 

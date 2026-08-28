@@ -1,7 +1,7 @@
 # Deploying the browser front end
 
 
-The site is **live on Cloudflare Pages** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `*.pages.dev` fallback at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev). Deployed by [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) on every push to `master` that touches the app, the engine, the rules or the deploy itself.
+The site is **live on Cloudflare Pages** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `*.pages.dev` fallback at [prowlers-and-paragons-chargen.pages.dev](https://prowlers-and-paragons-chargen.pages.dev). Deployed by [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) on every push to `main` that touches the app, the engine, the rules or the deploy itself.
 
 There is no build step on Cloudflare's side: the workflow runs `dotnet publish`, writes the security headers, and uploads the result.
 
@@ -17,7 +17,7 @@ There is no build step on Cloudflare's side: the workflow runs `dotnet publish`,
    - Account Resources: **only** the account holding this project.
    - Not the Global API Key, which can do anything to every zone on the account.
 3. **Add the repository secrets** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (Settings → Secrets and variables → Actions).
-4. **Deploy once and check it before touching DNS.** `gh workflow run deploy.yml --ref master`, then open the `*.pages.dev` URL. Attaching the domain first means debugging the site and the DNS at the same time.
+4. **Deploy once and check it before touching DNS.** `gh workflow run deploy.yml --ref main`, then open the `*.pages.dev` URL. Attaching the domain first means debugging the site and the DNS at the same time.
 5. **Attach the custom domain.** Pages project → Custom domains → `superheroes.softwaresamurai.net`. Cloudflare creates the CNAME itself. It serves the **production** deployment, so get step 4 green first.
 
 You do **not** need to line the project's production branch up with this repository's.
@@ -32,7 +32,7 @@ The site is static, has no backend, no accounts and no cookies, and nothing a vi
 
 - **A subdomain, not the apex.** The Pages project answers for `superheroes.softwaresamurai.net` only. Nothing about it touches routing for the rest of the domain, and a mistake in the Pages config cannot take the apex down with it.
 - **The API token is scoped to Pages on one account.** If it ever leaked, the worst it can do is redeploy this one site. Rotate it in the Cloudflare dashboard and update the secret; nothing in the repository holds a copy.
-- **The workflow never runs on `pull_request`.** That trigger would execute a contributor's workflow changes with the token in scope. Deploys happen only from `master`, after a merge.
+- **The workflow never runs on `pull_request`.** That trigger would execute a contributor's workflow changes with the token in scope. Deploys happen only from `main`, after a merge.
 - **Security headers ship with the site**, generated into `_headers` by [`scripts/write-cloudflare-headers.sh`](../scripts/write-cloudflare-headers.sh) and applied by Cloudflare to every response: a Content-Security-Policy that permits scripts from this origin and, for the Web Analytics beacon Cloudflare injects at the edge, from `static.cloudflareinsights.com` — plus `nosniff`, `Referrer-Policy: no-referrer`, `frame-ancestors 'none'` and a `Permissions-Policy` that turns off every device API the app does not use.
 
   The CSP is generated rather than written by hand because Blazor emits an inline import map into `index.html` whose contents change whenever the framework assets are re-fingerprinted. A hard-coded hash would rot silently and take the site down on some later deploy; the script hashes whatever was actually published, and fails the build rather than shipping a policy that would stop the app booting. `style-src` still needs `'unsafe-inline'` — the budget bar's width is a live number and arrives as an inline style attribute.

@@ -151,7 +151,7 @@ ProwlersAndParagonsAutomation/
 │
 ├── .github/workflows/
 │   ├── build.yml                 # Build, test, publish the site and check it is complete
-│   ├── deploy.yml                # Cloudflare Pages, on push to master only
+│   ├── deploy.yml                # Cloudflare Pages, on push to main only
 │   └── qodana_code_quality.yml   # ReSharper inspections
 │
 ├── output/                       # Generated character sheets (gitignored)

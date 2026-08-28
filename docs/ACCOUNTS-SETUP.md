@@ -196,7 +196,7 @@ refuses costs one clear error in the logs; one that guesses costs somebody their
 **A binding or environment variable added after the last deploy does not appear until the next
 deploy.** Two ways:
 
-- Push any change to `master` (a whitespace edit committed and pushed is enough).
+- Push any change to `main` (a whitespace edit committed and pushed is enough).
 - Or in the dashboard: **Workers & Pages → your Pages project → Deployments tab →** find the
   most recent deployment, click the `⋯` menu on the right, **Retry deployment**.
 
