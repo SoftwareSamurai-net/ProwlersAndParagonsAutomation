@@ -18,7 +18,7 @@ on:
       - 'docs/HANDOVER.md'
   push:
     branches:
-      - master
+      - main
     # **Two files, and the list is short on purpose.** Almost every Markdown file in this
     # repository is read by a test — `CLAUDE.md` and `docs/guide/*.md` by `RepositoryGuideTests`,
     # `docs/ACCOUNTS-SETUP.md` by `AccountsContractTests`, `docs/MCP-SETUP.md` and `README.md` by

@@ -2,14 +2,14 @@ name: Deploy
 
 # Publishes the browser front end to Cloudflare Pages.
 #
-# Only ever from master, and never from `pull_request`. That is the security-relevant
+# Only ever from main, and never from `pull_request`. That is the security-relevant
 # line in this file: a pull_request trigger runs the workflow with the base repository's
 # secrets, so anyone who opened a PR could add a step that printed the Cloudflare token.
-# push-to-master runs only code a maintainer has already merged.
+# push-to-main runs only code a maintainer has already merged.
 on:
   push:
     branches:
-      - master
+      - main
     # Nothing outside these paths can change the published site, so a docs-only commit
     # does not spend a deploy.
     paths:
@@ -117,7 +117,7 @@ jobs:
         # and leaves the production URL and any custom domain on 404, saying nothing.
         #
         # Rather than require the project to be configured to match this repository (new
-        # projects default to `main`, this repo is `master`), ask the project what it
+        # projects default to `main`, as this repo now does), ask the project what it
         # calls production and use that. Then the two cannot disagree.
         id: production_branch
         env:
@@ -134,8 +134,8 @@ jobs:
             # Degrade to the repository's own branch rather than blocking the deploy: a
             # lookup hiccup should not stop a release, and the check after the deploy
             # still catches it if the guess is wrong.
-            echo "::warning::Could not read the production branch from Cloudflare; falling back to 'master'."
-            branch=master
+            echo "::warning::Could not read the production branch from Cloudflare; falling back to 'main'."
+            branch=main
           fi
 
           echo "Cloudflare treats '$branch' as production for project '$PROJECT'."

@@ -8,17 +8,17 @@ name: Qodana
 # What makes the trade safe is that **the pull request was never where this check first ran**.
 # `CLAUDE.md`'s own process requires `./scripts/qodana-scan.sh` locally, reading zero, before a
 # pull request is opened — so the CI copy was re-proving a thing already proved, at five and a
-# half minutes a push. What is kept is the part local runs cannot give: a scan of `master` as
+# half minutes a push. What is kept is the part local runs cannot give: a scan of `main` as
 # merged, which is a different claim from a scan of the branches that went into it.
 #
 # The weekly run is the backstop for the case the local step is skipped. If this starts finding
-# things on `master` that the local scan should have caught, the answer is that the local step is
+# things on `main` that the local scan should have caught, the answer is that the local step is
 # not being run — not that this should go back on every push.
 on:
   workflow_dispatch:
   push:
     branches:
-      - master
+      - main
   schedule:
     # 07:00 UTC on Mondays. Nothing depends on the hour; it is off the top of the hour because
     # GitHub's scheduled runs queue heavily there.
