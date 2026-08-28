@@ -1055,6 +1055,55 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 
 ## Completed work
 
+### A migration that was merged but never applied took character saving down in production
+
+**The owner reported it from the live error log**, which is the only instrument that could have.
+
+`0005_campaigns.sql` added `characters.campaign_id`. The migration was written, reviewed, tested and
+merged; the deploy shipped the Worker; **nothing in this project applies migrations to D1.** So the
+code went live asking for a column that existed only in a file, and production answered
+`D1_ERROR: no such column: campaign_id` on `/api/characters` and
+`table characters has no column named campaign_id` on `/api/characters/{id}`.
+
+**The blast radius is the part worth remembering.** `campaign_id` went into the `SELECT` and the
+`INSERT` for *ordinary character saving*, so a feature nobody was using yet broke the feature
+everybody uses, for every signed-in reader. **29 failures**, not the 11 first reported — the counts
+kept climbing while it was being diagnosed.
+
+#### Every check passed while it happened, and none of them could have failed
+
+- **`./scripts/test-worker.sh` runs 192 tests against real SQLite — and builds its schema by running
+  the migrations.** It cannot notice that production's schema was never built. **A suite that
+  constructs the world it tests cannot tell you the real world differs.** Same shape as the defect
+  recorded below where every unit test called the store directly, so none could notice that nothing
+  else did.
+- **The post-deploy smoke check passed and was right to.** It asks `/api/me`, which touches no table
+  this migration changed. It proves the server is wired up; it says nothing about whether the schema
+  matches the code just deployed.
+
+#### The fix, and the guard
+
+The migration was applied by hand — additive only, a nullable column and a new table, no data
+touched — and the error counters froze at 12 and 17 with identical `last_at` across two checks
+minutes apart. **Confirmed stopped by measurement rather than by the absence of new reports.**
+
+**`Deploy` now refuses to ship while a migration is unapplied**, and deliberately does not apply
+one: applying from CI would mean a bad migration ships itself, and this is the one operation in the
+project that can destroy data. The failure names the command to run.
+
+- **An unrecognised answer fails.** The step reads wrangler's prose, so a reworded release must not
+  read as "all clear" — the guard failure this file records four times, a check satisfied by there
+  being nothing to check. Driven with four canned answers: clean passes, pending fails, unfamiliar
+  fails, **empty fails**.
+- **Pinned to a version whose output was read.** `wrangler@3.90.0`, the version the deploy bundles
+  with, answers this command with a *usage dump* — which would have been an unrecognised answer on
+  every single run. The step simulates nothing, so it takes a version whose two answers have been
+  seen instead.
+
+**Also done while in there, at the owner's request:** their account's `character_limit` raised from
+5 to 1,000,000. There is no unlimited sentinel — the column is `INTEGER NOT NULL` and the check is
+`count < character_limit` — so this is a number nobody reaches rather than an infinity.
+
 ### A chapter of the book can be searched on its own, and the rules index stopped being inert
 
 **[Item 12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer)'s second
