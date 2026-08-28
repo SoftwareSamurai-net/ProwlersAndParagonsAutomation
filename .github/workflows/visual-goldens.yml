@@ -56,7 +56,7 @@ jobs:
         # scripts/visual/diff.mjs is plain Node with no dependencies, but the version is pinned
         # for the same reason the Build workflow pins it: a runner that happened to ship an older
         # one would fail in a way that looks like a broken script.
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
 

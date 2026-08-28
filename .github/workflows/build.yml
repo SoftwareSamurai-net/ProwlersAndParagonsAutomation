@@ -110,7 +110,7 @@ jobs:
         # Pinned rather than taken from the runner image: the accounts tests need `node:sqlite`
         # and JSON import attributes, both of which are Node 22. A runner that happened to ship
         # an older one would fail in a way that looks like a broken test.
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
 
