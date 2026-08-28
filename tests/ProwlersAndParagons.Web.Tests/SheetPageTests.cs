@@ -173,6 +173,13 @@ public sealed class SheetPageTests
     /// because the sheet may be somebody else's, and then the two controls acting on exactly that
     /// conflation were left in the band above it.</para>
     /// </summary>
+    /// <para><b>The menu is opened first, and without that this test would pass everywhere for
+    /// nothing.</b> The switch moved off the bar and into a disclosure that is shut by default, so
+    /// a bare <c>FindAll(".mode-switch")</c> is empty on <em>every</em> route — including the
+    /// builder, where the control is supposed to be. The guard would have gone on reporting green
+    /// while asserting nothing at all, which is this repository's commonest way for a check to be
+    /// wrong. Opening the disclosure is what makes the negative cases mean something, and the
+    /// <c>build</c> row is the positive control that proves the menu really does hold it.</para>
     [Theory]
     [InlineData("sheet", false)]
     [InlineData("sheet/c_AAAAAAAAAAAAAAAAAAAAAA", false)]
@@ -182,7 +189,18 @@ public sealed class SheetPageTests
         using var ctx = new RenderContext().With(SheetMode.Hero);
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo(path);
 
-        Assert.Equal(expected, ctx.Render<MainLayout>().FindAll(".mode-switch").Count > 0);
+        var layout = ctx.Render<MainLayout>();
+
+        // The disclosure has to actually open, or every assertion below is about a menu that
+        // rendered nothing.
+        layout.Find(".settings-open").Click();
+        Assert.Single(layout.FindAll(".settings-menu-list"));
+
+        // The light/dark switch is in there on every route, which is what says the menu itself is
+        // not simply absent on the sheet — only the palette half is.
+        Assert.Single(layout.FindAll(".theme-switch"));
+
+        Assert.Equal(expected, layout.FindAll(".mode-switch").Count > 0);
     }
 
     // ── A saved character, shown rather than opened ──────────────────────────────────

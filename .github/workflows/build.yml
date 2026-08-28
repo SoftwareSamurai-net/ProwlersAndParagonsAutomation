@@ -220,6 +220,8 @@ jobs:
           proof-narrow-broken.html:NARROW: FAIL:
           proof-measure.html:INSETS: PASS:
           proof-measure-broken.html:INSETS: FAIL:
+          proof-align.html:ALIGN: PASS:
+          proof-align-broken.html:ALIGN: FAIL:
           proof-motion.html:MOTION: PASS:
           proof-motion.html:MOTION: PASS:--force-prefers-reduced-motion
           proof-motion-broken.html:MOTION: FAIL:

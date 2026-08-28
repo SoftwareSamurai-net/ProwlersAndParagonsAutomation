@@ -191,6 +191,66 @@ public sealed class ProofPages
     }
 
     /// <summary>
+    /// The banner's settings menu, open, with both palette switches in it.
+    ///
+    /// <para>Written to be looked at, and for the one reason a rendering test cannot cover it: the
+    /// menu is absolutely positioned and hangs out of the band, and <c>view-transition-name</c> on
+    /// <c>.banner</c> creates a stacking context — so a <c>z-index</c> on the menu is resolved
+    /// <em>inside</em> the banner, which is a static earlier sibling of <c>.steps</c>. The
+    /// character switcher shipped exactly that bug and it was found in a screenshot: a menu painted
+    /// behind the step band, visible, unusable, reading as a control that does nothing. The markup
+    /// is identical either way.</para>
+    ///
+    /// <para><b>This one is right-anchored where the switcher's is left-anchored</b>, which is a
+    /// second thing only a picture answers: it sits at the right end of the bar, so a menu growing
+    /// rightwards would leave the window.</para>
+    /// </summary>
+    [Fact]
+    public void TheSettingsMenu()
+    {
+        if (!Asked) return;
+
+        WriteRaw("proof-settings.html", "hero", DisclosedSettingsBody());
+    }
+
+    /// <summary>
+    /// The shell with its settings menu open. Shared with
+    /// <see cref="TheSettingsMenuOnTheProofIsOpen"/>, so what is asserted is the markup that is
+    /// actually written rather than a second render that happens to agree with it.
+    /// </summary>
+    private static string DisclosedSettingsBody()
+    {
+        using var ctx = new RenderContext().With(SheetMode.Hero);
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("build/characteristics");
+
+        var shell = ctx.Render<MainLayout>();
+        shell.Find(".settings-open").Click();
+
+        return shell.Markup;
+    }
+
+    /// <summary>
+    /// <b>The menu the settings proof captions as open is actually open.</b>
+    ///
+    /// <para>Same trap as <see cref="TheOpenedRulebookEntryOnTheProofIsOpen"/>, and it has caught a
+    /// real instance here before: deleting the click left a page showing a shut band that a reader
+    /// would have taken as evidence the open state had been looked at. Checked on every run, not
+    /// only under <c>PP_PROOF</c>, because the writing is what is conditional and the markers are
+    /// not.</para>
+    ///
+    /// <para><b>The shut state is asserted first</b>, so "open" is a state the page reached rather
+    /// than one it was always in.</para>
+    /// </summary>
+    [Fact]
+    public void TheSettingsMenuOnTheProofIsOpen()
+    {
+        using var shut = new RenderContext().With(SheetMode.Hero);
+        Assert.Empty(shut.Render<MainLayout>().FindAll(".settings-menu-list"));
+
+        AssertMarkers("proof-settings.html", DisclosedSettingsBody());
+    }
+
+    /// <summary>
     /// The banner's character switcher, open, with somebody else to switch to.
     ///
     /// <para>Written to be looked at. The control hangs out of the banner, which is the one thing
@@ -1997,6 +2057,166 @@ public sealed class ProofPages
         """.Replace("__PP_MEASURE_TARGET__", target, StringComparison.Ordinal);
 
     /// <summary>
+    /// Does every item in the banner sit on one line? <b>A measured check, because the eye read it
+    /// wrong twice and the markup reads right either way.</b>
+    ///
+    /// <para>The owner reported the bar as "search is vertically elevated" and it was: the three
+    /// plain links had their text line at 29.13px and the SEARCH label at 27.88px, 1.25px above
+    /// and the most elevated thing in the strip. <b>Nothing in the stylesheet looked wrong.</b>
+    /// <c>.banner-inner</c> was <c>align-items: center</c> and every item's <em>box</em> was
+    /// centred on 30.30px, correctly — what differed was how far each item's <em>text</em> sat
+    /// from its own box centre, which no rule states and no source scan can compute. A link is
+    /// pulled up by the underline hanging below it and the palette button by the key boxes'
+    /// border and padding hanging below its shared baseline.</para>
+    ///
+    /// <para>So this is the only instrument that can answer it: a browser, a range box per item,
+    /// and a number. bUnit has no layout engine, and a CSS guard asserting
+    /// <c>align-items: baseline</c> would pass the day somebody adds a taller child that the
+    /// baseline no longer saves.</para>
+    ///
+    /// <para><b>It measures the baseline, not the line-box centre, and the difference matters.</b>
+    /// A line box's height follows its font size, so two items sharing a baseline in two sizes
+    /// have line-box centres several tenths of a pixel apart — the character switcher's name is
+    /// body face where the avenues are display face. Baseline is what <c>align-items: baseline</c>
+    /// actually equalises and what a reader's eye reads as "on one line", so it is what is
+    /// measured: a zero-sized <c>inline-block</c> probe appended to each item resolves its own
+    /// baseline to its top edge, which is the line's baseline, exactly and independently of the
+    /// face.</para>
+    ///
+    /// <para><b>The wordmark is excluded and that is a decision, not an oversight.</b> It is two
+    /// lines — the name and the subtitle — so it has no single text line to be on, and
+    /// <c>app.css</c> gives it <c>align-self: center</c> for that reason. Putting a two-line block
+    /// into a spread of one-line baselines compares two different things. The save region is
+    /// excluded too, on a narrower ground: it renders no text between saves, so on this page it
+    /// has no baseline to measure rather than a wrong one.</para>
+    ///
+    /// <code>
+    /// chrome … --dump-dom file:///…/web/wwwroot/proof-align.html
+    /// grep -o '&lt;title&gt;ALIGN: [A-Z]*' dump.html
+    /// </code>
+    /// </summary>
+    [Fact]
+    public void TheBannerSitsOnOneLine()
+    {
+        if (!Asked) return;
+
+        WritePage("proof-align.html", "hero", AlignHarness());
+
+        // The negative control — see the docstring on ShippedScript above. The same harness
+        // script, measuring a shell twin carrying the exact defect the owner reported: the
+        // banner back on `align-items: center`, so each item's box is centred correctly and each
+        // item's text is not. If the harness cannot fail against the thing it was written for,
+        // it proves nothing on the real page either.
+        WritePage("proof-shell-hero-broken-align.html", "hero",
+            ShellWithInjectedDefect(".banner-inner { align-items: center }"));
+        WritePage("proof-align-broken.html", "hero",
+            AlignHarness("proof-shell-hero-broken-align.html"));
+    }
+
+    /// <summary>
+    /// Reports the text baseline of every one-line item in the banner, so the row is known to
+    /// share one rather than believed to.
+    /// </summary>
+    private static string AlignHarness(string target = "proof-shell-hero.html") =>
+        """
+        <!doctype html>
+        <!-- Generated by ProofPages.TheBannerSitsOnOneLine. Do not edit: rewritten on every PP_PROOF run. -->
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <title>Proof — banner alignment</title>
+          <style>
+            html, body { margin: 0; background: #222; color: #eee; font: 13px monospace }
+            iframe { width: 1200px; height: 700px; border: 0; display: block; background: #fff }
+            #verdict { position: fixed; top: 0; right: 0; z-index: 9; padding: 6px 10px;
+                       background: #000; color: #0f0; white-space: pre }
+            #verdict.bad { background: #900; color: #fff }
+          </style>
+        </head>
+        <body>
+        <div id="verdict">measuring…</div>
+        <iframe id="f" src="__PP_ALIGN_TARGET__"></iframe>
+        <script>
+        document.getElementById('f').addEventListener('load', () => {
+          const box = document.getElementById('verdict');
+          const say = (ok, detail) => {
+            document.title = ok ? 'ALIGN: PASS' : 'ALIGN: FAIL';
+            box.textContent = (ok ? 'ALIGN: PASS' : 'ALIGN: FAIL') + '\n' + detail;
+            box.className = ok ? '' : 'bad';
+          };
+          try {
+            const d = document.getElementById('f').contentDocument;
+
+            // Every one-line item in the band, named by the element that directly holds its
+            // text. `.banner-title` is deliberately absent — two lines, `align-self: center`,
+            // no single baseline to share — and so is `.save-status`, which renders no text
+            // between saves and so has none to measure here.
+            const parts = [
+              ['build',    '.avenue-nav .banner-link'],
+              ['rules',    '.avenue-nav .banner-link'],
+              ['character','.character-switch-name'],
+              ['search',   '.palette-open-label'],
+              ['account',  '.banner-account'],
+              ['settings', '.settings-open-label'],
+            ];
+
+            // **The baseline, not the box and not the line-box centre.** An empty inline-block
+            // has no content, so its own baseline is its bottom margin edge and its box has no
+            // height — which means the browser positions its single edge exactly on the line's
+            // baseline. That is a number no computed style exposes and no range box gives: a
+            // range rect is the line box, whose height follows the font size, so two items
+            // genuinely sharing a baseline in two sizes measure several tenths of a pixel apart.
+            // The banner has two faces and two sizes in it, so that error is not hypothetical.
+            const baselineOf = (el) => {
+              const probe = d.createElement('span');
+              probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+              el.appendChild(probe);
+              const top = probe.getBoundingClientRect().top;
+              probe.remove();
+              return top;
+            };
+
+            const rows = [];
+            const found = [];
+            const seen = new Map();
+
+            for (const [name, sel] of parts) {
+              // Two rows name the same selector — the pair of avenues — so each takes the next
+              // match rather than the first. `querySelector` would have measured Build twice and
+              // reported a spread of zero across a row where Rules had been pushed out of line.
+              const nth = seen.get(sel) || 0;
+              seen.set(sel, nth + 1);
+
+              const el = d.querySelectorAll(sel)[nth];
+              if (!el) { rows.push(`    ${name.padEnd(10)} ${sel} NOT FOUND`); continue; }
+
+              const at = baselineOf(el);
+              found.push(at);
+              rows.push(`    ${name.padEnd(10)} baseline ${at.toFixed(2)}  "${(el.textContent || '').trim().slice(0, 24)}"`);
+            }
+
+            const spread = found.length ? Math.max(...found) - Math.min(...found) : 999;
+
+            // **The positive control, and it is why the count is asserted rather than inferred.**
+            // A spread over an empty list is 999 and fails, but over a *single* found item it is
+            // 0.00 and passes — so a banner that had lost five of its six controls would report
+            // a perfectly aligned row. That is this repository's commonest guard fault in its
+            // exact shape: a feature that did not run mistaken for a feature that worked.
+            const complete = found.length === parts.length;
+
+            say(complete && spread < 0.5,
+              `target ${document.getElementById('f').getAttribute('src')}  items ${found.length} of ${parts.length}\n` +
+              `${rows.join('\n')}\n    spread ${spread.toFixed(2)}px (want < 0.5)`);
+          } catch (e) {
+            say(false, 'blocked: ' + e.message);
+          }
+        });
+        </script>
+        </body>
+        </html>
+        """.Replace("__PP_ALIGN_TARGET__", target, StringComparison.Ordinal);
+
+    /// <summary>
     /// Everything a proof page must contain to be proofing what it claims to, keyed by file.
     ///
     /// <para>These are generators rather than tests: with <c>PP_PROOF</c> unset they write nothing,
@@ -2030,6 +2250,40 @@ public sealed class ProofPages
             "tab-count untouched", "empty-state",
             "Powers on this character", "Perks", "Flaws", "Carried",
         ],
+        // The settings menu, disclosed. **Both switches by name and the list itself**, because a
+        // proof of a disclosure captured shut shows an empty band and reads as a feature that
+        // works — the trap this file already records for the palette, the budget breakdown and the
+        // rulebook entry.
+        ["proof-settings.html"] =
+        [
+            "class=\"banner\"", "settings-menu-list", "mode-switch", "theme-switch",
+            "aria-expanded=\"true\"",
+        ],
+        // The alignment harness: the measurement it takes, both verdicts, the resting text that
+        // is neither, and the positive control that stops a banner with one control left in it
+        // reporting a perfectly aligned row.
+        ["proof-align.html"] =
+        [
+            ".banner-account", ".palette-open-label", ".settings-open-label",
+            "vertical-align:baseline", "getBoundingClientRect",
+            "ALIGN: PASS", "ALIGN: FAIL", "measuring",
+            "complete && spread", "document.title",
+            // The two exclusions, named on the page so a reader of the dump knows what was not
+            // measured rather than assuming everything was.
+            "banner-title", "save-status",
+        ],
+        ["proof-align-broken.html"] =
+        [
+            ".banner-account", ".palette-open-label", ".settings-open-label",
+            "vertical-align:baseline", "getBoundingClientRect",
+            "ALIGN: PASS", "ALIGN: FAIL", "measuring",
+            "complete && spread", "document.title",
+            "banner-title", "save-status",
+        ],
+        // The two shell twins this harness is proofed against. They are ordinary shell pages
+        // with one injected style, so they carry the same markers the honest one does.
+        ["proof-shell-hero-broken-align.html"] =
+            ["class=\"banner\"", "class=\"banner-inner\"", "class=\"steps\"", "class=\"budget\"", "class=\"shell\""],
         // The sticky harness: both measurements it takes, both verdicts it can reach, and the
         // resting text that is neither — so a script that never ran is distinguishable from a
         // pass. `scrollTo` is what makes it a test of stickiness rather than of position.
@@ -2334,6 +2588,10 @@ public sealed class ProofPages
         Assert.Contains("src=\"proof-rules-hero.html\"", rules, StringComparison.Ordinal);
 
         AssertMarkers("proof-measure.html", MeasureHarness());
+
+        var align = AlignHarness();
+        AssertMarkers("proof-align.html", align);
+        Assert.Contains("src=\"proof-shell-hero.html\"", align, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -2377,6 +2635,17 @@ public sealed class ProofPages
         var measure = MeasureHarness("proof-shell-hero-broken-inset.html");
         AssertMarkers("proof-measure-broken.html", measure);
         Assert.Contains("src=\"proof-shell-hero-broken-inset.html\"", measure, StringComparison.Ordinal);
+
+        // The alignment twin puts the banner back on `align-items: center` — the exact state the
+        // owner reported, in which every item's box is centred correctly and every item's text
+        // is not.
+        var brokenAlignShell = ShellWithInjectedDefect(".banner-inner { align-items: center }");
+        AssertMarkers("proof-shell-hero-broken-align.html", brokenAlignShell);
+        Assert.NotEqual(HonestShellPage(), brokenAlignShell);
+
+        var alignTwin = AlignHarness("proof-shell-hero-broken-align.html");
+        AssertMarkers("proof-align-broken.html", alignTwin);
+        Assert.Contains("src=\"proof-shell-hero-broken-align.html\"", alignTwin, StringComparison.Ordinal);
 
         var motionScript = MotionBrokenScript();
         Assert.NotEqual(ShippedScript("js/motion.js"), motionScript);
@@ -2449,6 +2718,8 @@ public sealed class ProofPages
         ["proof-slider.html"] = ["window.ppSlider = {"],
         // The twins drive the identical harness script — see ShippedScript's docstring — so the
         // same denylist entries apply to them.
+        ["proof-align.html"] = ["say(true"],
+        ["proof-align-broken.html"] = ["say(true"],
         ["proof-sticky-broken.html"] = ["say(true"],
         ["proof-motion-broken.html"] = ["window.ppMotion = {"],
         ["proof-slider-broken.html"] = ["window.ppSlider = {"],

@@ -172,6 +172,16 @@ public sealed class UppercasedTextTests
             //
             // From `over`, so the subtitle names a character rather than the front door.
             over.Render<MainLayout>(),
+
+            // **The same layout with its settings menu open, because two uppercased selectors
+            // are behind that disclosure now and neither is reachable without it.**
+            // `.mode-switch button` and `.theme-switch button` were on the band and were
+            // reached by the render above; the palette switches moved into a menu, and a render
+            // that stops at the shut state would leave this theory refusing both — which is the
+            // positive control at the foot doing its job, and the right answer to it is to open
+            // the menu rather than to write two more exemptions. This file already records four
+            // exemptions that had been false since the day they were written.
+            OpenedSettings(over),
         };
 
         var seen = 0;
@@ -272,6 +282,25 @@ public sealed class UppercasedTextTests
                     + "label in capitals, so the citation reads CH.6.");
             }
         }
+    }
+
+    /// <summary>
+    /// The layout with its settings menu disclosed.
+    ///
+    /// <para>The click is asserted to have done something before the page joins the list. A menu
+    /// that rendered nothing would contribute no elements, which reads here exactly like a
+    /// selector nobody uppercased — and the theory would then fail on the wrong thing, or, worse,
+    /// be quieted with an exemption naming a reason that was never true.</para>
+    /// </summary>
+    private static IRenderedComponent<Microsoft.AspNetCore.Components.IComponent> OpenedSettings(
+        RenderContext ctx)
+    {
+        var layout = ctx.Render<MainLayout>();
+
+        layout.Find(".settings-open").Click();
+        Assert.Single(layout.FindAll(".settings-menu-list"));
+
+        return layout;
     }
 
     private static string Collapse(string text) =>
