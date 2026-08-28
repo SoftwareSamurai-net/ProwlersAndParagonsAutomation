@@ -207,12 +207,26 @@ public sealed class RulebookReader
     /// shipped a version that turned the second into the first on screen, and a reader was told
     /// the rulebook had nothing while a dozen real passages sat under the sentence.</para>
     /// </summary>
-    public async Task<RulebookResults?> SearchAsync(string query)
+    /// <param name="query">What to look for.</param>
+    /// <param name="chapter">
+    /// One chapter to look in, or null for the whole book.
+    ///
+    /// <para><b>The server does the narrowing, and it has to.</b> Keeping only the rows from one
+    /// chapter out of the answer would be filtering what survived a cap the caller cannot raise,
+    /// so a chapter with real matches outside the server's best thirty would come back empty —
+    /// and <see cref="RulebookResults.Found"/> would be a count of the whole book presented as a
+    /// count of the chapter.</para>
+    /// </param>
+    public async Task<RulebookResults?> SearchAsync(string query, int? chapter = null)
     {
         ArgumentNullException.ThrowIfNull(query);
 
+        var scope = chapter is { } number
+            ? FormattableString.Invariant($"&chapter={number}")
+            : "";
+
         return await AskForAsync<RulebookResults>(
-            "api/rulebook/search?q=" + Uri.EscapeDataString(query));
+            "api/rulebook/search?q=" + Uri.EscapeDataString(query) + scope);
     }
 
     /// <summary>One passage in full, by the address a result carries.</summary>

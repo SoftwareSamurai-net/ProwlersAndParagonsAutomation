@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 
 import { CHAPTERS } from '../../worker/corpus.js';
 import { search, terms } from '../../worker/search.js';
+import { search as scopedSearch } from '../../worker/rulebook.js';
 import { server, signIn } from './harness.mjs';
 
 const headings = result => result.results.map(r => r.heading.toUpperCase());
@@ -248,6 +249,199 @@ test('the caller cannot ask for the whole book in one response', async () => {
 
     assert.ok(body.found > 30, 'this query no longer matches enough to test the cap');
     assert.ok(body.results.length <= 30, 'the limit is caller-controlled: ' + body.results.length);
+});
+
+// ── One chapter at a time ─────────────────────────────────────────────────
+//
+// **The narrowing is on this side because it cannot honestly be on the other.** `MOST_RESULTS` is
+// 30 and no caller can raise it, so a browser keeping only one chapter's rows out of the answer
+// would be filtering what survived the cap — and `found` would be a count of the whole book
+// presented as a count of the chapter. That is the fault the `/rules` page is designed against,
+// and the tests below are the three properties that make the server version not have it.
+
+/**
+ * A query and a chapter where the whole-book answer never reaches that chapter at all.
+ *
+ * **Chosen by measurement, not by taste.** A script ran twenty ordinary queries against the real
+ * corpus and asked, for each chapter, whether it had matches and yet appeared nowhere in the
+ * unscoped top thirty. This pair had the widest margin of any it found: Ch.8 is the largest
+ * chapter in the book at 742 sections and holds forty passages using the word, and the unscoped
+ * search fills its thirty rows entirely out of Ch.2 and Ch.6 before reaching one of them. So a
+ * reader who wants the vehicles in *Friends and Foes* cannot get there by asking for more rows.
+ */
+const OUT_OF_REACH = { query: 'vehicle', chapter: 8 };
+
+test('a scoped search answers out of that chapter and no other', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'a@b.test');
+
+    const body = await (await app.call(
+        '/api/rulebook/search?q=knockback&chapter=4', { cookie })).json();
+
+    // The positive control, and it is the whole test: every assertion after this is satisfied
+    // completely by a search that has stopped returning anything at all.
+    assert.ok(body.results.length > 0, 'the scoped search returned nothing, so this proves nothing');
+
+    for (const row of body.results) {
+        assert.equal(row.chapter, 4, `a Ch.${row.chapter} passage came back from a Ch.4 search`);
+    }
+
+    // And the whole-book answer to the same query really does span more than one chapter, so the
+    // absence above is the scoping and not the corpus happening to hold it all in one place.
+    const wide = await (await app.call('/api/rulebook/search?q=knockback', { cookie })).json();
+
+    assert.ok(new Set(wide.results.map(r => r.chapter)).size > 1,
+        'the unscoped search only reaches one chapter, so scoping to one proves nothing');
+});
+
+test('a chapter the top thirty never reaches is still found when scoped', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'a@b.test');
+
+    const { query, chapter } = OUT_OF_REACH;
+
+    const wide = await (await app.call(
+        `/api/rulebook/search?q=${query}&limit=30`, { cookie })).json();
+
+    // The premise, asserted rather than assumed: this pair stops being a test of anything the day
+    // the corpus shifts enough to put the chapter into the unscoped rows.
+    assert.ok(wide.results.length === 30,
+        `"${query}" no longer fills the cap, so there is nothing outside it`);
+    assert.ok(!wide.results.some(r => r.chapter === chapter),
+        `Ch.${chapter} is now inside the unscoped top thirty; pick another pair`);
+
+    const scoped = await (await app.call(
+        `/api/rulebook/search?q=${query}&chapter=${chapter}`, { cookie })).json();
+
+    assert.ok(scoped.found > 0,
+        `Ch.${chapter} has nothing for "${query}" at all, so the pair proves nothing`);
+    assert.ok(scoped.results.length > 0);
+    assert.ok(scoped.results.every(r => r.chapter === chapter));
+
+    // This is the whole reason the parameter is on the server: the rows above are unreachable
+    // from the unscoped answer, at any limit a caller is allowed to ask for.
+    assert.ok(scoped.found < wide.found,
+        'the scoped count is not smaller than the whole book’s, so nothing was scoped');
+});
+
+test('found counts the chapter, not the book', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'a@b.test');
+
+    const wide = await (await app.call('/api/rulebook/search?q=knockback', { cookie })).json();
+    const scoped = await (await app.call('/api/rulebook/search?q=knockback&chapter=4', { cookie })).json();
+
+    assert.ok(wide.found > 0 && scoped.found > 0, 'one of these found nothing, so this proves nothing');
+    assert.ok(scoped.found < wide.found,
+        `the scoped search reports ${scoped.found} of ${wide.found} — the whole book’s count`);
+
+    // Counted over the scoped set *before* the list was cut, which is the ordering `search.js`
+    // insists on: asking for one row must not change what the count or the flag say.
+    const oneRow = await (await app.call(
+        '/api/rulebook/search?q=knockback&chapter=4&limit=1', { cookie })).json();
+
+    assert.equal(oneRow.found, scoped.found, 'the count is of what was found, not of what was shown');
+    assert.equal(oneRow.nothingMatchedByHeading, scoped.nothingMatchedByHeading);
+    assert.equal(oneRow.results.length, 1);
+});
+
+test('the flag describes the chapter that was searched', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'a@b.test');
+
+    // Ch.4 (Combat) sets an entry under this heading; Ch.2 uses the word without one. Both halves
+    // are asserted, so a flag hard-coded either way is red — and this is the property that makes
+    // scoping honest rather than merely narrow: the flag is about what was searched.
+    const entry = await (await app.call('/api/rulebook/search?q=knockback&chapter=4', { cookie })).json();
+    const mention = await (await app.call('/api/rulebook/search?q=knockback&chapter=2', { cookie })).json();
+
+    assert.ok(entry.found > 0 && mention.found > 0, 'one of these found nothing, so this proves nothing');
+    assert.equal(entry.nothingMatchedByHeading, false);
+    assert.equal(mention.nothingMatchedByHeading, true);
+});
+
+test('the caller still cannot raise the cap on a scoped search', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'a@b.test');
+
+    const body = await (await app.call(
+        '/api/rulebook/search?q=resolve&chapter=2&limit=5000', { cookie })).json();
+
+    assert.ok(body.found > 30, 'this query no longer matches enough in Ch.2 to test the cap');
+    assert.ok(body.results.length <= 30, 'the limit is caller-controlled: ' + body.results.length);
+});
+
+test('a chapter that is not a number and one the book has not are different answers', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'a@b.test');
+
+    // Neither may be `found: 0`. That is this API's one way of saying the book is silent, and the
+    // page prints it as a sentence about the rulebook — a claim made on the strength of a typo.
+    assert.equal((await app.call('/api/rulebook/search?q=knockback&chapter=two', { cookie })).status, 400);
+    assert.equal((await app.call('/api/rulebook/search?q=knockback&chapter=', { cookie })).status, 400);
+    assert.equal((await app.call('/api/rulebook/search?q=knockback&chapter=99', { cookie })).status, 404);
+
+    // The control: the same query with a real chapter answers.
+    const ok = await app.call('/api/rulebook/search?q=knockback&chapter=2', { cookie });
+    assert.equal(ok.status, 200);
+    assert.ok((await ok.json()).found > 0);
+});
+
+test('no chapter at all is still the whole book', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'a@b.test');
+
+    const body = await (await app.call('/api/rulebook/search?q=knockback', { cookie })).json();
+    const direct = search(CHAPTERS, 'knockback', 30);
+
+    assert.equal(body.found, direct.found);
+    assert.ok(body.found > 0);
+});
+
+test('a scoped search cannot be read by somebody signed out', async () => {
+    const app = server();
+
+    // The gate is on the prefix, not on which address or which parameters — so a parameter added
+    // below the check cannot be a way past it. The positive control is the signed-in call.
+    const { cookie } = await signIn(app, 'a@b.test');
+    assert.equal((await app.call('/api/rulebook/search?q=knockback&chapter=2', { cookie })).status, 200);
+
+    const refused = await app.call('/api/rulebook/search?q=knockback&chapter=2');
+
+    assert.equal(refused.status, 401);
+    assert.ok(!(await refused.text()).toLowerCase().includes('knock someone across'));
+});
+
+test('a made-up corpus is scoped out of itself, not out of the real book', async () => {
+    // **The scope is cached per chapter number, and keyed on the corpus as well as on the
+    // number.** Cached on the number alone, a second corpus — which is every test that hands this
+    // a made-up chapter — would be answered out of the first one's array, plausibly and wrongly.
+    // That is the exact fault `corpusIndex` in `search.js` carries a comment about, one layer up.
+    //
+    // Driven through `scopedSearch` rather than `search`, because the cache is in that file and
+    // calling the ranking directly would walk straight past it.
+    const invented = [{
+        chapter: 2,
+        title: 'Invented',
+        source_ref: 'nowhere',
+        sections: [{ heading: 'FLIBBERTIGIBBET', printed_page: 1, text: 'A word found nowhere else.' }],
+    }];
+
+    const ask = (chapters, q) => scopedSearch(
+        new Request(`https://example.test/api/rulebook/search?q=${q}&chapter=2`), chapters);
+
+    // Warm the real book's Ch.2 first, so an unkeyed cache would have something wrong to answer
+    // with. The control: it is a real answer, not an empty one.
+    const real = await (await ask(CHAPTERS, 'knockback')).json();
+    assert.ok(real.found > 0, 'the real Ch.2 answered nothing, so this proves nothing');
+
+    const made = await (await ask(invented, 'flibbertigibbet')).json();
+
+    assert.equal(made.found, 1);
+    assert.equal(made.results[0].heading, 'FLIBBERTIGIBBET');
+
+    // ...and the real book is still itself afterwards.
+    assert.equal((await (await ask(CHAPTERS, 'knockback')).json()).found, real.found);
 });
 
 // ── The work a query can ask for ──────────────────────────────────────────
