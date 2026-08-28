@@ -290,14 +290,27 @@ public sealed class StartAnotherTests
         await Build(page, ctx, "Lynchpin");
         page.Render();
 
+        // **Read off the tier cards rather than the whole page**, because the Hero Point limit's
+        // pair of cards is drawn in the same idiom below them and one of that pair is selected at
+        // all times by design — that is the whole point of a two-card group. A scan of the markup
+        // would find its "Selected" and call this red for a reason that has nothing to do with
+        // tiers.
+        List<IElement> TierCards() => page.FindAll(".options.cards .option")
+            .Where(c => c.Closest(".budget-choice") is null)
+            .ToList();
+
         // The positive control: the card really does say so before the click, so "no longer says
         // Selected" is not vacuously true of a page that never said it.
-        Assert.Contains("Selected", page.Markup, StringComparison.OrdinalIgnoreCase);
+        Assert.NotEmpty(TierCards());
+        Assert.Contains(TierCards(),
+            c => c.TextContent.Contains("Selected", StringComparison.OrdinalIgnoreCase));
 
         await Button(page, StartNew).ClickAsync(new MouseEventArgs());
 
         Assert.Null(ctx.Session.Sheet.SelectedTierId);
-        Assert.DoesNotContain("Selected", page.Markup, StringComparison.OrdinalIgnoreCase);
+        Assert.NotEmpty(TierCards());
+        Assert.DoesNotContain(TierCards(),
+            c => c.TextContent.Contains("Selected", StringComparison.OrdinalIgnoreCase));
     }
 
     // ── The switcher, which is the half the owner could see ──────────────────────────

@@ -503,20 +503,41 @@ public sealed class FakeApi : HttpMessageHandler
             """);
     }
 
-    /// <summary>What a search answers, or 401. Matching is a plain word test — see above.</summary>
+    /// <summary>
+    /// What a search answers, or 401. Matching is a plain word test — see above.
+    ///
+    /// <para><b><c>chapter</c> narrows the corpus before anything is matched, and the count comes
+    /// out of the narrowed set</b>, which is what the real server does and the only property the
+    /// page reads. A stub that filtered the rows afterwards and left <c>found</c> alone would
+    /// answer exactly what the server change exists to stop the browser doing for itself.</para>
+    /// </summary>
     private Task<HttpResponseMessage> Found(HttpRequestMessage request)
     {
         if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
 
-        var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query)["q"];
+        var asked = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
+
+        var query = asked["q"];
         if (query is null) return Status(HttpStatusCode.BadRequest);
+
+        var searching = Chapters.AsEnumerable();
+
+        if (asked["chapter"] is { } wanted)
+        {
+            // The same two answers the real server gives: not a number is the caller's mistake,
+            // a number naming no chapter is a miss. Neither is an empty result set.
+            if (!int.TryParse(wanted, out var number)) return Status(HttpStatusCode.BadRequest);
+            if (Chapters.All(c => c.Number != number)) return Status(HttpStatusCode.NotFound);
+
+            searching = Chapters.Where(c => c.Number == number);
+        }
 
         var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Where(w => w.Length > 2)
             .Select(w => w.ToLowerInvariant())
             .ToList();
 
-        var hits = Chapters
+        var hits = searching
             .SelectMany(c => c.Passages.Select((p, i) => (Chapter: c, Index: i, Passage: p)))
             .Where(h => words.Any(w =>
                 h.Passage.Heading.Contains(w, StringComparison.OrdinalIgnoreCase)

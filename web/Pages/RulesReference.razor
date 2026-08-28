@@ -52,7 +52,7 @@ else
        could have, since the rows and the sentence were all present and correct. *@
     @if (_results is { Found: > 0 } found)
     {
-        <Panel Title="What the book says" Aside="@Summary(found)">
+        <Panel Title="@Answering" Aside="@Summary(found)">
             <ChosenList>
                 @foreach (var result in found.Results)
                 {
@@ -101,17 +101,36 @@ else
         </Panel>
     }
 
+    @* The chapters, as the controls they always looked like.
+
+       **The passage counts are gone.** "742 passages" is a statistic about how the extractor
+       split the text — the app describing its own internals to somebody who asked about a
+       rulebook. What is left is the two things a reader can act on: the chapter's name, and where
+       it sits in a physical copy.
+
+       **A row cannot search for nothing, so it is disabled until the box holds something.** The
+       server would answer an empty query with `found: 0`, and this page prints that as a sentence
+       about the book — so a row that ran on an empty box would tell a reader Ch.4 has nothing to
+       say, on the strength of their not having typed yet. The aside says what the rows want
+       instead; the alternative, running the chapter's own title as the query, is worse and the
+       entry in PROGRESS.md says why. *@
     @if (_contents is { } contents)
     {
-        <Panel Title="What is here" Aside="@Counted(contents.Sections, "passage", "passages")">
+        <Panel Title="What is here" Aside="@Scoping">
             <ChosenList>
                 @foreach (var chapter in contents.Chapters)
                 {
-                    <ChosenRow Cost="@Counted(chapter.Sections, "passage", "passages")">
+                    <ChosenRow Cost="@Pages(chapter)">
                         <Body>
                             <div><b>@chapter.Title</b></div>
                             <div class="small muted">@chapter.SourceRef</div>
                         </Body>
+                        <Actions>
+                            <button type="button" class="btn small" disabled="@(!CanScope)"
+                                    @onclick="() => SearchIn(chapter)">
+                                Search this chapter
+                            </button>
+                        </Actions>
                     </ChosenRow>
                 }
             </ChosenList>
@@ -131,6 +150,15 @@ else
     private RulebookPassage? _passage;
 
     /// <summary>
+    /// Which chapter the results on screen came from, or null for the whole book.
+    ///
+    /// <para>Kept so the answer can say where it looked. A narrowed list presented under the same
+    /// heading as a whole-book one is the "looks like a list of links and is not one" complaint in
+    /// a new spelling — it would read as the book having only these three passages.</para>
+    /// </summary>
+    private RulebookChapter? _scope;
+
+    /// <summary>
     /// What there is to read, asked once.
     ///
     /// <para>It doubles as the check on whether this account may read anything at all: the server
@@ -148,21 +176,59 @@ else
         ? Counted(contents.Chapters.Count, "chapter", "chapters")
         : "";
 
-    private async Task Search()
+    /// <summary>Whether there is anything to search for yet.</summary>
+    private bool CanScope => _query.Trim().Length > 0;
+
+    /// <summary>
+    /// What the chapter rows are waiting for, or nothing when they are ready.
+    ///
+    /// <para>A disabled control that does not say why is a dead end. This is the panel's aside
+    /// rather than a paragraph because it is a label on a state, not prose about the feature.</para>
+    /// </summary>
+    private string Scoping => CanScope ? "" : "type a word above first";
+
+    /// <summary>The chapter's printed page range, which is how to find it in a paper copy.</summary>
+    private static string Pages(RulebookChapter chapter) => chapter.PrintedPages switch
+    {
+        [var only] => FormattableString.Invariant($"p.{only}"),
+        [var first, .., var last] => FormattableString.Invariant($"pp.{first}–{last}"),
+        _ => "",
+    };
+
+    /// <summary>Which book the results came out of, said above them rather than assumed.</summary>
+    private string Answering => _scope is { } chapter
+        ? FormattableString.Invariant($"What Ch.{chapter.Chapter} says")
+        : "What the book says";
+
+    /// <summary>
+    /// The box's own search, which is always the whole book.
+    ///
+    /// <para><b>It clears the scope, and that is the way back.</b> A narrowing that survived the
+    /// next query would answer a new question out of a chapter chosen for the old one, and nothing
+    /// on screen would be wrong — which is the shape of every fault this page is built against.</para>
+    /// </summary>
+    private Task Search() => RunAsync(null);
+
+    /// <summary>The same search, narrowed to one chapter by the server.</summary>
+    private Task SearchIn(RulebookChapter chapter) => RunAsync(chapter);
+
+    private async Task RunAsync(RulebookChapter? scope)
     {
         var query = _query.Trim();
 
         if (query.Length == 0)
         {
             _results = null;
+            _scope = null;
             return;
         }
 
         _searching = true;
+        _scope = scope;
         _open = null;
         _passage = null;
 
-        _results = await Rulebook.SearchAsync(query);
+        _results = await Rulebook.SearchAsync(query, scope?.Chapter);
 
         _searching = false;
     }
@@ -214,10 +280,26 @@ else
     ///
     /// <para>It names the words actually searched on, because filler is dropped and a reader who
     /// typed six words and was told nothing matched deserves to know which two were used.</para>
+    ///
+    /// <para><b>A narrowed miss says it was narrowed, and points at the way out.</b> "Nothing in
+    /// the book uses knockback" is false when only one chapter was read, and it is the exact
+    /// over-claim this page exists to avoid — so the scoped wording names the chapter and the
+    /// control that widens it again.</para>
     /// </summary>
-    private string NothingFound => _results is { Terms.Count: > 0 } results
-        ? $"Nothing in the book uses {string.Join(" or ", results.Terms)}. Try the word the rules would use."
-        : "Type a word or two the rules would use.";
+    private string NothingFound
+    {
+        get
+        {
+            if (_results is not { Terms.Count: > 0 } results)
+                return "Type a word or two the rules would use.";
+
+            var words = string.Join(" or ", results.Terms);
+
+            return _scope is { } chapter
+                ? FormattableString.Invariant($"Nothing in Ch.{chapter.Chapter} uses {words}. Press Search to read the whole book.")
+                : $"Nothing in the book uses {words}. Try the word the rules would use.";
+        }
+    }
 
     private static string Counted(int n, string one, string many) =>
         FormattableString.Invariant($"{n} {(n == 1 ? one : many)}");

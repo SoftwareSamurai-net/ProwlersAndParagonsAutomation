@@ -12,12 +12,12 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 
 | | |
 |---|---|
-| Rulebook coverage | Everything character creation needs. Chapters 1–2 fully extracted and verified, plus Ch.6's custom gear and Ch.7's toxin Pros/Cons. Chapters 3, 4, 5 and 7 are play rules, 8 is the pre-built characters (transcribed in the tests) and 9 builds Villains by the Hero rules — see item 3. **All ten chapters of the printed text are extracted into `data/rulebook/` and searchable at `/rules` by anybody with an account**, which is a different store and a different claim: that is the book's prose, and only `data/rules/` is verified entry by entry against the page |
+| Rulebook coverage | Everything character creation needs. Chapters 1–2 fully extracted and verified, plus Ch.6's custom gear and Ch.7's toxin Pros/Cons. Chapters 3, 4, 5 and 7 are play rules, 8 is the pre-built characters (transcribed in the tests) and 9 builds Villains by the Hero rules — see item 3. **All ten chapters of the printed text are extracted into `data/rulebook/` and searchable at `/rules` by anybody with an account, whole book or one chapter at a time**, which is a different store and a different claim: that is the book's prose, and only `data/rules/` is verified entry by entry against the page |
 | Powers | 141 entries, all mechanically verified against Ch.2 pp.21–48 |
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4866 across **four** suites — 4024 on the engine (9 added by the CI-minutes slice, on the two workflow filters), 662 rendering components with bUnit (**26 added this round**, on the sheet's own address: nine cases on `SheetPage` — the document alone on the page, showing not opening, the two nulls kept apart — and nine inline cases extending `AreaTests` to the fifth area, plus the theory that already existed. **This figure is the sheet branch's, not a post-merge measurement**, and the row's own rule below applies: re-run rather than carry it. The round before added 10, on the banner printing the palette's chord — see the completed entry at the top; the round before added 46, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **twenty-one verdicts now, not nineteen** (the banner-alignment harness and its twin are the newest pair), because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4940 across **four** suites — 4033 on the engine (9 added by the CI-minutes slice, on the two workflow filters), 701 rendering components with bUnit (**26 added this round**, on the sheet's own address: nine cases on `SheetPage` — the document alone on the page, showing not opening, the two nulls kept apart — and nine inline cases extending `AreaTests` to the fifth area, plus the theory that already existed. **Measured on this branch with master merged in — 4033 + 701 + 192 + 14 — rather than carried from any single branch**, which is what the rule below asks for. The round before added 10, on the banner printing the palette's chord — see the completed entry at the top; the round before added 46, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 192 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **twenty-one verdicts now, not nineteen** (the banner-alignment harness and its twin are the newest pair), because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -809,21 +809,31 @@ tool for running and playing has.**
 
 #### Two smaller things from the same reading
 
-- **The Hero Point limit does not need a full-width panel for one button.** The chrome — heading,
-  rule, "Optional" aside — outweighs the control about four to one. The owner suggested two cards in
-  the tier grid. **They cannot be tiers 7 and 8**: a tier is a pick-one-of-six and the budget limit
-  is an orthogonal boolean, and you still pick a tier in sandbox mode because the Trait Cap still
-  applies. As **its own two-option group under a rule** it works, and it fixes a real defect for
-  free: **the current toggle's label flips between naming the action and naming the state** — off it
-  reads "Hold me to the tier's budget" (what will happen), on it reads "Building without a limit"
-  (what is happening), so a glance cannot tell which it is reporting. Two cards, both always
-  visible, one selected, removes the ambiguity entirely.
-- **`/rules`' "What is here" panel is inert rather than pointless.** It looks like a list of links
-  and is not one. And the passage counts — "742 passages" — are a statistic about how the extractor
-  split the text, which is the app describing its own internals to a reader who asked about a
-  rulebook. The chapter names and page ranges earn their place: they say whether a thing is in the
-  book and where to find it in a physical copy. Drop the counts; make each row run a search scoped
-  to that chapter.
+- **The Hero Point limit does not need a full-width panel for one button. Done — see the completed
+  entry at the top of this file.** Two cards as their own two-option group under a rule, not tiers
+  7 and 8, and the flipping label is gone. The argument is kept in full up there.
+- **`/rules`' "What is here" panel is inert rather than pointless. Done — see the completed entry at
+  the top of this file.** The counts are gone and each row runs a search scoped to that chapter,
+  through a `chapter=N` parameter on `/api/rulebook/search`. The argument below is kept because it
+  is what the change was built to, and because it is the record of why the two easier routes were
+  refused.
+
+  **The scoping half needed a server change, and that is why this bullet was open.**
+  `/api/rulebook/search` takes `q` and `limit` and nothing else, and `search()` in `worker/search.js`
+  ranks the whole corpus. Neither honest route to a chapter-scoped answer exists on this side of the
+  wire: **filtering the response client-side is filtering what survived a server cap** — `MOST_RESULTS`
+  is 30 and a caller cannot raise it — so a chapter with real matches outside the top thirty comes
+  back empty, and `found` would be a count of the whole book presented as a count of the chapter.
+  That is the same "a search that always shows five rows reads as five answers" fault the page was
+  designed against. **Searching the chapter's own title instead is worse**, not better: a row
+  labelled with a chapter and its pages that answers with hits from three other chapters is exactly
+  the "looks like a list of links and is not one" complaint in a new spelling.
+
+  **What it took** was a `chapter=N` parameter on that route, applied **before** ranking, with
+  `found` and `nothingMatchedByHeading` computed over the scoped set and *then* the list cut — and
+  the last part came free, because `search()` already takes the chapters it ranks as its first
+  argument and already computes both before cutting. So scoping is filtering that array, nothing in
+  the ranking changed, and the worker's surface grew by one optional parameter.
 
 ---
 
@@ -1045,6 +1055,121 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 
 ## Completed work
 
+### A chapter of the book can be searched on its own, and the rules index stopped being inert
+
+**[Item 12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer)'s second
+smaller thing, and the half that was left open because it needed the server.** `/rules`' "What is
+here" panel listed ten chapters, looked like a list of links, and was not one. Each row now runs the
+box's query scoped to that chapter, and the passage counts are gone.
+
+**The narrowing is on the server because it cannot honestly be anywhere else, which is the argument
+the open bullet already carried and which held up.** `MOST_RESULTS` is 30 and no caller may raise
+it, so filtering the response would be filtering what survived a cap — a chapter with real matches
+outside the best thirty comes back empty, and `found` becomes a count of the whole book presented as
+a count of the chapter. **That is not hypothetical and a test names a measured instance**: forty
+passages in Ch.8 use "vehicle" and the unscoped thirty rows are filled out of Ch.2 and Ch.6 before
+reaching one of them. The pair was chosen by running twenty ordinary queries against the real corpus
+and asking which chapters had matches and appeared nowhere in the top thirty; it had the widest
+margin of those it found.
+
+- **`chapter=N` is a filter on the input, not a parameter threaded through the ranking.**
+  `search(chapters, query, limit)` already took the chapters it ranks as its first argument, so a
+  scoped search is the same search over a smaller book and nothing inside the matching rule knows
+  the option exists. **That is what makes `found` and `nothingMatchedByHeading` describe the scoped
+  set for free** — they are computed over the whole result and only then is the list cut, the
+  ordering `search.js` insists on for its own recorded reason, and that ordering was not disturbed.
+  A test asks for one row of a scoped search and asserts the count and the flag do not move.
+- **A bad chapter is a status code, never an empty result, and that is the decision worth keeping.**
+  `found: 0` is this API's one way of saying *the book is silent on this*, which the page prints as
+  a sentence about the rulebook. Answering it for `chapter=99` would make that sentence a claim
+  about the text told on the strength of a typo — the same "a search that always answers reads as
+  an answer" fault the page was designed against. Not a number is `400`, a number the book has no
+  chapter under is `404`: the pair `/api/rulebook/passage` already gives, for the reason it already
+  records.
+- **The per-chapter array is held, and keyed on the corpus as well as on the number.** `search.js`
+  keys its index on the *identity* of the array it is handed, so a fresh `filter()` per request
+  would walk that chapter's prose every request; and a cache keyed on the number alone would answer
+  a second corpus out of the first one's entry — the exact fault `corpusIndex` one file over carries
+  a comment about. Driven in a test through the route rather than through the ranking, since that is
+  where the cache is.
+- **The counts are dropped from that panel only, and the ban is scoped to it deliberately.** The
+  instruction as first written was "no count of passages appears anywhere on `/rules`", and that
+  would have killed `Summary()`'s "12 passages, best 5 first" — a different number doing a real job,
+  found against shown, which is the honesty the whole page is built on. The guard reads that panel
+  and asserts the results panel still prints its figure, which is also the positive control: a page
+  whose panels had all gone would satisfy the absence.
+- **A row cannot be pressed with an empty box.** The server answers an empty query `found: 0`, so a
+  row that ran on one would tell a reader Ch.4 is silent because they had not typed yet. The panel's
+  aside says what the rows want. **Searching the chapter's own title instead stays rejected** for
+  the reason the open bullet gave: a row labelled with a chapter that answers with hits from three
+  other chapters is the original complaint in a new spelling.
+- **A scoped answer says where it looked, and the box is the way back out.** The results panel is
+  headed "What Ch.4 says", a scoped miss names the chapter and points at Search, and submitting the
+  form always clears the scope — a narrowing that survived the next query would answer a new
+  question out of a chapter chosen for the old one, with nothing on screen looking wrong.
+- **Ten mutations, each watched red.** Scoping made a no-op (5 worker tests), `found` taken from the
+  whole book (2), the 404 turned into an empty result (1), the sign-in gate narrowed off the prefix
+  (2, including the new scoped one), the page dropping the chapter from its request (2 bUnit), the
+  passage count put back in the panel (1), the scope surviving a fresh search (2), the rows enabled
+  on an empty box (1), the results heading never naming the chapter (2), and the scoped miss
+  over-claiming about the whole book (1).
+
+**`rules-reference.png` moves** — the panel is a different shape. It is deliberately not regenerated
+here; that is `visual-goldens.yml` on the runner, and a golden updated as a side effect of something
+else is a regression signed off by nobody.
+
+### The Hero Point limit is two cards, and the label that flipped is gone
+
+**[Item 12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer)'s first
+smaller thing, built as the owner designed it.** The limit was one button inside a full-width
+panel, and the chrome — a heading, a rule and an "Optional" aside — outweighed the control about
+four to one. It is now **its own two-option group under a rule**, drawn in the tier grid's idiom,
+on the same page.
+
+**They are not tiers 7 and 8, and the separation is the design rather than a detail.** A tier is a
+pick-one-of-six; the budget limit is an orthogonal boolean, and **you still pick a tier in sandbox
+mode because the Trait Cap still applies**. Dropping the pair into the grid above would say the
+opposite in one move, so the rule and the heading are what carry "this is a different question" —
+the same `border-top` idiom `.make-another` uses to separate the two ways to make a character from
+the list of the ones that exist. There is a test that the six tiers are still there without a
+limit, that the step still refuses to go on until one is chosen, and that `TRAIT_ABOVE_CAP` still
+fires in the sandbox.
+
+**And it fixed a real defect for free, which is the part worth keeping.** The single button's label
+flipped between naming the *action* and naming the *state*: off it read "Hold me to the tier's
+budget", which is what pressing it would do, and on it read "Building without a limit", which is
+what was already happening — so a glance could not tell which of the two it was reporting. Two
+cards, both always visible and exactly one selected, cannot be ambiguous that way. Both labels now
+name a state — *Building to the tier's budget* and *Building without a limit* — and there is a test
+on the parallel construction, because the shape of the words is the fix and not a matter of taste.
+
+- **`OptionRow` grew an optional `Pressed`, written out as a string.** Blazor drops a false bool
+  attribute and renders a true one as `aria-pressed=""`, which assistive technology reads as *not*
+  pressed, so the natural spelling announces the opposite of the state in both directions. Both
+  mutations were watched: dropping the `"false"` spelling and binding the bool directly each turn
+  four assertions red. It is refused inside a listbox, where `aria-selected` already says which row
+  is the answer — two answers to one question is what a row carrying both would be.
+- **The tip is gone and its sentence is printed on the card.** That is the rule a row which says
+  its own piece already follows, and what the tip answered — whether switching the budget off stops
+  the tool checking the character at all — is now read without hovering for it.
+- **Nothing else about the character moves.** Asserted as the whole exported sheet before and after
+  the click rather than field by field, because "nothing else moved" is not a list of fields to
+  keep up to date. The engine is never told about the flag, so its findings do not move either, and
+  `PresentationFlagsTests` still holds `UnlimitedBudget` out of `engine/` and `sheets/` — a
+  mutation making the Trait Cap check read it turned that test *and* the new one red.
+- **Choosing the card already chosen is not an edit.** A pair of cards is not a toggle wearing two
+  hats: pressing the state you are already in is not a way to leave it. Read off the session's
+  version counter, which the autosave and both undo buffers key on — an edit recorded there would
+  close an undo window somebody was still inside.
+- **`StartAnotherTests` now reads the tier cards rather than scanning the whole page for
+  "Selected".** One of the new pair is selected at all times by design, so a markup scan finds its
+  word and calls that test red for a reason that has nothing to do with tiers. It kept its positive
+  control.
+
+**The four `shell-*` visual goldens move**, because the shell proofs render this page inside
+`MainLayout`. They are deliberately not regenerated here — that is `visual-goldens.yml` on the
+runner, and a golden updated as a side effect of something else is a regression signed off by
+nobody.
 ### One bar, two sides, one baseline — and the alignment was the symptom
 
 > *"can we get a more uniform looking header bar? Search is vertically elevated"* — the owner

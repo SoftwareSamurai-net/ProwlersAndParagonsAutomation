@@ -70,11 +70,45 @@ export function power(request, entries) {
 const MOST_RESULTS = 30;
 
 /**
- * What the book says about a query.
+ * One chapter on its own, as an array `search()` can be handed and can cache an index on.
+ *
+ * **Held rather than filtered per request, and that is not a micro-optimisation.** `search.js`
+ * keys its index on the *identity* of the array it was given, so a fresh `filter()` each time
+ * would rebuild an index over that chapter's prose on every single request.
+ *
+ * **Keyed on the corpus as well as the number**, for the reason `corpusIndex` records one file
+ * over: a cache that ignores its argument answers a second corpus — which is every test that
+ * hands this a made-up chapter — out of the first one's entry, plausibly and wrongly.
+ *
+ * Null for a number the book has no chapter under, which the caller turns into a 404.
+ */
+const scopes = new WeakMap();
+
+function only(chapters, number) {
+    let byNumber = scopes.get(chapters);
+    if (!byNumber) scopes.set(chapters, (byNumber = new Map()));
+
+    if (!byNumber.has(number)) {
+        const chapter = chapters.find(c => c.chapter === number);
+        byNumber.set(number, chapter ? [chapter] : null);
+    }
+
+    return byNumber.get(number);
+}
+
+/**
+ * What the book says about a query, optionally in one chapter of it.
  *
  * **The flags travel with the answer and say how it matched, never what to conclude.** `found: 0`
  * is the only answer that means the book is silent; `nothingMatchedByHeading` says every passage
  * matched in its body, which is ordinary for a question phrased as a question.
+ *
+ * **Scoping is filtering the input, not a parameter threaded through the ranking.** `search()`
+ * takes the chapters it ranks as its first argument, so a scoped search is the same search over a
+ * smaller book — nothing inside the matching rule knows this exists. That is what makes `found`
+ * and `nothingMatchedByHeading` describe the *scoped* set for free: they are already computed over
+ * the whole result and only then is the list cut, which is the ordering `search.js` insists on.
+ * `MOST_RESULTS` is unaffected and still the server's, not the caller's.
  */
 export function search(request, chapters) {
     const parameters = new URL(request.url).searchParams;
@@ -85,7 +119,30 @@ export function search(request, chapters) {
     const asked = Number.parseInt(parameters.get('limit') ?? '', 10);
     const limit = Number.isFinite(asked) && asked > 0 ? Math.min(asked, MOST_RESULTS) : MOST_RESULTS;
 
-    return json(findPassages(chapters, query, limit));
+    let searching = chapters;
+    const wanted = parameters.get('chapter');
+
+    if (wanted !== null) {
+        const number = Number.parseInt(wanted, 10);
+
+        // **The two bad chapters are different mistakes and get the same pair of answers the
+        // passage route already gives**: not a number at all is the caller's, a number naming no
+        // chapter is a miss.
+        //
+        // **Neither may be an empty result set, and that is the decision worth spelling out.**
+        // `found: 0` is this API's one way of saying *the book is silent on this*, which the front
+        // end prints as a sentence about the rulebook. Answering it for `chapter=99` would make
+        // that sentence a claim about the text told on the strength of a typo — the same "a search
+        // that always answers reads as an answer" fault the whole route is designed against. A
+        // status code says the request was wrong; a result says the book was.
+        if (!Number.isFinite(number)) return fail(400, 'That is not a chapter of the book.');
+
+        searching = only(chapters, number);
+
+        if (searching === null) return fail(404, 'The book has no chapter with that number.');
+    }
+
+    return json(findPassages(searching, query, limit));
 }
 
 /**

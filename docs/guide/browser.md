@@ -264,6 +264,37 @@ on the site nobody had checked.
   of the app answers with. They are the same engine's answers.
 
 
+## Two cards are how this app asks a yes-or-no question
+
+**The Hero Point limit is a pair of `OptionRow` cards under a rule on the tier page, and it used to
+be one button in a panel.** What made the pair worth the extra markup is not the chrome it saved —
+it is that a single toggle has to label itself with either the action or the state, and the one
+here did both by turns: off it read "Hold me to the tier's budget", which is what pressing it would
+do, and on it read "Building without a limit", which is what was already happening. A glance could
+not tell which of the two it was reporting. **Reach for two cards whenever a boolean is a state
+somebody will read at a glance rather than an action they are about to take.**
+
+- **Both labels name the same kind of thing as each other** — two states or two choices, never one
+  of each. That is the whole fix, so it is asserted rather than left to taste: the two are written
+  as a parallel construction a test can read.
+- **Both cards are always visible and exactly one is pressed.** Hiding the unselected one is the
+  flipping label again in another spelling.
+- **`OptionRow.Pressed` is a `bool?` and renders `"true"`/`"false"` as a string.** Blazor drops a
+  false bool attribute and renders a true one as `aria-pressed=""`, which is invalid ARIA that
+  assistive technology reads as *not* pressed — the trap `MainLayout`'s switches already document.
+  It draws nothing at all inside a listbox, where `aria-selected` is what says which row is the
+  answer; a row carrying both would be two answers to one question.
+- **A card group under a rule is not the grid above it.** The tier cards and these are drawn in one
+  idiom deliberately — they are the same kind of thing to look at — but a tier is a
+  pick-one-of-six and the limit is an orthogonal boolean. `.budget-choice` is `border-top` and
+  padding, the same separation `.make-another` uses, and it is load-bearing: dropped into the grid
+  the pair would read as two more tiers, and **you still pick a tier without a limit, because the
+  Trait Cap still applies**.
+- **Choosing the state already in force is not an edit.** The session's setter returns early, so
+  the `Version` counter does not move — and an edit recorded there would close an undo window
+  somebody was still inside.
+
+
 ## The rules reference
 
 `/rules` searches the whole book and cites the printed page. The corpus is bundled into the worker
@@ -301,6 +332,30 @@ anybody.
   "nothing matched by heading at all".
 - **The row cap is the server's and the caller cannot raise it.** The alternative is one response
   carrying fifteen hundred passages and their snippets.
+- **"What is here" is a list of controls, and it prints no passage counts.** Each chapter row runs
+  a search of the box's words scoped to that chapter, through `chapter=N` on the search route — see
+  [`accounts-server.md`](accounts-server.md) for why the narrowing has to be the server's. "742
+  passages" was a statistic about how the extractor split the text: the app describing its own
+  internals to somebody who asked about a rulebook. The chapter's name and its printed page range
+  stay, because they answer whether a thing is in the book and where to find it in a paper copy.
+
+  **The ban on that count is scoped to that panel and must not be widened.** `Summary()` prints "12
+  passages, best 5 first" beside the results, and that is a different number doing a real job — how
+  many matched against how many are shown, which is the honesty the whole page is built on. A guard
+  reading "no passage count anywhere on `/rules`" would kill it.
+
+  **A row is disabled until the box holds something**, because the server answers an empty query
+  with `found: 0` and this page prints that as a sentence about the book — a row that ran on an
+  empty box would tell a reader Ch.4 is silent on the strength of their not having typed yet. The
+  panel's aside says what the rows are waiting for. Searching the chapter's *own title* instead was
+  rejected in `PROGRESS.md` and stays rejected: a row labelled with a chapter that answers with hits
+  from three other chapters is the original "looks like a list of links and is not one" complaint in
+  a new spelling.
+- **A scoped answer says which chapter it came out of, and the box is the way back.** The results
+  panel is headed "What Ch.4 says" rather than "What the book says", a scoped miss names the chapter
+  and points at the Search button, and submitting the form always clears the scope — a narrowing
+  that survived the next query would answer a new question out of a chapter chosen for the old one,
+  with nothing on screen looking wrong.
 
 
 ## The sheet beside the editors

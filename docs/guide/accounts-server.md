@@ -173,6 +173,31 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   rulebook routes — see [`replay.md`](replay.md). `ReplayLoader` fetches it once, on demand, rather than at
   startup, which is also what stopped every visitor's browser paying for four files almost none
   of them could ever open.
+- **`/api/rulebook/search` narrows to a chapter by filtering the corpus it is handed, never by a
+  parameter inside the ranking.** `search(chapters, query, limit)` in `worker/search.js` takes the
+  chapters it ranks as its first argument, so `chapter=N` is the same search over a smaller book and
+  nothing in the matching rule knows the option exists. **That is what keeps `found` and
+  `nothingMatchedByHeading` describing the scoped set for free** — they are computed over the whole
+  result and only then is the list cut, an ordering that file insists on for a recorded reason.
+  `MOST_RESULTS` is untouched and still the server's, not the caller's.
+
+  **The narrowing cannot be done on the browser's side, and the reason is the cap.** Keeping one
+  chapter's rows out of the answer is filtering what survived a limit no caller may raise, so a
+  chapter with real matches outside the best thirty comes back empty and `found` becomes the whole
+  book's count presented as a chapter's. A test picks a real query and chapter where exactly that
+  is true — `vehicle` in Ch.8, whose forty passages the unscoped thirty never reach.
+
+  **A bad chapter is a status code, never an empty result**, and that is a decision rather than a
+  convention: `found: 0` is this API's one way of saying *the book is silent on this*, and the front
+  end prints it as a sentence about the rulebook. Answering it for `chapter=99` would make that
+  sentence a claim about the text told on the strength of a typo. Not a number is `400` and a number
+  the book has no chapter under is `404` — the pair `/api/rulebook/passage` already gives.
+
+  **The per-chapter array is cached, keyed on the corpus as well as the number.** `search.js` keys
+  its index on the *identity* of the array handed to it, so a fresh `filter()` per request would
+  rebuild an index over that chapter's prose every request; and a cache keyed on the number alone
+  would answer a second corpus out of the first one's entry, which is the fault `corpusIndex` one
+  file over already carries a comment about.
 - **The two halves are different languages and both suites stay green while they disagree.**
   `AccountsContractTests` is the only thing that reads both — addresses asked for against
   addresses routed, and the keys the server returns against the names the client binds. Do not

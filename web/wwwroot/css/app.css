@@ -1351,6 +1351,23 @@ label {
     border-left-color: var(--accent);
 }
 
+/* The Hero Point limit: two cards of its own, under a rule.
+
+   **The rule and the heading are the whole of the separation, and they are load-bearing.**
+   These two are drawn in the tier grid's idiom deliberately — they are the same kind of choice
+   to look at — but they are not two more tiers: a tier is a pick-one-of-six and this is an
+   orthogonal boolean, and a reader still picks a tier without a limit because the Trait Cap
+   still applies. Dropping them into the grid above would say the opposite in one move.
+
+   The same border-top-and-padding as `.make-another`, which separates the two ways to make a
+   character from the list of the ones that exist, for the same reason: one group ends and a
+   different question begins. Nothing else here — the grid inside brings its own layout, and
+   `.shell`'s gap spaces this from its neighbours like any other direct child. */
+.budget-choice {
+    padding-top: var(--space-4);
+    border-top: var(--rule-weight) solid var(--rule);
+}
+
 /* The choice already made. A ring, never a fill — --accent is 1.8:1 on --surface
    in the Hero palette and unreadable behind text — and never the only marking:
    the caller puts a word beside the name as well, because a ring is a colour. */

@@ -24,6 +24,7 @@
             role="@(Navigable ? "option" : null)"
             tabindex="@(Navigable ? "-1" : null)"
             aria-selected="@AriaSelected"
+            aria-pressed="@AriaPressed"
             aria-describedby="@DescriptionId"
             @onkeydown="Key"
             @onmouseleave="Restore"
@@ -102,6 +103,26 @@
     /// <see cref="NameExtra"/> beside it; the tier cards say "Selected" in words.
     /// </summary>
     [Parameter] public bool Selected { get; set; }
+
+    /// <summary>
+    /// Whether this row is the state in force, for the one kind of group whose rows are two
+    /// states rather than a catalogue to pick from — the Hero Point limit's pair of cards.
+    /// Null everywhere else, and a row draws no attribute at all then.
+    ///
+    /// <para><b>It is written out as a string and must stay one.</b> Blazor drops a bool
+    /// attribute when it is false and renders it as <c>aria-pressed=""</c> when it is true, and
+    /// an empty value is invalid ARIA that assistive technology reads as <i>not</i> pressed — so
+    /// the obvious spelling announces the opposite of the state in both directions.</para>
+    ///
+    /// <para><b>Never inside a listbox</b>, where <see cref="AriaSelected"/> already says which
+    /// row is the answer. A row carrying both would be two answers to one question, and the
+    /// rows this is for are outside such a list by construction: they are cards to compare and
+    /// Tab through, like the tier cards beside them.</para>
+    /// </summary>
+    [Parameter] public bool? Pressed { get; set; }
+
+    private string? AriaPressed =>
+        Navigable || Pressed is null ? null : Pressed.Value ? "true" : "false";
 
     [Parameter] public EventCallback OnSelect { get; set; }
 
