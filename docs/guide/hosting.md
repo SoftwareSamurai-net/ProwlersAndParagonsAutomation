@@ -21,38 +21,50 @@ Cloudflare Pages at `superheroes.softwaresamurai.net`, by `.github/workflows/dep
 
 ---
 
-## The deploy refuses to ship past an unapplied migration
+## Nothing stops a deploy shipping past an unapplied migration — the guard needs a token that can read D1
 
-**`Deploy` fails before it uploads anything if `d1/migrations` holds one the remote database has
-not run.** It never applies it. Applying from CI would mean a bad migration ships itself, and a
-migration is the one operation here that can destroy data — so the manual step stays and this only
-refuses to race ahead of it. The error names the command:
+**This is an open gap, not a solved one**, and it is here rather than in `PROGRESS.md` alone because
+anybody touching `deploy.yml` or `d1/` needs it.
+
+**Applying a migration is a separate act from deploying, and nothing reminds you.** After merging
+anything that adds a file under `d1/migrations`, run:
 
 ```bash
 npx wrangler --cwd d1 d1 migrations apply prowlers-and-paragons --remote
 ```
 
-**Why it exists.** `0005_campaigns.sql` added `characters.campaign_id`. It was written, reviewed and
-merged; the deploy shipped the Worker; **nothing applies migrations to D1.** Production then got
-`D1_ERROR: no such column: campaign_id` on `/api/characters` — which broke *ordinary character
-saving for every signed-in reader*, over a feature nobody was using yet. 29 failures.
+**What it cost to learn.** `0005_campaigns.sql` added `characters.campaign_id`. It was written,
+reviewed and merged; the deploy shipped the Worker; nothing applied the migration. Production
+answered `D1_ERROR: no such column: campaign_id` on `/api/characters` — **breaking ordinary
+character saving for every signed-in reader**, over a feature nobody was using yet. 29 failures.
 
-**Every check passed while it happened, and the reason is worth carrying.** `./scripts/test-worker.sh`
-runs 192 tests against real SQLite, and **it builds its schema by running the migrations** — so it
-can never notice that production's schema was not built. A suite that constructs the world it tests
-cannot tell you the real world differs. The post-deploy smoke check could not catch it either: it
-asks `/api/me`, which touches no table the migration changed, so it proves the server is wired up
-and nothing about its schema.
+**Every check passed while it happened and none could have failed.** `./scripts/test-worker.sh` runs
+192 tests against real SQLite and **builds its schema by running the migrations**, so it can never
+notice that production's schema was not built — *a suite that constructs the world it tests cannot
+tell you the real world differs*. The post-deploy smoke check asks `/api/me`, which touches no table
+the migration changed: it proves the server is wired up and nothing about its schema.
 
-- **An unrecognised answer fails, and that is the load-bearing part.** The step reads wrangler's
-  prose, so a reworded release must not read as "all clear" — the exact guard failure `CLAUDE.md`
-  records four times, a check satisfied by there being nothing to check. Only the explicit
-  all-clear passes; empty output refuses too, and both were driven and watched.
-- **Pinned to a version whose output was read rather than guessed.** `wrangler@3.90.0` — what the
-  deploy uses to *bundle* — answers this command with a usage dump, which would have been an
-  unrecognised answer on every run. This step simulates nothing, so it does not need the deploy's
-  version; it needs one whose two answers have been seen. `4.127.0` was verified against the real
-  database before it landed.
+### The guard, why it was reverted, and what brings it back
+
+A step that **refuses to deploy** while a migration is pending — never applying one, because
+applying from CI would mean a bad migration ships itself — was built, driven through all four of its
+branches, and merged. **It was reverted on its first real run.**
+
+The deploy's `CLOUDFLARE_API_TOKEN` has no D1 permission. Wrangler answered *"The given account is
+not valid or is not authorized to access this service [code: 7403]"*, so the step could not tell
+whether migrations were pending and refused — **correctly, by its own design**. But that left
+`master` unable to deploy at all, which is a worse failure than the one it prevents.
+
+- **It comes back the moment the deploy token can read D1.** It needs D1 *Read* on this account in
+  addition to what it already has for Pages. The step is in the history of PR #104 and needs no
+  redesign — only credentials.
+- **Do not "fix" it by treating an unauthorised answer as all-clear.** That turns the guard into the
+  thing it exists to prevent: a check satisfied by there being nothing to check, which is how the
+  outage above happened.
+- **Two details worth keeping when it returns.** An unrecognised answer must fail, because the step
+  reads wrangler's prose and a reworded release must not read as clear. And it must be pinned to a
+  wrangler whose output has actually been read: `3.90.0`, the version the deploy bundles with,
+  answers this command with a *usage dump*, which would have been an unrecognised answer every run.
 
 ## A hung step costs six hours, and nothing was stopping it
 

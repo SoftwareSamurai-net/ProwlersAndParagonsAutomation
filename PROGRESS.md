@@ -1081,24 +1081,38 @@ kept climbing while it was being diagnosed.
   this migration changed. It proves the server is wired up; it says nothing about whether the schema
   matches the code just deployed.
 
-#### The fix, and the guard
+#### The fix, and the guard that could not be kept
 
 The migration was applied by hand — additive only, a nullable column and a new table, no data
 touched — and the error counters froze at 12 and 17 with identical `last_at` across two checks
 minutes apart. **Confirmed stopped by measurement rather than by the absence of new reports.**
 
-**`Deploy` now refuses to ship while a migration is unapplied**, and deliberately does not apply
-one: applying from CI would mean a bad migration ships itself, and this is the one operation in the
-project that can destroy data. The failure names the command to run.
+A step that **refuses to deploy** while a migration is unapplied was then built, driven through all
+four of its branches, and merged. **It was reverted on its first real run, and the reason is a
+finding rather than a mistake in the step.**
 
-- **An unrecognised answer fails.** The step reads wrangler's prose, so a reworded release must not
-  read as "all clear" — the guard failure this file records four times, a check satisfied by there
-  being nothing to check. Driven with four canned answers: clean passes, pending fails, unfamiliar
-  fails, **empty fails**.
-- **Pinned to a version whose output was read.** `wrangler@3.90.0`, the version the deploy bundles
-  with, answers this command with a *usage dump* — which would have been an unrecognised answer on
-  every single run. The step simulates nothing, so it takes a version whose two answers have been
-  seen instead.
+The deploy's `CLOUDFLARE_API_TOKEN` has no D1 permission — wrangler answered *"The given account is
+not valid or is not authorized to access this service [code: 7403]"*. The step could not tell
+whether migrations were pending, so it refused, **exactly as designed**. But refusing meant `master`
+could not deploy at all, which is a worse failure than the one it prevents, so it came out.
+
+**It worked locally and could never have worked in CI, and that gap is the lesson.** The token this
+machine holds is the owner's own, with access to everything; the deploy's is scoped to Pages. *A
+credential that answers on the developer's machine says nothing about the one CI holds* — the same
+shape as a test that builds the world it tests, one layer out.
+
+- **It returns when the deploy token can read D1** (D1 *Read*, alongside what it has for Pages). The
+  step is in PR #104's history and needs no redesign, only credentials.
+- **It must not be "fixed" by treating an unauthorised answer as all-clear**, which would turn the
+  guard into the thing it exists to prevent.
+- **Two properties worth keeping when it comes back.** An unrecognised answer fails, because the
+  step reads wrangler's prose and a reworded release must not read as clear — driven with four
+  canned answers, clean passing and pending, unfamiliar and *empty* all failing. And it is pinned to
+  a wrangler whose output was read: `3.90.0`, what the deploy bundles with, answers this command
+  with a **usage dump**, which would have been an unrecognised answer on every single run.
+
+**Until then the discipline is manual**: after merging anything that adds a file under
+`d1/migrations`, run the apply. Nothing reminds you.
 
 **Also done while in there, at the owner's request:** their account's `character_limit` raised from
 5 to 1,000,000. There is no unlimited sentinel — the column is `INTEGER NOT NULL` and the check is
