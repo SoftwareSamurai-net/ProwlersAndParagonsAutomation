@@ -173,6 +173,12 @@ export async function inbox(request, env, deps, user) {
  * **`characterId` is answered to the player and withheld from the GM.** The player needs it —
  * it names which of their own characters this is. The GM does not: they approve `m_…`, and an id
  * belonging to another account's row is a disclosure with no use behind it.
+ *
+ * **No timestamps here, and they were here for one commit.** `approvedAt` and `pendingAt` are in
+ * the two lists, which is where a "sent three hours ago" belongs; this read exists so the browser
+ * can compute a diff. `AccountsContractTests` caught them: the server was sending two fields the
+ * client bound nothing to, which is exactly the drift that test exists for — and binding a field
+ * nothing draws would have been a field that rots.
  */
 export async function read(request, env, deps, user, id) {
     if (!ID_PATTERN.test(id)) return fail(400, 'That is not a membership id this server uses.');
@@ -191,9 +197,7 @@ export async function read(request, env, deps, user, id) {
         role: mine ? 'player' : 'gm',
         characterId: mine ? row.character_id : null,
         approved: row.approved_payload ?? null,
-        approvedAt: row.approved_at ?? null,
         pending: row.pending_payload ?? null,
-        pendingAt: row.pending_at ?? null,
         pendingVersion: row.pending_version,
     });
 }
@@ -310,11 +314,11 @@ async function decide(request, env, deps, user, id, statement) {
     // **The newer snapshot travels with the refusal**, so the screen can redraw the diff rather
     // than telling somebody to go and look again. That is the difference between a refusal that
     // is safe and one that is also usable.
+    // Exactly the two fields the browser binds, and no more. A refusal carrying a `pendingAt` and
+    // a `label` nothing reads is the same drift the detail read above was caught for.
     return fail(409, 'This changed while you were looking at it.', {
         pendingVersion: row.pending_version,
-        pendingAt: row.pending_at ?? null,
         pending: row.pending_payload,
-        label: row.label,
     });
 }
 

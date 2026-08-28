@@ -32,6 +32,9 @@ public sealed class WorkflowFilterTests
     private static string BuildWorkflow =>
         File.ReadAllText(Path.Combine(RepoRoot, ".github", "workflows", "build.yml"));
 
+    private static string DeployWorkflow =>
+        File.ReadAllText(Path.Combine(RepoRoot, ".github", "workflows", "deploy.yml"));
+
     /// <summary>
     /// The paths the build is allowed to skip. Two, and both are files no test opens: the log of
     /// what is done and what is left, and the handover written at the end of a slice. They are
@@ -296,5 +299,54 @@ public sealed class WorkflowFilterTests
             "The push triggers disagree about which branch they fire on, so at least one of them "
             + "runs on nothing and reports no failure for it:\n  "
             + string.Join("\n  ", named.Select(kv => $"{kv.Key}: [{string.Join(", ", kv.Value)}]")));
+    }
+
+    /// <summary>
+    /// <b>The silent-failure one.</b> Without <c>d1/migrations/**</c> in <c>deploy.yml</c>'s push
+    /// <c>paths:</c> list, a pull request that adds ONLY a migration file never triggers this
+    /// workflow at all — <c>scripts/apply-migrations.sh</c>, which applies exactly that kind of
+    /// change, would simply never run for it. A merged migration could then sit unapplied on
+    /// production until some unrelated <c>web/</c> or <c>worker/</c> change happened to trigger
+    /// the next deploy — the same shape of outage <c>docs/guide/hosting.md</c> records for
+    /// <c>0005_campaigns.sql</c>, one layer further back.
+    /// </summary>
+    [Fact]
+    public void DeployTriggersOnAMigrationFileAlone()
+    {
+        var text = DeployWorkflow;
+
+        // The positive control: the push trigger really does declare a paths filter, so the
+        // assertion below is checking a real list rather than passing vacuously against a typo
+        // that renamed the block.
+        var pathsIndex = text.IndexOf("paths:", StringComparison.Ordinal);
+        Assert.True(pathsIndex >= 0, "deploy.yml's push trigger names no paths filter at all.");
+
+        Assert.Contains("'d1/migrations/**'", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Ordering is the whole correctness of the migration-apply step.</b> It has to run before
+    /// the Pages upload: applying after would leave the deployed code briefly ahead of the schema
+    /// it depends on, which is the exact outage <c>docs/guide/hosting.md</c> records — every
+    /// migration in <c>d1/migrations</c> is written to tolerate the other order, code depending on
+    /// a schema that has not shipped yet is not. Comparing string indices is a crude instrument,
+    /// but it is the one thing here a step merely existing somewhere in the file cannot satisfy.
+    /// </summary>
+    [Fact]
+    public void MigrationsAreAppliedBeforeThePagesDeploy()
+    {
+        var text = DeployWorkflow;
+
+        var applyIndex = text.IndexOf("apply-migrations.sh", StringComparison.Ordinal);
+        var deployIndex = text.IndexOf("cloudflare/wrangler-action@v3", StringComparison.Ordinal);
+
+        // The positive control: both landmarks must actually be found, or the ordering
+        // comparison below would pass vacuously by comparing two -1s.
+        Assert.True(applyIndex >= 0, "deploy.yml no longer runs scripts/apply-migrations.sh.");
+        Assert.True(deployIndex >= 0, "deploy.yml no longer deploys via cloudflare/wrangler-action.");
+
+        Assert.True(applyIndex < deployIndex,
+            "scripts/apply-migrations.sh must run BEFORE cloudflare/wrangler-action's Pages "
+            + "deploy — applying it after would ship code ahead of the schema it depends on.");
     }
 }

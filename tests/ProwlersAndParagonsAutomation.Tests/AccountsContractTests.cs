@@ -330,6 +330,198 @@ public sealed class AccountsContractTests
     }
 
     /// <summary>
+    /// The membership addresses are routed, all seven of them, and all inside the signed-in gate.
+    ///
+    /// <para><b>Read structurally out of <c>worker/index.js</c> alone, never with
+    /// <c>Contains</c></b> — the reason this file records three times over. Every one of these
+    /// literals also appears in <c>worker/errors.js</c>'s <c>KNOWN_ROUTES</c> and in
+    /// <c>routePattern</c>, built for a different purpose, so a search over the concatenated
+    /// server would find them whether or not anything routes them. That duplicate has now defeated
+    /// a guard in this file on three separate routes.</para>
+    ///
+    /// <para><b>The prefix half is not optional and the sub-paths are the reason.</b> Every address
+    /// past <c>/api/memberships/</c> is reached by one <c>startsWith</c> and a split — the inbox,
+    /// the join, one membership, its submission, and the two decisions — so an exact-only model
+    /// would call five of the seven unrouted on every real request.</para>
+    ///
+    /// <para><b>And they are inside the block that asks who is calling</b>, not beside it. A
+    /// membership routed outside that gate would be one account's clone of a character readable by
+    /// anybody, which is the one failure in this slice that could not be undone.</para>
+    /// </summary>
+    [Fact]
+    public void TheMembershipAddressesAreRoutedInsideTheGate()
+    {
+        var indexJs = File.ReadAllText(WorkerFile("index.js"));
+
+        Assert.True(
+            Regex.IsMatch(indexJs, @"path\s*===\s*'/api/memberships'",
+                RegexOptions.None, TimeSpan.FromSeconds(5)),
+            "worker/index.js does not route /api/memberships as an exact path, so a player's own "
+            + "standings ask for an address the server answers with 404.");
+
+        Assert.True(
+            Regex.IsMatch(indexJs, @"path\.startsWith\('/api/memberships/'\)",
+                RegexOptions.None, TimeSpan.FromSeconds(5)),
+            "worker/index.js does not route the /api/memberships/ prefix, so the inbox, the join, "
+            + "every read and both decisions are unrouted — none of them is ever an exact match.");
+
+        // The sub-paths, read out of the routing block's own comparisons rather than out of the
+        // file. The positive control is that all five are found — an extraction that has stopped
+        // matching yields nothing and would satisfy an "all of these are routed" assertion for
+        // free, which is how this repository has shipped a guard measuring nothing four times.
+        var tails = Regex.Matches(indexJs,
+                @"(?:membershipId|tail)\s*===\s*'([a-z]+)'",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        foreach (var tail in new[] { "inbox", "join", "submission", "approve", "reject" })
+        {
+            Assert.Contains(tail, tails, StringComparer.Ordinal);
+        }
+
+        // Inside the signed-in block, read as: the membership prefix appears in the same condition
+        // as the character prefix.
+        var gate = Regex.Match(indexJs,
+            @"if \(path === '/api/characters'(?<body>(?:(?!\)\s*\{).)*)",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(gate.Success,
+            "the signed-in block in worker/index.js no longer opens on /api/characters, so this "
+            + "test cannot see which addresses share its gate and would pass whatever they were.");
+
+        Assert.Contains("/api/memberships", gate.Groups["body"].Value, StringComparison.Ordinal);
+
+        // And the campaign's own sub-path, which is the eighth new address.
+        Assert.True(
+            Regex.IsMatch(indexJs, @"(?:!==|===)\s*'code'",
+                RegexOptions.None, TimeSpan.FromSeconds(5)),
+            "worker/index.js routes no `code` sub-path under a campaign, so a join code can never "
+            + "be replaced and a leaked one is leaked for ever.");
+    }
+
+    /// <summary>
+    /// The membership wire keys are spelled the same at both ends, on all five shapes.
+    ///
+    /// <para><b>Structural at both ends, for the reason this file records for the character
+    /// keys.</b> The client's are read off the records it binds and sends; the server's off the
+    /// object literals it actually builds — <c>pendingVersion</c> occurs in
+    /// <c>worker/memberships.js</c> as a column alias and a local as well as as a wire key, so a
+    /// <c>Contains</c> would be satisfied by the server having stopped sending it.</para>
+    ///
+    /// <para>The failure this guards is the silent one: <c>ReadFromJsonAsync</c> answers the
+    /// default for a property it cannot find, so a renamed key does not throw — it produces a
+    /// screen on which every character is unsubmitted and every decision names version 0, which
+    /// looks exactly like a table where nobody has sent anything.</para>
+    /// </summary>
+    [Fact]
+    public void TheMembershipKeysOnTheWireAreSpelledTheSameAtBothEnds()
+    {
+        // Comments blanked first, for the reason recorded on the campaign list below: a scan for
+        // `word:` cannot tell a note from a key.
+        var membershipsJs = WithoutCsComments(File.ReadAllText(WorkerFile("memberships.js")));
+        var store = File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "web", "Services", "CampaignMembership.cs"));
+
+        // ── The list row: `asPlayerRow` against `WiredRow` ───────────────────────────────
+        var playerRow = Regex.Match(membershipsJs,
+            @"function asPlayerRow\(row\) \{\s*return \{(?<body>(?:(?!\};).)*)",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(playerRow.Success,
+            "worker/memberships.js no longer builds a player's list row as an object literal, so "
+            + "this test cannot see what the list sends and would pass whatever it sent.");
+
+        var sends = LiteralKeys(playerRow.Groups["body"].Value);
+        var reads = BoundKeys(store, "WiredRow");
+
+        Assert.True(sends.Length >= 8,
+            "the server sends " + sends.Length + " fields on a listed membership: "
+            + string.Join(", ", sends));
+
+        Assert.Equal(reads, sends);
+
+        // ── The detail: `read`'s own literal against `WiredDetail` ───────────────────────
+        var detail = Regex.Match(membershipsJs,
+            @"return json\(\{\s*id: row\.id,(?<body>(?:(?!\}\);).)*)",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(detail.Success,
+            "worker/memberships.js no longer answers one membership as an object literal, so this "
+            + "test cannot see what a read sends.");
+
+        var detailSends = LiteralKeys("id: row.id," + detail.Groups["body"].Value);
+        var detailReads = BoundKeys(store, "WiredDetail");
+
+        Assert.True(detailSends.Length >= 8,
+            "the server sends " + detailSends.Length + " fields on one membership: "
+            + string.Join(", ", detailSends));
+
+        Assert.True(detailReads.SequenceEqual(detailSends, StringComparer.Ordinal),
+            "the server sends [" + string.Join(", ", detailSends) + "] on one membership and the "
+            + "client binds [" + string.Join(", ", detailReads) + "]");
+
+        // ── The three the client sends, each read by the server ──────────────────────────
+        //
+        // A PUT or POST with a StringContent body is invisible to
+        // EveryFieldTheBrowserSendsIsOneTheServerReads, which only sees PostAsJsonAsync and query
+        // strings — which is exactly how a key could go unread.
+        foreach (var (record, expected) in new[] { ("Joining", 3), ("Sending", 2), ("Deciding", 1) })
+        {
+            var sent = BoundKeys(store, record);
+
+            Assert.True(sent.Length == expected,
+                $"the client sends {sent.Length} fields in {record}: {string.Join(", ", sent)}");
+
+            foreach (var field in sent)
+            {
+                Assert.True(
+                    membershipsJs.Contains($"body.value.{field}", StringComparison.Ordinal),
+                    $"the browser sends \"{field}\" and worker/memberships.js reads no such key, "
+                    + "so it is dropped in silence.");
+            }
+        }
+
+        // ── And the join code, which the campaign store binds ────────────────────────────
+        Assert.True(
+            WithoutCsComments(File.ReadAllText(WorkerFile("campaigns.js")))
+                .Contains("joinCode: row.join_code", StringComparison.Ordinal),
+            "worker/campaigns.js no longer sends the join code, so a GM has nothing to read out.");
+    }
+
+    /// <summary>The keys of a JavaScript object literal, sorted.</summary>
+    private static string[] LiteralKeys(string body) =>
+        [.. Regex.Matches(body, @"(\w+):", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(n => n, StringComparer.Ordinal)];
+
+    /// <summary>
+    /// The wire keys a named C# record binds, sorted.
+    ///
+    /// <para>Read off the record's own <c>JsonPropertyName</c> attributes, so a property renamed
+    /// without its attribute is invisible here — which is correct: the attribute <em>is</em> the
+    /// wire name.</para>
+    /// </summary>
+    private static string[] BoundKeys(string source, string record)
+    {
+        var declaration = Regex.Match(source,
+            $@"record {record}\((?<body>[^;]*)\);",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(declaration.Success,
+            $"CampaignMembership.cs no longer declares a {record} record, so there is nothing to "
+            + "compare the server's answer against and this test would pass whatever it sent.");
+
+        return [.. Regex.Matches(declaration.Groups["body"].Value,
+                @"JsonPropertyName\(""(\w+)""\)", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(n => n, StringComparer.Ordinal)];
+    }
+
+    /// <summary>
     /// The error log knows about the campaign addresses, in both of the places it has to.
     ///
     /// <para><b>Two separate things, and only the first is about bounding the table.</b>

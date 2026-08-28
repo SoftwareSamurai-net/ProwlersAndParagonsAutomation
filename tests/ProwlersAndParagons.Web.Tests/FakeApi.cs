@@ -805,8 +805,7 @@ public sealed class FakeApi : HttpMessageHandler
             {
                 return await Json($$"""
                     {"error":"This changed while you were looking at it.",
-                     "pendingVersion":{{row.PendingVersion}},"pendingAt":{{row.PendingAt}},
-                     "pending":{{Quote(row.Pending)}},"label":{{Quote(row.Label)}}}
+                     "pendingVersion":{{row.PendingVersion}},"pending":{{Quote(row.Pending)}}}
                     """, HttpStatusCode.Conflict);
             }
 
@@ -825,9 +824,7 @@ public sealed class FakeApi : HttpMessageHandler
              "characterId":{{(isGm ? "null" : Quote(row.CharacterId))}},
              "label":{{Quote(row.Label)}},"role":{{Quote(isGm ? "gm" : "player")}},
              "approved":{{(row.Approved is null ? "null" : Quote(row.Approved))}},
-             "approvedAt":{{row.ApprovedAt?.ToString(CultureInfo.InvariantCulture) ?? "null"}},
              "pending":{{(row.Pending is null ? "null" : Quote(row.Pending))}},
-             "pendingAt":{{row.PendingAt?.ToString(CultureInfo.InvariantCulture) ?? "null"}},
              "pendingVersion":{{row.PendingVersion}}}
             """);
     }

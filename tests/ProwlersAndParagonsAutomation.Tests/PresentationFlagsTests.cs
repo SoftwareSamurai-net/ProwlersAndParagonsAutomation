@@ -152,6 +152,100 @@ public sealed class PresentationFlagsTests
     }
 
     /// <summary>
+    /// The names that would mean rules code had learned about approval.
+    ///
+    /// <para><b>The same bar as the three flags above, and the design says so in as many
+    /// words.</b> A campaign holds a clone of a character and a player's edits arrive as an
+    /// approval request; whether that request is waiting, accepted or turned down is a fact about a
+    /// decision somebody has or has not made, and no cost, rank, figure or verdict may branch on
+    /// one. It is also an <em>indirection</em>, like <c>CampaignId</c>: reading a standing means
+    /// asking a server, which is asynchronous, which <c>IRulesSource</c> is synchronous to
+    /// forbid.</para>
+    ///
+    /// <para><b>Nothing about approval is on <see cref="Engine.CharacterSheet"/> at all</b>, which
+    /// is the stronger form of the same rule and is what
+    /// <see cref="NoApprovalStateIsOnTheCharacterAtAll"/> pins. This list is the belt to that
+    /// brace: a type reached by name from <c>engine/</c> would be a rule that had learned about a
+    /// decision even with no field to hang it on.</para>
+    /// </summary>
+    private static readonly string[] ApprovalNames =
+    [
+        "CampaignStanding", "MembershipSummary", "MembershipDetail", "ApiMembershipStore",
+        "DecisionOutcome", "CampaignDiff", "CharacterDiff", "DiffRow", "Standings",
+    ];
+
+    /// <summary>
+    /// <b>No rules code names anything about approval.</b>
+    ///
+    /// <para>Separate from the flag scan above rather than folded into it, because the two are
+    /// different claims and one message could not explain both: that one is about a field on the
+    /// sheet being read, this one is about a whole subsystem being reachable.</para>
+    /// </summary>
+    [Fact]
+    public void NoRulesCodeKnowsAboutApproval()
+    {
+        var offenders = new List<string>();
+
+        foreach (var file in RulesSources())
+        {
+            var text = File.ReadAllText(file);
+
+            offenders.AddRange(
+                ApprovalNames.Where(name => text.Contains(name, StringComparison.Ordinal))
+                             .Select(name => $"{Path.GetFileName(file)} names {name}"));
+        }
+
+        Assert.True(offenders.Count == 0,
+            "These decide costs, ranks and verdicts, and must not be able to see whether somebody "
+            + "has approved a character — a rule that branched on a decision would be the browser "
+            + "deciding a rule, and reading one means asking a server:\n  "
+            + string.Join("\n  ", offenders));
+    }
+
+    /// <summary>
+    /// The positive control for the scan above, and the stronger claim beside it.
+    ///
+    /// <para><b>A scan for nine names is satisfied completely by nine names that no longer
+    /// exist</b> — the same trap <see cref="TheGuardIsLookingAtSomething"/> closes for the flags.
+    /// So every name is required to be a real declaration somewhere under <c>web/</c>.</para>
+    ///
+    /// <para><b>And nothing about approval is a field on the character.</b> That is the claim that
+    /// makes the scan almost redundant and is worth pinning on its own: a standing stored on the
+    /// sheet would travel through an export, be read back by whoever imported it, and be a
+    /// character claiming somebody else's GM had approved it.</para>
+    /// </summary>
+    [Fact]
+    public void NoApprovalStateIsOnTheCharacterAtAll()
+    {
+        var browser = string.Concat(
+            Directory.EnumerateFiles(Path.Combine(RulesFixture.RepoRoot, "web"), "*.cs",
+                    SearchOption.AllDirectories)
+                .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                         && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+                .Select(File.ReadAllText));
+
+        Assert.All(ApprovalNames, name =>
+            Assert.True(browser.Contains(name, StringComparison.Ordinal),
+                $"nothing under web/ contains \"{name}\", so the guard is scanning for a name "
+                + "that does not exist and would pass whatever the rules code did."));
+
+        var sheet = File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "engine", Declaration));
+
+        // The control on this half: the file really is the one that declares the character, so an
+        // absence below is an absence from the right file.
+        Assert.Contains("class CharacterSheet", sheet, StringComparison.Ordinal);
+
+        foreach (var word in new[]
+                 {
+                     "Approved", "Approval", "Pending", "Standing", "Submission", "Membership",
+                 })
+        {
+            Assert.DoesNotContain(word, sheet, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
     /// Everything that decides a cost, a rank, a figure or a verdict: the engine and the
     /// renderers that read it. The hosts are deliberately absent — presentation is their job,
     /// and the browser reads both flags on purpose.

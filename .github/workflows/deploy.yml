@@ -30,6 +30,14 @@ on:
       - 'scripts/write-cloudflare-headers.sh'
       - 'Directory.Build.props'
       - '.github/workflows/deploy.yml'
+      # Without this, a pull request that adds ONLY a migration file never triggers this
+      # workflow, and the migration-apply step below never runs for exactly the change it exists
+      # to handle: a merge that adds a migration and nothing else would sit unapplied on
+      # production until some unrelated web/worker change next triggers a deploy. See
+      # scripts/apply-migrations.sh and docs/guide/hosting.md.
+      - 'd1/migrations/**'
+      - 'scripts/d1-migrations/**'
+      - 'scripts/apply-migrations.sh'
   workflow_dispatch:
 
 # Read-only. The job publishes to Cloudflare, not to this repository, so it needs no
@@ -140,6 +148,28 @@ jobs:
 
           echo "Cloudflare treats '$branch' as production for project '$PROJECT'."
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Apply pending D1 migrations
+        # **Ordering is the whole correctness of this step.** It runs after the site is built and
+        # checked and BEFORE the Pages upload below, so a migration lands ahead of the code that
+        # depends on it rather than after. Migration-then-upload leaves the schema briefly ahead
+        # of the deployed code, which every migration here is written to tolerate — an ADD COLUMN
+        # or CREATE TABLE the running Worker does not yet query is inert. Upload-then-migrate is
+        # the outage this replaces: `0005_campaigns.sql` shipped after the code that read
+        # `characters.campaign_id`, and production answered `D1_ERROR: no such column:
+        # campaign_id` on every character save until somebody noticed. See
+        # docs/guide/hosting.md.
+        #
+        # **This can abort the deploy, on purpose.** scripts/apply-migrations.sh refuses — and
+        # this step then fails the job, with no continue-on-error and no `|| true` — when a
+        # pending migration reads as destructive, when wrangler cannot be understood, or when the
+        # token cannot read D1. A refusal here is a five-minute fix (add a
+        # `-- pp:allow-destructive: <reason>` line, or grant the token D1: Edit); shipping past an
+        # unapplied migration was a production outage.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: ./scripts/apply-migrations.sh
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3   # wrangler=3.90.0 — the CI dry-run reads this line

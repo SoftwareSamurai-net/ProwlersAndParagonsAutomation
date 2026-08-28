@@ -144,6 +144,29 @@ jobs:
             exit 1
           fi
 
+      - name: Test the D1 migration gate
+        # scripts/d1-migrations/gate.mjs is the pure decision behind scripts/apply-migrations.sh
+        # — the step deploy.yml runs before every Pages upload to apply pending D1 migrations and
+        # abort the deploy if that is not safe. It touches no network and no filesystem of its
+        # own, so this needs nothing beyond `node --test`; also runnable locally via
+        # scripts/test-deploy-gate.sh.
+        #
+        # **Assert the count, not the exit code**, same trap as the accounts API step above.
+        # **`--test-reporter=tap` is explicit, not assumed**, for the same measured reason.
+        run: |
+          set -euo pipefail
+
+          node --version
+          node --test --test-reporter=tap "tests/deploy/*.test.mjs" | tee /tmp/deploy-gate.tap
+
+          passed=$(grep -c '^ok ' /tmp/deploy-gate.tap || true)
+          echo "The D1 migration gate's suite reported $passed passing tests."
+
+          if [ "${passed:-0}" -lt 10 ]; then
+            echo "::error::only $passed deploy-gate tests ran; the glob has stopped matching."
+            exit 1
+          fi
+
       - name: Test the visual-regression comparator
         # scripts/visual/diff.mjs is the pixel-comparator behind the visual-regression check
         # below, and scripts/visual/png.mjs is the hand-written PNG codec it depends on — neither
