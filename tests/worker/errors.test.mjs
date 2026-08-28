@@ -421,6 +421,26 @@ test('the route is a pattern from a closed list, and anything else is other', ()
     assert.equal(at('/api/characters/c_abcdefghijklmnopqrstuv'), '/api/characters/{id}');
     assert.equal(at('/api/campaigns'), '/api/campaigns');
     assert.equal(at('/api/campaigns/g_abcdefghijklmnopqrstuv'), '/api/campaigns/{id}');
+
+    // **The two membership lists are exact addresses and each is filed under its own name.** A
+    // GM's inbox failing and a player's standings failing are different faults with different
+    // causes; one `/api/memberships` covering both would make the log say only "memberships".
+    assert.equal(at('/api/memberships'), '/api/memberships');
+    assert.equal(at('/api/memberships/inbox'), '/api/memberships/inbox');
+    assert.equal(at('/api/memberships/join'), '/api/memberships/join');
+
+    // **And everything under one membership's id is one pattern, verb included.** `route` is half
+    // of a primary key, so a pattern per verb triples the rows this prefix can occupy for no gain:
+    // `kind` and `detail` already say which statement threw.
+    assert.equal(at('/api/memberships/m_abcdefghijklmnopqrstuv'), '/api/memberships/{id}');
+    assert.equal(at('/api/memberships/m_abcdefghijklmnopqrstuv/submission'),
+        '/api/memberships/{id}');
+    assert.equal(at('/api/memberships/m_abcdefghijklmnopqrstuv/approve'), '/api/memberships/{id}');
+    assert.equal(at('/api/memberships/m_abcdefghijklmnopqrstuv/reject'), '/api/memberships/{id}');
+
+    // A campaign's join-code rotation is under the campaign's own id, and so is its pattern.
+    assert.equal(at('/api/campaigns/g_abcdefghijklmnopqrstuv/code'), '/api/campaigns/{id}');
+
     assert.equal(at('/api/me/'), '/api/me', 'a trailing slash is the same address');
     assert.equal(at('/api/nothing-here'), 'other');
     assert.equal(at('/api/../secret'), 'other');

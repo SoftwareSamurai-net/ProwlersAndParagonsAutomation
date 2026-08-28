@@ -18,6 +18,7 @@ import {
 } from './errors.js';
 import { fail } from './http.js';
 import * as invitations from './invitations.js';
+import * as memberships from './memberships.js';
 import { sendInvitationMail, sendSignInLink } from './mail.js';
 import { contents, index, passage, power, search } from './rulebook.js';
 import { transcripts } from './transcripts.js';
@@ -166,6 +167,7 @@ async function route(request, env, deps) {
     // own user would be a route that could forget to.
     if (path === '/api/characters' || path.startsWith('/api/characters/')
         || path === '/api/campaigns' || path.startsWith('/api/campaigns/')
+        || path === '/api/memberships' || path.startsWith('/api/memberships/')
         || path.startsWith('/api/rulebook/') || path === '/api/transcripts') {
         const user = await auth.currentUser(request, env, deps);
         if (!user) return fail(401, 'Sign in first.');
@@ -199,13 +201,74 @@ async function route(request, env, deps) {
         // of its own** because the gate is the thing being shared — "signed in, nothing more" —
         // and a second block asking the same question is a second block that could forget to.
         if (path.startsWith('/api/campaigns/')) {
-            const campaignId = path.slice('/api/campaigns/'.length);
+            // **One sub-path, and it is a sub-path rather than a top-level address because it is a
+            // property of one campaign.** `code` is the only thing under a campaign's id that is
+            // not the campaign itself; everything else past the id is unrouted, which is a 404
+            // rather than the 400 the id check below would give a caller who wrote `g_…/typo`.
+            const [campaignId, ...rest] = path.slice('/api/campaigns/'.length).split('/');
+
+            if (rest.length > 0) {
+                if (rest.join('/') !== 'code') return fail(404, 'No such address.');
+
+                return only('POST', method,
+                    () => campaigns.rotateCode(request, env, deps, user, campaignId));
+            }
 
             if (method === 'GET') return campaigns.read(request, env, deps, user, campaignId);
             if (method === 'PUT') return campaigns.write(request, env, deps, user, campaignId);
             if (method === 'DELETE') return campaigns.remove(request, env, deps, user, campaignId);
 
             return methodNotAllowed('GET, PUT, DELETE');
+        }
+
+        // **A campaign's clone of a character, and the snapshot waiting for a decision.** Same
+        // gate as characters and campaigns, in the same block and for the same reason — a second
+        // block asking the same question is a second block that could forget to.
+        //
+        // **The two list addresses answer different questions and are deliberately two.**
+        // `/api/memberships` is the player's ("which of my characters are in a game, and where do
+        // they stand"); `/api/memberships/inbox` is the GM's ("what is waiting for me"). One
+        // address with a `role=` parameter would put the answer's meaning in a query string, where
+        // a missing value has to default to one of the two — and defaulting to the wrong one is a
+        // screen showing somebody else's half of the feature.
+        if (path === '/api/memberships') {
+            return only('GET', method, () => memberships.listMine(request, env, deps, user));
+        }
+
+        if (path.startsWith('/api/memberships/')) {
+            const [membershipId, ...rest] = path.slice('/api/memberships/'.length).split('/');
+
+            if (membershipId === 'inbox' && rest.length === 0) {
+                return only('GET', method, () => memberships.inbox(request, env, deps, user));
+            }
+
+            if (membershipId === 'join' && rest.length === 0) {
+                return only('POST', method, () => memberships.join(request, env, deps, user));
+            }
+
+            const tail = rest.join('/');
+
+            if (tail === '') {
+                return only('GET', method,
+                    () => memberships.read(request, env, deps, user, membershipId));
+            }
+
+            if (tail === 'submission') {
+                return only('PUT', method,
+                    () => memberships.submit(request, env, deps, user, membershipId));
+            }
+
+            if (tail === 'approve') {
+                return only('POST', method,
+                    () => memberships.approve(request, env, deps, user, membershipId));
+            }
+
+            if (tail === 'reject') {
+                return only('POST', method,
+                    () => memberships.reject(request, env, deps, user, membershipId));
+            }
+
+            return fail(404, 'No such address.');
         }
 
         // Everything past the prefix is the id, unvalidated here — each handler below checks

@@ -13,6 +13,7 @@
 // invariant for a character and now states it for a campaign.
 
 import * as db from './db.js';
+import { newJoinCode, normaliseJoinCode } from './crypto.js';
 import { fail, json, noContent, readJson, sameOrigin } from './http.js';
 
 /**
@@ -26,6 +27,14 @@ const MAX_LABEL_LENGTH = 80;
 const DEFAULT_LABEL = 'Unnamed campaign';
 
 /**
+ * How many times a fresh join code is minted before a collision is reported as a failure.
+ *
+ * Three, because at 30^10 codes one collision is already not a thing that happens and an
+ * unbounded retry against a broken database is a request that never answers.
+ */
+const CODE_MINT_ATTEMPTS = 3;
+
+/**
  * The account's campaigns, most recently touched first.
  *
  * **No cap and no `limit`, unlike the character list.** `users.character_limit` is a cap on
@@ -36,8 +45,60 @@ export async function list(request, env, deps, user) {
     const rows = await db.listCampaigns(env.DB, user.id);
 
     return json({
-        campaigns: rows.map(row => ({ id: row.id, label: row.label, updatedAt: row.updated_at })),
+        campaigns: rows.map(row => ({
+            id: row.id,
+            label: row.label,
+            updatedAt: row.updated_at,
+            // **The one field of a campaign this server can read, and it is here because the GM
+            // has to be able to read it out to somebody.** It is not in the payload and cannot
+            // be: redeeming a code means finding the campaign it belongs to, which is a query,
+            // and the payload is the one thing no query looks inside. It is only ever sent to the
+            // campaign's own owner — this list is `WHERE user_id = ?`.
+            joinCode: row.join_code ?? null,
+        })),
     });
+}
+
+/**
+ * Replace a campaign's join code.
+ *
+ * **A code is a capability, so it has to be replaceable.** An id leaked is leaked for ever; a code
+ * leaked is one POST away from being useless. Nobody already in the campaign is evicted — a code
+ * is redeemed once, into a membership that does not refer back to it — so this shuts the door
+ * without touching who is already through it.
+ *
+ * **The uniqueness is the index's and the retry is here.** A read that found no campaign holding a
+ * candidate code, followed by a write that trusted it, is the race every statement in `db.js` is
+ * written to avoid. So a collision arrives as a thrown constraint and this tries again — bounded,
+ * because an unbounded retry against a genuinely broken database is a request that never answers.
+ * At 30^10 codes a single collision is already not a thing that happens.
+ */
+export async function rotateCode(request, env, deps, user, id) {
+    if (!sameOrigin(request)) return fail(403, 'This request did not come from this site.');
+    if (!ID_PATTERN.test(id)) return fail(400, 'That is not a campaign id this server uses.');
+
+    for (let attempt = 0; attempt < CODE_MINT_ATTEMPTS; attempt++) {
+        const code = newJoinCode();
+
+        try {
+            const rotated = await db.rotateJoinCode(env.DB,
+                { userId: user.id, id, joinCode: normaliseJoinCode(code) });
+
+            // Scoped to this account, so nothing matched means an id this account does not own —
+            // the same 404 a read of somebody else's campaign gets, and for the same reason.
+            if (!rotated) return fail(404, 'This account has no campaign with that id.');
+
+            // The hyphenated form goes back, because that is the form somebody reads out. The
+            // stored form has no hyphen; `normaliseJoinCode` is what keeps the two agreeing.
+            return json({ joinCode: code });
+        } catch (error) {
+            if (attempt === CODE_MINT_ATTEMPTS - 1) throw error;
+        }
+    }
+
+    // Unreachable: the loop either returns or rethrows on its last pass. Present because a
+    // function whose every path is inside a loop is one an edit can quietly leave falling out.
+    return fail(500, 'A new code could not be minted just now.');
 }
 
 /**
@@ -82,7 +143,15 @@ export async function write(request, env, deps, user, id) {
     const label = normaliseLabel(body.value.label);
     if (label === undefined) return fail(400, 'That label is too long.');
 
-    await db.putCampaign(env.DB, { userId: user.id, id, label, payload, now: deps.now() });
+    // **A candidate code, kept only if there is not one already.** A campaign nobody can join is
+    // useless, so the first write gives it one — and `COALESCE` in the statement is what stops an
+    // ordinary save (a rename, a tier change) rotating it and locking out everybody who had been
+    // told the old one. Rotating is `rotateCode` above, deliberately.
+    await db.putCampaign(env.DB, {
+        userId: user.id, id, label, payload,
+        joinCode: normaliseJoinCode(newJoinCode()),
+        now: deps.now(),
+    });
 
     return noContent();
 }

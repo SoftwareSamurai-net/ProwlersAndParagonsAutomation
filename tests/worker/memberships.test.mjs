@@ -1,0 +1,741 @@
+// A campaign's clone of a character, and the snapshot waiting for a decision.
+//
+// **Four properties this file exists for, and each is a defect if it is wrong rather than a
+// feature that does not work:**
+//
+//   1. **No cross-account read.** One account cannot reach another's character, campaign or clone
+//      by any route, by id or by code. A membership has two owners and every statement is scoped
+//      to one of them.
+//   2. **Approving a stale snapshot is refused, and the refusal names the newer one.** The GM
+//      reads A, the player resubmits B, the GM clicks Approve — without the compare-and-swap, B
+//      is approved unseen.
+//   3. **The server still never parses a character.** A clone goes in and comes out byte for byte,
+//      including payloads that are not characters at all.
+//   4. **A clone does not count against the GM's character cap.** The whole reason the clones are
+//      not in `characters`: that cap is `COUNT(*) FROM characters WHERE user_id = ?`, so a GM with
+//      six players would hit their own five-character limit.
+//
+// **What this suite cannot see**, stated because the previous outage was exactly this: the harness
+// builds its schema by running the migrations, so it cannot tell you that the deployed database's
+// schema differs. Everything below is true of a database built from `d1/migrations`; whether
+// production's *was* is a question for the deploy, not for here.
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+
+import { server, signIn } from './harness.mjs';
+
+/** Shaped like what `StoredCampaign` writes: a version and the campaign's own fields. */
+const campaignPayload = {
+    Version: 1,
+    Campaign: {
+        Id: 'g_0000000000000000000000',
+        Name: 'Nightfall',
+        TierId: 'standard',
+        TraitCapRank: 8,
+        UnlimitedBudget: false,
+    },
+};
+
+/** Shaped like what `StoredCharacter` writes. Opaque to the server either way. */
+const characterPayload = (name = 'Ninefold', might = 6) => JSON.stringify({
+    Version: 1,
+    Mode: 0,
+    Sheet: { SelectedTierId: 'standard', Name: name, AbilityRanks: { might } },
+});
+
+const gid = (n = 0) => 'g_000000000000000000000' + n;
+const cid = (n = 0) => 'c_000000000000000000000' + n;
+const mid = (n = 0) => 'm_000000000000000000000' + n;
+
+const putCampaign = (app, cookie, { theId = gid(), label = 'Nightfall' } = {}) =>
+    app.call(`/api/campaigns/${theId}`, {
+        method: 'PUT',
+        body: { label, payload: JSON.stringify(campaignPayload) },
+        cookie,
+    });
+
+/** The join code the server minted for a campaign, read the way the GM's screen reads it. */
+async function joinCodeFor(app, cookie, theId = gid()) {
+    const listed = await (await app.call('/api/campaigns', { cookie })).json();
+    const row = listed.campaigns.find(c => c.id === theId);
+
+    assert.ok(row, 'the campaign was not in its own owner’s list');
+    assert.ok(row.joinCode, 'the campaign has no join code, so nobody could ever join it');
+
+    return row.joinCode;
+}
+
+const join = (app, cookie, { code, characterId = cid(), label = 'Ninefold' }) =>
+    app.call('/api/memberships/join', { method: 'POST', body: { code, characterId, label }, cookie });
+
+const submit = (app, cookie, id, { payload = characterPayload(), label = 'Ninefold' } = {}) =>
+    app.call(`/api/memberships/${id}/submission`, { method: 'PUT', body: { label, payload }, cookie });
+
+const decide = (app, cookie, id, what, version) =>
+    app.call(`/api/memberships/${id}/${what}`, { method: 'POST', body: { version }, cookie });
+
+/**
+ * A GM with a campaign and a player who has joined it, which is the state most of the tests
+ * below start from. Goes through the real endpoints rather than inserting rows, so a test about
+ * approval cannot pass against a join that has stopped working.
+ */
+async function aTable() {
+    const app = server();
+    const gm = await signIn(app, 'gm@example.test');
+
+    assert.equal((await putCampaign(app, gm.cookie)).status, 204);
+    const code = await joinCodeFor(app, gm.cookie);
+
+    const player = await signIn(app, 'player@example.test');
+    const joined = await join(app, player.cookie, { code });
+
+    assert.equal(joined.status, 200);
+
+    return { app, gm, player, code, membership: (await joined.json()).id };
+}
+
+// ── Joining ─────────────────────────────────────────────────────────────────────────────
+
+test('joining by code answers the campaign’s own settings and nothing about the GM', async () => {
+    const { app, player, membership } = await aTable();
+
+    // The payload comes back verbatim, which is what lets the browser read a tier out of it. The
+    // server does not know there is a tier in there.
+    const read = await app.call(`/api/memberships/${membership}`, { cookie: player.cookie });
+    const seen = await read.json();
+
+    assert.equal(read.status, 200);
+    assert.equal(seen.role, 'player');
+    assert.equal(seen.characterId, cid());
+    assert.equal(seen.campaignId, gid());
+    assert.equal(seen.pendingVersion, 0);
+    assert.equal(seen.approved, null, 'joining must not submit anything');
+    assert.equal(seen.pending, null);
+
+    // Nothing anywhere in the answer names the GM's account or address.
+    const body = JSON.stringify(seen);
+    assert.ok(!body.includes('gm@example.test'), body);
+    assert.ok(!body.includes('u_'), body);
+});
+
+test('the join answer carries the campaign payload byte for byte', async () => {
+    const app = server();
+    const gm = await signIn(app, 'gm@example.test');
+
+    // Key order and spacing no serialiser would reproduce, sent raw — so "byte for byte" is a
+    // claim about the bytes rather than about two objects being deep-equal.
+    const raw = '{"Version":1,  "Campaign":{"Name":"Nightfall","TierId":"iconic"}}';
+
+    assert.equal((await app.call(`/api/campaigns/${gid()}`, {
+        method: 'PUT', raw: JSON.stringify({ label: 'Nightfall', payload: raw }), cookie: gm.cookie,
+    })).status, 204);
+
+    const code = await joinCodeFor(app, gm.cookie);
+    const player = await signIn(app, 'player@example.test');
+    const joined = await join(app, player.cookie, { code });
+
+    assert.equal((await joined.clone().json()).payload, raw);
+});
+
+test('a code is read case-insensitively and without its hyphen', async () => {
+    const app = server();
+    const gm = await signIn(app, 'gm@example.test');
+    assert.equal((await putCampaign(app, gm.cookie)).status, 204);
+
+    const code = await joinCodeFor(app, gm.cookie);
+    const player = await signIn(app, 'player@example.test');
+
+    // The positive control: the code as minted really does work, so the two spellings below are
+    // being compared against something rather than all failing together.
+    assert.equal((await join(app, player.cookie, { code, characterId: cid(1) })).status, 200);
+
+    assert.equal((await join(app, player.cookie,
+        { code: code.toLowerCase(), characterId: cid(2) })).status, 200);
+    assert.equal((await join(app, player.cookie,
+        { code: code.replace('-', ''), characterId: cid(3) })).status, 200);
+    assert.equal((await join(app, player.cookie,
+        { code: ` ${code.toLowerCase()} `, characterId: cid(4) })).status, 200);
+});
+
+test('an unknown code, a rotated one and a malformed one are told apart only where they differ', async () => {
+    const app = server();
+    const gm = await signIn(app, 'gm@example.test');
+    assert.equal((await putCampaign(app, gm.cookie)).status, 204);
+
+    const wasValid = await joinCodeFor(app, gm.cookie);
+    const player = await signIn(app, 'player@example.test');
+
+    // Malformed is a 400: the request cannot be about a campaign at all.
+    for (const code of ['', 'nope', '12345-6789', 'IIIII-IIIII', 12345, null]) {
+        assert.equal((await join(app, player.cookie, { code })).status, 400,
+            `'${code}' should not be readable as a code`);
+    }
+
+    // A well-formed code naming no campaign is a 404 — and so is one that has been replaced. The
+    // two are the same fact from the caller's side and must not be distinguishable, or asking
+    // twice tells somebody a code was once valid.
+    assert.equal((await join(app, player.cookie, { code: 'ABCDE-FGHJK' })).status, 404);
+
+    const rotated = await app.call(`/api/campaigns/${gid()}/code`,
+        { method: 'POST', cookie: gm.cookie });
+    assert.equal(rotated.status, 200);
+    assert.notEqual((await rotated.json()).joinCode, wasValid);
+
+    const refused = await join(app, player.cookie, { code: wasValid });
+    assert.equal(refused.status, 404);
+    assert.deepEqual(await refused.json(), { error: 'No campaign is using that code.' },
+        'the refusal for a replaced code must be byte-identical to the one for a code that never existed');
+});
+
+test('rotating a code does not evict anybody already in the campaign', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await app.call(`/api/campaigns/${gid()}/code`,
+        { method: 'POST', cookie: gm.cookie })).status, 200);
+
+    // The membership survives, and the player can still submit through it.
+    assert.equal((await app.call(`/api/memberships/${membership}`,
+        { cookie: player.cookie })).status, 200);
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+});
+
+test('an ordinary save does not rotate the code', async () => {
+    const app = server();
+    const gm = await signIn(app, 'gm@example.test');
+
+    assert.equal((await putCampaign(app, gm.cookie)).status, 204);
+    const before = await joinCodeFor(app, gm.cookie);
+
+    // A rename, and then a settings change: both are `putCampaign`, which mints a candidate every
+    // time. `COALESCE` in the statement is what keeps the one already there.
+    assert.equal((await putCampaign(app, gm.cookie, { label: 'Nightfall, year two' })).status, 204);
+    assert.equal((await putCampaign(app, gm.cookie, { label: 'Nightfall' })).status, 204);
+
+    assert.equal(await joinCodeFor(app, gm.cookie), before);
+});
+
+test('joining twice with the same character is the same membership, not a second one', async () => {
+    const { app, player, code, membership } = await aTable();
+
+    const again = await join(app, player.cookie, { code, label: 'Ninefold renamed' });
+
+    assert.equal(again.status, 200);
+    assert.equal((await again.json()).id, membership);
+
+    const listed = await (await app.call('/api/memberships', { cookie: player.cookie })).json();
+
+    assert.equal(listed.memberships.length, 1);
+    assert.equal(listed.memberships[0].label, 'Ninefold renamed', 'the label should refresh');
+});
+
+test('nobody signed in reaches a membership at all', async () => {
+    const app = server();
+
+    for (const [method, path] of [
+        ['GET', '/api/memberships'],
+        ['GET', '/api/memberships/inbox'],
+        ['POST', '/api/memberships/join'],
+        ['GET', `/api/memberships/${mid()}`],
+        ['PUT', `/api/memberships/${mid()}/submission`],
+        ['POST', `/api/memberships/${mid()}/approve`],
+        ['POST', `/api/memberships/${mid()}/reject`],
+        ['POST', `/api/campaigns/${gid()}/code`],
+    ]) {
+        const response = await app.call(path, { method, body: method === 'GET' ? undefined : {} });
+
+        assert.equal(response.status, 401, `${method} ${path} answered ${response.status}`);
+    }
+});
+
+// ── No cross-account read ───────────────────────────────────────────────────────────────
+
+test('a third account reaches nothing about a membership it is not part of', async () => {
+    const { app, membership } = await aTable();
+    const stranger = await signIn(app, 'stranger@example.test');
+
+    assert.equal((await app.call(`/api/memberships/${membership}`,
+        { cookie: stranger.cookie })).status, 404);
+    assert.equal((await submit(app, stranger.cookie, membership)).status, 404);
+    assert.equal((await decide(app, stranger.cookie, membership, 'approve', 1)).status, 404);
+    assert.equal((await decide(app, stranger.cookie, membership, 'reject', 1)).status, 404);
+
+    // Nor the campaign, nor the character, by id.
+    assert.equal((await app.call(`/api/campaigns/${gid()}`,
+        { cookie: stranger.cookie })).status, 404);
+    assert.equal((await app.call(`/api/characters/${cid()}`,
+        { cookie: stranger.cookie })).status, 404);
+    assert.equal((await app.call(`/api/campaigns/${gid()}/code`,
+        { method: 'POST', cookie: stranger.cookie })).status, 404);
+
+    // And its own lists are empty rather than showing somebody else's row.
+    assert.deepEqual((await (await app.call('/api/memberships',
+        { cookie: stranger.cookie })).json()).memberships, []);
+    assert.deepEqual((await (await app.call('/api/memberships/inbox',
+        { cookie: stranger.cookie })).json()).memberships, []);
+});
+
+test('the player cannot approve their own submission and the GM cannot submit', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+
+    // A player holding the membership id is on the wrong side of it for a decision. 404, not 403:
+    // "that exists but you may not decide about it" is a fact about somebody else's campaign.
+    assert.equal((await decide(app, player.cookie, membership, 'approve', 1)).status, 404);
+    assert.equal((await decide(app, player.cookie, membership, 'reject', 1)).status, 404);
+
+    // And the GM cannot write a snapshot into it, which would be the GM editing the clone by hand
+    // — deliberately out of this design.
+    assert.equal((await submit(app, gm.cookie, membership)).status, 404);
+});
+
+test('the GM is never told which account a submission came from', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+
+    const inbox = await (await app.call('/api/memberships/inbox', { cookie: gm.cookie })).json();
+    const one = await (await app.call(`/api/memberships/${membership}`, { cookie: gm.cookie })).json();
+
+    assert.equal(inbox.memberships.length, 1, 'the positive control: there is a row to inspect');
+    assert.equal(one.role, 'gm');
+    assert.equal(one.characterId, null, 'the player’s own character id is not the GM’s business');
+
+    for (const body of [JSON.stringify(inbox), JSON.stringify(one)]) {
+        assert.ok(!body.includes('player@example.test'), body);
+        assert.ok(!body.includes('u_'), body);
+        assert.ok(!body.includes(cid()), body);
+    }
+});
+
+test('two players in one campaign cannot see each other', async () => {
+    const app = server();
+    const gm = await signIn(app, 'gm@example.test');
+    assert.equal((await putCampaign(app, gm.cookie)).status, 204);
+
+    const code = await joinCodeFor(app, gm.cookie);
+
+    const one = await signIn(app, 'one@example.test');
+    const two = await signIn(app, 'two@example.test');
+
+    const a = (await (await join(app, one.cookie, { code, label: 'Ninefold' })).json()).id;
+    const b = (await (await join(app, two.cookie, { code, label: 'Vector' })).json()).id;
+
+    assert.notEqual(a, b, 'two players must not share a membership row');
+
+    assert.equal((await app.call(`/api/memberships/${b}`, { cookie: one.cookie })).status, 404);
+    assert.equal((await app.call(`/api/memberships/${a}`, { cookie: two.cookie })).status, 404);
+
+    // Each player's list holds exactly their own; the GM's inbox holds both.
+    assert.deepEqual((await (await app.call('/api/memberships',
+        { cookie: one.cookie })).json()).memberships.map(m => m.id), [a]);
+    assert.deepEqual((await (await app.call('/api/memberships',
+        { cookie: two.cookie })).json()).memberships.map(m => m.id).sort(), [b]);
+    assert.deepEqual((await (await app.call('/api/memberships/inbox',
+        { cookie: gm.cookie })).json()).memberships.map(m => m.id).sort(), [a, b].sort());
+});
+
+test('one player cannot squat on another’s character id in the same campaign', async () => {
+    const app = server();
+    const gm = await signIn(app, 'gm@example.test');
+    assert.equal((await putCampaign(app, gm.cookie)).status, 204);
+
+    const code = await joinCodeFor(app, gm.cookie);
+
+    const squatter = await signIn(app, 'squatter@example.test');
+    const victim = await signIn(app, 'victim@example.test');
+
+    // The squatter joins naming an id that will later be the victim's. The key is
+    // (campaign, player, character), so this is the squatter's own row and blocks nothing.
+    assert.equal((await join(app, squatter.cookie, { code, characterId: cid(7) })).status, 200);
+
+    const later = await join(app, victim.cookie, { code, characterId: cid(7) });
+
+    assert.equal(later.status, 200, 'the victim must still be able to join with their own id');
+    assert.notEqual((await later.json()).id, undefined);
+});
+
+// ── The server still never parses a character ───────────────────────────────────────────
+
+test('a submitted snapshot comes back byte for byte, whatever it is', async () => {
+    const cases = [
+        '{}',
+        '[]',
+        '123',
+        '"a string"',
+        'null',
+        // A payload naming a bogus tier: the server has no opinion, and must not grow one.
+        '{"Version":1,"Sheet":{"SelectedTierId":"no_such_tier"}}',
+        // …and one with no tier at all.
+        '{"Version":1,"Sheet":{"Name":"Untiered"}}',
+        // Key order and spacing no serialiser would produce.
+        '{"b":1,   "a":2}',
+    ];
+
+    for (const payload of cases) {
+        const { app, gm, player, membership } = await aTable();
+
+        assert.equal((await submit(app, player.cookie, membership, { payload })).status, 200,
+            `the server refused ${payload}`);
+
+        const asPlayer = await (await app.call(`/api/memberships/${membership}`,
+            { cookie: player.cookie })).json();
+        const asGm = await (await app.call(`/api/memberships/${membership}`,
+            { cookie: gm.cookie })).json();
+
+        assert.equal(asPlayer.pending, payload, `player read ${payload} back changed`);
+        assert.equal(asGm.pending, payload, `GM read ${payload} back changed`);
+
+        assert.equal((await decide(app, gm.cookie, membership, 'approve', 1)).status, 204);
+
+        const approved = await (await app.call(`/api/memberships/${membership}`,
+            { cookie: gm.cookie })).json();
+
+        assert.equal(approved.approved, payload, `the clone changed ${payload}`);
+        assert.equal(approved.pending, null, 'approving clears the pending slot');
+    }
+});
+
+test('a payload that is not JSON at all is refused', async () => {
+    const { app, player, membership } = await aTable();
+
+    // **Sent without going through the helper above**, whose own default would supply a real
+    // payload for the missing case — a test defaulted past the thing it is about.
+    for (const body of [
+        { label: 'x', payload: 'not json' },
+        { label: 'x', payload: '{' },
+        { label: 'x', payload: '' },
+        { label: 'x', payload: 5 },
+        { label: 'x', payload: null },
+        { label: 'x' },
+        {},
+    ]) {
+        const response = await app.call(`/api/memberships/${membership}/submission`,
+            { method: 'PUT', body, cookie: player.cookie });
+
+        assert.equal(response.status, 400, `${JSON.stringify(body)} was accepted`);
+    }
+
+    // Nothing got through any of them: the absence is the point, and a route that refused every
+    // request would satisfy the loop above for the wrong reason.
+    assert.equal((await (await app.call(`/api/memberships/${membership}`,
+        { cookie: player.cookie })).json()).pending, null);
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+});
+
+// ── The version check ───────────────────────────────────────────────────────────────────
+
+test('approving a stale snapshot is refused, and the refusal carries the newer one', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership,
+        { payload: characterPayload('Ninefold', 6) })).status, 200);
+
+    // What the GM is looking at.
+    const looking = await (await app.call(`/api/memberships/${membership}`,
+        { cookie: gm.cookie })).json();
+
+    assert.equal(looking.pendingVersion, 1);
+    assert.equal(looking.pending, characterPayload('Ninefold', 6));
+
+    // The player resubmits while the diff is on screen.
+    const resubmitted = await submit(app, player.cookie, membership,
+        { payload: characterPayload('Ninefold', 12) });
+
+    assert.equal(resubmitted.status, 200);
+    assert.equal((await resubmitted.json()).version, 2, 'a resubmission must move the version');
+
+    // The GM clicks Approve on the version they read.
+    const refused = await decide(app, gm.cookie, membership, 'approve', looking.pendingVersion);
+    const said = await refused.json();
+
+    assert.equal(refused.status, 409);
+    assert.equal(said.pendingVersion, 2);
+    assert.equal(said.pending, characterPayload('Ninefold', 12),
+        'the refusal must hand back the snapshot the GM has not seen');
+
+    // Nothing was approved. This is the assertion that makes the whole test about a defect rather
+    // than about a status code.
+    const after = await (await app.call(`/api/memberships/${membership}`,
+        { cookie: gm.cookie })).json();
+
+    assert.equal(after.approved, null, 'the unseen snapshot must not have become the clone');
+    assert.equal(after.pending, characterPayload('Ninefold', 12));
+
+    // And the same decision, made about the version it actually names, goes through — the
+    // positive control, without which "409" could be what this endpoint always says.
+    assert.equal((await decide(app, gm.cookie, membership, 'approve', 2)).status, 204);
+});
+
+test('rejecting a stale snapshot is refused the same way', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+    assert.equal((await submit(app, player.cookie, membership,
+        { payload: characterPayload('Ninefold', 12) })).status, 200);
+
+    const refused = await decide(app, gm.cookie, membership, 'reject', 1);
+
+    assert.equal(refused.status, 409);
+    assert.equal((await refused.json()).pendingVersion, 2);
+
+    // Still waiting: a refused rejection must not have quietly dropped the submission.
+    const after = await (await app.call(`/api/memberships/${membership}`,
+        { cookie: gm.cookie })).json();
+
+    assert.equal(after.pending, characterPayload('Ninefold', 12));
+    assert.equal((await decide(app, gm.cookie, membership, 'reject', 2)).status, 204);
+});
+
+test('a decision naming no version is refused rather than applied to the latest', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+
+    for (const version of [undefined, null, 'one', 1.5, -1, {}]) {
+        const response = await app.call(`/api/memberships/${membership}/approve`,
+            { method: 'POST', body: { version }, cookie: gm.cookie });
+
+        assert.equal(response.status, 400, `version ${JSON.stringify(version)} was accepted`);
+    }
+
+    // Nothing got through any of them.
+    assert.equal((await (await app.call(`/api/memberships/${membership}`,
+        { cookie: gm.cookie })).json()).approved, null);
+});
+
+test('the version keeps counting after a decision, so a number cannot be reused', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+    assert.equal((await decide(app, gm.cookie, membership, 'approve', 1)).status, 204);
+
+    // A fresh submission after an approval is version 2, not 1 again — otherwise a GM still
+    // holding "1" from the first diff could approve the second snapshot unseen.
+    const resubmitted = await submit(app, player.cookie, membership,
+        { payload: characterPayload('Ninefold', 12) });
+
+    assert.equal((await resubmitted.json()).version, 2);
+    assert.equal((await decide(app, gm.cookie, membership, 'approve', 1)).status, 409);
+});
+
+test('deciding when nothing is waiting says so rather than clearing the clone', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+    assert.equal((await decide(app, gm.cookie, membership, 'approve', 1)).status, 204);
+
+    const again = await decide(app, gm.cookie, membership, 'approve', 1);
+
+    assert.equal(again.status, 409);
+    assert.equal((await again.json()).pending, null);
+
+    // The clone survived the second click.
+    assert.equal((await (await app.call(`/api/memberships/${membership}`,
+        { cookie: gm.cookie })).json()).approved, characterPayload());
+});
+
+test('rejecting leaves the clone exactly as it was, and the player’s own character alone', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    // A clone the GM has already accepted.
+    assert.equal((await submit(app, player.cookie, membership,
+        { payload: characterPayload('Ninefold', 6) })).status, 200);
+    assert.equal((await decide(app, gm.cookie, membership, 'approve', 1)).status, 204);
+
+    // The player writes their own character down, then sends a change the GM turns down.
+    assert.equal((await app.call(`/api/characters/${cid()}`, {
+        method: 'PUT',
+        body: { label: 'Ninefold', payload: characterPayload('Ninefold', 12) },
+        cookie: player.cookie,
+    })).status, 204);
+
+    assert.equal((await submit(app, player.cookie, membership,
+        { payload: characterPayload('Ninefold', 12) })).status, 200);
+    assert.equal((await decide(app, gm.cookie, membership, 'reject', 2)).status, 204);
+
+    const after = await (await app.call(`/api/memberships/${membership}`,
+        { cookie: player.cookie })).json();
+
+    assert.equal(after.approved, characterPayload('Ninefold', 6), 'the clone must not have moved');
+    assert.equal(after.pending, null);
+
+    // And the player's own row is untouched — a rejection is a decision about the campaign's copy.
+    const own = await app.call(`/api/characters/${cid()}`, { cookie: player.cookie });
+
+    assert.equal(await own.text(), characterPayload('Ninefold', 12));
+});
+
+// ── The cap ─────────────────────────────────────────────────────────────────────────────
+
+test('clones do not count against the GM’s character limit', async () => {
+    const app = server();
+    const gm = await signIn(app, 'gm@example.test');
+
+    assert.equal((await putCampaign(app, gm.cookie)).status, 204);
+    const code = await joinCodeFor(app, gm.cookie);
+
+    // Six players, each with an approved clone — one more than the default cap of five.
+    for (let i = 0; i < 6; i++) {
+        const player = await signIn(app, `player${i}@example.test`);
+        const joined = await join(app, player.cookie,
+            { code, characterId: cid(i), label: `Player ${i}` });
+
+        assert.equal(joined.status, 200);
+
+        const membership = (await joined.json()).id;
+
+        assert.equal((await submit(app, player.cookie, membership)).status, 200);
+        assert.equal((await decide(app, gm.cookie, membership, 'approve', 1)).status, 204);
+    }
+
+    // The GM's inbox holds six clones…
+    const inbox = await (await app.call('/api/memberships/inbox', { cookie: gm.cookie })).json();
+    assert.equal(inbox.memberships.length, 6);
+    assert.ok(inbox.memberships.every(m => m.hasApproved));
+
+    // …and the GM's own account still reports five slots, every one of them free.
+    const listed = await (await app.call('/api/characters', { cookie: gm.cookie })).json();
+
+    assert.equal(listed.limit, 5);
+    assert.equal(listed.characters.length, 0);
+
+    // The proof that the cap is real and this test is not passing against an absent one: five of
+    // the GM's own characters go in, and the sixth is refused.
+    for (let i = 0; i < 5; i++) {
+        assert.equal((await app.call(`/api/characters/${cid(i)}`, {
+            method: 'PUT', body: { label: `NPC ${i}`, payload: '{}' }, cookie: gm.cookie,
+        })).status, 204);
+    }
+
+    assert.equal((await app.call(`/api/characters/${cid(5)}`, {
+        method: 'PUT', body: { label: 'NPC 5', payload: '{}' }, cookie: gm.cookie,
+    })).status, 409);
+});
+
+// ── Standings, and what a list carries ──────────────────────────────────────────────────
+
+test('a player’s list says where each character stands', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    const standing = async () => {
+        const listed = await (await app.call('/api/memberships', { cookie: player.cookie })).json();
+        return listed.memberships.find(m => m.id === membership);
+    };
+
+    let now = await standing();
+    assert.equal(now.hasApproved, false);
+    assert.equal(now.hasPending, false);
+    assert.equal(now.campaignId, gid());
+    assert.equal(now.characterId, cid());
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+
+    now = await standing();
+    assert.equal(now.hasPending, true);
+    assert.equal(now.hasApproved, false);
+    assert.equal(now.pendingVersion, 1);
+
+    assert.equal((await decide(app, gm.cookie, membership, 'approve', 1)).status, 204);
+
+    now = await standing();
+    assert.equal(now.hasPending, false);
+    assert.equal(now.hasApproved, true);
+    assert.ok(now.approvedAt > 0, 'an approved clone carries when it was accepted');
+});
+
+test('no list or read carries a payload where it should not', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+
+    for (const [who, path] of [
+        [player.cookie, '/api/memberships'],
+        [gm.cookie, '/api/memberships/inbox'],
+    ]) {
+        const body = await (await app.call(path, { cookie: who })).text();
+
+        // The positive control first: there really is a row in this answer.
+        assert.ok(body.includes(membership), body);
+        assert.ok(!body.includes('Ninefold') || !body.includes('AbilityRanks'),
+            `${path} carries a whole character payload: ${body}`);
+        assert.ok(!body.includes('AbilityRanks'), `${path} carries a payload: ${body}`);
+    }
+});
+
+// ── Addresses ───────────────────────────────────────────────────────────────────────────
+
+test('an id this server does not use is refused before any query', async () => {
+    const { app, player } = await aTable();
+
+    for (const bad of ['nope', 'c_0000000000000000000000', 'g_0000000000000000000000', 'm_short']) {
+        assert.equal((await app.call(`/api/memberships/${bad}`, { cookie: player.cookie })).status,
+            400, `'${bad}' should not be readable as a membership id`);
+    }
+});
+
+test('an unrouted address under the prefix is a 404, not a malformed id', async () => {
+    const { app, player, membership } = await aTable();
+
+    assert.equal((await app.call(`/api/memberships/${membership}/nonsense`,
+        { cookie: player.cookie })).status, 404);
+    assert.equal((await app.call(`/api/campaigns/${gid()}/nonsense`,
+        { cookie: player.cookie })).status, 404);
+});
+
+test('the wrong method is refused on every membership address', async () => {
+    const { app, player, membership } = await aTable();
+
+    for (const [method, path] of [
+        ['POST', '/api/memberships'],
+        ['POST', '/api/memberships/inbox'],
+        ['GET', '/api/memberships/join'],
+        ['DELETE', `/api/memberships/${membership}`],
+        ['POST', `/api/memberships/${membership}/submission`],
+        ['PUT', `/api/memberships/${membership}/approve`],
+        ['GET', `/api/campaigns/${gid()}/code`],
+    ]) {
+        const response = await app.call(path, { method, body: method === 'GET' ? undefined : {} });
+        const authorised = await app.call(path,
+            { method, body: method === 'GET' ? undefined : {}, cookie: player.cookie });
+
+        assert.equal(response.status, 401, `${method} ${path} answered ${response.status} signed out`);
+        assert.equal(authorised.status, 405, `${method} ${path} answered ${authorised.status}`);
+    }
+});
+
+test('a state-changing membership request from another origin is refused', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    for (const [cookie, method, path] of [
+        [player.cookie, 'POST', '/api/memberships/join'],
+        [player.cookie, 'PUT', `/api/memberships/${membership}/submission`],
+        [gm.cookie, 'POST', `/api/memberships/${membership}/approve`],
+        [gm.cookie, 'POST', `/api/memberships/${membership}/reject`],
+        [gm.cookie, 'POST', `/api/campaigns/${gid()}/code`],
+    ]) {
+        const response = await app.call(path,
+            { method, body: {}, cookie, origin: 'https://elsewhere.example' });
+
+        assert.equal(response.status, 403, `${method} ${path} answered ${response.status}`);
+    }
+});
+
+test('sweeping the join codes is bounded', async () => {
+    const app = server();
+    const player = await signIn(app, 'player@example.test');
+
+    // Twenty are allowed and the twenty-first is not. Asserted on both sides, because a limit
+    // that refused the first attempt would satisfy an "eventually refused" assertion for free.
+    for (let i = 0; i < 20; i++) {
+        assert.equal((await join(app, player.cookie, { code: 'ABCDE-FGHJK' })).status, 404,
+            `attempt ${i + 1} should have reached the lookup`);
+    }
+
+    assert.equal((await join(app, player.cookie, { code: 'ABCDE-FGHJK' })).status, 429);
+
+    // And the window rolls: an hour later the account may ask again.
+    app.now += 61 * 60 * 1000;
+    assert.equal((await join(app, player.cookie, { code: 'ABCDE-FGHJK' })).status, 404);
+});
