@@ -1,0 +1,53 @@
+# Dependabot version updates.
+#
+# Security *alerts* are a separate, repository-level setting and are on — they fire on a published
+# CVE whether or not this file exists. This file is the routine-upgrade half.
+version: 2
+
+updates:
+  # GitHub Actions first, because this is the ecosystem where a stale pin actually costs something:
+  # `cloudflare/wrangler-action` runs with CLOUDFLARE_API_TOKEN in scope, and every action here is
+  # pinned to a mutable major tag, so the code behind `@v7` can change without the pin moving.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      # CLAUDE.md requires Conventional Commits, and Dependabot's default subject is not one.
+      prefix: chore
+    groups:
+      # One PR for the routine bumps rather than seven. A major is left on its own, because that
+      # is the one that needs reading — see the wrangler note below.
+      actions-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+    groups:
+      # Ten direct packages, most of them test tooling. Grouped so a quiet week is one PR.
+      nuget-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # The WebAssembly packages track the pinned SDK in global.json; bumping them alone gives a
+      # build that restores and then fails to run. Move the SDK first, deliberately.
+      - dependency-name: Microsoft.AspNetCore.Components.WebAssembly*
+        update-types: ["version-update:semver-major"]
+
+# A note for whoever reviews the first wrangler-action major bump:
+#
+# `.github/workflows/build.yml` reads the wrangler version out of `deploy.yml`'s `uses:` line so the
+# pull-request dry-run bundles with the same wrangler the deploy will use. That sed used to match
+# `wrangler-action@v3` literally and now matches any major, so a bump no longer silently drops the
+# dry-run back to its hardcoded fallback — but the `# wrangler=<version>` comment on that line still
+# has to be updated by hand to whatever wrangler the new major ships, or the two drift apart again
+# with nothing failing.

@@ -349,7 +349,10 @@ jobs:
         # Same wrangler version as the deploy action, or the point is lost.
         run: |
           # Assign, then replace on failure. `$(... || echo 3.90.0)` concatenates.
-          version=$(sed -n 's/^.*wrangler-action@v3.*# wrangler=\([0-9.]*\).*$/\1/p' .github/workflows/deploy.yml) || version=''
+          # Matches any major, not `@v3` literally: Dependabot bumps this pin, and a pattern tied
+          # to one major would stop matching and fall through to the hardcoded version below —
+          # leaving the dry-run bundling with a wrangler the deploy no longer uses, silently.
+          version=$(sed -n 's/^.*wrangler-action@v[0-9][0-9.]*.*# wrangler=\([0-9.]*\).*$/\1/p' .github/workflows/deploy.yml) || version=''
           [ -n "$version" ] || version=3.90.0
 
           echo "Bundling the deploy with wrangler@$version, the same version as deploy.yml."
