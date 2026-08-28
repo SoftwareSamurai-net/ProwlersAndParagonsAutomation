@@ -146,6 +146,44 @@ resharper_class_never_instantiated_local_highlighting = none
 resharper_not_accessed_positional_property_local_highlighting = none
 resharper_class_never_instantiated_local_highlighting = none
 
+[web/Services/CampaignMembership.cs]
+# The same objection as web/Services/ApiCharacterStore.cs above, for the approval
+# half of the same wire — and one addition that is not about the wire at all.
+#
+# The five private Wired*/Joining/Sending/Deciding records are the shapes of the
+# JSON the /api/memberships addresses exchange, constructed and read only by
+# System.Text.Json through reflection: every positional parameter is a
+# JsonPropertyName-bound property that nothing in this class touches by name.
+# Acting on any of these would silently drop a field from the wire — a decision
+# with no version, which is the compare-and-swap gone — and would not fail to
+# build. AccountsContractTests reads these records against the server's own object
+# literals precisely because a dropped field is otherwise invisible.
+#
+# MembershipSummary and MembershipDetail are public and .Global for the reason
+# Invitations' Invitation is: the screens render them. Their unread positional
+# properties are the fields the server sends and no screen prints yet — a
+# membership's ApprovedAt and PendingAt beside the standing it does print, and the
+# ids and labels a page reads off the *summary* rather than off the detail. Each is
+# bound because the server sends it, and acting on the inspection would delete the
+# property, which quietly takes the field off the client side of the wire. The same
+# trap CreatedAt and FirstAt are exempted for above.
+#
+# A "sent three hours ago" beside a waiting request is the obvious next thing to
+# show, and Ages.Since already exists to say it.
+resharper_not_accessed_positional_property_local_highlighting = none
+resharper_not_accessed_positional_property_global_highlighting = none
+resharper_class_never_instantiated_local_highlighting = none
+
+[web/Services/StoredCampaign.cs]
+# SavedCampaignSummary is a public record the campaign screen renders, and
+# UpdatedAt is the field the server sends that no screen prints yet — the campaign
+# list is short and mostly unchanging, so it carries no time today, unlike the
+# character list which shows one once there are two rows to tell apart. It is bound
+# because worker/campaigns.js puts updated_at on every row and because the list is
+# ordered by it; acting on the inspection would delete the property, which does not
+# fail to build and quietly takes the field off the client side of the wire.
+resharper_not_accessed_positional_property_global_highlighting = none
+
 [web/Services/Invitations.cs]
 # The same objection as web/Services/ApiCharacterStore.cs directly above, for the
 # other half of the accounts wire. Invitation is the shape of what GET

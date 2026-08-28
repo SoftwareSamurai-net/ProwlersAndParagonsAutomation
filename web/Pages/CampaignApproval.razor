@@ -186,7 +186,7 @@ else
     /// <summary>Which id the current read was for, so a route change re-reads.</summary>
     private string? _read;
 
-    private string Title => _label is { } label ? label : "A campaign";
+    private string Title => _label ?? "A campaign";
 
     private string WaitingAside
     {
@@ -256,17 +256,32 @@ else
             return;
         }
 
-        await Refresh();
-
-        // Another navigation overtook this read. Its own pass has already reset the fields and
-        // will write its own answer; anything written here would be the wrong campaign under the
-        // right address, with nothing left to notice — the fault `SheetPage` records.
-        if (!string.Equals(_read, asked, StringComparison.Ordinal)) return;
+        await Refresh(asked);
     }
 
-    private async Task Refresh()
+    /// <summary>
+    /// Re-read the campaign and what is waiting in it.
+    ///
+    /// <para><b>The id it was asked for is passed in and re-checked before anything is written,
+    /// and the first version of this got that wrong in a way only a static analyser saw.</b> The
+    /// overtake check was <em>after</em> the write, where it does nothing at all: by then the
+    /// losing read had already put its answer on screen, and the `return` after it was a redundant
+    /// jump statement. So a second navigation arriving mid-read left the wrong campaign under the
+    /// right address, with nothing left to notice — verbatim the fault `SheetPage` records and
+    /// solves the same way.</para>
+    ///
+    /// <para>Null for the ordinary refresh after a decision, which is not a navigation and has no
+    /// id to lose a race to.</para>
+    /// </summary>
+    private async Task Refresh(string? asked = null)
     {
         var listed = await Store.ListAsync();
+
+        // Another navigation overtook this read. Its own pass has already reset the fields and
+        // will write its own answer; anything written past here would be the wrong campaign under
+        // the right address.
+        if (asked is not null && !string.Equals(_read, asked, StringComparison.Ordinal)) return;
+
         var mine = listed.FirstOrDefault(c => c.Id == Id);
 
         if (mine is null)

@@ -1,5 +1,4 @@
 using ProwlersAndParagonsAutomation.Engine;
-using ProwlersAndParagonsAutomation.Sheets;
 
 namespace ProwlersAndParagonsAutomation.Web.Services;
 
@@ -229,8 +228,8 @@ public static class CampaignDiff
 
         foreach (var id in Keys(before.Keys, after.Keys))
         {
-            var was = before.TryGetValue(id, out var b) ? b : 0;
-            var now = after.TryGetValue(id, out var a) ? a : 0;
+            var was = before.GetValueOrDefault(id);
+            var now = after.GetValueOrDefault(id);
 
             compared++;
 

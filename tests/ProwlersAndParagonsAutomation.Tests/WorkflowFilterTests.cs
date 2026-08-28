@@ -318,8 +318,8 @@ public sealed class WorkflowFilterTests
         // The positive control: the push trigger really does declare a paths filter, so the
         // assertion below is checking a real list rather than passing vacuously against a typo
         // that renamed the block.
-        var pathsIndex = text.IndexOf("paths:", StringComparison.Ordinal);
-        Assert.True(pathsIndex >= 0, "deploy.yml's push trigger names no paths filter at all.");
+        Assert.True(text.Contains("paths:", StringComparison.Ordinal),
+            "deploy.yml's push trigger names no paths filter at all.");
 
         Assert.Contains("'d1/migrations/**'", text, StringComparison.Ordinal);
     }

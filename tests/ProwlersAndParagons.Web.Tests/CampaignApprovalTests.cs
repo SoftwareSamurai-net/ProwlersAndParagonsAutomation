@@ -1,4 +1,5 @@
 using Bunit;
+using Microsoft.AspNetCore.Components.Web;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
@@ -186,8 +187,8 @@ public sealed class CampaignApprovalTests
         Assert.Null(diff.SpentBefore);
         Assert.NotNull(diff.SpentAfter);
 
-        Assert.Contains(diff.Rows, r => r.What == "Tier" && r.Kind == DiffKind.Added);
-        Assert.Contains(diff.Rows, r => r.What == "Power: Flight" && r.Kind == DiffKind.Added);
+        Assert.Contains(diff.Rows, r => r is { What: "Tier", Kind: DiffKind.Added });
+        Assert.Contains(diff.Rows, r => r is { What: "Power: Flight", Kind: DiffKind.Added });
         Assert.DoesNotContain(diff.Rows, r => r.Kind == DiffKind.Removed);
     }
 
@@ -830,8 +831,7 @@ public sealed class CampaignApprovalTests
     [Fact]
     public async Task TheApprovalScreenDrawsTheDiffAndSaysHowMuchItCompared()
     {
-        var (ctx, _) = await AWaitingRequest();
-        using var _ctx = ctx;
+        await using var ctx = (await AWaitingRequest()).Ctx;
 
         var page = ctx.Render<CampaignApproval>(
             p => p.Add(c => c.Id, "g_0000000000000000000000"));
@@ -839,7 +839,7 @@ public sealed class CampaignApprovalTests
         // The row is there before anything is clicked, which is the control on the read itself.
         Assert.Contains("Ninefold", page.Markup, StringComparison.Ordinal);
 
-        page.Find(".campaign-row .btn").Click();
+        await page.Find(".campaign-row .btn").ClickAsync(new MouseEventArgs());
 
         var diff = page.Find(".campaign-diff").TextContent;
 
@@ -877,15 +877,16 @@ public sealed class CampaignApprovalTests
     [Fact]
     public async Task ApprovingWhatChangedWhileItWasOnScreenIsRefusedByThePage()
     {
-        var (ctx, membership) = await AWaitingRequest();
-        using var _ctx = ctx;
+        var opened = await AWaitingRequest();
+        await using var ctx = opened.Ctx;
+        var membership = opened.Membership;
 
         var store = ctx.Services.GetRequiredService<ApiMembershipStore>();
 
         var page = ctx.Render<CampaignApproval>(
             p => p.Add(c => c.Id, "g_0000000000000000000000"));
 
-        page.Find(".campaign-row .btn").Click();
+        await page.Find(".campaign-row .btn").ClickAsync(new MouseEventArgs());
 
         // What the GM is looking at, asserted before the race — so a page that had drawn the wrong
         // snapshot all along would fail here rather than at the end.
@@ -900,9 +901,9 @@ public sealed class CampaignApprovalTests
         // The control on the race: the screen still shows the snapshot it drew, unchanged.
         Assert.Contains("6d", page.Find(".campaign-diff").TextContent, StringComparison.Ordinal);
 
-        page.FindAll(".campaign-diff .btn")
+        await page.FindAll(".campaign-diff .btn")
             .First(b => b.TextContent.Contains("Approve", StringComparison.Ordinal))
-            .Click();
+            .ClickAsync(new MouseEventArgs());
 
         // The screen says it changed…
         Assert.Contains("changed while you were reading it", page.Markup, StringComparison.Ordinal);
@@ -916,9 +917,9 @@ public sealed class CampaignApprovalTests
 
         // The positive control: pressing Approve again, on the version now drawn, does land — so
         // "refused" is not what this page always does.
-        page.FindAll(".campaign-diff .btn")
+        await page.FindAll(".campaign-diff .btn")
             .First(b => b.TextContent.Contains("Approve", StringComparison.Ordinal))
-            .Click();
+            .ClickAsync(new MouseEventArgs());
 
         Assert.Equal(12, (await store.ReadAsync(membership))!.Approved!.AbilityRanks["might"]);
     }
@@ -929,8 +930,7 @@ public sealed class CampaignApprovalTests
     [Fact]
     public async Task ACampaignThatIsNotYoursSaysSoAndNothingMore()
     {
-        var (ctx, _) = await AWaitingRequest();
-        using var _ctx = ctx;
+        await using var ctx = (await AWaitingRequest()).Ctx;
 
         ctx.Api.SignedIn = ("u_stranger", "Somebody Else");
 

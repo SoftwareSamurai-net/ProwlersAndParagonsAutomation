@@ -215,7 +215,7 @@ public sealed class ApiMembershipStore
             if (listed?.Memberships is null) return null;
 
             return [.. listed.Memberships
-                .Where(m => m.Id is { Length: > 0 } && m.CampaignId is { Length: > 0 })
+                .Where(m => m is { Id.Length: > 0, CampaignId.Length: > 0 })
                 .Select(m => new MembershipSummary(
                     m.Id!, m.CampaignId!, m.CharacterId, m.Label ?? "Unnamed character",
                     m.HasApproved, m.ApprovedAt, m.HasPending, m.PendingAt, m.PendingVersion))];

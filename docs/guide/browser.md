@@ -174,8 +174,11 @@ tokens rots the first time one of them moves, silently.
   `currentColor`. It is as tall as the tools' own text, because an item on a baseline-aligned row is
   its content's height, which is what makes it read as a separator between two runs of type rather
   than as a border on a box.
-- **A third avenue costs one `NavLink`** and is deliberately absent. `PROGRESS.md` item 12 reserves
-  the slot; there is nothing behind it until the campaign exists.
+- **A third avenue cost one `NavLink`, exactly as this note said it would.** It read "deliberately
+  absent … nothing behind it until the campaign exists"; the campaign exists, and `Run` is that
+  link. `BannerTests` asserts three avenues now and says why in the source — the number is pinned
+  because the point of that control is that the avenues are a closed set with a marking of their
+  own, so a *tool* that grew the underline would arrive as a fourth avenue.
 
 ### The settings menu, and why it is the character switcher's mechanism
 
@@ -468,13 +471,16 @@ per letter typed.
 
 ## Campaigns: stored here, resolved here, and never resolved in the engine
 
-`SavedCampaigns` / `ApiCampaignStore` / `AccountCampaignStore` are the character trio again, one
-level up, and `CampaignJoin` is the only thing that decides anything. **No page draws one yet** —
-the storage half shipped first — but everything below is reachable and tested without a screen.
+`ApiCampaignStore` / `AccountCampaignStore` / `ApiMembershipStore`, and `CampaignJoin` is the only
+thing that decides anything. **Three screens draw them now** — see the section below; this one is
+the storage half, which shipped a slice earlier.
 
-- **`pp.campaign.v1` is a new top-level prefix, never a suffix on `pp.character.v1`.** Read
-  `SavedCharacters`' class remarks for why that key can never move: hanging a campaign off it would
-  put a second meaning on a string this project has promised not to touch.
+- **There is no local campaign store, and `SavedCampaigns` is deleted.** It kept campaigns under
+  `pp.campaign.v1` beside the characters, written before there was a screen. A campaign is the thing
+  two accounts hand a snapshot between: one kept in a single browser can never receive a submission,
+  hold a clone, or be joined by the code it would advertise. **Nothing was lost** — no screen had
+  ever created one, so nobody could be holding one under that key — and `pp.character.v1` still
+  means exactly what it always did, which was the half of the old rule that mattered.
 - **The engine may not resolve a campaign, and `CharacterSheet.CampaignId` is barred for a
   different reason from the two presentation flags.** They are a palette and a way of working; this
   is an *indirection* — resolving it means asking storage, storage in a browser is asynchronous, and
@@ -722,4 +728,97 @@ Ch.9 builds Villains exactly like Heroes and prints no separate stat-block forma
 - **`.mode-switch` names the Hero/Villain control, not the pill shape.** The light/dark control briefly carried the same class, which made `.mode-switch button` match five buttons and the identity switch report three pressed states at once. The shape is shared by selector list; `BannerTests` caught it in under a minute. **Both controls are inside `SettingsMenu` now** — see the banner section above, including why they are drawn on `--panel` rather than on `--primary`.
 - Only the palette differs. If a layout change seems necessary for one mode, the layout is wrong for both.
 
+## Campaigns: three screens, a diff, and a standing
 
+**A campaign holds a clone of a character; a player's edits arrive as an approval request.** Fork
+and pull request, for characters. `/campaign` is the third avenue, `/campaign/{id}` is the approval
+screen, and the character manager and `/sheet` carry a standing. The storage half shipped a slice
+earlier with no screen at all, which is the fault this repository keeps hitting — a feature that
+works and nobody can reach.
+
+- **`Run` is the third avenue, and `MainLayout`'s own note said what it would cost.** One
+  `NavLink`; `.avenue-nav` is a flex list and `Areas.Of` reads the first segment. That note said
+  "not here, because a door onto an empty room is worse than a wall" — the room is `/campaign`.
+  `Area.Campaign` draws neither the step band nor the budget strip, for the reason every other area
+  drops them: **the spend on that screen belongs to somebody else's character**, which is the exact
+  confusion the strip was pulled off three areas to fix. `BannerTests` asserts three avenues now,
+  not two, and says why in the source.
+- **Campaigns are account-only, and `SavedCampaigns` is deleted.** A campaign kept in one browser
+  can never receive a submission, hold a clone, or be joined by the code it advertises — so an
+  anonymous campaign is a promise to somebody who can never be told. `AccountCampaignStore` answers
+  nothing for a signed-out visitor and the screen refuses before the store is asked. **Nothing was
+  lost**: no screen had ever created one, so nobody could have been holding one under
+  `pp.campaign.v1`. That class's two static helpers (`NewId`, `LabelFor`) are on `StoredCampaign`,
+  where the envelope is. **A character still has a browser half and always will** — that is the
+  asymmetry, and it is not an oversight.
+- **The diff is `web/Services/CampaignDiff.cs`, and it is a report rather than a merge.** There is
+  no method that could apply one row, and a test asserts there is none: partial application is a
+  merge algorithm for characters — a second engine, capable of producing a sheet neither person
+  authored. Whole snapshots are accepted or rejected.
+- **It is led by the spend, and both figures are the engine's answers for the two sheets.** Not a
+  difference worked out in the diff and not a number read out of a payload. A snapshot the engine
+  refuses to price gets no figure at all, the same rule the front door follows.
+- **Every row is named the way the book names it** — `Tier: Standard → High Level`, `Might 6d → 8d`,
+  `added Flight 4`. Never a field from a stored payload, and never an id: `CampaignDiff` looks tiers,
+  Abilities, Talents, Powers, Perks and Flaws up. **The guard is stated as a shape rather than as a
+  list** — no underscore reaches a screen — because a list of ids goes stale and because two of the
+  obvious fixture ids (`code`, `flight`) are written exactly the way their printed names are, so a
+  case-insensitive check on those cannot tell a leak from a correct lookup. That took three goes at
+  one fixture; the test records all three.
+- **An id the rules data does not know is printed as itself, deliberately.** A payload can name a
+  Power from a build these rules do not have, and a diff full of rows called "Unnamed" tells a GM
+  nothing.
+- **`CharacterDiff.Compared` is the positive control and it is on the screen, not only in a test.**
+  A diff showing nothing and a diff that failed to run are indistinguishable, and "nothing changed"
+  is the commonest honest answer this screen gives — so the page prints how many fields were
+  *examined*. A comparison that has stopped comparing reports zero, which is a red test and a
+  visibly wrong sentence rather than a reassuring empty list.
+- **A rank stepped back to zero reads as removed, not as `0d`.** The editors leave a 0 behind when
+  somebody steps a Trait down, so a row saying `removed Might 0d` would be the app reporting its own
+  bookkeeping. And a list reordered is not a list changed: everything is compared by key, never by
+  position.
+- **The decision carries the version the screen drew, and this is the one thing here whose failure
+  is a defect.** Read a snapshot, have the player resubmit while it is on screen, press Approve, and
+  a page that sent the *current* version would approve a character nobody had looked at. A mismatch
+  is refused and the refusal brings the newer snapshot back, so the diff redraws rather than sending
+  somebody to look again.
+
+  **Two mutations were needed to get that guard honest, and the second finding is the transferable
+  one.** The first version of the test put the resubmission between the click and the request,
+  through a seam on `FakeApi`; the mutation walked straight through it, because the broken page's
+  extra read happens *before* such a seam can fire. **A seam in the wrong place is a test that races
+  nothing.** The real race is between the diff being drawn and the button being pressed, which a
+  test drives with no seam at all — so the seam was deleted, because one nothing races reads as a
+  guarantee and is not one. `FakeApi` records that where the seam used to be.
+- **The standing answers "which sheet do I print at the table", and it is silent three ways.** The
+  standings could not be read; this character is in no campaign; or there is no id to match against.
+  In every one of those a printed standing would answer a question nobody asked — and the first is
+  the one that matters: `MineAsync` returns **null, never an empty list**, when it cannot ask, because
+  an empty list says "in no campaign" and saying that wrongly tells somebody their character is out
+  of a game it is still in. Same fault `SheetPage` already records for a character that could not be
+  read.
+- **A character in two games says both**, joined by a middle dot. One campaign's answer is not the
+  other's.
+- **One line on the tier page, and deliberately not a second budget strip.** The running total stays
+  on the strip; what the line says is where the tier came from, which the cards cannot say for
+  themselves. It resolves the campaign once in `OnInitializedAsync` rather than on every change —
+  that page redraws on every step of a rank, and re-reading per keystroke is the read-per-letter the
+  character manager's own split exists to avoid.
+- **A tier disagreement reads as information, not as an error**, on every screen that mentions one.
+  The owner's campaigns climb tiers in play, so it is ordinary traffic — and nothing is repaired
+  either way, because raising the tier turns an illegal character legal in silence and lowering it
+  moves Resolve.
+- **The join code is drawn in `--font-display`, never a monospace keyword.** No component may name a
+  typeface and the two faces this app declares are the two it has; `monospace` would fall back to
+  whatever the platform decides, silently, on some machines and not others. Same rule as `Cmd`
+  rather than the looped-square glyph. Wide tracking and tabular figures are what make ten
+  characters dictatable.
+- **`.campaign-list` is the character list's idiom in a second class, and the difference is
+  layout.** A campaign row can open a block beneath itself, so the `<li>` is a column and the row
+  inside it is the flex line. Reusing `.character-list` would have needed that structure imposed on
+  the character manager too.
+- **`.others-head` is reused for the section labels rather than a new uppercase class being
+  added.** `UppercasedTextTests` reads every `text-transform: uppercase` rule out of `app.css` and
+  requires each selector to be found on a page in its own hand-maintained list — so a new uppercase
+  class on a page that list does not render fails, and the fix would be either adding the page or
+  adding an exemption. Reusing a selector already found there costs neither.
