@@ -52,6 +52,23 @@ jobs:
     name: Build (net10.0)
     runs-on: ubuntu-latest
 
+    # **A hung step ran to GitHub's six-hour ceiling and spent six hours of the organisation's
+    # Actions allowance saying nothing.** The visual comparator printed `pixel-identical` for six
+    # of seven proof pages and then produced no line at all for the seventh, and sat there until
+    # the platform killed it. A re-run over byte-identical inputs passed, so it was not a
+    # deterministic fault in the page or the golden.
+    #
+    # **The cause is worth finding and the cap is worth having either way**, which is why this is
+    # here rather than only a fix to the comparator: the default is *no* limit, so any hang
+    # anywhere in this job — Chrome not exiting, a `dotnet test` deadlock, a runner stalling on
+    # IO — costs six hours before anybody is told. This job takes four to six minutes; thirty is
+    # generous enough that a slow runner is never killed by it and short enough that a hang is a
+    # fast, legible failure instead of an invoice.
+    #
+    # It is deliberately on the job and not on one step. Capping only the step that hung would be
+    # fixing the instance rather than the class, and the next hang would be somewhere else.
+    timeout-minutes: 30
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v7

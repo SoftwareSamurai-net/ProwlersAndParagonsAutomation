@@ -21,6 +21,32 @@ Cloudflare Pages at `superheroes.softwaresamurai.net`, by `.github/workflows/dep
 
 ---
 
+## A hung step costs six hours, and nothing was stopping it
+
+**`Build` has `timeout-minutes: 30`, and it is there because a step hung and ran to GitHub's own
+six-hour ceiling.** The visual comparator printed `pixel-identical` for six of seven proof pages,
+printed **no line at all** for the seventh, and sat there until the platform killed the job — six
+hours of the organisation's allowance spent saying nothing. A re-run over byte-identical inputs
+passed, so it was not a deterministic fault in the page or the golden.
+
+- **The cap is on the job, not on the step that hung.** Capping that one step would fix the
+  instance and not the class; the next hang is somewhere else. Thirty minutes against a job that
+  takes four to six is generous enough never to kill a slow runner.
+- **`scripts/visual-regression.sh` also caps each comparison** at `compare_deadline`, and that is
+  not redundant with the job cap: a job-level timeout says *the build hung*, and this says **which
+  page**. `timeout`'s exit code 124 is reported as its own finding rather than folded into an
+  ordinary mismatch, because a picture that changed and a comparison that never finished are
+  different facts.
+- **The deadline is one variable used by both the `timeout` and the message quoting it.** A message
+  naming a number that lives somewhere else is a claim with a shelf life.
+- **The cause is still open.** The comparator is plain Node over two decoded PNGs, and
+  `scripts/visual/png.mjs` is a hand-written decoder that had no tests at all until recently. That
+  it passed on identical inputs rules out a deterministic loop and rules in very little else.
+
+**Default `timeout-minutes` is unlimited**, which is the whole trap: every job in every repository
+here runs to six hours before anybody is told, and the failure is indistinguishable from a job that
+is merely slow.
+
 ## What each workflow costs, and the three things that hold it down
 
 **This is a private repository on a metered plan, so Actions minutes are a real budget** — 2,000 a

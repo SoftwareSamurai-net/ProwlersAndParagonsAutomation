@@ -991,6 +991,36 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 
 ## Completed work
 
+### A hung CI step spent six hours of the org's allowance, and nothing was stopping it
+
+**Found by reading a failure rather than re-running it.** `Build` on the sheet-page branch reported
+`fail` after **6h 0m 17s** — which is GitHub's own ceiling, not a test result. Every test step had
+succeeded; the visual comparator printed `pixel-identical` for six of seven proof pages, printed
+**no line at all** for `shell-villain-dark`, and sat there until the platform killed it.
+
+**A re-run over byte-identical inputs passed**, which is what makes this worth writing down rather
+than fixing quietly: it rules out a deterministic loop in the decoder and rules in very little else.
+The honest position is that the cause is open and the bleeding is stopped.
+
+- **`timeout-minutes: 30` on the job**, not on the step that hung. Capping that one step fixes the
+  instance and not the class. **The default is unlimited**, so any hang anywhere — Chrome not
+  exiting, a deadlocked test, a stalled runner — costs six hours before anybody is told, and looks
+  exactly like a job that is merely slow.
+- **`scripts/visual-regression.sh` caps each comparison too**, and that is not redundant: a
+  job-level timeout says *the build hung*; this one says **which page**. `timeout`'s exit code 124
+  is reported as its own finding rather than folded into a mismatch — a picture that changed and a
+  comparison that never finished are different facts, and only one of them is a regression.
+- **Broken and watched to fail**, with a `while (true) {}` at the top of `diff.mjs`: all seven pages
+  reported the deadline by name instead of the run hanging. Restored, and the real comparator then
+  passed all seven against the committed goldens, `shell-villain-dark` included.
+- **The deadline is one variable** used by both the `timeout` and the message that quotes it. The
+  first version hard-coded "120s" in the message beside a separate literal — a claim with a shelf
+  life, which is the shape this file records being bitten by repeatedly.
+
+**Still open:** why one comparison hung. `scripts/visual/png.mjs` is a hand-written PNG decoder that
+had no tests at all until recently, and it is the prime suspect; it is now bounded rather than
+understood.
+
 ### The sheet gets its own address, and it is not the one that was retired
 
 > *"Id like to add a pure 'Sheet' view page to the application"* — the owner, 2026-08-27
