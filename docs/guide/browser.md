@@ -86,10 +86,11 @@ two `.key` boxes.
   names would be the wrong promise twice over: the rulebook is a different corpus and it is behind
   an account, and growing the palette onto it is the part of item 12 that still has to be argued —
   `palette.js` says in as many words to resist growing it.
-- **The word is "Search" and the palette still calls itself "Go to".** The label here has to
-  survive being read at a glance in a strip of six other controls; "Go to" between two underlined
-  links read as a third link with no destination. What the palette offers is unchanged and its own
-  box says so in full.
+- **The word is "Search" and the palette still calls itself "Go to".** The label has to survive
+  being read at a glance beside the other tools; "Go to" between two underlined links read as a
+  third link with no destination. What the palette offers is unchanged and its own box says so in
+  full. It said "a strip of six other controls" when it was written, and the section below is what
+  took that down to two.
 
 **And four exemptions in `UppercasedTextTests` went when this landed.** They read "MainLayout,
 which needs a Body fragment and a router", and that was never true — `BannerTests` has rendered
@@ -132,6 +133,118 @@ have inherited all three by construction, which is the whole reason this is not 
   `EveryRoutedPageIsReachableFromAnotherPage` is what says so — it caught this page before it
   shipped. The links are in the character manager: the open character's block, and `sheet/{id}` on
   every other row.
+
+## The banner is two sides and one baseline, and it holds three idioms rather than five
+
+**The owner reported it as "search is vertically elevated" and both halves of that were true.** The
+arithmetic half: the three plain `.banner-link`s had their text line at 29.13px and the SEARCH label
+at 27.88px, 1.25px above. The other half is why — and it is the one that decided the layout.
+
+**`align-items: center` was not the bug and neither was a stray margin.** Every item's *box* was
+centred on 30.30px, correctly. What differed was how far each item's *text* sat from its own box
+centre: a link is skewed 1.17px up by the underline hanging below it, and `.palette-open` 2.42px up
+because its own `align-items: baseline` pins the label flush to the button's top edge while the
+`.key` boxes' border and padding hang below the shared baseline. So `.banner-inner` is
+`align-items: baseline` — the thing that was misaligned is what gets aligned. **A tuned
+`line-height` on `.key` also reaches 0.01px and was rejected**: a magic number depending on three
+tokens rots the first time one of them moves, silently.
+
+- **Three groups on one row, and the middle one is the character's.** Left is what the site is and
+  where you can go; right is the tools; the switcher and the save region sit between them. The
+  push is `margin-left: auto` on the tools rather than `margin-right: auto` on the title, because
+  the middle group is absent on four routes out of five and pushing from the left would leave a
+  window-wide gap where it should have been.
+- **The wordmark opts out of the baseline and is the only thing that does.** It is two lines, so it
+  has no single text line to share with a strip of one-line controls; on the shared baseline its
+  first line would sit level with Build and the subtitle would hang below the band's optical
+  centre, reading as a heading that has slipped. `align-self: center`, and
+  `proof-align.html` excludes it for the same reason and says so on the page.
+- **Search, the account and Settings are one idiom, and none of them is underlined.** The underline
+  on `.banner-link` is what says "this is a destination". Search opens an overlay, Settings drops a
+  menu, and an account is an identity rather than a place — it wore the marking anyway, which was
+  the app saying a reader's own name in navigation's voice. `.banner-tool` carries the shared face,
+  size, tracking and optical line; `.banner-account` is what tests reach the account by, because
+  `Find(".banner-link")` returns the first match and that is an avenue.
+- **The caret is drawn in CSS, never written as a glyph.** A triangle character is in neither
+  typeface this app names, so it would fall back to a system face on some platforms and not others.
+  Same rule as `Cmd` rather than the looped-square glyph, and the same silent, single-platform
+  failure it exists to prevent. Borders name no family.
+- **The hairline is `color-mix` against `--on-primary`, not `--rule`.** It sits on `--primary`,
+  where the token used between sections of a panel is invisible — the same reason `.key`'s border is
+  `currentColor`. It is as tall as the tools' own text, because an item on a baseline-aligned row is
+  its content's height, which is what makes it read as a separator between two runs of type rather
+  than as a border on a box.
+- **A third avenue costs one `NavLink`** and is deliberately absent. `PROGRESS.md` item 12 reserves
+  the slot; there is nothing behind it until the campaign exists.
+
+### The settings menu, and why it is the character switcher's mechanism
+
+**The Hero/Villain and Light/Dark/Auto switches live behind `SettingsMenu` now.** That took the
+banner from five idioms to three and **deleted** the mismatched-padding problem rather than tuning
+it: on the band the light/dark control took `--space-3` where the identity one took `--space-4`, so
+that three buttons and two would fit in a strip holding four other things. Off the band there is
+nothing to fit around and they are the same control twice.
+
+It **completes** the decision recorded above — "a rules search is not a Hero or a Villain" — rather
+than reversing it: the subtitle stopped naming the palette outside the builder while the switch that
+*sets* it stayed on every route.
+
+- **The disclosure is the character switcher's, and reusing it is the whole reason this was cheap.**
+  That control already solved the one thing about hanging a menu off this band that no rendering
+  test can see: `view-transition-name` on `.banner` creates a stacking context, so a `z-index` here
+  is resolved *inside* the banner, and the banner is a static earlier sibling of `.steps`. The menu
+  painted behind the step band — visible, unusable, reading as a control that does nothing. It is
+  `.banner`'s own `z-index: 30` that fixes it, for both menus at once.
+- **Right-anchored, unlike the switcher's list**, and for the mirror of that control's reason: this
+  sits at the right end of the bar, so a menu growing rightwards would leave the window.
+- **The switches are drawn on `--panel` now and that is not a re-skin.** `--on-primary` is the only
+  ink that reads on the banner's fill and is invisible on the menu's. Unpressed `--ink` on
+  `--panel`, hover `--panel-sunk`, pressed `--on-primary` on `--primary` — all three already in
+  `EveryScreenPairInUseHoldsItsContrastFloor`, so no unmeasured pair was introduced. Hover is
+  **not** a tint of the accent: `--heading` on `--accent-soft` measures 4.08:1 and WCAG 1.4.3
+  applies to a hover state.
+- **`Theme.ReadChoice()` moved out of `MainLayout` and into the menu.** The buttons are not in the
+  document until somebody opens it, so the component that owns them asks the question. Two readers
+  of one value is one more than can be kept in step.
+- **`.mode-switch` still names the control and not the shape.** The light/dark pill briefly carried
+  the same class, which made `.mode-switch button` match five buttons and the identity switch report
+  three pressed states at once. The shape is shared by selector list. `BannerTests` caught it in
+  under a minute.
+- **`.settings-menu` is named in `@media print` beside both switches, and all three names stay.**
+  `.banner` already covers them — the menu hangs off the band rather than out of the document — but
+  a selector that is only correct because of another selector is one rearrangement away from being
+  wrong, and hiding a control on paper is not a thing anybody re-checks.
+- **`.save-status` is *not* gated on the builder, though the switcher beside it is**, and the
+  asymmetry is load-bearing. That region carries the undo offer for four acts that replace the
+  character wherever the reader is standing — including the portfolio's two sample buttons and a
+  recording that navigates away from itself, both outside the builder. Gating it with the switcher
+  takes the offer off the two routes that raise it most.
+
+### Only a browser can see whether the bar lines up
+
+`proof-align.html` measures the text **baseline** of every one-line item in the band and requires
+the spread under 0.5px. Twenty-one browser verdicts now, not nineteen.
+
+- **The baseline, not the line-box centre.** A line box's height follows its font size, so two items
+  genuinely sharing a baseline in two sizes measure several tenths of a pixel apart — and this
+  banner has two faces and two sizes in it. A zero-sized `inline-block` probe appended to each item
+  resolves its own baseline to its single edge, which *is* the line's baseline, exactly and
+  independently of the face. No computed style exposes that number and a range box gives the line
+  box instead.
+- **The positive control is the count.** A spread over one found item is 0.00 and passes, so a
+  banner that had lost five of its six controls would report a perfectly aligned row. Proved by
+  mutation: deleting `<SettingsMenu />` gave `FAIL` at `items 5 of 6` with a spread of 0.00.
+- **A twin reproduces `align-items: center`** — the owner's reported defect — driving the
+  byte-identical script, and CI requires it to say `FAIL`. Measured: PASS at 0.00px, twin FAIL at
+  1.00px. **The C# suites stay green against that mutation**, which is the whole reason the harness
+  exists: a CSS guard asserting `align-items: baseline` would pass the day somebody adds a taller
+  child the baseline no longer saves.
+
+**And `AriaReferenceTests` renders `MainLayout` now, which it never had.** Both banner disclosures
+render their list inside an `@if`, so an unconditional `aria-controls` on either dangles whenever it
+is shut — the budget disclosure's shipped bug in two more places. The switcher's had been correct
+and *unswept* since the day it was written.
+
 
 ## The front door
 
@@ -353,6 +466,39 @@ step where somebody is typing it, which is the same reason the banner's switcher
 rather than the list. The list itself is *not* re-read on every change — that would be a storage read
 per letter typed.
 
+## Campaigns: stored here, resolved here, and never resolved in the engine
+
+`SavedCampaigns` / `ApiCampaignStore` / `AccountCampaignStore` are the character trio again, one
+level up, and `CampaignJoin` is the only thing that decides anything. **No page draws one yet** —
+the storage half shipped first — but everything below is reachable and tested without a screen.
+
+- **`pp.campaign.v1` is a new top-level prefix, never a suffix on `pp.character.v1`.** Read
+  `SavedCharacters`' class remarks for why that key can never move: hanging a campaign off it would
+  put a second meaning on a string this project has promised not to touch.
+- **The engine may not resolve a campaign, and `CharacterSheet.CampaignId` is barred for a
+  different reason from the two presentation flags.** They are a palette and a way of working; this
+  is an *indirection* — resolving it means asking storage, storage in a browser is asynchronous, and
+  `IRulesSource` is synchronous precisely to forbid that. `PresentationFlagsTests` carries all
+  three and says which bar each is under. `AccountCampaignStore.ForAsync` is the one place a
+  campaign id becomes a campaign, and **a null id resolves to null, never to a default** —
+  `ACharacterInNoCampaignIsUnchanged` is the guard, over both samples and every tier, on the
+  rendered sheet in full and the ordered finding codes.
+- **Inherit into an empty field; offer into a full one.** Joining copies the campaign's tier and
+  sandbox setting only when the character has no tier. When they disagree, **nothing is written at
+  all** and a `CAMPAIGN_TIER_MISMATCH` finding is handed back. Repair is worse than usual in both
+  directions: raising the tier turns an illegal character legal in silence, and lowering it moves
+  Resolve, which is `(TraitCap − highestRelevantRank) × 2`. `AnEmptyTierIsInherited` is the positive
+  control that keeps the mismatch assertion from being an absence satisfied by a join that does
+  nothing.
+- **The Trait Cap on a campaign is reported and never enforced**, deliberately and with the owner's
+  approval. `CampaignTests.ACampaignsTraitCapDoesNotMoveResolve` pins it at three caps including
+  none. Do not add a `TraitCapOverride` to `CharacterSheet` and do not touch `CheckTraitCap`.
+- **`CampaignId` is not in `CharacterSession.IsWorthKeeping`, and must not be.** Adding it would
+  make picking a campaign create a real, listed, empty character the moment it happened — verbatim
+  the defect that predicate was added to fix.
+- **A finding carries the two tier ids rather than writing them into its sentence**, because an id
+  is not what a tier is called and every other finding here names things the way the book does.
+
 ## Keeping a character while starting another
 
 **"Start a new character" and "Import a character" keep what is on screen. They used to destroy it.**
@@ -573,7 +719,7 @@ Ch.9 builds Villains exactly like Heroes and prints no separate stat-block forma
 - **`UnlimitedBudget` is not a Villain thing.** Ch.9 builds Villains by exactly the Hero rules, so "no budget" was never a fact about Villains — it is a GM building to whatever the scene needs, which a Hero campaign does too. A Villain can be held to a tier's points and a Hero need not be; the toggle is on the tier page, where the budget is introduced. The validator is still never told, and still reports `HP_BUDGET_EXCEEDED` — the browser shows a running total and `build --from` reports every finding, because a report that dropped one on the strength of a flag in its own input would be worth less than no report.
 - **Without a limit the strip is a running total, not an absence.** Absent was the old Villain behaviour and it took the breakdown with it, so somebody building without a limit lost the one panel saying where the points went. No cap, no remaining figure, and **no rail** — a `progressbar` needs a maximum to be a proportion of, and one drawn against the tier's points would put back the limit that was just switched off.
 - **One route puts the palette on the document.** `MainLayout` applies it from the character on the render after any change of character — restored, sampled, taken from a recording, switched by hand. Three call sites used to push `ppSetMode` themselves. That made it render-reached, so it left the interop guard's by-hand allow-list and goes through `Theme`, guarded like `Motion` and `Shortcuts`; unguarded it would throw out of every render of the shell. The **theme** switch is different and deliberately so: it pushes from the click, because it follows the reader rather than the character and changes on nothing else.
-- **`.mode-switch` names the Hero/Villain control, not the pill shape.** The light/dark control briefly carried the same class, which made `.mode-switch button` match five buttons and the identity switch report three pressed states at once. The shape is shared by selector list; `BannerTests` caught it in under a minute.
+- **`.mode-switch` names the Hero/Villain control, not the pill shape.** The light/dark control briefly carried the same class, which made `.mode-switch button` match five buttons and the identity switch report three pressed states at once. The shape is shared by selector list; `BannerTests` caught it in under a minute. **Both controls are inside `SettingsMenu` now** — see the banner section above, including why they are drawn on `--panel` rather than on `--primary`.
 - Only the palette differs. If a layout change seems necessary for one mode, the layout is wrong for both.
 
 

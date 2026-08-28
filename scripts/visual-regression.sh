@@ -124,6 +124,12 @@ update_goldens=0
 # override *from*.
 tolerance=0.02
 
+# How long one comparison may take before it is killed and named — see the block at the call site
+# for why this exists at all. **One value, used by both the `timeout` and the message that reports
+# it**, because a message quoting a number that lives somewhere else is a claim with a shelf life,
+# and this repository has been bitten by exactly that shape more than once.
+compare_deadline=120s
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --update-goldens) update_goldens=1 ;;
@@ -378,8 +384,35 @@ while IFS= read -r line; do
     continue
   fi
 
-  if ! node "$root/scripts/visual/diff.mjs" "$actual" "$golden" \
-      --out "$diff_dir/$name.png" --max-diff-percent "$tolerance"; then
+  # **Capped, because one of these hung in CI and the job ran to six hours saying nothing.**
+  # Six pages compared and printed `pixel-identical`; the seventh printed no line at all and the
+  # platform killed the job at its own ceiling. A re-run over byte-identical inputs passed, so
+  # this is not a deterministic loop in the decoder — but "not deterministic" is a reason to
+  # bound it, not a reason to trust it.
+  #
+  # **The point of capping here rather than only on the job is that this failure names the
+  # page.** A job-level timeout says "the build hung"; this says which comparison did, which is
+  # the difference between a mystery and a bug report. The job cap in `build.yml` stays as the
+  # backstop for everything this line cannot see.
+  #
+  # A whole comparison is a decode of two PNGs and a walk over their pixels — well under a second
+  # for the largest page here, measured. 120s is not a performance budget; it is far enough above
+  # the real cost that a loaded runner can never trip it, and far below the point where anybody
+  # would rather have been told.
+  #
+  # `timeout` is GNU coreutils: present on the runners and in Git Bash, checked rather than
+  # assumed. 124 is its own exit code for "the deadline passed", and it is reported separately
+  # from an ordinary mismatch because they are different findings — a mismatch is a picture that
+  # changed, and this is a comparison that never finished.
+  compare_status=0
+  timeout "${compare_deadline}" node "$root/scripts/visual/diff.mjs" "$actual" "$golden" \
+      --out "$diff_dir/$name.png" --max-diff-percent "$tolerance" || compare_status=$?
+
+  if [ "$compare_status" -eq 124 ]; then
+    echo "::error::$name: the comparison did not finish within ${compare_deadline} and was killed. This is the" \
+         "hang that once cost a six-hour job; the page is named here so it can be reproduced."
+    failed=1
+  elif [ "$compare_status" -ne 0 ]; then
     failed=1
   fi
 done <<< "$manifest"

@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4889 across **four** suites — 4024 on the engine (9 added by the CI-minutes slice, on the two workflow filters), 676 rendering components with bUnit (**6 added this round**, on the rules index becoming a list of controls — see the completed entry at the top; the same round added 9 to the accounts suite, on the scoped search; the round before added 8, on the Hero Point limit two cards, and the one before that 26, on the sheet's own address: nine cases on `SheetPage` — the document alone on the page, showing not opening, the two nulls kept apart — and nine inline cases extending `AreaTests` to the fifth area, plus the theory that already existed. **This figure is the sheet branch's, not a post-merge measurement**, and the row's own rule below applies: re-run rather than carry it. The round before added 10, on the banner printing the palette's chord — see the completed entry at the top; the round before added 46, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 175 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **nineteen verdicts now, not eleven**, because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4866 across **four** suites — 4024 on the engine (9 added by the CI-minutes slice, on the two workflow filters), 662 rendering components with bUnit (**26 added this round**, on the sheet's own address: nine cases on `SheetPage` — the document alone on the page, showing not opening, the two nulls kept apart — and nine inline cases extending `AreaTests` to the fifth area, plus the theory that already existed. **This figure is the sheet branch's, not a post-merge measurement**, and the row's own rule below applies: re-run rather than carry it. The round before added 10, on the banner printing the palette's chord — see the completed entry at the top; the round before added 46, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **twenty-one verdicts now, not nineteen** (the banner-alignment harness and its twin are the newest pair), because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -646,6 +646,45 @@ a defect that a campaign is the place to fix:
    belong to it — which then inherit those settings instead of each carrying their own.
    **Single-user first, no sharing**, because that needs nothing new from the server: a campaign is
    another opaque blob beside the characters.
+
+   **The non-visual half is done.** `engine/Campaign.cs` (a record with no logic and no reader),
+   `CharacterSheet.CampaignId`, `pp.campaign.v1` in local storage, a `campaigns` table and four
+   routes beside the character ones, `characters.campaign_id` on the wire and in the index, and
+   `web/Services/CampaignJoin.cs`. **No screen draws one yet** — that is the remaining half of this
+   item. The rules the slice settled, so nobody re-litigates them:
+
+   - **The server never learns what a campaign is.** A payload it stores verbatim, a label and a
+     `campaignId` the client supplies exactly as it supplies `label`. It does not know what a tier
+     is and must not learn; see [`docs/guide/accounts-server.md`](docs/guide/accounts-server.md).
+   - **Inherit into an empty field; offer into a full one.** Joining copies the campaign's tier and
+     sandbox setting only when the character has no tier. When they disagree, **nothing is written**
+     and a mismatch is reported. Repairing would be worse than usual in both directions: raising the
+     tier turns an illegal character legal in silence, and lowering it moves Resolve, which is
+     `(TraitCap − highestRelevantRank) × 2` — a figure the player paid Hero Points for.
+   - **The campaign's Trait Cap is carried and never applied**, deliberately. There is a test that a
+     campaign whose cap differs from its tier's leaves `CalculateResolve` returning exactly what it
+     returns with no campaign at all. Do not add a `TraitCapOverride` to `CharacterSheet`.
+   - **Deleting a campaign leaves its members naming it** — no cascade, no nulled column, no foreign
+     key. `UNKNOWN_CAMPAIGN` is reported in the same shape as the engine's `UNKNOWN_TIER`, which
+     keeps restoring the campaign a complete undo.
+   - **Nothing bumped `StoredCharacter.CurrentVersion`.** It is 1, a mismatch is discarded in
+     silence, and an absent `campaignId` reads back as null — which correctly means "in no
+     campaign". Bumping it would have emptied every returning visitor's browser and every account.
+     `SavedCharacterSummary`'s new fourth parameter has a default for the same reason, and both are
+     guarded by tests that read a checked-in literal written before either existed.
+   - **`CampaignId` is barred from `engine/` as an *indirection*, not as presentation.** Resolving
+     it means asking storage, which is asynchronous, which `IRulesSource` is synchronous to forbid.
+     `PresentationFlagsTests` now carries three names and says which bar each is under.
+   - **`CampaignId` is deliberately not in `CharacterSession.IsWorthKeeping`.** Adding it would make
+     picking a campaign create a listed, empty character the moment it happened — verbatim the bug
+     that predicate was added to fix.
+
+   **One thing found while building it, recorded because the design said otherwise.** The reasoning
+   for the `routePattern` arm was that without it "a caller inventing ids writes one `error_log` row
+   per id". That is not what happens: an unrecognised path already falls to `other`, so the table
+   was bounded either way. The arm is still right and still landed — what it buys is a *legible*
+   log, where a broken campaign route is distinguishable from a passing crawler — and the test
+   asserts both the bound and the route name, the second being the half the arm is actually for.
 2. **Headquarters.** *The cheapest of the eight and the strongest argument for the first*, because
    the rulebook made it campaign-scoped in print rather than by inference: the Perk is already in
    `data/rules/perks.json` at 1 HP per unit for 3 Base Points, and its own text reads **"Multiple
@@ -748,10 +787,25 @@ tool for running and playing has.**
     fall back to a system face on one platform only.
   - **A placeholder is not a label** still applies to the field when it arrives: it may carry the
     hint, and it may not be the only place the field is named.
-- **Account and settings move to the right of the banner.**
-- **The Hero/Villain switch moves into that settings menu**, which completes a decision already
-  taken rather than reversing one: `docs/guide/browser.md` records that "Only the builder names the
-  palette in the banner. A rules search is not a Hero or a Villain."
+- **Account and settings move to the right of the banner. — done**, see the completed entry at the
+  top of this file. The bar is two sides with a hairline between them, the tools cluster is one
+  idiom rather than three, and the account stopped being a `.banner-link`: an identity was wearing
+  navigation's clothes.
+- **The Hero/Villain switch moves into that settings menu — done**, with the light/dark switch
+  beside it. It completes a decision already taken rather than reversing one: `docs/guide/browser.md`
+  records that "Only the builder names the palette in the banner. A rules search is not a Hero or a
+  Villain."
+
+  **And it is what fixed the alignment the owner reported in the same breath.** "Search is
+  vertically elevated" was measured at 1.25px and was a symptom: five idioms in one strip cannot be
+  aligned, only reduced. `align-items: baseline` is the arithmetic half and lands the spread at
+  0.00px; taking the two pills off the band is the half that made the row one kind of thing.
+  Measured on every CI run by `proof-align.html`, against a twin that reproduces the defect.
+
+  **What is *not* done from this bullet's neighbourhood: the third avenue.** Item 11's answer says
+  three doors is what a tool for running and playing has, and `.avenue-nav` is built so the third
+  costs one `NavLink` — but there is nothing behind it yet, and a door onto an empty room is worse
+  than a wall.
 
 #### Two smaller things from the same reading
 
@@ -1116,6 +1170,184 @@ on the parallel construction, because the shape of the words is the fix and not 
 `MainLayout`. They are deliberately not regenerated here — that is `visual-goldens.yml` on the
 runner, and a golden updated as a side effect of something else is a regression signed off by
 nobody.
+### One bar, two sides, one baseline — and the alignment was the symptom
+
+> *"can we get a more uniform looking header bar? Search is vertically elevated"* — the owner
+
+**Both halves of that report were true, and only one of them was arithmetic.** This is
+[item 12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer)'s third and
+fourth bullets — *"account and settings move to the right of the banner"* and *"the Hero/Villain
+switch moves into that settings menu"* — closed, plus the alignment defect that prompted them.
+
+#### The measurement, which said the obvious fix was not the fix
+
+In the shipped banner the three plain `.banner-link`s — Build, Rules, the account — had their text
+line centred at **29.13px**. The SEARCH label sat at **27.88px**, 1.25px above, and was the single
+most elevated item in the row.
+
+**`align-items: center` was doing exactly what it says.** Every item's *box* was centred on
+30.30px, correctly, to within a hundredth of a pixel. What differed was how far each item's *text*
+sat from its own box centre — and that is a number no rule states and no source scan can compute:
+
+- an ordinary link is skewed **1.17px up** by the underline hanging below its text;
+- `.palette-open` is skewed **2.42px up** because its own `align-items: baseline` pins the label
+  flush to the button's top edge while the `.key` boxes' border and padding hang below the shared
+  baseline.
+
+Four candidate fixes were measured. **`align-items: baseline` on `.banner-inner` lands the spread
+at 0.00px** and is what shipped. `align-items: center` on the palette button moves the error to
++1.00px, a wash. A tuned `line-height` on `.key` reaches +0.01px and was **rejected**: it is a magic
+number depending on three tokens, so it would rot the first time any of them moved, silently, in
+exactly the direction that is hard to see.
+
+And one thing the measurement ruled out before anybody built on it: `.mode-switch`, `.theme-switch`
+and the character pill were **all 30.34px tall, identically**. They did not differ in height. What
+differed was horizontal padding — `--space-3` on one, `--space-4` on the other.
+
+#### The cause, which is the larger half
+
+Nothing in the row lined up because **nothing in the row was the same kind of thing**: a wordmark,
+two underlined links, a bare button carrying two key boxes, and two bordered pills with different
+horizontal padding — five ways of drawing a control, inside about eleven centimetres. **Tuning the
+alignment of five idioms leaves five idioms.** So:
+
+- **Two sides.** Left is what the site is and where you can go — the wordmark, then the avenues.
+  Right is the tools. **The character's own two things sit between them, attached to each other**,
+  separated from the tools by a wider gap and a hairline. The bar used to be seven controls in a
+  flat list with one `margin-right: auto` after the wordmark, which said only that six of them
+  were "not the title".
+- **The Hero/Villain and Light/Dark/Auto switches moved off the bar into a settings menu.** This is
+  the move that does most of the work: it takes the idiom count from five to three and **deletes**
+  the mismatched-padding problem rather than tuning it. Off the band there is nothing to fit
+  around, so they are the same control twice. Neither is something a reader reaches for often — an
+  identity once per character, a theme once per person — and both were sitting permanently in the
+  most valuable strip on the page at the size of a primary control.
+- **Search, the account and Settings are one idiom**: same face, size, tracking and optical line,
+  **none of them underlined, because none of them is a destination**. Search opens an overlay,
+  Settings drops a menu, and an account is an identity rather than a place. A caret — drawn in CSS,
+  never a glyph — marks the only one that opens a menu.
+- **"Saved" moved next to the character switcher.** It reports a write of the *document*; beside
+  the account link it read as a comment on whoever was signed in, which on a shared machine is the
+  reading that matters.
+
+**It completes a decision `docs/guide/browser.md` already records rather than reversing one.** "A
+rules search is not a Hero or a Villain" is why the subtitle names the palette in the builder and
+nowhere else — while the switch that *sets* it sat on every route regardless, which is the same
+fault one band up.
+
+#### Two things the design was checked against and one it was corrected by
+
+- **The live region is *not* gated on the builder, though the switcher beside it is**, and the
+  approved design would have moved both. `.save-status` carries the undo offer for four acts that
+  replace the character **wherever the reader is standing** — the tier page, the portfolio's two
+  sample buttons, a recording that then navigates away from itself — so it has to live somewhere
+  every one of those routes draws, and only this band does. Two of those routes are outside the
+  builder. Gating it with the switcher would have taken the offer off the two that raise it most.
+  `TheSaveRegionSitsWithTheCharacterAndSurvivesLeavingTheBuilder` pins the asymmetry, asserted on a
+  route where the switcher is absent — or the claim is untested.
+- **No third door.** `.avenue-nav` is a flex list of links and `Areas.Of` already reads the first
+  path segment, so the avenue item 12 reserves for running a game is one `NavLink`. It is not here,
+  because there is nothing behind it yet and a door onto an empty room is worse than a wall.
+- **The switches are on `--panel` now, not on `--primary`**, which is a real change rather than a
+  re-skin: `--on-primary` is the only ink that reads on the banner's fill and is invisible on the
+  menu's. Unpressed is `--ink` on `--panel`, hover is `--panel-sunk`, pressed is `--on-primary` on
+  `--primary` — all three already in `EveryScreenPairInUseHoldsItsContrastFloor`, so no unmeasured
+  pair was introduced in any of the four palettes.
+
+#### The guard is a browser, because nothing else can answer this
+
+`proof-align.html` measures the text **baseline** of every one-line item in the band and requires
+the spread under 0.5px. Three things about it are the point:
+
+- **The baseline, not the line-box centre.** A line box's height follows its font size, so two
+  items genuinely sharing a baseline in two sizes measure several tenths of a pixel apart — and the
+  banner has two faces and two sizes in it, so that error is not hypothetical. A zero-sized
+  `inline-block` probe resolves its own baseline to its single edge, which is the line's baseline,
+  exactly and independently of the face. No computed style exposes that number and no range box
+  gives it.
+- **The positive control is the count, not the spread.** A spread over an empty list fails, but
+  over a *single* found item it is 0.00 and passes — so a banner that had lost five of its six
+  controls would report a perfectly aligned row. Mutation M2 below is that exact state, and the
+  harness said `FAIL` at `items 5 of 6` with a spread of 0.00.
+- **A twin, driving the byte-identical script**, against a shell with `align-items: center`
+  injected — the owner's reported defect, reproduced. CI requires the real page to say `PASS` and
+  the twin to say `FAIL`. **Measured: PASS at 0.00px, twin FAIL at 1.00px.** Nineteen browser
+  verdicts became twenty-one.
+
+**Two exclusions, named on the page itself so a reader of the dump knows what was not measured.**
+The wordmark is two lines — the name and the subtitle — so it has no single text line to be on, and
+`app.css` gives it `align-self: center` for that reason; putting a two-line block into a spread of
+one-line baselines compares two different things. The save region renders no text between saves, so
+on this page it has no baseline rather than a wrong one.
+
+#### Guards, and the mutation that broke each one
+
+Every mutation was applied to **committed** work, confirmed to have matched with
+`git diff --numstat`, watched to go red, reverted, and the suites re-run after the revert.
+
+| # | Mutation | Guard | Observed |
+|---|---|---|---|
+| M1 | `.banner-inner` back to `align-items: center` | `proof-align.html` | **`ALIGN: FAIL`**, spread 1.00px, three distinct baseline groups. The C# suites stayed **green** — 4026 + 664 — which is the whole reason this harness exists |
+| M2 | `<SettingsMenu />` deleted from the bar | `proof-align.html`'s positive control | **`ALIGN: FAIL`** at `items 5 of 6` with the spread a perfect **0.00px** |
+| M3 | `Pressed` always `"true"` | `ExactlyOneModeButtonAnnouncesItselfAsPressed` | 2 failed |
+| M4 | `.settings-menu` removed from `@media print` | `TheSettingsMenusControlsDoNotPrint`, `ThePrintedSheetLeavesOutTheToolAroundIt` | 1 failed in each suite |
+| M5 | `<SettingsMenu />` deleted from the bar | `TheBarOffersBothAvenues…OnEveryRoute` | 13 failed, all four routes among them |
+| M6 | `banner-link` put back on the account | `TheAccountIsATooAndNotAnAvenue` | 1 failed |
+| M7 | the live region gated on the builder | `TheSaveRegionSitsWithTheCharacter…` | 1 failed |
+| M8 | `Toggle()` made a no-op | `WithSettingsOpen`, `OpenedSettings` | **42 failed.** The switch assertions do not pass vacuously on a menu that never opened |
+| M9 | `aria-controls` written unconditionally | `AriaReferenceTests` | 1 failed, naming the dangling IDREF on the shut menu |
+
+**M8 and M9 are the two worth keeping in mind.** M8 is the check on every other check in this list:
+a disclosure that rendered nothing satisfies "exactly one is pressed" completely, by having no
+buttons — this repository's commonest guard fault in its exact shape. M9 needed
+`AriaReferenceTests` to render `MainLayout` at all, which it never had: the character switcher's
+conditional `aria-controls` had been correct and **unswept** since the day it was written, and so
+would this one have been.
+
+#### What has to happen next, and I have not done it
+
+**This change moves the visual goldens** — the banner's contents, its height and its right-hand
+edge all changed, on all four `proof-shell-*` pages. They are **not** regenerated here, deliberately:
+a golden updated as a side effect of something else is a regression signed off by nobody, and
+`--update-goldens` from a Windows machine puts the Docker-versus-runner Chrome gap straight back.
+
+```bash
+gh workflow run visual-goldens.yml --repo SoftwareSamurai-net/ProwlersAndParagonsAutomation
+```
+
+Four pages will move: `shell-hero-light`, `shell-hero-dark`, `shell-villain-light`,
+`shell-villain-dark`. Look at the images before committing them.
+
+### A hung CI step spent six hours of the org's allowance, and nothing was stopping it
+
+**Found by reading a failure rather than re-running it.** `Build` on the sheet-page branch reported
+`fail` after **6h 0m 17s** — which is GitHub's own ceiling, not a test result. Every test step had
+succeeded; the visual comparator printed `pixel-identical` for six of seven proof pages, printed
+**no line at all** for `shell-villain-dark`, and sat there until the platform killed it.
+
+**A re-run over byte-identical inputs passed**, which is what makes this worth writing down rather
+than fixing quietly: it rules out a deterministic loop in the decoder and rules in very little else.
+The honest position is that the cause is open and the bleeding is stopped.
+
+- **`timeout-minutes: 30` on the job**, not on the step that hung. Capping that one step fixes the
+  instance and not the class. **The default is unlimited**, so any hang anywhere — Chrome not
+  exiting, a deadlocked test, a stalled runner — costs six hours before anybody is told, and looks
+  exactly like a job that is merely slow.
+- **`scripts/visual-regression.sh` caps each comparison too**, and that is not redundant: a
+  job-level timeout says *the build hung*; this one says **which page**. `timeout`'s exit code 124
+  is reported as its own finding rather than folded into a mismatch — a picture that changed and a
+  comparison that never finished are different facts, and only one of them is a regression.
+- **Broken and watched to fail**, with a `while (true) {}` at the top of `diff.mjs`: all seven pages
+  reported the deadline by name instead of the run hanging. Restored, and the real comparator then
+  passed all seven against the committed goldens, `shell-villain-dark` included.
+- **The deadline is one variable** used by both the `timeout` and the message that quotes it. The
+  first version hard-coded "120s" in the message beside a separate literal — a claim with a shelf
+  life, which is the shape this file records being bitten by repeatedly.
+
+**Still open:** why one comparison hung. `scripts/visual/png.mjs` is a hand-written PNG decoder that
+had no tests at all until recently, and it is the prime suspect; it is now bounded rather than
+understood.
+
 ### The sheet gets its own address, and it is not the one that was retired
 
 > *"Id like to add a pure 'Sheet' view page to the application"* — the owner, 2026-08-27

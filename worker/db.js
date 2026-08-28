@@ -179,10 +179,19 @@ export async function getCharacter(db, userId, id) {
         .bind(userId, id).first();
 }
 
-/** An account's characters, most recently touched first — what a manager list wants. */
+/**
+ * An account's characters, most recently touched first — what a manager list wants.
+ *
+ * <p><b>`campaign_id` is in the list and is not derived from anything.</b> It is a string the
+ * client sent, stored and handed back, exactly as `label` is — the server cannot read it out of
+ * the payload because it never parses one. It is never joined to `campaigns` and never checked
+ * against it: a character naming a campaign that has been deleted is a state the browser reports,
+ * not a state this query repairs.</p>
+ */
 export async function listCharacters(db, userId) {
     const result = await db.prepare(
-        'SELECT id, label, updated_at FROM characters WHERE user_id = ? ORDER BY updated_at DESC')
+        'SELECT id, label, updated_at, campaign_id FROM characters '
+        + 'WHERE user_id = ? ORDER BY updated_at DESC')
         .bind(userId).all();
 
     return result.results;
@@ -212,17 +221,18 @@ export async function characterLimit(db, userId) {
  * when the id was already there, and `RETURNING` is how the caller learns which happened —
  * a row back means stored, nothing back means refused.</p>
  */
-export async function putCharacter(db, { userId, id, label, payload, now }) {
+export async function putCharacter(db, { userId, id, label, payload, campaignId, now }) {
     const row = await db.prepare(
-        'INSERT INTO characters (user_id, id, label, payload, updated_at) '
-        + 'SELECT ?, ?, ?, ?, ? '
+        'INSERT INTO characters (user_id, id, label, payload, campaign_id, updated_at) '
+        + 'SELECT ?, ?, ?, ?, ?, ? '
         + 'WHERE EXISTS (SELECT 1 FROM characters WHERE user_id = ? AND id = ?) '
         + '   OR (SELECT COUNT(*) FROM characters WHERE user_id = ?) '
         + '       < (SELECT character_limit FROM users WHERE id = ?) '
         + 'ON CONFLICT (user_id, id) DO UPDATE SET '
-        + '  label = excluded.label, payload = excluded.payload, updated_at = excluded.updated_at '
+        + '  label = excluded.label, payload = excluded.payload, '
+        + '  campaign_id = excluded.campaign_id, updated_at = excluded.updated_at '
         + 'RETURNING id')
-        .bind(userId, id, label, payload, now, userId, id, userId, userId)
+        .bind(userId, id, label, payload, campaignId, now, userId, id, userId, userId)
         .first();
 
     return row !== null;
@@ -232,6 +242,61 @@ export async function putCharacter(db, { userId, id, label, payload, now }) {
  * function's business, it is the caller's to turn into 404 or 204. */
 export async function deleteCharacter(db, userId, id) {
     const row = await db.prepare('DELETE FROM characters WHERE user_id = ? AND id = ? RETURNING id')
+        .bind(userId, id).first();
+
+    return row !== null;
+}
+
+// ── Campaigns ────────────────────────────────────────────────────────────────────────────
+//
+// **Five statements that are the character ones with a different table name, and that is the
+// point.** A campaign is another opaque blob belonging to one account; nothing here knows what a
+// tier is, and there is no cap, because the account's cap is a cap on characters and inventing a
+// second limit would be inventing a rule the contract does not have.
+
+/** One campaign's payload, scoped to its owner. Somebody else's id and no such id look the same. */
+export async function getCampaign(db, userId, id) {
+    return await db.prepare('SELECT payload FROM campaigns WHERE user_id = ? AND id = ?')
+        .bind(userId, id).first();
+}
+
+/** An account's campaigns, most recently touched first. */
+export async function listCampaigns(db, userId) {
+    const result = await db.prepare(
+        'SELECT id, label, updated_at FROM campaigns WHERE user_id = ? ORDER BY updated_at DESC')
+        .bind(userId).all();
+
+    return result.results;
+}
+
+/**
+ * Create or replace a campaign.
+ *
+ * <p><b>One statement, and no cap to race against</b> — which is the whole difference from
+ * `putCharacter`. There the `WHERE` on an `INSERT … SELECT` is the cap check, written that way
+ * because a read followed by a write would let two PUTs both see room. Here there is nothing to
+ * check, so this is an ordinary upsert and stays one; a cap added later would have to be written
+ * in the statement rather than in front of it.</p>
+ */
+export async function putCampaign(db, { userId, id, label, payload, now }) {
+    await db.prepare(
+        'INSERT INTO campaigns (user_id, id, label, payload, updated_at) VALUES (?, ?, ?, ?, ?) '
+        + 'ON CONFLICT (user_id, id) DO UPDATE SET '
+        + '  label = excluded.label, payload = excluded.payload, updated_at = excluded.updated_at')
+        .bind(userId, id, label, payload, now).run();
+}
+
+/**
+ * Throw one campaign away.
+ *
+ * <p><b>Characters that name it are deliberately untouched.</b> Not an oversight and not
+ * something a `REFERENCES … ON DELETE` clause should be added for: a character whose campaign has
+ * gone is reported as naming a campaign that is not here, by the browser, which is the same shape
+ * an unknown tier is reported in. Nulling the column here would silently edit characters somebody
+ * did not have open, and would make restoring the campaign impossible to undo.</p>
+ */
+export async function deleteCampaign(db, userId, id) {
+    const row = await db.prepare('DELETE FROM campaigns WHERE user_id = ? AND id = ? RETURNING id')
         .bind(userId, id).first();
 
     return row !== null;
