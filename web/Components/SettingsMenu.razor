@@ -1,6 +1,7 @@
 @implements IDisposable
 @inject CharacterSession Session
 @inject Theme Theme
+@inject NavigationManager Nav
 
 @* The two palette switches, off the bar and behind one control.
 
@@ -58,20 +59,41 @@
     @if (_open)
     {
         <div class="settings-menu-list" id="settings-menu-list">
-            <p class="settings-menu-head">Palette</p>
+            @* **The identity switch is not offered over a document, and this survived the move
+               into the menu rather than being lost in it.**
 
-            @* `.mode-switch` names the Hero/Villain control and not the pill shape. The
-               light/dark control below briefly carried the same class, which made
-               `.mode-switch button` match five buttons and the identity switch report three
-               pressed states at once. `BannerTests` caught it in under a minute. *@
-            <div class="mode-switch" role="group" aria-label="Hero or Villain">
-                <button type="button"
-                        aria-pressed="@Pressed(SheetMode.Hero)"
-                        @onclick="() => SetMode(SheetMode.Hero)">Hero</button>
-                <button type="button"
-                        aria-pressed="@Pressed(SheetMode.Villain)"
-                        @onclick="() => SetMode(SheetMode.Villain)">Villain</button>
-            </div>
+               An adversarial review found it while the control was still on the bar: these
+               buttons always write to the character that is *open*, but `/sheet/{id}` draws a
+               character that is not it — so pressing "Villain" there recoloured the foreign sheet
+               on screen while silently flipping and saving `IsVillain` on somebody else's. The
+               sheet page's own subtitle refuses to name Hero or Villain for exactly that reason,
+               and leaving the control that acts on the conflation one band above it was the
+               defect.
+
+               **Putting it behind a menu does not answer it.** The write is the same write; only
+               the number of clicks changed. So the gate came across with the control.
+
+               The light/dark switch below is *not* gated, and the difference is the whole point:
+               a theme follows the reader and a palette follows the character. One of these two is
+               a preference about the person looking at the screen; the other is an edit to a
+               document that may not be theirs. *@
+            @if (Where != Area.Sheet)
+            {
+                <p class="settings-menu-head">Palette</p>
+
+                @* `.mode-switch` names the Hero/Villain control and not the pill shape. The
+                   light/dark control below briefly carried the same class, which made
+                   `.mode-switch button` match five buttons and the identity switch report three
+                   pressed states at once. `BannerTests` caught it in under a minute. *@
+                <div class="mode-switch" role="group" aria-label="Hero or Villain">
+                    <button type="button"
+                            aria-pressed="@Pressed(SheetMode.Hero)"
+                            @onclick="() => SetMode(SheetMode.Hero)">Hero</button>
+                    <button type="button"
+                            aria-pressed="@Pressed(SheetMode.Villain)"
+                            @onclick="() => SetMode(SheetMode.Villain)">Villain</button>
+                </div>
+            }
 
             <p class="settings-menu-head">Screen</p>
 
@@ -105,6 +127,16 @@
     private string Chose(ThemeChoice choice) => Theme.Choice == choice ? "true" : "false";
 
     private void Toggle() => _open = !_open;
+
+    /// <summary>
+    /// Which part of the site this is, read the same way the shell reads it.
+    ///
+    /// <para>Only the identity switch consults it — see the markup above for why a palette is
+    /// gated where a theme is not. Read from the address rather than passed in, because this
+    /// component is drawn by the layout on every route and taking a parameter would mean every
+    /// caller had to remember to answer the question.</para>
+    /// </summary>
+    private Area Where => Areas.Of(Nav.ToBaseRelativePath(Nav.Uri));
 
     /// <summary>
     /// What the light/dark control should show as current.

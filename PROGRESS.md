@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4859 across **four** suites — 4024 on the engine (9 added by the CI-minutes slice, on the two workflow filters), 655 rendering components with bUnit (**19 added this round**, on the sheet's own address: nine cases on `SheetPage` — the document alone on the page, showing not opening, the two nulls kept apart — and nine inline cases extending `AreaTests` to the fifth area, plus the theory that already existed. **This figure is the sheet branch's, not a post-merge measurement**, and the row's own rule below applies: re-run rather than carry it. The round before added 10, on the banner printing the palette's chord — see the completed entry at the top; the round before added 46, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **twenty-one verdicts now, not nineteen** (the banner-alignment harness and its twin are the newest pair), because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | 4866 across **four** suites — 4024 on the engine (9 added by the CI-minutes slice, on the two workflow filters), 662 rendering components with bUnit (**26 added this round**, on the sheet's own address: nine cases on `SheetPage` — the document alone on the page, showing not opening, the two nulls kept apart — and nine inline cases extending `AreaTests` to the fifth area, plus the theory that already existed. **This figure is the sheet branch's, not a post-merge measurement**, and the row's own rule below applies: re-run rather than carry it. The round before added 10, on the banner printing the palette's chord — see the completed entry at the top; the round before added 46, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 166 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **twenty-one verdicts now, not nineteen** (the banner-alignment harness and its twin are the newest pair), because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `master` by GitHub Actions |
@@ -1154,6 +1154,35 @@ gh workflow run visual-goldens.yml --repo SoftwareSamurai-net/ProwlersAndParagon
 Four pages will move: `shell-hero-light`, `shell-hero-dark`, `shell-villain-light`,
 `shell-villain-dark`. Look at the images before committing them.
 
+### A hung CI step spent six hours of the org's allowance, and nothing was stopping it
+
+**Found by reading a failure rather than re-running it.** `Build` on the sheet-page branch reported
+`fail` after **6h 0m 17s** — which is GitHub's own ceiling, not a test result. Every test step had
+succeeded; the visual comparator printed `pixel-identical` for six of seven proof pages, printed
+**no line at all** for `shell-villain-dark`, and sat there until the platform killed it.
+
+**A re-run over byte-identical inputs passed**, which is what makes this worth writing down rather
+than fixing quietly: it rules out a deterministic loop in the decoder and rules in very little else.
+The honest position is that the cause is open and the bleeding is stopped.
+
+- **`timeout-minutes: 30` on the job**, not on the step that hung. Capping that one step fixes the
+  instance and not the class. **The default is unlimited**, so any hang anywhere — Chrome not
+  exiting, a deadlocked test, a stalled runner — costs six hours before anybody is told, and looks
+  exactly like a job that is merely slow.
+- **`scripts/visual-regression.sh` caps each comparison too**, and that is not redundant: a
+  job-level timeout says *the build hung*; this one says **which page**. `timeout`'s exit code 124
+  is reported as its own finding rather than folded into a mismatch — a picture that changed and a
+  comparison that never finished are different facts, and only one of them is a regression.
+- **Broken and watched to fail**, with a `while (true) {}` at the top of `diff.mjs`: all seven pages
+  reported the deadline by name instead of the run hanging. Restored, and the real comparator then
+  passed all seven against the committed goldens, `shell-villain-dark` included.
+- **The deadline is one variable** used by both the `timeout` and the message that quotes it. The
+  first version hard-coded "120s" in the message beside a separate literal — a claim with a shelf
+  life, which is the shape this file records being bitten by repeatedly.
+
+**Still open:** why one comparison hung. `scripts/visual/png.mjs` is a hand-written PNG decoder that
+had no tests at all until recently, and it is the prime suspect; it is now bounded rather than
+understood.
 
 ### The sheet gets its own address, and it is not the one that was retired
 
@@ -1244,8 +1273,69 @@ Neither was anticipated, and both were right:
 - **The controls sit under the sheet**, so the first thing on the screen and the first thing on the
   paper are the same thing. They carry `no-print`, which the print block already hides.
 
+#### Two adversarial reviews found six things, and the best of them was in a test
+
+Two agents were told nothing about the change — one asked only "can this lose somebody's
+character", one asked only "do these guards guard". **They agreed on one defect neither was told
+about and each found things the other did not.**
+
+- **A read that lost a race wrote its answer anyway, permanently.** The address was claimed
+  *before* the await and never re-checked, so a second navigation arriving mid-read let the losing
+  read overwrite the winner — and because the key already held the new id, nothing would ever
+  re-read to correct it. It stuck until the tab was reloaded. The reviewer built a probe and
+  demonstrated three shapes; the worst is `/sheet` announcing *"nothing is saved at that address"*
+  over a character somebody was actively building. **It is a signed-in fault above all**, because
+  there the read is an HTTP round trip rather than one synchronous storage call.
+- **"Could not be read" was printed as "does not exist".** `ReadAsync` answers null for a discarded
+  character *and* for a 401 whose session expired while the tab sat open, a network failure, and an
+  unreadable payload. Its own remarks say to treat that as **unknown rather than as nothing** — and
+  this was the first caller to do the opposite, in a sentence shown to somebody whose character was
+  sitting safe on the server.
+- **The identity switch acted on a character that was not on screen.** Those buttons always write
+  to the character that is *open*; `/sheet/{id}` draws one that is not it, so pressing "Villain"
+  recoloured the foreign sheet while silently flipping and saving `IsVillain` on somebody else's.
+  The reviewer's phrasing is the fair one: **the page's own subtitle is deliberately not "Hero" or
+  "Villain" because the sheet may be somebody else's, and then the two controls acting on exactly
+  that conflation were left in the band above it.** It is now the builder's, like the step band.
+- **`SheetView`'s subscription was decided twice and could disagree with itself.** It branched on
+  `Character is null` at initialisation *and* at disposal, and this page is the first host where
+  that flips on a live instance. Measured, both directions: going to a named character leaked a
+  handler for the life of the session; **coming back left a component that had never subscribed, so
+  `/sheet` silently stopped following the character being built** — the one thing it is for.
+  `@key` on the id fixes all of it by making each address its own instance.
+- **The new subtitle was guarded by nothing.** Deleting its whole arm left both suites green,
+  because the test asserted only the *absence* of "Villain" — which the front door's fallback
+  satisfies just as well. `OnlyTheBuilderNamesThePalette` pairs a positive with its negative for
+  precisely this reason and this copy of it had kept only the negative.
+- **A doc comment overclaimed which assertion fires.** It said the `OpenAsync` mutation reddens
+  `ShowingIsNotOpening` "on both assertions"; only the pointer one fails, because `OpenAsync` never
+  touches the session. **A claim about which assertion catches a bug is worth as little as any
+  other untested claim**, and both reviewers checked it independently.
+
+#### And the first attempt at the race guard passed for the wrong reason
+
+Worth recording because it is the failure this repository keeps having, in a new spelling. The
+obvious test — hold the response, release it, assert — **stayed green under the mutation that
+removes the fix.** Not because the fix was unnecessary: because nothing made the stale continuation
+run before the assertion, so the test was racing a scheduler and winning by accident.
+
+A second attempt navigated *inside* the gate to force the ordering; bUnit refuses a re-entrant
+render. What works is **waiting for the wrong state and requiring that it never arrives**. The time
+budget there is deliberately one-sided: a page that writes the stale answer does so as soon as the
+continuation is scheduled, so the mutation is caught in about a second, and the budget is spent only
+on the path where nothing goes wrong. That is the opposite trade from racing a timer for a
+*positive* result, which is the mistake this file already records.
+
+**Every one of the four fixes has a guard that was broken and watched to fail**: removing the
+re-check reddens the race guard, removing `@key` reddens the follow-the-character guard, deleting
+the subtitle arm reddens three tests, and drawing the identity switch everywhere reddens two.
+
 **Not done, and deliberately:** no banner door. Three doors are build, run a game and look something
 up; a sheet is a view of a character, not a fourth avenue.
+
+**Left open, and named so it is not lost:** the command palette gives step six the alias `"sheet"`,
+so typing that word still goes to `/build/review`. Not wrong — this entry declines a banner door on
+purpose — but the word now names two destinations and one of them is a page called the sheet.
 
 ### CI cost three times what it needed to, and the measurement is the interesting part
 
