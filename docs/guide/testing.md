@@ -74,6 +74,29 @@ It also groups the findings by file, which the tool's own summary never does —
 - `data/rules/*.json` is copied to the output directory by the csproj, so a published build works without the repo checked out.
 
 
+## Five suites, and one of them is not a test project
+
+Two `dotnet test` projects, and three `node --test` directories beside them. Each JavaScript one has
+its own script and its own CI step, because each drives a different thing and a shared glob would
+make "the suite passed" ambiguous:
+
+| Suite | Runner | What it drives |
+|---|---|---|
+| `tests/ProwlersAndParagonsAutomation.Tests` | `dotnet test` | the engine, and every source-reading guard |
+| `tests/ProwlersAndParagons.Web.Tests` | `dotnet test` | components, rendered, with bUnit |
+| `tests/worker` | `./scripts/test-worker.sh` | the accounts server, against real SQLite |
+| `tests/visual` | `./scripts/test-visual.sh` | the pixel comparator and its PNG codec |
+| `tests/deploy` | `./scripts/test-deploy-gate.sh` | the deploy's D1 migration gate |
+
+**The fifth is the newest and the reason it exists is worth stating: a workflow cannot be executed
+by any of the other four.** `scripts/d1-migrations/gate.mjs` is the *decision* the deploy makes about
+pending migrations — apply, refuse, or proceed — pulled out of the shell so it can be driven with
+canned wrangler output. That is the same shape `scripts/visual/diff.mjs` took for the same reason,
+and its six branches are each proved by mutation rather than by reading.
+
+**`dotnet test` prints one `Passed!` per project and there are two.** Count the lines, and grep for
+`Catastrophic` — see the note below on why a crashed process still prints `Passed! - Failed: 0`.
+
 ## Two test projects, and the difference between them
 
 - **`tests/ProwlersAndParagonsAutomation.Tests`** — the rules engine, plus `WebPresentationTests`, which *reads the source* of `web/` because the disciplines below are statements about how it is written, and `HeadlessBuildTests`, which drives the `build` command end to end, and the three `Mcp*Tests`, which drive the MCP server over a pair of pipes. **The wizard itself still has no harness** — that is the CLI gap, and it is narrower than it was rather than closed.

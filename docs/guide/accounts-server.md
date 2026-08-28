@@ -267,11 +267,100 @@ table beside `characters` with the same five columns. The contract is `docs/CHAR
   ordinary upsert rather than the `INSERT … SELECT … WHERE` that makes `putCharacter`'s cap check
   race-free — **and if a campaign cap is ever added it has to be written the same way**, inside the
   statement, not as a read in front of it.
+- **`join_code` is the one field of a campaign this server can read, and it is a column rather than
+  part of the payload for a reason no amount of discipline could get round**: redeeming a code means
+  *finding* the campaign it belongs to, and that is a query. It is in the list because the GM has to
+  be able to read it out. See the membership section below for the whole of it.
 - **Nothing bumped `StoredCharacter.CurrentVersion`, and nothing may.** It is 1, a mismatch is
   discarded in silence, and an absent `campaignId` deserialises to null — which correctly means
   "belongs to no campaign". Bumping it would empty every returning visitor's browser *and* every
   account. `0005` is an `ALTER TABLE`, not a rebuild, for the same reason: `campaign_id` is not part
   of a primary key, so nothing has to be copied and nothing can be lost copying it.
+
+## A campaign's clone of a character, and the one place the scoping rule bends
+
+`worker/memberships.js` is `campaigns.js` with two payload slots and a version, and **it has to stay
+that boring**. Eight addresses — seven under `/api/memberships`, one under
+`/api/campaigns/{id}/code` — inside the existing signed-in block. `d1/migrations/0006` adds
+`campaign_members` and `campaigns.join_code`. The contract is `docs/CHARACTERS-API.md`.
+
+- **It holds no rule and must never gain one**, the same sentence this file already applies to a
+  character and to a campaign, and it bites hardest here: the two payloads are *characters*, the
+  temptation is to compare them, and the diff is exactly what the engine exists to compute. Nothing
+  here parses a payload and nothing here compares two.
+- **The clones are not in `characters`, and that is the whole reason a table exists for them.** The
+  cap is `COUNT(*) FROM characters WHERE user_id = ?`, so a clone stored there would spend one of
+  the GM's own five slots per player: a GM with six players would hit their cap before building a
+  single NPC. There is a test that six approved clones leave those five slots untouched, with the
+  cap's own 409 asserted beside it as the control.
+- **Two owners on one row, so every statement stays scoped to whoever is asking.** `gm_user_id` owns
+  the campaign, `player_user_id` owns the character, and no query lets either name a third account's
+  row. `getMembership`'s `(gm_user_id = ? OR player_user_id = ?)` is not a widening: each side is
+  entitled to the row for a different reason, and a third account matches neither and gets the same
+  404 an id that never existed gets.
+- **`campaignByJoinCode` is the one read in `db.js` that is not scoped to the caller, and that is
+  what a join code is.** A secret the GM minted and chose to hand out; holding it is the whole of the
+  authorisation, the same shape as holding a sign-in link. Joining by a shared code cannot be built
+  any other way. What bounds it is what it answers — the campaign's id, label and opaque payload, so
+  the player can see the tier they are being asked to build to — and never an account id, a
+  character, a clone, or anything about another member. **Called out in three places on purpose**:
+  that statement's own comment, `memberships.js`'s header, and the contract.
+- **A code that never existed and one the GM has replaced answer byte-identically**, so asking twice
+  cannot tell somebody a code was once valid. Asserted with `deepEqual` on the body, not on the
+  status.
+- **The join is rate limited per account, through `db.countAttempt`**, and counted *before* the
+  lookup — a limit applied only to successful joins is a limit on nothing. It is the only place in
+  this server where a caller can probe for something belonging to somebody else, so the limit costs
+  one statement and removes the question.
+- **The membership id is the only id this server mints.** Every other one is the client's (`c_`,
+  `g_`) so a PUT is idempotent. A membership is not created by a PUT to a known address — it is
+  created by redeeming a code, at the one moment when the server is the only party that can see both
+  accounts. Minting it here is also what keeps an account id off the wire: the GM approves `m_…` and
+  is never told whose account is on the other side. `characterId` is answered to the player, who
+  needs it, and withheld from the GM.
+- **`pending_version` is the compare-and-swap, and skipping it is a real defect rather than a
+  missing nicety.** The GM reads snapshot A, the player resubmits B, the GM presses Approve, and B —
+  which nobody has looked at — becomes the clone. So the version is in the `UPDATE`'s `WHERE`, a
+  mismatch matches no row, and the 409 carries the newer snapshot so the screen can redraw. **A
+  decision naming no version is a 400**, never defaulted to the current one — defaulting would put
+  the defect back, reachable by omitting one field. **And the version is never reset** when the
+  pending slot clears, or a resubmission after an approval could reuse a number the GM is still
+  holding.
+- **`pending_payload IS NOT NULL` is in the same `WHERE`**, so a second click on Approve is refused
+  rather than copying a null over the clone. Nothing waiting and a snapshot that moved are both 409
+  and are told apart by whether one is attached.
+- **One slot, and resubmitting overwrites it.** No history, no rollback. Owner-approved: what this is
+  is a decision queue, and a row per submission would be a version-control system for characters.
+- **`putCampaign` mints a join code on insert and keeps it with `COALESCE`.** A candidate is minted
+  on every call, which is what makes the statement one statement — and the `COALESCE` is what stops
+  a rename rotating the code and locking out everybody who was told the old one. Rotating is
+  `rotateCode`, deliberately separate, and it evicts nobody: a code is redeemed once, into a
+  membership that does not refer back to it.
+- **The code's uniqueness is the index's, and the retry is in the handler.** A read that found no
+  campaign holding a candidate, followed by a write that trusted it, is the race every statement in
+  `db.js` is written to avoid. Bounded at three attempts — at 30^10 codes one collision is already
+  not a thing that happens, and an unbounded retry against a broken database is a request that never
+  answers.
+- **`join_code` is nullable, and a `NOT NULL DEFAULT ''` would have been worse.** An `ALTER TABLE`
+  cannot invent randomness for existing rows, so a campaign written before 0006 has no code until it
+  is next written — a state the screen reports. With a shared empty-string default, every such
+  campaign would collide on the unique index and the second row would be refused.
+- **`worker/errors.js` needed both halves, and the two lists are two exact addresses rather than
+  one.** `/api/memberships` and `/api/memberships/inbox` are filed under their own names because a
+  GM's inbox failing and a player's standings failing are different faults; everything under one
+  membership's id is `/api/memberships/{id}`, **verb included**, because `route` is half of a primary
+  key and a pattern per verb triples the rows for no gain that `kind` and `detail` do not already
+  give.
+- **No cascade from `campaigns` to `campaign_members`**, for the same reason there is no foreign key
+  on `characters.campaign_id`: a cascade would delete the clone the GM accepted — the campaign's own
+  record of what was agreed — on the strength of one click that may have been a mistake. Deleting an
+  *account* does cascade, on both columns, and there is a test on each: a membership names two
+  accounts and means nothing with either gone.
+- **The detail read sends no timestamps, and they were there for one commit.**
+  `AccountsContractTests` caught the server sending `approvedAt` and `pendingAt` on a read the client
+  bound nothing to — the exact drift that test exists for. Removed rather than bound: the timestamps
+  are in the two lists, where a "sent three hours ago" belongs, and a field nothing draws is a field
+  that rots. The 409 body lost a `pendingAt` and a `label` the same way.
 
 ## An account has a name it can change
 
