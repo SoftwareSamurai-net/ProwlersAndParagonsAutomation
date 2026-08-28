@@ -21,6 +21,39 @@ Cloudflare Pages at `superheroes.softwaresamurai.net`, by `.github/workflows/dep
 
 ---
 
+## The deploy refuses to ship past an unapplied migration
+
+**`Deploy` fails before it uploads anything if `d1/migrations` holds one the remote database has
+not run.** It never applies it. Applying from CI would mean a bad migration ships itself, and a
+migration is the one operation here that can destroy data — so the manual step stays and this only
+refuses to race ahead of it. The error names the command:
+
+```bash
+npx wrangler --cwd d1 d1 migrations apply prowlers-and-paragons --remote
+```
+
+**Why it exists.** `0005_campaigns.sql` added `characters.campaign_id`. It was written, reviewed and
+merged; the deploy shipped the Worker; **nothing applies migrations to D1.** Production then got
+`D1_ERROR: no such column: campaign_id` on `/api/characters` — which broke *ordinary character
+saving for every signed-in reader*, over a feature nobody was using yet. 29 failures.
+
+**Every check passed while it happened, and the reason is worth carrying.** `./scripts/test-worker.sh`
+runs 192 tests against real SQLite, and **it builds its schema by running the migrations** — so it
+can never notice that production's schema was not built. A suite that constructs the world it tests
+cannot tell you the real world differs. The post-deploy smoke check could not catch it either: it
+asks `/api/me`, which touches no table the migration changed, so it proves the server is wired up
+and nothing about its schema.
+
+- **An unrecognised answer fails, and that is the load-bearing part.** The step reads wrangler's
+  prose, so a reworded release must not read as "all clear" — the exact guard failure `CLAUDE.md`
+  records four times, a check satisfied by there being nothing to check. Only the explicit
+  all-clear passes; empty output refuses too, and both were driven and watched.
+- **Pinned to a version whose output was read rather than guessed.** `wrangler@3.90.0` — what the
+  deploy uses to *bundle* — answers this command with a usage dump, which would have been an
+  unrecognised answer on every run. This step simulates nothing, so it does not need the deploy's
+  version; it needs one whose two answers have been seen. `4.127.0` was verified against the real
+  database before it landed.
+
 ## A hung step costs six hours, and nothing was stopping it
 
 **`Build` has `timeout-minutes: 30`, and it is there because a step hung and ran to GitHub's own
