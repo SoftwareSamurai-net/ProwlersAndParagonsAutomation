@@ -219,6 +219,30 @@ anybody.
   "nothing matched by heading at all".
 - **The row cap is the server's and the caller cannot raise it.** The alternative is one response
   carrying fifteen hundred passages and their snippets.
+- **"What is here" is a list of controls, and it prints no passage counts.** Each chapter row runs
+  a search of the box's words scoped to that chapter, through `chapter=N` on the search route — see
+  [`accounts-server.md`](accounts-server.md) for why the narrowing has to be the server's. "742
+  passages" was a statistic about how the extractor split the text: the app describing its own
+  internals to somebody who asked about a rulebook. The chapter's name and its printed page range
+  stay, because they answer whether a thing is in the book and where to find it in a paper copy.
+
+  **The ban on that count is scoped to that panel and must not be widened.** `Summary()` prints "12
+  passages, best 5 first" beside the results, and that is a different number doing a real job — how
+  many matched against how many are shown, which is the honesty the whole page is built on. A guard
+  reading "no passage count anywhere on `/rules`" would kill it.
+
+  **A row is disabled until the box holds something**, because the server answers an empty query
+  with `found: 0` and this page prints that as a sentence about the book — a row that ran on an
+  empty box would tell a reader Ch.4 is silent on the strength of their not having typed yet. The
+  panel's aside says what the rows are waiting for. Searching the chapter's *own title* instead was
+  rejected in `PROGRESS.md` and stays rejected: a row labelled with a chapter that answers with hits
+  from three other chapters is the original "looks like a list of links and is not one" complaint in
+  a new spelling.
+- **A scoped answer says which chapter it came out of, and the box is the way back.** The results
+  panel is headed "What Ch.4 says" rather than "What the book says", a scoped miss names the chapter
+  and points at the Search button, and submitting the form always clears the scope — a narrowing
+  that survived the next query would answer a new question out of a chapter chosen for the old one,
+  with nothing on screen looking wrong.
 
 
 ## The sheet beside the editors
