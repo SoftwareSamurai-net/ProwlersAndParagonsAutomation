@@ -22,6 +22,10 @@ public sealed class AreaTests
     [InlineData("build/characteristics", Area.Play)]
     [InlineData("build/review", Area.Play)]
     [InlineData("rules", Area.Rules)]
+    [InlineData("campaign", Area.Campaign)]
+    [InlineData("campaign/g_AAAAAAAAAAAAAAAAAAAAAA", Area.Campaign)]
+    // Matched on the segment, so a later `/campaigns` would be its own area rather than this one.
+    [InlineData("campaigns", Area.Home)]
     [InlineData("sheet", Area.Sheet)]
     [InlineData("sheet/c_AAAAAAAAAAAAAAAAAAAAAA", Area.Sheet)]
     [InlineData("admin", Area.Account)]
@@ -41,6 +45,8 @@ public sealed class AreaTests
     [InlineData("Build", Area.Play)]
     [InlineData("BUILD/gear", Area.Play)]
     [InlineData("Rules", Area.Rules)]
+    [InlineData("Campaign", Area.Campaign)]
+    [InlineData("CAMPAIGN/g_AAAAAAAAAAAAAAAAAAAAAA", Area.Campaign)]
     [InlineData("Sheet", Area.Sheet)]
     [InlineData("SHEET/c_AAAAAAAAAAAAAAAAAAAAAA", Area.Sheet)]
     [InlineData("SignIn", Area.Account)]
@@ -103,13 +109,19 @@ public sealed class AreaTests
     }
 
     /// <summary>
-    /// Both avenues are offered from every address, rather than one link naming whichever half
-    /// the reader is not in.
+    /// All three avenues are offered from every address, rather than one link naming whichever
+    /// half the reader is not in.
     ///
     /// <para><b>The flipping cross-link was right for two rooms and wrong for three.</b> It told
     /// you where you were not, which only identifies a destination while there is exactly one such
     /// place; with a front door, a builder and a reference it named one of two elsewheres and hid
     /// the other.</para>
+    ///
+    /// <para><b>Three now, and this asserted two while there were three.</b> <c>Run</c> shipped
+    /// with the campaign screens — the door `MainLayout` had been reserving — and it is offered
+    /// from everywhere for exactly the reason the other two are: a reader standing in a campaign
+    /// needs the way back into the builder as much as the reverse. The campaign address is in the
+    /// theory's own list too, because "from everywhere" has to include the newest room.</para>
     /// </summary>
     [Theory]
     [InlineData("")]
@@ -117,6 +129,7 @@ public sealed class AreaTests
     [InlineData("rules")]
     [InlineData("sheet")]
     [InlineData("admin")]
+    [InlineData("campaign")]
     public void EveryAvenueIsOfferedFromEverywhere(string path)
     {
         using var ctx = new RenderContext().With(SheetMode.Hero);
@@ -125,6 +138,7 @@ public sealed class AreaTests
         var nav = ctx.Render<MainLayout>().Find(".avenue-nav").TextContent;
 
         Assert.Contains("Build", nav, StringComparison.Ordinal);
+        Assert.Contains("Run", nav, StringComparison.Ordinal);
         Assert.Contains("Rules", nav, StringComparison.Ordinal);
     }
 
