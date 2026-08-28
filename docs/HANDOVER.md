@@ -64,9 +64,9 @@ project failed to **build** and its result is simply missing. Count the lines, a
 `Catastrophic` — a crashed process still prints `Passed! - Failed: 0`.
 
 **Qodana no longer runs on a pull request** — the trigger was taken off because it was 214 of one
-session's 403 Actions minutes and all 10 GB of the cache; it runs on `master` and weekly. **So the
+session's 403 Actions minutes and all 10 GB of the cache; it runs on `main` and weekly. **So the
 local scan is not a belt-and-braces step any more: skip it and the first thing that sees your
-branch is `master` after the merge.** `docs/guide/hosting.md` carries the measurement and
+branch is `main` after the merge.** `docs/guide/hosting.md` carries the measurement and
 `docs/guide/testing.md` the consequence.
 
 **A whole-tree Qodana scan reported 0** via `./scripts/qodana-scan.sh` (needs Docker Desktop) — on
