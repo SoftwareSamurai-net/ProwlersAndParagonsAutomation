@@ -8,8 +8,17 @@ name: Deploy
 # push-to-master runs only code a maintainer has already merged.
 on:
   push:
+    # Both names — see the note on `build.yml`'s trigger. **This one is the worst of the three to
+    # get wrong**: a rename would stop deploys firing with no failure anywhere, so the live site
+    # would quietly freeze at whatever shipped last while every merge looked fine.
+    #
+    # **The trigger is only half of it, and the other half is not in this repository.** Cloudflare
+    # Pages holds its own `production_branch`, which the step below asks the API for; if the Pages
+    # project still says `master` after a rename, a push to `main` deploys as a *preview* — a
+    # green run that never reached the public site. That setting has to be changed there.
     branches:
       - master
+      - main
     # Nothing outside these paths can change the published site, so a docs-only commit
     # does not spend a deploy.
     paths:

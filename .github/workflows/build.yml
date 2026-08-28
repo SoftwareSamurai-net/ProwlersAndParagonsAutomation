@@ -17,8 +17,14 @@ on:
       - 'PROGRESS.md'
       - 'docs/HANDOVER.md'
   push:
+    # **Both names, because a rename that silences CI reports nothing.** The default branch may
+    # become `main`; a trigger naming only `master` would simply stop matching, and no build, no
+    # deploy and no scan would run — with nothing anywhere saying so. A repository with zero runs
+    # looks exactly like a quiet one. Listing both makes the rename a no-op in either direction,
+    # and the unused name costs nothing because only one of them ever exists.
     branches:
       - master
+      - main
     # **Two files, and the list is short on purpose.** Almost every Markdown file in this
     # repository is read by a test — `CLAUDE.md` and `docs/guide/*.md` by `RepositoryGuideTests`,
     # `docs/ACCOUNTS-SETUP.md` by `AccountsContractTests`, `docs/MCP-SETUP.md` and `README.md` by

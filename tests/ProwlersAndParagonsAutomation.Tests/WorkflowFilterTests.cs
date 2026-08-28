@@ -40,6 +40,63 @@ public sealed class WorkflowFilterTests
     /// </summary>
     private static readonly string[] KnownInert = ["PROGRESS.md", "docs/HANDOVER.md"];
 
+    /// <summary>
+    /// Every workflow that fires on a push to the default branch, and so every one that a rename
+    /// would silence.
+    /// </summary>
+    private static readonly string[] PushTriggered = ["build.yml", "deploy.yml", "qodana_code_quality.yml"];
+
+    /// <summary>
+    /// Each of those triggers names <c>master</c> <b>and</b> <c>main</c>.
+    ///
+    /// <para><b>Because the failure is silence.</b> The default branch may be renamed, and a
+    /// trigger naming only the old name simply stops matching — no build, no deploy, no scan,
+    /// and nothing anywhere reporting that nothing ran. A repository with zero runs looks exactly
+    /// like a quiet one, which is why this is a test rather than a note: the cost of finding out
+    /// by accident is a live site frozen at whatever shipped last while every merge looks fine.</para>
+    ///
+    /// <para>Listing both is a no-op in either direction — only one of the two branches ever
+    /// exists — so nothing has to be timed with the rename.</para>
+    ///
+    /// <para><b>What this cannot see</b>, and it is the other half: Cloudflare Pages holds its own
+    /// <c>production_branch</c>. If that still says <c>master</c> after a rename, a push to
+    /// <c>main</c> deploys as a <em>preview</em> — a green run that never reached the public site.
+    /// That setting lives in Cloudflare and no test here can reach it.</para>
+    /// </summary>
+    [Fact]
+    public void EveryPushTriggerAcceptsBothDefaultBranchNames()
+    {
+        var missing = new List<string>();
+
+        foreach (var file in PushTriggered)
+        {
+            var text = File.ReadAllText(Path.Combine(RepoRoot, ".github", "workflows", file));
+
+            // The `branches:` list under `push:`, which is the only one a rename silences —
+            // `pull_request` here carries no branch filter at all.
+            var push = text.IndexOf("\n  push:", StringComparison.Ordinal);
+            Assert.True(push >= 0, $"{file} has no push trigger, so this test is asserting nothing about it.");
+
+            var branches = text.IndexOf("branches:", push, StringComparison.Ordinal);
+            Assert.True(branches >= 0, $"{file}'s push trigger names no branches.");
+
+            // To the end of that list: the first line that is neither a list item nor a comment.
+            var lines = text[branches..].Split('\n').Skip(1);
+            var named = lines
+                .TakeWhile(l => l.TrimStart().StartsWith('-') || l.TrimStart().StartsWith('#') || l.Trim().Length == 0)
+                .Where(l => l.TrimStart().StartsWith('-'))
+                .Select(l => l.Trim().TrimStart('-').Trim())
+                .ToList();
+
+            if (!named.Contains("master") || !named.Contains("main"))
+                missing.Add($"{file} fires on [{string.Join(", ", named)}]");
+        }
+
+        Assert.True(missing.Count == 0,
+            "A push trigger names only one default-branch name, so renaming the branch would stop it "
+            + "firing with no failure anywhere:\n  " + string.Join("\n  ", missing));
+    }
+
     private static List<string> Ignored()
     {
         var found = new List<string>();

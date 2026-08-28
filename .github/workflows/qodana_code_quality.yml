@@ -17,8 +17,12 @@ name: Qodana
 on:
   workflow_dispatch:
   push:
+    # Both names — see the note on `build.yml`'s trigger. A rename to `main` would otherwise stop
+    # this scan firing, silently, and a scan that never runs reports zero findings exactly like a
+    # clean one does.
     branches:
       - master
+      - main
   schedule:
     # 07:00 UTC on Mondays. Nothing depends on the hour; it is off the top of the hour because
     # GitHub's scheduled runs queue heavily there.
