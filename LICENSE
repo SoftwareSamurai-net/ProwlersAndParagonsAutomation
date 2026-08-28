@@ -24,8 +24,22 @@ SOFTWARE.
 
 This licence covers this repository's own code and text only.
 
-Prowlers & Paragons Ultimate Edition is © LakeSide Games. This repository
-contains no rulebook text: the files under data/rules/ hold structured values
-(costs, ranks, ids) with original descriptions written for this tool, and the
-PDFs under docs/ are gitignored and never distributed. You need your own copy
-of the rulebook to use any of this.
+Prowlers & Paragons Ultimate Edition is © LakeSide Games. This licence grants
+no right to it.
+
+  - data/rules/ holds structured values (costs, ranks, ids) with descriptions
+    written for this tool.
+
+  - data/rulebook/ holds the printed text of the book, extracted chapter by
+    chapter with the page each section came from. It is here by the author's
+    permission, given to this repository's owner for their own table.
+    That permission does not travel with a fork: if you have forked this
+    repository it is not yours, and you should remove data/rulebook/.
+
+  - data/rulebook/ is not part of the browser payload and the public site does
+    not serve it. It is bundled into the server worker and returned only to a
+    signed-in caller, one search result at a time with its page citation.
+
+  - Source PDFs are gitignored repository-wide; CI fails if one is ever tracked.
+
+You need your own copy of the rulebook to use any of this.
