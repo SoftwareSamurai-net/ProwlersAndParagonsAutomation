@@ -202,14 +202,21 @@ public sealed class WorkflowFilterTests
     }
 
     /// <summary>
-    /// <b>Qodana still runs on <c>master</c>, and on a schedule.</b> It came off every pull request
-    /// because the process already requires <c>./scripts/qodana-scan.sh</c> locally, reading zero,
-    /// before one is opened — but a scan of <c>master</c> as merged is a different claim from a
-    /// scan of the branches that went into it, and the weekly run is the backstop for a local step
-    /// that was skipped. Losing either would turn a trade into a removal.
+    /// <b>Qodana still runs on the default branch, and on a schedule.</b> It came off every pull
+    /// request because the process already requires <c>./scripts/qodana-scan.sh</c> locally,
+    /// reading zero, before one is opened — but a scan of the default branch as merged is a
+    /// different claim from a scan of the branches that went into it, and the weekly run is the
+    /// backstop for a local step that was skipped. Losing either would turn a trade into a removal.
+    ///
+    /// <para><b>It no longer names the branch, and that is the fix rather than a loosening.</b>
+    /// This asserted the literal <c>- master</c>, so renaming the default branch to <c>main</c>
+    /// turned it red on the default branch itself — a test failing for a rename it had no opinion
+    /// about. What it actually cares about is that the push trigger still names <em>a</em> branch;
+    /// which one is <see cref="EveryPushTriggerNamesTheSameBranch"/>'s question, once, for all
+    /// three workflows.</para>
     /// </summary>
     [Fact]
-    public void QodanaStillWatchesMasterAndStillRunsOnASchedule()
+    public void QodanaStillWatchesTheDefaultBranchAndStillRunsOnASchedule()
     {
         var text = File.ReadAllText(
             Path.Combine(RepoRoot, ".github", "workflows", "qodana_code_quality.yml"));
@@ -217,8 +224,77 @@ public sealed class WorkflowFilterTests
         Assert.Contains("schedule:", text, StringComparison.Ordinal);
         Assert.Contains("cron:", text, StringComparison.Ordinal);
 
-        var push = text.IndexOf("push:", StringComparison.Ordinal);
-        Assert.True(push > 0, "Qodana no longer runs on a push at all.");
-        Assert.Contains("- master", text[push..], StringComparison.Ordinal);
+        Assert.NotEmpty(PushBranches("qodana_code_quality.yml"));
+    }
+
+    /// <summary>
+    /// Every workflow that fires on a push to the default branch — and so every one a rename
+    /// silences if it is missed.
+    /// </summary>
+    private static readonly string[] PushTriggered = ["build.yml", "deploy.yml", "qodana_code_quality.yml"];
+
+    /// <summary>
+    /// The branches named under a workflow's <c>push:</c> trigger.
+    ///
+    /// <para>Only the push list: <c>pull_request</c> here carries no branch filter at all, so a
+    /// rename cannot silence it and it is not this test's business.</para>
+    /// </summary>
+    private static List<string> PushBranches(string workflow)
+    {
+        var text = File.ReadAllText(Path.Combine(RepoRoot, ".github", "workflows", workflow));
+
+        var push = text.IndexOf("\n  push:", StringComparison.Ordinal);
+        Assert.True(push >= 0, $"{workflow} has no push trigger, so this asserts nothing about it.");
+
+        var branches = text.IndexOf("branches:", push, StringComparison.Ordinal);
+        Assert.True(branches >= 0, $"{workflow}'s push trigger names no branches.");
+
+        // To the end of that list: the first line that is neither a list item, a comment, nor blank.
+        return text[branches..].Split('\n').Skip(1)
+            .TakeWhile(l => l.TrimStart().StartsWith('-')
+                         || l.TrimStart().StartsWith('#')
+                         || l.Trim().Length == 0)
+            .Where(l => l.TrimStart().StartsWith('-'))
+            .Select(l => l.Trim().TrimStart('-').Trim())
+            .ToList();
+    }
+
+    /// <summary>
+    /// <b>All three push triggers name the same branch.</b>
+    ///
+    /// <para><b>Because the failure is silence, and a partial rename is the realistic shape of
+    /// it.</b> Rename the default branch, update two workflows and miss the third, and that third
+    /// simply stops matching: no run, no failure, nothing anywhere saying so. A repository with
+    /// zero runs looks exactly like a quiet one — and if the one missed is <c>deploy.yml</c>, the
+    /// live site freezes at whatever shipped last while every merge continues to look fine.</para>
+    ///
+    /// <para><b>It deliberately does not say which name is right.</b> Hardcoding one is what broke
+    /// the Qodana test above during this very rename. The property that survives a rename is that
+    /// the three agree with each other.</para>
+    ///
+    /// <para><b>What no test here can reach:</b> Cloudflare Pages holds its own
+    /// <c>production_branch</c>. If that still names the old branch, a push to the new one deploys
+    /// as a <em>preview</em> — a green run that never reaches the public site. That setting lives
+    /// in Cloudflare.</para>
+    /// </summary>
+    [Fact]
+    public void EveryPushTriggerNamesTheSameBranch()
+    {
+        var named = PushTriggered.ToDictionary(w => w, PushBranches);
+
+        // The positive control: a parser that had stopped finding the lists would satisfy the
+        // comparison below with three empty sets.
+        foreach (var (workflow, branches) in named)
+            Assert.True(branches.Count > 0, $"{workflow}'s push trigger parsed to no branches at all.");
+
+        var distinct = named.Values
+            .Select(b => string.Join(",", b.OrderBy(x => x, StringComparer.Ordinal)))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(distinct.Count == 1,
+            "The push triggers disagree about which branch they fire on, so at least one of them "
+            + "runs on nothing and reports no failure for it:\n  "
+            + string.Join("\n  ", named.Select(kv => $"{kv.Key}: [{string.Join(", ", kv.Value)}]")));
     }
 }
