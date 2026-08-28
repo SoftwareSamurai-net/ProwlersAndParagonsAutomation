@@ -56,6 +56,13 @@ builder.Services.AddScoped<SavedCharacters>();
 builder.Services.AddScoped<ApiCharacterStore>();
 builder.Services.AddScoped<AccountCharacterStore>();
 builder.Services.AddScoped<DiscardedCharacter>();
+
+// Campaigns, the same two stores and the same chooser. Registered although no page asks for one
+// yet: the storage half of a campaign ships before its screens do, and a service nothing can
+// resolve is a service the first page has to discover is missing.
+builder.Services.AddScoped<SavedCampaigns>();
+builder.Services.AddScoped<ApiCampaignStore>();
+builder.Services.AddScoped<AccountCampaignStore>();
 builder.Services.AddScoped<ICharacterStore>(s => s.GetRequiredService<AccountCharacterStore>());
 builder.Services.AddScoped<RulebookReader>();
 builder.Services.AddScoped<CharacterImport>();

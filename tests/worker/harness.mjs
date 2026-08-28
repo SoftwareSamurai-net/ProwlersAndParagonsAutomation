@@ -28,6 +28,7 @@ export const MIGRATIONS = [
     join(here, '..', '..', 'd1', 'migrations', '0002_characters_list.sql'),
     join(here, '..', '..', 'd1', 'migrations', '0003_invitations.sql'),
     join(here, '..', '..', 'd1', 'migrations', '0004_error_log.sql'),
+    join(here, '..', '..', 'd1', 'migrations', '0005_campaigns.sql'),
 ];
 
 export const ORIGIN = 'https://pp.example.test';

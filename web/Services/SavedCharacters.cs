@@ -18,7 +18,30 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// server — see <c>docs/CHARACTERS-API.md</c>.</param>
 /// <param name="UpdatedAt">Unix milliseconds. Used to sort "most recently touched first"
 /// and nothing else.</param>
-public sealed record SavedCharacterSummary(string Id, string Label, long UpdatedAt);
+/// <param name="CampaignId">
+/// The campaign this character belongs to, or null for one that belongs to none.
+///
+/// <para><b>Duplicated out of the payload on purpose, and it is the one field here that is.</b>
+/// The whole reason this record exists is that a list of many characters must not have to
+/// deserialize and cost every one of them to draw a row — so "which of my characters are in this
+/// game" would otherwise be exactly what that remark refuses, once per row. It is supplied by the
+/// client on both sides, exactly as <c>Label</c> is; the server never derives it, never validates
+/// it and never joins it to anything, because the server does not know what a character is. See
+/// <c>docs/CHARACTERS-API.md</c>.</para>
+///
+/// <para><b>An index written before this field existed still lists, and the reason is measured
+/// rather than assumed.</b> This paragraph first claimed the <c>= null</c> was what made that
+/// work; it is not. Removing the default was tried, and every test stayed green: for a positional
+/// record, <c>System.Text.Json</c> supplies the parameter's own default for a key that is absent
+/// from the JSON, and <c>default(string?)</c> is null either way. The default is here for C#
+/// callers, and the compatibility is the serializer's behaviour — which is exactly why it is
+/// pinned by a test that reads a literal three-field index rather than by a note. <b>What would
+/// really break it is a <c>JsonRequired</c> or a <c>required</c> member on this parameter</b>,
+/// which was tried too and does break it: every entry in every returning visitor's index fails to
+/// deserialize and their list of characters silently empties.</para>
+/// </param>
+public sealed record SavedCharacterSummary(
+    string Id, string Label, long UpdatedAt, string? CampaignId = null);
 
 /// <summary>
 /// Many characters, kept in this browser's local storage.
@@ -226,7 +249,8 @@ public sealed class SavedCharacters
                     && _payload.Read(raw) is { } slot
                     && CharacterSession.IsWorthKeeping(slot.Sheet))
                 {
-                    result.Add(new SavedCharacterSummary(LegacyId, LabelFor(slot.Sheet), 0));
+                    result.Add(new SavedCharacterSummary(
+                        LegacyId, LabelFor(slot.Sheet), 0, slot.Sheet.CampaignId));
                 }
             }
 
@@ -282,7 +306,8 @@ public sealed class SavedCharacters
 
             var index = await ReadIndexAsync(prefix);
             index.RemoveAll(e => e.Id == resolvedId);
-            index.Add(new SavedCharacterSummary(resolvedId, resolvedLabel, updatedAt));
+            index.Add(new SavedCharacterSummary(
+                resolvedId, resolvedLabel, updatedAt, sheet.CampaignId));
             await WriteIndexAsync(prefix, index);
         }
         // The id is still handed back — a caller that minted one wants it either way — but the
@@ -431,7 +456,8 @@ public sealed class SavedCharacters
 
             var index = await ReadIndexAsync(prefix);
             var entry = new SavedCharacterSummary(
-                id, LabelFor(sheet), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                id, LabelFor(sheet), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                sheet.CampaignId);
 
             var i = index.FindIndex(e => e.Id == id);
             if (i >= 0) index[i] = entry; else index.Add(entry);

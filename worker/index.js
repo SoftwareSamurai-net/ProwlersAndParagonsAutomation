@@ -8,6 +8,7 @@
 
 import * as adminErrorLog from './adminErrorLog.js';
 import * as auth from './auth.js';
+import * as campaigns from './campaigns.js';
 import * as characters from './characters.js';
 import { CHAPTERS } from './corpus.js';
 import { newInvitationId, newSecret, newUserId } from './crypto.js';
@@ -164,6 +165,7 @@ async function route(request, env, deps) {
     // Everything below needs somebody to be signed in, and asks once. A route that fetched its
     // own user would be a route that could forget to.
     if (path === '/api/characters' || path.startsWith('/api/characters/')
+        || path === '/api/campaigns' || path.startsWith('/api/campaigns/')
         || path.startsWith('/api/rulebook/') || path === '/api/transcripts') {
         const user = await auth.currentUser(request, env, deps);
         if (!user) return fail(401, 'Sign in first.');
@@ -186,6 +188,24 @@ async function route(request, env, deps) {
 
         if (path === '/api/characters') {
             return only('GET', method, () => characters.list(request, env, deps, user));
+        }
+
+        if (path === '/api/campaigns') {
+            return only('GET', method, () => campaigns.list(request, env, deps, user));
+        }
+
+        // A campaign is another opaque blob beside a character: same four verbs, same
+        // client-minted id, same refusal to look inside. **It is in this block rather than in one
+        // of its own** because the gate is the thing being shared — "signed in, nothing more" —
+        // and a second block asking the same question is a second block that could forget to.
+        if (path.startsWith('/api/campaigns/')) {
+            const campaignId = path.slice('/api/campaigns/'.length);
+
+            if (method === 'GET') return campaigns.read(request, env, deps, user, campaignId);
+            if (method === 'PUT') return campaigns.write(request, env, deps, user, campaignId);
+            if (method === 'DELETE') return campaigns.remove(request, env, deps, user, campaignId);
+
+            return methodNotAllowed('GET, PUT, DELETE');
         }
 
         // Everything past the prefix is the id, unvalidated here — each handler below checks

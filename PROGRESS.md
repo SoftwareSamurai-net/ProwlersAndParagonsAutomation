@@ -646,6 +646,45 @@ a defect that a campaign is the place to fix:
    belong to it — which then inherit those settings instead of each carrying their own.
    **Single-user first, no sharing**, because that needs nothing new from the server: a campaign is
    another opaque blob beside the characters.
+
+   **The non-visual half is done.** `engine/Campaign.cs` (a record with no logic and no reader),
+   `CharacterSheet.CampaignId`, `pp.campaign.v1` in local storage, a `campaigns` table and four
+   routes beside the character ones, `characters.campaign_id` on the wire and in the index, and
+   `web/Services/CampaignJoin.cs`. **No screen draws one yet** — that is the remaining half of this
+   item. The rules the slice settled, so nobody re-litigates them:
+
+   - **The server never learns what a campaign is.** A payload it stores verbatim, a label and a
+     `campaignId` the client supplies exactly as it supplies `label`. It does not know what a tier
+     is and must not learn; see [`docs/guide/accounts-server.md`](docs/guide/accounts-server.md).
+   - **Inherit into an empty field; offer into a full one.** Joining copies the campaign's tier and
+     sandbox setting only when the character has no tier. When they disagree, **nothing is written**
+     and a mismatch is reported. Repairing would be worse than usual in both directions: raising the
+     tier turns an illegal character legal in silence, and lowering it moves Resolve, which is
+     `(TraitCap − highestRelevantRank) × 2` — a figure the player paid Hero Points for.
+   - **The campaign's Trait Cap is carried and never applied**, deliberately. There is a test that a
+     campaign whose cap differs from its tier's leaves `CalculateResolve` returning exactly what it
+     returns with no campaign at all. Do not add a `TraitCapOverride` to `CharacterSheet`.
+   - **Deleting a campaign leaves its members naming it** — no cascade, no nulled column, no foreign
+     key. `UNKNOWN_CAMPAIGN` is reported in the same shape as the engine's `UNKNOWN_TIER`, which
+     keeps restoring the campaign a complete undo.
+   - **Nothing bumped `StoredCharacter.CurrentVersion`.** It is 1, a mismatch is discarded in
+     silence, and an absent `campaignId` reads back as null — which correctly means "in no
+     campaign". Bumping it would have emptied every returning visitor's browser and every account.
+     `SavedCharacterSummary`'s new fourth parameter has a default for the same reason, and both are
+     guarded by tests that read a checked-in literal written before either existed.
+   - **`CampaignId` is barred from `engine/` as an *indirection*, not as presentation.** Resolving
+     it means asking storage, which is asynchronous, which `IRulesSource` is synchronous to forbid.
+     `PresentationFlagsTests` now carries three names and says which bar each is under.
+   - **`CampaignId` is deliberately not in `CharacterSession.IsWorthKeeping`.** Adding it would make
+     picking a campaign create a listed, empty character the moment it happened — verbatim the bug
+     that predicate was added to fix.
+
+   **One thing found while building it, recorded because the design said otherwise.** The reasoning
+   for the `routePattern` arm was that without it "a caller inventing ids writes one `error_log` row
+   per id". That is not what happens: an unrecognised path already falls to `other`, so the table
+   was bounded either way. The arm is still right and still landed — what it buys is a *legible*
+   log, where a broken campaign route is distinguishable from a passing crawler — and the test
+   asserts both the bound and the route name, the second being the half the arm is actually for.
 2. **Headquarters.** *The cheapest of the eight and the strongest argument for the first*, because
    the rulebook made it campaign-scoped in print rather than by inference: the Perk is already in
    `data/rules/perks.json` at 1 HP per unit for 3 Base Points, and its own text reads **"Multiple

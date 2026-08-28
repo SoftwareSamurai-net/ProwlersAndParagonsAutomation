@@ -383,6 +383,35 @@ test('a caller cannot add rows by varying the part of the path they choose', asy
     assert.ok(!JSON.stringify(rows).includes('c_0000000000000000000'), JSON.stringify(rows));
 });
 
+test('a caller cannot add rows by varying a campaign id either', async () => {
+    // **The campaign routes need their own arm in `routePattern`, and what it buys is legibility
+    // rather than a bound.** An unrecognised path already falls to `other`, which is one row — so
+    // the table was never at risk. What was at risk is the log being *readable*: without the arm,
+    // every campaign failure lands in the same `other` bucket as a request to an address nobody
+    // routes, and the owner cannot tell a broken campaign route from a stray crawler. So this
+    // asserts both halves, and the second is the one the arm is for.
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    app.env = { ...app.env, DB: failingOn(app.db, 'FROM campaigns', 'D1_ERROR: down') };
+
+    for (let i = 0; i < 1000; i++) {
+        await handle(
+            request('/api/campaigns/g_' + String(i).padStart(22, '0'), { cookie }),
+            app.env, app.deps);
+    }
+
+    const rows = errorRows(app.db);
+
+    assert.equal(rows.length, 1, 'the caller wrote ' + rows.length + ' rows by varying an id');
+    assert.equal(rows[0].route, '/api/campaigns/{id}',
+        'campaign failures are filed under ' + rows[0].route + ' rather than their own pattern');
+    assert.equal(rows[0].occurrences, 1000);
+
+    // And no id reached the table at all.
+    assert.ok(!JSON.stringify(rows).includes('g_0000000000000000000'), JSON.stringify(rows));
+});
+
 test('the route is a pattern from a closed list, and anything else is other', () => {
     const at = path => routePattern(new Request(ORIGIN + path));
 
@@ -390,6 +419,8 @@ test('the route is a pattern from a closed list, and anything else is other', ()
     assert.equal(at('/api/auth/request'), '/api/auth/request');
     assert.equal(at('/api/characters'), '/api/characters');
     assert.equal(at('/api/characters/c_abcdefghijklmnopqrstuv'), '/api/characters/{id}');
+    assert.equal(at('/api/campaigns'), '/api/campaigns');
+    assert.equal(at('/api/campaigns/g_abcdefghijklmnopqrstuv'), '/api/campaigns/{id}');
     assert.equal(at('/api/me/'), '/api/me', 'a trailing slash is the same address');
     assert.equal(at('/api/nothing-here'), 'other');
     assert.equal(at('/api/../secret'), 'other');

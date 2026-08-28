@@ -132,6 +132,20 @@ resharper_collection_never_updated_local_highlighting = none
 resharper_not_accessed_positional_property_local_highlighting = none
 resharper_class_never_instantiated_local_highlighting = none
 
+[web/Services/ApiCampaignStore.cs]
+# The same objection as web/Services/ApiCharacterStore.cs directly above, for the
+# campaign half of the same wire. Wired, Listed and Sending are the shapes of the
+# JSON the /api/campaigns addresses exchange, constructed and read only by
+# System.Text.Json through reflection: every positional parameter is a
+# JsonPropertyName-bound property that nothing in this class touches by name.
+#
+# Acting on any of these would silently drop a field from the wire — a PUT with
+# no label, or a listing that lost the name the GM gave the game. Neither fails
+# to build; both ship a broken seam.
+
+resharper_not_accessed_positional_property_local_highlighting = none
+resharper_class_never_instantiated_local_highlighting = none
+
 [web/Services/Invitations.cs]
 # The same objection as web/Services/ApiCharacterStore.cs directly above, for the
 # other half of the accounts wire. Invitation is the shape of what GET
