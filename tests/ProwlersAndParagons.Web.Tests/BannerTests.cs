@@ -445,8 +445,14 @@ public sealed class BannerTests
         Assert.Equal(3, layout.FindAll(".banner-tools .banner-tool").Count);
 
         // The positive control: the avenues kept the marking that makes them destinations.
+        //
+        // **Three now, not two.** `Run` shipped with the campaign screens — the third door
+        // `MainLayout`'s own note had been reserving, which it said would cost one `NavLink` and
+        // did. The number is asserted rather than left loose because the point of this control is
+        // that the avenues are a closed set with a marking of their own: a tool that had quietly
+        // grown the underline would arrive here as a fourth avenue.
         var avenues = layout.FindAll(".avenue-nav .banner-link");
-        Assert.Equal(2, avenues.Count);
+        Assert.Equal(3, avenues.Count);
     }
 
     /// <summary>

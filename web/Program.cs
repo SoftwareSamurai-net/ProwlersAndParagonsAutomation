@@ -57,12 +57,13 @@ builder.Services.AddScoped<ApiCharacterStore>();
 builder.Services.AddScoped<AccountCharacterStore>();
 builder.Services.AddScoped<DiscardedCharacter>();
 
-// Campaigns, the same two stores and the same chooser. Registered although no page asks for one
-// yet: the storage half of a campaign ships before its screens do, and a service nothing can
-// resolve is a service the first page has to discover is missing.
-builder.Services.AddScoped<SavedCampaigns>();
+// Campaigns, and the approval slot beside them. **Account-only, with no local half** — a campaign
+// exists so that two accounts can hand a snapshot between them, and one kept in a single browser
+// could never receive a submission or be joined by the code it would advertise. See
+// AccountCampaignStore, which used to fall back to local storage and no longer does.
 builder.Services.AddScoped<ApiCampaignStore>();
 builder.Services.AddScoped<AccountCampaignStore>();
+builder.Services.AddScoped<ApiMembershipStore>();
 builder.Services.AddScoped<ICharacterStore>(s => s.GetRequiredService<AccountCharacterStore>());
 builder.Services.AddScoped<RulebookReader>();
 builder.Services.AddScoped<CharacterImport>();

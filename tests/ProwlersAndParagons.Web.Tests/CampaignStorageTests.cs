@@ -8,9 +8,17 @@ namespace ProwlersAndParagons.Web.Tests;
 /// Campaigns, from the browser's side: what is stored, what is inherited, what is only reported,
 /// and — the one that matters most — what a character in no campaign at all is not affected by.
 ///
-/// <para>Everything here shares <see cref="FakeLocalStorage"/> with the character tests on
-/// purpose. The two prefixes are separate strings in the same browser, and a test built against a
-/// different fake would not catch them colliding.</para>
+/// <para><b>A campaign lives on an account or it does not exist</b>, so everything here goes
+/// through <see cref="FakeApi"/> rather than through local storage. That is a change: campaigns
+/// used to have a browser half, written before there was a screen. A campaign is the thing two
+/// accounts hand a snapshot between, and one kept in a single browser can never receive a
+/// submission, hold a clone, or be joined by the code it would advertise — see
+/// <see cref="AccountCampaignStore"/>, which no longer falls back.</para>
+///
+/// <para><b>The characters are still in local storage</b>, and the same
+/// <see cref="FakeLocalStorage"/> the character tests use — because a character is worth keeping
+/// for somebody who has not signed in, and the two prefixes are separate strings in the same
+/// browser.</para>
 /// </summary>
 public sealed class CampaignStorageTests
 {
@@ -31,22 +39,39 @@ public sealed class CampaignStorageTests
         throw new InvalidOperationException("Could not locate the repository root.");
     }
 
-    private static SavedCampaigns FreshCampaigns(FakeLocalStorage storage) =>
-        new(storage, new LocalIdentity());
+    private sealed class FixedIdentity(Identity who) : IIdentitySource
+    {
+        public ValueTask<Identity> CurrentAsync() => ValueTask.FromResult(who);
+    }
+
+    /// <summary>An account, which is the only place a campaign can be.</summary>
+    private static readonly Identity Signed = new("u_gm", "The GM");
 
     private static SavedCharacters FreshCharacters(FakeLocalStorage storage) =>
         new(storage, Costs, Validator, new LocalIdentity());
 
     /// <summary>
-    /// The chooser, wired for an anonymous visitor — so it never reaches the HTTP half, which is
-    /// what <c>tests/worker</c> drives against the real server.
+    /// A server, and a store wired to it as whoever is named.
+    ///
+    /// <para>What the real server <em>does</em> with a campaign — the SQL scoping, the join code's
+    /// unique index, the compare-and-swap — is driven against the real code in real SQLite by
+    /// <c>tests/worker/campaigns.test.mjs</c> and <c>memberships.test.mjs</c>. What is pinned here
+    /// is the browser's own half: which store it reaches, and what it does with each answer.</para>
     /// </summary>
-    private static AccountCampaignStore FreshStore(FakeLocalStorage storage) =>
-        new(new LocalIdentity(), FreshCampaigns(storage),
-            new ApiCampaignStore(new HttpClient(new FakeApi())
-            {
-                BaseAddress = new Uri("https://pp.example.test/"),
-            }));
+    private static (AccountCampaignStore Store, FakeApi Server) FreshStore(Identity? who = null)
+    {
+        var server = new FakeApi();
+
+        if (who is { } signed && signed.Key != Identity.Anonymous.Key)
+        {
+            server.SignedIn = (signed.Key, signed.DisplayName ?? signed.Key);
+        }
+
+        var http = new HttpClient(server) { BaseAddress = new Uri("https://pp.example.test/") };
+
+        return (new AccountCampaignStore(
+            new FixedIdentity(who ?? Identity.Anonymous), new ApiCampaignStore(http)), server);
+    }
 
     private static Campaign ACampaign(string id = "g_0000000000000000000000",
         string name = "The Long Winter", string? tierId = "standard",
@@ -73,13 +98,11 @@ public sealed class CampaignStorageTests
     [Fact]
     public async Task ACharacterInNoCampaignIsUnchanged()
     {
-        var storage = new FakeLocalStorage();
-        var store = FreshStore(storage);
+        var (store, _) = FreshStore(Signed);
 
         // A campaign really is stored, so resolution has something it *could* return. Without
         // this the test would pass against a store that can find nothing at all.
-        Assert.True(await FreshCampaigns(storage).SaveAsync(
-            ACampaign(tierId: "iconic", traitCap: 20, unlimited: true)));
+        Assert.True(await store.SaveAsync(ACampaign(tierId: "iconic", traitCap: 20, unlimited: true)));
 
         foreach (var (what, sheet) in InNoCampaign())
         {
@@ -180,7 +203,7 @@ public sealed class CampaignStorageTests
         };
 
         var campaign = ACampaign(tierId: "legendary", unlimited: true);
-        Assert.True(await FreshCampaigns(storage).SaveAsync(campaign));
+        Assert.True(await FreshStore(Signed).Store.SaveAsync(campaign));
 
         // At the join.
         Assert.Equal(CampaignJoinOutcome.TierDisagrees, CampaignJoin.Apply(sheet, campaign));
@@ -241,21 +264,19 @@ public sealed class CampaignStorageTests
     [Fact]
     public async Task ADeletedCampaignLeavesItsMembersNamingIt()
     {
-        var storage = new FakeLocalStorage();
-        var campaigns = FreshCampaigns(storage);
-        var store = FreshStore(storage);
+        var (store, _) = FreshStore(Signed);
         var campaign = ACampaign();
 
-        Assert.True(await campaigns.SaveAsync(campaign));
+        Assert.True(await store.SaveAsync(campaign));
 
         var sheet = new CharacterSheet { SelectedTierId = "standard", CampaignId = campaign.Id };
 
         Assert.Null(CampaignJoin.Inspect(sheet, await store.ForAsync(sheet)));
 
-        await campaigns.DeleteAsync(campaign.Id);
+        await store.DeleteAsync(campaign.Id);
 
         Assert.Equal(campaign.Id, sheet.CampaignId);
-        Assert.Empty(await campaigns.ListAsync());
+        Assert.Empty(await store.ListAsync());
 
         var finding = CampaignJoin.Inspect(sheet, await store.ForAsync(sheet));
         Assert.NotNull(finding);
@@ -375,42 +396,54 @@ public sealed class CampaignStorageTests
 
         Assert.Equal("g_0000000000000000000000", Assert.Single(await characters.ListAsync()).CampaignId);
     }
-
     // ── The store itself ─────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Campaigns are kept under their own top-level prefix, never as a suffix on the character
-    /// key — the key that must keep meaning exactly what it always did.
+    /// A campaign never touches this browser's storage, and the character slot least of all.
+    ///
+    /// <para><b>This test used to assert the opposite</b> — that a campaign is kept under
+    /// <c>pp.campaign.v1</c>, beside the characters — and the reversal is the decision recorded on
+    /// <see cref="AccountCampaignStore"/>: a campaign kept in one browser can never receive a
+    /// submission or be joined by the code it advertises. What survives unchanged is the half that
+    /// mattered: <c>pp.character.v1</c> keeps meaning exactly what it always did.</para>
+    ///
+    /// <para><b>Nothing was lost by deleting the local store.</b> No screen had ever created a
+    /// campaign, so no visitor could have been holding one under that key.</para>
     /// </summary>
     [Fact]
-    public async Task CampaignsAreKeptUnderTheirOwnPrefix()
+    public async Task ACampaignNeverTouchesThisBrowsersStorage()
     {
         var storage = new FakeLocalStorage();
-        var campaign = ACampaign();
+        var (store, _) = FreshStore(Signed);
 
-        Assert.True(await FreshCampaigns(storage).SaveAsync(campaign));
+        // A character *is* written here, which is the positive control: a fake nothing wrote to
+        // would satisfy every absence below for free.
+        await FreshCharacters(storage).SaveCurrentAsync(
+            Identity.Anonymous,
+            new CharacterSheet { SelectedTierId = "standard", Name = "Ninefold" },
+            SheetMode.Hero);
 
-        Assert.NotNull(storage.Peek($"pp.campaign.v1.{campaign.Id}"));
-        Assert.NotNull(storage.Peek("pp.campaign.v1.index"));
+        Assert.NotNull(storage.Peek("pp.character.v1"));
 
-        // The character slot is untouched — no payload, no index, nothing under a suffix of it.
-        Assert.Null(storage.Peek("pp.character.v1"));
-        Assert.Null(storage.Peek("pp.character.v1.index"));
+        Assert.True(await store.SaveAsync(ACampaign()));
+
+        Assert.Null(storage.Peek("pp.campaign.v1"));
+        Assert.Null(storage.Peek("pp.campaign.v1.index"));
+        Assert.Null(storage.Peek("pp.campaign.v1.g_0000000000000000000000"));
         Assert.All(storage.Calls,
-            c => Assert.DoesNotContain("pp.character.v1", c.Key, StringComparison.Ordinal));
+            c => Assert.DoesNotContain("campaign", c.Key, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>A campaign round-trips through the browser with every field intact.</summary>
+    /// <summary>A campaign round-trips through the account with every field intact.</summary>
     [Fact]
     public async Task ACampaignRoundTrips()
     {
-        var storage = new FakeLocalStorage();
-        var campaigns = FreshCampaigns(storage);
+        var (store, _) = FreshStore(Signed);
         var campaign = ACampaign(tierId: "high_level", traitCap: 14, unlimited: true);
 
-        Assert.True(await campaigns.SaveAsync(campaign));
+        Assert.True(await store.SaveAsync(campaign));
 
-        var restored = await campaigns.LoadAsync(campaign.Id);
+        var restored = await store.LoadAsync(campaign.Id);
 
         Assert.Equal(campaign, restored);
 
@@ -426,71 +459,76 @@ public sealed class CampaignStorageTests
     }
 
     /// <summary>
-    /// The chooser puts an anonymous visitor's campaigns in this browser, on every one of the four
-    /// things it can be asked to do.
+    /// Nobody signed in has no campaigns, cannot make one, and is told so rather than being
+    /// written somewhere they can never be read back from.
     ///
-    /// <para>Signed-in is deliberately not exercised here: what the server does with a campaign is
-    /// driven against the real server, in real SQLite, by <c>tests/worker/campaigns.test.mjs</c>.
-    /// What this pins is that the chooser reaches the store it says it does.</para>
+    /// <para><b>The refusal is the point.</b> A save that answered true and went into this browser
+    /// would give a GM a join code no player could ever redeem — a control that looks like it
+    /// worked and did not, which is the shape of defect this repository keeps finding late.</para>
     /// </summary>
     [Fact]
-    public async Task TheChooserKeepsAnAnonymousVisitorsCampaignsInThisBrowser()
+    public async Task AnAnonymousVisitorHasNoCampaignsAndCannotMakeOne()
     {
-        var storage = new FakeLocalStorage();
-        var store = FreshStore(storage);
-        var campaign = ACampaign();
+        var (store, server) = FreshStore();
 
-        Assert.True(await store.SaveAsync(campaign));
-        Assert.NotNull(storage.Peek($"pp.campaign.v1.{campaign.Id}"));
-
-        Assert.Equal(campaign, await store.LoadAsync(campaign.Id));
-        Assert.Equal("The Long Winter", Assert.Single(await store.ListAsync()).Label);
-
-        await store.DeleteAsync(campaign.Id);
-
-        Assert.Null(await store.LoadAsync(campaign.Id));
+        Assert.False(await store.IsAvailableAsync());
+        Assert.False(await store.SaveAsync(ACampaign()));
         Assert.Empty(await store.ListAsync());
+        Assert.Null(await store.LoadAsync("g_0000000000000000000000"));
+
+        // Nothing was even asked of the server, which is what makes the refusal a refusal rather
+        // than a 401 the store swallowed. The positive control is the signed-in case beside it.
+        Assert.Empty(server.Asked);
+
+        var (signed, asked) = FreshStore(Signed);
+        Assert.True(await signed.IsAvailableAsync());
+        Assert.True(await signed.SaveAsync(ACampaign()));
+        Assert.NotEmpty(asked.Asked);
     }
 
     /// <summary>
-    /// An index naming a campaign that is not stored is dropped from the list. Storage is the
-    /// source of truth for what exists — the same direction <see cref="SavedCharacters"/> takes.
+    /// A character that names a campaign this account does not hold is reported, never repaired —
+    /// and that is also what a signed-out visitor sees.
     /// </summary>
     [Fact]
-    public async Task AnIndexEntryNamingNothingIsDropped()
+    public async Task ACampaignThatIsNotHereIsReportedRatherThanCleared()
     {
-        var storage = new FakeLocalStorage();
-        var campaigns = FreshCampaigns(storage);
+        var sheet = new CharacterSheet
+        {
+            SelectedTierId = "standard",
+            CampaignId = "g_9999999999999999999999",
+        };
 
-        Assert.True(await campaigns.SaveAsync(ACampaign()));
-        const string ghost =
-            """,{"Id":"g_9999999999999999999999","Label":"Ghost","UpdatedAt":1}]""";
+        foreach (var (what, store) in new[]
+                 {
+                     ("signed out", FreshStore().Store),
+                     ("signed in, no such campaign", FreshStore(Signed).Store),
+                 })
+        {
+            var finding = CampaignJoin.Inspect(sheet, await store.ForAsync(sheet));
 
-        var index = storage.Peek("pp.campaign.v1.index")!;
-
-        // The positive control on the doctoring: an index this replace did not touch would leave
-        // the assertion below passing because the ghost was never there to drop.
-        Assert.EndsWith("]", index, StringComparison.Ordinal);
-        storage.Poke("pp.campaign.v1.index", index[..^1] + ghost);
-
-        var listed = await campaigns.ListAsync();
-
-        Assert.Equal("The Long Winter", Assert.Single(listed).Label);
+            Assert.NotNull(finding);
+            Assert.Equal("UNKNOWN_CAMPAIGN", finding!.Code);
+            Assert.Equal("g_9999999999999999999999", sheet.CampaignId);
+            Assert.Equal("standard", sheet.SelectedTierId);
+            Assert.True(what.Length > 0);
+        }
     }
 
     /// <summary>
-    /// A browser that refuses storage says so rather than reporting a save that went nowhere —
-    /// the defect an adversarial review found on the character side.
+    /// A server that cannot be reached says nothing rather than reporting a save that went
+    /// nowhere — the defect an adversarial review found on the character side.
     /// </summary>
     [Fact]
-    public async Task ARefusedWriteIsReportedRatherThanClaimed()
+    public async Task AnUnreachableServerIsReportedRatherThanClaimed()
     {
-        var storage = new FakeLocalStorage { Refuses = true };
-        var campaigns = FreshCampaigns(storage);
+        var server = new FakeApi { SignedIn = ("u_gm", "The GM"), Unreachable = true };
+        var http = new HttpClient(server) { BaseAddress = new Uri("https://pp.example.test/") };
+        var store = new AccountCampaignStore(new FixedIdentity(Signed), new ApiCampaignStore(http));
 
-        Assert.False(await campaigns.SaveAsync(ACampaign()));
-        Assert.Null(await campaigns.LoadAsync("g_0000000000000000000000"));
-        Assert.Empty(await campaigns.ListAsync());
+        Assert.False(await store.SaveAsync(ACampaign()));
+        Assert.Null(await store.LoadAsync("g_0000000000000000000000"));
+        Assert.Empty(await store.ListAsync());
     }
 
     /// <summary>
@@ -502,9 +540,39 @@ public sealed class CampaignStorageTests
     {
         for (var i = 0; i < 20; i++)
         {
-            var id = SavedCampaigns.NewId();
+            var id = StoredCampaign.NewId();
 
             Assert.Matches("^g_[A-Za-z0-9_-]{22}$", id);
         }
+    }
+
+    /// <summary>
+    /// A campaign with no name is listed under a name rather than under a blank, on both sides —
+    /// one spelling of that rule, followed by the server's own default.
+    /// </summary>
+    [Fact]
+    public void AnUnnamedCampaignStillHasSomethingToBeListedUnder()
+    {
+        Assert.Equal("Unnamed campaign", StoredCampaign.LabelFor(ACampaign(name: "")));
+        Assert.Equal("Unnamed campaign", StoredCampaign.LabelFor(ACampaign(name: "   ")));
+        Assert.Equal("Nightfall", StoredCampaign.LabelFor(ACampaign(name: "  Nightfall  ")));
+    }
+
+    /// <summary>
+    /// The join code reaches the browser, because the GM has to be able to read it out — and it is
+    /// the one field of a campaign the server can read at all.
+    /// </summary>
+    [Fact]
+    public async Task TheJoinCodeIsListedBesideTheCampaign()
+    {
+        var (store, _) = FreshStore(Signed);
+
+        Assert.True(await store.SaveAsync(ACampaign()));
+
+        var row = Assert.Single(await store.ListAsync());
+
+        Assert.Equal("The Long Winter", row.Label);
+        Assert.False(string.IsNullOrWhiteSpace(row.JoinCode),
+            "a campaign nobody can be told the code of is a campaign nobody can join");
     }
 }

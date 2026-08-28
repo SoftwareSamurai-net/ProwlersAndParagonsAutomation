@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -236,6 +237,18 @@ public sealed class FakeApi : HttpMessageHandler
             var p when p.StartsWith("/api/characters/", StringComparison.Ordinal) =>
                 Character(request, p["/api/characters/".Length..]),
 
+            "/api/campaigns" => CampaignList(),
+            var p when p.StartsWith("/api/campaigns/", StringComparison.Ordinal) =>
+                Campaign(request, p["/api/campaigns/".Length..]),
+
+            // The two lists are two addresses on purpose, so a missing parameter cannot default
+            // to the wrong half of the feature — see the note in worker/index.js.
+            "/api/memberships" => MembershipList(),
+            "/api/memberships/inbox" => MembershipInbox(),
+            "/api/memberships/join" => MembershipJoin(request),
+            var p when p.StartsWith("/api/memberships/", StringComparison.Ordinal) =>
+                Membership(request, p["/api/memberships/".Length..]),
+
             "/api/rulebook/power" => Entry(request),
             "/api/rulebook/contents" => Contents(),
             "/api/rulebook/search" => Found(request),
@@ -462,6 +475,363 @@ public sealed class FakeApi : HttpMessageHandler
     private static string Lower(bool value) => value ? "true" : "false";
 
     private static string Quote(string text) => JsonSerializer.Serialize(text);
+
+    // ── Campaigns, and the approval slot beside them ─────────────────────────────────────
+    //
+    // **The same bar the rest of this class is held to: a stub that answers something the real
+    // server never would is worse than no stub.** So a campaign is keyed by account, a join code
+    // is minted per campaign and looked up across accounts (which is what a join code *is*), and
+    // a decision carries a version that is compared — because the compare-and-swap is a
+    // behaviour the browser has to hold up against, not a status code to be canned.
+    //
+    // What the real server *does* — the SQL scoping, the unique index on the code, the rate limit
+    // — is tested against the real code in tests/worker/memberships.test.mjs against real SQLite.
+    // What is tested here is the other half: how the browser behaves when it is told 409, or 404,
+    // or nothing at all.
+
+    /// <summary>One stored campaign: the label, the opaque payload, and the code to join it.</summary>
+    private sealed record StoredCampaignRow(string Label, string Payload, string Code, long UpdatedAt);
+
+    private readonly Dictionary<(string Account, string Id), StoredCampaignRow> _campaigns = [];
+
+    /// <summary>
+    /// One membership: which campaign, whose character, and the two payload slots.
+    ///
+    /// <para><b>Both accounts are on the row</b>, exactly as they are in the real table, so a test
+    /// about one account not reaching another's row is testing scoping rather than an absent
+    /// feature.</para>
+    /// </summary>
+    private sealed record MembershipRow(
+        string CampaignId, string GmAccount, string PlayerAccount, string CharacterId,
+        string Label, string? Approved, long? ApprovedAt, string? Pending, long? PendingAt,
+        int PendingVersion);
+
+    private readonly Dictionary<string, MembershipRow> _memberships = [];
+
+    /// <summary>
+    /// Set to have the join endpoint refuse the way a rate limit does, so the browser's own
+    /// sentence for that refusal is reachable in a test.
+    /// </summary>
+    public bool JoinIsRateLimited { get; set; }
+
+    /// <summary>
+    /// Held open before a decision is answered, so a test can let a resubmission land in between.
+    ///
+    /// <para><b>That window is where the whole compare-and-swap lives.</b> Without it the stub
+    /// answers synchronously and the state the version check exists for is unreachable — which is
+    /// the same seam <see cref="BeforeAnsweringCharacter"/> opens one store down.</para>
+    /// </summary>
+    public Func<string, Task>? BeforeDeciding { get; set; }
+
+    /// <summary>
+    /// Put a campaign on the server directly, and hand back its join code.
+    ///
+    /// <para>Convenience for the many tests that need a campaign to exist without driving the
+    /// screen that makes one. It goes through the same dictionary the routes use, so nothing can
+    /// be set up here that a real request could not produce.</para>
+    /// </summary>
+    public string Campaign(string id, string label, string payload)
+    {
+        if (SignedIn is not { } who)
+        {
+            throw new InvalidOperationException(
+                "Nobody is signed in, so there is no account to hold a campaign. Set SignedIn "
+                + "first — the real server has no anonymous campaign either.");
+        }
+
+        var code = NextCode();
+        _campaigns[(who.Key, id)] = new StoredCampaignRow(label, payload, code, ++_clock);
+
+        return code;
+    }
+
+    /// <summary>
+    /// A join code, in the shape and alphabet the real server mints — ten symbols and a hyphen.
+    ///
+    /// <para>Sequential rather than random for the reason the clock is a counter: a test asserting
+    /// on a code has to be able to predict it, and two codes minted in one test must differ.</para>
+    /// </summary>
+    private string NextCode()
+    {
+        var n = ++_codes;
+
+        return $"AAAA{n % 10}-BBBB{n % 10}";
+    }
+
+    private int _codes;
+
+    /// <summary>What a campaign's own list row looks like — the shape the client binds.</summary>
+    private Task<HttpResponseMessage> CampaignList()
+    {
+        if (SignedIn is not { } who) return Status(HttpStatusCode.Unauthorized);
+
+        var mine = _campaigns
+            .Where(e => e.Key.Account == who.Key)
+            .OrderByDescending(e => e.Value.UpdatedAt)
+            .Select(e => $$"""
+                {"id":{{Quote(e.Key.Id)}},"label":{{Quote(e.Value.Label)}},
+                 "updatedAt":{{e.Value.UpdatedAt}},"joinCode":{{Quote(e.Value.Code)}}}
+                """);
+
+        return Json($$"""{"campaigns":[{{string.Join(",", mine)}}]}""");
+    }
+
+    private Task<HttpResponseMessage> Campaign(HttpRequestMessage request, string rest)
+    {
+        if (SignedIn is not { } who) return Status(HttpStatusCode.Unauthorized);
+
+        var slash = rest.IndexOf('/', StringComparison.Ordinal);
+        var id = slash < 0 ? rest : rest[..slash];
+        var tail = slash < 0 ? "" : rest[(slash + 1)..];
+        var key = (who.Key, id);
+
+        if (tail == "code")
+        {
+            if (request.Method != HttpMethod.Post) return Status(HttpStatusCode.MethodNotAllowed);
+            if (!_campaigns.TryGetValue(key, out var rotating)) return Status(HttpStatusCode.NotFound);
+
+            var fresh = NextCode();
+            _campaigns[key] = rotating with { Code = fresh };
+
+            return Json($$"""{"joinCode":{{Quote(fresh)}}}""");
+        }
+
+        if (tail.Length > 0) return Status(HttpStatusCode.NotFound);
+
+        if (request.Method == HttpMethod.Put)
+        {
+            var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var sent = JsonDocument.Parse(body);
+
+            var payload = sent.RootElement.GetProperty("payload").GetString() ?? "";
+            var label = sent.RootElement.TryGetProperty("label", out var l)
+                ? l.GetString() ?? "Unnamed campaign"
+                : "Unnamed campaign";
+
+            // The code is minted on the first write and kept afterwards, which is what the real
+            // statement's COALESCE does — a stub that rotated it on every save would make a test
+            // about not locking players out pass for the wrong reason.
+            var code = _campaigns.TryGetValue(key, out var already) ? already.Code : NextCode();
+
+            _campaigns[key] = new StoredCampaignRow(label, payload, code, ++_clock);
+
+            return Status(HttpStatusCode.NoContent);
+        }
+
+        if (request.Method == HttpMethod.Delete)
+        {
+            _campaigns.Remove(key);
+            return Status(HttpStatusCode.NoContent);
+        }
+
+        return _campaigns.TryGetValue(key, out var stored)
+            ? Json(stored.Payload)
+            : Status(HttpStatusCode.NotFound);
+    }
+
+    /// <summary>The caller's own memberships — the player's half. No payload, like the real one.</summary>
+    private Task<HttpResponseMessage> MembershipList()
+    {
+        if (SignedIn is not { } who) return Status(HttpStatusCode.Unauthorized);
+
+        return Json($$"""
+            {"memberships":[{{string.Join(",", _memberships
+                .Where(m => m.Value.PlayerAccount == who.Key)
+                .Select(m => Row(m.Key, m.Value, forGm: false)))}}]}
+            """);
+    }
+
+    /// <summary>Every membership of every campaign the caller runs — the GM's half.</summary>
+    private Task<HttpResponseMessage> MembershipInbox()
+    {
+        if (SignedIn is not { } who) return Status(HttpStatusCode.Unauthorized);
+
+        return Json($$"""
+            {"memberships":[{{string.Join(",", _memberships
+                .Where(m => m.Value.GmAccount == who.Key)
+                .Select(m => Row(m.Key, m.Value, forGm: true)))}}]}
+            """);
+    }
+
+    /// <summary>
+    /// One list row. <c>characterId</c> is withheld from the GM exactly as the real server
+    /// withholds it — a stub that sent it would make a test about that impossible to write.
+    /// </summary>
+    private static string Row(string id, MembershipRow row, bool forGm) => $$"""
+        {"id":{{Quote(id)}},"campaignId":{{Quote(row.CampaignId)}},
+         "characterId":{{(forGm ? "null" : Quote(row.CharacterId))}},
+         "label":{{Quote(row.Label)}},
+         "hasApproved":{{Lower(row.Approved is not null)}},
+         "approvedAt":{{row.ApprovedAt?.ToString(CultureInfo.InvariantCulture) ?? "null"}},
+         "hasPending":{{Lower(row.Pending is not null)}},
+         "pendingAt":{{row.PendingAt?.ToString(CultureInfo.InvariantCulture) ?? "null"}},
+         "pendingVersion":{{row.PendingVersion}}}
+        """;
+
+    /// <summary>Redeem a join code, or refuse the four ways the real server refuses.</summary>
+    private Task<HttpResponseMessage> MembershipJoin(HttpRequestMessage request)
+    {
+        if (SignedIn is not { } who) return Status(HttpStatusCode.Unauthorized);
+        if (JoinIsRateLimited) return Status(HttpStatusCode.TooManyRequests);
+
+        var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+        using var sent = JsonDocument.Parse(body);
+
+        var code = Normalised(sent.RootElement.TryGetProperty("code", out var c) ? c.GetString() : null);
+        if (code is null) return Status(HttpStatusCode.BadRequest);
+
+        var characterId = sent.RootElement.TryGetProperty("characterId", out var ch)
+            ? ch.GetString() ?? "" : "";
+        if (!System.Text.RegularExpressions.Regex.IsMatch(characterId, "^c_[A-Za-z0-9_-]{22}$"))
+        {
+            return Status(HttpStatusCode.BadRequest);
+        }
+
+        var label = sent.RootElement.TryGetProperty("label", out var l)
+            ? l.GetString() ?? "Unnamed character" : "Unnamed character";
+
+        // **Across accounts, which is what a join code is for**, and the one lookup in this class
+        // that is not scoped to the caller. It answers the campaign and nothing about its owner.
+        var found = _campaigns.FirstOrDefault(e => Normalised(e.Value.Code) == code);
+        if (found.Value is null) return Status(HttpStatusCode.NotFound);
+
+        var already = _memberships.FirstOrDefault(m =>
+            m.Value.CampaignId == found.Key.Id
+            && m.Value.PlayerAccount == who.Key
+            && m.Value.CharacterId == characterId);
+
+        var id = already.Key ?? $"m_{_memberships.Count:D22}";
+
+        _memberships[id] = already.Value is { } existing
+            ? existing with { Label = label }
+            : new MembershipRow(found.Key.Id, found.Key.Account, who.Key, characterId,
+                label, null, null, null, null, 0);
+
+        return Json($$"""
+            {"id":{{Quote(id)}},"campaignId":{{Quote(found.Key.Id)}},
+             "label":{{Quote(found.Value.Label)}},"payload":{{Quote(found.Value.Payload)}},
+             "pendingVersion":{{_memberships[id].PendingVersion}}}
+            """);
+    }
+
+    /// <summary>A code as the real server stores and compares one: upper case, no punctuation.</summary>
+    private static string? Normalised(string? code)
+    {
+        if (code is null) return null;
+
+        var symbols = new string([.. code.ToUpperInvariant().Where(char.IsAsciiLetterOrDigit)]);
+
+        return symbols.Length == 10 ? symbols : null;
+    }
+
+    private async Task<HttpResponseMessage> Membership(HttpRequestMessage request, string rest)
+    {
+        if (SignedIn is not { } who) return await Status(HttpStatusCode.Unauthorized);
+
+        var slash = rest.IndexOf('/', StringComparison.Ordinal);
+        var id = slash < 0 ? rest : rest[..slash];
+        var tail = slash < 0 ? "" : rest[(slash + 1)..];
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(id, "^m_[A-Za-z0-9_-]{22}$"))
+        {
+            return await Status(HttpStatusCode.BadRequest);
+        }
+
+        // Scoped to whoever is asking, both ways round — the real statement's
+        // `(gm_user_id = ? OR player_user_id = ?)`. A third account matches neither.
+        if (!_memberships.TryGetValue(id, out var row)
+            || (row.GmAccount != who.Key && row.PlayerAccount != who.Key))
+        {
+            return await Status(HttpStatusCode.NotFound);
+        }
+
+        var isGm = row.GmAccount == who.Key;
+
+        if (tail == "submission")
+        {
+            if (request.Method != HttpMethod.Put) return await Status(HttpStatusCode.MethodNotAllowed);
+            if (isGm) return await Status(HttpStatusCode.NotFound);
+
+            var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var sent = JsonDocument.Parse(body);
+
+            var payload = sent.RootElement.TryGetProperty("payload", out var p) ? p.GetString() : null;
+            if (payload is null) return await Status(HttpStatusCode.BadRequest);
+
+            var label = sent.RootElement.TryGetProperty("label", out var l)
+                ? l.GetString() ?? row.Label : row.Label;
+
+            _memberships[id] = row with
+            {
+                Label = label,
+                Pending = payload,
+                PendingAt = ++_clock,
+                PendingVersion = row.PendingVersion + 1,
+            };
+
+            return await Json($$"""{"version":{{_memberships[id].PendingVersion}}}""");
+        }
+
+        if (tail is "approve" or "reject")
+        {
+            if (request.Method != HttpMethod.Post) return await Status(HttpStatusCode.MethodNotAllowed);
+            if (!isGm) return await Status(HttpStatusCode.NotFound);
+
+            var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var sent = JsonDocument.Parse(body);
+
+            if (!sent.RootElement.TryGetProperty("version", out var v)
+                || v.ValueKind != JsonValueKind.Number)
+            {
+                return await Status(HttpStatusCode.BadRequest);
+            }
+
+            var version = v.GetInt32();
+
+            // The seam a test uses to let a resubmission land while a decision is in flight.
+            if (BeforeDeciding is { } gate) await gate(id);
+
+            row = _memberships[id];
+
+            if (row.Pending is null)
+            {
+                return await Json($$"""
+                    {"error":"There is nothing waiting for a decision here.",
+                     "pendingVersion":{{row.PendingVersion}},"pending":null}
+                    """, HttpStatusCode.Conflict);
+            }
+
+            if (row.PendingVersion != version)
+            {
+                return await Json($$"""
+                    {"error":"This changed while you were looking at it.",
+                     "pendingVersion":{{row.PendingVersion}},"pendingAt":{{row.PendingAt}},
+                     "pending":{{Quote(row.Pending)}},"label":{{Quote(row.Label)}}}
+                    """, HttpStatusCode.Conflict);
+            }
+
+            _memberships[id] = tail == "approve"
+                ? row with { Approved = row.Pending, ApprovedAt = ++_clock, Pending = null, PendingAt = null }
+                : row with { Pending = null, PendingAt = null };
+
+            return await Status(HttpStatusCode.NoContent);
+        }
+
+        if (tail.Length > 0) return await Status(HttpStatusCode.NotFound);
+        if (request.Method != HttpMethod.Get) return await Status(HttpStatusCode.MethodNotAllowed);
+
+        return await Json($$"""
+            {"id":{{Quote(id)}},"campaignId":{{Quote(row.CampaignId)}},
+             "characterId":{{(isGm ? "null" : Quote(row.CharacterId))}},
+             "label":{{Quote(row.Label)}},"role":{{Quote(isGm ? "gm" : "player")}},
+             "approved":{{(row.Approved is null ? "null" : Quote(row.Approved))}},
+             "approvedAt":{{row.ApprovedAt?.ToString(CultureInfo.InvariantCulture) ?? "null"}},
+             "pending":{{(row.Pending is null ? "null" : Quote(row.Pending))}},
+             "pendingAt":{{row.PendingAt?.ToString(CultureInfo.InvariantCulture) ?? "null"}},
+             "pendingVersion":{{row.PendingVersion}}}
+            """);
+    }
+
 
     private Task<HttpResponseMessage> Entry(HttpRequestMessage request)
     {

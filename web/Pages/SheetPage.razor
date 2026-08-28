@@ -3,6 +3,7 @@
 @implements IDisposable
 @inject CharacterSession Session
 @inject AccountCharacterStore Characters
+@inject ApiMembershipStore Memberships
 @inject IJSRuntime Js
 
 @* One character, read as a document. No steps, no budget strip, no validation panel — the
@@ -69,6 +70,17 @@ else
     @* Under the sheet rather than over it, so the first thing on the screen and the first thing
        on the paper are the same thing. `no-print` takes them off the page — the print block
        already hides that class, so nothing new was needed for it. *@
+    @* **Which sheet counts at the table**, printed above the two controls and under the sheet
+       itself, and carrying `no-print` with them: it is a fact about a decision somebody has or
+       has not made, not part of the document. Silent for a character in no game, and silent when
+       the standings could not be read — "not submitted" over a character nobody has put in a
+       campaign, or over one whose game simply could not be reached, are both the app answering a
+       question that was not asked. *@
+    @if (_standing is { } standing)
+    {
+        <p class="small muted no-print spaced" role="status">@standing</p>
+    }
+
     <div class="inline no-print spaced">
         <button type="button" class="btn primary" @onclick="Print">Print</button>
         <a class="btn" href="build">Back to building</a>
@@ -104,6 +116,14 @@ else
 
     /// <summary>Whether the named character has a Hero Point limit. Null for the session's own.</summary>
     private bool? _showBudget;
+
+    /// <summary>
+    /// Where this character stands in the games it is in, or null when there is nothing to say.
+    ///
+    /// <para>Read for the address's own character — the saved one at <c>/sheet/{id}</c>, or the one
+    /// being built at <c>/sheet</c>, whose id is the current-character pointer.</para>
+    /// </summary>
+    private string? _standing;
 
     /// <summary>
     /// Whether an id was asked for and nothing could be read at it.
@@ -167,8 +187,15 @@ else
         _show = null;
         _showBudget = null;
         _missing = false;
+        _standing = null;
 
-        if (string.IsNullOrWhiteSpace(asked)) return;
+        if (string.IsNullOrWhiteSpace(asked))
+        {
+            // The bare address: the character being built, whose id is the current-character
+            // pointer rather than a route parameter.
+            _standing = await StandingFor(await Characters.CurrentIdAsync());
+            return;
+        }
 
         var found = await Characters.ReadAsync(asked);
 
@@ -191,6 +218,27 @@ else
         // a fact about Villains when UnlimitedBudget was split out of IsVillain, and either kind
         // of character can carry it.
         _showBudget = !character.Sheet.UnlimitedBudget;
+        _standing = await StandingFor(asked);
+    }
+
+    /// <summary>
+    /// What to say about the games one character is in, or null when there is nothing to say.
+    ///
+    /// <para>The same three silences the character manager keeps, for the same reasons: the
+    /// standings could not be read, this character is in no campaign, or there is no id to match
+    /// against.</para>
+    /// </summary>
+    private async Task<string?> StandingFor(string? characterId)
+    {
+        if (string.IsNullOrWhiteSpace(characterId)) return null;
+
+        if (await Memberships.MineAsync() is not { } mine) return null;
+
+        var inGames = mine.Where(m => m.CharacterId == characterId).ToList();
+
+        return inGames.Count == 0
+            ? null
+            : string.Join(" · ", inGames.Select(m => Standings.Say(m.Standing, m.Label)));
     }
 
     private Task Print() => Js.InvokeVoidAsync("print").AsTask();

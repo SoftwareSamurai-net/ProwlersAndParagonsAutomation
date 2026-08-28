@@ -391,8 +391,10 @@ public sealed class AccountsContractTests
     [Fact]
     public void TheCampaignKeysOnTheWireAreSpelledTheSameAtBothEnds()
     {
-        // The server's character list: the object literal `list` maps each row into.
-        var charactersJs = File.ReadAllText(WorkerFile("characters.js"));
+        // The server's character list: the object literal `list` maps each row into. Comments
+        // blanked out for the reason recorded on the campaign half below — the literal carries a
+        // note, and a note is prose a `(\w+):` scan cannot tell from a key.
+        var charactersJs = WithoutCsComments(File.ReadAllText(WorkerFile("characters.js")));
 
         var listed = Regex.Match(charactersJs,
             @"characters: rows\.map\(row => \(\{(?<body>(?:(?!\}\)\).).)*)",
@@ -431,7 +433,14 @@ public sealed class AccountsContractTests
         Assert.Equal(reads, sends);
 
         // The server's campaign list, against the client's own record for it.
-        var campaignsJs = File.ReadAllText(WorkerFile("campaigns.js"));
+        //
+        // **Comments blanked out first, and that was a real fault rather than a precaution.** The
+        // extraction below reads `(\w+):` out of an object literal's body, and the literal in
+        // `campaigns.js` carries the note explaining why `joinCode` cannot live inside the payload
+        // — a sentence ending "cannot be: redeeming it means…", whose `be:` was collected as a
+        // wire key and compared against `id`. `WithoutCsComments` is the same instrument the
+        // filesystem scan above uses, and C# and JavaScript share both comment syntaxes.
+        var campaignsJs = WithoutCsComments(File.ReadAllText(WorkerFile("campaigns.js")));
 
         var campaignsListed = Regex.Match(campaignsJs,
             @"campaigns: rows\.map\(row => \(\{(?<body>(?:(?!\}\)\).).)*)",
@@ -463,7 +472,12 @@ public sealed class AccountsContractTests
             .OrderBy(n => n, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.True(campaignReads.Length == 3,
+        // **Four now, not three.** `joinCode` is the fourth, and it is the one field of a campaign
+        // the server can read at all — it cannot live inside the payload, because redeeming a code
+        // means finding the campaign it belongs to and that is a query. The count is asserted
+        // because it is the positive control: two extractions that had both stopped matching would
+        // compare two empty arrays and agree.
+        Assert.True(campaignReads.Length == 4,
             "the client binds " + campaignReads.Length + " fields on a listed campaign: "
             + string.Join(", ", campaignReads));
 

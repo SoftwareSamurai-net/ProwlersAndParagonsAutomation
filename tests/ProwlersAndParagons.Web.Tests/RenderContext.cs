@@ -116,12 +116,14 @@ public sealed class RenderContext : BunitContext
         Services.AddScoped<AccountCharacterStore>();
         Services.AddScoped<DiscardedCharacter>();
 
-        // Campaigns: the same two stores and the same chooser the app registers. No component
-        // asks for one yet — the storage half ships before the screens — but the shell resolves
-        // what Program.cs registers, and a service missing here fails every render test at once.
-        Services.AddScoped<SavedCampaigns>();
+        // Campaigns, and the approval slot beside them — the same three the app registers.
+        // **Account-only, with no local half**: a campaign exists so that two accounts can hand a
+        // snapshot between them, so there is nothing for an anonymous visitor to keep. The shell
+        // resolves what Program.cs registers, and a service missing here fails every render test
+        // at once.
         Services.AddScoped<ApiCampaignStore>();
         Services.AddScoped<AccountCampaignStore>();
+        Services.AddScoped<ApiMembershipStore>();
         Services.AddScoped<ICharacterStore>(s => s.GetRequiredService<AccountCharacterStore>());
         Services.AddScoped<RulebookReader>();
 

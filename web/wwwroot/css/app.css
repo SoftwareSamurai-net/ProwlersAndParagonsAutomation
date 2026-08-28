@@ -1170,6 +1170,85 @@ label {
 .make-another > .btn,
 .make-another > label.btn { flex: 1 1 14rem; text-align: center; }
 
+/* ── Running a game ──────────────────────────────────────────────────────── */
+
+/* **The same idiom as the character list, deliberately.** A campaign row and a character row are
+   the same kind of thing to look at — one name, one quiet detail, one or two trailing controls —
+   and giving the new screen a second list treatment would make two lists of the same shape read
+   as two different sorts of object. The classes are separate because a campaign row's *layout*
+   differs in one way that matters: it can open a block beneath itself, so the `<li>` is a column
+   and the row inside it is the flex line. */
+.campaign-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+
+.campaign-row { display: flex; align-items: baseline; gap: var(--space-3); flex-wrap: wrap; }
+.campaign-row .who { flex: 1 1 12rem; min-width: 0; }
+.campaign-row .nm { font-size: var(--text-lg); }
+/* Beside the name rather than under it, and each `.meta` is its own phrase — a character in two
+   games carries two standings, and stacking them would make one row three lines tall. */
+.campaign-row .meta {
+    color: var(--muted);
+    font-size: var(--text-sm);
+    margin-left: var(--space-2);
+}
+
+/* What a row opens: its code, and the controls that change it. Set in from the row's own left edge
+   so the hierarchy is visible without a box — the panel around it is already a ruled card, and a
+   bordered block inside one is the third nested edge the option lists' own note warns about. */
+.campaign-settings,
+.campaign-editor,
+.campaign-diff,
+.campaign-join {
+    margin-top: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--panel-sunk);
+    border-left: 3px solid var(--rule);
+    border-radius: var(--radius-small);
+}
+
+/* The join code, which is read aloud. Wide tracking and tabular figures because that is what makes
+   ten characters dictatable — the failure this treats is a reader saying "B" for "8".
+
+   **`--font-display`, not a monospace family.** No component may name a typeface, and the two
+   faces this app declares are the two it has; a `monospace` keyword would fall back to whatever
+   the platform decides, silently, on some machines and not others. Same rule as `Cmd` rather than
+   the looped-square glyph. */
+.joincode {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    letter-spacing: 0.14em;
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    margin: var(--space-1) 0;
+}
+
+/* **The spend leads the diff**, in the one numeral treatment this app has — the same face, size
+   and ink as the four derived stats and the budget strip's own figure. A second treatment here
+   would make the figure a GM decides on read as a different kind of thing from the figures the
+   rest of the app answers with. */
+.diff-spend {
+    font-family: var(--font-display);
+    font-size: var(--text-2xl);
+    font-variant-numeric: tabular-nums;
+    color: var(--heading);
+    margin: 0 0 var(--space-3);
+}
+
+/* One line per field that moved: what it is, then how it moved. Two columns rather than a sentence
+   per row, because the thing a GM does here is scan down the left for the name and across for the
+   change — and a run of sentences cannot be scanned that way. */
+.diff-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1); }
+.diff-rows > li {
+    display: flex;
+    gap: var(--space-3);
+    align-items: baseline;
+    flex-wrap: wrap;
+    font-size: var(--text-sm);
+}
+.diff-rows .what { flex: 0 1 12rem; font-weight: 600; }
+/* Tabular figures so a column of `6d → 8d` lines up on the arrow rather than drifting with the
+   width of each numeral. */
+.diff-rows .was { color: var(--ink); font-variant-numeric: tabular-nums; }
+
 /* ── Validation on the row that broke it ─────────────────────────────────── */
 
 /* RowFinding's own markup. Sits under a RankRow or inside a ChosenRow's <li>, and is drawn
