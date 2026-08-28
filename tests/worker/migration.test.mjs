@@ -111,3 +111,76 @@ test('the rebuilt table still enforces one row per (user_id, id)', () => {
         'INSERT INTO characters (user_id, id, label, payload, updated_at) VALUES (?, ?, ?, ?, ?)')
         .run('u_dup_2', 'c_0000000000000000000000', 'Also one', '{}', 1000));
 });
+
+// ── 0005: campaigns, and the column that says which one a character is in ────────────────
+
+/** A database with every migration up to and including 0004 — the shape before campaigns. */
+function preCampaignsDb() {
+    const db = new DatabaseSync(':memory:');
+    for (const migration of MIGRATIONS.slice(0, 4)) db.exec(readFileSync(migration, 'utf8'));
+
+    return db;
+}
+
+function apply0005(db) {
+    db.exec(readFileSync(MIGRATIONS[4], 'utf8'));
+}
+
+test('a character written before campaigns existed survives 0005 belonging to none', () => {
+    // **This is the migration half of the rule that nothing bumped `StoredCharacter`'s version.**
+    // An absent campaign reads back as null on both sides, and null means "belongs to no
+    // campaign" — which is true, and is the only answer that loses nobody's work.
+    const db = preCampaignsDb();
+    user(db, 'u_veteran', 'veteran@example.test');
+    db.prepare('INSERT INTO characters (user_id, id, label, payload, updated_at) VALUES (?, ?, ?, ?, ?)')
+        .run('u_veteran', 'c_0000000000000000000000', 'Ninefold', '{"Sheet":{"Name":"Ninefold"}}', 2000);
+
+    apply0005(db);
+
+    const rows = db.prepare('SELECT * FROM characters WHERE user_id = ?').all('u_veteran');
+
+    assert.equal(rows.length, 1, 'the row must not be dropped — 0005 alters, it does not rebuild');
+    assert.equal(rows[0].campaign_id, null);
+    assert.equal(rows[0].label, 'Ninefold', 'the label survived the alter');
+    assert.equal(rows[0].payload, '{"Sheet":{"Name":"Ninefold"}}', 'byte for byte, unparsed');
+    assert.equal(rows[0].updated_at, 2000);
+});
+
+test('0005 adds campaigns keyed by the pair, like characters', () => {
+    const db = preCampaignsDb();
+    user(db, 'u_gm', 'gm@example.test');
+    apply0005(db);
+
+    const insert = (userId, id) => db.prepare(
+        'INSERT INTO campaigns (user_id, id, label, payload, updated_at) VALUES (?, ?, ?, ?, ?)')
+        .run(userId, id, 'A game', '{}', 1000);
+
+    insert('u_gm', 'g_0000000000000000000000');
+    assert.throws(() => insert('u_gm', 'g_0000000000000000000000'));
+
+    // The positive control: the same id under a different account is not a conflict.
+    user(db, 'u_gm2', 'gm2@example.test');
+    assert.doesNotThrow(() => insert('u_gm2', 'g_0000000000000000000000'));
+});
+
+test('deleting a campaign row does not touch a character that names it', () => {
+    // There is no foreign key on `characters.campaign_id`, deliberately — see the migration's own
+    // comment. A cascade or a `SET NULL` here would decide something on the player's behalf.
+    const db = preCampaignsDb();
+    user(db, 'u_gm', 'gm@example.test');
+    apply0005(db);
+
+    db.prepare('INSERT INTO campaigns (user_id, id, label, payload, updated_at) VALUES (?, ?, ?, ?, ?)')
+        .run('u_gm', 'g_0000000000000000000000', 'A game', '{}', 1000);
+    db.prepare('INSERT INTO characters (user_id, id, label, payload, campaign_id, updated_at) '
+        + 'VALUES (?, ?, ?, ?, ?, ?)')
+        .run('u_gm', 'c_0000000000000000000000', 'Ninefold', '{}', 'g_0000000000000000000000', 1000);
+
+    db.prepare('DELETE FROM campaigns WHERE user_id = ? AND id = ?')
+        .run('u_gm', 'g_0000000000000000000000');
+
+    const rows = db.prepare('SELECT * FROM characters WHERE user_id = ?').all('u_gm');
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].campaign_id, 'g_0000000000000000000000');
+});

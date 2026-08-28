@@ -84,7 +84,7 @@ public sealed class ApiCharacterStore : ICharacterStore
                     [.. listed.Characters
                         .Where(c => c.Id is { Length: > 0 })
                         .Select(c => new SavedCharacterSummary(
-                            c.Id!, c.Label ?? "Unnamed character", c.UpdatedAt))]);
+                            c.Id!, c.Label ?? "Unnamed character", c.UpdatedAt, c.CampaignId))]);
         }
         catch (Exception e) when (IsUnreachable(e)) { return AccountCharacters.Unknown; }
     }
@@ -120,7 +120,7 @@ public sealed class ApiCharacterStore : ICharacterStore
         {
             using var body = new StringContent(
                 JsonSerializer.Serialize(
-                    new Sending(label, StoredCharacter.Write(sheet, mode)), Wire),
+                    new Sending(label, StoredCharacter.Write(sheet, mode), sheet.CampaignId), Wire),
                 Encoding.UTF8,
                 "application/json");
 
@@ -278,12 +278,22 @@ public sealed class ApiCharacterStore : ICharacterStore
     private sealed record Listed(
         [property: JsonPropertyName("id")] string? Id,
         [property: JsonPropertyName("label")] string? Label,
-        [property: JsonPropertyName("updatedAt")] long UpdatedAt);
+        [property: JsonPropertyName("updatedAt")] long UpdatedAt,
+        [property: JsonPropertyName("campaignId")] string? CampaignId);
 
-    /// <summary>What the browser sends to store one. `payload` is opaque to the server.</summary>
+    /// <summary>
+    /// What the browser sends to store one. `payload` is opaque to the server.
+    ///
+    /// <para><b><c>campaignId</c> travels beside the payload for exactly the reason
+    /// <c>label</c> does</b>, and it is the same bargain: the server will not look inside a
+    /// payload, so anything a list has to show has to be handed to it. It stores the string
+    /// against the row and never derives it, never validates it and never joins it to a rule —
+    /// see <c>docs/CHARACTERS-API.md</c>.</para>
+    /// </summary>
     private sealed record Sending(
         [property: JsonPropertyName("label")] string Label,
-        [property: JsonPropertyName("payload")] string Payload);
+        [property: JsonPropertyName("payload")] string Payload,
+        [property: JsonPropertyName("campaignId")] string? CampaignId);
 }
 
 /// <summary>

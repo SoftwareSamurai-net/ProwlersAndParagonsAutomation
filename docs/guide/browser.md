@@ -298,6 +298,39 @@ step where somebody is typing it, which is the same reason the banner's switcher
 rather than the list. The list itself is *not* re-read on every change — that would be a storage read
 per letter typed.
 
+## Campaigns: stored here, resolved here, and never resolved in the engine
+
+`SavedCampaigns` / `ApiCampaignStore` / `AccountCampaignStore` are the character trio again, one
+level up, and `CampaignJoin` is the only thing that decides anything. **No page draws one yet** —
+the storage half shipped first — but everything below is reachable and tested without a screen.
+
+- **`pp.campaign.v1` is a new top-level prefix, never a suffix on `pp.character.v1`.** Read
+  `SavedCharacters`' class remarks for why that key can never move: hanging a campaign off it would
+  put a second meaning on a string this project has promised not to touch.
+- **The engine may not resolve a campaign, and `CharacterSheet.CampaignId` is barred for a
+  different reason from the two presentation flags.** They are a palette and a way of working; this
+  is an *indirection* — resolving it means asking storage, storage in a browser is asynchronous, and
+  `IRulesSource` is synchronous precisely to forbid that. `PresentationFlagsTests` carries all
+  three and says which bar each is under. `AccountCampaignStore.ForAsync` is the one place a
+  campaign id becomes a campaign, and **a null id resolves to null, never to a default** —
+  `ACharacterInNoCampaignIsUnchanged` is the guard, over both samples and every tier, on the
+  rendered sheet in full and the ordered finding codes.
+- **Inherit into an empty field; offer into a full one.** Joining copies the campaign's tier and
+  sandbox setting only when the character has no tier. When they disagree, **nothing is written at
+  all** and a `CAMPAIGN_TIER_MISMATCH` finding is handed back. Repair is worse than usual in both
+  directions: raising the tier turns an illegal character legal in silence, and lowering it moves
+  Resolve, which is `(TraitCap − highestRelevantRank) × 2`. `AnEmptyTierIsInherited` is the positive
+  control that keeps the mismatch assertion from being an absence satisfied by a join that does
+  nothing.
+- **The Trait Cap on a campaign is reported and never enforced**, deliberately and with the owner's
+  approval. `CampaignTests.ACampaignsTraitCapDoesNotMoveResolve` pins it at three caps including
+  none. Do not add a `TraitCapOverride` to `CharacterSheet` and do not touch `CheckTraitCap`.
+- **`CampaignId` is not in `CharacterSession.IsWorthKeeping`, and must not be.** Adding it would
+  make picking a campaign create a real, listed, empty character the moment it happened — verbatim
+  the defect that predicate was added to fix.
+- **A finding carries the two tier ids rather than writing them into its sentence**, because an id
+  is not what a tier is called and every other finding here names things the way the book does.
+
 ## Keeping a character while starting another
 
 **"Start a new character" and "Import a character" keep what is on screen. They used to destroy it.**

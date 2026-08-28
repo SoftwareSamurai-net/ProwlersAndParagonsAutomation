@@ -162,6 +162,33 @@ public class CharacterSheet
     public string? SelectedTierId { get; set; }
 
     /// <summary>
+    /// The <see cref="Campaign"/> this character belongs to, or null for one that belongs to no
+    /// game. <b>No rules code may read this, and there is a test that none does.</b>
+    ///
+    /// <para><b>It is barred for a different reason from the two flags above, and the difference
+    /// is worth keeping.</b> Those are barred as <i>presentation</i> — a palette and a way of
+    /// working, which a rule branching on either would be the browser deciding. This is barred as
+    /// an <i>indirection</i>: it is an id, and the only thing rules code could do with an id is
+    /// resolve it, which means asking storage. Storage in a browser is asynchronous, and
+    /// <see cref="IRulesSource"/> is deliberately synchronous so that <see cref="CostCalculator"/>
+    /// and <see cref="CharacterValidator"/> stay pure and instantly callable — and the two guards
+    /// that ban a filesystem and a network here already ban both ways such a lookup could be
+    /// written. So there is no reader for this in <c>engine/</c> and there must not be one.</para>
+    ///
+    /// <para><b>The character still carries its own tier, cap and budget, and that is not
+    /// duplication to be tidied away.</b> A character is portable: it is exported, imported,
+    /// handed to the headless command and priced by an MCP client, none of which has a campaign in
+    /// front of it. Joining a campaign copies settings into an empty field and reports a
+    /// disagreement otherwise — never repairs one; see <c>web/Services/CampaignJoin.cs</c>.</para>
+    ///
+    /// <para><b>An older saved character has no such field, and reads back as null</b>, which
+    /// correctly means "belongs to no campaign". That is why nothing about this bumped
+    /// <c>StoredCharacter</c>'s version, which would have discarded every stored character in
+    /// silence.</para>
+    /// </summary>
+    public string? CampaignId { get; set; }
+
+    /// <summary>
     /// Id of the optional package applied (Civilian/Hero/Superhero), or null.
     /// The package sets a floor on ability and talent ranks — it does not
     /// prevent buying higher ranks on top.

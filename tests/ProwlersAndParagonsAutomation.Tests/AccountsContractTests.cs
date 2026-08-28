@@ -283,6 +283,219 @@ public sealed class AccountsContractTests
     }
 
     /// <summary>
+    /// The campaign addresses are routed, and both halves of the prefix are.
+    ///
+    /// <para><b>Not written with <c>Contains</c>, and the reason is recorded twice in this
+    /// file already.</b> A literal <c>'/api/campaigns'</c> now appears in
+    /// <c>worker/errors.js</c>'s <c>KNOWN_ROUTES</c> for a completely different purpose — bounding
+    /// the error log — so a search over the concatenated server would find it whether or not
+    /// anything routes it. That is the exact duplicate that defeated the previous version of
+    /// <see cref="EveryAddressTheBrowserAsksForIsOneTheServerAnswers"/>, on two routes. So the
+    /// routing is read structurally out of <c>worker/index.js</c> alone.</para>
+    ///
+    /// <para><b>The prefix half is not optional.</b> <c>/api/campaigns/{id}</c> is reached by a
+    /// <c>startsWith</c> and a <c>path.slice</c>, never an exact match, so an exact-only model
+    /// would call every real read, write and delete unrouted.</para>
+    /// </summary>
+    [Fact]
+    public void TheCampaignAddressesAreRouted()
+    {
+        var indexJs = File.ReadAllText(WorkerFile("index.js"));
+
+        Assert.True(
+            Regex.IsMatch(indexJs, @"path\s*===\s*'/api/campaigns'",
+                RegexOptions.None, TimeSpan.FromSeconds(5)),
+            "worker/index.js does not route /api/campaigns as an exact path, so the browser's "
+            + "campaign list asks for an address the server answers with 404.");
+
+        Assert.True(
+            Regex.IsMatch(indexJs, @"path\.startsWith\('/api/campaigns/'\)",
+                RegexOptions.None, TimeSpan.FromSeconds(5)),
+            "worker/index.js does not route the /api/campaigns/ prefix, so every read, write and "
+            + "delete of one campaign is unrouted — none of them is ever an exact match.");
+
+        // **And it is inside the signed-in block, not beside it.** The gate is a `startsWith` on
+        // the same condition that gates characters; a campaign routed outside it would be an
+        // account's game readable by anybody. Read as: the campaign prefix appears in the same
+        // condition as the character prefix.
+        var gate = Regex.Match(indexJs,
+            @"if \(path === '/api/characters'(?<body>(?:(?!\)\s*\{).)*)",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(gate.Success,
+            "the signed-in block in worker/index.js no longer opens on /api/characters, so this "
+            + "test cannot see which addresses share its gate and would pass whatever they were.");
+
+        Assert.Contains("/api/campaigns", gate.Groups["body"].Value, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The error log knows about the campaign addresses, in both of the places it has to.
+    ///
+    /// <para><b>Two separate things, and only the first is about bounding the table.</b>
+    /// <c>KNOWN_ROUTES</c> is what lets <c>/api/campaigns</c> be filed under its own name;
+    /// the <c>startsWith</c> arm is what stops every failure at <c>/api/campaigns/{id}</c> being
+    /// filed as <c>other</c>, indistinguishable from a request to an address nobody routes.
+    /// Neither is found by reading the server as one string — <c>routePattern</c> is asked
+    /// directly, in <c>tests/worker/errors.test.mjs</c>; what is checked here is that the two
+    /// files have not drifted apart, which is the thing no single-language suite sees.</para>
+    /// </summary>
+    [Fact]
+    public void EveryRoutedPrefixHasARoutePatternForTheErrorLog()
+    {
+        var indexJs = File.ReadAllText(WorkerFile("index.js"));
+        var errorsJs = File.ReadAllText(WorkerFile("errors.js"));
+
+        var routed = Regex.Matches(indexJs, @"path\.startsWith\('(/api/[A-Za-z0-9/_.-]*)'\)",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        // The positive control on the extraction: a pattern that has stopped matching yields an
+        // empty set, which satisfies every "all of these are handled" assertion for free.
+        Assert.True(routed.Count >= 3,
+            $"found {routed.Count} routed prefixes in worker/index.js; the pattern has stopped "
+            + "matching and this test is asserting nothing.");
+
+        // Only the prefixes that carry a caller-chosen id need an arm; the admin one does too and
+        // deliberately does not have one, so this is scoped to the two stores rather than to
+        // every prefix. Widening it is a decision about the error log, not about this test.
+        foreach (var prefix in routed.Where(p => p is "/api/characters/" or "/api/campaigns/"))
+        {
+            Assert.True(
+                errorsJs.Contains($"path.startsWith('{prefix}')", StringComparison.Ordinal),
+                $"worker/index.js routes {prefix}{{id}} and worker/errors.js has no routePattern "
+                + "arm for it, so every failure there is filed as \"other\" beside requests to "
+                + "addresses nobody routes.");
+        }
+
+        Assert.Contains("'/api/campaigns'", errorsJs, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The wire keys for a campaign, and for a character's campaign, are spelled the same at both
+    /// ends.
+    ///
+    /// <para><b>Structural at both ends for the reason this file records twice.</b> The client's
+    /// keys are read off the records it binds and sends; the server's are read off the object
+    /// literals it actually builds, not out of the file as one string — <c>campaignId</c> occurs
+    /// in <c>characters.js</c> as a local variable and a function name as well as as a wire key,
+    /// so a <c>Contains</c> would be satisfied by the server having stopped sending it.</para>
+    ///
+    /// <para>The failure it guards is the silent one: <c>ReadFromJsonAsync</c> answers null for a
+    /// property it cannot find, so a renamed key does not throw — it produces a list in which
+    /// every character belongs to no campaign, which looks exactly like a list of characters
+    /// nobody has put in one.</para>
+    /// </summary>
+    [Fact]
+    public void TheCampaignKeysOnTheWireAreSpelledTheSameAtBothEnds()
+    {
+        // The server's character list: the object literal `list` maps each row into.
+        var charactersJs = File.ReadAllText(WorkerFile("characters.js"));
+
+        var listed = Regex.Match(charactersJs,
+            @"characters: rows\.map\(row => \(\{(?<body>(?:(?!\}\)\).).)*)",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(listed.Success,
+            "worker/characters.js no longer maps its rows into an object literal, so this test "
+            + "cannot see what the character list sends and would pass whatever it sent.");
+
+        var sends = Regex.Matches(listed.Groups["body"].Value, @"(\w+):",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+
+        var store = File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "web", "Services", "ApiCharacterStore.cs"));
+
+        var record = Regex.Match(store, @"record Listed\((?<body>[^;]*)\);",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(record.Success,
+            "ApiCharacterStore no longer declares a Listed record, so there is nothing to compare "
+            + "the server's answer against and this test would pass whatever the server sent.");
+
+        var reads = Regex.Matches(record.Groups["body"].Value, @"JsonPropertyName\(""(\w+)""\)",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(reads.Length == 4,
+            "the client binds " + reads.Length + " fields on a listed character: "
+            + string.Join(", ", reads));
+
+        Assert.Equal(reads, sends);
+
+        // The server's campaign list, against the client's own record for it.
+        var campaignsJs = File.ReadAllText(WorkerFile("campaigns.js"));
+
+        var campaignsListed = Regex.Match(campaignsJs,
+            @"campaigns: rows\.map\(row => \(\{(?<body>(?:(?!\}\)\).).)*)",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(campaignsListed.Success,
+            "worker/campaigns.js no longer maps its rows into an object literal, so this test "
+            + "cannot see what the campaign list sends.");
+
+        var campaignSends = Regex.Matches(campaignsListed.Groups["body"].Value, @"(\w+):",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+
+        var campaignStore = File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "web", "Services", "ApiCampaignStore.cs"));
+
+        var campaignRecord = Regex.Match(campaignStore, @"record Listed\((?<body>[^;]*)\);",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(campaignRecord.Success,
+            "ApiCampaignStore no longer declares a Listed record, so there is nothing to compare "
+            + "the server's answer against.");
+
+        var campaignReads = Regex.Matches(campaignRecord.Groups["body"].Value,
+                @"JsonPropertyName\(""(\w+)""\)", RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(campaignReads.Length == 3,
+            "the client binds " + campaignReads.Length + " fields on a listed campaign: "
+            + string.Join(", ", campaignReads));
+
+        Assert.Equal(campaignReads, campaignSends);
+
+        // And what the browser *sends* for a character is read by the server. `label` and
+        // `payload` were already covered by EveryFieldTheBrowserSendsIsOneTheServerReads, which
+        // only sees PostAsJsonAsync and query strings — a PUT with a StringContent body is
+        // invisible to it, which is exactly how a fourth key could go unread.
+        var sending = Regex.Match(store, @"record Sending\((?<body>[^;]*)\);",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(sending.Success, "ApiCharacterStore no longer declares a Sending record.");
+
+        var sent = Regex.Matches(sending.Groups["body"].Value, @"JsonPropertyName\(""(\w+)""\)",
+                RegexOptions.None, TimeSpan.FromSeconds(5))
+            .Select(m => m.Groups[1].Value)
+            .ToList();
+
+        Assert.True(sent.Count == 3,
+            "the client sends " + sent.Count + " fields to store a character: "
+            + string.Join(", ", sent));
+
+        foreach (var field in sent)
+        {
+            Assert.True(charactersJs.Contains($"body.value.{field}", StringComparison.Ordinal),
+                $"the browser sends \"{field}\" when it stores a character and "
+                + "worker/characters.js never reads it off the body.");
+        }
+    }
+
+    /// <summary>
     /// The identity on the wire is spelled the same at both ends.
     ///
     /// <para><b>This was a <c>Contains</c> first, and a mutation walked straight through it.</b>
