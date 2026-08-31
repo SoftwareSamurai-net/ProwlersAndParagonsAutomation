@@ -1059,6 +1059,49 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 
 ---
 
+### 14. A combat simulator — a second engine, and the balance question is now live
+
+**The owner wants to run encounters through the raw engine, over MCP rather than the browser, so
+balance can be measured instead of guessed.** This is not a change to `engine/`, and
+[`CLAUDE.md`](CLAUDE.md) already settles why: play rules do not go into `engine/`, which is the
+authority on cost and validity and knows nothing about resolving an action. **A combat simulator is
+a second engine beside it**, and that entry was written before anybody asked for one.
+
+**What makes it worth doing now is that there is something to measure.** Twenty-eight Pinnacle City
+NPC sheets exist at known tiers — Street Level through Iconic — against a stated 100-point party.
+Whether a Standard-tier Lynchpin is survivable for four 100-point Heroes, or whether Schism's
+Growth-above-the-cap trigger is a fair Arc Two problem, are questions with numeric answers nobody
+has computed.
+
+**The first cost is not the simulator, it is the data.** Chapters 3, 4 and 5 are extracted into
+`data/rulebook/` as prose, but *only* `data/rules/` is verified entry by entry against the page —
+so the action, combat and Resolve/Adversity rules would need the same treatment the 141 Powers got
+before any simulation could be trusted. Skipping that produces a simulator that is confidently
+wrong, which is worse than none.
+
+Not started. No estimate. Recorded so the architecture note above is not rediscovered from scratch.
+
+### 15. The Trait Cap is the tier's, and a campaign may want a tighter one
+
+`CharacterValidator` takes the Trait Cap from the chosen tier — 12d at Standard, 8d at Street Level.
+**A campaign can impose a tighter ceiling that no tier expresses.** The Pinnacle City setting caps a
+non-superhuman NPC at **6d — peak human, with 3d an average adult** — which is a house rule the tool
+cannot see, so a sheet breaking it still validates `ok: true`.
+
+Today this is audited by hand. It was audited by hand three times across twenty-eight sheets in one
+session and held every time, including across five independently-built clusters — but that is a
+property of that session, not of the tool, and nothing stops the next sheet breaking it silently.
+
+**The obvious shape is a `--trait-cap` override on `build`, or a field on the character file,
+reported under its own issue code so the repair is mechanical.** One thing to settle before
+building it, because it is not cosmetic: **the Trait Cap is also what Resolve is computed from** —
+`DerivedStatsCalculator` takes it off the gap between the cap and the highest relevant rank. So an
+override changes derived stats, and whether a *house* cap should move Resolve, or only gate
+validation while the tier's cap keeps doing the arithmetic, is the actual design question. The flag
+is the easy half.
+
+Not started.
+
 ## Completed work
 
 ### A campaign holds a clone of a character, and a player's edits arrive as an approval request
