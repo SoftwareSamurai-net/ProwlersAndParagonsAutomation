@@ -47,6 +47,33 @@ public sealed class WebPresentationTests
     private static string IndexHtml => File.ReadAllText(Path.Combine(WebRoot, "wwwroot", "index.html"));
 
     /// <summary>
+    /// The handout a GM sends a player who has nothing yet — a static file under
+    /// <c>wwwroot</c>, served ahead of the SPA catch-all in <c>_redirects</c>.
+    ///
+    /// <para><b>It is the second page in the payload that carries markup no component owns</b>,
+    /// and it is here by name for the same reason <see cref="IndexHtml"/> is: the scans below
+    /// read named sources, so a page nobody named is a page nobody checks.</para>
+    /// </summary>
+    private static string JoinHtml => File.ReadAllText(Path.Combine(WebRoot, "wwwroot", "join.html"));
+
+    /// <summary>
+    /// Every stylesheet the browser is served except theme.css, which is the one file allowed
+    /// to name a colour and a face.
+    ///
+    /// <para><b>Enumerated rather than named, and that is the point.</b> Both scans below used
+    /// to read <c>app.css</c> by name, so <c>join.css</c> — a second stylesheet, added for the
+    /// static handout — was outside every presentation rule this file enforces the moment it
+    /// landed, with the whole suite green. A list of filenames is a list that goes stale on
+    /// exactly the change that most needs checking, which is the failure
+    /// <c>RepositoryGuideTests</c> already exists to prevent for the guide set. <see cref="Scripts"/>
+    /// was already enumerated this way; this brings the stylesheets into line with it.</para>
+    /// </summary>
+    private static IEnumerable<(string Name, string Text)> Stylesheets =>
+        SourceFiles(Path.Combine(WebRoot, "wwwroot"), "*.css")
+            .Where(f => Path.GetFileName(f) != "theme.css")
+            .Select(f => (Path.GetFileName(f), File.ReadAllText(f)));
+
+    /// <summary>
     /// The app's own scripts — the third route into the payload, and the one that bypasses CSS
     /// entirely.
     ///
@@ -155,9 +182,10 @@ public sealed class WebPresentationTests
     /// absence of paint, or whatever ink already applies — not a colour chosen here.</para>
     /// </summary>
     [Theory]
-    [InlineData("app.css")]
+    [InlineData("stylesheets")]
     [InlineData("razor")]
     [InlineData("index.html")]
+    [InlineData("join.html")]
     public void NoComponentNamesAColour(string what)
     {
         var hex = Rx(@"#[0-9A-Fa-f]{3,8}\b");
@@ -168,10 +196,14 @@ public sealed class WebPresentationTests
 
         List<(string, string)> sources = what switch
         {
-            "app.css" => [("app.css", Scannable(AppCss, css: true))],
+            "stylesheets" => Stylesheets.Select(s => (s.Name, Scannable(s.Text, css: true))).ToList(),
             "index.html" => [("index.html", Scannable(Scannable(IndexHtml, css: true), css: false))],
+            "join.html" => [("join.html", Scannable(Scannable(JoinHtml, css: true), css: false))],
             _ => RazorFiles.Select(f => (Path.GetFileName(f), Scannable(File.ReadAllText(f), css: false))).ToList()
         };
+
+        // A source list that silently resolved to nothing would pass every assertion below.
+        Assert.NotEmpty(sources);
 
         foreach (var (name, text) in sources)
         {
@@ -1873,17 +1905,21 @@ public sealed class WebPresentationTests
     /// family or a generic family keyword.</para>
     /// </summary>
     [Theory]
-    [InlineData("app.css")]
+    [InlineData("stylesheets")]
     [InlineData("razor")]
     [InlineData("index.html")]
+    [InlineData("join.html")]
     public void NoComponentNamesATypeface(string what)
     {
         List<(string, string)> sources = what switch
         {
-            "app.css" => [("app.css", WithoutCssComments(AppCss))],
+            "stylesheets" => Stylesheets.Select(s => (s.Name, WithoutCssComments(s.Text))).ToList(),
             "index.html" => [("index.html", WithoutCssComments(IndexHtml))],
+            "join.html" => [("join.html", WithoutCssComments(JoinHtml))],
             _ => RazorFiles.Select(f => (Path.GetFileName(f), Scannable(File.ReadAllText(f), css: false))).ToList()
         };
+
+        Assert.NotEmpty(sources);
 
         var family = Rx(@"font-family\s*:\s*([^;}]+)");
         var shorthand = Rx(@"(?<![\w-])font\s*:\s*([^;}]+)");
@@ -4424,6 +4460,11 @@ public sealed class WebPresentationTests
             ("--muted",      "--surface",     4.5),
             ("--heading",    "--panel",       4.5),
             ("--heading",    "--panel-sunk",  4.5),   // where the hover grounds moved to
+
+            // A heading on the page ground rather than on a panel. Every h1 and h2 in the app
+            // is already this pair and it was unlisted; join.html is entirely this pair, being
+            // a page of headings with no panel under them.
+            ("--heading",    "--surface",     4.5),
             ("--danger",     "--panel",       4.5),
             ("--on-primary", "--primary",     4.5),
             ("--focus",      "--surface",     3.0),   // WCAG 1.4.11, not 1.4.3
