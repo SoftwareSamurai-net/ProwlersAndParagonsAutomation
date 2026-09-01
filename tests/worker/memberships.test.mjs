@@ -48,6 +48,22 @@ const gid = (n = 0) => 'g_000000000000000000000' + n;
 const cid = (n = 0) => 'c_000000000000000000000' + n;
 const mid = (n = 0) => 'm_000000000000000000000' + n;
 
+// **A leaked account id, matched as a whole value rather than as two characters.**
+//
+// This was `!body.includes('u_')` in three places, and it failed CI on a body that leaked
+// nothing: a membership id is `m_` plus 22 URL-safe characters, that alphabet contains both
+// `u` and `_`, and `m_z7u7CoX4nDqzpT6w7Vu_Ss` therefore contains the banned substring. It is
+// a ~0.5% coin flipped on every run — 21 adjacent pairs over a 64-symbol alphabet — which is
+// why it stayed green for as long as it did, and why re-running until it passes would have
+// been the wrong fix twice over.
+//
+// A user id is `'u_' + 22` URL-safe characters (`worker/crypto.js`), so that is what this
+// matches, as a complete JSON string value. `CLAUDE.md`'s rule applies exactly: a ban that
+// fires on something innocent is worse than no ban, because the natural fix is to weaken it.
+const LEAKED_ACCOUNT_ID = /"u_[A-Za-z0-9_-]{22}"/;
+
+const namesNoAccount = (body) => assert.ok(!LEAKED_ACCOUNT_ID.test(body), body);
+
 const putCampaign = (app, cookie, { theId = gid(), label = 'Nightfall' } = {}) =>
     app.call(`/api/campaigns/${theId}`, {
         method: 'PUT',
@@ -116,7 +132,7 @@ test('joining by code answers the campaign’s own settings and nothing about th
     // Nothing anywhere in the answer names the GM's account or address.
     const body = JSON.stringify(seen);
     assert.ok(!body.includes('gm@example.test'), body);
-    assert.ok(!body.includes('u_'), body);
+    namesNoAccount(body);
 });
 
 test('the join answer carries the campaign payload byte for byte', async () => {
@@ -304,7 +320,7 @@ test('the GM is never told which account a submission came from', async () => {
 
     for (const body of [JSON.stringify(inbox), JSON.stringify(one)]) {
         assert.ok(!body.includes('player@example.test'), body);
-        assert.ok(!body.includes('u_'), body);
+        namesNoAccount(body);
         assert.ok(!body.includes(cid()), body);
     }
 });
@@ -784,7 +800,7 @@ test('the GM sees the last decision too, because both rows land in one record', 
     const body = JSON.stringify(row);
 
     assert.ok(!body.includes('player@example.test'), body);
-    assert.ok(!body.includes('u_'), body);
+    namesNoAccount(body);
 });
 
 test('resubmitting shadows the last decision rather than clearing it', async () => {
