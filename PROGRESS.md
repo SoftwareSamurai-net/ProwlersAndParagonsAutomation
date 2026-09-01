@@ -1163,6 +1163,51 @@ connect and was worked around should not stay unexamined.
 
 First step is to reproduce it and read the server's own stderr, not to change anything.
 
+### 19. The account cap is set by hand in SQL, and a GM cannot see what a player holds
+
+Two halves of one screen, and **the mechanism for the interesting half already exists** — this item
+is a UI over behaviour that is already correct, not a change to it.
+
+**The cap already does the right thing when it is lowered below what somebody holds.** `putCharacter`
+in `worker/db.js` is one `INSERT … SELECT` whose `WHERE` *is* the check:
+
+```sql
+WHERE EXISTS (SELECT 1 FROM characters WHERE user_id = ? AND id = ?)
+   OR (SELECT COUNT(*) FROM characters WHERE user_id = ?)
+       < (SELECT character_limit FROM users WHERE id = ?)
+```
+
+The first clause lets an id the account already owns through **however full the account is**, so
+dropping somebody from 25 to 3 while they hold ten keeps all ten openable, editable and saveable,
+and simply refuses the eleventh until they delete themselves back under. That is exactly the
+desired behaviour and it needs no migration, no new column and no data change — **the number is the
+whole mechanism.** It is also concurrency-safe by construction, for the reason the doc comment
+gives: a read-then-write would let two simultaneous PUTs both see room and both land.
+
+So what is missing is only the screen:
+
+- **Set the number.** A row per account in `/admin` — email, current character count, editable
+  `character_limit` — beside the invitations list already gated by `invitations.isAdministrator`.
+  This retires a real ops hazard: [`docs/guide/accounts-server.md`](docs/guide/accounts-server.md)
+  already calls `users.character_limit` "a *write* with no gate", and today raising a cap means
+  someone running SQL against the production database by hand.
+- **Surface what a player holds.** A read-only list of their sheets.
+
+**Scoped to campaign membership, and that is the decision rather than a detail.** The list shows the
+players in the GM's own campaigns — joined through `campaign_members` — not every account on the
+server. `isAdministrator` is one person today, so an all-accounts list would not bite yet; it would
+the moment a second GM is ever made an administrator, and a privilege that only misbehaves later is
+the kind this project has been bitten by before. The cost is accepted knowingly: **a GM cannot see a
+player's characters that are not in one of their campaigns, and should not.**
+
+**Show `label`, `updated_at` and the count. Do not open the payload.** `characters.payload` is an
+opaque blob the server never parses — the same property that keeps `campaigns` dumb — so listing a
+character's *tier* would mean parsing sheets server-side and giving the accounts server an opinion
+about what a character is. It has never had one. If a tier column is wanted later, the honest way is
+a column written by the client that already knows, not a server that learns to read.
+
+Not started.
+
 ## Completed work
 
 ### A campaign holds a clone of a character, and a player's edits arrive as an approval request
