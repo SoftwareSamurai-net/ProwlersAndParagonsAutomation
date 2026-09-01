@@ -386,7 +386,7 @@
 
     private async Task Open(string id)
     {
-        if (await Store.OpenAsync(id) is { } opened) Session.Restore(opened.Sheet, opened.Mode);
+        if (await Store.OpenAsync(id) is { } opened) Session.Open(opened.Sheet, opened.Mode);
 
         await Refresh();
     }
@@ -477,8 +477,10 @@
     {
         if (await Keep() is false) return;
 
-        Session.Restore(character.Sheet, character.Mode);
-        Session.NotifyChanged();
+        // The bare `NotifyChanged()` that used to follow this is inside `Open` now — it was the
+        // single call site that had been patched for the silence, and patching one is what left
+        // the other five wrong.
+        Session.Open(character.Sheet, character.Mode);
 
         await Refresh();
     }

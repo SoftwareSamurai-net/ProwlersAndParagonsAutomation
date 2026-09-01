@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Bunit;
 using ProwlersAndParagonsAutomation.Engine;
+using ProwlersAndParagonsAutomation.Web.Components;
 using ProwlersAndParagonsAutomation.Web.Layout;
 
 namespace ProwlersAndParagons.Web.Tests;
@@ -174,7 +175,7 @@ public sealed class CharacterSwitcherTests
         ctx.JSInterop.Setup<string?>("ppStore.load", $"pp.character.v1.{who.Key}.current")
             .SetResult(heroId);
 
-        if (await store.OpenAsync(heroId) is { } opened) ctx.Session.Restore(opened.Sheet, opened.Mode);
+        if (await store.OpenAsync(heroId) is { } opened) ctx.Session.RestoreBeforeFirstRender(opened.Sheet, opened.Mode);
 
         return (store, hero.Name, villain.Name);
     }
@@ -199,5 +200,47 @@ public sealed class CharacterSwitcherTests
         // And it shuts behind itself: a menu left standing over the step you just landed on is
         // the reader having to dismiss something they already finished with.
         Assert.Empty(shell.FindAll("#character-switch-list"));
+    }
+
+    /// <summary>
+    /// <b>Swapping tells everything drawing the session, not only the control that was
+    /// clicked.</b>
+    ///
+    /// <para><c>ChoosingOneSwapsTheCharacterOnScreen</c> above asserts <c>Session.Sheet</c> moved,
+    /// and that is exactly the hole this fills: assigning the field is not telling anybody. The
+    /// pill redraws because it is the component that handled the click and Blazor re-renders it
+    /// either way — so a swap that notified nothing looked completely correct from the one control
+    /// a reader was looking at, while the sheet under it went on drawing the character they had
+    /// just navigated away from.</para>
+    ///
+    /// <para>The sheet is rendered beside the shell rather than inside it: both resolve the same
+    /// scoped <see cref="CharacterSession"/> out of one container, which is the relationship under
+    /// test. <c>Character</c> is left null, which is what makes <c>SheetView</c> subscribe — the
+    /// builder's own review and characteristics steps draw it exactly that way.</para>
+    /// </summary>
+    [Fact]
+    public async Task SwappingRedrawsTheSheetAndNotOnlyThePill()
+    {
+        await using var ctx = At("build/characteristics", signedIn: true);
+        var (_, openName, otherName) = await TwoSaved(ctx);
+
+        var shell = ctx.Render<MainLayout>();
+        var sheet = ctx.Render<SheetView>();
+
+        // The control: the sheet is drawing the character that is open, so what changes below is
+        // the swap rather than the sheet having been blank all along.
+        Assert.Contains(openName, sheet.Markup, StringComparison.Ordinal);
+
+        await shell.Find(".character-switch-name").ClickAsync(new());
+        await shell.WaitForElementAsync("#character-switch-list li button");
+        await shell.FindAll("#character-switch-list li button")[0].ClickAsync(new());
+
+        // The pill follows, because it is the component that handled the click.
+        Assert.Contains(otherName, shell.Find(".character-switch-name").TextContent,
+            StringComparison.Ordinal);
+
+        // And so must everything else drawing that character.
+        Assert.Contains(otherName, sheet.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain(openName, sheet.Markup, StringComparison.Ordinal);
     }
 }

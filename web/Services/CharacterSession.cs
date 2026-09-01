@@ -146,11 +146,44 @@ public sealed class CharacterSession
     public void NotifySaved(int version) => Saved?.Invoke(version);
 
     /// <summary>
-    /// Puts back a character read out of local storage. Deliberately silent — the shell
-    /// wires this up before the first render, so there is nothing to redraw yet, and the
-    /// player should see their character where they left it rather than watch it arrive.
+    /// Puts a character on screen and tells everything drawing one. <b>This is the one to reach
+    /// for.</b>
+    ///
+    /// <para><b>Assigning the field is not telling anybody</b>, and the difference does not show
+    /// up where you make the change. Whoever swaps the character is a component handling a click,
+    /// so Blazor re-renders <em>it</em> either way — the control the reader is looking at follows
+    /// perfectly while the sheet beneath it, the budget strip and the findings panel all go on
+    /// drawing the character that was replaced. That shipped: the banner's pill named the new
+    /// character over the old one's sheet.</para>
+    ///
+    /// <para>Named for the word this app already uses for moving the current-character pointer —
+    /// <see cref="ICharacterStore"/>'s <c>OpenAsync</c> — so a call site reads
+    /// <c>Store.OpenAsync</c> then <c>Session.Open</c>, and "showing is not opening" holds in one
+    /// vocabulary on both sides.</para>
     /// </summary>
-    public void Restore(CharacterSheet sheet, SheetMode mode)
+    public void Open(CharacterSheet sheet, SheetMode mode)
+    {
+        RestoreBeforeFirstRender(sheet, mode);
+        NotifyChanged();
+    }
+
+    /// <summary>
+    /// Puts back a character read out of local storage, <b>silently</b>.
+    ///
+    /// <para><b>Silent because the shell wires this up before the first render</b>, so there is
+    /// nothing to redraw yet and the player should see their character where they left it rather
+    /// than watch it arrive. <c>Program.cs</c> is the only caller in the app, and a test setting
+    /// up a fixture before it renders is the only other honest one.</para>
+    ///
+    /// <para><b>The long name is the fix, not decoration.</b> This was called <c>Restore</c>, and
+    /// it sat beside no louder alternative — so five call sites that run long after the first
+    /// render reached for it, got no redraw, and left the screen disagreeing with itself. One of
+    /// the six had been patched with a bare <c>NotifyChanged()</c> afterwards, which is the shape
+    /// of a trap being stepped on rather than removed. Nothing that runs after the first render
+    /// may call this; <see cref="Open"/> is what those want, and
+    /// <c>NothingDrawnCallsTheSilentRestore</c> holds the line.</para>
+    /// </summary>
+    public void RestoreBeforeFirstRender(CharacterSheet sheet, SheetMode mode)
     {
         ArgumentNullException.ThrowIfNull(sheet);
 
@@ -218,7 +251,7 @@ public sealed class CharacterSession
     }
 
     /// <summary>
-    /// The same as <see cref="Restore"/>, for a caller that is overwriting the character on
+    /// The same as <see cref="Open"/>, for a caller that is overwriting the character on
     /// screen rather than switching to one that already lives under its own id — importing a
     /// file, and opening a recorded character.
     ///
@@ -229,15 +262,16 @@ public sealed class CharacterSession
     /// the only stored copy of what was on screen — which is what makes this destructive, and
     /// what <see cref="Buffer"/> exists to undo.</para>
     ///
-    /// <para>Unlike <see cref="Restore"/> this also raises <see cref="Changed"/> itself, because
-    /// every caller that reaches this wants the redraw and the autosave that follows it — the one
-    /// exception, the app's own boot, calls <see cref="Restore"/> directly.</para>
+    /// <para>It goes through <see cref="Open"/> rather than the silent restore, because every
+    /// caller that reaches this wants the redraw and the autosave that follows it — the one
+    /// exception is the app's own boot. <b>This method said exactly that while five call sites
+    /// elsewhere were getting it wrong</b>, which is why the two are now told apart by their
+    /// names rather than by a remark on one of them.</para>
     /// </summary>
     public void ReplaceWithUndo(CharacterSheet sheet, SheetMode mode)
     {
         var previous = Sheet;
-        Restore(sheet, mode);
-        NotifyChanged();
+        Open(sheet, mode);
         Buffer(previous);
     }
 
@@ -315,8 +349,7 @@ public sealed class CharacterSession
         _undoSnapshot = null;
         if (sheet is null) return;
 
-        Restore(sheet, _undoMode);
-        NotifyChanged();
+        Open(sheet, _undoMode);
     }
 
     // ── Questions the shell asks constantly ───────────────────────────────

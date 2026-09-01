@@ -293,7 +293,7 @@ public sealed class CharacterManagerTests
         ctx.JSInterop.Setup<string?>("ppStore.load", $"pp.character.v1.{who.Key}.current")
             .SetResult(id);
 
-        ctx.Session.Restore(sheet, SheetMode.Hero);
+        ctx.Session.RestoreBeforeFirstRender(sheet, SheetMode.Hero);
 
         return id;
     }

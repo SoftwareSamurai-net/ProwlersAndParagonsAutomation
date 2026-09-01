@@ -264,7 +264,7 @@ public sealed class ProofPages
 
         using var ctx = new RenderContext().With(SheetMode.Hero);
         ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("build/characteristics");
-        ctx.Session.Restore(SampleCharacters.Hero(), SheetMode.Hero);
+        ctx.Session.RestoreBeforeFirstRender(SampleCharacters.Hero(), SheetMode.Hero);
 
         var shell = ctx.Render<MainLayout>();
         shell.Find(".character-switch-name").Click();
