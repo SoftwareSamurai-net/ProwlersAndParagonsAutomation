@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | **5062 across five suites** — 4040 on the engine, 758 rendering components with bUnit, 231 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 121**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+6** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→12), **+57** bUnit (`CampaignApprovalTests` 44 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **This row had gone wrong a third time and the failure is worth naming**: it read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them. A row that does not add up is the cheapest tell there is. Re-run the suites rather than adding to this number. |
+| Tests | **5073 across five suites** — 4040 on the engine, 769 rendering components with bUnit, 231 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 132**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+6** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→12), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **This row had gone wrong a third time and the failure is worth naming**: it read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them. A row that does not add up is the cheapest tell there is. Re-run the suites rather than adding to this number. |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **One thing blocks the next deploy and it is a permission, not a file**: `deploy.yml` now applies pending D1 migrations before the Pages upload, and `scripts/apply-migrations.sh` aborts the job on the 7403 the deploy token answered last time it was asked to read D1. Grant **D1: Edit** on the same token that already holds Cloudflare Pages: Edit before merging this, or the site stops deploying exactly as it did when PR #104 was reverted — see [`docs/guide/hosting.md`](docs/guide/hosting.md) |
@@ -1133,19 +1133,43 @@ every one of them is the shape of a tool built to cost *a* character meeting a j
 
 None of this needs new rules knowledge — it is all the same engine, called differently.
 
-### 17. `master` survives in the prose after the branch became `main`
+### 17. Closed: `master` in the prose after the branch became `main`
 
-The workflow triggers were fixed. **The prose was not**, and it is not cosmetic: this file's own
-Current state table still said the site "deploys from `master`" while `main` said `main`, and that
-line produced the only real conflict in an otherwise clean rebase — one where **both sides held a
-true fact the other lacked** (this branch knew migration 0006 was pending; `main` knew the deploy
-branch had moved), so neither `--ours` nor `--theirs` was correct and it had to be resolved by hand,
-row by row.
+The workflow triggers were fixed first and the prose was not, which is not cosmetic: this file's own
+Current state table said the site "deploys from `master`" while `main` said `main`, and that line
+produced the only real conflict in an otherwise clean rebase — one where **both sides held a true
+fact the other lacked** (this branch knew migration 0006 was pending; `main` knew the deploy branch
+had moved), so neither `--ours` nor `--theirs` was correct and it had to be resolved by hand.
 
-Fourteen mentions remain in this file and six across `docs/`. A dead branch name in prose is the
-same failure mode as a dead pointer in `CLAUDE.md`'s guide table: it sends a reader somewhere that
-is not there any more, and `RepositoryGuideTests` exists precisely because that costs more than it
-looks like it should. Worth a sweep, and worth a guard if one is cheap.
+**Swept, and the rule that decided each mention is the point.** A sentence a reader would *act on*
+must be true today; a sentence recording what happened must not be rewritten, because rewriting it
+is how a record stops being one. So:
+
+- **Fixed, all present tense.** `docs/guide/hosting.md`'s two Qodana lines — a guide is
+  instructions, and they contradicted the comment inside `qodana_code_quality.yml` itself, which
+  already said `main`. Here: "Qodana … runs on `master` and weekly", "a scan of `master` **as
+  merged**", "Qodana still watches `master`", and the Hosting entry's "deployed by GitHub Actions on
+  every push to `master`".
+- **Left exactly as written, all past tense.** Qodana having drifted to 3 *on `master`*, the
+  migration gate's refusal having blocked `master`, PR #73 having gone into `master`, the three
+  visual-golden entries, and the mutation recorded as "taking Qodana off `master`". Each is a
+  statement about a day that happened.
+- **One rephrased rather than corrected**, because both halves were true and only one still is: the
+  `--branch` entry's "New projects default to `main`; we deploy `master`" was the *cause* of the
+  404 it describes. It now says "when this was found we deployed `master`", so the hazard still
+  reads as general — a `--branch` label that disagrees with the configured production branch
+  deploys nothing to production and goes green — without the entry claiming a mismatch that no
+  longer exists.
+
+**The counts this item used to carry were themselves wrong** — "fourteen mentions here and six
+across `docs/`" against sixteen lines and eighteen occurrences, drifted by later commits, which is
+the same failure the Tests row above records. That is why the sweep is recorded by *rule* rather
+than by number: a number in this file is a thing that goes stale, and the rule does not.
+
+**No guard, and deliberately.** A grep for `master` would have to allow every historical mention
+above, so it would be an allowlist of exactly the lines a person already decided about — the shape
+`WorkflowFilterTests` records rejecting for the same reason. The triggers themselves *are* guarded,
+which is the half whose failure is silent.
 
 ### 18. The MCP server did not start
 
@@ -1396,6 +1420,64 @@ still a loose end of item 11 and this slice did not touch it.
    own `proceed`, asked through `gate.mjs` rather than by grepping wrangler's prose in a second
    place. Driven with a stub wrangler both ways: the honest one passes, the one that exits 0
    without applying fails the job — and the script as it was exits 0 and prints "Applied."
+
+#### A second review, and what it found that the first did not
+
+Three no-context reviewers were then run over the server half, the browser half and the docs, each
+told the constraints and nothing about the work. Five more findings, all reproduced by running:
+
+7. **The GM's status line was written and thrown away unrendered.** `_said` sat *inside*
+   `@if (_reading == one.Id && _diff is { } diff)` on the approval page — and approving, turning
+   down, and both refusals all set `_reading` to null. So a GM pressed Approve, the panel
+   collapsed, and **nothing said it had worked**; the only sentence anybody could ever read was
+   the stale-snapshot one, which is the single branch that keeps the request open. That is exactly
+   why the stale-approval test passed while every other message on the screen was invisible. Moved
+   out to the panel, where a `role="status"` live region also stops being destroyed and rebuilt
+   around each announcement.
+
+8. **A snapshot this build cannot open was called "nothing waiting".** `DecideAsync` reads the
+   newer payload through `StoredCharacter`, which answers null for an envelope a later version of
+   the app wrote — an ordinary thing to meet, by that class's own notes. The outcome is `Stale`
+   with nothing to draw, the page's switch had no arm for it, and it fell into `NothingWaiting`:
+   the GM was told the queue was empty about a request the player was waiting on.
+
+9. **`FakeApi` was more permissive than the server, which made both of the above untestable.** The
+   fake never checked whether a campaign still existed, so it kept answering 200 with the clone and
+   the waiting snapshot for a game the GM had deleted, and let the player submit into it. **A fake
+   that is more permissive than the server does not make tests fail; it makes them pass about a
+   state the server never produces** — the same class as the `AAAA1-BBBB1` join code the fake was
+   minting. Both halves of the real `EXISTS` are in it now.
+
+10. **The diff was still blind to six fields, and three guards could not see three more.**
+    `Appearance`, `Motivation`, `Quote`, `Connections`, `AbilitySources` and `TalentSources` were
+    compared nowhere at all — every one of them prints on the sheet, and a Trait's Source is not
+    derivable from its rank, decides which Pros an option allows, and prints inside a Power group.
+    And the fixture could not reach `PerkDetail`'s narrative half, `GearDetail`'s matched pair or
+    `ProConLabel`'s unit count, because the cases **added** the element rather than changing one:
+    all three mutations survived. `ACostedSheet` carries all three now. **Nine mutations, all
+    red.**
+
+11. **Two API documents described a `WHERE` clause the server does not have.**
+    `docs/CHARACTERS-API.md` and `docs/guide/accounts-server.md` both wrote `getMembership`'s
+    scoping as a symmetric `(gm_user_id = ? OR player_user_id = ?)`. It is not symmetric: the GM's
+    half additionally requires the campaign to exist and the player's deliberately does not, which
+    is the whole of finding 5 above. Both now write it out, and say why. `.editorconfig`'s
+    rationale for the same file said "five records" against ten and claimed nothing read them by
+    name, which is false of five of them.
+
+#### What is open in it, recorded rather than left in a pull request
+
+- **`ApiMembershipStore.LastJoinRefusal` is mutable state read out of band** after `JoinAsync`
+  returns null. Single-user WebAssembly, so it works; returning the refusal *in* the result is the
+  smaller surface. **`SubmitAsync` has the same shape and one real consequence**: it answers `int?`,
+  so a permanent 409 — *that campaign is no longer here* — is indistinguishable from a dropped
+  connection, and `Campaigns.razor` tells the player *"That could not be sent just now. Try again in
+  a moment"* about a state that will never succeed on retry. One change fixes both: a refusal on the
+  result of each.
+- **A GM cannot be told a submission's age**, because the two timestamps were removed from the
+  detail read rather than bound — see finding 3 above; they are in the two lists, where a "sent
+  three hours ago" belongs, and nothing prints one yet.
+
 ### A migration that was merged but never applied took character saving down in production
 
 **The owner reported it from the live error log**, which is the only instrument that could have.
@@ -1947,10 +2029,10 @@ would have looked like the deletion had failed.
   `AccountsContractTests`, `docs/MCP-SETUP.md` and `README.md` by `McpSetupDocumentationTests`,
   `mcp/QUESTION-POLICY.md` by `McpQuestionPolicyTests`. Editing the index past its line budget, or
   adding a guide the routing table does not name, is a red build.
-- **Qodana came off every pull request** and runs on `master` and weekly. **What makes that safe is
+- **Qodana came off every pull request** and runs on `main` and weekly. **What makes that safe is
   that the pull request was never where the check first ran**: `CLAUDE.md`'s process already requires
   `./scripts/qodana-scan.sh` locally, reading zero, before one is opened. What is kept is the part a
-  local run cannot give — a scan of `master` **as merged**, which is a different claim from a scan of
+  local run cannot give — a scan of `main` **as merged**, which is a different claim from a scan of
   the branches that went into it — plus a weekly backstop for a skipped local step. If that weekly
   run starts finding things, the answer is that the local step is being skipped, not that this
   should go back on every push.
@@ -1975,7 +2057,7 @@ true of a repository on a different plan and the pattern is the sort of thing th
   could compose a path no scan sees. Growing `paths-ignore` therefore has to be deliberate, and this
   is what makes it one.
 - Plus: the guide directory is never skipped wholesale, both triggers carry the same list, `deploy`
-  still refuses to cancel, and Qodana still watches `master` and still has a schedule.
+  still refuses to cancel, and Qodana still watches `main` and still has a schedule.
 
 **Five mutations, all red**: skipping the guide set, skipping `CLAUDE.md`, dropping the cancellation,
 filtering one trigger and not the other, and taking Qodana off `master`.
@@ -7141,7 +7223,8 @@ The Villain deliberately leaves one Power without a Source, so the sheet prints 
 
 The site is up and the engine runs from Cloudflare: all six tiers render from the fetched rules, the Superhero Package costs 50 of 125, Armor at 4 purchased ranks with Burnout settles on **2 HP** rather than 0 — the rulebook floor, live — and both exports build with no CSP violations.
 
-**`--branch` is a label Cloudflare compares against the project's configured production branch, not a branch it reads.** New projects default to `main`; we deploy `master`. The mismatch does not fail anything: the upload succeeds, wrangler prints a `master.<project>.pages.dev` alias, the workflow goes green — and the production URL and any custom domain answer 404, because no production deployment exists. Nothing in the logs says so.
+**`--branch` is a label Cloudflare compares against the project's configured production branch, not a branch it reads.** New projects default to `main`; when this was found we deployed `master`. The mismatch does not
+fail anything: the upload succeeds, wrangler prints a `master.<project>.pages.dev` alias, the workflow goes green — and the production URL and any custom domain answer 404, because no production deployment exists. Nothing in the logs says so.
 
 The setup instructions omitted this, which is how it was found. Fixed three ways: the README makes the production branch its own numbered step and explains what going wrong looks like, the deploy step carries the same warning where someone editing `--branch` would read it, and the workflow now **checks the production hostname after deploying** and fails with the remedy in the error. A deploy step that passes while the site is 404 is worse than one that fails.
 
@@ -7165,7 +7248,7 @@ Checked every factual claim in the README against the tree and the data. The cou
 
 ### Hosted on Cloudflare Pages — [#18](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/18)
 
-`superheroes.softwaresamurai.net`, deployed by GitHub Actions on every push to `master` that touches the app, the engine, the rules or the deploy itself. Direct upload rather than Cloudflare's Git integration, so there is one deploy path rather than two that can disagree. Setup and the token scoping are in the README.
+`superheroes.softwaresamurai.net`, deployed by GitHub Actions on every push to `main` that touches the app, the engine, the rules or the deploy itself. Direct upload rather than Cloudflare's Git integration, so there is one deploy path rather than two that can disagree. Setup and the token scoping are in the README.
 
 **The Content-Security-Policy is generated, and that is the part worth remembering.** Blazor emits an inline `<script type="importmap">` into `index.html` naming the fingerprinted framework assets, so its contents change whenever those are rebuilt. Under `script-src 'self'` an inline script is blocked and the app never boots — and the easy way out, `'unsafe-inline'`, gives up most of what the policy is for. `scripts/write-cloudflare-headers.sh` hashes the inline scripts of the `index.html` that was actually published, and **exits non-zero if it finds none**, because a hard-coded hash would rot silently and take the site down on some later deploy. CI runs the same script, so a policy that would break the app fails on the pull request instead.
 

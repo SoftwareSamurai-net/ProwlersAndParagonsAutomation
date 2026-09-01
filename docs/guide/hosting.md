@@ -160,9 +160,9 @@ gh run list --limit 100 --json name,status,createdAt,updatedAt --jq '
   **What makes that safe is that the pull request was never where this check first ran.**
   `CLAUDE.md`'s process requires `./scripts/qodana-scan.sh` locally, reading zero, before a pull
   request is opened — the CI copy was re-proving a thing already proved, at five and a half minutes
-  a push. What is kept is the part a local run cannot give: a scan of `master` **as merged**, which
+  a push. What is kept is the part a local run cannot give: a scan of `main` **as merged**, which
   is a different claim from a scan of the branches that went into it. If the weekly run starts
-  finding things on `master`, the answer is that the local step is being skipped — not that this
+  finding things on `main`, the answer is that the local step is being skipped — not that this
   should go back on every push.
 
 **Branch protection is unavailable on this plan, so no check is *required*** — which is why
