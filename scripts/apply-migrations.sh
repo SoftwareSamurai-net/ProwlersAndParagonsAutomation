@@ -18,16 +18,26 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Pinned in exactly this one place. wrangler@3.90.0 — the version deploy.yml's
-# cloudflare/wrangler-action@v3 bundles with for the actual Pages upload — does not understand
-# `--cwd` at all and answers every `d1 migrations` invocation with that flag with a *usage dump*
-# for the subcommand rather than a result (verified against the real binary: `npx --yes
-# wrangler@3.90.0 --cwd d1 d1 migrations list prowlers-and-paragons --remote` prints "Unknown
-# argument: cwd" and the command's own --help text). gate.mjs's readPending() would correctly
-# call that "unrecognised" and refuse — but refusing on every single run because of a version
-# mismatch is not what this exists to catch. 4.127.0's two answers ("Migrations to be applied:"
-# with a table, or "No migrations to apply!") were read against the real production database
-# before this was written.
+# **This used to be the odd one out and now it is not, and that is the change worth reading.**
+# It was pinned here because deploy.yml's cloudflare/wrangler-action@v3 bundled wrangler@3.90.0
+# for the Pages upload, and 3.90.0 does not understand `--cwd` at all: it answers every
+# `d1 migrations` invocation carrying that flag with a *usage dump* rather than a result
+# (verified against the real binary — `npx --yes wrangler@3.90.0 --cwd d1 d1 migrations list
+# prowlers-and-paragons --remote` prints "Unknown argument: cwd" and the subcommand's own --help).
+# gate.mjs's readPending() would correctly call that "unrecognised" and refuse, on every single
+# run, for a reason that has nothing to do with what is actually pending — so this step needed a
+# 4.x of its own and the deploy kept its 3.x.
+#
+# The action is `@v4` now, and 4.x is what the upload runs too. **That did not make the two pins
+# agree by itself**: v4's default is the *range* `"4"`, not a version, so leaving it unset would
+# have made the upload float while this stayed fixed. deploy.yml states `wranglerVersion:
+# "4.127.0"` explicitly for that reason, and this constant is the same string on purpose.
+# `WranglerIsPinnedToOneVersion` fails the suite if the two — and the `# wrangler=` comment the
+# pull-request dry-run parses — ever stop matching, because three copies of a version number kept
+# in step by good intentions is how they drift.
+#
+# 4.127.0's two answers ("Migrations to be applied:" with a table, or "No migrations to apply!")
+# were read against the real production database before this was written.
 WRANGLER_VERSION="4.127.0"
 
 DB="prowlers-and-paragons"

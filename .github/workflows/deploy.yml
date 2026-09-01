@@ -172,10 +172,26 @@ jobs:
         run: ./scripts/apply-migrations.sh
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3   # wrangler=3.90.0 — the CI dry-run reads this line
+        # **`@v4`'s default wrangler is not a version, it is the range `"4"`.** v3's action hard
+        # -coded `DEFAULT_WRANGLER_VERSION = "3.90.0"`, so leaving `wranglerVersion` unset was a
+        # pin; v4's is `DEFAULT_WRANGLER_VERSION = "4"` — read out of the two published `dist`
+        # bundles, not inferred from the release notes — and `npm i wrangler@4` resolves to
+        # whatever the newest 4.x is at the moment the runner asks. Two deploys minutes apart
+        # could bundle two wranglers, and the dry-run below could bundle a third. So the version
+        # is stated here rather than left to the action, and it is the same 4.127.0
+        # scripts/apply-migrations.sh already runs against the real database on the step above.
+        #
+        # **The three places that name it must agree, and `WranglerIsPinnedToOneVersion` now
+        # holds them to it.** The trailing `# wrangler=` comment is parsed by build.yml's
+        # pull-request dry-run so it bundles what this will; the `wranglerVersion:` input is what
+        # this actually bundles; scripts/apply-migrations.sh has its own constant. Before this
+        # they were two versions and a comment, and the comment was hand-maintained — a major
+        # bump was expected to update it, which is an instruction to a person rather than a check.
+        uses: cloudflare/wrangler-action@v4   # wrangler=4.127.0 — the CI dry-run reads this line
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.127.0"
           command: >-
             pages deploy publish/wwwroot
             --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'prowlers-and-paragons' }}

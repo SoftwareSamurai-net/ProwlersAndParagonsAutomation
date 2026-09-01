@@ -220,8 +220,12 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   scan will happily ship an incompatibility to the deploy.** This has happened once:
   `import ... with { type: 'json' }` in `worker/corpus.js` ran under Node 22 (both the accounts
   suite and my local `npx wrangler`) and failed on the deploy pipeline with
-  *"Expected ';' but found 'with'"* — because `cloudflare/wrangler-action@v3` pins wrangler at
-  **3.90.0**, whose bundled esbuild predates JSON import attributes. `assert { type: 'json' }`
+  *"Expected ';' but found 'with'"* — because `cloudflare/wrangler-action@v3` pinned wrangler at
+  **3.90.0**, whose bundled esbuild predates JSON import attributes. (The action is `@v4` and the
+  pin is `4.127.0` now, so that particular esbuild is behind us — **which is not a reason to
+  unbake the corpus**. The bake is what makes `worker/corpus.js` byte-checkable against the JSON
+  on disk, and the gap between wrangler's bundler and Node's is a permanent property of the two
+  moving separately, not a fact about one version.) `assert { type: 'json' }`
   is the older spelling and is deprecated in Node 22; that trade breaks the tests instead of
   the deploy. **So the corpus is baked into `worker/corpus.js` as an object literal by
   `scripts/inline-rulebook.mjs`**, and both are guarded: `tests/worker/router.test.mjs` asserts

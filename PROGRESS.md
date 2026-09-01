@@ -1601,7 +1601,7 @@ shape as a test that builds the world it tests, one layer out.
 - **Two properties worth keeping when it comes back.** An unrecognised answer fails, because the
   step reads wrangler's prose and a reworded release must not read as clear — driven with four
   canned answers, clean passing and pending, unfamiliar and *empty* all failing. And it is pinned to
-  a wrangler whose output was read: `3.90.0`, what the deploy bundles with, answers this command
+  a wrangler whose output was read: `3.90.0`, what the deploy bundled with at the time, answers this command
   with a **usage dump**, which would have been an unrecognised answer on every single run.
 
 **Until then the discipline is manual**: after merging anything that adds a file under
