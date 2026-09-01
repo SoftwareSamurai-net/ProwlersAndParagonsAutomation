@@ -49,6 +49,23 @@ work="$root/.qodana-scan"
 rm -rf "$work"
 mkdir -p "$work/project" "$work/results"
 
+# **The export is deleted on the way out, and on Windows that is a bug fix rather than tidiness.**
+# Qodana builds the project it is given, so the export does not stay the clean tree `git archive`
+# wrote — it grows `obj/Release/net10.0/…` under every test project. In a worktree whose root is
+# already 125 characters, the deepest of those lands around 288 and Windows' 260-character limit
+# starts refusing operations on it: `git worktree remove` fails with **"Filename too long"**, having
+# already deregistered the worktree, which leaves half a gigabyte of orphaned files that git can no
+# longer help you delete. That happened.
+#
+# **`results/` and the log survive**, because they are what the run is for and what a failure is
+# read from. The export does not need keeping: it is `git archive <commit>` and one command
+# reproduces it exactly.
+#
+# On EXIT rather than at the end of the happy path, so the SARIF-missing bail-out and a Ctrl-C
+# leave no more behind than a clean run does. A trap that only fires when nothing went wrong is a
+# trap that never fires on the runs that matter.
+trap 'rm -rf "$work/project"' EXIT
+
 echo "Exporting $commit ($sha) to a clean tree — no bin/, no obj/ (trap 3)."
 git archive "$commit" | tar -x -C "$work/project"
 
