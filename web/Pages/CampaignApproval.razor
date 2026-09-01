@@ -137,15 +137,25 @@ else
                                     </button>
                                 </div>
 
-                                @if (_said is { } said)
-                                {
-                                    <p class="small muted spaced" role="status">@said</p>
-                                }
                             </div>
                         }
                     </li>
                 }
             </ul>
+        }
+
+        @* **Outside the open request, because half the messages close it.** Approving, turning
+           down, and both refusals set `_reading` to null — so while this sat inside
+           `@@if (_reading == one.Id …)` every one of those sentences was written and then thrown
+           away unrendered, and a GM who pressed Approve watched the panel collapse and was told
+           nothing at all. Only the one branch that keeps the request open could ever be read,
+           which is why the stale-approval test passed and nothing else noticed.
+
+           It is also the right place for `role="status"`: a live region that is destroyed and
+           rebuilt around each message is a live region a screen reader may never announce. *@
+        @if (_said is { } said)
+        {
+            <p class="small muted spaced" role="status">@said</p>
         }
     </Panel>
 
@@ -374,7 +384,18 @@ else
                     newer, Session.Rules, Session.Costs);
                 break;
 
+            // Stale with nothing to draw is NOT "nothing waiting", and saying so was wrong on
+            // screen: a snapshot is there, this build could not read it. `DecideAsync` reaches
+            // here whenever `StoredCharacter.Read` returns null for the newer payload — an
+            // envelope from a later version of the app, which the store's own notes treat as an
+            // ordinary thing to meet rather than an error.
             case DecisionOutcome.Stale:
+                _said = "This changed while you were reading it, and the newer version could not "
+                    + "be opened here. Reload before deciding.";
+                _reading = null;
+                _diff = null;
+                break;
+
             case DecisionOutcome.NothingWaiting:
                 _said = "There is nothing waiting here now.";
                 _reading = null;

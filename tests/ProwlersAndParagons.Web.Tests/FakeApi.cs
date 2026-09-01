@@ -509,6 +509,15 @@ public sealed class FakeApi : HttpMessageHandler
     private readonly Dictionary<string, MembershipRow> _memberships = [];
 
     /// <summary>
+    /// Whether the campaign this membership belongs to is still there, which is the real
+    /// server's <c>EXISTS (SELECT 1 FROM campaigns c WHERE c.user_id = gm_user_id AND c.id =
+    /// campaign_id)</c> — and the <c>AND c.id</c> half matters: a GM who runs two games and
+    /// deletes one must lose that one's half and keep the other's.
+    /// </summary>
+    private bool StillThere(MembershipRow row) =>
+        _campaigns.ContainsKey((row.GmAccount, row.CampaignId));
+
+    /// <summary>
     /// Set to have the join endpoint refuse the way a rate limit does, so the browser's own
     /// sentence for that refusal is reachable in a test.
     /// </summary>
@@ -653,7 +662,7 @@ public sealed class FakeApi : HttpMessageHandler
 
         return Json($$"""
             {"memberships":[{{string.Join(",", _memberships
-                .Where(m => m.Value.GmAccount == who.Key)
+                .Where(m => m.Value.GmAccount == who.Key && StillThere(m.Value))
                 .Select(m => Row(m.Key, m.Value, forGm: true)))}}]}
             """);
     }
@@ -742,8 +751,10 @@ public sealed class FakeApi : HttpMessageHandler
             return await Status(HttpStatusCode.BadRequest);
         }
 
-        // Scoped to whoever is asking, both ways round — the real statement's
-        // `(gm_user_id = ? OR player_user_id = ?)`. A third account matches neither.
+        // Scoped to whoever is asking, both ways round. **Not `(gm_user_id = ? OR
+        // player_user_id = ?)`**, which is what this said and what `docs/CHARACTERS-API.md`
+        // said: the GM's half also requires the campaign to still exist, and the player's
+        // deliberately does not. A third account matches neither.
         if (!_memberships.TryGetValue(id, out var row)
             || (row.GmAccount != who.Key && row.PlayerAccount != who.Key))
         {
@@ -751,6 +762,12 @@ public sealed class FakeApi : HttpMessageHandler
         }
 
         var isGm = row.GmAccount == who.Key;
+
+        // A GM who deleted the game reaches nothing of it — no read, no decision — while the
+        // player keeps their row and is told why. A fake that answered anyway made every screen's
+        // handling of a deleted campaign untestable, which is how the wrong sentence below it
+        // survived: the approval page called a stale snapshot "nothing waiting".
+        if (isGm && !StillThere(row)) return await Status(HttpStatusCode.NotFound);
 
         if (tail == "submission")
         {
@@ -762,6 +779,13 @@ public sealed class FakeApi : HttpMessageHandler
 
             var payload = sent.RootElement.TryGetProperty("payload", out var p) ? p.GetString() : null;
             if (payload is null) return await Status(HttpStatusCode.BadRequest);
+
+            if (!StillThere(row))
+            {
+                return await Json(
+                    """{"error":"That campaign is no longer here."}"""[..],
+                    HttpStatusCode.Conflict);
+            }
 
             var label = sent.RootElement.TryGetProperty("label", out var l)
                 ? l.GetString() ?? row.Label : row.Label;
