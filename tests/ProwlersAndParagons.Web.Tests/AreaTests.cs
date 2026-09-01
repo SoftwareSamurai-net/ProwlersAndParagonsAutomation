@@ -21,6 +21,11 @@ public sealed class AreaTests
     [InlineData("build", Area.Play)]
     [InlineData("build/characteristics", Area.Play)]
     [InlineData("build/review", Area.Play)]
+
+    // The roster. Under the builder's own prefix, so it is the builder by construction rather
+    // than by a case in `Areas.Of` saying "this one is the builder too" — which is what a
+    // top-level /characters would have needed, and what the prefix scheme exists to avoid.
+    [InlineData("build/characters", Area.Play)]
     [InlineData("rules", Area.Rules)]
     [InlineData("campaign", Area.Campaign)]
     [InlineData("campaign/g_AAAAAAAAAAAAAAAAAAAAAA", Area.Campaign)]

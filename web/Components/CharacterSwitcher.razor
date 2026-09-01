@@ -51,10 +51,14 @@
                 </ul>
             }
 
-            @* The rest of managing them stays on the tier page rather than being duplicated
+            @* The rest of managing them stays on the roster page rather than being duplicated
                here: this control exists for the one act somebody wants mid-build, and a second
-               copy of discard-and-import in the banner would be two places to keep in step. *@
-            <a class="small" href="build">All your characters</a>
+               copy of discard-and-import in the banner would be two places to keep in step.
+
+               **It used to point at `build`, which was the tier page**, and it was right while the
+               list was on it. The list is at `build/characters` now, and a link called "All your
+               characters" landing on step one of the wizard would be the wrong promise. *@
+            <a class="small" href="build/characters">All your characters</a>
         </div>
     }
 </div>

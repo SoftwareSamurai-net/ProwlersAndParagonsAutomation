@@ -31,6 +31,27 @@ const CAMPAIGN_ID_PATTERN = /^g_[A-Za-z0-9_-]{22}$/;
 const MAX_LABEL_LENGTH = 80;
 const DEFAULT_LABEL = 'Unnamed character';
 
+/**
+ * The cap on the two index strings this server stores without understanding: which palette a
+ * character is built in, and which tier it is built to.
+ *
+ * Shorter than a label's 80 because neither is prose — one is a word and the other is an id out of
+ * `data/rules/tiers.json`, a file this server has never read. The bound is about what a column
+ * should be asked to hold, which is the only question this file is entitled to ask about either.
+ */
+const MAX_INDEX_FIELD_LENGTH = 40;
+
+/**
+ * The cap on `spent`.
+ *
+ * **Not a rule about Hero Points**, which this server knows nothing about — the published tiers
+ * run to "200+" and a sandbox character has no budget at all, so any number this file picked as a
+ * maximum spend would be a rules decision made in the wrong building. It is the bound that keeps a
+ * caller from writing an arbitrary integer into an INTEGER column, one order of magnitude above
+ * anything the engine could plausibly produce.
+ */
+const MAX_SPENT = 1_000_000;
+
 /** The account's characters, most recently touched first, and the cap they are held to. */
 export async function list(request, env, deps, user) {
     const [rows, limit] = await Promise.all([
@@ -48,6 +69,15 @@ export async function list(request, env, deps, user) {
             // checked it against the `campaigns` table, and does not know what it means — see
             // `normaliseCampaignId` below.
             campaignId: row.campaign_id ?? null,
+
+            // Three more of the same kind, and the reason they exist is the list this endpoint
+            // serves: at thirty characters a row that had to fetch a payload to say what it was
+            // would be thirty fetches. See 0008. `?? null` on all three because a row written
+            // before that migration has no value for them, which is an ordinary state and not a
+            // fault — it acquires one on the next save.
+            kind: row.kind ?? null,
+            tierId: row.tier_id ?? null,
+            spent: row.spent ?? null,
         })),
     });
 }
@@ -98,8 +128,18 @@ export async function write(request, env, deps, user, id) {
     const campaignId = normaliseCampaignId(body.value.campaignId);
     if (campaignId === undefined) return fail(400, 'That is not a campaign id this server uses.');
 
-    const stored = await db.putCharacter(env.DB,
-        { userId: user.id, id, label, payload, campaignId, now: deps.now() });
+    const kind = normaliseIndexField(body.value.kind);
+    if (kind === undefined) return fail(400, 'That is not a value this server can store.');
+
+    const tierId = normaliseIndexField(body.value.tierId);
+    if (tierId === undefined) return fail(400, 'That is not a value this server can store.');
+
+    const spent = normaliseSpent(body.value.spent);
+    if (spent === undefined) return fail(400, 'That is not a value this server can store.');
+
+    const stored = await db.putCharacter(env.DB, {
+        userId: user.id, id, label, payload, campaignId, kind, tierId, spent, now: deps.now(),
+    });
 
     if (!stored) {
         const limit = await db.characterLimit(env.DB, user.id);
@@ -157,6 +197,48 @@ function normaliseCampaignId(value) {
     if (value === '') return null;
 
     return CAMPAIGN_ID_PATTERN.test(value) ? value : undefined;
+}
+
+/**
+ * One of the two index strings — the palette a character is built in, or the tier it is built to —
+ * checked for being a string a column should hold, and nothing else.
+ *
+ * **Deliberately not checked against a list of the values it can take.** The palettes are Hero and
+ * Villain and the tiers are the six in `data/rules/tiers.json`, and every one of those is a fact
+ * about the game rather than about this server. A list here would be a copy of a rules file kept
+ * in a language that has never read one — it would go stale the first time the data moved, and it
+ * would make this server the authority on what a legal character is, which is precisely the job it
+ * does not have. What is checked is what is checked about `label`: that it is a bounded string.
+ *
+ * Missing, null or empty is the ordinary state — a character written before 0008, or one the
+ * client had nothing to say about. `undefined` out of this function means a refusal.
+ */
+function normaliseIndexField(value) {
+    if (value === undefined || value === null) return null;
+    if (typeof value !== 'string') return undefined;
+
+    const trimmed = value.trim();
+    if (trimmed.length === 0) return null;
+
+    return trimmed.length > MAX_INDEX_FIELD_LENGTH ? undefined : trimmed;
+}
+
+/**
+ * `spent`, checked for being a whole number a column should hold.
+ *
+ * **Null is a real answer here and the commonest one worth stating.** The engine refuses to price
+ * an incomplete selection rather than guessing at it, so a client with no figure sends none — and
+ * a row that stored 0 in its place would be reporting that a half-built character costs nothing.
+ * See the migration.
+ *
+ * Negative is refused rather than clamped: a negative spend is not a state the engine can produce,
+ * so it is a malformed request rather than an unusual character.
+ */
+function normaliseSpent(value) {
+    if (value === undefined || value === null) return null;
+    if (typeof value !== 'number' || !Number.isInteger(value)) return undefined;
+
+    return value < 0 || value > MAX_SPENT ? undefined : value;
 }
 
 function isJson(text) {
