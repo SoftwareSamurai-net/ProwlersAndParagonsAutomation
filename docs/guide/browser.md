@@ -659,6 +659,14 @@ category, and an Ability row a name, a rank and the rulebook's word for it. The 
 
 All four are asserted by `WebPresentationTests`, which reads the source because none of them is visible to a compiler.
 
+**A link to a static file needs `target="_blank"`, or the router swallows it.** Blazor intercepts
+clicks on same-origin anchors and hands the path to its own router, so `<a href="join.html">` makes
+the app answer its own "No such page" and the file is never fetched. The failure is invisible to
+every test that checks the anchor is present with the right `href` — both are true and the link is
+broken — so `EveryLinkToTheHandoutLeavesTheRouter` reads the attribute instead, over every such
+anchor in `web/Pages`. The alternative is `NavigateTo(url, forceLoad: true)` behind a button; the
+attribute is cheaper and a handout is a thing you keep open beside the app anyway.
+
 1. **No component names a colour.** Checked by hex, by keyword, *and* by `rgb()`/`hsl()`/`oklch()` function syntax — that last one is the loophole a hex grep leaves open. `transparent` is allowed; it is the absence of a colour, and `currentColor` is allowed for the same reason: it is a reference to whatever ink already applies, not a hue chosen here.
 
    **`light-dark(white, black)` passed all three detectors, and this is the rule the four palettes rest on.** It is CSS Color 5, so it was in none of the six function names the scan knew, and its arguments follow `(` and `,` rather than the `:` the keyword regex anchored on — so every detector missed it at once. Two changes: the keyword's position anchor is **gone** rather than widened, because a colour is equally a colour in `border: 1px solid black`, bounded by `(?<![\w-])`/`(?![\w-])` rather than `\b` since a plain word boundary treats the hyphen in `white-space` as one; and the function list gained `color`, `light-dark`, `color-contrast` and `device-cmyk`. **It is still a denylist and it will rot again when the spec grows another one.** An allowlist of the functions this codebase uses was tried and rejected: the razor scan runs over files whose `@code` blocks are full of unrelated calls, which is the same denylist problem one level up. Re-run the function census in the comment if it rots. `///` doc comments are stripped from the razor scan for the same reason `@* *@` comments always were — one `<summary>` in `ChooseTier.razor` is prose about a screenshot that mentions "dead white". Radii and durations are tokens for the same reason, and `prefers-reduced-motion` turns every animation off by setting three duration tokens to `0.01ms` — not `0`, which makes some engines skip `transitionend` entirely.
