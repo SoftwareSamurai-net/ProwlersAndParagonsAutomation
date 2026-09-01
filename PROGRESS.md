@@ -1351,10 +1351,20 @@ the same split `Commands` makes for the palette — so most of `RosterTests` ren
 with no payload fetched, deserialised, costed or validated for it.
 
 **It was written as `0007` and renumbered on the rebase**, because the campaign slice below took
-that number while this branch was open. Worth knowing for the deploy: that entry's "the one thing
-to watch" says `0007` is the first migration `apply-migrations.sh` will ever actually apply — it is
-now **two** that apply on the same run, and the apply path has still only ever been driven against
-a stub wrangler. Watch that step.
+that number while this branch was open.
+
+**And the thing this entry said to watch has now been watched: `0008` applied to the live database
+on the merge deploy of 2026-09-01, and it is the deploy's own reading rather than a claim.**
+`wrangler d1 migrations list --remote` named exactly one pending file, `apply-migrations.sh` ran the
+apply path, and `0008_character_index_fields.sql` came back ✅ against `prowlers-and-paragons` —
+*Executed 4 commands in 1.16ms*. It was one migration and not the two this paragraph predicted,
+because `0007` had already gone out on the deploy before it.
+
+**And it establishes nothing new about D1 *Edit*, which is worth saying rather than claiming
+otherwise**: the Hosting row already records `0007` as the migration that proved it, one deploy
+earlier. This is the second real apply and it corroborates the first — which is all it is, and the
+useful half of that is that the mechanism worked twice in a row on two different slices' migrations
+rather than once on a favourable one.
 
 #### The constraint that decided all three, and how it was paid rather than argued with
 
