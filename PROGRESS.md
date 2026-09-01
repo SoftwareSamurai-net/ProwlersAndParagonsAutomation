@@ -17,10 +17,10 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | **5073 across five suites** — 4040 on the engine, 769 rendering components with bUnit, 231 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 132**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+6** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→12), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **This row had gone wrong a third time and the failure is worth naming**: it read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them. A row that does not add up is the cheapest tell there is. Re-run the suites rather than adding to this number. |
+| Tests | **5074 across five suites** — 4041 on the engine, 769 rendering components with bUnit, 231 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 133**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13 — the thirteenth added after the merge, below), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **This row had gone wrong a third time and the failure is worth naming**: it read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them. A row that does not add up is the cheapest tell there is. Re-run the suites rather than adding to this number. |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
-| Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **One thing blocks the next deploy and it is a permission, not a file**: `deploy.yml` now applies pending D1 migrations before the Pages upload, and `scripts/apply-migrations.sh` aborts the job on the 7403 the deploy token answered last time it was asked to read D1. Grant **D1: Edit** on the same token that already holds Cloudflare Pages: Edit before merging this, or the site stops deploying exactly as it did when PR #104 was reverted — see [`docs/guide/hosting.md`](docs/guide/hosting.md) |
+| Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **The deploy applies pending D1 migrations before the Pages upload and the first run of it failed — on a file mode, not on the token.** `apply-migrations.sh` was committed `100644`, so the runner answered `Permission denied` and exit **126** before the gate asked Cloudflare anything. The ordering held: the upload and both post-deploy checks were skipped and production kept serving the previous deployment. **So the token's D1 permission is still unverified** — neither reproduced nor cleared — and it needs **D1: Edit**, not Read, because the step applies as well as lists. See [`docs/guide/hosting.md`](docs/guide/hosting.md) |
 | Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. The first five D1 migrations are applied to the remote database and **0006 is pending — measured against the live database, not assumed**; the `DB` binding is in place, `/api/me` answers `401` with JSON, and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong). **Adding an address now actually mails it** a one-click, three-day link — see the completed item below; until now the admin page said an address "can sign in now" and nothing ever told them so |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
 | Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export of `76a4f80`, not assumed**, and that scan found 2 (a local constant named `Opening`, and a `cref` to `IRulesSource` that does not resolve from the test project's namespace), both fixed. It had drifted to 3 on `master` and to 37 across three reconciled slices before anybody checked, and the redesign slice put 23 there before they were fixed. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
@@ -1478,6 +1478,47 @@ told the constraints and nothing about the work. Five more findings, all reprodu
   detail read rather than bound — see finding 3 above; they are in the two lists, where a "sent
   three hours ago" belongs, and nothing prints one yet.
 
+### The gate came back, and its own script was not executable
+
+**The first deploy after the campaign slice merged failed at `Apply pending D1 migrations`, and
+not on the credential everybody was watching.** `scripts/apply-migrations.sh` was committed
+`100644`, so the runner answered
+
+    ./scripts/apply-migrations.sh: Permission denied
+    ##[error]Process completed with exit code 126
+
+before a line of `gate.mjs` ran.
+
+**The ordering held, and that is the thing to take from it.** The apply step sits ahead of the
+Pages upload, so its failure skipped `Deploy to Cloudflare Pages` and both post-deploy checks, and
+production went on serving the deployment from before the merge. A deploy that cannot ship is the
+designed failure of this mechanism; a deploy that ships past an unapplied migration is the outage
+the entry below records. The mechanism did its job on the first real run, for the wrong reason.
+
+**It also means the D1 permission question is still open.** The gate never got as far as asking
+Cloudflare anything, so the 7403 that reverted PR #104 has been neither reproduced nor cleared. And
+the permission needed is **D1 Edit**, not the Read this file used to say: true of #104's step,
+which only listed, and not of the one that came back, which also runs `wrangler d1 migrations
+apply`. Cloudflare's reference carries both one line apart, and a token holding only Read refuses
+on every deploy while looking identical to a token holding neither.
+
+**Nothing on the machine it was written on could have caught it.** Git for Windows does not honour
+the mode bit in the working tree, so `./scripts/apply-migrations.sh` runs perfectly here and fails
+on every Linux runner. That is the same shape as the credential lesson in the entry below — *what
+answers on the developer's machine says nothing about what CI holds* — arriving a second time in
+the same file, one section apart, on the same script.
+
+`WorkflowFilterTests.EveryScriptAWorkflowRunsDirectlyIsExecutable` collects every `run: ./….sh` out
+of the workflows themselves, so a script added later is covered without anybody remembering the
+test exists, and reads the mode out of `git ls-files --stage` rather than off the filesystem —
+the only place the answer is the same on both platforms. Of the twelve scripts, exactly two were
+`755`, and they are exactly the two a workflow already ran this way.
+
+**Watched to fail three ways**: the real defect restored, the same bit cleared on
+`write-cloudflare-headers.sh` which was already right, and the scan mutated to match nothing — the
+last because an empty set would otherwise pass, which is how four guards in this repository have
+shipped hollow.
+
 ### A migration that was merged but never applied took character saving down in production
 
 **The owner reported it from the live error log**, which is the only instrument that could have.
@@ -1524,8 +1565,13 @@ machine holds is the owner's own, with access to everything; the deploy's is sco
 credential that answers on the developer's machine says nothing about the one CI holds* — the same
 shape as a test that builds the world it tests, one layer out.
 
-- **It returns when the deploy token can read D1** (D1 *Read*, alongside what it has for Pages). The
-  step is in PR #104's history and needs no redesign, only credentials.
+- **It returns when the deploy token can reach D1.** The step is in PR #104's history and needs no
+  redesign, only credentials. **This said D1 *Read*, and Read is not enough** — true of the step as
+  #104 shipped it, which only *listed*; the version that came back also runs
+  `wrangler d1 migrations apply`, so it is **D1 Edit**, alongside what the token has for Pages.
+  Cloudflare's permission reference has both: *D1 Read — grants read access*, *D1 Edit — grants
+  write access*. A token given only the first refuses on every deploy, correctly, and looks exactly
+  like a token given neither.
 - **It must not be "fixed" by treating an unauthorised answer as all-clear**, which would turn the
   guard into the thing it exists to prevent.
 - **Two properties worth keeping when it comes back.** An unrecognised answer fails, because the
