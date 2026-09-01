@@ -93,7 +93,59 @@ case "$action" in
         echo "Applying the pending migration(s) now..."
         # shellcheck disable=SC2086
         $WRANGLER --cwd "$CONFIG_DIR" d1 migrations apply "$DB" --remote
-        echo "Applied."
+
+        # **The positive control, and it is the point of this block rather than a flourish.**
+        # Everything above this line is a *refusal* path, and every one of them is driven by
+        # tests/deploy/migration-gate.test.mjs. The apply itself had nothing: a zero exit from
+        # `wrangler d1 migrations apply` was taken as proof the schema moved, which is the same
+        # trust that produced the outage this whole script exists to prevent — code shipped past a
+        # migration nobody had confirmed was applied, and production answered `D1_ERROR: no such
+        # column` on every save until somebody noticed.
+        #
+        # So the database is asked again, and the answer has to be that there is nothing left to
+        # do. Asked through gate.mjs rather than by grepping for "No migrations to apply!" here,
+        # because that string is wrangler's and the one place in this repository that knows how to
+        # read wrangler's output is the gate — a second, looser reader of the same text is a second
+        # thing to keep in step with a CLI nobody here controls.
+        echo "Confirming the migration actually landed..."
+
+        verify_output="$(mktemp)"
+        trap 'rm -f "$list_output" "$verify_output"' EXIT
+
+        set +e
+        # shellcheck disable=SC2086
+        $WRANGLER --cwd "$CONFIG_DIR" d1 migrations list "$DB" --remote > "$verify_output" 2>&1
+        verify_status=$?
+        set -e
+
+        echo "----- wrangler's own output (exit $verify_status) -----"
+        cat "$verify_output"
+        echo "------------------------------------------------------"
+
+        set +e
+        verdict="$(D1_LIST_EXIT_CODE="$verify_status" D1_MIGRATIONS_DIR="$root/d1/migrations"             node "$root/scripts/d1-migrations/gate.mjs" < "$verify_output")"
+        verify_gate_status=$?
+        set -e
+
+        verify_action="$(printf '%s
+' "$verdict" | head -n 1)"
+        verify_action="${verify_action#GATE_ACTION=}"
+
+        printf '%s
+' "$verdict" | tail -n +2
+
+        # `proceed` is the gate's word for "nothing pending". Anything else — still pending, an
+        # auth failure, output it could not read — means this script cannot say the schema is
+        # where the code about to be uploaded needs it, and the deploy stops here rather than
+        # shipping on the strength of an exit code.
+        if [ "$verify_gate_status" -ne 0 ] || [ "$verify_action" != "proceed" ]; then
+            echo "::error::The migration was applied but the database still reports work pending" >&2
+            echo "::error::(gate action '$verify_action', exit $verify_gate_status). Refusing to" >&2
+            echo "::error::deploy code that may be ahead of the schema." >&2
+            exit 1
+        fi
+
+        echo "Applied, and the database reports nothing pending."
         ;;
     *)
         # The gate exited 0 but named neither known action — a contract mismatch between this

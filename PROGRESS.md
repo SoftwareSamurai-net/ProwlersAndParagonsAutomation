@@ -1133,64 +1133,6 @@ every one of them is the shape of a tool built to cost *a* character meeting a j
 
 None of this needs new rules knowledge — it is all the same engine, called differently.
 
-### 19. The GM's diff is blind to every cost-bearing field except a rank
-
-**Found by auditing the clone-and-approve slice; reproduced, not reasoned about.**
-`CampaignDiff.Between` compares a Power on `PowerId` and `PurchasedRanks` and nothing else. It never
-looks at a Power's `Pros`, `Cons`, `CostVariantKey`, `Units`, `BaselineTraitId` or `SourceId`; never
-at `SelectedPerk.NarrativeDetail` or `SelectedFlaw.NarrativeDetail`; never at a piece of gear's
-`Features`, `Pros`, `Cons` or `PairedUnderTwoFisted` — and features are the only thing gear costs
-Hero Points for — and never at `CharacterSheet.AbilityModifiers`. Gear is keyed on its name alone.
-
-A probe against the real rules data, Immunity moved from one unit to six:
-
-```
-UNITS spend 7 -> 22; rows=0; unchanged=True; compared=7
-```
-
-**The GM's screen reads `7 → 22 Hero Points` above an empty list of changes.** That is a decision
-surface under-reporting, which is worse than one that over-reports: the whole point of the screen is
-that the GM reads a diff and accepts or rejects the *whole* snapshot.
-
-**And `Compared` — the positive control this slice is proud of — does not catch it**, because it
-counts fields *examined* and the Power key *was* examined. It reports a healthy 7. This is the
-repository's own recurring fault in a new place: a check that measures the wrong thing reads as a
-guarantee. `NoRowNamesAFieldOfAStoredCharacter` reflects over `CharacterSheet`, but for **naming**,
-not coverage; nothing guards coverage at all.
-
-**The mechanical half is easy and the design half is not.** Keying Powers on
-`(PowerId, CostVariantKey, BaselineTraitId)` and adding rows for `Units` and for Pros and Cons is a
-loop. What to *call* those rows is the question: `Deflection: covers both attack types` is a
-sentence the book would recognise, `Deflection: Pros +area` is the app describing its internals —
-the fault the naming guard exists for. Gear is the same question again, worse, because a customised
-item is a small character of its own.
-
-**Whatever the answer, the invariant belongs in the type rather than in a reviewer's memory:**
-`CharacterDiff` should carry `Explained => SpentBefore == SpentAfter || Rows.Count > 0`, the screen
-should refuse to say "nothing changed" when it is false, and a test should assert it per
-cost-bearing field. That is the check that goes red when the *next* field is added, which counting
-examined fields never will.
-
-### 20. A deleted campaign leaves its memberships live
-
-**Also from the audit, also reproduced.** `campaigns.remove` deletes one row; `campaign_members` has
-no foreign key to `campaigns` and no cleanup, and `listMembershipsForGm` never joins. So after a
-delete the GM's inbox still shows a pending submission for a game that is not there, the detail read
-answers 200, and the player can go on submitting into it.
-
-**The player's half of this is deliberate and documented** — `Campaigns.razor` says members "keep
-naming it and are reported as naming a campaign that is not here", so that restoring it is a
-complete undo. The GM's half is not addressed anywhere, and the two do not obviously want the same
-answer.
-
-**A related state nobody has decided about:** campaign ids are the client's and the browser keeps
-its local copy, so deleting a campaign on the server and then saving again re-adopts the old
-memberships and their approved payloads under a fresh join code.
-
-The narrow fix that keeps the stated undo property is an `EXISTS` against `campaigns` on the GM's
-reads and on `submitToCampaign`. The alternative is a cascade, which contradicts the undo note. It
-is a decision, not a loop.
-
 ### 17. `master` survives in the prose after the branch became `main`
 
 The workflow triggers were fixed. **The prose was not**, and it is not cosmetic: this file's own
@@ -1361,8 +1303,54 @@ still a loose end of item 11 and this slice did not touch it.
    fake and the server disagreed and nothing caught it, which is the drift `AccountsContractTests`
    exists for and could not see, because a code's *form* is not a field name.
 
-3. **The diff can report "nothing changed" while the spend moves — open, and it is a design
-   question rather than a missing loop.** See item 19.
+3. **The diff reported "nothing changed" while the spend moved — fixed, and the guard that should
+   have caught it did not exist.** `CampaignDiff` compared a Power on `PowerId` and
+   `PurchasedRanks` and nothing else: not its `Pros`, `Cons`, `CostVariantKey`, `Units`,
+   `BaselineTraitId` or `SourceId`, not a Perk's or Flaw's narrative detail, not
+   `AbilityModifiers`, and gear only by its name — when a custom feature is the only thing gear
+   costs Hero Points for. Immunity moved from one unit to six produced `spend 7 → 22`, **no rows at
+   all**, and a healthy `Compared` of 7.
+
+   **`Compared` was never going to catch it.** It counts fields *examined*, which is the right
+   guard against a comparison that has stopped running and worth nothing against one that runs and
+   looks at the wrong half of a field — the Power's key *was* examined. That is this repository's
+   own recurring fault in a new place: a check measuring the wrong thing reads as a guarantee.
+   `NoRowNamesAFieldOfAStoredCharacter` reflects over `CharacterSheet`, but for **naming**, not
+   coverage.
+
+   Each list entry now carries a detail line built from the app's own labels — `SheetView`'s
+   `Name (Variant)`, `Labels.Humanise`, the rules data's own `CostUnitLabel` — so a row cannot
+   print a spelling the sheet would not. And the invariant is in the type rather than in a
+   reviewer's memory: `CharacterDiff.Explained` holds the engine's two figures against the rows,
+   and the screen says *the total changed but this comparison cannot say what* instead of drawing
+   the empty list that reads as agreement. `EveryChangeThatMovesTheSpendMovesARow` drives ten
+   cost-bearing fields and `EveryChangeAGmDecidesAboutMovesARow` the seven free-but-reportable
+   ones. **All four mutations go red** — a Power's detail back to its rank, gear's detail nulled,
+   an Ability's modifiers hidden, and the tier.
+
+4. **A fixture hid a mutation for the fourth time in this file's history, and the same way.** The
+   gear cases *added* a customised item, so nulling `GearDetail` entirely — exactly how the slice
+   shipped — left them green: an item that was not there and now is produces an Added row whatever
+   its detail says, and the behaviour under test was never reached. Changing an item already on the
+   fixture is the only mutation that can tell a detail comparison from no comparison. Caught by
+   re-running the mutation rather than by reading the test.
+
+5. **A deleted campaign left its memberships live — fixed, asymmetrically.** The GM's inbox still
+   showed a request waiting on a game they had thrown away, with an Approve button under it, the
+   detail read answered 200, and the player could go on submitting into it and be told it had been
+   sent. There is still no cascade and there is not going to be one — the player's row is theirs,
+   and keeping it is what makes restoring a campaign a complete undo — so the fix is an `EXISTS`
+   on the GM's half alone: the inbox, the detail read, and both decisions. The player keeps their
+   standing and gets a 409 naming the actual reason instead of a 404 that would read as *you have
+   no such membership*. The guard asserts the restore too.
+
+6. **`apply-migrations.sh` trusted an exit code on the one path that had no test.** Every refusal
+   path is driven by `migration-gate.test.mjs`; the apply itself had nothing, so a `wrangler d1
+   migrations apply` that exited 0 without applying anything was read as success — the same trust
+   that produced the outage the script exists to prevent. It now re-lists and requires the gate's
+   own `proceed`, asked through `gate.mjs` rather than by grepping wrangler's prose in a second
+   place. Driven with a stub wrangler both ways: the honest one passes, the one that exits 0
+   without applying fails the job — and the script as it was exits 0 and prints "Applied."
 ### A migration that was merged but never applied took character saving down in production
 
 **The owner reported it from the live error log**, which is the only instrument that could have.

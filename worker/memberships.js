@@ -240,9 +240,25 @@ export async function submit(request, env, deps, user, id) {
     const written = await db.submitToCampaign(env.DB,
         { id, playerUserId: user.id, label, payload, now: deps.now() });
 
-    // Nothing matched: either no such membership, or one belonging to somebody else. The two are
-    // the same fact from here and answer the same way, exactly as a character id does.
-    if (!written) return fail(404, 'This account has no membership with that id.');
+    if (!written) {
+        // Nothing matched, and there are now two reasons rather than one. The row is re-read to
+        // tell them apart — only on this path, so the write itself stays a single statement with
+        // no read racing in front of it.
+        const row = await db.getMembership(env.DB, user.id, id);
+
+        // No such membership, or one belonging to somebody else. The two are the same fact from
+        // here and answer the same way, exactly as a character id does.
+        if (!row || row.player_user_id !== user.id) {
+            return fail(404, 'This account has no membership with that id.');
+        }
+
+        // **The membership is theirs and the campaign is gone.** A 404 here would be a lie the
+        // player could act on — their character is still in the list, still shows a standing, and
+        // the honest answer is about the game rather than about them. The membership is untouched
+        // and so is their own character; if the GM restores the campaign, this starts working
+        // again with the clone and the standing exactly as they were.
+        return fail(409, 'That campaign is no longer here, so nothing can be sent to it.');
+    }
 
     return json({ version: written.pending_version });
 }

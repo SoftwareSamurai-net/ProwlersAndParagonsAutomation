@@ -788,3 +788,49 @@ test('two GMs may share a campaign id, and a join lands in the campaign whose co
     assert.deepEqual(mallorysInbox.memberships.map(m => [m.id, m.hasPending]), [[inMallory, true]]);
     assert.deepEqual(alicesInbox.memberships.map(m => [m.id, m.hasPending]), [[inAlice, false]]);
 });
+
+test('a deleted campaign takes the GM’s half of every membership with it, and leaves the player’s', async () => {
+    // **The asymmetry is the design, not an oversight.** There is no cascade and there is not
+    // going to be one: the player's row is theirs, and keeping it is what makes restoring a
+    // campaign a complete undo. But a GM who deleted a game was still being shown a request
+    // waiting on it, with an Approve button under it — a decision surface for a queue that no
+    // longer means anything — and the player could go on sending snapshots into it and be told
+    // they had been sent.
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+
+    const before = await (await app.call('/api/memberships/inbox', { cookie: gm.cookie })).json();
+    assert.equal(before.memberships.length, 1, 'the positive control: it was there to lose');
+
+    assert.equal((await app.call(`/api/campaigns/${gid()}`,
+        { method: 'DELETE', cookie: gm.cookie })).status, 204);
+
+    // The GM's half is gone: no inbox row, no detail read, and no decision to make.
+    const after = await (await app.call('/api/memberships/inbox', { cookie: gm.cookie })).json();
+    assert.deepEqual(after.memberships, []);
+
+    assert.equal((await app.call(`/api/memberships/${membership}`, { cookie: gm.cookie })).status, 404);
+
+    for (const what of ['approve', 'reject']) {
+        assert.equal((await decide(app, gm.cookie, membership, what, 1)).status, 404,
+            `${what} still reached a campaign that is not there`);
+    }
+
+    // The player's half survives, and says what actually happened rather than 404-ing at them.
+    const mine = await (await app.call('/api/memberships', { cookie: player.cookie })).json();
+    assert.equal(mine.memberships.length, 1, 'the player’s own row is theirs and is untouched');
+
+    assert.equal((await app.call(`/api/memberships/${membership}`, { cookie: player.cookie })).status, 200);
+
+    const refused = await submit(app, player.cookie, membership);
+    assert.equal(refused.status, 409);
+    assert.match((await refused.json()).error, /no longer here/);
+
+    // And it is an undo: writing the campaign back brings the whole thing back, snapshot and all.
+    assert.equal((await putCampaign(app, gm.cookie)).status, 204);
+
+    const restored = await (await app.call('/api/memberships/inbox', { cookie: gm.cookie })).json();
+    assert.deepEqual(restored.memberships.map(m => [m.id, m.hasPending, m.pendingVersion]),
+        [[membership, true, 1]]);
+});

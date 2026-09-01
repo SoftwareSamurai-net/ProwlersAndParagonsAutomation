@@ -193,6 +193,176 @@ public sealed class CampaignApprovalTests
     }
 
     /// <summary>
+    /// <b>A change that moves the spend moves a row, for every cost-bearing field there is.</b>
+    ///
+    /// <para><b>This is the guard the slice shipped without, and the defect was real.</b> The diff
+    /// compared a Power on its id and its purchased ranks alone — so moving Immunity from one unit
+    /// to six produced <c>spend 7 → 22</c> and an <em>empty</em> list of changes, under a header
+    /// reading 7 → 22 Hero Points. Pros, Cons, cost variants, units, nominated Traits, an
+    /// Ability's own modifiers and every custom feature of a piece of gear were all invisible, and
+    /// gear features are the only thing gear costs Hero Points for.</para>
+    ///
+    /// <para><b><c>Compared</c> could not catch it and was never going to.</b> It counts fields
+    /// <em>examined</em>, which is the right guard against a comparison that has stopped running
+    /// and worth nothing against one that runs and looks at the wrong half of a field: the Power's
+    /// key <em>was</em> examined, so it reported a healthy 7. The check that works is the one
+    /// below — the engine's own two figures, held against the rows.</para>
+    ///
+    /// <para>Each case is driven through <see cref="CampaignDiff"/> rather than asserted on a row
+    /// name, because what a row should be <em>called</em> is a judgement and what it must
+    /// <em>exist</em> for is not. The positive control on every case is its own first assertion:
+    /// the mutation has to move the spend, or it is testing nothing.</para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(CostBearingChanges))]
+    public void EveryChangeThatMovesTheSpendMovesARow(string what, Action<CharacterSheet> change)
+    {
+        var before = ACostedSheet();
+        var after = ACostedSheet();
+        change(after);
+
+        var diff = CampaignDiff.Between(before, after, Rules, Costs);
+
+        // The positive control, and it comes first: a fixture whose mutation does not move the
+        // spend is a case that proves nothing, and this repository has shipped three of those.
+        Assert.True(diff.SpentBefore.HasValue && diff.SpentAfter.HasValue,
+            $"{what}: the engine declined to price one of the sheets, so this case tests nothing");
+        Assert.True(diff.SpentBefore != diff.SpentAfter,
+            $"{what}: the mutation did not move the spend ({diff.SpentBefore}), so it is a no-op");
+
+        Assert.True(diff.Rows.Count > 0,
+            $"{what}: the spend moved {diff.SpentBefore} → {diff.SpentAfter} and no row says why");
+        Assert.True(diff.Explained, $"{what}: Explained disagreed with the rows");
+        Assert.False(diff.Unchanged, $"{what}: reported as unchanged while the spend moved");
+    }
+
+    public static TheoryData<string, Action<CharacterSheet>> CostBearingChanges() => new()
+    {
+        { "an Ability's rank", s => s.AbilityRanks["might"] = 8 },
+        { "a Talent's rank", s => s.TalentRanks["academics"] = 5 },
+        {
+            "a Pro applied to an Ability",
+            s => s.AbilityModifiers["might"] = [new SelectedProCon("armor_piercing")]
+        },
+        {
+            "a Power's purchased ranks",
+            s => Replace(s, p => p with { PurchasedRanks = p.PurchasedRanks + 3 })
+        },
+        {
+            "a Power's units",
+            s => Replace(s, p => p with { PowerId = "immunity", PurchasedRanks = 0, Units = 6 })
+        },
+        {
+            "a Pro on a Power",
+            s => Replace(s, p => p with { Pros = [new SelectedProCon("armor_piercing")] })
+        },
+        {
+            "a Con on a Power",
+            s => Replace(s, p => p with { Cons = [new SelectedProCon("burnout")] })
+        },
+        { "a Perk's unit count", s => ReplacePerk(s, p => p with { Units = 4 }) },
+        {
+            "a custom feature on a piece of gear",
+            s => ReplaceGear(s, g => g with { Features = [new SelectedGearFeature("deflecting")] })
+        },
+        {
+            "a Pro on a piece of gear",
+            s => ReplaceGear(s, g => g with { Pros = [new SelectedProCon("armor_piercing")] })
+        },
+    };
+
+    /// <summary>
+    /// <b>The fields that move the diff without moving the spend, held to the same rule.</b>
+    ///
+    /// <para>Split from the theory above rather than folded into it, because its positive control
+    /// is that the mutation moves the <em>spend</em> — and a Tier, a Hero Point limit, a Flaw and
+    /// a narrative note move none. Each of these is still a thing a GM decides about: a Villain in
+    /// a Hero campaign, a character built with no limit, and the Flaws that are the players'
+    /// handles on one. So the requirement is the row, without the spend as its trigger.</para>
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(FreeButReportableChanges))]
+    public void EveryChangeAGmDecidesAboutMovesARow(string what, Action<CharacterSheet> change)
+    {
+        var before = ACostedSheet();
+        var after = ACostedSheet();
+        change(after);
+
+        var diff = CampaignDiff.Between(before, after, Rules, Costs);
+
+        Assert.True(diff.Ran, $"{what}: the comparison did not run");
+        Assert.True(diff.Rows.Count > 0, $"{what}: nothing was reported to the GM");
+    }
+
+    public static TheoryData<string, Action<CharacterSheet>> FreeButReportableChanges() => new()
+    {
+        { "the tier", s => s.SelectedTierId = "high_level" },
+        { "building without a points limit", s => s.UnlimitedBudget = true },
+        { "Hero or Villain", s => s.IsVillain = true },
+        { "a Flaw taken", s => s.Flaws.Add(new SelectedFlaw("alter_ego")) },
+        {
+            "what a Flaw was written to mean",
+            s => s.Flaws.Add(new SelectedFlaw("alter_ego", "Answers to a different name at work"))
+        },
+        { "a plain piece of gear", s => s.Gear.Add(new SelectedGear("A borrowed van")) },
+        {
+            "which Source a Power comes from",
+            s => Replace(s, p => p with { SourceId = "training" })
+        },
+    };
+
+    /// <summary>
+    /// A sheet with something of every kind already on it, so a mutation has something to move.
+    ///
+    /// <para><b>The Power, the Perk and the piece of gear are here rather than added by the cases,
+    /// and that is the fixture's whole job.</b> The gear cases first <em>added</em> a customised
+    /// Blaster — so nulling <c>GearDetail</c> entirely, which is exactly how the slice shipped,
+    /// left them green: an item that was not there and now is produces an Added row whatever its
+    /// detail says, and the behaviour under test was never reached. Changing an item that is
+    /// already there is the only mutation that can tell a detail comparison from no comparison,
+    /// and re-running against that null proved it.</para>
+    /// </summary>
+    private static CharacterSheet ACostedSheet()
+    {
+        var sheet = new CharacterSheet { Name = "The Control", SelectedTierId = "standard" };
+
+        sheet.AbilityRanks["might"] = 5;
+        sheet.TalentRanks["academics"] = 3;
+        sheet.SelectedPowers.Add(new SelectedPower("flight", 4));
+        sheet.Perks.Add(new SelectedPerk("headquarters"));
+        sheet.Gear.Add(new SelectedGear("Blaster"));
+
+        return sheet;
+    }
+
+    /// <summary>Rewrites the one Power on the fixture, so a case can name what it changed.</summary>
+    private static void Replace(CharacterSheet sheet, Func<SelectedPower, SelectedPower> change)
+    {
+        var only = sheet.SelectedPowers[0];
+
+        sheet.SelectedPowers.Clear();
+        sheet.SelectedPowers.Add(change(only));
+    }
+
+    /// <summary>The same for the one Perk, and for the same reason.</summary>
+    private static void ReplacePerk(CharacterSheet sheet, Func<SelectedPerk, SelectedPerk> change)
+    {
+        var only = sheet.Perks[0];
+
+        sheet.Perks.Clear();
+        sheet.Perks.Add(change(only));
+    }
+
+    /// <summary>And for the one piece of gear, which is where the fixture fault actually was.</summary>
+    private static void ReplaceGear(CharacterSheet sheet, Func<SelectedGear, SelectedGear> change)
+    {
+        var only = sheet.Gear[0];
+
+        sheet.Gear.Clear();
+        sheet.Gear.Add(change(only));
+    }
+
+    /// <summary>
     /// <b>No row anywhere in a diff prints a field name from a stored payload.</b>
     ///
     /// <para><b>Checked against the real property names of <see cref="CharacterSheet"/></b>, read

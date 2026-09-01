@@ -428,13 +428,25 @@ export async function joinCampaign(
  * <p>Both payloads come back, which is what the diff needs: the clone the campaign is holding and
  * the snapshot waiting for a decision. Neither is parsed here or anywhere on this side of the
  * wire.</p>
+ *
+ * <p><b>The GM's half needs the campaign to still be there and the player's does not</b>, and the
+ * asymmetry is the whole design rather than an oversight. A player whose GM deleted the game keeps
+ * their membership and is told, on their own screen, that it names a campaign which is not here —
+ * their rows are theirs and nothing on this server reaches in to tidy them. A GM who deleted a
+ * game has said they are done with it, and a stale link back into an approval screen for it is not
+ * a state to report: it is a decision surface for a queue that no longer means anything. No row is
+ * touched either way, so restoring the campaign restores all of it.</p>
  */
 export async function getMembership(db, userId, id) {
     return await db.prepare(
         'SELECT id, campaign_id, gm_user_id, player_user_id, character_id, label, '
         + '       approved_payload, approved_at, pending_payload, pending_at, pending_version, '
         + '       joined_at '
-        + 'FROM campaign_members WHERE id = ? AND (gm_user_id = ? OR player_user_id = ?)')
+        + 'FROM campaign_members WHERE id = ? AND ('
+        + '     player_user_id = ? '
+        + '  OR (gm_user_id = ? AND EXISTS (SELECT 1 FROM campaigns c '
+        + '                                 WHERE c.user_id = campaign_members.gm_user_id '
+        + '                                   AND c.id = campaign_members.campaign_id)))')
         .bind(id, userId, userId).first();
 }
 
@@ -466,6 +478,14 @@ export async function listMembershipsForPlayer(db, playerUserId) {
  *
  * <p><b>No payload here either</b>, and no account id: a GM learns that a character called
  * something is waiting, never whose account sent it.</p>
+ *
+ * <p><b>Only memberships of a campaign that is still there.</b> There is no cascade when a
+ * campaign is deleted and there is deliberately not going to be one — the player's half of a
+ * membership is theirs, and `campaigns.remove` keeps it so that restoring the campaign is a
+ * complete undo. But that left the GM being shown a request waiting on a game they had thrown
+ * away, with an Approve button under it, which is not honesty about a state: it is a queue that
+ * has stopped meaning anything. The `EXISTS` scopes the GM's half to campaigns they still have
+ * without touching the row, so a restore brings the whole thing back.</p>
  */
 export async function listMembershipsForGm(db, gmUserId) {
     const result = await db.prepare(
@@ -473,6 +493,9 @@ export async function listMembershipsForGm(db, gmUserId) {
         + '       approved_payload IS NOT NULL AS has_approved, '
         + '       pending_payload IS NOT NULL AS has_pending '
         + 'FROM campaign_members WHERE gm_user_id = ? '
+        + '  AND EXISTS (SELECT 1 FROM campaigns c '
+        + '              WHERE c.user_id = campaign_members.gm_user_id '
+        + '                AND c.id = campaign_members.campaign_id) '
         + 'ORDER BY joined_at DESC')
         .bind(gmUserId).all();
 
@@ -494,6 +517,12 @@ export async function listMembershipsForGm(db, gmUserId) {
  * <p><b>Scoped to the player</b>: `player_user_id = ?` is in the `WHERE`, so this cannot write a
  * snapshot into a membership belonging to somebody else, however the id was obtained. No row back
  * means exactly that, and the route answers 404.</p>
+ *
+ * <p><b>And to a campaign that is still there</b>, the same `EXISTS` as the GM's list above and
+ * for the other half of the same reason: a submission into a deleted campaign is a snapshot sent
+ * to a queue nobody reads, and the player is told it was sent. Deleting is not a way to reject —
+ * the clone and the standing survive, so a restore brings back exactly what was there — but
+ * accepting new work into a game that is gone is not a state to report, it is one to refuse.</p>
  */
 export async function submitToCampaign(db, { id, playerUserId, label, payload, now }) {
     return await db.prepare(
@@ -501,6 +530,9 @@ export async function submitToCampaign(db, { id, playerUserId, label, payload, n
         + '  label = ?, pending_payload = ?, pending_at = ?, '
         + '  pending_version = pending_version + 1 '
         + 'WHERE id = ? AND player_user_id = ? '
+        + '  AND EXISTS (SELECT 1 FROM campaigns c '
+        + '              WHERE c.user_id = campaign_members.gm_user_id '
+        + '                AND c.id = campaign_members.campaign_id) '
         + 'RETURNING pending_version')
         .bind(label, payload, now, id, playerUserId).first();
 }
@@ -531,6 +563,9 @@ export async function approveSubmission(db, { id, gmUserId, version, now }) {
         + '  pending_payload = NULL, pending_at = NULL '
         + 'WHERE id = ? AND gm_user_id = ? AND pending_version = ? '
         + '  AND pending_payload IS NOT NULL '
+        + '  AND EXISTS (SELECT 1 FROM campaigns c '
+        + '              WHERE c.user_id = campaign_members.gm_user_id '
+        + '                AND c.id = campaign_members.campaign_id) '
         + 'RETURNING id, pending_version')
         .bind(now, id, gmUserId, version).first();
 }
@@ -552,6 +587,9 @@ export async function rejectSubmission(db, { id, gmUserId, version }) {
         'UPDATE campaign_members SET pending_payload = NULL, pending_at = NULL '
         + 'WHERE id = ? AND gm_user_id = ? AND pending_version = ? '
         + '  AND pending_payload IS NOT NULL '
+        + '  AND EXISTS (SELECT 1 FROM campaigns c '
+        + '              WHERE c.user_id = campaign_members.gm_user_id '
+        + '                AND c.id = campaign_members.campaign_id) '
         + 'RETURNING id, pending_version')
         .bind(id, gmUserId, version).first();
 }

@@ -1,4 +1,5 @@
 using ProwlersAndParagonsAutomation.Engine;
+using ProwlersAndParagonsAutomation.Engine.Models;
 
 namespace ProwlersAndParagonsAutomation.Web.Services;
 
@@ -66,6 +67,29 @@ public sealed record CharacterDiff(
     /// drawing an empty list, which would read as agreement.
     /// </summary>
     public bool Ran => Compared > 0;
+
+    /// <summary>
+    /// Whether the rows account for the spend.
+    ///
+    /// <para><b>This is the positive control <see cref="Compared"/> could not be.</b> That counts
+    /// fields <em>examined</em>, which is the right guard against a comparison that has stopped
+    /// running — and it is worth nothing against one that runs and looks at the wrong half of a
+    /// field. When the diff compared a Power on its id and its ranks alone, moving Immunity from
+    /// one unit to six produced <c>spend 7 → 22</c>, no rows at all, and a healthy
+    /// <c>Compared</c> of 7: the Power's key <em>was</em> examined. The GM read "nothing changed"
+    /// above a header saying the price had trebled.</para>
+    ///
+    /// <para>So the two figures are held against the rows. If the spend moved, something must have
+    /// moved to move it, and the screen has to be able to say what — false means it cannot, which
+    /// is a defect to print rather than an empty list to draw. It is also what makes the next
+    /// cost-bearing field added to <see cref="CharacterSheet"/> fail a test instead of quietly
+    /// going unreported; counting examined fields never will.</para>
+    ///
+    /// <para>A null spend on either side is the engine declining to price a sheet, which is a
+    /// different report and not this one's business.</para>
+    /// </summary>
+    public bool Explained =>
+        SpentBefore is null || SpentAfter is null || SpentBefore == SpentAfter || Rows.Count > 0;
 }
 
 /// <summary>
@@ -141,7 +165,8 @@ public static class CampaignDiff
         // `6d → 8d`, which is how a rank is written everywhere else in this app and on the sheet.
 
         compared += CompareRanks(rows, was.AbilityRanks, after.AbilityRanks,
-            id => rules.GetAbility(id)?.Name ?? id);
+            id => rules.GetAbility(id)?.Name ?? id,
+            was.AbilityModifiers, after.AbilityModifiers, rules);
 
         compared += CompareRanks(rows, was.TalentRanks, after.TalentRanks,
             id => rules.GetTalent(id)?.Name ?? id);
@@ -152,23 +177,21 @@ public static class CampaignDiff
         // change and `added Flight 4` is an addition. Perks and Flaws carry no rank on the sheet
         // and are compared by name alone.
 
-        compared += CompareRanked(rows, "Power",
-            was.SelectedPowers.Select(
-                p => (Key: p.PowerId, Name: PowerName(rules, p.PowerId), Rank: p.PurchasedRanks)),
-            after.SelectedPowers.Select(
-                p => (Key: p.PowerId, Name: PowerName(rules, p.PowerId), Rank: p.PurchasedRanks)));
+        compared += CompareDetailed(rows, "Power",
+            was.SelectedPowers.Select(p => Entry(p.PowerId, PowerName(rules, p.PowerId), PowerDetail(rules, p))),
+            after.SelectedPowers.Select(p => Entry(p.PowerId, PowerName(rules, p.PowerId), PowerDetail(rules, p))));
 
-        compared += CompareRanked(rows, "Perk",
-            was.Perks.Select(p => (Key: p.PerkId, Name: PerkName(rules, p.PerkId), Rank: p.Units)),
-            after.Perks.Select(p => (Key: p.PerkId, Name: PerkName(rules, p.PerkId), Rank: p.Units)));
+        compared += CompareDetailed(rows, "Perk",
+            was.Perks.Select(p => Entry(p.PerkId, PerkName(rules, p.PerkId), PerkDetail(p))),
+            after.Perks.Select(p => Entry(p.PerkId, PerkName(rules, p.PerkId), PerkDetail(p))));
 
-        compared += CompareNamed(rows, "Flaw",
-            was.Flaws.Select(f => (Key: f.FlawId, Name: FlawName(rules, f.FlawId))),
-            after.Flaws.Select(f => (Key: f.FlawId, Name: FlawName(rules, f.FlawId))));
+        compared += CompareDetailed(rows, "Flaw",
+            was.Flaws.Select(f => Entry(f.FlawId, FlawName(rules, f.FlawId), Blank(f.NarrativeDetail))),
+            after.Flaws.Select(f => Entry(f.FlawId, FlawName(rules, f.FlawId), Blank(f.NarrativeDetail))));
 
-        compared += CompareNamed(rows, "Gear",
-            was.Gear.Select(g => (Key: g.Name, Name: Blank(g.Name) ?? "Unnamed")),
-            after.Gear.Select(g => (Key: g.Name, Name: Blank(g.Name) ?? "Unnamed")));
+        compared += CompareDetailed(rows, "Gear",
+            was.Gear.Select(g => Entry(g.Name ?? "", Blank(g.Name) ?? "Unnamed", GearDetail(rules, g))),
+            after.Gear.Select(g => Entry(g.Name ?? "", Blank(g.Name) ?? "Unnamed", GearDetail(rules, g))));
 
         // ── The two settings a campaign cares about ──────────────────────────────────
         //
@@ -222,39 +245,83 @@ public static class CampaignDiff
         List<DiffRow> rows,
         IReadOnlyDictionary<string, int> before,
         IReadOnlyDictionary<string, int> after,
-        Func<string, string> name)
+        Func<string, string> name,
+        IReadOnlyDictionary<string, List<SelectedProCon>>? beforeModifiers = null,
+        IReadOnlyDictionary<string, List<SelectedProCon>>? afterModifiers = null,
+        RulesRepository? rules = null)
     {
         var compared = 0;
 
-        foreach (var id in Keys(before.Keys, after.Keys))
+        foreach (var id in Keys(
+            Keys(before.Keys, beforeModifiers?.Keys ?? []),
+            Keys(after.Keys, afterModifiers?.Keys ?? [])))
         {
             var was = before.GetValueOrDefault(id);
             var now = after.GetValueOrDefault(id);
 
+            // An Ability's Pros and Cons cost Hero Points and were compared nowhere — the same
+            // blindness the Powers had, in the one collection that is not a list. Folded into the
+            // rank's own line, because "Might 6d · Area" is how the sheet reads it.
+            var wasDetail = Detail(was, beforeModifiers, id, rules);
+            var nowDetail = Detail(now, afterModifiers, id, rules);
+
             compared++;
 
-            if (was == now) continue;
+            if (string.Equals(wasDetail, nowDetail, StringComparison.Ordinal)) continue;
 
-            rows.Add(new DiffRow(
-                name(id),
-                was == 0 ? null : Rank(was),
-                now == 0 ? null : Rank(now),
-                KindOf(was == 0 ? null : "x", now == 0 ? null : "x")));
+            rows.Add(new DiffRow(name(id), wasDetail, nowDetail, KindOf(wasDetail, nowDetail)));
         }
 
         return compared;
+
+        // A rank of 0 with nothing applied to it is the same thing as an absent key — the editors
+        // leave a 0 behind when somebody steps a Trait back down, and a row reading `removed
+        // Might 0d` would be the app reporting its own bookkeeping.
+        static string? Detail(
+            int rank,
+            IReadOnlyDictionary<string, List<SelectedProCon>>? modifiers,
+            string id,
+            RulesRepository? rules)
+        {
+            var applied = modifiers?.GetValueOrDefault(id) ?? [];
+
+            if (rank == 0 && applied.Count == 0) return null;
+
+            var parts = new List<string> { Rank(rank) };
+
+            if (rules is not null)
+            {
+                parts.AddRange(applied.Select(choice => ProConLabel(rules, null, choice)));
+            }
+
+            return string.Join(" · ", parts);
+        }
     }
 
     /// <summary>
-    /// A list whose entries carry a rank — Powers, and Perks by their unit count.
+    /// One entry of a list, as this diff reads one: what identifies it, what it is called, and
+    /// everything else about it in one line of the app's own words.
+    /// </summary>
+    private static (string Key, string Name, string? Detail) Entry(
+        string key, string name, string? detail) => (key, name, detail);
+
+    /// <summary>
+    /// A list compared by key, with everything about each entry in one line.
     ///
-    /// <para>Compared by key rather than by position, because a list reordered is not a list
+    /// <para><b>The detail line is the whole of why this replaced a comparison on rank alone.</b>
+    /// A Power compared on its id and its purchased ranks is blind to its Pros, its Cons, its cost
+    /// variant, its units, its nominated Trait and its Source — so a player could move Immunity
+    /// from one unit to six, the header would read <c>7 → 22 Hero Points</c>, and the list of what
+    /// changed would be empty. Gear was worse: keyed on its name, and features are the only thing
+    /// gear costs Hero Points for. See <c>PROGRESS.md</c> item 19.</para>
+    ///
+    /// <para><b>Compared by key rather than by position</b>, because a list reordered is not a list
     /// changed and a positional comparison would report every entry after an insertion.</para>
     /// </summary>
-    private static int CompareRanked(
+    private static int CompareDetailed(
         List<DiffRow> rows, string kind,
-        IEnumerable<(string Key, string Name, int Rank)> before,
-        IEnumerable<(string Key, string Name, int Rank)> after)
+        IEnumerable<(string Key, string Name, string? Detail)> before,
+        IEnumerable<(string Key, string Name, string? Detail)> after)
     {
         var was = Latest(before);
         var now = Latest(after);
@@ -267,48 +334,127 @@ public static class CampaignDiff
             var had = was.TryGetValue(key, out var b);
             var has = now.TryGetValue(key, out var a);
 
-            if (had && has && b.Rank == a.Rank) continue;
-
-            var what = has ? a.Name : b.Name;
+            if (had && has && string.Equals(b.Detail, a.Detail, StringComparison.Ordinal)) continue;
 
             rows.Add(new DiffRow(
-                $"{kind}: {what}",
-                had ? Rank(b.Rank) : null,
-                has ? Rank(a.Rank) : null,
+                $"{kind}: {(has ? a.Name : b.Name)}",
+                had ? b.Detail : null,
+                has ? a.Detail : null,
                 KindOf(had ? "x" : null, has ? "x" : null)));
         }
 
         return compared;
     }
 
-    /// <summary>A list whose entries carry no rank — Flaws, and gear by its name.</summary>
-    private static int CompareNamed(
-        List<DiffRow> rows, string kind,
-        IEnumerable<(string Key, string Name)> before,
-        IEnumerable<(string Key, string Name)> after)
+    /// <summary>
+    /// Everything about one Power, in the words the sheet already prints for it.
+    ///
+    /// <para><b>Assembled from the app's own labels rather than from a spelling of its own.</b>
+    /// <c>SheetView</c> writes a Pro as <c>Name (Variant)</c> and a Power's units as <c>×N</c>, and
+    /// a cost variant goes through <see cref="Labels.Humanise"/> in three places already — so this
+    /// reads the same, and a row cannot print a field name or an id that the sheet would not.</para>
+    /// </summary>
+    private static string PowerDetail(RulesRepository rules, SelectedPower power)
     {
-        var was = Latest(before.Select(e => (e.Key, e.Name, Rank: 0)));
-        var now = Latest(after.Select(e => (e.Key, e.Name, Rank: 0)));
-        var compared = 0;
+        var parts = new List<string> { Rank(power.PurchasedRanks) };
+        var model = rules.GetPower(power.PowerId);
 
-        foreach (var key in Keys(was.Keys, now.Keys))
+        if (power.CostVariantKey is { Length: > 0 } variant) parts.Add(Labels.Humanise(variant));
+
+        // The book's own noun for a unit where the data carries one — "immunities", "Resolve" —
+        // and the sheet's `×N` where it does not. A bare count would be this class inventing a
+        // word for something the rules data already names.
+        if (power.Units != 1)
         {
-            compared++;
-
-            var had = was.ContainsKey(key);
-            var has = now.ContainsKey(key);
-
-            if (had == has) continue;
-
-            rows.Add(new DiffRow(
-                kind,
-                had ? was[key].Name : null,
-                has ? now[key].Name : null,
-                has ? DiffKind.Added : DiffKind.Removed));
+            parts.Add(model?.CostUnitLabel is { Length: > 0 } unit
+                ? $"{power.Units} {unit}"
+                : $"×{power.Units}");
         }
 
-        return compared;
+        // Boost and Expertise nominate a Trait, and for Boost it sets the per-rank cost — so it is
+        // never presentation. Named through the same lookups every other row uses.
+        if (power.BaselineTraitId is { Length: > 0 } trait) parts.Add($"on {TraitName(rules, trait)}");
+
+        if (power.SourceId is { Length: > 0 } source)
+        {
+            parts.Add(rules.GetSource(source)?.Name ?? Labels.Humanise(source));
+        }
+
+        parts.AddRange(power.Pros.Select(pro => ProConLabel(rules, model, pro)));
+        parts.AddRange(power.Cons.Select(con => ProConLabel(rules, model, con)));
+
+        return string.Join(" · ", parts);
     }
+
+    /// <summary>A Perk's unit count and whatever the player wrote beside it.</summary>
+    private static string PerkDetail(SelectedPerk perk)
+    {
+        var detail = Blank(perk.NarrativeDetail);
+
+        return detail is null ? Rank(perk.Units) : $"{Rank(perk.Units)} · {detail}";
+    }
+
+    /// <summary>
+    /// Everything a piece of gear carries, which is everything it can cost Hero Points for.
+    ///
+    /// <para>Ch.6 makes mundane gear free and untracked, so a plain item has no detail at all and
+    /// its row reads as a bare addition or removal — which is the honest report of one. A
+    /// customised item is a small character of its own, and all of it is here.</para>
+    /// </summary>
+    private static string? GearDetail(RulesRepository rules, SelectedGear gear)
+    {
+        var parts = new List<string>();
+
+        if (gear.PairedUnderTwoFisted) parts.Add("a matched pair");
+
+        parts.AddRange(gear.Features.Select(f => GearFeatureLabel(rules, f)));
+        parts.AddRange(gear.Pros.Select(pro => ProConLabel(rules, null, pro)));
+        parts.AddRange(gear.Cons.Select(con => ProConLabel(rules, null, con)));
+
+        return parts.Count == 0 ? null : string.Join(" · ", parts);
+    }
+
+    /// <summary>
+    /// A Pro or Con, written the way <c>SheetView</c> writes one.
+    ///
+    /// <para>A Power's own Pros and Cons are looked up on the Power first, because a
+    /// Power-specific entry and a generic one may share an id and the Power's own text is the one
+    /// that applies.</para>
+    /// </summary>
+    private static string ProConLabel(RulesRepository rules, PowerModel? power, SelectedProCon choice)
+    {
+        var name = power?.PowerPros.Concat(power.PowerCons).FirstOrDefault(e => e.Id == choice.Id)?.Name
+                   ?? rules.GetPro(choice.Id)?.Name
+                   ?? rules.GetCon(choice.Id)?.Name
+                   ?? Labels.Humanise(choice.Id);
+
+        if (choice.VariantKey is { Length: > 0 } variant)
+        {
+            name = $"{name} ({Labels.Humanise(variant)})";
+        }
+
+        return choice.Units is { } units ? $"{name} ×{units}" : name;
+    }
+
+    /// <summary>One custom feature of a piece of gear, with its grade where it has two.</summary>
+    private static string GearFeatureLabel(RulesRepository rules, SelectedGearFeature feature)
+    {
+        var name = rules.GetGearFeature(feature.FeatureId)?.Name ?? Labels.Humanise(feature.FeatureId);
+
+        return feature.GradeKey is { Length: > 0 } grade
+            ? $"{name} ({Labels.Humanise(grade)})"
+            : name;
+    }
+
+    /// <summary>
+    /// A nominated Trait's printed name. It may be an Ability, a Talent or a Power — Boost and
+    /// Expertise both take whichever — so all three are tried before the id is humanised.
+    /// </summary>
+    private static string TraitName(RulesRepository rules, string id) =>
+        rules.GetAbility(id)?.Name
+        ?? rules.GetTalent(id)?.Name
+        ?? rules.GetPower(id)?.Name
+        ?? Labels.Humanise(id);
 
     /// <summary>
     /// Every key in either side, in a stable order.
@@ -328,12 +474,12 @@ public static class CampaignDiff
     /// variants of one entry — but a payload arriving down a wire is not the app, and a duplicate
     /// key would throw out of <c>ToDictionary</c> and take the screen with it.</para>
     /// </summary>
-    private static Dictionary<string, (string Name, int Rank)> Latest(
-        IEnumerable<(string Key, string Name, int Rank)> entries)
+    private static Dictionary<string, (string Name, string? Detail)> Latest(
+        IEnumerable<(string Key, string Name, string? Detail)> entries)
     {
-        var found = new Dictionary<string, (string Name, int Rank)>(StringComparer.Ordinal);
+        var found = new Dictionary<string, (string Name, string? Detail)>(StringComparer.Ordinal);
 
-        foreach (var (key, name, rank) in entries) found[key ?? ""] = (name, rank);
+        foreach (var (key, name, detail) in entries) found[key ?? ""] = (name, detail);
 
         return found;
     }
