@@ -100,6 +100,32 @@ jobs:
           # Honours the SDK version pinned in global.json.
           global-json-file: global.json
 
+      - name: Cache the NuGet packages
+        # **There was no cache of any kind in this repository's workflows**, so every run
+        # re-downloaded every package: 16 seconds a run, on a restore that resolves the same
+        # graph every time.
+        #
+        # **Not `actions/setup-dotnet`'s own `cache:` input, and that is not a preference.**
+        # That input caches against a `packages.lock.json`, and this repository has none — it
+        # fails resolving `cache-dependency-path` rather than silently doing nothing, which is
+        # the better failure but still not a cache. Keyed on the project files instead: a
+        # `PackageReference` cannot move without one of them changing, and `Directory.Build.props`
+        # and `global.json` are in the key because both change what gets restored.
+        #
+        # **The `restore-keys` prefix is what stops a one-package bump costing a cold restore.**
+        # A near-miss entry restores, `dotnet restore` fetches only what actually moved, and the
+        # run then saves a fresh entry under the exact key.
+        #
+        # Qodana's caches once filled all 10 GB of this repository's ceiling at ~420 MB a branch
+        # and evicted each other; this one is a few tens of megabytes, and the key changes only
+        # when a dependency does rather than on every commit.
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
       - name: Restore
         run: dotnet restore
 
@@ -111,6 +137,20 @@ jobs:
       - name: Test
         # The suite checks powers.json against the Range/Rank/Cost transcribed from the
         # rulebook, so a data edit that contradicts the book fails here.
+        #
+        # **`PP_PROOF` is set here because the browser step below used to run this suite a
+        # second time to get it.** `ProofPages` writes the proof harnesses only when that
+        # variable is set and is otherwise inert — the *writing* is what is conditional, not
+        # the tests, so both runs executed the identical 782 assertions and the second one
+        # existed purely to leave files in `web/wwwroot`. That was 782 tests and about sixteen
+        # seconds spent proving a thing already proved eleven seconds earlier in the same job.
+        #
+        # Nothing is skipped by this: the suite is the same suite, and it now leaves the proof
+        # pages behind for the browser step and the pixel comparison that follow it. The step
+        # ordering is what makes that safe, and it is the only thing that does — a step that
+        # reads `web/wwwroot/proof-*.html` must come after this one.
+        env:
+          PP_PROOF: "1"
         run: dotnet test --no-build --configuration Release -p:ContinuousIntegrationBuild=true
 
 
@@ -228,17 +268,17 @@ jobs:
         # injected — and this step requires the real page to say PASS **and its twin to say
         # FAIL**, in the same run. A harness reporting PASS on both proves nothing about the
         # thing it claims to measure, and that is now a failure here rather than a silence.
+        #
+        # **The pages are written by the Test step above, not here.** This step used to re-run
+        # the whole 782-test bUnit suite under `PP_PROOF=1` to get them; that variable now sits
+        # on the Test step, which runs the same assertions either way. See its comment.
         run: |
           set -euo pipefail
-
-          PP_PROOF=1 dotnet test tests/ProwlersAndParagons.Web.Tests \
-            --no-build --configuration Release
 
           chrome="$(command -v google-chrome || command -v chromium-browser || command -v chromium)"
           echo "Driving with $chrome"
 
           root="$(pwd)/web/wwwroot"
-          failed=0
 
           # page:expected-verdict:extra-chrome-flags
           checks="
@@ -265,8 +305,18 @@ jobs:
           proof-slider-broken.html:SLIDER: FAIL:
           "
 
-          while IFS= read -r line; do
-            [ -z "$(echo "$line" | tr -d '[:space:]')" ] && continue
+          # One line of the list above, driven in its own Chrome. Exported so `xargs` below can
+          # call it, which is the whole reason this is a function rather than a loop body: the
+          # twenty-one launches used to run strictly one after another and each costs about a
+          # second, on a runner with four cores doing nothing. Four at a time also overlaps the
+          # first launch, which is cold and takes seventeen seconds by itself while the rest
+          # take one.
+          #
+          # **Every line this prints is emitted in a single `echo`.** Four Chromes reporting
+          # concurrently will interleave otherwise, and a failure whose `::error::` line lands
+          # between another page's output is a failure somebody scrolls past.
+          drive() {
+            line="$1"
             page="${line%%:*}"; page="${page//[[:space:]]/}"
             rest="${line#*:}"
             want="${rest%:*}"; want="${want#"${want%%[![:space:]]*}"}"
@@ -284,13 +334,59 @@ jobs:
               echo "  ok    $page ${flags:+($flags) }-> $want"
             else
               got="$(grep -o '<title>[^<]*' "$dump" | head -1 | sed 's|<title>||')"
-              echo "::error::$page ${flags:+($flags) }expected '$want', title was '${got:-<none>}'"
-              sed -n '/id="verdict"/,/<\/div>/p' "$dump" | head -12
-              failed=1
+              detail="$(sed -n '/id="verdict"/,/<\/div>/p' "$dump" | head -12)"
+              printf "::error::%sexpected '%s', title was '%s'\n%s\n" \
+                "$page ${flags:+($flags) }" "$want" "${got:-<none>}" "$detail"
+              return 1
             fi
-          done <<< "$checks"
+          }
+          export -f drive
+          export chrome root
 
-          exit "$failed"
+          # `|| true` so an empty list reaches the guard below rather than killing the step at
+          # `set -e` with no message. Red either way; only one of the two says why.
+          expected=$(printf '%s\n' "$checks" | grep -c '[^[:space:]]' || true)
+
+          if [ "${expected:-0}" -eq 0 ]; then
+            echo "::error::the proof checks list is empty, so this step would prove nothing."
+            exit 1
+          fi
+
+          echo "Driving $expected checks, four at a time."
+
+          # `-d '\n'` and not xargs's default splitting: these lines carry spaces and colons,
+          # and the default would tear `STICKY: PASS` into two arguments. `-P 4` keeps going
+          # after a page fails and exits 123 if any did, so every failing page is reported in
+          # one run rather than only the first.
+          set +e
+          printf '%s\n' "$checks" | grep '[^[:space:]]' \
+            | xargs -d '\n' -P 4 -n 1 bash -c 'drive "$1"' _ | tee /tmp/proof.log
+          status=${PIPESTATUS[2]}
+          set -e
+
+          ok=$(grep -c '^  ok    ' /tmp/proof.log || true)
+
+          # A page disagreeing with its expected verdict has already printed its own
+          # `::error::` above, naming the page and the title it actually had. This says how
+          # many, and is deliberately a separate sentence from the one below it: "a page is
+          # wrong" and "no page ran" are different faults and used to share a message that
+          # misdiagnosed the first as the second.
+          if [ "$status" -ne 0 ]; then
+            echo "::error::$((expected - ok)) of $expected proof checks did not reach the expected verdict."
+            exit 1
+          fi
+
+          # **Positive control, and this step did not have one.** `xargs` over an empty list
+          # exits 0 having run nothing, which is exactly what a mangled `checks` string would
+          # produce and reads identically to twenty-one passes — this repository's oldest
+          # failure shape. Counting the verdicts and requiring the expected number makes a list
+          # that stopped matching a red build instead of a silence.
+          if [ "${ok:-0}" -ne "$expected" ]; then
+            echo "::error::only $ok of $expected proof checks ran; the list has stopped matching."
+            exit 1
+          fi
+
+          echo "All $expected proof checks reached their expected verdict."
 
       - name: Compare screenshots against the visual-regression goldens
         # The nine checks above assert verdicts — sticky, narrow, motion, theme, shortcut,
@@ -359,9 +455,31 @@ jobs:
       - name: Publish the browser front end
         # The static site is the deliverable for web/, and publishing exercises things a
         # plain build does not — chiefly staging data/rules into wwwroot.
+        #
+        # **`EnableDefaultCompressionFormats=false` here and deliberately NOT in deploy.yml.**
+        # `BrotliCompress` was 27.5 of this step's 51 seconds — measured with
+        # `-clp:PerformanceSummary`, where it is the top task by an order of magnitude over the
+        # C# compiler itself — producing 209 `.br` and 209 `.gz` sidecars, 49 MB of publish
+        # output against 29 MB without them.
+        #
+        # **What this step exists to check cannot see one of those files.** The two steps below
+        # it are the whole point of publishing on a pull request: that every `data/rules/*.json`
+        # plus `index.html`, `_headers` and `_redirects` landed, and that
+        # `write-cloudflare-headers.sh` can still find the inline import map to hash. Both were
+        # run against an uncompressed publish before this line was written — twelve rules files,
+        # all four required files, and the script writing `_headers` with its one script hash —
+        # so this is a measurement rather than a reading of the SDK targets.
+        #
+        # **The deploy is a different question and is left alone on purpose.** Whether Cloudflare
+        # Pages ever serves those sidecars, or merely stores them, is a claim about production
+        # that nothing here has tested — and the way to answer it is against the live site, not
+        # by assuming this step's answer generalises. Dropping them from the deploy would save
+        # the same 27 seconds and a third of the upload; do it as its own change, with its own
+        # proof.
         run: |
           dotnet publish web/ProwlersAndParagons.Web.csproj \
-            --configuration Release -p:ContinuousIntegrationBuild=true -o publish
+            --configuration Release -p:ContinuousIntegrationBuild=true \
+            -p:EnableDefaultCompressionFormats=false -o publish
 
       - name: Write security headers
         # Run here as well as on deploy so a change that breaks the Content-Security-Policy
@@ -390,6 +508,51 @@ jobs:
           [ "$missing" -eq 0 ] && echo "Published site is complete."
           exit "$missing"
 
+      - name: Read the wrangler version the deploy will use
+        # **Split out of the step below so the cache after it can be keyed on the answer.**
+        # `npx --yes wrangler@<version>` was eighteen seconds a run, nearly all of it fetching
+        # a package whose version changes only when Dependabot bumps `deploy.yml`. A cache
+        # cannot be keyed on a value computed inside the step that uses it, so the read happens
+        # here and both the cache and the bundle read its output.
+        id: wrangler
+        run: |
+          set -euo pipefail
+
+          # Matches any major, not `@v3` literally: Dependabot bumps this pin, and a pattern tied
+          # to one major would stop matching — which is what the fallback below used to hide.
+          version=$(sed -n 's/^.*wrangler-action@v[0-9][0-9.]*.*# wrangler=\([0-9.]*\).*$/\1/p' .github/workflows/deploy.yml) || version=''
+
+          # **This used to fall back to a hardcoded 3.90.0, and that fallback was the hazard.**
+          # The step below says "same wrangler version as the deploy action, or the point is
+          # lost" — and a fallback is precisely how the point gets lost quietly: the sed stops
+          # matching, the step goes on bundling against a version the deploy no longer uses, and
+          # everything is green. That is this repository's oldest failure shape again, so the
+          # answer is the one it always is: fail, name the line, and make somebody look.
+          # `WranglerIsPinnedToOneVersion` is the other half — it fails the suite when the three
+          # places that name a wrangler version stop agreeing, so this is the belt to that brace.
+          [ -n "$version" ] || {
+            echo "::error::Could not read a wrangler version out of deploy.yml's"
+            echo "::error::'uses: cloudflare/wrangler-action@…  # wrangler=<version>' line."
+            echo "::error::Refusing to bundle against a guess — the whole point of that step is"
+            echo "::error::that it uses the same wrangler the deploy will."
+            exit 1
+          }
+
+          echo "deploy.yml pins wrangler@$version."
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the wrangler download
+        # Keyed on the exact version and nothing else, so the entry is stable until Dependabot
+        # moves the pin and is then replaced rather than accumulating. No `restore-keys`: a
+        # near-miss here would be another version's tarballs, which buys nothing.
+        #
+        # **This caches the download, not the install.** `npx` still unpacks into a fresh
+        # directory every run; what goes away is fetching ~30 MB from the registry.
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: npm-wrangler-${{ steps.wrangler.outputs.version }}
+
       - name: The deploy would parse this
         # **The reason this step exists.** Wrangler's bundled esbuild is older than Node's, and
         # for one week that difference shipped through both suites and a whole-tree Qodana scan
@@ -404,32 +567,14 @@ jobs:
         # this comment names the mistake so nobody makes it a third time.
         #
         # Same wrangler version as the deploy action, or the point is lost.
+        env:
+          WRANGLER_VERSION: ${{ steps.wrangler.outputs.version }}
         run: |
-          # Matches any major, not `@v3` literally: Dependabot bumps this pin, and a pattern tied
-          # to one major would stop matching — which is what the fallback below used to hide.
-          version=$(sed -n 's/^.*wrangler-action@v[0-9][0-9.]*.*# wrangler=\([0-9.]*\).*$/\1/p' .github/workflows/deploy.yml) || version=''
-
-          # **This used to fall back to a hardcoded 3.90.0, and that fallback was the hazard.**
-          # The comment four lines above says "same wrangler version as the deploy action, or the
-          # point is lost" — and a fallback is precisely how the point gets lost quietly: the sed
-          # stops matching, the step goes on bundling against a version the deploy no longer
-          # uses, and everything is green. That is this repository's oldest failure shape again,
-          # so the answer is the one it always is: fail, name the line, and make somebody look.
-          # `WranglerIsPinnedToOneVersion` is the other half — it fails the suite when the three
-          # places that name a wrangler version stop agreeing, so this is the belt to that brace.
-          [ -n "$version" ] || {
-            echo "::error::Could not read a wrangler version out of deploy.yml's"
-            echo "::error::'uses: cloudflare/wrangler-action@…  # wrangler=<version>' line."
-            echo "::error::Refusing to bundle against a guess — the whole point of this step is"
-            echo "::error::that it uses the same wrangler the deploy will."
-            exit 1
-          }
-
-          echo "Bundling the deploy with wrangler@$version, the same version as deploy.yml."
+          echo "Bundling the deploy with wrangler@$WRANGLER_VERSION, the same version as deploy.yml."
 
           # Write to a scratch directory so nothing lands in the tree the tests scan.
           out=$(mktemp -d)
-          npx --yes wrangler@"$version" pages functions build \
+          npx --yes wrangler@"$WRANGLER_VERSION" pages functions build \
             --outfile="$out/worker.js"
 
           # Positive control: something was actually written. Wrangler will happily report a
