@@ -3,34 +3,42 @@ name: Build
 on:
   workflow_dispatch:
   pull_request:
-    # **Two files, and the list is short on purpose.** Almost every Markdown file in this
-    # repository is read by a test — `CLAUDE.md` and `docs/guide/*.md` by `RepositoryGuideTests`,
+    # **One file now, and it used to be two.** Almost every Markdown file in this repository is
+    # read by a test — `CLAUDE.md` and `docs/guide/*.md` by `RepositoryGuideTests`,
     # `docs/ACCOUNTS-SETUP.md` by `AccountsContractTests`, `docs/MCP-SETUP.md` and `README.md` by
     # `McpSetupDocumentationTests`, `mcp/QUESTION-POLICY.md` by `McpQuestionPolicyTests` — so
     # "it is only docs" is false here far more often than it looks. Editing the index past its
     # line budget, or adding a guide the routing table does not name, is a red build.
     #
-    # These two are the exceptions: nothing reads them, they are the two that change on every
-    # slice, and they were the whole content of two pull requests that each spent nine minutes
-    # of Actions time proving nothing. `WorkflowFilterTests` holds this list to that claim.
+    # **`PROGRESS.md` came off this list when it stopped being unread.** `ProgressArchiveTests`
+    # opens it now, to hold the completed-work section to being a pointer rather than a place
+    # entries accumulate — which is what the shared anchor between every two concurrent branches
+    # used to be. A skipped path whose contents a test checks is a change that merges without the
+    # build that would have caught it, and `WorkflowFilterTests` says so by name.
+    #
+    # The file it left behind is 85% smaller for the same reason, so what a build now runs over is
+    # open work and a state table rather than six thousand lines of archive.
     paths-ignore:
-      - 'PROGRESS.md'
       - 'docs/HANDOVER.md'
   push:
     branches:
       - main
-    # **Two files, and the list is short on purpose.** Almost every Markdown file in this
-    # repository is read by a test — `CLAUDE.md` and `docs/guide/*.md` by `RepositoryGuideTests`,
+    # **One file now, and it used to be two.** Almost every Markdown file in this repository is
+    # read by a test — `CLAUDE.md` and `docs/guide/*.md` by `RepositoryGuideTests`,
     # `docs/ACCOUNTS-SETUP.md` by `AccountsContractTests`, `docs/MCP-SETUP.md` and `README.md` by
     # `McpSetupDocumentationTests`, `mcp/QUESTION-POLICY.md` by `McpQuestionPolicyTests` — so
     # "it is only docs" is false here far more often than it looks. Editing the index past its
     # line budget, or adding a guide the routing table does not name, is a red build.
     #
-    # These two are the exceptions: nothing reads them, they are the two that change on every
-    # slice, and they were the whole content of two pull requests that each spent nine minutes
-    # of Actions time proving nothing. `WorkflowFilterTests` holds this list to that claim.
+    # **`PROGRESS.md` came off this list when it stopped being unread.** `ProgressArchiveTests`
+    # opens it now, to hold the completed-work section to being a pointer rather than a place
+    # entries accumulate — which is what the shared anchor between every two concurrent branches
+    # used to be. A skipped path whose contents a test checks is a change that merges without the
+    # build that would have caught it, and `WorkflowFilterTests` says so by name.
+    #
+    # The file it left behind is 85% smaller for the same reason, so what a build now runs over is
+    # open work and a state table rather than six thousand lines of archive.
     paths-ignore:
-      - 'PROGRESS.md'
       - 'docs/HANDOVER.md'
 
 # **Supersede a run rather than racing it.** A force-push to a pull request branch — a rebase, a
