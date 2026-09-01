@@ -85,10 +85,7 @@ else
         <button type="button" class="btn primary" @onclick="Print">Print</button>
         <a class="btn" href="build">Back to building</a>
     </div>
-    <p class="small muted no-print">
-        One page. Turn <b>Headers and footers</b> off under <b>More settings</b> to drop the
-        browser's own address-and-date band.
-    </p>
+    <PrintOnePageHint Class="no-print" />
 }
 
 @code {

@@ -1,0 +1,22 @@
+@* What the recordings are, and the one thing about them worth saying twice.
+
+   **The figures are worked out rather than played back**, which is the whole of why a recording
+   is worth showing: the engine is running as the reader reveals each turn. Both pages that list
+   recordings said it, in the same words.
+
+   **The emphasis is here rather than at the call sites.** One page had it and one did not, which
+   is the shape of a sentence that has been copied — the phrase either matters or it does not, and
+   it does. *@
+
+<p class="@(Class ?? "small muted")">
+    Recorded conversations. <b>The figures are not recorded</b> — they are worked out as you
+    reveal each turn.
+</p>
+
+@code {
+    /// <summary>
+    /// The paragraph's classes. Defaults to the small print this sits in on the portfolio page;
+    /// the replay page passes its own, where the line is the page's opening rather than a note.
+    /// </summary>
+    [Parameter] public string? Class { get; set; }
+}
