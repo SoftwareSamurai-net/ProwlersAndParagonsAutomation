@@ -4682,29 +4682,32 @@ public sealed class WebPresentationTests
     /// left this scanning for a spelling nothing uses would satisfy "no component calls it" for
     /// free — the way this repository has shipped a guard measuring nothing before.</para>
     /// </summary>
+    /// <summary>Everything under <c>web/</c> that renders. Beside the test, not rebuilt in it.</summary>
+    private static readonly string[] DirectoriesThatRender = ["Components", "Pages", "Layout"];
+
     [Fact]
     public void NothingDrawnCallsTheSilentRestore()
     {
-        const string Silent = "RestoreBeforeFirstRender";
+        const string silent = "RestoreBeforeFirstRender";
 
         var boot = File.ReadAllText(Path.Combine(WebRoot, "Program.cs"));
 
-        Assert.True(boot.Contains(Silent, StringComparison.Ordinal),
-            "web/Program.cs no longer calls " + Silent + ", so either the boot path has stopped "
+        Assert.True(boot.Contains(silent, StringComparison.Ordinal),
+            "web/Program.cs no longer calls " + silent + ", so either the boot path has stopped "
             + "using it or it has been renamed — and this test is scanning for a spelling nothing "
             + "uses, which would pass whatever every component did.");
 
-        var drawn = new[] { "Components", "Pages", "Layout" }
+        var drawn = DirectoriesThatRender
             .SelectMany(dir => SourceFiles(Path.Combine(WebRoot, dir), "*.razor")
                 .Concat(SourceFiles(Path.Combine(WebRoot, dir), "*.cs")))
             .Where(NotBuildArtefact)
-            .Where(path => File.ReadAllText(path).Contains(Silent, StringComparison.Ordinal))
+            .Where(path => File.ReadAllText(path).Contains(silent, StringComparison.Ordinal))
             .Select(Path.GetFileName)
             .ToList();
 
         Assert.True(drawn.Count == 0,
             "These render, so the first render has already happened by the time they run — and "
-            + Silent + " tells nothing drawing the character that it changed, so the control that "
+            + silent + " tells nothing drawing the character that it changed, so the control that "
             + "was clicked redraws and the sheet beneath it does not. Call Open instead:\n  "
             + string.Join("\n  ", drawn));
     }

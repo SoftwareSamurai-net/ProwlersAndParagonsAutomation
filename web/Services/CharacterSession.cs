@@ -251,7 +251,7 @@ public sealed class CharacterSession
     }
 
     /// <summary>
-    /// The same as <see cref="Restore"/>, for a caller that is overwriting the character on
+    /// The same as <see cref="Open"/>, for a caller that is overwriting the character on
     /// screen rather than switching to one that already lives under its own id — importing a
     /// file, and opening a recorded character.
     ///
