@@ -70,7 +70,7 @@ public sealed class JoinLinkTests
         await using var ctx = await AGmWithACampaign();
 
         var code = await CodeOn(ctx);
-        var link = (await SettingsPanelOf(ctx)).QuerySelector(".joinlink code");
+        var link = (await SettingsPanelOf(ctx)).QuerySelector(".joinlink .url");
 
         Assert.NotNull(link);
 
@@ -99,7 +99,7 @@ public sealed class JoinLinkTests
 
         var panel = await SettingsPanelOf(ctx);
         var spoken = panel.QuerySelector(".joincode")!.TextContent.Trim();
-        var link = panel.QuerySelector(".joinlink code")!.TextContent.Trim();
+        var link = panel.QuerySelector(".joinlink .url")!.TextContent.Trim();
 
         // The control: the spoken form really is the hyphenated one, so what follows is a
         // difference rather than two readings of the same string.

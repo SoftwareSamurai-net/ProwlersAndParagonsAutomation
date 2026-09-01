@@ -1229,15 +1229,17 @@ label {
    problem.
 
    **It does not wrap.** A URL broken across two lines is one somebody half-selects, so the box
-   scrolls sideways instead — the rule every wide block in this file follows. And the face is
-   `--font-body` rather than the browser's `<code>` default, which would be the one typeface on
-   the site that theme.css does not choose. */
+   scrolls sideways instead — the rule every wide block in this file follows.
+
+   **It is a span and not a `<code>`**, because `NoPageSetsAnythingInMonospaceForThePlayer` bans
+   that tag on any page a player reads — monospace there has always turned out to be an internal
+   name. A URL is not code, so the guard was right and the element changed. */
 .joinlink {
     margin: var(--space-1) 0;
     overflow-x: auto;
 }
 
-.joinlink code {
+.joinlink .url {
     display: inline-block;
     user-select: all;
     -webkit-user-select: all;
