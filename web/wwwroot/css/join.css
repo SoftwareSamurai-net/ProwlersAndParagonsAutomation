@@ -1,0 +1,399 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   join.html — the page a player is sent before they have an account.
+
+   **A second stylesheet rather than a section of app.css**, because app.css is the
+   application's: it is loaded by index.html, it styles components that only exist
+   once WebAssembly has landed, and this page is a static file that never boots the
+   app. Putting forty rules for one page into it would make every visitor download
+   them to run the wizard, and make this page wait on the largest stylesheet on the
+   site to draw a paragraph.
+
+   **It names no colour, no typeface and no size of its own.** Every value below is
+   a token out of theme.css, which is the rule the whole front end is held to and
+   the reason this page is in the same four palettes as the app — including the
+   print one, so a GM can hand it out on paper. `NoComponentNamesAColour` and
+   `NoComponentNamesATypeface` scan every stylesheet under `wwwroot`, this one
+   included; `EveryTokenTheJoinPageAsksForIsDefinedInThemeCss` catches the other
+   direction, a token that was renamed out from under a rule here.
+
+   **The pairs of ink and ground below are the ones already measured.** --ink on
+   --surface, --panel, --panel-sunk, --accent-soft and --danger-soft; --muted on
+   --surface and --panel; --heading on --surface, --panel and --panel-sunk;
+   --on-primary on --primary. All of them are in
+   `EveryScreenPairInUseHoldsItsContrastFloor`, so nothing here is a colour
+   combination nobody has put a number on. Adding a new pair means adding it there.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* The reset app.css would otherwise be doing. Kept to what this page uses. */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+h1,
+h2,
+h3,
+p,
+ul,
+ol,
+dl,
+dd,
+dt {
+    margin: 0;
+}
+
+ul,
+ol {
+    padding: 0;
+}
+
+body {
+    margin: 0;
+    padding: var(--space-7) var(--space-5) var(--space-8);
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: var(--text-base);
+    line-height: 1.6;
+}
+
+.sheet {
+    max-width: 46rem;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-7);
+}
+
+/* ── Masthead ───────────────────────────────────────────────────────────── */
+
+.masthead {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.eyebrow {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    letter-spacing: var(--label-track);
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+h1 {
+    font-family: var(--font-display);
+    font-size: var(--text-3xl);
+    line-height: var(--display-leading);
+    letter-spacing: var(--heading-track);
+    color: var(--heading);
+    text-wrap: balance;
+}
+
+.standfirst {
+    font-size: var(--text-lg);
+    max-width: 34rem;
+}
+
+/* ── Sections ───────────────────────────────────────────────────────────── */
+
+h2 {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    letter-spacing: var(--display-track);
+    text-transform: uppercase;
+    color: var(--heading);
+    margin-bottom: var(--space-5);
+    padding-bottom: var(--space-2);
+    border-bottom: var(--rule-weight) solid var(--rule);
+}
+
+/* The one thing on the page a reader has to act on before anything else works,
+   so it is the one thing wearing the accent. */
+.note {
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius-small) var(--radius-small) 0;
+    padding: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.note-head {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    letter-spacing: var(--display-track);
+    text-transform: uppercase;
+}
+
+/* ── The steps. Numbered because joining is a sequence: step three cannot be
+      done before step one, which is what a numeral here is claiming. ─────── */
+
+.steps {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.steps > li {
+    display: grid;
+    grid-template-columns: 2.5rem 1fr;
+    column-gap: var(--space-5);
+    row-gap: var(--space-3);
+    align-items: start;
+}
+
+.num {
+    grid-row: span 2;
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 2px solid var(--accent);
+    border-radius: var(--radius-pill);
+    background: var(--panel);
+    color: var(--heading);
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    line-height: 2.25rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.step-title {
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    letter-spacing: var(--heading-track);
+    min-height: 2.5rem;
+    display: flex;
+    align-items: center;
+}
+
+.step-body {
+    grid-column: 2;
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.step-body strong {
+    color: var(--ink);
+}
+
+/* A route through the app, in the words the screens themselves use. */
+.trail {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    letter-spacing: var(--display-track);
+}
+
+.trail span {
+    padding: var(--space-0) var(--space-3);
+    border: var(--rule-weight) solid var(--rule);
+    border-radius: var(--radius-hair);
+    background: var(--panel-sunk);
+    color: var(--ink);
+}
+
+.trail em {
+    font-style: normal;
+    color: var(--muted);
+}
+
+.code {
+    display: inline-block;
+    font-family: var(--font-display);
+    font-size: var(--text-xl);
+    letter-spacing: var(--banner-track);
+    color: var(--heading);
+    background: var(--panel-sunk);
+    border: var(--rule-weight) dashed var(--rule);
+    border-radius: var(--radius-small);
+    padding: var(--space-1) var(--space-4);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Reference cards ────────────────────────────────────────────────────── */
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+    gap: var(--space-5);
+}
+
+.card {
+    background: var(--panel);
+    border: var(--rule-weight) solid var(--rule);
+    border-radius: var(--radius);
+    padding: var(--space-5);
+    box-shadow: var(--shadow-1);
+}
+
+.card h3 {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    letter-spacing: var(--display-track);
+    text-transform: uppercase;
+    color: var(--heading);
+    margin-bottom: var(--space-4);
+}
+
+.card dl {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.card dt {
+    font-weight: 700;
+    font-size: var(--text-sm);
+}
+
+.card dd {
+    margin-top: var(--space-1);
+    font-size: var(--text-sm);
+    color: var(--muted);
+}
+
+/* What the screen calls a standing, drawn the way the screen draws one. */
+.pill {
+    display: inline-block;
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    letter-spacing: var(--label-track);
+    text-transform: uppercase;
+    padding: var(--space-0) var(--space-3);
+    border: var(--rule-weight) solid var(--rule);
+    border-radius: var(--radius-pill);
+    background: var(--panel-sunk);
+    color: var(--ink);
+}
+
+.pill.approved {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.pill.refused {
+    border-color: var(--danger);
+    background: var(--danger-soft);
+}
+
+/* A refusal quoted from the app, so a player can match it to what they are
+   looking at rather than to a paraphrase of it. */
+.said {
+    font-style: italic;
+}
+
+/* ── Closing list ───────────────────────────────────────────────────────── */
+
+.plain {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.plain li {
+    padding-left: var(--space-4);
+    border-left: 2px solid var(--rule);
+    color: var(--muted);
+}
+
+.plain strong {
+    color: var(--ink);
+}
+
+footer {
+    border-top: var(--rule-weight) solid var(--rule);
+    padding-top: var(--space-5);
+    color: var(--muted);
+    font-size: var(--text-sm);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+a {
+    color: var(--heading);
+    text-underline-offset: 2px;
+}
+
+a:hover {
+    background: var(--panel-sunk);
+}
+
+:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+}
+
+.home {
+    font-family: var(--font-display);
+    font-size: var(--text-sm);
+    letter-spacing: var(--display-track);
+    text-transform: uppercase;
+    background: var(--primary);
+    color: var(--on-primary);
+    text-decoration: none;
+    align-self: flex-start;
+    padding: var(--space-3) var(--space-5);
+    border-radius: var(--radius-small);
+    box-shadow: var(--shadow-1);
+}
+
+.home:hover {
+    background: var(--primary);
+}
+
+@media (max-width: 30rem) {
+    .steps > li {
+        grid-template-columns: 2rem 1fr;
+        column-gap: var(--space-4);
+    }
+
+    .num {
+        width: 2rem;
+        height: 2rem;
+        line-height: 1.75rem;
+        font-size: var(--text-base);
+    }
+
+    .step-title {
+        font-size: var(--text-lg);
+        min-height: 2rem;
+    }
+}
+
+/* ── Paper ──────────────────────────────────────────────────────────────── */
+
+/* theme.css already restates the whole palette for print and scopes the dark
+   half to `screen`, so this only has to deal with layout: a handout is printed
+   and read at a table, and a step split across a page break is one somebody
+   misses. */
+@media print {
+    body {
+        padding: 0;
+    }
+
+    .sheet {
+        max-width: none;
+        gap: var(--space-6);
+    }
+
+    .home {
+        display: none;
+    }
+
+    section,
+    .card,
+    .steps > li {
+        break-inside: avoid;
+    }
+}

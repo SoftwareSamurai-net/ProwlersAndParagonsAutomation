@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<!-- The page a GM sends a player before that player has anything.
+     **A static file, deliberately not a Blazor route.** Everything here is true before
+     WebAssembly has landed and stays true for somebody with no account at all, so making
+     it a route would mean a reader downloading the whole application to be told how to
+     sign in to it — and would put the instructions behind the thing they are instructions
+     for. `_redirects` sends every unknown path to index.html with a 200, but a file that
+     exists on disk is served ahead of that rule, so /join.html is this page.
+     data-mode is stamped for the same reason index.html stamps it: every palette block in
+     theme.css names one, and without it this page matches none of them. js/theme.js then
+     stamps data-theme if the reader has chosen light or dark in the app, so the handout
+     arrives in the palette they already picked. -->
+<html lang="en" data-mode="hero">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Joining a campaign — Prowlers &amp; Paragons</title>
+    <meta name="description"
+          content="How to sign in, join a campaign with a code, and send a character to the GM for approval." />
+    <link rel="stylesheet" href="/css/theme.css" />
+    <link rel="stylesheet" href="/css/join.css" />
+    <!-- app.css is not linked. It styles components that exist only once the app has
+         booted, and this page boots nothing; join.css is the whole of what it needs. -->
+    <script src="/js/theme.js"></script>
+</head>
+
+<body>
+    <div class="sheet">
+
+        <header class="masthead">
+            <p class="eyebrow">Prowlers &amp; Paragons Ultimate Edition</p>
+            <h1>How to join the campaign</h1>
+            <p class="standfirst">
+                Everything you need to get your character into the campaign: how to get in, how to
+                join with the code, and how a change you make becomes a change that counts at the
+                table.
+            </p>
+        </header>
+
+        <section class="note">
+            <p class="note-head">You need an invitation first</p>
+            <p>
+                There is no sign-up. Send your GM the email address you want to use and they will add
+                it to the list. Until it is on there, asking for a sign-in link does nothing at all —
+                and it does not tell you that, so if the mail never arrives, that is usually why.
+            </p>
+        </section>
+
+        <section>
+            <h2>Five steps, in order</h2>
+
+            <ol class="steps">
+                <li>
+                    <span class="num" aria-hidden="true">1</span>
+                    <p class="step-title">Sign in — there is no password</p>
+                    <div class="step-body">
+                        <p>
+                            Open <a href="/signin">Your account</a>, type your address, and a
+                            one-click link arrives by mail. Open the link and you are in. Nothing to
+                            remember, nothing to reset.
+                        </p>
+                        <p>
+                            While you are there, set <strong>What to call you</strong> — that is the
+                            name your GM sees beside your characters.
+                        </p>
+                    </div>
+                </li>
+
+                <li>
+                    <span class="num" aria-hidden="true">2</span>
+                    <p class="step-title">Build your character</p>
+                    <div class="step-body">
+                        <p>
+                            Work through <a href="/">the wizard</a> as normal. Your characters follow
+                            the account, so you can pick a build up on your phone and finish it on a
+                            laptop. Five characters per account.
+                        </p>
+                        <p>
+                            If you had already started someone in this browser before signing in, the
+                            account page offers to keep them. It never does it silently.
+                        </p>
+                    </div>
+                </li>
+
+                <li>
+                    <span class="num" aria-hidden="true">3</span>
+                    <p class="step-title">Join with the code your GM reads out</p>
+                    <div class="step-body">
+                        <p>
+                            The code is ten characters in two halves — <span class="code">Q4TWX-NPRKM</span>
+                            — and the hyphen and the capitals are only there to make it easier to say
+                            out loud. Type it however you like.
+                        </p>
+                        <p class="trail">
+                            <span>Campaigns</span><em>→</em><span>Games you are in</span><em>→</em><span>Join a game</span><em>→</em><span>Join</span>
+                        </p>
+                        <p>
+                            <strong>The character on screen is the one that joins</strong>, so open
+                            the right one first. If you have not chosen a tier yet, the campaign's
+                            tier is filled in for you. If you have chosen a different one, nothing is
+                            changed and the page says so — take that to your GM rather than fixing it
+                            yourself.
+                        </p>
+                        <p><a href="/campaign">Campaigns is here</a>.</p>
+                    </div>
+                </li>
+
+                <li>
+                    <span class="num" aria-hidden="true">4</span>
+                    <p class="step-title">Keep building — none of it reaches your GM</p>
+                    <div class="step-body">
+                        <p>
+                            Your rows are yours. Buy things, sell them back, rename the character,
+                            start over. Joining a game does not put anything in front of anyone and
+                            does not need permission.
+                        </p>
+                    </div>
+                </li>
+
+                <li>
+                    <span class="num" aria-hidden="true">5</span>
+                    <p class="step-title">Send for approval when you want it to count</p>
+                    <div class="step-body">
+                        <p>
+                            With the character on screen, press <strong>Send for approval</strong> on
+                            its row under <em>Games you are in</em>. That sends a snapshot;
+                            <strong>your own copy is unchanged</strong> and you can carry on editing.
+                        </p>
+                        <p>
+                            Your GM reads a line-by-line diff — <em>Tier: Standard → High Level</em>,
+                            <em>Might 6d → 8d</em>, <em>added Flight 4</em> — and either approves or
+                            rejects the whole thing. There is no accepting half of it.
+                        </p>
+                        <p>
+                            Only one submission waits at a time. Send again and it replaces the one
+                            that was waiting, so if you spot a mistake after sending, just fix it and
+                            resend.
+                        </p>
+                    </div>
+                </li>
+            </ol>
+        </section>
+
+        <section>
+            <h2>What the screens tell you</h2>
+
+            <div class="cards">
+                <div class="card">
+                    <h3>Where you stand</h3>
+                    <dl>
+                        <dt><span class="pill approved">Approved for Nightfall</span></dt>
+                        <dd>What your GM has. This is the sheet to print and play from.</dd>
+
+                        <dt><span class="pill">Changes pending</span></dt>
+                        <dd>
+                            You have sent something and it has not been decided yet. The approved
+                            sheet is still the one in play.
+                        </dd>
+
+                        <dt><span class="pill refused">Changes turned down</span></dt>
+                        <dd>
+                            Your GM read the snapshot and said no. Nothing of yours was changed and
+                            the approved sheet is still the one in play — fix what they asked for and
+                            send it again.
+                        </dd>
+
+                        <dt><span class="pill">Not submitted</span></dt>
+                        <dd>In the game, but nothing sent yet. Send when you are ready.</dd>
+                    </dl>
+                </div>
+
+                <div class="card">
+                    <h3>If the code will not take</h3>
+                    <dl>
+                        <dt class="said">That is not a code.</dt>
+                        <dd>A letter or two is off. Check and retype.</dd>
+
+                        <dt class="said">No game is using that code.</dt>
+                        <dd>
+                            It has been replaced. Ask for the current one — a new code never removes
+                            anyone already in.
+                        </dd>
+
+                        <dt class="said">That is a lot of codes.</dt>
+                        <dd>Too many tries too quickly. Wait a minute and try again.</dd>
+
+                        <dt><span class="pill refused">Join is disabled</span></dt>
+                        <dd>No character is open. Open one and the button comes back.</dd>
+                    </dl>
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <h2>Worth knowing</h2>
+
+            <ul class="plain">
+                <li>
+                    <strong>A Trait Cap your GM sets is information, not a fence.</strong> It shows on
+                    your tier page and nothing is checked against it. Going over it is a
+                    conversation, not an error.
+                </li>
+                <li>
+                    <strong>A tier that disagrees with the campaign's is not an error either.</strong>
+                    Campaigns climb tiers in play. The site reports the difference and changes nothing
+                    either way.
+                </li>
+                <li>
+                    <strong>Nothing is ever repaired for you.</strong> An illegal build is reported,
+                    never quietly fixed — the numbers stay yours.
+                </li>
+                <li>
+                    <strong>You can leave, and your character is yours either way.</strong> Under
+                    <em>Games you are in</em>, <strong>Leave</strong> then <strong>Leave for
+                    good</strong> takes the character out of the game. Your GM can remove one too.
+                    Neither touches your own copy — only the campaign's.
+                </li>
+                <li>
+                    <strong>Sign out and your characters stay put.</strong> They live on the account,
+                    not in the browser.
+                </li>
+            </ul>
+        </section>
+
+        <footer>
+            <p>
+                Bring the tier, the Hero Point total and anything the diff flagged to session zero,
+                and settle it there rather than over mail.
+            </p>
+            <a class="home" href="/">Open the app</a>
+        </footer>
+
+    </div>
+</body>
+
+</html>

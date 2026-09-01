@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | **5105 across five suites** — 4044 on the engine, 782 rendering components with bUnit, 246 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 133**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **The leave/notify/view slice added 28 on top of that**, all five suites re-run on the rebased branch: bUnit **769 → 781**, accounts **231 → 246**, and engine **4042 → 4043** — one, because what that suite otherwise gained were assertions inside `AccountsContractTests` rather than new facts, and the one is the label guard the fourth defect needed. The pixel and gate suites are untouched. 4043 + 781 + 246 + 14 + 19 = 5103.<br><br>**This row has now gone wrong in four distinct ways, and the fourth is the subtlest.** (1) It once read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them — a row that does not add up is the cheapest tell there is. (2) and (3) are recorded above and below. **(4) This slice branched at `6cce0e1`, measured its engine baseline as 4041, and then read 4042 off `main`'s CI — and concluded from the gap that one engine test exists on a Linux runner and not on a Windows checkout.** It does not. `main`'s CI reported 4041 for `e2c8f9b7` and `e0cbd15` and **4042 only from `16b8e68`**, the merge that added `WranglerIsPinnedToOneVersion`; the six Dependabot pull requests had landed underneath this branch while it was open. The engine count is identical on both platforms at every commit where both were measured. **A stale baseline and a platform bug look exactly alike from inside a long-lived branch**, and the difference is one `git fetch` — so re-measure the baseline on `main` *as it is now*, not as it was when you branched. Re-run all five suites rather than adding to this number. |
+| Tests | **5110 across five suites** — 4049 on the engine, 782 rendering components with bUnit, 246 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 133**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **The leave/notify/view slice added 28 on top of that**, all five suites re-run on the rebased branch: bUnit **769 → 781**, accounts **231 → 246**, and engine **4042 → 4043** — one, because what that suite otherwise gained were assertions inside `AccountsContractTests` rather than new facts, and the one is the label guard the fourth defect needed. The pixel and gate suites are untouched. 4043 + 781 + 246 + 14 + 19 = 5103.<br><br>**This row has now gone wrong in four distinct ways, and the fourth is the subtlest.** (1) It once read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them — a row that does not add up is the cheapest tell there is. (2) and (3) are recorded above and below. **(4) This slice branched at `6cce0e1`, measured its engine baseline as 4041, and then read 4042 off `main`'s CI — and concluded from the gap that one engine test exists on a Linux runner and not on a Windows checkout.** It does not. `main`'s CI reported 4041 for `e2c8f9b7` and `e0cbd15` and **4042 only from `16b8e68`**, the merge that added `WranglerIsPinnedToOneVersion`; the six Dependabot pull requests had landed underneath this branch while it was open. The engine count is identical on both platforms at every commit where both were measured. **A stale baseline and a platform bug look exactly alike from inside a long-lived branch**, and the difference is one `git fetch` — so re-measure the baseline on `main` *as it is now*, not as it was when you branched. Re-run all five suites rather than adding to this number. **The handout added 5, all on the engine suite** — `JoinPageTests`' three, plus one case each on `NoComponentNamesAColour` and `NoComponentNamesATypeface` for `join.html`. Measured the way the lesson above says to, and it earned its keep: `main` moved twice while this branch was open, so the baseline was re-read after *each* merge — 4041 at branch time, 4043, then 4044 — and both .NET suites were re-run on the merged tree each time, ending at 4049 and 782. **The other three were not re-run and are carried forward**, which this row is only allowed to do because nothing in a static page can reach them: no worker route, and the pixel comparator reads `proof-*.html` alone. |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **The deploy applies pending D1 migrations before the Pages upload, and the apply half is now proven rather than assumed.** The first run failed on a file mode rather than the credential everybody was watching; the run after it read the live database, found nothing pending, and shipped — which established D1 *Read* only, because a token holding just Read produces that exact log and then fails on the first migration that actually has to be applied. **`0007_decision_recorded.sql` was that migration.** On the deploy of `a978806` the gate read one pending file, classified it additive, applied it (`0007_decision_recorded.sql ✅`), **and then asked the database again** — `No migrations to apply!`, the script's own positive control, which is what makes this "the schema moved" rather than "wrangler exited 0". So **D1: Edit is granted and the whole mechanism has now run end to end.** See [`docs/guide/hosting.md`](docs/guide/hosting.md) |
@@ -1766,6 +1766,56 @@ told the constraints and nothing about the work. Five more findings, all reprodu
 - **A GM cannot be told a submission's age**, because the two timestamps were removed from the
   detail read rather than bound — see finding 3 above; they are in the two lists, where a "sent
   three hours ago" belongs, and nothing prints one yet.
+
+### The handout is a static file at `/join.html`, and the scans that would have missed it
+
+**A GM had nothing to send a player.** The three campaign screens explain themselves to somebody
+already signed in, and every step before that — being invited, that an uninvited address is refused
+in silence, that the character on screen is the one a code joins — was known only to whoever built
+it. `web/wwwroot/join.html` is that page: invitation, sign-in, build, join by code, send for
+approval, plus what a standing means and what each join refusal says.
+
+- **A static file rather than a Blazor route, deliberately.** All of it is true before WebAssembly
+  has landed and none of it should sit behind the thing it explains — a route would mean
+  downloading the application to be told how to sign in to it. `_redirects` sends every unknown
+  path to `index.html` with a 200, and a file that exists on disk is served ahead of that rule, so
+  `/join.html` is the page. It needs no policy change either: `default-src 'self'` already covers a
+  same-origin stylesheet, the self-hosted faces and `js/theme.js`, which is included so the handout
+  arrives in whichever palette the reader already chose in the app.
+- **It names no colour, face or size of its own**, so it is in all four palettes and prints on the
+  print one. `join.css` is a second stylesheet rather than a section of `app.css`, which is the
+  application's: linking `app.css` would make every visitor download the wizard's rules to read a
+  paragraph, and make the handout wait on the largest stylesheet on the site.
+- **The presentation scans enumerate every stylesheet under `wwwroot` now, instead of reading
+  `app.css` by name.** `join.css` was outside `NoComponentNamesAColour` and
+  `NoComponentNamesATypeface` from the moment it landed, with the whole suite green — a list of
+  filenames goes stale on exactly the change that most needs checking, which is the failure
+  `RepositoryGuideTests` already exists to prevent for the guide set. `join.html` is named
+  alongside `index.html` for the same reason. Proven by mutation: a hex in `join.css` is reported
+  as *"join.css names a colour by hex value"*, and the first attempt at that mutation missed its
+  anchor and passed — a no-op, recorded here because it is the failure mode this discipline is for.
+- **`--heading` on `--surface` joins the measured contrast pairs.** Every `h1` and `h2` in the
+  application was already that pair and it was unlisted; the handout is entirely that pair, being a
+  page of headings with no panel under them. Green in all four palettes on the first run, so this
+  documents a gap in the list rather than a fault in the palettes.
+- **`EveryTokenTheHandoutAsksForIsDefinedInThemeCss`** is the guard the enumerated scans cannot
+  give. A misspelt custom property is the quietest failure in CSS — `var(--panel-sunken)` does not
+  warn, leaves the declaration with no value, and draws a card with no ground, which is
+  indistinguishable from a design that wanted none.
+
+- **Merging cleanly is not the same as still being true.** `main` shipped leaving a campaign, a GM
+  removing a member, and `ChangesTurnedDown` while this branch was open. Three files conflicted and
+  none of them was the handout — it merged without a mark and was *wrong*: it listed three standings
+  where there are now four, and told a player nothing about a control that had appeared on the
+  screen it describes. Both are in it now, in the app's own words (**Leave** then **Leave for
+  good**, *"Changes turned down"*). A page that describes a screen has to be re-read against that
+  screen on every merge, and git will never say so.
+
+**What is open: nothing in the application links to it.** A page nobody links to is a page nobody
+finds, and the two places that want it are the campaign settings panel — where *"share its code
+with your players"* is exactly the moment a GM needs something to send — and `/signin`, for a
+player who arrives at the sign-in form without knowing they must be invited first. Both are one
+anchor; neither is in this change, because the copy on those screens is the owner's to decide.
 
 ### The gate came back, and its own script was not executable
 
