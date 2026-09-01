@@ -403,6 +403,13 @@ public sealed class CharacterManagerTests
     /// <para>Found by a mutation: setting the rule to "always" left the whole suite green, because
     /// every other fixture in this file happens to hold two characters. A rule nothing asserts is a
     /// rule the next person will delete without noticing.</para>
+    ///
+    /// <para><b>It asks for <c>.when</c> and no longer for "any <c>.meta</c>", which was a proxy
+    /// that stopped being one.</b> A row carries the character's spend and tier in a <c>.meta</c>
+    /// now, so counting them found one on a single-character list and this went red — correctly,
+    /// about the wrong thing. Sniffing the text for "ago" was tried next and is also wrong:
+    /// <see cref="Ages"/> answers "just now" inside two minutes, which is every character a test
+    /// has only just saved.</para>
     /// </summary>
     [Theory]
     [InlineData(1, false)]
@@ -425,7 +432,7 @@ public sealed class CharacterManagerTests
         // time and not about a panel that drew nothing.
         Assert.Equal(saved, cut.FindAll("ul.character-list > li").Count);
 
-        Assert.Equal(expected, cut.FindAll("ul.character-list > li .meta").Count > 0);
+        Assert.Equal(expected, cut.FindAll("ul.character-list > li .when").Count > 0);
     }
 
     /// <summary>

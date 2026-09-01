@@ -187,10 +187,16 @@ export async function getCharacter(db, userId, id) {
  * the payload because it never parses one. It is never joined to `campaigns` and never checked
  * against it: a character naming a campaign that has been deleted is a state the browser reports,
  * not a state this query repairs.</p>
+ *
+ * <p><b>`kind`, `tier_id` and `spent` are three more of exactly the same kind of column</b>, added
+ * so a list of thirty characters can say what each one is without a payload read per row. Every
+ * sentence above applies to them unchanged: supplied by the client, stored verbatim, handed back
+ * verbatim, never derived and never interpreted. `spent` is NULL for a character the engine
+ * declined to price and for every row written before 0008 — see the migration.</p>
  */
 export async function listCharacters(db, userId) {
     const result = await db.prepare(
-        'SELECT id, label, updated_at, campaign_id FROM characters '
+        'SELECT id, label, updated_at, campaign_id, kind, tier_id, spent FROM characters '
         + 'WHERE user_id = ? ORDER BY updated_at DESC')
         .bind(userId).all();
 
@@ -221,18 +227,24 @@ export async function characterLimit(db, userId) {
  * when the id was already there, and `RETURNING` is how the caller learns which happened —
  * a row back means stored, nothing back means refused.</p>
  */
-export async function putCharacter(db, { userId, id, label, payload, campaignId, now }) {
+export async function putCharacter(
+    db, { userId, id, label, payload, campaignId, kind, tierId, spent, now }) {
     const row = await db.prepare(
-        'INSERT INTO characters (user_id, id, label, payload, campaign_id, updated_at) '
-        + 'SELECT ?, ?, ?, ?, ?, ? '
+        'INSERT INTO characters '
+        + '  (user_id, id, label, payload, campaign_id, kind, tier_id, spent, updated_at) '
+        + 'SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? '
         + 'WHERE EXISTS (SELECT 1 FROM characters WHERE user_id = ? AND id = ?) '
         + '   OR (SELECT COUNT(*) FROM characters WHERE user_id = ?) '
         + '       < (SELECT character_limit FROM users WHERE id = ?) '
         + 'ON CONFLICT (user_id, id) DO UPDATE SET '
         + '  label = excluded.label, payload = excluded.payload, '
-        + '  campaign_id = excluded.campaign_id, updated_at = excluded.updated_at '
+        + '  campaign_id = excluded.campaign_id, kind = excluded.kind, '
+        + '  tier_id = excluded.tier_id, spent = excluded.spent, '
+        + '  updated_at = excluded.updated_at '
         + 'RETURNING id')
-        .bind(userId, id, label, payload, campaignId, now, userId, id, userId, userId)
+        .bind(
+            userId, id, label, payload, campaignId, kind, tierId, spent, now,
+            userId, id, userId, userId)
         .first();
 
     return row !== null;

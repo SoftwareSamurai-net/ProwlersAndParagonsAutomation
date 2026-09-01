@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | **5119 across five suites** — 4050 on the engine, 790 rendering components with bUnit, 246 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 133**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **The leave/notify/view slice added 28 on top of that**, all five suites re-run on the rebased branch: bUnit **769 → 781**, accounts **231 → 246**, and engine **4042 → 4043** — one, because what that suite otherwise gained were assertions inside `AccountsContractTests` rather than new facts, and the one is the label guard the fourth defect needed. The pixel and gate suites are untouched. 4043 + 781 + 246 + 14 + 19 = 5103.<br><br>**This row has now gone wrong in four distinct ways, and the fourth is the subtlest.** (1) It once read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them — a row that does not add up is the cheapest tell there is. (2) and (3) are recorded above and below. **(4) This slice branched at `6cce0e1`, measured its engine baseline as 4041, and then read 4042 off `main`'s CI — and concluded from the gap that one engine test exists on a Linux runner and not on a Windows checkout.** It does not. `main`'s CI reported 4041 for `e2c8f9b7` and `e0cbd15` and **4042 only from `16b8e68`**, the merge that added `WranglerIsPinnedToOneVersion`; the six Dependabot pull requests had landed underneath this branch while it was open. The engine count is identical on both platforms at every commit where both were measured. **A stale baseline and a platform bug look exactly alike from inside a long-lived branch**, and the difference is one `git fetch` — so re-measure the baseline on `main` *as it is now*, not as it was when you branched. Re-run all five suites rather than adding to this number. **The handout added 5, all on the engine suite** — `JoinPageTests`' three, plus one case each on `NoComponentNamesAColour` and `NoComponentNamesATypeface` for `join.html`. Measured the way the lesson above says to, and it earned its keep: `main` moved twice while this branch was open, so the baseline was re-read after *each* merge — 4041 at branch time, 4043, then 4044 — and both .NET suites were re-run on the merged tree each time, ending at 4049 and 782. **The other three were not re-run and are carried forward**, which this row is only allowed to do because nothing in a static page can reach them: no worker route, and the pixel comparator reads `proof-*.html` alone. **The join link added 8, all on the bUnit suite** (`JoinLinkTests`), re-run at 790 against 782 read off `main` after branching.; **the copy audit added 1**, `NoTwoPagesCarryTheSameSentence`, engine re-run at 4050. |
+| Tests | **5154 across five suites** — 4050 on the engine, 817 rendering components with bUnit, 254 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 133**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **The leave/notify/view slice added 28 on top of that**, all five suites re-run on the rebased branch: bUnit **769 → 781**, accounts **231 → 246**, and engine **4042 → 4043** — one, because what that suite otherwise gained were assertions inside `AccountsContractTests` rather than new facts, and the one is the label guard the fourth defect needed. The pixel and gate suites are untouched. 4043 + 781 + 246 + 14 + 19 = 5103. **The roster slice added 35**: bUnit **790 → 817** (`RosterTests` 25 new, one route on `AreaTests`, and one more case on `UppercasedTextTests` — that theory enumerates the uppercased selectors in `app.css`, so the chip on a roster row added itself), accounts **246 → 254** (`characters.test.mjs` +5, `migration.test.mjs` +3), and the engine **unmoved at 4049** — that slice's contract test gained two corrected counts rather than a new fact. Pixel and gate untouched. 4049 + 817 + 254 + 14 + 19 = 5153. **`main` moved four times while this branch was open, so its row is taken whole and this delta re-added to it each time** rather than the two being merged — which is how this row has gone wrong before. All five suites were re-run on the branch after every rebase.<br><br>**This row has now gone wrong in four distinct ways, and the fourth is the subtlest.** (1) It once read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them — a row that does not add up is the cheapest tell there is. (2) and (3) are recorded above and below. **(4) This slice branched at `6cce0e1`, measured its engine baseline as 4041, and then read 4042 off `main`'s CI — and concluded from the gap that one engine test exists on a Linux runner and not on a Windows checkout.** It does not. `main`'s CI reported 4041 for `e2c8f9b7` and `e0cbd15` and **4042 only from `16b8e68`**, the merge that added `WranglerIsPinnedToOneVersion`; the six Dependabot pull requests had landed underneath this branch while it was open. The engine count is identical on both platforms at every commit where both were measured. **A stale baseline and a platform bug look exactly alike from inside a long-lived branch**, and the difference is one `git fetch` — so re-measure the baseline on `main` *as it is now*, not as it was when you branched. Re-run all five suites rather than adding to this number. **The handout added 5, all on the engine suite** — `JoinPageTests`' three, plus one case each on `NoComponentNamesAColour` and `NoComponentNamesATypeface` for `join.html`. Measured the way the lesson above says to, and it earned its keep: `main` moved twice while this branch was open, so the baseline was re-read after *each* merge — 4041 at branch time, 4043, then 4044 — and both .NET suites were re-run on the merged tree each time, ending at 4049 and 782. **The other three were not re-run and are carried forward**, which this row is only allowed to do because nothing in a static page can reach them: no worker route, and the pixel comparator reads `proof-*.html` alone. **The join link added 8, all on the bUnit suite** (`JoinLinkTests`), re-run at 790 against 782 read off `main` after branching. **The copy audit added 1** — `NoTwoPagesCarryTheSameSentence` — engine re-run at 4050 on the merged tree, bUnit at 817 unchanged by it. **And this row has now conflicted on four consecutive parallel branches**, every time as the only conflict in the merge: it is the one line every slice edits, and re-measuring it is the whole point, so the conflict is designed in rather than accidental. Worth splitting per suite if a fifth costs anything. |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **The deploy applies pending D1 migrations before the Pages upload, and the apply half is now proven rather than assumed.** The first run failed on a file mode rather than the credential everybody was watching; the run after it read the live database, found nothing pending, and shipped — which established D1 *Read* only, because a token holding just Read produces that exact log and then fails on the first migration that actually has to be applied. **`0007_decision_recorded.sql` was that migration.** On the deploy of `a978806` the gate read one pending file, classified it additive, applied it (`0007_decision_recorded.sql ✅`), **and then asked the database again** — `No migrations to apply!`, the script's own positive control, which is what makes this "the schema moved" rather than "wrangler exited 0". So **D1: Edit is granted and the whole mechanism has now run end to end.** See [`docs/guide/hosting.md`](docs/guide/hosting.md) |
@@ -1133,6 +1133,37 @@ every one of them is the shape of a tool built to cost *a* character meeting a j
 
 None of this needs new rules knowledge — it is all the same engine, called differently.
 
+**The browser half of this finding is closed — see the completed entry at the top of this file.**
+The same twenty-eight NPCs are what broke the character manager, and a roster page that can be
+filtered, grouped by game and read at a glance is what came of it. **Nothing above is affected**:
+every bullet here is about `cli/` and `sheets/` — one file per `--from`, timestamped export names,
+no cross-sheet question — and the browser cannot answer any of them. The cross-sheet questions in
+particular stay open and are the most valuable of the four.
+
+### 21. Variants of one character are a naming convention doing a structure's job
+
+**Left ajar rather than decided.** The owner's roster holds *Cael Hughes — Emergence*, *— Realised*
+and *— After School Specials*; two characters called *Emir Hughes*; and *Lena (true capability — GM
+eyes only)* beside *Lena (as observed)*. Those are versions and secrets, expressed in a name because
+there is nowhere else to put them. Asked whether it deserved a mechanism, the answer was *"perhaps a
+thing to think about"* — 2026-09-01.
+
+**The recommendation it was left on, which stands until somebody has used the roster for a while:**
+ship the filter and the grouping first and see whether they carry it. Typing `hughes` already
+gathers all four, and the two Emir Hugheses stopped being a mystery the moment they were drawn under
+different game headings. A structure invented from two examples is a structure the third example
+does not fit.
+
+**If they do not carry it, the honest shape is a version-of relationship and not a tag.** These are
+not arbitrary buckets — one is *the same character later*, and the other is *the same character as
+two audiences see them*. A tag would model neither, and would be the fourth grouping mechanism
+beside campaigns, games and names.
+
+**One thing to weigh first, because it is a fact and not a preference:** a variant that is "the same
+character at a higher tier" is exactly what a campaign clone already is, one level down — see the
+completed campaign entry. Whatever is built here should be checked against that shape before it is
+designed, or the tool will hold two different answers to "another version of this character".
+
 ### 17. Closed: `master` in the prose after the branch became `main`
 
 The workflow triggers were fixed first and the prose was not, which is not cosmetic: this file's own
@@ -1274,6 +1305,140 @@ So the trap the guide exists to warn about is **closed**, not reworded. But that
 
 ## Completed work
 
+### A roster of twenty-nine, and the three fields that let a row say what it is
+
+**The owner's report was one line — "need a better way to manage LOTS of characters (especially as
+a GM)" — with a screenshot of twenty-nine of them.** What it is a report about is a panel designed
+for the two or three characters a player keeps, meeting the job [item 16](#16-the-tool-costs-one-character-and-a-campaign-is-a-roster)
+names: statting a campaign's worth of NPCs. That entry is about the CLI half and stays open; this
+is the browser half of the same finding, and it was pitched before it was built — the design, the
+faults and four questions each with a recommendation, all four taken.
+
+**Six faults, and every one of them measurable rather than aesthetic:**
+
+1. **No filter box**, on the only list-of-many in this application without one. Six pick-lists and
+   the command palette already share `OptionFilter`; 141 Powers got a search field and 29 characters
+   did not.
+2. **The one disambiguating column was exhausted.** Rows carry a relative time and roughly twenty of
+   them read *3 minutes ago*. The list is most-recently-touched-first, so after a bulk import the
+   order is arbitrary to the eye and the only thing telling two rows apart says the same on both.
+3. **Variants of one character were twenty-nine peers.** Three Cael Hugheses, two Emir Hugheses, and
+   *Lena (true capability — GM eyes only)* beside *Lena (as observed)*.
+4. **Discard on every row, over a one-deep undo.** `DiscardedCharacter` holds exactly one.
+5. **The roster was a panel on step one of a wizard**, and the tallest thing on it — a screen of
+   other people's characters between a visitor and the six tier cards.
+6. **The grouping was already in the data and was not drawn.** `campaign_id` has been on every row
+   since 0005.
+
+#### Three moves, in the order their dependencies forced
+
+**One — the roster gets a room.** `/build/characters`, under the builder's own prefix so `Areas.Of`
+needs no case saying "this one is the builder too" — the step band, the budget strip and the
+switcher come with the address by construction. The tier page keeps the character on screen and the
+two ways to make another, and links to the rest with the count on the door. `CharacterManager` draws
+both shapes: **`ListsEveryCharacter` turns off a list and never a behaviour**, because starting
+another character and importing one both go through `Keep`, and two components would be two chances
+for one of them to forget to report a refusal.
+
+**Two — find, and group by game.** The filter is `OptionFilter.Matches`, the rule the pick-lists and
+the palette already answer to, over the label, the game's name, the kind and the tier's name.
+Headings per campaign with the ones in no game last, three orders, and a count that says what a
+filter is hiding. **The decisions are in `web/Services/Roster.cs` rather than in the component** —
+the same split `Commands` makes for the palette — so most of `RosterTests` renders nothing at all.
+
+**Three — a row that says what the character is.** Migration `0008` and three defaulted fields on
+`SavedCharacterSummary`: `Kind`, `TierId`, `Spent`. A row reads `Villain · 164 HP · High Level`
+with no payload fetched, deserialised, costed or validated for it.
+
+**It was written as `0007` and renumbered on the rebase**, because the campaign slice below took
+that number while this branch was open.
+
+**And the thing this entry said to watch has now been watched: `0008` applied to the live database
+on the merge deploy of 2026-09-01, and it is the deploy's own reading rather than a claim.**
+`wrangler d1 migrations list --remote` named exactly one pending file, `apply-migrations.sh` ran the
+apply path, and `0008_character_index_fields.sql` came back ✅ against `prowlers-and-paragons` —
+*Executed 4 commands in 1.16ms*. It was one migration and not the two this paragraph predicted,
+because `0007` had already gone out on the deploy before it.
+
+**And it establishes nothing new about D1 *Edit*, which is worth saying rather than claiming
+otherwise**: the Hosting row already records `0007` as the migration that proved it, one deploy
+earlier. This is the second real apply and it corroborates the first — which is all it is, and the
+useful half of that is that the mechanism worked twice in a row on two different slices' migrations
+rather than once on a favourable one.
+
+#### The constraint that decided all three, and how it was paid rather than argued with
+
+`SavedCharacters` keeps an index of labels and timestamps and holds each payload under its own key,
+so a Hero Point figure on an ordinary row is **a read, a cost and a validate per row** — twenty-nine
+requests to draw one list. That is why the open character was the only row that could carry a
+figure, and it is why the fix is a wider index rather than a richer row: the fields travel *beside*
+the payload, supplied by the client, because the server never parses a character and cannot derive
+them.
+
+- **The server validates a shape and never a value out of the rules.** `kind` and `tierId` are
+  bounded strings and `spent` is a whole number in a range; a tier this server has never heard of is
+  accepted, because it has never read `data/rules/tiers.json` and must not start. A list of legal
+  values there would be a copy of a rules file kept in a language that cannot read one — stale the
+  first time the data moved, and wrong about whose job it is.
+- **`spent` is nullable and null is an answer.** The engine throws rather than guessing on an
+  incomplete selection, and the autosave fires on the very change that makes a sheet unpriceable, so
+  `TryCost` is asked and null is written. A row then shows its tier and no figure. A column
+  defaulting to `0` would report that a half-built character costs nothing.
+- **Nothing backfills, and every existing row lists.** A character written before `0008` has none of
+  the three and picks them up on its next save. The defaults are load-bearing in exactly the way
+  `CampaignId`'s are, and a literal four-field index is checked in to pin it.
+- **One spelling of what an index records**, `SavedCharacters.IndexFieldsFor`, shared by both
+  autosave paths — `LabelFor` had two copies once, and a character described one way in this browser
+  and another on the account is a list that disagrees with itself depending on who is signed in.
+
+#### Three things now drawn only where they say something
+
+- **The Hero/Villain chip, only where the list holds both.** On a player's roster it is one word
+  repeated down every row; on a GM's it is the fastest thing to read.
+- **The time, only where it explains something.** It was drawn from two characters up as the one
+  thing telling rows apart, and fault 2 above is what that became. It is kept for lists too short to
+  have an order control and for the `Recent` order, where it *is* what the order means.
+- **A group heading, only where there is more than one group** — and how many groups there are is
+  decided from the *unfiltered* list, so a heading cannot change identity under somebody's typing.
+
+#### What was deliberately not built, so it is not rediscovered as an omission
+
+- **Bulk discard.** A multi-select over a one-deep undo buffer is a way to lose eleven characters
+  with one click and get one back. If bulk anything, it is *move to a game*, which destroys nothing.
+- **Folders or tags.** A fourth grouping mechanism beside campaigns, games and names. Worth
+  revisiting if the filter does not hold at a hundred characters; not worth inventing before then.
+- **A mechanism for variants** — fault 3. The owner's answer was *"perhaps a thing to think about"*,
+  so it is [item 21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job)
+  rather than a decision. Typing `hughes` already gathers all four, which is the cheap half.
+
+#### Two findings from the testing that are worth more than the feature
+
+- **`FakeApi` had been dropping `campaignId` on the floor since 0005.** The stub stored a label, a
+  payload and a timestamp; the real server's list has answered `campaign_id` for two slices. So
+  every browser-side test of "which game is this character in" was asserting against a fake that
+  could never have said — the exact failure mode that class's own remarks name: *a stub that answers
+  something the real server never would is worse than no stub*, and answering **less** is the same
+  fault wearing a quieter coat. It now carries all four fields beside the payload.
+- **A guard's proxy stopped being one, and said so.** `ATimeIsShownOnlyOnceThereAreTwoCharactersToTellApart`
+  asserted on "any `.meta` on a row", which was a faithful proxy for "a time" while a time was the
+  only `.meta` there could be. The spend arrived in a `.meta` and the test went red — correctly,
+  about the wrong thing. Sniffing the text for "ago" was tried next and is also wrong: `Ages`
+  answers "just now" inside two minutes, which is every character a test has only just saved. The
+  time now has its own class, `.when`, so the test asks for the thing rather than for a symptom of
+  it.
+
+#### Broken and watched to fail
+
+**Twenty-four mutations across the three moves, each applied to committed work and reverted after**,
+with a positive control asserting the suite was green first — because a harness that cannot see a
+green run cannot be believed about a red one, and this repository has shipped three guards that were
+a feature not running mistaken for a feature that worked.
+
+The worker sweep found its own harness broken before it found anything else: the first version
+invoked `scripts/test-worker.sh` through `shell=True` from Python, which never ran, and reported six
+consecutive **GREEN — THE GUARD HAS A HOLE** verdicts. Every one was the script failing to start.
+That is the fourth time in this repository's history that "the check did not run" has presented as
+"the check passed", and the control is what caught it.
 ### The Qodana scan left its export behind, and on Windows that orphaned a worktree
 
 **`scripts/qodana-scan.sh` deleted its staging directory at the *start* of a run and never at the

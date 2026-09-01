@@ -464,8 +464,11 @@ Three rules came out of rebuilding it:
   a figure.** `SavedCharacters` keeps labels and timestamps in the index and each payload under its
   own key, so a Hero Point figure on an ordinary row is a read, a cost and a validate *per row* —
   which that class's remarks refuse. The open character is free because the session is already
-  holding it. **Every other row carries a time instead** (`Ages.Since`, null for the legacy slot's
-  absent stamp rather than "over a year ago"), and only once there are two characters to tell apart.
+  holding it. **That has since been paid for rather than argued with** — see the roster section
+  below: the *index* carries the spend now, written when the character was saved, so a row states a
+  figure without anything being read to draw it. The constraint is unchanged and is what shaped the
+  fix. **A row carries a time as well** (`Ages.Since`, null for the legacy slot's absent stamp
+  rather than "over a year ago"), and that rule has narrowed too.
 - **Nothing on this panel is drawn in `--danger`.** The red was there so a destructive control looked
   as serious as what it does, and then the confirm was removed *because* undo makes discarding
   cheap — leaving the loudest thing in the panel attached to its rarest and most reversible action,
@@ -480,6 +483,85 @@ a container's job — `.make-another` draws the rule and splits the bar — not 
 step where somebody is typing it, which is the same reason the banner's switcher reads the session
 rather than the list. The list itself is *not* re-read on every change — that would be a storage read
 per letter typed.
+
+## The roster: two shapes of one panel, and what a row is allowed to know
+
+**`/build/characters` is the list; the tier page keeps the character on screen and a link to the
+rest.** At twenty-nine characters the panel was the tallest thing on the page a visitor meets
+first, so choosing a tier meant scrolling a screen of other people's characters to reach the six
+cards — and a GM sorting NPCs is not choosing a tier at all.
+
+- **It is under `/build` rather than beside it, and that is the whole of the routing decision.**
+  `Areas.Of` reads the first segment, so the address is `Area.Play` by construction: the step band,
+  the budget strip and the banner's switcher come with it and cannot be forgotten. A top-level
+  `/characters` would have needed a case in `Areas.Of` saying "this one is the builder too", which
+  is the special case the prefix scheme exists to avoid. The step band draws with **no step
+  marked** — every step's `NavLink` is `NavLinkMatch.All` — which is correct rather than tolerated.
+- **One component, two shapes, and `ListsEveryCharacter` turns off a list and never a behaviour.**
+  Both shapes name the character on screen, both offer the two ways to make one, and both report a
+  refusal through `Keep` in the same words. Two components would be two chances for one of them to
+  forget to say anything.
+- **Below `ToolsFrom` rows the panel is exactly what it was.** A search box, three order buttons and
+  a set of headings over four characters are furniture on a list a reader can see the whole of —
+  the argument `_showTimes` makes at two, one threshold up.
+
+### What a row may know, and the index that pays for it
+
+**`SavedCharacterSummary` carries `Kind`, `TierId` and `Spent` as well as the campaign, and every
+one is a duplicate of something inside the payload.** The server cannot derive any of them — it
+never parses a character — so the client sends them alongside, exactly as it sends `label`. See
+`docs/CHARACTERS-API.md` and migration `0008`.
+
+- **One spelling of what an index records**, `SavedCharacters.IndexFieldsFor`, shared by both
+  autosave paths. `LabelFor` had two copies once and that is how they would have drifted; a
+  character described one way in this browser and another on the account is a list that disagrees
+  with itself depending on who is signed in.
+- **`Spent` is `int?` and null is an answer.** The engine throws rather than guessing on an
+  incomplete selection, and the autosave fires on the very change that makes a sheet unpriceable —
+  so `CharacterSession.TryCost` is asked and null is written. A row then shows its tier and no
+  figure, which is the front door's rule. Zero would be a cost nobody computed.
+- **The defaults on those three parameters are load-bearing in exactly the way `CampaignId`'s
+  are.** An index or an account row written before them must still list; a `required` member there
+  empties a returning visitor's list in silence. A literal four-field index is checked in.
+- **A tier id the rules do not know is printed as itself**, the same choice `CampaignDiff` makes: a
+  row reading "Unnamed" tells a GM nothing, and the id at least says what to look up.
+
+### Three things drawn only where they say something
+
+- **The Hero/Villain chip, only where the list holds both.** On a player's roster it is one word
+  down every row. It is `.open-target .kind`, an outline and not a fill: `--accent` is a fill token,
+  and a Villain chip tinted toward the Villain palette's own crimson is invisible on that palette's
+  ground. What distinguishes it from the `.meta` phrases beside it is the box.
+- **The time, only where it explains something.** It was drawn from two characters up, as the one
+  thing telling two rows apart; on twenty-nine imported in one sitting it read "3 minutes ago" on
+  every row. It is kept for lists too short to have an order control, and for the `Recent` order,
+  where it *is* what the order means. The element is `.when` — named so a test can ask for the time
+  rather than sniffing a row for the word "ago", which `Ages` does not always use ("just now") and
+  which the spend beside it could one day contain.
+- **A group heading, only where there is more than one group.** `Roster.Group` decides how many
+  groups exist from the **unfiltered** list, so a heading cannot change identity under somebody's
+  typing; a group with nothing matching is dropped, and the survivors read "4 of 11" while a filter
+  is on. One group that is a real game keeps the game's name; one that is "In no game" or "A game
+  that is not here" falls back to the sentence the panel has always carried about where these
+  characters live.
+
+### The decisions are in `Roster`, not in the component
+
+Which rows survive a query, which heading they land under and what the count beside it says are all
+answerable without a browser — the same split `Commands` makes for the palette, and the reason most
+of `RosterTests` renders nothing. The matching rule is **`OptionFilter.Matches`**, the one the six
+pick-lists and the palette already share: a reader who has learnt that "plast" finds Plasticity has
+learnt something about this app, and a roster that matched differently would be teaching them it was
+about one list. `RosterNames` carries the game names and the tier names together rather than as two
+parameters of the same type, which could be passed the wrong way round in silence — the failure
+being a roster grouped by tier name, which is neither a compile error nor obviously wrong on screen.
+
+**`.options-filter`, `.options-count` and `.others-head` are reused rather than reinvented.**
+`UppercasedTextTests` reads every `text-transform: uppercase` rule out of `app.css` and requires
+each selector to be found on a page in its own hand-maintained list, so a new uppercase class costs
+either a page in that list or an exemption. Reusing a selector already found there costs neither —
+and `.open-target .kind`, which is new and is uppercase, is found because the manager fixture in
+that file already holds one Hero and one Villain.
 
 ## Campaigns: stored here, resolved here, and never resolved in the engine
 

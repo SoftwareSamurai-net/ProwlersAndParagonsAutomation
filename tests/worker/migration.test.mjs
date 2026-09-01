@@ -433,3 +433,76 @@ test('deleting either account does cascade, unlike deleting the campaign', () =>
     db.prepare('DELETE FROM users WHERE id = ?').run('u_gm');
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM campaign_members').all()[0].n, 0);
 });
+
+// ── 0008, which adds three columns a list needs and a payload read would otherwise cost ──────
+//
+// Against the *pre*-0008 schema, for the reason this whole file exists: the server harness applies
+// every migration together, so it can never hold the database a real deployment is holding in the
+// moment before this one runs.
+
+/** A database with 0001–0007 applied — `characters` as it was before 0008. */
+function pre0008Db() {
+    const db = new DatabaseSync(':memory:');
+    for (const migration of MIGRATIONS.slice(0, 7)) db.exec(readFileSync(migration, 'utf8'));
+
+    return db;
+}
+
+function apply0008(db) {
+    db.exec(readFileSync(MIGRATIONS[7], 'utf8'));
+}
+
+/** A row in the pre-0008 shape: no `kind`, no `tier_id`, no `spent`. */
+function character(db, userId, id, label, payload, updatedAt) {
+    db.prepare(
+        'INSERT INTO characters (user_id, id, label, payload, updated_at) VALUES (?, ?, ?, ?, ?)')
+        .run(userId, id, label, payload, updatedAt);
+}
+
+test('an existing character survives 0008 with the three new columns null', () => {
+    const db = pre0008Db();
+    user(db, 'u_gm', 'gm@example.test');
+    character(db, 'u_gm', 'c_a', 'Cael Hughes', '{"Sheet":{"Name":"Cael Hughes"}}', 2000);
+
+    apply0008(db);
+
+    const rows = db.prepare('SELECT * FROM characters WHERE user_id = ?').all('u_gm');
+
+    assert.equal(rows.length, 1, 'no rebuild, so no row can be lost');
+    assert.equal(rows[0].label, 'Cael Hughes');
+    assert.equal(rows[0].payload, '{"Sheet":{"Name":"Cael Hughes"}}', 'byte for byte, unparsed');
+    assert.equal(rows[0].updated_at, 2000);
+    assert.equal(rows[0].kind, null);
+    assert.equal(rows[0].tier_id, null);
+    assert.equal(rows[0].spent, null, 'nothing is backfilled — that would mean parsing a payload');
+});
+
+test('0008 leaves a character in a campaign in its campaign', () => {
+    // The positive control on the column 0005 added: a migration that rebuilt the table instead
+    // of altering it could drop `campaign_id` and every assertion above would still pass.
+    const db = pre0008Db();
+    user(db, 'u_gm', 'gm@example.test');
+    character(db, 'u_gm', 'c_a', 'Cael Hughes', '{}', 2000);
+    db.prepare('UPDATE characters SET campaign_id = ? WHERE id = ?').run('g_ashfall', 'c_a');
+
+    apply0008(db);
+
+    assert.equal(
+        db.prepare('SELECT campaign_id FROM characters WHERE id = ?').all('c_a')[0].campaign_id,
+        'g_ashfall');
+});
+
+test('0008 leaves the account cap alone', () => {
+    // `character_limit` is on `users` and this migration does not name that table — asserted
+    // because a raised cap is the one piece of per-account state an owner sets by hand, and
+    // losing it silently would look exactly like an account that had never been raised.
+    const db = pre0008Db();
+    user(db, 'u_gm', 'gm@example.test');
+    db.prepare('UPDATE users SET character_limit = 40 WHERE id = ?').run('u_gm');
+
+    apply0008(db);
+
+    assert.equal(
+        db.prepare('SELECT character_limit FROM users WHERE id = ?').all('u_gm')[0].character_limit,
+        40);
+});

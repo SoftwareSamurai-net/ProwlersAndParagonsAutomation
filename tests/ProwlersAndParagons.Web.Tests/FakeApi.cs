@@ -45,8 +45,25 @@ public sealed class FakeApi : HttpMessageHandler
     /// </remarks>
     private readonly Dictionary<(string Account, string Id), Stored> _characters = [];
 
-    /// <summary>One stored character: the label, the opaque payload, and when it was touched.</summary>
-    private sealed record Stored(string Label, string Payload, long UpdatedAt);
+    /// <summary>
+    /// One stored character, in the four fields the real server keeps beside the payload.
+    ///
+    /// <para><b>This held only the label and the payload, and that was a gap of exactly the kind
+    /// this class exists not to have.</b> `campaign_id` has been a column since 0005 and the list
+    /// endpoint has answered it since; this stub dropped it on the floor, so every browser-side
+    /// test of "which game is this character in" was asserting against a fake that could never
+    /// have said. `kind`, `tier_id` and `spent` arrived with 0008 and are stored here from the
+    /// start for the same reason — a stub that answers less than the real server turns a broken
+    /// round trip into a green suite.</para>
+    /// </summary>
+    private sealed record Stored(
+        string Label,
+        string Payload,
+        long UpdatedAt,
+        string? CampaignId = null,
+        string? Kind = null,
+        string? TierId = null,
+        int? Spent = null);
 
     /// <summary>
     /// A counter, not a clock. The list is ordered by it and the browser adopts the first entry, so
@@ -313,7 +330,14 @@ public sealed class FakeApi : HttpMessageHandler
         var mine = _characters
             .Where(e => e.Key.Account == who.Key)
             .OrderByDescending(e => e.Value.UpdatedAt)
-            .Select(e => $$"""{"id":"{{e.Key.Id}}","label":{{Quote(e.Value.Label)}},"updatedAt":{{e.Value.UpdatedAt}}}""");
+            .Select(e => $$"""
+                {"id":"{{e.Key.Id}}","label":{{Quote(e.Value.Label)}},
+                 "updatedAt":{{e.Value.UpdatedAt}},
+                 "campaignId":{{Quote(e.Value.CampaignId)}},
+                 "kind":{{Quote(e.Value.Kind)}},
+                 "tierId":{{Quote(e.Value.TierId)}},
+                 "spent":{{e.Value.Spent?.ToString(CultureInfo.InvariantCulture) ?? "null"}}}
+                """);
 
         return Json($$"""{"limit":{{Limit}},"characters":[{{string.Join(",", mine)}}]}""");
     }
@@ -371,7 +395,14 @@ public sealed class FakeApi : HttpMessageHandler
                 ? l.GetString() ?? "Unnamed character"
                 : "Unnamed character";
 
-            _characters[key] = new Stored(label, payload, ++_clock);
+            // Everything beside the payload, kept exactly as it arrived and echoed back by the
+            // list — the whole of what the real server does with these four.
+            _characters[key] = new Stored(
+                label, payload, ++_clock,
+                SentString(sent.RootElement, "campaignId"),
+                SentString(sent.RootElement, "kind"),
+                SentString(sent.RootElement, "tierId"),
+                SentNumber(sent.RootElement, "spent"));
 
             return Status(HttpStatusCode.NoContent);
         }
@@ -474,7 +505,23 @@ public sealed class FakeApi : HttpMessageHandler
 
     private static string Lower(bool value) => value ? "true" : "false";
 
-    private static string Quote(string text) => JsonSerializer.Serialize(text);
+    /// <summary>A quoted string, or the literal <c>null</c> — what the real server answers for a
+    /// column that has none.</summary>
+    private static string Quote(string? text) => text is null ? "null" : JsonSerializer.Serialize(text);
+
+    /// <summary>One optional string out of a sent body. Absent, null and not-a-string are all
+    /// "nothing sent", which is what the server's own normalisers make of them.</summary>
+    private static string? SentString(JsonElement body, string name) =>
+        body.TryGetProperty(name, out var found) && found.ValueKind == JsonValueKind.String
+            ? found.GetString()
+            : null;
+
+    /// <summary>One optional whole number out of a sent body, on the same terms as
+    /// <see cref="SentString"/>.</summary>
+    private static int? SentNumber(JsonElement body, string name) =>
+        body.TryGetProperty(name, out var found) && found.ValueKind == JsonValueKind.Number
+            ? found.GetInt32()
+            : null;
 
     // ── Campaigns, and the approval slot beside them ─────────────────────────────────────
     //
