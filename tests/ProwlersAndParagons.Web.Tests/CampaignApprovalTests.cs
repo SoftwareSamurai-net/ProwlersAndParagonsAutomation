@@ -225,7 +225,7 @@ public sealed class CampaignApprovalTests
 
         // The positive control, and it comes first: a fixture whose mutation does not move the
         // spend is a case that proves nothing, and this repository has shipped three of those.
-        Assert.True(diff.SpentBefore.HasValue && diff.SpentAfter.HasValue,
+        Assert.True(diff is { SpentBefore: not null, SpentAfter: not null },
             $"{what}: the engine declined to price one of the sheets, so this case tests nothing");
         Assert.True(diff.SpentBefore != diff.SpentAfter,
             $"{what}: the mutation did not move the spend ({diff.SpentBefore}), so it is a no-op");
@@ -324,13 +324,16 @@ public sealed class CampaignApprovalTests
     /// </summary>
     private static CharacterSheet ACostedSheet()
     {
-        var sheet = new CharacterSheet { Name = "The Control", SelectedTierId = "standard" };
-
-        sheet.AbilityRanks["might"] = 5;
-        sheet.TalentRanks["academics"] = 3;
-        sheet.SelectedPowers.Add(new SelectedPower("flight", 4));
-        sheet.Perks.Add(new SelectedPerk("headquarters"));
-        sheet.Gear.Add(new SelectedGear("Blaster"));
+        var sheet = new CharacterSheet
+        {
+            Name = "The Control",
+            SelectedTierId = "standard",
+            AbilityRanks = { ["might"] = 5 },
+            TalentRanks = { ["academics"] = 3 },
+            SelectedPowers = { new SelectedPower("flight", 4) },
+            Perks = { new SelectedPerk("headquarters") },
+            Gear = { new SelectedGear("Blaster") },
+        };
 
         return sheet;
     }

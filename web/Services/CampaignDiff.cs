@@ -190,8 +190,8 @@ public static class CampaignDiff
             after.Flaws.Select(f => Entry(f.FlawId, FlawName(rules, f.FlawId), Blank(f.NarrativeDetail))));
 
         compared += CompareDetailed(rows, "Gear",
-            was.Gear.Select(g => Entry(g.Name ?? "", Blank(g.Name) ?? "Unnamed", GearDetail(rules, g))),
-            after.Gear.Select(g => Entry(g.Name ?? "", Blank(g.Name) ?? "Unnamed", GearDetail(rules, g))));
+            was.Gear.Select(g => Entry(g.Name, Blank(g.Name) ?? "Unnamed", GearDetail(rules, g))),
+            after.Gear.Select(g => Entry(g.Name, Blank(g.Name) ?? "Unnamed", GearDetail(rules, g))));
 
         // ── The two settings a campaign cares about ──────────────────────────────────
         //
