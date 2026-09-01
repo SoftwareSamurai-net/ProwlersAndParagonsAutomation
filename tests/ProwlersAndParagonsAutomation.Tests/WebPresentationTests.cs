@@ -4660,6 +4660,55 @@ public sealed class WebPresentationTests
             + "campaign belongs:\n  " + string.Join("\n  ", naming));
     }
 
+    /// <summary>
+    /// <b>Nothing that renders calls the silent restore.</b>
+    ///
+    /// <para><c>CharacterSession.RestoreBeforeFirstRender</c> assigns the character and rings no
+    /// bell, which is right for exactly one caller: <c>Program.cs</c>, wiring the session up
+    /// before the first render, where there is nothing to redraw. Anything running after that
+    /// wants <c>Open</c>.</para>
+    ///
+    /// <para><b>The failure it guards does not show up where the mistake is made.</b> Whoever
+    /// swaps the character is a component handling a click, so Blazor re-renders <em>that</em>
+    /// component either way — the control the reader is looking at follows perfectly while the
+    /// sheet beneath it goes on drawing what was replaced. It shipped that way: the banner's pill
+    /// named the new character over the old one's sheet, and five of the six call sites were
+    /// wrong. One had been patched with a bare <c>NotifyChanged()</c> afterwards, and
+    /// <c>ReplaceWithUndo</c>'s own doc comment had said in as many words that every caller
+    /// reaching it wants the redraw — the knowledge was written down twice and neither copy
+    /// stopped it, which is why this is a test and the method has a long name.</para>
+    ///
+    /// <para><b>The positive control is that <c>Program.cs</c> still calls it.</b> A rename that
+    /// left this scanning for a spelling nothing uses would satisfy "no component calls it" for
+    /// free — the way this repository has shipped a guard measuring nothing before.</para>
+    /// </summary>
+    [Fact]
+    public void NothingDrawnCallsTheSilentRestore()
+    {
+        const string Silent = "RestoreBeforeFirstRender";
+
+        var boot = File.ReadAllText(Path.Combine(WebRoot, "Program.cs"));
+
+        Assert.True(boot.Contains(Silent, StringComparison.Ordinal),
+            "web/Program.cs no longer calls " + Silent + ", so either the boot path has stopped "
+            + "using it or it has been renamed — and this test is scanning for a spelling nothing "
+            + "uses, which would pass whatever every component did.");
+
+        var drawn = new[] { "Components", "Pages", "Layout" }
+            .SelectMany(dir => SourceFiles(Path.Combine(WebRoot, dir), "*.razor")
+                .Concat(SourceFiles(Path.Combine(WebRoot, dir), "*.cs")))
+            .Where(NotBuildArtefact)
+            .Where(path => File.ReadAllText(path).Contains(Silent, StringComparison.Ordinal))
+            .Select(Path.GetFileName)
+            .ToList();
+
+        Assert.True(drawn.Count == 0,
+            "These render, so the first render has already happened by the time they run — and "
+            + Silent + " tells nothing drawing the character that it changed, so the control that "
+            + "was clicked redraws and the sheet beneath it does not. Call Open instead:\n  "
+            + string.Join("\n  ", drawn));
+    }
+
     /// <summary>Not a build artefact — obj/ and bin/ hold generated copies of every component.</summary>
     private static bool NotBuildArtefact(string path) =>
         !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)

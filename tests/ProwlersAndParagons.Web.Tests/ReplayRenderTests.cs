@@ -301,7 +301,7 @@ public sealed class ReplayRenderTests
     {
         string Panel(RenderContext context, CharacterSheet visitors, CharacterSheet subject)
         {
-            context.Session.Restore(visitors, SheetMode.Hero);
+            context.Session.RestoreBeforeFirstRender(visitors, SheetMode.Hero);
 
             return context.Render<ReplayVerdict>(p => p
                     .Add(v => v.Character, subject)
@@ -536,7 +536,7 @@ public sealed class ReplayRenderTests
         // reason and hide every illegitimate one behind it.
         static string AsTheirOwn(RenderContext ctx, CharacterSheet sheet)
         {
-            ctx.Session.Restore(sheet, SheetMode.Hero);
+            ctx.Session.RestoreBeforeFirstRender(sheet, SheetMode.Hero);
             return ctx.Render<SheetView>(p => p.Add(s => s.ShowBudget, true))
                 .Find(".sheet").TextContent;
         }
@@ -591,7 +591,7 @@ public sealed class ReplayRenderTests
         // Printed: the Hero sample, whose Communications is rankless and Tech-Sourced.
         // In the session: a recorded character, whose Toughness is a different number.
         var printed = SampleCharacters.Hero();
-        ctx.Session.Restore(Character(ctx, Cheap), SheetMode.Hero);
+        ctx.Session.RestoreBeforeFirstRender(Character(ctx, Cheap), SheetMode.Hero);
 
         var rankless = printed.SelectedPowers
             .Where(p => rules.GetPower(p.PowerId) is { RankType: "default" or "special" })
