@@ -55,7 +55,7 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// <c>CampaignId</c>'s is.</b> An index or an account row written before <c>0007</c> has none of
 /// the three, and must still list — the serializer supplies each parameter's own default for an
 /// absent key, and a <c>required</c> member here would silently empty every returning visitor's
-/// list. <c>IndexTests</c> pins it by reading a checked-in four-field index rather than by
+/// list. <c>RosterTests</c> pins it by reading a checked-in four-field index rather than by
 /// trusting this note.</para>
 /// </param>
 /// <param name="TierId">
