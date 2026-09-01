@@ -5,6 +5,7 @@
 @inject ApiMembershipStore Memberships
 @inject AccountCharacterStore Characters
 @inject Accounts Accounts
+@inject NavigationManager Nav
 
 @* Running a game: the campaigns you run, the ones your characters are in, and the way between
    them.
@@ -85,6 +86,21 @@ else
                                 <p class="others-head">Join code</p>
                                 <p class="joincode">@(one.Spoken ?? "None yet")</p>
                                 <p class="small muted">Read this out to a player. A new code stops the old one working.</p>
+
+                                @if (one.JoinCode is not null)
+                                {
+                                    @* One click selects the whole thing — `user-select: all` in
+                                       app.css — because a link that pastes as two thirds of a URL
+                                       is worse than a code somebody types. Built as one string so
+                                       no line break in this markup lands inside it. *@
+                                    <p class="others-head">Or send the link</p>
+                                    <p class="joinlink"><code>@JoinLink(one)</code></p>
+                                    <p class="small muted">
+                                        It fills the code in for whoever opens it. A player who has
+                                        never used this can read
+                                        <a href="join.html" target="_blank" rel="noopener">how to join</a>.
+                                    </p>
+                                }
 
                                 <div class="inline">
                                     <button type="button" class="btn small"
@@ -229,9 +245,11 @@ else
                        @bind="_code" @bind:event="oninput" />
             </Field>
 
-            <p class="small muted">
-                The character on screen joins. Its tier is filled in if you have not chosen one.
-            </p>
+            @* **Names the character rather than restating the rule.** A disabled Join with a
+               sentence about "the character on screen" leaves a reader looking for the character
+               on screen; saying which one it is, or that there is none, is the same sentence
+               doing the work. *@
+            <p class="small muted" role="status">@WhoJoins</p>
 
             <div class="inline">
                 <button type="button" class="btn primary" disabled="@(_openId is null)"
@@ -334,7 +352,81 @@ else
         Session.Changed += Redraw;
 
         await Refresh();
+
+        ReadCodeFromAddress();
     }
+
+    /// <summary>
+    /// The link a GM sends instead of reading ten characters down a phone.
+    ///
+    /// <para><b>Absolute, from <see cref="NavigationManager.BaseUri"/> rather than a constant</b> —
+    /// the same string has to work pasted into a chat window from a laptop that is on
+    /// localhost:5000 and from the deployed site, and a hard-coded host is wrong in one of those
+    /// two places forever.</para>
+    ///
+    /// <para><b>The normalised code, without its hyphen.</b> The hyphen exists so ten symbols can
+    /// be read aloud without being misheard; nobody reads a URL aloud, and the server takes the
+    /// punctuation out on the way in either way.</para>
+    /// </summary>
+    private string JoinLink(SavedCampaignSummary row) =>
+        $"{Nav.BaseUri.TrimEnd('/')}/campaign?join={row.JoinCode}";
+
+    /// <summary>
+    /// Which character a join would use, named.
+    ///
+    /// <para><b>Said rather than implied.</b> The sentence here used to describe the rule — "the
+    /// character on screen joins" — beside a Join button that was disabled with no reason next to
+    /// it, which left a reader hunting for a character they had not opened. Naming the character,
+    /// or saying there is none, is the same sentence doing the work.</para>
+    /// </summary>
+    /// <remarks>
+    /// <b>There is deliberately no "open a character first" case, because there is no such
+    /// state.</b> <c>SavedCharacters.CurrentIdAsync</c> falls back to <c>LegacyId</c> rather than
+    /// answering null, so once this box is on screen at all — which needs <c>_available is
+    /// true</c>, and that is the same branch that assigns <c>_openId</c> — a character is open.
+    /// The <c>disabled</c> binding on Join below and the null guard in <see cref="Join"/> are
+    /// inert belt-and-braces, and the sentence this replaced promised a reader they could reach a
+    /// state they cannot. An unnamed character is the real edge, and it has the fallback.
+    /// </remarks>
+    private string WhoJoins =>
+        string.IsNullOrWhiteSpace(Session.Sheet.Name)
+            ? "The character on screen will join. Its tier is filled in if you have not chosen one."
+            : $"{Session.Sheet.Name} will join. Its tier is filled in if you have not chosen one.";
+
+    /// <summary>
+    /// Take a code out of <c>?join=</c>, fill the box with it, and then take it out of the address
+    /// bar.
+    ///
+    /// <para><b>The removal is the point, not tidiness.</b> A join code is a shared secret the GM
+    /// minted, and one left in the address bar goes into browser history, into a screenshot of the
+    /// window, and into whatever the reader pastes next. Filling the box keeps the one thing the
+    /// link was for; a <c>replace</c> navigation drops the query without adding a history entry to
+    /// go back to.</para>
+    ///
+    /// <para><b>It does not join anything by itself.</b> Joining writes to a character, and a link
+    /// that changed somebody's character the instant it opened would be a link that could be sent
+    /// to them by anybody.</para>
+    /// </summary>
+    private void ReadCodeFromAddress()
+    {
+        var code = CodeIn(Nav.ToAbsoluteUri(Nav.Uri).Query);
+
+        if (code is null) return;
+
+        _code = code;
+        Nav.NavigateTo("campaign", replace: true);
+    }
+
+    /// <summary>The <c>join</c> parameter of a query string, or null. Nothing here throws.</summary>
+    private static string? CodeIn(string query) =>
+        query.TrimStart('?')
+            .Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Select(pair => pair.Split('=', 2))
+            .Where(parts => parts.Length == 2
+                && string.Equals(parts[0], "join", StringComparison.Ordinal)
+                && parts[1].Length > 0)
+            .Select(parts => Uri.UnescapeDataString(parts[1]))
+            .FirstOrDefault();
 
     /// <summary>
     /// The join and send controls read which character is on screen, so a change to the character

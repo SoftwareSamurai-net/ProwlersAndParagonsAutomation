@@ -116,6 +116,16 @@ else
                 </p>
             </form>
 
+            @* **Said where somebody hits the gate.** This is an allow-list, not a sign-up, and an
+               address that is not on it gets the same silent answer a sent link gets — which is
+               deliberate and cannot change, so the only place left to say so is here. The link
+               carries a target so Blazor's router does not swallow a static file; see the note on
+               the same link in Campaigns.razor. *@
+            <p class="small muted">
+                Joining somebody's campaign? You need an invitation from them first —
+                <a href="join.html" target="_blank" rel="noopener">how to join</a>.
+            </p>
+
             @if (_problem is { } problem)
             {
                 <p role="alert">@problem</p>

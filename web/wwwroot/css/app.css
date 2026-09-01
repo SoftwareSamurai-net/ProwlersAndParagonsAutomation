@@ -1221,6 +1221,36 @@ label {
     margin: var(--space-1) 0;
 }
 
+/* The same code as a link, for a GM who would rather paste than dictate.
+
+   **`user-select: all` is the whole feature.** A single click selects the entire string, so
+   there is no double-click that takes two thirds of a URL and no instruction telling somebody
+   how to select it. Without it this is a paragraph of text and the paste is the reader's
+   problem.
+
+   **It does not wrap.** A URL broken across two lines is one somebody half-selects, so the box
+   scrolls sideways instead — the rule every wide block in this file follows. And the face is
+   `--font-body` rather than the browser's `<code>` default, which would be the one typeface on
+   the site that theme.css does not choose. */
+.joinlink {
+    margin: var(--space-1) 0;
+    overflow-x: auto;
+}
+
+.joinlink code {
+    display: inline-block;
+    user-select: all;
+    -webkit-user-select: all;
+    white-space: nowrap;
+    font-family: var(--font-body);
+    font-size: var(--text-sm);
+    color: var(--heading);
+    background: var(--panel-sunk);
+    border: var(--rule-weight) solid var(--rule);
+    border-radius: var(--radius-small);
+    padding: var(--space-1) var(--space-3);
+}
+
 /* **The spend leads the diff**, in the one numeral treatment this app has — the same face, size
    and ink as the four derived stats and the budget strip's own figure. A second treatment here
    would make the figure a GM decides on read as a different kind of thing from the figures the
