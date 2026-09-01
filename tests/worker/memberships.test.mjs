@@ -834,3 +834,74 @@ test('a deleted campaign takes the GM’s half of every membership with it, and 
     assert.deepEqual(restored.memberships.map(m => [m.id, m.hasPending, m.pendingVersion]),
         [[membership, true, 1]]);
 });
+
+test('deleting one of a GM’s two campaigns takes only that one’s half', async () => {
+    // **The test above cannot see the half of this rule that says *only* that one.** Its GM owns
+    // exactly one campaign, so `EXISTS (SELECT 1 FROM campaigns WHERE user_id = gm_user_id)` and
+    // `EXISTS (... AND id = campaign_id)` are the same predicate on that fixture: with one
+    // campaign, "this GM still owns a campaign" and "this GM still owns *this* campaign" agree on
+    // every row. Dropping the `AND c.id = campaign_members.campaign_id` correlation from
+    // `getMembership` therefore left all 230 tests green while a GM with two games could read the
+    // clone and the waiting snapshot out of the one they had thrown away.
+    //
+    // That is this repository's recurring failure exactly — a fixture that cannot reach the
+    // behaviour under test — and the fix is a second campaign, not a longer assertion.
+    const app = server();
+    const gm = await signIn(app, 'gm@example.test');
+
+    assert.equal((await putCampaign(app, gm.cookie, { theId: gid(1), label: 'Nightfall' })).status, 204);
+    assert.equal((await putCampaign(app, gm.cookie, { theId: gid(2), label: 'Daybreak' })).status, 204);
+
+    const player = await signIn(app, 'player@example.test');
+
+    const joinedDoomed = await join(app, player.cookie,
+        { code: await joinCodeFor(app, gm.cookie, gid(1)), characterId: cid(1) });
+    const joinedKept = await join(app, player.cookie,
+        { code: await joinCodeFor(app, gm.cookie, gid(2)), characterId: cid(2) });
+
+    assert.equal(joinedDoomed.status, 200);
+    assert.equal(joinedKept.status, 200);
+
+    const doomed = (await joinedDoomed.json()).id;
+    const kept = (await joinedKept.json()).id;
+
+    assert.notEqual(doomed, kept, 'two campaigns produced one membership, so this proves nothing');
+
+    assert.equal((await submit(app, player.cookie, doomed)).status, 200);
+    assert.equal((await submit(app, player.cookie, kept)).status, 200);
+
+    // The positive control: both are in the inbox before either campaign goes.
+    const before = await (await app.call('/api/memberships/inbox', { cookie: gm.cookie })).json();
+    assert.deepEqual(before.memberships.map(m => m.id).sort(), [doomed, kept].sort());
+
+    assert.equal((await app.call(`/api/campaigns/${gid(1)}`,
+        { method: 'DELETE', cookie: gm.cookie })).status, 204);
+
+    // Only the deleted campaign's half goes.
+    const after = await (await app.call('/api/memberships/inbox', { cookie: gm.cookie })).json();
+    assert.deepEqual(after.memberships.map(m => m.id), [kept],
+        'the surviving campaign’s membership went with the deleted one, or the deleted one stayed');
+
+    assert.equal((await app.call(`/api/memberships/${doomed}`, { cookie: gm.cookie })).status, 404,
+        'the GM read a clone out of a campaign they deleted, because another campaign of theirs exists');
+    assert.equal((await app.call(`/api/memberships/${kept}`, { cookie: gm.cookie })).status, 200);
+
+    for (const what of ['approve', 'reject']) {
+        assert.equal((await decide(app, gm.cookie, doomed, what, 1)).status, 404,
+            `${what} reached a membership whose campaign is gone`);
+    }
+
+    // And the surviving one is still decidable, so the refusals above are about the deletion
+    // rather than about decisions having stopped working.
+    assert.equal((await decide(app, gm.cookie, kept, 'approve', 1)).status, 204);
+
+    // The player's half is untouched on both, deleted campaign included.
+    const mine = await (await app.call('/api/memberships', { cookie: player.cookie })).json();
+    assert.deepEqual(mine.memberships.map(m => m.id).sort(), [doomed, kept].sort());
+
+    const refused = await submit(app, player.cookie, doomed);
+    assert.equal(refused.status, 409);
+    assert.match((await refused.json()).error, /no longer here/);
+
+    assert.equal((await submit(app, player.cookie, kept)).status, 200);
+});
