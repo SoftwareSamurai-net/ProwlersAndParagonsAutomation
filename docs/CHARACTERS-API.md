@@ -186,6 +186,34 @@ it, a GM who runs two campaigns and deletes one keeps reading the deleted one's 
 and fetched out of their account. And the GM is never told whose account it was: `characterId` is
 answered to the player, who needs it, and withheld from the GM, who approves `m_…`.
 
+### A decision is a fact on the row, not only its consequence
+
+`0007_decision_recorded.sql` adds `decision` — `'approved'`, `'rejected'`, or NULL for a membership
+nobody has decided anything about. **Without it approving and rejecting were the same event from
+the player's side.** Approve moves `pending_payload` into `approved_payload`; Reject clears the
+pending slot and leaves the clone, which is what rejecting means — so both leave the two flags a
+standing is derived from (`has_approved`, `has_pending`) in a state the player has already seen. A
+rejection reverted their standing to the identical sentence it showed before they sent anything,
+and the only decision anybody could ever detect was a first approval.
+
+- **It is on both list rows**, the player's and the GM's, because they deserialize into one record
+  on the other side: a field on one and not the other defaults silently rather than failing.
+- **Nothing clears it.** A new submission fills the pending slot, which the browser reads first;
+  the next decision overwrites the fact itself. A membership that was left and rejoined is a new
+  row with both columns NULL.
+- **A refused compare-and-swap writes no decision**, because it is inside the same `UPDATE` as
+  everything else the decision does. A refusal that recorded one would tell a player their change
+  was turned down by a GM who never got to decide it.
+- **This is the last decision and not a log of them.** Approval history and rollback stay out, for
+  the same reason the pending slot is one slot.
+- **`decided_at` is stored and is deliberately not on the wire.** It moves on either decision,
+  unlike `approved_at`, so it is the answer to "when did I last hear back" — but nothing draws a
+  time yet, and this server does not send fields the browser binds nothing to.
+
+**An unknown word reads as no decision, never as a rejection.** A later version could spell a third
+outcome, and defaulting it to the value that changes what a player is told would be the browser
+inventing a decision nobody made.
+
 ### Ending a membership: one address, two meanings, decided by the column that matches
 
 `DELETE /api/memberships/{id}` is a player walking out **and** a GM removing somebody, and nothing

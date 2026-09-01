@@ -836,6 +836,111 @@ public sealed class CampaignApprovalTests
     }
 
     /// <summary>
+    /// <b>A rejection is a standing of its own, and it is not derivable from the two slots.</b>
+    ///
+    /// <para>Rejecting clears the pending slot and leaves the clone, which is what rejecting
+    /// <em>means</em> — so both booleans come back reading exactly as they did after the approval
+    /// before it. This walks the sequence a player actually lives: send, approved, send again,
+    /// turned down. Before <c>0007</c> the last two states were the same sentence, and there was
+    /// no way to learn a decision had been made at all.</para>
+    /// </summary>
+    [Fact]
+    public async Task ARejectionIsAStandingOfItsOwnAndNotDerivableFromTheSlots()
+    {
+        var (server, store, membership) = await ATable();
+
+        async Task<MembershipSummary> Mine()
+        {
+            server.SignedIn = ("u_player", "The Player");
+            var listed = await store.MineAsync();
+
+            Assert.NotNull(listed);
+            return Assert.Single(listed!, m => m.Id == membership);
+        }
+
+        async Task Decide(bool approve, int version)
+        {
+            server.SignedIn = ("u_player", "The Player");
+            Assert.NotNull(await store.SubmitAsync(membership, ASheet(), SheetMode.Hero));
+
+            server.SignedIn = ("u_gm", "The GM");
+
+            var decided = approve
+                ? await store.ApproveAsync(membership, version)
+                : await store.RejectAsync(membership, version);
+
+            Assert.Equal(DecisionOutcome.Done, decided.Outcome);
+        }
+
+        // The control: no decision is its own value, and it is not `Rejected` by default.
+        Assert.Equal(MembershipDecision.None, (await Mine()).Decision);
+
+        await Decide(approve: true, version: 1);
+
+        var approved = await Mine();
+
+        Assert.Equal(CampaignStanding.Approved, approved.Standing);
+
+        await Decide(approve: false, version: 2);
+
+        var turnedDown = await Mine();
+
+        // **Every other field reads as it did a moment ago**, which is the whole difficulty.
+        Assert.Equal(approved.HasApproved, turnedDown.HasApproved);
+        Assert.Equal(approved.HasPending, turnedDown.HasPending);
+        Assert.Equal(approved.ApprovedAt, turnedDown.ApprovedAt);
+
+        Assert.Equal(CampaignStanding.ChangesTurnedDown, turnedDown.Standing);
+        Assert.Equal("Changes turned down", Standings.Say(turnedDown.Standing));
+        Assert.Equal("Changes turned down for Nightfall",
+            Standings.Say(turnedDown.Standing, "Nightfall"));
+
+        // A waiting snapshot shadows it without anything having to clear it, and the decision
+        // itself is still the last one made.
+        server.SignedIn = ("u_player", "The Player");
+        Assert.NotNull(await store.SubmitAsync(membership, ASheet(might: 7), SheetMode.Hero));
+
+        var resent = await Mine();
+
+        Assert.Equal(CampaignStanding.ChangesPending, resent.Standing);
+        Assert.Equal(MembershipDecision.Rejected, resent.Decision);
+    }
+
+    /// <summary>
+    /// <b>A word this build does not know is no decision, not a rejection.</b>
+    ///
+    /// <para>A later version of the server could spell a third outcome. Defaulting an unknown one
+    /// to the value that changes what a player is told would be this build inventing a decision
+    /// nobody made — the rule <see cref="StoredCharacter"/> follows for an envelope it cannot
+    /// open, applied to a word it cannot read.</para>
+    /// </summary>
+    [Fact]
+    public async Task AnUnknownDecisionReadsAsNoneRatherThanAsARejection()
+    {
+        var (server, store, membership) = await ATable();
+
+        server.DecisionOnTheWire = "escalated-to-the-table";
+        server.SignedIn = ("u_player", "The Player");
+
+        var listed = await store.MineAsync();
+
+        Assert.NotNull(listed);
+
+        var row = Assert.Single(listed!, m => m.Id == membership);
+
+        Assert.Equal(MembershipDecision.None, row.Decision);
+        Assert.Equal(CampaignStanding.NotSubmitted, row.Standing);
+
+        // The positive control: a word it does know is read, so the assertion above is about the
+        // word rather than about the field never arriving.
+        server.DecisionOnTheWire = "rejected";
+
+        var known = Assert.Single((await store.MineAsync())!, m => m.Id == membership);
+
+        Assert.Equal(MembershipDecision.Rejected, known.Decision);
+    }
+
+    /// <summary>
     /// <b>"I could not find out" is not "in no campaign".</b>
     ///
     /// <para>Collapsing the two tells somebody their character is out of a game it is still in,
@@ -1656,6 +1761,45 @@ public sealed class CampaignApprovalTests
         ctx.Api.SignedIn = ("u_gm", "The GM");
 
         Assert.Equal(LeftOutcome.GameIsGone, await memberships.LeaveAsync(settled.Membership));
+    }
+
+    /// <summary>
+    /// <b>A player's own screen says a change was turned down.</b>
+    ///
+    /// <para>The rendered page rather than the record, because a standing that is right in a
+    /// record and absent from the markup is the state this whole slice existed to fix — and the
+    /// two test projects are split for exactly that reason.</para>
+    /// </summary>
+    [Fact]
+    public async Task ThePlayersScreenSaysAChangeWasTurnedDown()
+    {
+        var waiting = await AWaitingRequest();
+        await using var ctx = waiting.Ctx;
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var pending = (await memberships.InboxAsync())!.Single();
+
+        // The control: before the decision the player is told a change is pending, so what
+        // changes below is the decision rather than the row appearing at all.
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        Assert.Contains("Changes pending", ctx.Render<Campaigns>().Markup, StringComparison.Ordinal);
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        Assert.Equal(
+            DecisionOutcome.Done,
+            (await memberships.RejectAsync(waiting.Membership, pending.PendingVersion)).Outcome);
+
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        var after = ctx.Render<Campaigns>().Markup;
+
+        Assert.Contains("Changes turned down", after, StringComparison.Ordinal);
+
+        // And not the two sentences it used to revert to, which are what made a rejection silent.
+        Assert.DoesNotContain("Not submitted", after, StringComparison.Ordinal);
+        Assert.DoesNotContain("Changes pending", after, StringComparison.Ordinal);
     }
 
     /// <summary>

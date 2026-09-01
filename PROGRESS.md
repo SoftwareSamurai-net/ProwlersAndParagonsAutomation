@@ -17,11 +17,11 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | **5075 across five suites** — 4042 on the engine, 769 rendering components with bUnit, 231 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The Dependabot slice added 1**, `WranglerIsPinnedToOneVersion` — see the completed entry below; the campaign slice before it added 133, measured at both ends (4034 / 701 / 192 / 14 / 0 = 4941 on `main`, against 4041 / 769 / 231 / 14 / 19 after). Per suite for the campaign slice: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **This row had gone wrong three times and the failure is worth naming**: it once read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them. A row that does not add up is the cheapest tell there is. Re-run the suites rather than adding to this number. |
+| Tests | **5101 across five suites** — 4041 on the engine, 781 rendering components with bUnit, 246 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 133**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13 — the thirteenth added after the merge, below), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **This row had gone wrong a third time and the failure is worth naming**: it read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them. A row that does not add up is the cheapest tell there is. Re-run the suites rather than adding to this number. **The leave/notify/view slice added 27 on top of that**, all five suites re-run on this branch: bUnit **769 → 781** and accounts **231 → 246**, with the engine unchanged at 4041 because what it gained were assertions inside `AccountsContractTests` rather than new facts, and the other two untouched. 4041 + 781 + 246 + 14 + 19 = 5101. |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **The deploy applies pending D1 migrations before the Pages upload, and it is green.** The first run failed — on a file mode rather than the credential everybody was watching; see the completed entry — and the run after it read the live database, found nothing pending, and shipped. **What that establishes is D1 *Read*, not Edit**: nothing was pending, so the apply path never ran, and a token holding only Read would produce this exact log and then fail on the first migration that actually has to be applied. The step needs **D1: Edit**, and that half is still untested. See [`docs/guide/hosting.md`](docs/guide/hosting.md) |
-| Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. **All six D1 migrations are applied to the remote database**, `0006` included — the owner applied it by hand, and the figure here is the deploy's own reading rather than a claim: `wrangler d1 migrations list --remote` answered *“No migrations to apply!”* on the run of 2026-09-01, so `apply-migrations.sh` skipped the apply and the Pages upload went ahead. This row said **0006 is pending** and was right when written; it went stale the moment somebody did the thing the gate exists to automate, which is the ordinary way a measured figure in this file stops being true. The `DB` binding is in place, `/api/me` answers `401` with JSON — checked by the deploy after every upload — and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong). **Adding an address now actually mails it** a one-click, three-day link — see the completed item below; until now the admin page said an address "can sign in now" and nothing ever told them so |
+| Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. **`0007_decision_recorded.sql` is pending on the remote database, and it is the first migration `apply-migrations.sh` will ever actually apply** — `0006` was applied by hand and every gate run since has *skipped*, so the apply path has been driven only against a stub wrangler. Watch that step on the first deploy of this branch. **The six before it are applied**, `0006` included — the owner applied it by hand, and the figure here is the deploy's own reading rather than a claim: `wrangler d1 migrations list --remote` answered *“No migrations to apply!”* on the run of 2026-09-01, so `apply-migrations.sh` skipped the apply and the Pages upload went ahead. This row said **0006 is pending** and was right when written; it went stale the moment somebody did the thing the gate exists to automate, which is the ordinary way a measured figure in this file stops being true. The `DB` binding is in place, `/api/me` answers `401` with JSON — checked by the deploy after every upload — and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong). **Adding an address now actually mails it** a one-click, three-day link — see the completed item below; until now the admin page said an address "can sign in now" and nothing ever told them so |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
 | Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — measured, not assumed, on a clean export of the commit carrying this row. **Two measurements in one day are the reason to go on distrusting the figure.** Against `main` at `9add547` the same scan reported **2**, both `InvalidXmlDocComment` on a single unclosed `<para>` in `WorkflowFilterTests`, which arrived with the executable-bit guard in #114 and was reported by nothing for four days. And on the eight-package NuGet bump it reported **5** — the same 2, plus three `MethodHasAsyncOverload` in `AdminPageTests.cs`, **a file that bump does not touch**: a package upgrade moved an inspection in code nobody edited, which is the case a pull-request-mode scan structurally cannot see. Both are fixed and both are in the completed entry below. Qodana came off pull requests deliberately, so the local `./scripts/qodana-scan.sh` that `CLAUDE.md` requires before one is opened is the *only* thing between a branch and `main` — the answer to both of these is to run it rather than to put the workflow back. Earlier: 2 on the export of `76a4f80` (a local constant named `Opening`, and a `cref` to `IRulesSource` that does not resolve from the test project's namespace), 3 on `master`, 37 across three reconciled slices, 23 in the redesign slice — every one found by somebody re-running it, none by CI. **Do not name this commit's own sha here**: it was tried and an amend orphaned it within the hour, which is a dead pointer of exactly the kind this repository treats as worse than none. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
@@ -1215,7 +1215,11 @@ So what is missing is only the screen:
   This retires a real ops hazard: [`docs/guide/accounts-server.md`](docs/guide/accounts-server.md)
   already calls `users.character_limit` "a *write* with no gate", and today raising a cap means
   someone running SQL against the production database by hand.
-- **Surface what a player holds.** A read-only list of their sheets.
+- **Surface what a player holds.** A read-only list of their sheets. **Narrowed rather than
+  closed by the sheet view on the approval screen**, and the difference is worth keeping: a GM can
+  now read the campaign's *clone* of any member's character at any time — a sheet that member
+  deliberately sent and the GM accepted. This item is about their own `characters` rows, which is a
+  different set, is not a thing anybody sent, and is still unreachable.
 
 **Scoped to campaign membership, and that is the decision rather than a detail.** The list shows the
 players in the GM's own campaigns — joined through `campaign_members` — not every account on the
@@ -1270,6 +1274,113 @@ So the trap the guide exists to warn about is **closed**, not reworded. But that
 
 ## Completed work
 
+### A player can leave, a GM can remove and read any sheet, and a rejection stops being silent
+
+**Three gaps a player would hit in the first session, all of them in the half that was shipped
+deliberately incomplete.** The campaign slice's own "out of this slice" list names two of them, so
+none of this is a surprise — what changed is that they turned out to be the ones somebody meets
+first.
+
+#### The GM could only see a sheet while a decision was outstanding
+
+`MembershipDetail.Approved` was already on the wire and already parsed into a `CharacterSheet`, and
+the approval page never touched it. The full-sheet render sat inside
+`@if (_reading == one.Id && _diff is { } diff)` and was bound to the *pending* snapshot, so a
+character approved in March was unreadable on the screen that exists to hold the roster, for as
+long as nobody changed it. **No server change, no wire change, no migration** — the payload was
+always being sent.
+
+`Look` had two bare `return`s. An unreachable server and an empty pending slot both left the panel
+blank, which is the same blank a member with nothing to show produces. The open row now carries an
+explicit `Showing` and every path sets one:
+
+    Asking · Unreachable · NothingSent · PendingUnreadable · CloneUnreadable · Settled · Changes
+
+**Four of those are ways of having nothing to draw and they are four different sentences.** Two are
+finding 8's fault in a second place: a payload from a later version of the app answers `null` from
+`StoredCharacter.Read` exactly as an empty slot does, and saying *there is nothing here* about a
+request a player is waiting on is the same wrong sentence on the read path that was already caught
+on the decision path. The list row is what tells them apart. A final `else` arm means no state can
+open an empty box, and the panel is titled for what it always held — a roster, not a queue.
+
+#### Nobody could leave, and nothing about a character was what kept them in
+
+`DELETE /api/memberships/{id}` is a player walking out **and** a GM removing somebody, and nothing
+in the request says which: two statements run in turn, `player_user_id = ?` then `gm_user_id = ?`,
+so the column that matches is what the request means and a third account matches neither. That
+keeps the two-owners rule without inventing a role the browser could claim.
+
+**Deleting the character did not do it, and that is worth writing down** — `character_id` is a
+stored string never joined to `characters`, so the membership, the GM's clone and the player's own
+list row all outlived it. The list then showed a row for a character that no longer existed.
+Deleting the *account* was the only thing that had ever cleared a membership.
+
+**The row goes and the clone with it**, which is deliberately the opposite of deleting a campaign.
+That keeps its memberships precisely so writing it back is a complete undo; there is no undo behind
+this, and a campaign holding the sheet of somebody who has left is a roster nothing could correct.
+Neither side's own character is touched.
+
+The asymmetry runs the same way as every other statement here. The player's is a bare column, so
+somebody can walk out of a game the GM threw away — the row most worth being rid of. The GM's
+carries the `EXISTS`, so a deleted campaign's surviving rows stay survivable, and a removal from
+one is refused with the 409 both decisions give rather than reported as a removal that did not
+happen. **204 whether or not a row matched**, for the reason `join` answers an existing membership
+rather than a conflict, and because a 404-or-204 split would say whether an id exists.
+
+**Both controls ask twice**, and every test asserts the *first* press did not end it — which is the
+only assertion that tells a confirm from a control labelled like one.
+
+#### Approving and rejecting were the same event from the player's side
+
+`0007_decision_recorded.sql`. Approve moves the pending payload into the approved one; Reject clears
+the pending slot and leaves the clone, which is what rejecting *means* — so both left the two
+booleans the standing was derived from in a state the player had already seen. A rejection reverted
+their standing to the identical sentence it showed before they sent anything: *Approved for
+Nightfall*, or *Not submitted*. **The only way a player ever learned of a decision was a first
+approval**, `Not submitted → Approved`. Every decision after that, either way, was silent and
+shapeless.
+
+`decision` is the fact. `CampaignStanding.ChangesTurnedDown` reads it, ordered after
+`ChangesPending` so a resubmission shadows it with no clearing write, and ahead of `Approved`
+because a clone is exactly what a rejection leaves untouched. A refused compare-and-swap writes no
+decision at all — a refusal that recorded one would tell a player their change was turned down by a
+GM who never got to decide.
+
+**`decided_at` is stored and deliberately off the wire.** A decision without a time is a fact half
+recorded and an `ALTER` cannot invent one later; but nothing draws a time yet, and
+`AccountsContractTests` holds this server to sending nothing the browser binds nothing to. The open
+item about a submission's age is unchanged and now has the column it would need.
+
+#### Two things found by breaking a guard rather than by reading it
+
+1. **A sentence written and thrown away unrendered — finding 7, verbatim, in a new place.** The
+   removal's 409 handler set a status line the page could never draw: a GM reaches that refusal
+   only by having deleted the game, at which point `Refresh` has already moved the page to
+   `NotYours`. Caught because the test asserting the sentence went red. `Remove` sets its status
+   *after* the refresh and only while the campaign is still on screen, and the case now asserts the
+   page is right rather than that it apologises.
+2. **A fake can be too restrictive, which is the same fault as finding 9 and reads nothing like
+   it.** `FakeApi` answered the read's 404 gates for `DELETE` too, so a third account and a GM with
+   a deleted game were both unreachable — states the server really produces, made untestable by a
+   stub that was *stricter* than the real thing. The `DELETE` arm now sits ahead of those gates and
+   mirrors both statements and the probe.
+
+#### Fifteen mutations, all red
+
+Six on the sheet view, nine on leaving and removing, each run against committed work and reverted
+after — collapsing each `Showing` arm into another, the button label, the settled sheet not being
+drawn, each statement's owner column, the `EXISTS`, the 204, the 409 probe, the origin check, the
+`DELETE` route, both confirms, and the fake keeping the row. Each named the case it should.
+
+#### Open, and the one thing to watch
+
+- **`0007` is the first migration `apply-migrations.sh` will ever actually apply.** `0006` was
+  applied by hand and every gate run since has skipped, so the apply path has been driven only
+  against a stub wrangler. Watch that step on the first deploy of this branch.
+- **A rejection still carries no reason**, because there is nowhere a GM types one. The standing
+  says which way it went and does not promise more than the row holds.
+- **Notifications proper are still out.** No mail, no badge outside the campaign screens, nothing
+  that interrupts. What changed is that looking now answers the question; it did not before.
 ### Six Dependabot pull requests, and the four things in them that were not version numbers
 
 **Four merged, two closed, and one pull request opened that Dependabot had nothing to do with.** The first Dependabot batch this repository has ever had — raised 2026-08-28 by `a4ec6ef`, all six behind a `main` that had since taken three more merges, so every one was rebased before its green meant anything. What follows is the part worth keeping: **on a repository this heavily commented, a version bump's real cost is the prose it silently falsifies**, and four of the six had one.
@@ -1408,6 +1519,15 @@ not a history: one slot per character per campaign, resubmitting overwrites, no 
 Notifications beyond the waiting count, a GM editing the clone directly, approval history or
 rollback, removing a player, transferring a campaign. Adversity still appears in no code — that is
 still a loose end of item 11 and this slice did not touch it.
+
+**Two of those are no longer out, and one is narrower** — see the entry above this one. Leaving and
+removing are built; a decision is now a fact on the row rather than only its consequence, so a
+rejection is visible to the player waiting on it. **That is not the same as notifications**, and
+the sentence above still holds for the rest of what it meant: there is no mail, no badge outside
+the campaign screens, and nothing interrupts anybody. **Approval history and rollback stay
+deliberately out**, unchanged by `0007`, which records the *last* decision and not a log of them
+for the same reason the pending slot is one slot. A GM editing the clone directly and transferring
+a campaign are untouched.
 
 #### Three findings worth carrying, all from breaking a guard and watching it
 

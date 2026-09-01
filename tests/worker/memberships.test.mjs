@@ -705,6 +705,135 @@ test('the wrong method is refused on every membership address', async () => {
     }
 });
 
+// ── What a decision leaves behind ────────────────────────────────────────────────────────
+//
+// **Approving and rejecting were indistinguishable from the player's side, and that is the defect
+// `0007` exists for.** Approve moves the pending slot into the approved one; Reject clears the
+// pending slot and leaves the clone. Both then leave two booleans in a state the player has
+// already seen — so a rejection reverted their standing to the identical sentence it showed
+// before they sent anything, and nothing said a decision had been made at all.
+
+/** The player's own row for a membership, which is where a standing is read from. */
+async function playerRow(app, cookie, id) {
+    const listed = await (await app.call('/api/memberships', { cookie })).json();
+
+    return listed.memberships.find(m => m.id === id);
+}
+
+/** The GM's row for the same membership. */
+async function gmRow(app, cookie, id) {
+    const listed = await (await app.call('/api/memberships/inbox', { cookie })).json();
+
+    return listed.memberships.find(m => m.id === id);
+}
+
+test('a rejection is a fact on the row, not only the absence of an approval', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    // The control: nothing decided yet, and it says so rather than defaulting to either word.
+    assert.equal((await playerRow(app, player.cookie, membership)).decision, null);
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+    assert.equal((await decide(app, gm.cookie, membership, 'reject', 1)).status, 204);
+
+    const after = await playerRow(app, player.cookie, membership);
+
+    assert.equal(after.decision, 'rejected');
+    assert.equal(after.hasApproved, false, 'rejecting must not write a clone');
+    assert.equal(after.hasPending, false, 'the snapshot is gone either way');
+});
+
+test('a rejection after an approval is told apart from the approval', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+    assert.equal((await decide(app, gm.cookie, membership, 'approve', 1)).status, 204);
+
+    const approved = await playerRow(app, player.cookie, membership);
+
+    assert.equal(approved.decision, 'approved');
+    assert.equal(approved.hasApproved, true);
+
+    // **The case the whole migration is for.** The clone stays exactly where it was, so every
+    // other field on this row comes back reading precisely as it did a moment ago.
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+    assert.equal((await decide(app, gm.cookie, membership, 'reject', 2)).status, 204);
+
+    const turnedDown = await playerRow(app, player.cookie, membership);
+
+    assert.equal(turnedDown.hasApproved, approved.hasApproved);
+    assert.equal(turnedDown.hasPending, approved.hasPending);
+    assert.equal(turnedDown.approvedAt, approved.approvedAt,
+        'rejecting must not move the time the clone was accepted');
+
+    // One field differs, and it is the only thing standing between these two states.
+    assert.equal(turnedDown.decision, 'rejected');
+});
+
+test('the GM sees the last decision too, because both rows land in one record', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+    assert.equal((await decide(app, gm.cookie, membership, 'reject', 1)).status, 204);
+
+    const row = await gmRow(app, gm.cookie, membership);
+
+    assert.equal(row.decision, 'rejected');
+
+    // And still no account id or address anywhere in the GM's half.
+    const body = JSON.stringify(row);
+
+    assert.ok(!body.includes('player@example.test'), body);
+    assert.ok(!body.includes('u_'), body);
+});
+
+test('resubmitting shadows the last decision rather than clearing it', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+    assert.equal((await decide(app, gm.cookie, membership, 'reject', 1)).status, 204);
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+
+    const resent = await playerRow(app, player.cookie, membership);
+
+    // **Nothing clears it and nothing needs to.** A waiting snapshot is the live fact and the
+    // browser reads it first; the decision is still the last one made, which is what it says.
+    assert.equal(resent.hasPending, true);
+    assert.equal(resent.decision, 'rejected');
+
+    // And the next decision overwrites it.
+    assert.equal((await decide(app, gm.cookie, membership, 'approve', 2)).status, 204);
+    assert.equal((await playerRow(app, player.cookie, membership)).decision, 'approved');
+});
+
+test('a refused decision writes no decision at all', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+
+    // The compare-and-swap refuses this, and a refusal that recorded a decision would tell the
+    // player their change was turned down by a GM who never got to decide.
+    assert.equal((await decide(app, gm.cookie, membership, 'reject', 99)).status, 409);
+
+    const after = await playerRow(app, player.cookie, membership);
+
+    assert.equal(after.decision, null);
+    assert.equal(after.hasPending, true, 'the snapshot is still waiting');
+});
+
+test('a rejoined membership starts with nothing decided', async () => {
+    const { app, gm, player, code, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+    assert.equal((await decide(app, gm.cookie, membership, 'reject', 1)).status, 204);
+    assert.equal((await leave(app, player.cookie, membership)).status, 204);
+
+    const again = (await (await join(app, player.cookie, { code })).json()).id;
+
+    assert.equal((await playerRow(app, player.cookie, again)).decision, null,
+        'a fresh row must not inherit the decision made about the one that was left');
+});
+
 // ── Ending a membership ─────────────────────────────────────────────────────────────────
 //
 // **Both sides can end one, and each reaches the row by its own column** — which is what makes a

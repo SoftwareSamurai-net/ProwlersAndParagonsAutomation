@@ -460,6 +460,7 @@ export async function getMembership(db, userId, id) {
 export async function listMembershipsForPlayer(db, playerUserId) {
     const result = await db.prepare(
         'SELECT id, campaign_id, character_id, label, approved_at, pending_at, pending_version, '
+        + '       decision, '
         + '       approved_payload IS NOT NULL AS has_approved, '
         + '       pending_payload IS NOT NULL AS has_pending '
         + 'FROM campaign_members WHERE player_user_id = ? '
@@ -490,6 +491,7 @@ export async function listMembershipsForPlayer(db, playerUserId) {
 export async function listMembershipsForGm(db, gmUserId) {
     const result = await db.prepare(
         'SELECT id, campaign_id, label, approved_at, pending_at, pending_version, '
+        + '       decision, '
         + '       approved_payload IS NOT NULL AS has_approved, '
         + '       pending_payload IS NOT NULL AS has_pending '
         + 'FROM campaign_members WHERE gm_user_id = ? '
@@ -560,14 +562,15 @@ export async function approveSubmission(db, { id, gmUserId, version, now }) {
     return await db.prepare(
         'UPDATE campaign_members SET '
         + '  approved_payload = pending_payload, approved_at = ?, '
-        + '  pending_payload = NULL, pending_at = NULL '
+        + '  pending_payload = NULL, pending_at = NULL, '
+        + "  decision = 'approved', decided_at = ? "
         + 'WHERE id = ? AND gm_user_id = ? AND pending_version = ? '
         + '  AND pending_payload IS NOT NULL '
         + '  AND EXISTS (SELECT 1 FROM campaigns c '
         + '              WHERE c.user_id = campaign_members.gm_user_id '
         + '                AND c.id = campaign_members.campaign_id) '
         + 'RETURNING id, pending_version')
-        .bind(now, id, gmUserId, version).first();
+        .bind(now, now, id, gmUserId, version).first();
 }
 
 /**
@@ -581,17 +584,24 @@ export async function approveSubmission(db, { id, gmUserId, version, now }) {
  * <p><b>The player's own character is untouched too</b>, and it is not this server's to touch:
  * their rows are theirs, the rejection is a decision about the campaign's copy, and nothing here
  * reaches into somebody's own work to undo it.</p>
+ *
+ * <p><b>It takes a clock now, and that is the whole of the second defect this pair carried.</b>
+ * A rejection changed nothing a player could see: the clone stays where it was, so their standing
+ * reverted to the identical sentence it showed before they sent anything. `decision` is the fact
+ * that a decision happened and which way it went, and without it approving and turning down are
+ * the same event from the other side of the table.</p>
  */
-export async function rejectSubmission(db, { id, gmUserId, version }) {
+export async function rejectSubmission(db, { id, gmUserId, version, now }) {
     return await db.prepare(
-        'UPDATE campaign_members SET pending_payload = NULL, pending_at = NULL '
+        'UPDATE campaign_members SET pending_payload = NULL, pending_at = NULL, '
+        + "  decision = 'rejected', decided_at = ? "
         + 'WHERE id = ? AND gm_user_id = ? AND pending_version = ? '
         + '  AND pending_payload IS NOT NULL '
         + '  AND EXISTS (SELECT 1 FROM campaigns c '
         + '              WHERE c.user_id = campaign_members.gm_user_id '
         + '                AND c.id = campaign_members.campaign_id) '
         + 'RETURNING id, pending_version')
-        .bind(id, gmUserId, version).first();
+        .bind(now, id, gmUserId, version).first();
 }
 
 /**

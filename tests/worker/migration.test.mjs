@@ -185,6 +185,72 @@ test('deleting a campaign row does not touch a character that names it', () => {
     assert.equal(rows[0].campaign_id, 'g_0000000000000000000000');
 });
 
+// ── 0007: the decision itself, which the row kept only the consequence of ─────────────────
+
+/** Every migration up to and including 0006 — the shape before a decision was recorded. */
+function preDecisionDb() {
+    const db = new DatabaseSync(':memory:');
+    for (const migration of MIGRATIONS.slice(0, 6)) db.exec(readFileSync(migration, 'utf8'));
+
+    return db;
+}
+
+test('a membership written before 0007 survives it, undecided', () => {
+    // **NULL is the right answer for those rows and not a missing value.** A membership from
+    // before this migration has a decision that was made and not written down, or none at all,
+    // and an ALTER cannot tell which — so it says nothing rather than guessing, and the browser
+    // reads that as no decision. Defaulting to 'approved' would tell a player their last
+    // rejection had been accepted.
+    const db = preDecisionDb();
+    user(db, 'u_gm', 'gm@example.test');
+    user(db, 'u_p', 'p@example.test');
+
+    db.prepare(
+        'INSERT INTO campaign_members (id, campaign_id, gm_user_id, player_user_id, '
+        + 'character_id, label, approved_payload, approved_at, pending_version, joined_at) '
+        + 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run('m_0000000000000000000000', 'g_a', 'u_gm', 'u_p', 'c_x', 'Ninefold',
+             '{"Sheet":{}}', 3000, 4, 1000);
+
+    db.exec(readFileSync(MIGRATIONS[6], 'utf8'));
+
+    const rows = db.prepare('SELECT * FROM campaign_members').all();
+
+    assert.equal(rows.length, 1, 'the row must not be dropped — 0007 alters, it does not rebuild');
+    assert.equal(rows[0].decision, null);
+    assert.equal(rows[0].decided_at, null);
+
+    // Everything the row already held is untouched, including the clone, byte for byte.
+    assert.equal(rows[0].approved_payload, '{"Sheet":{}}');
+    assert.equal(rows[0].approved_at, 3000);
+    assert.equal(rows[0].pending_version, 4);
+    assert.equal(rows[0].label, 'Ninefold');
+});
+
+test('0007 adds both columns and neither is NOT NULL', () => {
+    const db = preDecisionDb();
+
+    // The positive control: they are genuinely absent beforehand, or the assertion below would
+    // hold for a migration that did nothing at all.
+    const before = db.prepare('PRAGMA table_info(campaign_members)').all().map(c => c.name);
+
+    assert.ok(!before.includes('decision'), before.join(', '));
+    assert.ok(!before.includes('decided_at'), before.join(', '));
+
+    db.exec(readFileSync(MIGRATIONS[6], 'utf8'));
+
+    const after = db.prepare('PRAGMA table_info(campaign_members)').all();
+    const named = Object.fromEntries(after.map(c => [c.name, c]));
+
+    assert.ok(named.decision, 'no decision column');
+    assert.ok(named.decided_at, 'no decided_at column');
+
+    // NOT NULL on either would refuse every row that has never been decided, which is every row
+    // at the moment somebody joins.
+    assert.equal(named.decision.notnull, 0);
+    assert.equal(named.decided_at.notnull, 0);
+});
+
 // ── 0006: the clone, the approval slot and the join code ─────────────────────────────────
 
 /** Every migration up to and including 0005 — the shape before campaign membership. */

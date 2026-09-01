@@ -53,6 +53,13 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   the same six-label format. `Areas.Of` answers it; `MainLayout` draws neither there. **It now
   covers the portfolio and the sign-in page too** — there are four areas; see [`browser.md`](browser.md), "Four areas, and the
   address decides which".
+- **A decision is recorded as a fact, and that is what `0007` is for.** Approving and rejecting
+  leave `has_approved` and `has_pending` in states the player has already seen — a rejection
+  reverts their standing to the sentence it showed before they sent anything — so `decision` is
+  the only thing distinguishing *turned down* from *approved earlier* and from *never sent*. Both
+  list rows carry it because they land in one record on the browser's side. Nothing clears it: a
+  new submission shadows it and the next decision overwrites it. `decided_at` is stored beside it
+  and stays off the wire until something draws a time.
 - **Ending a membership is one address with two meanings, and the column that matches is what
   decides which.** `DELETE /api/memberships/{id}` is a player leaving *and* a GM removing
   somebody; nothing in the request says which, so nothing in it can claim a role it does not have.

@@ -356,6 +356,9 @@ async function decide(request, env, deps, user, id, statement) {
         return fail(400, 'That decision names no version of the submission.');
     }
 
+    // Both statements take the clock now: an approval records when the clone was accepted, and a
+    // rejection records that a decision happened at all, which is the only thing distinguishing it
+    // from never having been read.
     const decided = await statement(env.DB, { id, gmUserId: user.id, version, now: deps.now() });
 
     if (decided) return noContent();
@@ -399,6 +402,15 @@ function asPlayerRow(row) {
         hasPending: row.has_pending === 1,
         pendingAt: row.pending_at ?? null,
         pendingVersion: row.pending_version,
+
+        // **The last decision, and the whole reason a player can tell one from the other.**
+        // Approving moves the pending slot into the approved one; rejecting clears the pending
+        // slot and leaves the clone. Both then leave two booleans in the same state the player
+        // saw before they sent anything, so without this a rejection is silent and shapeless.
+        //
+        // `decided_at` is stored beside it and is deliberately not here: nothing draws a time
+        // yet, and this server does not send fields the browser binds nothing to.
+        decision: row.decision ?? null,
     };
 }
 
@@ -413,6 +425,11 @@ function asGmRow(row) {
         hasPending: row.has_pending === 1,
         pendingAt: row.pending_at ?? null,
         pendingVersion: row.pending_version,
+
+        // **Both shapes or neither**, because they deserialize into one record on the other side:
+        // a field on the player's row and not the GM's would silently default on the GM's screens
+        // rather than fail, which is exactly the drift `AccountsContractTests` exists for.
+        decision: row.decision ?? null,
     };
 }
 
