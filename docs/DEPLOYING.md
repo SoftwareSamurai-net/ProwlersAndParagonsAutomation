@@ -13,7 +13,13 @@ There is no build step on Cloudflare's side: the workflow runs `dotnet publish`,
 
 1. **Create the Pages project.** Cloudflare dashboard → Workers & Pages → Create → Pages → *Direct Upload*. Name it `prowlers-and-paragons`, or set a repository variable `CLOUDFLARE_PAGES_PROJECT` to whatever you called it. Do **not** connect it to the Git repository — the workflow uploads, and having both would give you two deploy paths that can disagree.
 2. **Create a scoped API token.** My Profile → API Tokens → Create Token → *Custom token*:
-   - Permission: **Account → Cloudflare Pages → Edit**, and nothing else.
+   - Permissions: **Account → Cloudflare Pages → Edit** *and* **Account → D1 → Edit**, and nothing
+     else. **Both, or the deploy cannot ship.** The workflow applies pending D1 migrations before it
+     uploads (see `scripts/apply-migrations.sh`), and that step aborts the job rather than shipping
+     past a migration it cannot confirm — which is what took character saving down in production
+     once. **D1 *Read* is not enough**: the step lists migrations *and* applies them. A token
+     holding only Pages answers `[code: 7403]` and every deploy stops, which is how this was found
+     the first time (PR #104, reverted by #105).
    - Account Resources: **only** the account holding this project.
    - Not the Global API Key, which can do anything to every zone on the account.
 3. **Add the repository secrets** `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (Settings → Secrets and variables → Actions).

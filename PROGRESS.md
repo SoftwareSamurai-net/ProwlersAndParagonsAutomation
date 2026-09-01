@@ -1524,8 +1524,13 @@ machine holds is the owner's own, with access to everything; the deploy's is sco
 credential that answers on the developer's machine says nothing about the one CI holds* — the same
 shape as a test that builds the world it tests, one layer out.
 
-- **It returns when the deploy token can read D1** (D1 *Read*, alongside what it has for Pages). The
-  step is in PR #104's history and needs no redesign, only credentials.
+- **It returns when the deploy token can reach D1.** The step is in PR #104's history and needs no
+  redesign, only credentials. **This said D1 *Read*, and Read is not enough** — true of the step as
+  #104 shipped it, which only *listed*; the version that came back also runs
+  `wrangler d1 migrations apply`, so it is **D1 Edit**, alongside what the token has for Pages.
+  Cloudflare's permission reference has both: *D1 Read — grants read access*, *D1 Edit — grants
+  write access*. A token given only the first refuses on every deploy, correctly, and looks exactly
+  like a token given neither.
 - **It must not be "fixed" by treating an unauthorised answer as all-clear**, which would turn the
   guard into the thing it exists to prevent.
 - **Two properties worth keeping when it comes back.** An unrecognised answer fails, because the
