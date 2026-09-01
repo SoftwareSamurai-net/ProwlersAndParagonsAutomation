@@ -36,12 +36,17 @@ public sealed class WorkflowFilterTests
         File.ReadAllText(Path.Combine(RepoRoot, ".github", "workflows", "deploy.yml"));
 
     /// <summary>
-    /// The paths the build is allowed to skip. Two, and both are files no test opens: the log of
-    /// what is done and what is left, and the handover written at the end of a slice. They are
-    /// also the two that change on almost every piece of work, which is what makes skipping them
-    /// worth anything at all.
+    /// The paths the build is allowed to skip. One, and it is a file no test opens: the handover
+    /// written at the end of a slice.
+    ///
+    /// <para><b>It was two, and <c>PROGRESS.md</c> came off deliberately.</b> That file stopped
+    /// being unread when <see cref="ProgressArchiveTests"/> began holding its completed-work
+    /// section to being a pointer rather than a place entries pile up — and a skipped path whose
+    /// contents a test checks is a change that merges without the build that would have caught it,
+    /// which is the exact failure <see cref="NoFileATestReadsIsSkippedByTheBuild"/> exists to
+    /// report. <b>It reported it</b>, on the commit that added that test.</para>
     /// </summary>
-    private static readonly string[] KnownInert = ["PROGRESS.md", "docs/HANDOVER.md"];
+    private static readonly string[] KnownInert = ["docs/HANDOVER.md"];
 
     private static List<string> Ignored()
     {
@@ -132,21 +137,28 @@ public sealed class WorkflowFilterTests
     }
 
     /// <summary>
-    /// <b>And the guide directory is never skipped wholesale.</b> <see cref="RepositoryGuideTests"/>
-    /// reads it with a wildcard rather than by naming each file, so the scan above cannot see it:
-    /// adding a guide the routing table does not name is a red build, and a `docs/**` or
-    /// `docs/guide/**` entry would hide exactly that.
+    /// <b>A directory some test reads by wildcard is never skipped wholesale.</b> There are two,
+    /// and the scan above cannot see either of them: <see cref="RepositoryGuideTests"/> enumerates
+    /// <c>docs/guide/</c> and <see cref="ProgressArchiveTests"/> enumerates <c>docs/progress/</c>,
+    /// neither by naming its files. So a `docs/**` entry — or either directory on its own — would
+    /// hide exactly the change those tests exist to catch: a guide the routing table does not name,
+    /// or an archive file with no title.
+    ///
+    /// <para><b>The archive was very nearly added to the skip list while it was being created</b>,
+    /// on the reasoning that finished work is inert. It is not inert while a test reads it, and
+    /// that is the whole rule this test states.</para>
     /// </summary>
     [Fact]
-    public void TheGuidesAreNeverSkipped()
+    public void ADirectoryReadByWildcardIsNeverSkipped()
     {
         foreach (var path in Ignored())
         {
             Assert.False(
                 path.StartsWith("docs/guide", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("docs/progress", StringComparison.OrdinalIgnoreCase)
                 || path is "docs/**" or "docs/*" or "**/*.md" or "*.md",
-                $"build.yml skips '{path}', which covers the guide set — and RepositoryGuideTests "
-                + "holds the routing table and docs/guide/ to each other.");
+                $"build.yml skips '{path}', which covers a directory a test enumerates — and that "
+                + "test is the only thing holding its contents to a shape.");
         }
     }
 

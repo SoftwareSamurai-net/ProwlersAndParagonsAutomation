@@ -8,6 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Updating it is part of the task, not a follow-up.** Any change that finishes a piece of work, moves a headline number, or uncovers a new gap updates `PROGRESS.md` in the same commit series. Do not leave the reasoning only in a commit message — commit messages are hard to find six months later.
 
+**But the account of what you *finished* goes in a file of its own** — `docs/progress/YYYY-MM-DD-a-short-slug.md`, not in `PROGRESS.md`. It used to go at the head of that file's Completed work section, which made every two concurrent branches conflict on the same anchor: one slice rebased five times in an afternoon and every conflict was that heading. `PROGRESS.md` keeps what is *not* done. See [`docs/progress/README.md`](docs/progress/README.md).
+
 This used to live in two places (the README roadmap and a gaps list further down this file) and drifted out of step with the code. Both now point at `PROGRESS.md`. Do not reintroduce a second list.
 
 ## Name a pull request the way a changelog would

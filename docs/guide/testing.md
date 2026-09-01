@@ -110,6 +110,40 @@ and its six branches are each proved by mutation rather than by reading.
 **`dotnet test` prints one `Passed!` per project and there are two.** Count the lines, and grep for
 `Catastrophic` — see the note below on why a crashed process still prints `Passed! - Failed: 0`.
 
+## Counting them is `./scripts/count-tests.sh`, and the count is not written down anywhere
+
+`PROGRESS.md`'s **Tests** row used to carry the five figures and a running account of each slice's
+delta. **It went wrong four separate ways**, and the four are kept here because the lesson outlives
+any particular number:
+
+1. **Summands that did not add up.** It read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own
+   parts total 5031 — the figures had been copied out of mid-branch commit messages and three more
+   commits landed after them. **A row that does not add up is the cheapest tell there is.**
+2. **A count read off CI and compared against a local baseline measured days earlier**, from which
+   somebody concluded that one engine test exists on a Linux runner and not on a Windows checkout.
+   It does not. Six Dependabot pull requests had landed underneath the branch while it was open.
+   **A stale baseline and a platform bug look identical from inside a long-lived branch, and the
+   difference is one `git fetch`.**
+3. **The same again, one slice later**, which is what turned a mistake into a pattern worth a rule.
+4. **The row rewritten on a branch while `main` rewrote it too.** One slice rebased five times in
+   an afternoon and three of those conflicts were this single line — a guaranteed collision between
+   any two concurrent branches, on a fact neither of them disagreed about.
+
+So the figures are gone and the script is the answer. Two properties of it are load-bearing:
+
+- **A missing count is an error, not a zero.** Each suite's number is read out of the line its
+  runner printed, and nothing is totalled when one is absent — because a suite that did not run and
+  a suite with no tests produce the same silence, which is the fault this whole file is about.
+- **Zero is refused as well as empty, and that was found by breaking it.** Pointing the pixel
+  comparator's glob at a file name that does not exist did not produce silence: `node --test`
+  matched nothing, printed `pass 0`, and the first version of the script totalled the other four
+  and called it a result. None of the five has ever held fewer than 14 tests, so zero is a state to
+  refuse rather than to report.
+
+**There is deliberately no committed baseline to compare against.** A stored number is the thing
+that goes stale, and a test count is not a quality gate — the suites failing is. Comparing two
+commits is `git worktree add` and a second run.
+
 ## Two test projects, and the difference between them
 
 - **`tests/ProwlersAndParagonsAutomation.Tests`** — the rules engine, plus `WebPresentationTests`, which *reads the source* of `web/` because the disciplines below are statements about how it is written, and `HeadlessBuildTests`, which drives the `build` command end to end, and the three `Mcp*Tests`, which drive the MCP server over a pair of pipes. **The wizard itself still has no harness** — that is the CLI gap, and it is narrower than it was rather than closed.
