@@ -3294,6 +3294,75 @@ public sealed class WebPresentationTests
         return text;
     }
 
+    // ── One sentence, one place ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>No sentence a reader sees is written out in two files.</b>
+    ///
+    /// <para>A copy audit found three: the print hint on both pages that print a sheet, the
+    /// recordings standfirst on both pages that list recordings, and the whole three-branch
+    /// refusal of a gated page in <c>AdminOnly</c> and again in <c>Admin</c> — which needs the
+    /// state for its own fetch and so could not simply be wrapped in the other. Each pair is one
+    /// edit away from disagreeing with itself, in the direction nobody notices: the copy that was
+    /// not updated is still grammatical, still on screen, and now wrong.</para>
+    ///
+    /// <para><b>Compared as rendered text, not as markup.</b> One of the three pairs was not
+    /// byte-identical — one page emphasised a phrase and the other did not — so a comparison of
+    /// source would have called them different while a reader could not tell them apart. Tags go,
+    /// Razor expressions go, whitespace collapses; what is left is what somebody reads.</para>
+    ///
+    /// <para><b>Fifty-five characters.</b> Short strings repeat legitimately — a button says
+    /// "Save" on every screen that saves — and a threshold low enough to catch those is one that
+    /// gets weakened the first time it fires on something innocent. A sentence is the unit this
+    /// is about.</para>
+    ///
+    /// <para>The fix when this fails is a component, not a reworded copy: two pages saying the
+    /// same thing in two ways is the same defect one step further along.</para>
+    /// </summary>
+    [Fact]
+    public void NoTwoPagesCarryTheSameSentence()
+    {
+        var blocks = Rx(@"<(p|li|EmptyState)\b[^>]*>(.*?)</\1>", RegexOptions.Singleline);
+        var found = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var counted = 0;
+
+        foreach (var file in RazorFiles)
+        {
+            foreach (Match block in blocks.Matches(VisibleMarkup(File.ReadAllText(file))))
+            {
+                var text = Rx(@"\s+").Replace(VisibleText(block.Groups[2].Value), " ").Trim();
+
+                if (text.Length < 55) continue;
+
+                counted++;
+
+                if (!found.TryGetValue(text, out var where))
+                {
+                    where = found[text] = [];
+                }
+
+                var name = Path.GetFileName(file);
+
+                if (!where.Contains(name, StringComparer.Ordinal)) where.Add(name);
+            }
+        }
+
+        // **The positive control.** An extractor that matched nothing — a renamed element, a regex
+        // that stopped spanning lines — would report no duplicates at all, which reads exactly
+        // like a tree that has none. This app has dozens of sentences that long.
+        Assert.True(counted > 30,
+            $"Only {counted} prose blocks were found, so this scan is not reading the pages.");
+
+        var shared = found
+            .Where(pair => pair.Value.Count > 1)
+            .Select(pair => $"  '{pair.Key}' in {string.Join(", ", pair.Value)}")
+            .ToList();
+
+        Assert.True(shared.Count == 0,
+            "The same sentence is written out in more than one file. Move it into a component:"
+            + Environment.NewLine + string.Join(Environment.NewLine, shared));
+    }
+
     private static string WithoutCssComments(string css) =>
         Rx(@"/\*.*?\*/", RegexOptions.Singleline).Replace(css, " ");
 

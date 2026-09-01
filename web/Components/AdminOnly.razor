@@ -18,24 +18,9 @@
 {
     @ChildContent
 }
-else if (_state == ListRequest.NotSignedIn)
+else if (_state is ListRequest.NotSignedIn or ListRequest.Unavailable or ListRequest.NotForYou)
 {
-    <Panel Title="Sign in first">
-        <p>This page needs an account. <a href="signin">Sign in</a>, then come back.</p>
-    </Panel>
-}
-else if (_state == ListRequest.Unavailable)
-{
-    <Panel Title="Could not reach the site">
-        <p>Nothing was reached just now. Try again in a moment.</p>
-    </Panel>
-}
-else if (_state == ListRequest.NotForYou)
-{
-    <Panel Title="Not this account">
-        <p>Nothing is wrong — there is simply nothing here for this account.</p>
-        <p><a href="build">Back to the character generator</a></p>
-    </Panel>
+    <GateRefusal State="_state" />
 }
 else
 {

@@ -1,0 +1,38 @@
+@* The three ways a gated page can refuse, in one place.
+
+   **Two pages had all three, word for word.** `AdminOnly` wraps a demonstration and `Admin`
+   answers the same question for itself, because it needs the state for its own fetch as well as
+   for the gate — so it could not simply be wrapped, and the copy was pasted instead. Three
+   sentences in two files is three sentences that drift apart one edit at a time, and nothing in
+   the suite could have said so until `NoTwoPagesCarryTheSameSentence`.
+
+   **The "Looking…" branch is deliberately not here.** Each page names what it is looking for, so
+   those two lines differ on purpose and are not duplication. *@
+
+@if (State == ListRequest.NotSignedIn)
+{
+    <Panel Title="Sign in first">
+        <p>This page needs an account. <a href="signin">Sign in</a>, then come back.</p>
+    </Panel>
+}
+else if (State == ListRequest.Unavailable)
+{
+    <Panel Title="Could not reach the site">
+        <p>Nothing was reached just now. Try again in a moment.</p>
+    </Panel>
+}
+else if (State == ListRequest.NotForYou)
+{
+    @* Kept as it was. The audit called this reassurance answering an unasked question; on a
+       screen that has just told somebody a page is not for them, "did I break something" is a
+       question they are actually asking. *@
+    <Panel Title="Not this account">
+        <p>Nothing is wrong — there is simply nothing here for this account.</p>
+        <p><a href="build">Back to the character generator</a></p>
+    </Panel>
+}
+
+@code {
+    /// <summary>Which refusal to draw. Anything else — including <c>Loaded</c> — draws nothing.</summary>
+    [Parameter, EditorRequired] public ListRequest? State { get; set; }
+}

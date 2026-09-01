@@ -1,0 +1,21 @@
+@* Where the browser's own print furniture is turned off.
+
+   The web address, the date and the page number across the top of a printed page are the
+   browser's furniture, not part of the sheet — and no page can turn them off, because the
+   setting belongs to whoever is printing. Saying where the switch is takes one line and is the
+   difference between a sheet you would hand somebody and one you would not.
+
+   **One component because two pages print a sheet**, and the sentence was identical in both. *@
+
+<p class="small muted @Class">
+    One page. Turn <b>Headers and footers</b> off under <b>More settings</b> to drop the
+    browser's own address-and-date band.
+</p>
+
+@code {
+    /// <summary>
+    /// Extra classes for the paragraph. The two callers differ here and should: the review step
+    /// wants the spacing, and the sheet page wants the line gone when the sheet is printed.
+    /// </summary>
+    [Parameter] public string? Class { get; set; }
+}
