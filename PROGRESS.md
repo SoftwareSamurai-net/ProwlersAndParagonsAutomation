@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | **5103 across five suites** — 4043 on the engine, 781 rendering components with bUnit, 246 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 133**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **The leave/notify/view slice added 28 on top of that**, all five suites re-run on the rebased branch: bUnit **769 → 781**, accounts **231 → 246**, and engine **4042 → 4043** — one, because what that suite otherwise gained were assertions inside `AccountsContractTests` rather than new facts, and the one is the label guard the fourth defect needed. The pixel and gate suites are untouched. 4043 + 781 + 246 + 14 + 19 = 5103.<br><br>**This row has now gone wrong in four distinct ways, and the fourth is the subtlest.** (1) It once read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them — a row that does not add up is the cheapest tell there is. (2) and (3) are recorded above and below. **(4) This slice branched at `6cce0e1`, measured its engine baseline as 4041, and then read 4042 off `main`'s CI — and concluded from the gap that one engine test exists on a Linux runner and not on a Windows checkout.** It does not. `main`'s CI reported 4041 for `e2c8f9b7` and `e0cbd15` and **4042 only from `16b8e68`**, the merge that added `WranglerIsPinnedToOneVersion`; the six Dependabot pull requests had landed underneath this branch while it was open. The engine count is identical on both platforms at every commit where both were measured. **A stale baseline and a platform bug look exactly alike from inside a long-lived branch**, and the difference is one `git fetch` — so re-measure the baseline on `main` *as it is now*, not as it was when you branched. Re-run all five suites rather than adding to this number. |
+| Tests | **5105 across five suites** — 4044 on the engine, 782 rendering components with bUnit, 246 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 133**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **The leave/notify/view slice added 28 on top of that**, all five suites re-run on the rebased branch: bUnit **769 → 781**, accounts **231 → 246**, and engine **4042 → 4043** — one, because what that suite otherwise gained were assertions inside `AccountsContractTests` rather than new facts, and the one is the label guard the fourth defect needed. The pixel and gate suites are untouched. 4043 + 781 + 246 + 14 + 19 = 5103.<br><br>**This row has now gone wrong in four distinct ways, and the fourth is the subtlest.** (1) It once read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them — a row that does not add up is the cheapest tell there is. (2) and (3) are recorded above and below. **(4) This slice branched at `6cce0e1`, measured its engine baseline as 4041, and then read 4042 off `main`'s CI — and concluded from the gap that one engine test exists on a Linux runner and not on a Windows checkout.** It does not. `main`'s CI reported 4041 for `e2c8f9b7` and `e0cbd15` and **4042 only from `16b8e68`**, the merge that added `WranglerIsPinnedToOneVersion`; the six Dependabot pull requests had landed underneath this branch while it was open. The engine count is identical on both platforms at every commit where both were measured. **A stale baseline and a platform bug look exactly alike from inside a long-lived branch**, and the difference is one `git fetch` — so re-measure the baseline on `main` *as it is now*, not as it was when you branched. Re-run all five suites rather than adding to this number. |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **The deploy applies pending D1 migrations before the Pages upload, and the apply half is now proven rather than assumed.** The first run failed on a file mode rather than the credential everybody was watching; the run after it read the live database, found nothing pending, and shipped — which established D1 *Read* only, because a token holding just Read produces that exact log and then fails on the first migration that actually has to be applied. **`0007_decision_recorded.sql` was that migration.** On the deploy of `a978806` the gate read one pending file, classified it additive, applied it (`0007_decision_recorded.sql ✅`), **and then asked the database again** — `No migrations to apply!`, the script's own positive control, which is what makes this "the schema moved" rather than "wrangler exited 0". So **D1: Edit is granted and the whole mechanism has now run end to end.** See [`docs/guide/hosting.md`](docs/guide/hosting.md) |
@@ -1273,6 +1273,58 @@ So the trap the guide exists to warn about is **closed**, not reworded. But that
 **Not started.** Dependabot will re-raise both when 4.0.1 or 4.1.0 lands, which is a fine moment to do it properly. The measurements above are from 2026-09-01 and are worth re-taking rather than trusting — they were made against SDK 10.0.303 and MTP 2.3.3.
 
 ## Completed work
+
+### Swapping the character in the banner left the sheet on the old one
+
+**The owner reported the pill and the sheet disagreeing, and the sheet was right** — it was drawing
+exactly what the session had told it, which was nothing.
+
+`CharacterSession.Restore` assigned the character and rang no bell. That is correct for exactly one
+caller: `Program.cs`, wiring the session up before the first render, where there is nothing to
+redraw and somebody should find their character where they left it rather than watch it arrive. Its
+doc comment said so. **Five call sites that run long after the first render reached for it anyway**
+— the banner's switcher, `CharacterManager.Open`, and three paths through `SignIn`.
+
+#### Why it survived, and why the fix is a name
+
+**The failure does not show up where the mistake is made.** Whoever swaps the character is a
+component handling a click, so Blazor re-renders *that* component whatever the session did — the
+pill follows perfectly, and everything subscribed to `CharacterSession.Changed` goes on drawing what
+was replaced. From the one control a reader is looking at, a swap that notified nobody looks
+completely correct.
+
+**The knowledge was already in the file twice and neither copy stopped it.**
+`CharacterManager.Imported` had been patched with a bare `NotifyChanged()` after its `Restore` —
+one call site fixed, five left — and `ReplaceWithUndo`'s own doc comment says in as many words that
+*every caller that reaches this wants the redraw*. A remark on one method does not reach somebody
+picking a method name in another file.
+
+So the two are told apart by their **names**: `Open` restores and notifies and is what everything
+reaches for; `RestoreBeforeFirstRender` keeps the silence and carries its constraint where it cannot
+be missed, so the trap cannot be fallen into by picking the shorter name. `ReplaceWithUndo` and the
+undo path go through `Open` as well, which retired two more hand-written `NotifyChanged()` calls.
+
+#### In place, not a navigation — and that was the owner's call
+
+Swapping updates what is on screen where the reader is standing. It does **not** navigate to
+`/sheet/{id}`, and the reason is the switcher's own: it exists precisely because swapping used to
+mean walking back to step one, and sending somebody to a document page is that same fault pointed
+the other way. It would also blur *showing* and *opening*, which [`browser.md`](docs/guide/browser.md)
+keeps one word apart — the switcher performs the second, and `/sheet/{id}` is the first.
+
+#### Two guards, both watched to fail
+
+- **`SwappingRedrawsTheSheetAndNotOnlyThePill`** renders the shell and a subscribing `SheetView`
+  against one scoped session and asserts both move. The swap test that already existed asserts
+  `Session.Sheet` changed — **which is the hole**: assigning the field is not telling anybody, and
+  that assertion passes against the defect.
+- **`NothingDrawnCallsTheSilentRestore`** reads the source of everything under `Components`, `Pages`
+  and `Layout`. `Program.cs` still calling the silent method is the positive control, so a rename
+  cannot leave the scan hunting a spelling nothing uses — which is how this repository has shipped a
+  guard measuring nothing before.
+
+Four mutations, all red: the swap going silent again, `Open` losing its notify, a page reaching for
+the silent one, and the boot no longer calling it.
 
 ### A player can leave, a GM can remove and read any sheet, and a rejection stops being silent
 
