@@ -214,13 +214,46 @@
                            control in this app follows. *@
                         <button type="button" class="open-target" @onclick="() => Open(one.Id)">
                             <span class="nm">@one.Label</span>
+
+                            @* **Only where the list actually holds both, which is the same
+                               argument the time makes.** On a roster that is all Villains the chip
+                               is on every row and tells a reader nothing; on a GM's, where the
+                               party and the opposition are in one list, it is the fastest thing to
+                               read on the row. A kind this app does not write draws nothing rather
+                               than a guess — see `Kinds.Word`. *@
+                            @if (_showKinds && Kinds.Word(one.Kind) is { } kind)
+                            {
+                                <span class="kind">@kind</span>
+                            }
+
                             @if (CampaignStandingFor(one.Id) is { } inAGame)
                             {
                                 <span class="meta">@inAGame</span>
                             }
-                            @if (_showTimes && Ages.Since(one.UpdatedAt, DateTimeOffset.UtcNow) is { } age)
+
+                            @* **The figure a row could not carry until the index held it.** It is
+                               not costed here: `SavedCharacters` wrote it when the character was
+                               saved, which is what keeps a list of thirty from being thirty reads.
+                               A character the engine declined to price shows its tier and no
+                               number, which is the front door's rule and not a gap. *@
+                            @if (Says(one) is { } what)
                             {
-                                <span class="meta">@age</span>
+                                <span class="meta">@what</span>
+                            }
+
+                            @* **The time now earns its place only when it explains the order.**
+                               It was the one thing telling two rows apart, which is why it was
+                               drawn from two characters up; on a list of twenty-nine imported in
+                               one sitting it read "3 minutes ago" on every row, and the fields
+                               beside it say far more. Under "Recent" it is what the order *means*,
+                               so it stays there. *@
+                            @* `.when` names what this phrase is, so a test can ask for the time
+                               rather than sniffing the row's text for the word "ago" — which
+                               `Ages` does not always use ("just now") and which the spend beside
+                               it could one day contain. `.meta` still carries the styling. *@
+                            @if (ShowsTime && Ages.Since(one.UpdatedAt, DateTimeOffset.UtcNow) is { } age)
+                            {
+                                <span class="meta when">@age</span>
                             }
                         </button>
 
@@ -361,8 +394,7 @@
     /// a laptop with no network both land here, and an id this map cannot name is drawn under a
     /// heading that says so rather than under one invented for it.</para>
     /// </summary>
-    private IReadOnlyDictionary<string, string> _campaignNames =
-        new Dictionary<string, string>(StringComparer.Ordinal);
+    private RosterNames _names = RosterNames.None;
 
     /// <summary>
     /// Where each of this account's characters stands in the games it is in, or null when that
@@ -381,6 +413,17 @@
     private int? _limit;
     private bool _full;
     private bool _showTimes;
+
+    /// <summary>
+    /// Whether a row draws which palette its character is built in.
+    ///
+    /// <para><b>Only where the list holds both, which is the same rule the time follows.</b> A GM's
+    /// roster mixes the party and the opposition and the chip is the fastest thing on the row; a
+    /// player's is all Heroes, where it would be one word repeated down the whole list. A row whose
+    /// kind was never written counts as neither, so an index that predates the field does not turn
+    /// the chip on for a list that has nothing to tell apart.</para>
+    /// </summary>
+    private bool _showKinds;
 
     /// <summary>
     /// What to say about the last refused click, or null when nothing has been refused. Cleared at
@@ -412,15 +455,59 @@
     };
 
     /// <summary>How many rows the filter is letting through, across every group.</summary>
-    private int Shown => _others.Count(c => Roster.Admits(c, _query, _campaignNames));
+    private int Shown => _others.Count(c => Roster.Admits(c, _query, _names));
 
     /// <summary>The rows to draw, in their groups. Recomputed per render; see <see cref="Roster"/>.</summary>
     private IReadOnlyList<RosterGroup> Grouped() =>
-        Roster.Group(_others, _query, _order, _campaignNames, Elsewhere);
+        Roster.Group(_others, _query, _order, _names, Elsewhere);
 
     private void Typed(ChangeEventArgs e) => _query = e.Value?.ToString() ?? "";
 
     private void Reorder(RosterOrder order) => _order = order;
+
+    /// <summary>
+    /// Whether a row draws the time it was last touched.
+    ///
+    /// <para><b>It used to be drawn whenever there were two characters, and that was right while
+    /// it was the only thing telling two rows apart.</b> A row now says which game, which kind and
+    /// what it cost, and on twenty-nine characters imported in one sitting the time read
+    /// "3 minutes ago" on every one of them — the column that was there to disambiguate had
+    /// stopped doing it.</para>
+    ///
+    /// <para>So it is kept in the two places it still says something: on a list too short to have
+    /// an order control, where it is what it always was, and under <c>Recent</c>, where it is what
+    /// the chosen order <em>means</em>.</para>
+    /// </summary>
+    private bool ShowsTime =>
+        _showTimes && (_others.Count < ToolsFrom || _order == RosterOrder.Recent);
+
+    /// <summary>
+    /// What one row says about itself besides its name — the spend and the tier, or as much of
+    /// them as is known.
+    ///
+    /// <para><b>Null rather than a placeholder when neither is known</b>, which is every row
+    /// written before the index carried them and every one whose next save has not happened yet.
+    /// A row that said "— HP · —" would be reporting the index's age as though it were a fact
+    /// about the character.</para>
+    ///
+    /// <para><b>A tier id that the rules do not know is printed as itself</b>, the same choice
+    /// <c>CampaignDiff</c> makes: a payload can name a tier these rules have not got, and a row
+    /// reading "Unnamed" tells a GM nothing while the id at least tells them what to look up.</para>
+    /// </summary>
+    private string? Says(SavedCharacterSummary one)
+    {
+        var tier = one.TierId is null
+            ? null
+            : _names.Tiers.TryGetValue(one.TierId, out var known) ? known : one.TierId;
+
+        return (one.Spent, tier) switch
+        {
+            (null, null) => null,
+            (null, { } only) => only,
+            ({ } hp, null) => $"{hp} HP",
+            ({ } hp, { } named) => $"{hp} HP · {named}",
+        };
+    }
 
     /// <summary>
     /// What to say about the games one character is in, or null when there is nothing to say.
@@ -540,14 +627,25 @@
         // refuses for the Hero Point figure. An account with no campaigns, and a visitor who is
         // not signed in, both answer an empty list here — which the headings handle as
         // "not here" rather than inventing a name. See `Roster.NameOf`.
-        _campaignNames = ListsEveryCharacter
-            ? (await Campaigns.ListAsync()).ToDictionary(c => c.Id, c => c.Label, StringComparer.Ordinal)
-            : new Dictionary<string, string>(StringComparer.Ordinal);
+        _names = ListsEveryCharacter
+            ? new RosterNames(
+                (await Campaigns.ListAsync()).ToDictionary(c => c.Id, c => c.Label, StringComparer.Ordinal),
+
+                // The tiers come out of the rules the engine is already holding — no read, no
+                // request, and no copy of a name that `data/rules/tiers.json` owns.
+                Session.Rules.Tiers.ToDictionary(t => t.Id, t => t.Name, StringComparer.Ordinal))
+            : RosterNames.None;
 
         // **A time earns its place only once there is something to tell apart.** Beside one other
         // character it is noise on a row that needs none; with several it is how a reader picks the
-        // right one. Free either way — `UpdatedAt` is already in the index.
+        // right one. Free either way — `UpdatedAt` is already in the index. What has changed is
+        // that this is no longer sufficient on its own; see `ShowsTime`.
         _showTimes = _characters.Count >= 2;
+
+        // Both kinds present, counted over what is actually listed rather than assumed from the
+        // reader's own palette: the question is whether this list needs telling apart, not what
+        // the person looking at it happens to be building.
+        _showKinds = _others.Any(c => c.Kind == "hero") && _others.Any(c => c.Kind == "villain");
     }
 
     private void Reload() => _ = InvokeAsync(async () =>

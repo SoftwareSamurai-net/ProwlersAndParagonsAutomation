@@ -1194,6 +1194,26 @@ label {
    in the option lists it is the last item of a flex row rather than a phrase inside a sentence. */
 .others-head .options-count { margin-left: var(--space-2); }
 
+/* Hero or Villain on a row, and it is an outline rather than a fill.
+   **`--accent` is a FILL token and this is not a fill**, so the chip borrows the rule colour and
+   the row's own muted text — the marking has to work in four palettes, and a Villain chip tinted
+   toward the Villain palette's crimson would be invisible on the Villain palette's ground. What
+   distinguishes it from the `.meta` phrases beside it is the box, not the colour.
+
+   Not `.chip`, because nothing else in this app has one and a class named for a shape invites the
+   next person to reach for it where a word would do. */
+.open-target .kind {
+    font-family: var(--font-display);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--label-track);
+    color: var(--muted);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 0 var(--space-1);
+    white-space: nowrap;
+}
+
 /* One bar, two equal doors. Starting fresh and importing are the same kind of act — both make
    a character that does not exist yet — so the group's own rule separates them from the list
    above, which is the job `ImportCharacter`'s `.small` was doing alone by simply being smaller

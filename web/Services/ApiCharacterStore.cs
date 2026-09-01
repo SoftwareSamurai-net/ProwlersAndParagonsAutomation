@@ -57,11 +57,18 @@ public sealed class ApiCharacterStore : ICharacterStore
     private readonly SavedCharacters _local;
     private readonly StoredCharacter _payload;
 
+    /// <summary>Kept as well as handed to <see cref="_payload"/>, for the reason
+    /// <see cref="SavedCharacters"/> keeps one: a PUT carries the character's spend now, and the
+    /// two stores have to describe a character the same way. See
+    /// <see cref="SavedCharacters.IndexFieldsFor"/>.</summary>
+    private readonly CostCalculator _costs;
+
     public ApiCharacterStore(
         HttpClient http, SavedCharacters local, CostCalculator costs, CharacterValidator validator)
     {
         _http = http;
         _local = local;
+        _costs = costs;
         _payload = new StoredCharacter(costs, validator);
     }
 
@@ -84,7 +91,8 @@ public sealed class ApiCharacterStore : ICharacterStore
                     [.. listed.Characters
                         .Where(c => c.Id is { Length: > 0 })
                         .Select(c => new SavedCharacterSummary(
-                            c.Id!, c.Label ?? "Unnamed character", c.UpdatedAt, c.CampaignId))]);
+                            c.Id!, c.Label ?? "Unnamed character", c.UpdatedAt, c.CampaignId,
+                            c.Kind, c.TierId, c.Spent))]);
         }
         catch (Exception e) when (IsUnreachable(e)) { return AccountCharacters.Unknown; }
     }
@@ -118,9 +126,14 @@ public sealed class ApiCharacterStore : ICharacterStore
     {
         try
         {
+            var (kind, tierId, spent) = SavedCharacters.IndexFieldsFor(sheet, mode, _costs);
+
             using var body = new StringContent(
                 JsonSerializer.Serialize(
-                    new Sending(label, StoredCharacter.Write(sheet, mode), sheet.CampaignId), Wire),
+                    new Sending(
+                        label, StoredCharacter.Write(sheet, mode), sheet.CampaignId,
+                        kind, tierId, spent),
+                    Wire),
                 Encoding.UTF8,
                 "application/json");
 
@@ -279,7 +292,10 @@ public sealed class ApiCharacterStore : ICharacterStore
         [property: JsonPropertyName("id")] string? Id,
         [property: JsonPropertyName("label")] string? Label,
         [property: JsonPropertyName("updatedAt")] long UpdatedAt,
-        [property: JsonPropertyName("campaignId")] string? CampaignId);
+        [property: JsonPropertyName("campaignId")] string? CampaignId,
+        [property: JsonPropertyName("kind")] string? Kind = null,
+        [property: JsonPropertyName("tierId")] string? TierId = null,
+        [property: JsonPropertyName("spent")] int? Spent = null);
 
     /// <summary>
     /// What the browser sends to store one. `payload` is opaque to the server.
@@ -293,7 +309,10 @@ public sealed class ApiCharacterStore : ICharacterStore
     private sealed record Sending(
         [property: JsonPropertyName("label")] string Label,
         [property: JsonPropertyName("payload")] string Payload,
-        [property: JsonPropertyName("campaignId")] string? CampaignId);
+        [property: JsonPropertyName("campaignId")] string? CampaignId,
+        [property: JsonPropertyName("kind")] string? Kind = null,
+        [property: JsonPropertyName("tierId")] string? TierId = null,
+        [property: JsonPropertyName("spent")] int? Spent = null);
 }
 
 /// <summary>

@@ -19,6 +19,49 @@ public enum RosterOrder
     Recent,
 }
 
+/// <summary>
+/// What the ids on a row resolve to, for the one screen that has both lookups to hand.
+///
+/// <para><b>Two dictionaries and not two parameters, because they are the same kind of thing and
+/// have the same type.</b> Adjacent parameters of type
+/// <c>IReadOnlyDictionary&lt;string, string&gt;</c> can be passed the wrong way round in silence,
+/// and the failure would be a roster grouped by tier name — which is not a compile error and not
+/// obviously wrong on a screen.</para>
+/// </summary>
+/// <param name="Games">What each campaign this account holds is called, by id. Empty when nothing
+/// could be asked, which is not the same as an account with no campaigns — see
+/// <see cref="Roster.NameOf"/>.</param>
+/// <param name="Tiers">What each tier is called, by id, out of <c>data/rules/tiers.json</c>. Used
+/// for matching and for drawing, never stored: the name is the rules data's to change.</param>
+public sealed record RosterNames(
+    IReadOnlyDictionary<string, string> Games, IReadOnlyDictionary<string, string> Tiers)
+{
+    /// <summary>Nothing resolvable. What a signed-out visitor's roster has.</summary>
+    public static RosterNames None { get; } = new(
+        new Dictionary<string, string>(StringComparer.Ordinal),
+        new Dictionary<string, string>(StringComparer.Ordinal));
+}
+
+/// <summary>
+/// The word for a stored <c>kind</c>, for a reader rather than for a column.
+///
+/// <para><b>Here rather than on <see cref="SheetMode"/>, and the line is the same one
+/// <c>Standings</c> draws.</b> What an index stores is a lower-case key that outlives any
+/// particular screen; what a row prints is a capitalised word. An unrecognised key — a row written
+/// by a later version, or a hand-edited one — is <c>null</c> rather than a guess, so a roster
+/// draws no chip instead of an invented one.</para>
+/// </summary>
+public static class Kinds
+{
+    /// <summary>What to call one stored kind, or null when it is not one this app writes.</summary>
+    public static string? Word(string? kind) => kind switch
+    {
+        "hero" => "Hero",
+        "villain" => "Villain",
+        _ => null,
+    };
+}
+
 /// <summary>One heading and the rows under it.</summary>
 /// <param name="Heading">What the heading reads. Never empty.</param>
 /// <param name="Aside">
@@ -68,13 +111,13 @@ public static class Roster
     /// </summary>
     /// <param name="campaignId">The character's campaign, or null for one in none.</param>
     /// <param name="names">What each campaign this account holds is called, by id.</param>
-    public static string NameOf(string? campaignId, IReadOnlyDictionary<string, string> names)
+    public static string NameOf(string? campaignId, RosterNames names)
     {
         ArgumentNullException.ThrowIfNull(names);
 
         if (campaignId is null) return NoGame;
 
-        return names.TryGetValue(campaignId, out var name) ? name : GameNotHere;
+        return names.Games.TryGetValue(campaignId, out var name) ? name : GameNotHere;
     }
 
     /// <summary>
@@ -84,12 +127,17 @@ public static class Roster
     /// bargain a Power's tags make on the Powers tab. Typing a campaign's name is how somebody
     /// asks for "everyone in that game", and it is the question a roster exists to answer.</para>
     /// </summary>
-    public static bool Admits(
-        SavedCharacterSummary one, string query, IReadOnlyDictionary<string, string> names)
+    public static bool Admits(SavedCharacterSummary one, string query, RosterNames names)
     {
         ArgumentNullException.ThrowIfNull(one);
+        ArgumentNullException.ThrowIfNull(names);
 
-        return OptionFilter.Matches(query, one.Label, NameOf(one.CampaignId, names));
+        return OptionFilter.Matches(
+            query,
+            one.Label,
+            NameOf(one.CampaignId, names),
+            Kinds.Word(one.Kind),
+            one.TierId is { } tier && names.Tiers.TryGetValue(tier, out var named) ? named : null);
     }
 
     /// <summary>
@@ -118,7 +166,7 @@ public static class Roster
         IReadOnlyList<SavedCharacterSummary> characters,
         string query,
         RosterOrder order,
-        IReadOnlyDictionary<string, string> names,
+        RosterNames names,
         string oneGroup)
     {
         ArgumentNullException.ThrowIfNull(characters);

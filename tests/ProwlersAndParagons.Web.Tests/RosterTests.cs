@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,8 +25,10 @@ public sealed class RosterTests
     private static SavedCharacterSummary Row(string label, string? campaignId = null, long at = 0) =>
         new($"c_{label.Replace(" ", "", StringComparison.Ordinal)}", label, at, campaignId);
 
-    private static Dictionary<string, string> Games(params (string Id, string Name)[] games) =>
-        games.ToDictionary(g => g.Id, g => g.Name, StringComparer.Ordinal);
+    /// <summary>The games this account can name, and no tiers. Tiers are exercised separately.</summary>
+    private static RosterNames Games(params (string Id, string Name)[] games) =>
+        new(games.ToDictionary(g => g.Id, g => g.Name, StringComparer.Ordinal),
+            new Dictionary<string, string>(StringComparer.Ordinal));
 
     private const string Elsewhere = "Also on this account";
 
@@ -330,6 +333,203 @@ public sealed class RosterTests
 
         Assert.Equal(
             "true", cut.FindAll(".roster-order button")[1].GetAttribute("aria-pressed"));
+    }
+
+    /// <summary>
+    /// A row says what the character cost and what tier it was built to — the figure a row could
+    /// not carry until the index held it, and the reason move 3 exists at all.
+    /// </summary>
+    [Fact]
+    public async Task ARowSaysWhatItCostAndWhatTierItIs()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        await account.SaveAsync(
+            SavedCharacters.NewId(), "Ninth Precinct", SampleCharacters.Hero(), SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+        var row = Text(cut.Find(".character-list .open-target").InnerHtml);
+
+        // Not a literal figure: the sample is priced by the engine, and pinning the number here
+        // would make this a test of `SampleCharacters` that fails whenever the sample changes.
+        Assert.Matches(@"\d+ HP · \w", row);
+    }
+
+    /// <summary>
+    /// A character the engine declines to price shows its tier and no figure. Null is an answer —
+    /// the same rule the front door follows — and "0 HP" would be a claim nobody computed.
+    /// </summary>
+    [Fact]
+    public async Task ACharacterTheEngineWillNotPriceShowsNoFigure()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        // A variable-cost Power with no variant chosen — a legitimate half-built state, and the
+        // one `CostCalculator` throws for rather than guessing at.
+        var halfBuilt = new CharacterSheet { Name = "Unfinished", SelectedTierId = "standard" };
+        halfBuilt.SelectedPowers.Add(new SelectedPower("omni_power", 1));
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        await account.SaveAsync(SavedCharacters.NewId(), "Unfinished", halfBuilt, SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+        var row = Text(cut.Find(".character-list .open-target").InnerHtml);
+
+        Assert.DoesNotContain("HP", row, StringComparison.Ordinal);
+
+        // The positive control: the row really is drawn and really does carry the tier, so the
+        // absence above is about the figure rather than about a row that said nothing at all.
+        Assert.Contains("Standard", row, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The Hero/Villain chip is drawn only where the list holds both. On a roster that is all
+    /// Villains it is one word repeated down every row; on a GM's it is the fastest thing to read.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TheKindChipIsDrawnOnlyWhereThereAreBoth(bool mixed)
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        await account.SaveAsync(
+            SavedCharacters.NewId(), "Ninth Precinct", SampleCharacters.Hero(), SheetMode.Hero);
+        await account.SaveAsync(
+            SavedCharacters.NewId(), "The Quiet Hour", SampleCharacters.Villain(),
+            mixed ? SheetMode.Villain : SheetMode.Hero);
+
+        var cut = ctx.Render<CharacterManager>();
+
+        Assert.Equal(2, cut.FindAll(".character-list .open-target").Count);
+        Assert.Equal(mixed, cut.FindAll(".character-list .kind").Count > 0);
+    }
+
+    /// <summary>
+    /// The time is drawn under "Recent", where it is what the order means, and not under "By
+    /// game", where it was the column that read the same on every row.
+    /// </summary>
+    [Fact]
+    public async Task TheTimeBelongsToTheRecentOrder()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+        ctx.Api.Limit = 40;
+
+        await Fill(ctx, 8);
+
+        var cut = ctx.Render<CharacterManager>();
+        Assert.Empty(cut.FindAll(".character-list .when"));
+
+        // "Recent" is the third of the three, in the order the control offers them.
+        cut.FindAll(".roster-order button")[2].Click();
+
+        Assert.Equal(8, cut.FindAll(".character-list .when").Count);
+    }
+
+    /// <summary>
+    /// Typing a tier's name, or "villain", finds the characters that are one — neither of which a
+    /// row need print, and both of which are what somebody actually asks a roster of thirty.
+    /// </summary>
+    [Fact]
+    public async Task TheFilterFindsATierAndAKind()
+    {
+        await using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct-7", "player");
+        ctx.Api.Limit = 40;
+
+        await Fill(ctx, 7);
+
+        var account = ctx.Services.GetRequiredService<ApiCharacterStore>();
+        await account.SaveAsync(
+            SavedCharacters.NewId(), "The Quiet Hour", SampleCharacters.Villain(), SheetMode.Villain);
+
+        var cut = ctx.Render<CharacterManager>();
+
+        cut.Find(".options-filter input").Input("villain");
+        Assert.Single(cut.FindAll(".character-list .open-target"));
+
+        // The tier the samples are built to, typed as the book writes it rather than as the id
+        // spells it — which is the whole reason the names are resolved before matching.
+        cut.Find(".options-filter input").Input("Standard");
+        Assert.Equal(8, cut.FindAll(".character-list .open-target").Count);
+    }
+
+    // ── What reaches the index, and what an older one still does ─────────────────────────────
+
+    /// <summary>
+    /// The three fields reach this browser's index, so a row can say what a character is without
+    /// the payload being read — which is the constraint the whole design is built around.
+    /// </summary>
+    [Fact]
+    public async Task TheIndexCarriesWhatARowNeedsToSayWhatItIs()
+    {
+        var storage = new FakeLocalStorage();
+        var characters = FreshCharacters(storage);
+
+        await characters.SaveCurrentAsync(
+            Identity.Anonymous,
+            new CharacterSheet { SelectedTierId = "standard", Name = "Ninefold" },
+            SheetMode.Villain);
+
+        var entry = Assert.Single(await characters.ListAsync());
+
+        Assert.Equal("villain", entry.Kind);
+        Assert.Equal("standard", entry.TierId);
+        Assert.NotNull(entry.Spent);
+    }
+
+    /// <summary>
+    /// An index written before these three fields existed still lists every character in it —
+    /// the same guard <c>CampaignId</c> has, one field on, and for the same reason: a
+    /// <c>required</c> member here would empty a returning visitor's list in silence.
+    /// </summary>
+    [Fact]
+    public async Task AnIndexWrittenBeforeTheseFieldsStillLists()
+    {
+        const string fourFieldIndex =
+            """[{"Id":"c_aaaaaaaaaaaaaaaaaaaaaa","Label":"Ninefold","UpdatedAt":1755600000000,"CampaignId":null}]""";
+
+        var entries = JsonSerializer.Deserialize<List<SavedCharacterSummary>>(fourFieldIndex);
+
+        Assert.Equal("Ninefold", Assert.Single(entries!).Label);
+        Assert.Null(entries![0].Kind);
+        Assert.Null(entries[0].TierId);
+        Assert.Null(entries[0].Spent);
+
+        // …and through the store, because a record that deserialises is no use if the list that
+        // reads it throws.
+        var storage = new FakeLocalStorage();
+        storage.Poke("pp.character.v1.index", fourFieldIndex);
+        storage.Poke("pp.character.v1.c_aaaaaaaaaaaaaaaaaaaaaa",
+            """{"Version":1,"Mode":0,"Sheet":{"SelectedTierId":"standard","Name":"Ninefold"}}""");
+
+        Assert.Equal("Ninefold", Assert.Single(await FreshCharacters(storage).ListAsync()).Label);
+    }
+
+    private static readonly RulesRepository Rules = RulesRepository.FromBasePath(FindRepoRoot());
+    private static readonly CostCalculator Costs = new(Rules);
+    private static readonly CharacterValidator Validator =
+        new(Rules, Costs, new DerivedStatsCalculator(Rules));
+
+    private static SavedCharacters FreshCharacters(FakeLocalStorage storage) =>
+        new(storage, Costs, Validator, new LocalIdentity());
+
+    private static string FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (dir.GetFiles("*.sln").Length > 0) return dir.FullName;
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate the repository root.");
     }
 
     /// <summary>
