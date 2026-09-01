@@ -72,7 +72,7 @@ export async function list(request, env, deps, user) {
 
             // Three more of the same kind, and the reason they exist is the list this endpoint
             // serves: at thirty characters a row that had to fetch a payload to say what it was
-            // would be thirty fetches. See 0007. `?? null` on all three because a row written
+            // would be thirty fetches. See 0008. `?? null` on all three because a row written
             // before that migration has no value for them, which is an ordinary state and not a
             // fault — it acquires one on the next save.
             kind: row.kind ?? null,
@@ -210,7 +210,7 @@ function normaliseCampaignId(value) {
  * would make this server the authority on what a legal character is, which is precisely the job it
  * does not have. What is checked is what is checked about `label`: that it is a bounded string.
  *
- * Missing, null or empty is the ordinary state — a character written before 0007, or one the
+ * Missing, null or empty is the ordinary state — a character written before 0008, or one the
  * client had nothing to say about. `undefined` out of this function means a refusal.
  */
 function normaliseIndexField(value) {

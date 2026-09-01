@@ -510,7 +510,7 @@ cards — and a GM sorting NPCs is not choosing a tier at all.
 **`SavedCharacterSummary` carries `Kind`, `TierId` and `Spent` as well as the campaign, and every
 one is a duplicate of something inside the payload.** The server cannot derive any of them — it
 never parses a character — so the client sends them alongside, exactly as it sends `label`. See
-`docs/CHARACTERS-API.md` and migration `0007`.
+`docs/CHARACTERS-API.md` and migration `0008`.
 
 - **One spelling of what an index records**, `SavedCharacters.IndexFieldsFor`, shared by both
   autosave paths. `LabelFor` had two copies once and that is how they would have drifted; a

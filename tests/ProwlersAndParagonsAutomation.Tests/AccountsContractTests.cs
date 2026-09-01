@@ -639,7 +639,7 @@ public sealed class AccountsContractTests
             .OrderBy(n => n, StringComparer.Ordinal)
             .ToArray();
 
-        // Seven since 0007: id, label, updatedAt, campaignId, kind, tierId, spent. The literal
+        // Seven since 0008: id, label, updatedAt, campaignId, kind, tierId, spent. The literal
         // count is the positive control — two extractions that had both stopped matching would
         // compare two empty arrays and agree — so it moves deliberately when a field is added.
         Assert.True(reads.Length == 7,
@@ -713,7 +713,7 @@ public sealed class AccountsContractTests
             .Select(m => m.Groups[1].Value)
             .ToList();
 
-        // Six since 0007: label, payload, campaignId, kind, tierId, spent. Same positive control
+        // Six since 0008: label, payload, campaignId, kind, tierId, spent. Same positive control
         // as the list above, and the same reason for moving it by hand.
         Assert.True(sent.Count == 6,
             "the client sends " + sent.Count + " fields to store a character: "

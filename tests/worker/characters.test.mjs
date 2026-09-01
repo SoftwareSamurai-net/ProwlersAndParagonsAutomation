@@ -304,7 +304,7 @@ test('a GM account raised past 5 can hold more, by the SQL in the setup doc', as
 // `kind`, `tierId` and `spent` are `label`'s and `campaignId`'s kind of field: supplied by the
 // client, stored verbatim, handed back verbatim, and never derived — because the server cannot
 // derive them without parsing a payload, which is the one thing it does not do. What is tested
-// here is that bargain, and the bounds that keep them a column's worth of data. See 0007.
+// here is that bargain, and the bounds that keep them a column's worth of data. See 0008.
 
 test('the three index fields come back exactly as they were sent', async () => {
     const app = server();

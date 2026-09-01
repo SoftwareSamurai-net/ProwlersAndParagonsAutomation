@@ -1346,9 +1346,15 @@ Headings per campaign with the ones in no game last, three orders, and a count t
 filter is hiding. **The decisions are in `web/Services/Roster.cs` rather than in the component** —
 the same split `Commands` makes for the palette — so most of `RosterTests` renders nothing at all.
 
-**Three — a row that says what the character is.** Migration `0007` and three defaulted fields on
+**Three — a row that says what the character is.** Migration `0008` and three defaulted fields on
 `SavedCharacterSummary`: `Kind`, `TierId`, `Spent`. A row reads `Villain · 164 HP · High Level`
 with no payload fetched, deserialised, costed or validated for it.
+
+**It was written as `0007` and renumbered on the rebase**, because the campaign slice below took
+that number while this branch was open. Worth knowing for the deploy: that entry's "the one thing
+to watch" says `0007` is the first migration `apply-migrations.sh` will ever actually apply — it is
+now **two** that apply on the same run, and the apply path has still only ever been driven against
+a stub wrangler. Watch that step.
 
 #### The constraint that decided all three, and how it was paid rather than argued with
 
@@ -1368,7 +1374,7 @@ them.
   incomplete selection, and the autosave fires on the very change that makes a sheet unpriceable, so
   `TryCost` is asked and null is written. A row then shows its tier and no figure. A column
   defaulting to `0` would report that a half-built character costs nothing.
-- **Nothing backfills, and every existing row lists.** A character written before `0007` has none of
+- **Nothing backfills, and every existing row lists.** A character written before `0008` has none of
   the three and picks them up on its next save. The defaults are load-bearing in exactly the way
   `CampaignId`'s are, and a literal four-field index is checked in to pin it.
 - **One spelling of what an index records**, `SavedCharacters.IndexFieldsFor`, shared by both

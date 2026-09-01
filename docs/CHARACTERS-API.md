@@ -29,7 +29,7 @@ gets: that it is a well-formed key (`g_` followed by 22 URL-safe characters). Du
 lets a list group characters by game without deserializing and costing every payload it draws a row
 for, which is the thing `SavedCharacterSummary` exists to avoid.
 
-**`kind`, `tierId` and `spent` are three more of exactly that kind, added in migration `0007`.** A
+**`kind`, `tierId` and `spent` are three more of exactly that kind, added in migration `0008`.** A
 roster of thirty could say a name and a time and nothing else — two characters called Emir Hughes
 were indistinguishable, and "show me the Standard-tier Villains" was a question the list could not
 be asked. Every sentence above applies to them unchanged. What is checked is a **shape and never a

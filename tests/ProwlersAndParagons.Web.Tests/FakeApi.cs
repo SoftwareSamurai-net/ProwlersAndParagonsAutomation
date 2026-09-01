@@ -52,7 +52,7 @@ public sealed class FakeApi : HttpMessageHandler
     /// this class exists not to have.</b> `campaign_id` has been a column since 0005 and the list
     /// endpoint has answered it since; this stub dropped it on the floor, so every browser-side
     /// test of "which game is this character in" was asserting against a fake that could never
-    /// have said. `kind`, `tier_id` and `spent` arrived with 0007 and are stored here from the
+    /// have said. `kind`, `tier_id` and `spent` arrived with 0008 and are stored here from the
     /// start for the same reason — a stub that answers less than the real server turns a broken
     /// round trip into a green suite.</para>
     /// </summary>

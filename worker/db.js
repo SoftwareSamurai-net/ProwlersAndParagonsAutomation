@@ -192,7 +192,7 @@ export async function getCharacter(db, userId, id) {
  * so a list of thirty characters can say what each one is without a payload read per row. Every
  * sentence above applies to them unchanged: supplied by the client, stored verbatim, handed back
  * verbatim, never derived and never interpreted. `spent` is NULL for a character the engine
- * declined to price and for every row written before 0007 — see the migration.</p>
+ * declined to price and for every row written before 0008 — see the migration.</p>
  */
 export async function listCharacters(db, userId) {
     const result = await db.prepare(

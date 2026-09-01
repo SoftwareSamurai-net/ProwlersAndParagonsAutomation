@@ -49,10 +49,10 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// nothing else: two characters called Emir Hughes were indistinguishable, and "show me the
 /// Standard-tier Villains" was a question the list could not be asked. Every one is supplied by
 /// the client on both sides, stored verbatim and never derived — see <c>docs/CHARACTERS-API.md</c>
-/// and migration <c>0007</c>.</para>
+/// and migration <c>0008</c>.</para>
 ///
 /// <para><b>Defaulted, and the defaults are load-bearing for the same measured reason
-/// <c>CampaignId</c>'s is.</b> An index or an account row written before <c>0007</c> has none of
+/// <c>CampaignId</c>'s is.</b> An index or an account row written before <c>0008</c> has none of
 /// the three, and must still list — the serializer supplies each parameter's own default for an
 /// absent key, and a <c>required</c> member here would silently empty every returning visitor's
 /// list. <c>RosterTests</c> pins it by reading a checked-in four-field index rather than by
