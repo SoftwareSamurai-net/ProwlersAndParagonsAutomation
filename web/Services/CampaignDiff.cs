@@ -110,9 +110,9 @@ public sealed record CharacterDiff(
 ///
 /// <para><b>Never a raw payload field.</b> Every row's name comes from the rules data or is a word
 /// the app already prints — Tier, Package, Name, and the Abilities, Talents, Powers, Perks and
-/// Flaws by their own names. <c>CampaignDiffTests</c> holds it to that against the property names
-/// of <see cref="CharacterSheet"/> itself, so a field added later cannot leak its own spelling
-/// onto the screen by being appended to a loop.</para>
+/// Flaws by their own names. <c>CampaignApprovalTests.NoRowNamesAFieldOfAStoredCharacter</c>
+/// holds it to that against the property names of <see cref="CharacterSheet"/> itself, so a field
+/// added later cannot leak its own spelling onto the screen by being appended to a loop.</para>
 ///
 /// <para><b>Whole snapshots are accepted or rejected, so this is a report and not a merge.</b>
 /// There is deliberately no way to apply one row: partial application is a merge algorithm for
@@ -192,6 +192,43 @@ public static class CampaignDiff
         compared += CompareDetailed(rows, "Gear",
             was.Gear.Select(g => Entry(g.Name, Blank(g.Name) ?? "Unnamed", GearDetail(rules, g))),
             after.Gear.Select(g => Entry(g.Name, Blank(g.Name) ?? "Unnamed", GearDetail(rules, g))));
+
+        // ── A Trait's Source ─────────────────────────────────────────────────────────
+        //
+        // Free, printed, and not derivable from anything else on the sheet. `AbilitySources` and
+        // `TalentSources` are the whole record of which Traits carry an `Abilities (…)` line
+        // inside a Power group, and `CharacterSheet`'s own note says why a rank cannot stand in
+        // for them: Ch.2 p.64's "7d or greater" is an instruction about random generation rather
+        // than a threshold, and the published sheets disagree with it in both directions.
+        //
+        // An absent key means the default Source, so clearing one reads as a removal rather than
+        // as a change to a word the sheet never printed.
+
+        compared += CompareDetailed(rows, "Ability Source",
+            was.AbilitySources.Select(s => Entry(s.Key, AbilityName(rules, s.Key), SourceName(rules, s.Value))),
+            after.AbilitySources.Select(s => Entry(s.Key, AbilityName(rules, s.Key), SourceName(rules, s.Value))));
+
+        compared += CompareDetailed(rows, "Talent Source",
+            was.TalentSources.Select(s => Entry(s.Key, TalentName(rules, s.Key), SourceName(rules, s.Value))),
+            after.TalentSources.Select(s => Entry(s.Key, TalentName(rules, s.Key), SourceName(rules, s.Value))));
+
+        // ── Who the character is ─────────────────────────────────────────────────────
+        //
+        // Not one of these costs a Hero Point and every one of them prints on the sheet, so all
+        // four belong to the reported half of this diff rather than the priced half. Without
+        // them a player could rewrite their appearance, their motivation, their quote and every
+        // connection they have between two submissions and the screen whose whole job is
+        // deciding about that character would draw an empty list — which reads as agreement.
+
+        compared += Compare(rows, "Appearance", Blank(was.Appearance), Blank(after.Appearance));
+        compared += Compare(rows, "Motivation", Blank(was.Motivation), Blank(after.Motivation));
+        compared += Compare(rows, "Quote", Blank(was.Quote), Blank(after.Quote));
+
+        // Keyed on the text, because a connection is free prose with no id: rewording one is a
+        // removal and an addition, which is the honest report of a line nobody can match up.
+        compared += CompareDetailed(rows, "Connection",
+            was.Connections.Select(c => Entry(c, c, Blank(c))),
+            after.Connections.Select(c => Entry(c, c, Blank(c))));
 
         // ── The two settings a campaign cares about ──────────────────────────────────
         //
@@ -313,7 +350,9 @@ public static class CampaignDiff
     /// variant, its units, its nominated Trait and its Source — so a player could move Immunity
     /// from one unit to six, the header would read <c>7 → 22 Hero Points</c>, and the list of what
     /// changed would be empty. Gear was worse: keyed on its name, and features are the only thing
-    /// gear costs Hero Points for. See <c>PROGRESS.md</c> item 19.</para>
+    /// gear costs Hero Points for. See the completed entry in <c>PROGRESS.md</c> on the campaign's
+/// clone and its approval request — an item number is not a stable address, and the one this
+/// used to name is now about the account cap.</para>
     ///
     /// <para><b>Compared by key rather than by position</b>, because a list reordered is not a list
     /// changed and a positional comparison would report every entry after an insertion.</para>
@@ -514,4 +553,17 @@ public static class CampaignDiff
 
     private static string FlawName(RulesRepository rules, string? id) =>
         id is null ? "Unnamed" : rules.GetFlaw(id)?.Name ?? id;
+
+    private static string AbilityName(RulesRepository rules, string id) =>
+        rules.GetAbility(id)?.Name ?? Labels.Humanise(id);
+
+    private static string TalentName(RulesRepository rules, string id) =>
+        rules.GetTalent(id)?.Name ?? Labels.Humanise(id);
+
+    /// <summary>
+    /// A Source's printed name — the word the sheet puts in an <c>Abilities (…)</c> line, not the
+    /// id it is stored under.
+    /// </summary>
+    private static string? SourceName(RulesRepository rules, string? id) =>
+        Blank(id) is null ? null : rules.GetSource(id!)?.Name ?? Labels.Humanise(id!);
 }

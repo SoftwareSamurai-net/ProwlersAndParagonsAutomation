@@ -309,6 +309,42 @@ public sealed class CampaignApprovalTests
             "which Source a Power comes from",
             s => Replace(s, p => p with { SourceId = "training" })
         },
+
+        // ── Three that only a fixture carrying the thing can reach ────────────────────
+        //
+        // Each of these was mutated in the production file and the whole class stayed green,
+        // for the reason this file's own fixture comment already records: the cases ADDED the
+        // element, and an element that was not there and now is produces a row whatever its
+        // detail says. `ACostedSheet` carries all three now and these change them.
+
+        {
+            "what a Perk was written to mean",
+            s => ReplacePerk(s, p => p with { NarrativeDetail = "A lock-up under the arches" })
+        },
+        {
+            "a piece of gear leaving its matched pair",
+            s => ReplaceGear(s, g => g with { PairedUnderTwoFisted = false })
+        },
+        {
+            "how many units of a Pro are bought",
+            s => ReplaceGear(s, g => g with
+            {
+                Pros = [new SelectedProCon("affect_inanimate") { Units = 5 }],
+            })
+        },
+
+        // ── Six the diff did not look at at all ───────────────────────────────────────
+        //
+        // Every one of them prints on the sheet and none of them costs a Hero Point, so the
+        // spend cannot be the trigger. A Source is the sharper half: it is not derivable from a
+        // rank, it decides which Pros an option allows, and it prints inside a Power group.
+
+        { "how the character looks", s => s.Appearance = "Taller than the file says" },
+        { "what drives them", s => s.Motivation = "Owes a debt nobody has called in" },
+        { "what they say", s => s.Quote = "“Not tonight.”" },
+        { "who they know", s => s.Connections.Add("A sergeant at the 14th") },
+        { "which Source an Ability comes from", s => s.AbilitySources["might"] = "tech" },
+        { "which Source a Talent comes from", s => s.TalentSources["academics"] = "psychic" },
     };
 
     /// <summary>
@@ -331,8 +367,15 @@ public sealed class CampaignApprovalTests
             AbilityRanks = { ["might"] = 5 },
             TalentRanks = { ["academics"] = 3 },
             SelectedPowers = { new SelectedPower("flight", 4) },
-            Perks = { new SelectedPerk("headquarters") },
-            Gear = { new SelectedGear("Blaster") },
+            Perks = { new SelectedPerk("headquarters", NarrativeDetail: "A brownstone on Cutter Street") },
+            Gear =
+            {
+                new SelectedGear("Blaster")
+                {
+                    PairedUnderTwoFisted = true,
+                    Pros = [new SelectedProCon("affect_inanimate") { Units = 2 }],
+                },
+            },
         };
 
         return sheet;
@@ -1095,6 +1138,131 @@ public sealed class CampaignApprovalTests
             .ClickAsync(new MouseEventArgs());
 
         Assert.Equal(12, (await store.ReadAsync(membership))!.Approved!.AbilityRanks["might"]);
+
+        // **And the GM is told, which is not the same assertion and used not to hold.** Approving
+        // closes the open request, and the status line lived *inside* the open request — so the
+        // sentence was assigned and thrown away unrendered, and the panel simply collapsed. Only
+        // the stale branch keeps the request open, which is exactly why the check above this one
+        // could pass while every other message on this screen was invisible.
+        Assert.Contains("Approved", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("role=\"status\"", page.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A snapshot this build cannot open is not "nothing waiting", and the screen used to say
+    /// it was.</b>
+    ///
+    /// <para><c>DecideAsync</c> reads the newer payload through <see cref="StoredCharacter"/>, and
+    /// that read returns null for an envelope a later version of the app wrote — which the store's
+    /// own notes treat as an ordinary thing to meet, not an error. The outcome is
+    /// <c>Stale</c> with no <c>Newer</c> to draw, and the page's switch had no arm for it: it fell
+    /// through to <c>NothingWaiting</c> and told the GM <em>there is nothing waiting here now</em>
+    /// about a request that is sitting in the queue, with the player waiting on it.</para>
+    ///
+    /// <para><b>Reachable only since <see cref="FakeApi"/> stopped being more permissive than the
+    /// server</b>, which is the finding underneath this one — see the deleted-campaign case
+    /// below.</para>
+    /// </summary>
+    [Fact]
+    public async Task AStaleSnapshotThatCannotBeOpenedIsNotCalledNothingWaiting()
+    {
+        var opened = await AWaitingRequest();
+        await using var ctx = opened.Ctx;
+        var membership = opened.Membership;
+
+        var page = ctx.Render<CampaignApproval>(
+            p => p.Add(c => c.Id, "g_0000000000000000000000"));
+
+        await page.Find(".campaign-row .btn").ClickAsync(new MouseEventArgs());
+
+        // The control: the diff drew, so what follows is about the decision rather than the read.
+        Assert.Contains("Hero Points", page.Find(".campaign-diff").TextContent, StringComparison.Ordinal);
+
+        // The player resubmits an envelope this build does not understand. Sent through the wire
+        // rather than through the store, because the store is what refuses to write one.
+        var http = ctx.Services.GetRequiredService<HttpClient>();
+
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        using var sending = new StringContent(
+            """{"label":"Ninefold","payload":"{\"Version\":9999,\"Sheet\":null}"}""",
+            System.Text.Encoding.UTF8, "application/json");
+
+        Assert.True((await http.PutAsync($"/api/memberships/{membership}/submission", sending,
+            Xunit.TestContext.Current.CancellationToken)).IsSuccessStatusCode,
+            "the resubmission never landed, so nothing is stale");
+
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        await page.FindAll(".campaign-diff .btn")
+            .First(b => b.TextContent.Contains("Approve", StringComparison.Ordinal))
+            .ClickAsync(new MouseEventArgs());
+
+        // The sentence a GM reads has to be true of the queue they are looking at.
+        Assert.DoesNotContain("nothing waiting here now", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("changed while you were reading it", page.Markup, StringComparison.Ordinal);
+
+        // And the decision did not land on the unreadable snapshot either.
+        var after = await ctx.Services.GetRequiredService<ApiMembershipStore>().ReadAsync(membership);
+
+        Assert.Null(after!.Approved);
+    }
+
+    /// <summary>
+    /// <b>A GM who deleted the game reaches nothing of it, on the screen and not only in the
+    /// store.</b>
+    ///
+    /// <para><b>This could not be written until <see cref="FakeApi"/> was fixed</b>, and that is
+    /// the finding. The server gates the GM's half of every membership on the campaign still
+    /// existing — <c>EXISTS (SELECT 1 FROM campaigns c WHERE c.user_id = gm_user_id AND c.id =
+    /// campaign_id)</c>, on the GM's side alone, so the player keeps their row. The fake checked
+    /// nothing, so it kept answering 200 with the clone and the waiting snapshot, and every
+    /// screen's handling of a deleted game was untestable while looking tested.</para>
+    ///
+    /// <para>A fake that is more permissive than the server does not make tests fail; it makes
+    /// them pass about a state the server never produces.</para>
+    /// </summary>
+    [Fact]
+    public async Task AGmWhoDeletedTheGameReachesNothingOfItOnTheScreen()
+    {
+        var opened = await AWaitingRequest();
+        await using var ctx = opened.Ctx;
+        var membership = opened.Membership;
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+
+        // The positive control: it is in the inbox to lose.
+        Assert.Single(await memberships.InboxAsync() ?? []);
+
+        await ctx.Services.GetRequiredService<ApiCampaignStore>()
+            .DeleteAsync("g_0000000000000000000000");
+
+        // Read out rather than coalesced: a null inbox means the read FAILED, and `?? []` would
+        // let that pass as "the GM sees nothing", which is the same sentence for a different
+        // reason. The page itself keeps the old list on a null for exactly this distinction.
+        var emptied = await memberships.InboxAsync();
+
+        Assert.NotNull(emptied);
+        Assert.Empty(emptied);
+        Assert.Null(await memberships.ReadAsync(membership));
+
+        var page = ctx.Render<CampaignApproval>(
+            p => p.Add(c => c.Id, "g_0000000000000000000000"));
+
+        // Nothing of the player's character survives on the GM's screen — not the label, and not
+        // an Approve button under a queue that no longer means anything.
+        Assert.DoesNotContain("Ninefold", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Approve", page.Markup, StringComparison.Ordinal);
+
+        // The player's half is theirs and is untouched, which is the asymmetry the server chose so
+        // that writing the campaign back is a complete undo.
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        Assert.Single(await memberships.MineAsync() ?? []);
+        Assert.NotNull(await memberships.ReadAsync(membership));
+
+        // And submitting into it is refused rather than accepted into nowhere.
+        Assert.Null(await memberships.SubmitAsync(membership, ASheet(might: 7), SheetMode.Hero));
     }
 
     /// <summary>
