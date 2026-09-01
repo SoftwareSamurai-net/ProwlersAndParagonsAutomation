@@ -1013,6 +1013,27 @@ public sealed class CampaignApprovalTests
     private static async Task<(RenderContext Ctx, string Membership)> AWaitingRequest(
         CharacterSheet? submitted = null)
     {
+        var joined = await AJoinedMember();
+
+        joined.Ctx.Api.SignedIn = ("u_player", "The Player");
+
+        Assert.NotNull(await joined.Ctx.Services.GetRequiredService<ApiMembershipStore>()
+            .SubmitAsync(joined.Membership, submitted ?? ASheet(might: 6), SheetMode.Hero));
+
+        joined.Ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        return joined;
+    }
+
+    /// <summary>
+    /// A GM's context with one player joined and <b>nothing sent</b> — the state that used to open
+    /// a blank panel, and the state <see cref="AWaitingRequest"/> is one submission past.
+    ///
+    /// <para>Driven through the real join route for the reason that helper records: a test about
+    /// what the screen shows must not pass against a join that has stopped working.</para>
+    /// </summary>
+    private static async Task<(RenderContext Ctx, string Membership)> AJoinedMember()
+    {
         var ctx = new RenderContext();
 
         ctx.Api.SignedIn = ("u_gm", "The GM");
@@ -1022,19 +1043,43 @@ public sealed class CampaignApprovalTests
             StoredCampaign.Write(
                 new Campaign("g_0000000000000000000000", "Nightfall", "standard", 8, false)));
 
-        var store = ctx.Services.GetRequiredService<ApiMembershipStore>();
-
         ctx.Api.SignedIn = ("u_player", "The Player");
 
-        var joined = await store.JoinAsync(code, PlayerCharacter, "Ninefold");
-        Assert.NotNull(joined);
+        var joined = await ctx.Services.GetRequiredService<ApiMembershipStore>()
+            .JoinAsync(code, PlayerCharacter, "Ninefold");
 
-        Assert.NotNull(await store.SubmitAsync(
-            joined!.Value.Id, submitted ?? ASheet(might: 6), SheetMode.Hero));
+        Assert.NotNull(joined);
 
         ctx.Api.SignedIn = ("u_gm", "The GM");
 
-        return (ctx, joined.Value.Id);
+        return (ctx, joined!.Value.Id);
+    }
+
+    /// <summary>
+    /// Put a payload this build cannot open into the pending slot, through the wire.
+    ///
+    /// <para><b>Through the wire because the store is what refuses to write one.</b> An envelope
+    /// from a later version of the app is an ordinary thing for
+    /// <see cref="StoredCharacter.Read"/> to meet, by that class's own notes — and it is the only
+    /// way to reach the two arms of this screen that must not be drawn as emptiness.</para>
+    /// </summary>
+    private static async Task SendAnUnreadableSnapshot(RenderContext ctx, string membership)
+    {
+        var http = ctx.Services.GetRequiredService<HttpClient>();
+        var was = ctx.Api.SignedIn;
+
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        using var sending = new StringContent(
+            """{"label":"Ninefold","payload":"{\"Version\":9999,\"Sheet\":null}"}""",
+            System.Text.Encoding.UTF8, "application/json");
+
+        Assert.True(
+            (await http.PutAsync($"/api/memberships/{membership}/submission", sending,
+                Xunit.TestContext.Current.CancellationToken)).IsSuccessStatusCode,
+            "the unreadable snapshot never landed, so nothing under test is reached");
+
+        ctx.Api.SignedIn = was;
     }
 
     /// <summary>
@@ -1313,5 +1358,173 @@ public sealed class CampaignApprovalTests
 
         Assert.Contains("Name a campaign", offered, StringComparison.Ordinal);
         Assert.Contains("Join", offered, StringComparison.Ordinal);
+    }
+
+    // ── What the GM can read when nothing is waiting ─────────────────────────────────────
+    //
+    // **The panel was gated on a diff existing, so a member with no snapshot opened nothing at
+    // all** — a character approved in March was unreadable on this screen until somebody changed
+    // it, and `Look` had two bare `return`s that left the box blank for an unreachable server and
+    // for an empty slot alike. The five cases below are five answers that used to be one blank
+    // box, and each asserts the sentence it must NOT be drawn as.
+
+    /// <summary>
+    /// <b>A settled member's sheet is readable with nothing waiting, and the control says which
+    /// of the two things pressing it will do.</b>
+    ///
+    /// <para><c>article.sheet</c> is <see cref="SheetView"/>'s own element and is found rather
+    /// than searched for, because a panel that opened and drew nothing would satisfy every other
+    /// assertion here.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheGmCanReadTheSheetOfAMemberWithNothingWaiting()
+    {
+        var settled = await AWaitingRequest();
+        await using var ctx = settled.Ctx;
+
+        var store = ctx.Services.GetRequiredService<ApiMembershipStore>();
+        var waiting = (await store.InboxAsync())!.Single();
+
+        Assert.Equal(
+            DecisionOutcome.Done,
+            (await store.ApproveAsync(settled.Membership, waiting.PendingVersion)).Outcome);
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, "g_0000000000000000000000"));
+
+        var open = page.Find(".campaign-row .btn");
+
+        Assert.Equal("View sheet", open.TextContent.Trim());
+
+        await open.ClickAsync(new MouseEventArgs());
+
+        // The positive control, and it is most of this test: the sheet really drew.
+        var drawn = page.Find(".campaign-diff article.sheet").TextContent;
+
+        Assert.Contains("Ninefold", drawn, StringComparison.Ordinal);
+
+        // Nothing is being decided, so nothing offers to decide it. Asserted over the controls
+        // rather than over the markup, because the row's own standing says the word "Approved".
+        Assert.Empty(page.FindAll(".campaign-diff .btn"));
+    }
+
+    /// <summary>
+    /// <b>A member who has sent nothing is told exactly that</b>, rather than shown a panel that
+    /// opened and drew nothing — which is what a reader cannot tell from a failure.
+    /// </summary>
+    [Fact]
+    public async Task AMemberWhoHasSentNothingSaysSoRatherThanOpeningABlankPanel()
+    {
+        var joined = await AJoinedMember();
+        await using var ctx = joined.Ctx;
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, "g_0000000000000000000000"));
+
+        var open = page.Find(".campaign-row .btn");
+
+        Assert.Equal("View sheet", open.TextContent.Trim());
+
+        await open.ClickAsync(new MouseEventArgs());
+
+        var said = page.Find(".campaign-diff").TextContent;
+
+        Assert.Contains("holds no sheet", said, StringComparison.Ordinal);
+
+        // Not the sentence for a payload that failed to open, which is a different fact.
+        Assert.DoesNotContain("cannot open", said, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A clone this build cannot open is not called "no sheet".</b>
+    ///
+    /// <para>The same class of fault as the stale snapshot above, on the read path rather than the
+    /// decision path: both slots answer <c>null</c> for an envelope
+    /// <see cref="StoredCharacter.Read"/> declines, and the list row is the only thing that says
+    /// whether the server thinks there is anything there.</para>
+    /// </summary>
+    [Fact]
+    public async Task ACloneThisBuildCannotOpenIsNotCalledNoSheet()
+    {
+        var joined = await AJoinedMember();
+        await using var ctx = joined.Ctx;
+
+        await SendAnUnreadableSnapshot(ctx, joined.Membership);
+
+        // Decided through the store, because the screen deliberately offers no way to decide
+        // about a snapshot it could not draw — which is the case below this one.
+        Assert.Equal(
+            DecisionOutcome.Done,
+            (await ctx.Services.GetRequiredService<ApiMembershipStore>()
+                .ApproveAsync(joined.Membership, 1)).Outcome);
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, "g_0000000000000000000000"));
+
+        await page.Find(".campaign-row .btn").ClickAsync(new MouseEventArgs());
+
+        var said = page.Find(".campaign-diff").TextContent;
+
+        Assert.Contains("cannot open", said, StringComparison.Ordinal);
+        Assert.DoesNotContain("holds no sheet", said, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>A waiting snapshot this build cannot open is not called "no sheet" either</b>, and it
+    /// offers no decision — a GM must not approve what this build could not draw.
+    /// </summary>
+    [Fact]
+    public async Task AWaitingSnapshotThisBuildCannotOpenOffersNoDecision()
+    {
+        var joined = await AJoinedMember();
+        await using var ctx = joined.Ctx;
+
+        await SendAnUnreadableSnapshot(ctx, joined.Membership);
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, "g_0000000000000000000000"));
+
+        var open = page.Find(".campaign-row .btn");
+
+        // The row knows a snapshot is waiting even though nothing here can open it.
+        Assert.Equal("Read the changes", open.TextContent.Trim());
+
+        await open.ClickAsync(new MouseEventArgs());
+
+        var said = page.Find(".campaign-diff").TextContent;
+
+        Assert.Contains("Changes are waiting here", said, StringComparison.Ordinal);
+        Assert.DoesNotContain("holds no sheet", said, StringComparison.Ordinal);
+
+        // And nothing invites a decision about it.
+        Assert.Empty(page.FindAll(".campaign-diff .btn"));
+    }
+
+    /// <summary>
+    /// <b>A read that fails says so, rather than reading as a member with nothing to show.</b>
+    ///
+    /// <para>Reached the way it happens: the list is drawn, the GM deletes the game in another
+    /// tab, and the click that follows asks about a membership whose GM half no longer exists.
+    /// Without this arm the panel opened blank, which is the same blank a member who has sent
+    /// nothing produces — and those are not the same sentence.</para>
+    /// </summary>
+    [Fact]
+    public async Task AReadThatFailsIsNotDrawnAsAMemberWithNothingToShow()
+    {
+        var settled = await AWaitingRequest();
+        await using var ctx = settled.Ctx;
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, "g_0000000000000000000000"));
+
+        // The control: the row is on screen and the read is about to be made from it.
+        var open = page.Find(".campaign-row .btn");
+
+        Assert.Equal("Read the changes", open.TextContent.Trim());
+
+        await ctx.Services.GetRequiredService<ApiCampaignStore>()
+            .DeleteAsync("g_0000000000000000000000");
+
+        await open.ClickAsync(new MouseEventArgs());
+
+        var said = page.Find(".campaign-diff").TextContent;
+
+        Assert.Contains("could not be read", said, StringComparison.Ordinal);
+        Assert.DoesNotContain("holds no sheet", said, StringComparison.Ordinal);
     }
 }

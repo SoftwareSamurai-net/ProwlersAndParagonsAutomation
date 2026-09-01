@@ -48,10 +48,15 @@ else if (_state == Reading.Looking)
 }
 else
 {
-    <Panel Title="Waiting for you" Aside="@WaitingAside">
+    @* **The roster, and it was a queue until this screen could show a settled sheet.** The list
+       has always held every membership of this campaign rather than only the pending ones — but
+       the only thing it would open was a diff, so a character approved in March was unreadable
+       here until somebody changed it. The pending count is in the aside; the list is who is in
+       the game. *@
+    <Panel Title="Your players" Aside="@WaitingAside">
         @if (_waiting.Count == 0)
         {
-            <EmptyState>Nothing is waiting. Your players' changes appear here when they send them.</EmptyState>
+            <EmptyState>Nobody has joined yet. Read this campaign's join code out to a player.</EmptyState>
         }
         else
         {
@@ -65,78 +70,143 @@ else
                                 <span class="meta">@Standings.Say(one.Standing)</span>
                             </span>
 
+                            @* **One control, and its word says which of the two things pressing
+                               it will show.** A GM with nothing to decide is not reading changes,
+                               and labelling it as though they were describes this screen's
+                               internals rather than answering the reader. *@
                             <button type="button" class="btn small"
                                     aria-expanded="@(_reading == one.Id ? "true" : "false")"
                                     @onclick="() => Look(one.Id)">
-                                @(_reading == one.Id ? "Close" : "Read the changes")
+                                @(_reading == one.Id ? "Close"
+                                    : one.HasPending ? "Read the changes" : "View sheet")
                             </button>
                         </div>
 
-                        @if (_reading == one.Id && _diff is { } diff)
+                        @if (_reading == one.Id)
                         {
                             <div class="campaign-diff">
-                                @* **Led by the spend, because that is what a GM decides on** — and
-                                   both figures are the engine's answers for the two sheets rather
-                                   than anything read out of a payload or worked out here. *@
-                                <p class="diff-spend">@Spend(diff)</p>
+                                @* **Seven answers, and none of them may be drawn as another.** The
+                                   two this screen has got wrong before are the two that read as
+                                   emptiness: a payload this build cannot open is not "nothing is
+                                   here", and a member who has never sent anything is not a member
+                                   whose sheet failed to load. Each arm says which it is. *@
+                                @if (_showing is Showing.Asking)
+                                {
+                                    <p>Looking…</p>
+                                }
+                                else if (_showing is Showing.Unreachable)
+                                {
+                                    <EmptyState>
+                                        This could not be read just now. Try again in a moment.
+                                    </EmptyState>
+                                }
+                                else if (_showing is Showing.NothingSent)
+                                {
+                                    <EmptyState>
+                                        Nothing has been sent for this character yet, so the
+                                        campaign holds no sheet for it.
+                                    </EmptyState>
+                                }
+                                else if (_showing is Showing.PendingUnreadable)
+                                {
+                                    @* **Not "nothing is waiting."** A snapshot is there and this
+                                       build cannot open it — the same fault PROGRESS.md finding 8
+                                       records on the decision path, which told a GM the queue was
+                                       empty about a request a player was waiting on. *@
+                                    <EmptyState>
+                                        Changes are waiting here and this version of the app cannot
+                                        open them. Reload before deciding.
+                                    </EmptyState>
+                                }
+                                else if (_showing is Showing.CloneUnreadable)
+                                {
+                                    <EmptyState>
+                                        The campaign holds a sheet for this character that this
+                                        version of the app cannot open. Reload and try again.
+                                    </EmptyState>
+                                }
+                                else if (_showing is Showing.Settled && _approved is { } settled)
+                                {
+                                    @* **Drawn rather than put behind a second press.** Nothing is
+                                       being decided here, so the sheet is not evidence supporting
+                                       a decision — it is the whole of what was asked for. *@
+                                    <SheetView Character="settled" ShowBudget="_approvedHasBudget" />
+                                }
+                                else if (_showing is Showing.Changes && _diff is { } diff)
+                                {
+                                    @* **Led by the spend, because that is what a GM decides on** —
+                                       and both figures are the engine's answers for the two sheets
+                                       rather than anything read out of a payload or worked out
+                                       here. *@
+                                    <p class="diff-spend">@Spend(diff)</p>
 
-                                @if (!diff.Ran)
-                                {
-                                    <EmptyState>
-                                        These changes could not be compared. Read the full sheet below instead.
-                                    </EmptyState>
-                                }
-                                else if (!diff.Explained)
-                                {
-                                    @* The spend moved and no row says why, which is a defect in
-                                       this screen rather than a state of the character — so it
-                                       says so, instead of drawing the empty list that reads as
-                                       agreement. See PROGRESS.md item 19. *@
-                                    <EmptyState>
-                                        The Hero Point total changed, but this comparison cannot say
-                                        what moved. Read the full sheet below before deciding.
-                                    </EmptyState>
-                                }
-                                else if (diff.Unchanged)
-                                {
-                                    @* The count is what tells a reader this ran. Without it an
-                                       empty list is indistinguishable from a comparison that
-                                       never happened. *@
-                                    <EmptyState>
-                                        Nothing changed — @diff.Compared fields compared. Approve to record it anyway.
-                                    </EmptyState>
+                                    @if (!diff.Ran)
+                                    {
+                                        <EmptyState>
+                                            These changes could not be compared. Read the full sheet below instead.
+                                        </EmptyState>
+                                    }
+                                    else if (!diff.Explained)
+                                    {
+                                        @* The spend moved and no row says why, which is a defect in
+                                           this screen rather than a state of the character — so it
+                                           says so, instead of drawing the empty list that reads as
+                                           agreement. See PROGRESS.md item 19. *@
+                                        <EmptyState>
+                                            The Hero Point total changed, but this comparison cannot say
+                                            what moved. Read the full sheet below before deciding.
+                                        </EmptyState>
+                                    }
+                                    else if (diff.Unchanged)
+                                    {
+                                        @* The count is what tells a reader this ran. Without it an
+                                           empty list is indistinguishable from a comparison that
+                                           never happened. *@
+                                        <EmptyState>
+                                            Nothing changed — @diff.Compared fields compared. Approve to record it anyway.
+                                        </EmptyState>
+                                    }
+                                    else
+                                    {
+                                        <ul class="diff-rows">
+                                            @foreach (var row in diff.Rows)
+                                            {
+                                                <li>
+                                                    <span class="what">@row.What</span>
+                                                    <span class="was">@Was(row)</span>
+                                                </li>
+                                            }
+                                        </ul>
+                                        <p class="small muted">@diff.Compared fields compared.</p>
+                                    }
+
+                                    @if (_full)
+                                    {
+                                        <SheetView Character="_pending" ShowBudget="_pendingHasBudget" />
+                                    }
+
+                                    <div class="inline spaced">
+                                        <button type="button" class="btn primary"
+                                                @onclick="() => Decide(one.Id, approve: true)">Approve</button>
+                                        <button type="button" class="btn"
+                                                @onclick="() => Decide(one.Id, approve: false)">Reject</button>
+                                        <button type="button" class="btn quiet"
+                                                aria-pressed="@(_full ? "true" : "false")"
+                                                @onclick="() => _full = !_full">
+                                            @(_full ? "Hide the full sheet" : "Open the full sheet")
+                                        </button>
+                                    </div>
                                 }
                                 else
                                 {
-                                    <ul class="diff-rows">
-                                        @foreach (var row in diff.Rows)
-                                        {
-                                            <li>
-                                                <span class="what">@row.What</span>
-                                                <span class="was">@Was(row)</span>
-                                            </li>
-                                        }
-                                    </ul>
-                                    <p class="small muted">@diff.Compared fields compared.</p>
+                                    @* **A final arm, so that no state opens an empty box.** Every
+                                       value above has one; this catches an eighth added without,
+                                       which would otherwise open a panel saying nothing at all —
+                                       the failure every branch here exists to refuse. *@
+                                    <EmptyState>
+                                        This cannot be shown here. Reload and try again.
+                                    </EmptyState>
                                 }
-
-                                @if (_full)
-                                {
-                                    <SheetView Character="_pending" ShowBudget="_pendingHasBudget" />
-                                }
-
-                                <div class="inline spaced">
-                                    <button type="button" class="btn primary"
-                                            @onclick="() => Decide(one.Id, approve: true)">Approve</button>
-                                    <button type="button" class="btn"
-                                            @onclick="() => Decide(one.Id, approve: false)">Reject</button>
-                                    <button type="button" class="btn quiet"
-                                            aria-pressed="@(_full ? "true" : "false")"
-                                            @onclick="() => _full = !_full">
-                                        @(_full ? "Hide the full sheet" : "Open the full sheet")
-                                    </button>
-                                </div>
-
                             </div>
                         }
                     </li>
@@ -183,6 +253,48 @@ else
         Read,
     }
 
+    /// <summary>
+    /// What the open row is showing.
+    ///
+    /// <para><b>Seven values rather than a nullable sheet and a nullable diff, because four of
+    /// them are ways of having nothing to draw and they are not the same sentence.</b> This screen
+    /// has already said "there is nothing waiting" about a request a player was waiting on — see
+    /// PROGRESS.md finding 8 — and it said it because a payload that could not be opened and a
+    /// slot that was empty arrived here as the same null.</para>
+    /// </summary>
+    private enum Showing
+    {
+        /// <summary>The read has not answered yet.</summary>
+        Asking,
+
+        /// <summary>Nothing could be reached, so nothing is known about this membership.</summary>
+        Unreachable,
+
+        /// <summary>
+        /// In the campaign, and nothing has ever been sent. There is genuinely no sheet here, and
+        /// that is an ordinary state rather than a failure.
+        /// </summary>
+        NothingSent,
+
+        /// <summary>
+        /// A snapshot is waiting and this build cannot open it. <b>Never drawn as
+        /// <see cref="NothingSent"/></b>: a player is waiting on a decision about it.
+        /// </summary>
+        PendingUnreadable,
+
+        /// <summary>The campaign holds a clone this build cannot open. Same rule.</summary>
+        CloneUnreadable,
+
+        /// <summary>
+        /// The clone, with nothing waiting — the sheet that counts at the table. Named
+        /// <c>Settled</c> rather than <c>Approved</c> so it cannot be misread as the decision.
+        /// </summary>
+        Settled,
+
+        /// <summary>A snapshot is waiting: the diff, and the decision to make about it.</summary>
+        Changes,
+    }
+
     /// <summary>Which campaign. A route parameter, so the address names the game.</summary>
     [Parameter] public string? Id { get; set; }
 
@@ -193,9 +305,17 @@ else
     /// <summary>Which membership's changes are open, or null.</summary>
     private string? _reading;
 
+    /// <summary>Which of the seven the open row is showing. Meaningless while nothing is open.</summary>
+    private Showing _showing = Showing.Asking;
+
     private CharacterDiff? _diff;
     private CharacterSheet? _pending;
     private bool? _pendingHasBudget;
+
+    /// <summary>The campaign's clone, when it is the thing on screen rather than a diff's left side.</summary>
+    private CharacterSheet? _approved;
+    private bool? _approvedHasBudget;
+
     private int _version;
 
     /// <summary>Whether the full sheet is shown under the diff.</summary>
@@ -261,9 +381,8 @@ else
         _read = asked;
 
         _state = Reading.Looking;
-        _reading = null;
-        _diff = null;
         _said = null;
+        Close();
 
         if (string.IsNullOrWhiteSpace(asked))
         {
@@ -326,7 +445,13 @@ else
     }
 
     /// <summary>
-    /// Open one request's changes, computing the diff from the two payloads the server holds.
+    /// Open one member: the changes waiting on a decision, or the sheet the campaign holds.
+    ///
+    /// <para><b>A member with nothing waiting used to open nothing at all.</b> Both early returns
+    /// below were bare <c>return</c>s, so an unreachable server and a character with no snapshot
+    /// both left the panel blank — and a GM had no way to read an approved sheet for as long as
+    /// nobody changed it. Every path now sets <see cref="_showing"/>, which is what makes the
+    /// blank panel unreachable rather than merely unlikely.</para>
     /// </summary>
     private async Task Look(string membershipId)
     {
@@ -335,22 +460,72 @@ else
 
         if (_reading == membershipId)
         {
-            _reading = null;
-            _diff = null;
+            Close();
             return;
         }
 
+        Close();
         _reading = membershipId;
+
+        var detail = await Memberships.ReadAsync(membershipId);
+
+        // **A second row opened while this one was in flight.** Its own pass has already reset
+        // these fields and will write its own answer, so anything written past here would put one
+        // member's sheet under another member's name — the race `Refresh` records above, on a
+        // control a GM can press twice faster than a network answers.
+        if (!string.Equals(_reading, membershipId, StringComparison.Ordinal)) return;
+
+        if (detail is null)
+        {
+            _showing = Showing.Unreachable;
+            return;
+        }
+
+        // The list row is the only thing that can tell an empty slot from one this build could
+        // not read: the detail answers null for both, and the row says whether the server thinks
+        // there is something there.
+        var row = _waiting.FirstOrDefault(m => m.Id == membershipId);
+
+        if (detail.Pending is { } pending)
+        {
+            _pending = pending;
+            _pendingHasBudget = !pending.UnlimitedBudget;
+            _version = detail.PendingVersion;
+            _diff = CampaignDiff.Between(detail.Approved, pending, Session.Rules, Session.Costs);
+            _showing = Showing.Changes;
+            return;
+        }
+
+        if (row?.HasPending == true)
+        {
+            _showing = Showing.PendingUnreadable;
+            return;
+        }
+
+        if (detail.Approved is { } settled)
+        {
+            _approved = settled;
+            _approvedHasBudget = !settled.UnlimitedBudget;
+            _showing = Showing.Settled;
+            return;
+        }
+
+        _showing = row?.HasApproved == true ? Showing.CloneUnreadable : Showing.NothingSent;
+    }
+
+    /// <summary>
+    /// Close the open row, leaving nothing of it behind.
+    ///
+    /// <para>One door rather than three, because every caller that forgot one of these fields
+    /// would leave the previous member's sheet to be drawn under the next member's name.</para>
+    /// </summary>
+    private void Close()
+    {
+        _reading = null;
+        _showing = Showing.Asking;
         _diff = null;
-
-        if (await Memberships.ReadAsync(membershipId) is not { } detail) return;
-        if (detail.Pending is not { } pending) return;
-
-        _pending = pending;
-        _pendingHasBudget = !pending.UnlimitedBudget;
-        _version = detail.PendingVersion;
-
-        _diff = CampaignDiff.Between(detail.Approved, pending, Session.Rules, Session.Costs);
+        _pending = null;
+        _approved = null;
     }
 
     /// <summary>
@@ -370,8 +545,7 @@ else
         {
             case DecisionOutcome.Done:
                 _said = approve ? "Approved. The campaign holds this sheet now." : "Turned down.";
-                _reading = null;
-                _diff = null;
+                Close();
                 break;
 
             case DecisionOutcome.Stale when decision.Newer is { } newer:
@@ -382,6 +556,11 @@ else
                 _diff = CampaignDiff.Between(
                     (await Memberships.ReadAsync(membershipId))?.Approved,
                     newer, Session.Rules, Session.Costs);
+
+                // Stated rather than inherited from the read that opened this row. It is already
+                // `Changes` on every path that reaches here, and a branch that relies on that is
+                // a branch a later edit breaks silently.
+                _showing = Showing.Changes;
                 break;
 
             // Stale with nothing to draw is NOT "nothing waiting", and saying so was wrong on
@@ -392,14 +571,12 @@ else
             case DecisionOutcome.Stale:
                 _said = "This changed while you were reading it, and the newer version could not "
                     + "be opened here. Reload before deciding.";
-                _reading = null;
-                _diff = null;
+                Close();
                 break;
 
             case DecisionOutcome.NothingWaiting:
                 _said = "There is nothing waiting here now.";
-                _reading = null;
-                _diff = null;
+                Close();
                 break;
 
             default:
