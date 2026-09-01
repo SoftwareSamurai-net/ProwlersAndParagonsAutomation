@@ -1479,7 +1479,7 @@ public sealed class CampaignApprovalTests
     /// <b>A settled member's sheet is readable with nothing waiting, and the control says which
     /// of the two things pressing it will do.</b>
     ///
-    /// <para><c>article.sheet</c> is <see cref="SheetView"/>'s own element and is found rather
+    /// <para><c>article.sheet</c> is <c>SheetView</c>'s own element and is found rather
     /// than searched for, because a panel that opened and drew nothing would satisfy every other
     /// assertion here.</para>
     /// </summary>

@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | **5101 across five suites** — 4041 on the engine, 781 rendering components with bUnit, 246 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 133**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13 — the thirteenth added after the merge, below), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **This row had gone wrong a third time and the failure is worth naming**: it read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them. A row that does not add up is the cheapest tell there is. Re-run the suites rather than adding to this number. **The leave/notify/view slice added 27 on top of that**, all five suites re-run on this branch: bUnit **769 → 781** and accounts **231 → 246**, with the engine unchanged at 4041 because what it gained were assertions inside `AccountsContractTests` rather than new facts, and the other two untouched. 4041 + 781 + 246 + 14 + 19 = 5101. |
+| Tests | **5102 across five suites** — 4042 on the engine, 781 rendering components with bUnit, 246 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 133**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13 — the thirteenth added after the merge, below), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **This row had gone wrong a third time and the failure is worth naming**: it read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them. A row that does not add up is the cheapest tell there is. Re-run the suites rather than adding to this number. **The leave/notify/view slice added 28 on top of that**, all five suites re-run on this branch: bUnit **769 → 781**, accounts **231 → 246**, and engine **4041 → 4042** — one, because what that suite otherwise gained were assertions inside `AccountsContractTests` rather than new facts, and the one is the label guard the fourth defect needed. The other two are untouched. 4042 + 781 + 246 + 14 + 19 = 5102. |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **The deploy applies pending D1 migrations before the Pages upload, and it is green.** The first run failed — on a file mode rather than the credential everybody was watching; see the completed entry — and the run after it read the live database, found nothing pending, and shipped. **What that establishes is D1 *Read*, not Edit**: nothing was pending, so the apply path never ran, and a token holding only Read would produce this exact log and then fail on the first migration that actually has to be applied. The step needs **D1: Edit**, and that half is still untested. See [`docs/guide/hosting.md`](docs/guide/hosting.md) |
@@ -1351,6 +1351,30 @@ recorded and an `ALTER` cannot invent one later; but nothing draws a time yet, a
 `AccountsContractTests` holds this server to sending nothing the browser binds nothing to. The open
 item about a submission's age is unchanged and now has the column it would need.
 
+#### A fourth defect, found by following the new standing to where it prints
+
+**Two screens passed a character's own label to `Standings.Say` as the campaign's name.** That
+argument is what the *game* is called; `MembershipSummary.Label` is what the *character* goes by.
+So a character in two games rendered *"Approved for Ninefold · Changes pending for Ninefold"* — the
+same name against every row, on screens whose stated reason for naming a campaign at all is that
+one game's answer is not the other's. `CharacterManager`'s own doc comment said exactly that while
+the code beneath it did the opposite.
+
+**It had no coverage of any kind**, which is why the whole suite stayed green when it was fixed. It
+survived because no rendering test ever had two campaigns in it and because each half of the
+sentence reads plausibly on its own.
+
+**Nothing can name the game today, and that is the underlying gap.** A `MembershipSummary` carries
+`CampaignId` and no label, and a player belongs to campaigns they do not own, so `ApiCampaignStore`
+cannot look one up either — it lists what the account *runs*. Putting `campaigns.label` on the
+player's list row is a join the server can do and a wire field with a screen behind it, which is a
+small slice of its own. Until then both screens say the standing and claim nothing.
+
+`WebPresentationTests.NoScreenPassesACharactersLabelAsTheCampaignsName` is the guard, and it is a
+**source** guard on purpose: the defect is a wrong argument, and markup with one campaign in it
+looks correct either way — the split `testing.md` describes. It asserts its extraction is non-empty
+before asserting nothing matches, and it was watched to fail, naming the offending call site.
+
 #### Two things found by breaking a guard rather than by reading it
 
 1. **A sentence written and thrown away unrendered — finding 7, verbatim, in a new place.** The
@@ -1379,6 +1403,9 @@ drawn, each statement's owner column, the `EXISTS`, the 204, the 409 probe, the 
   against a stub wrangler. Watch that step on the first deploy of this branch.
 - **A rejection still carries no reason**, because there is nowhere a GM types one. The standing
   says which way it went and does not promise more than the row holds.
+- **A player's screens cannot name the game a standing is about** — see the fourth defect above.
+  Two standings side by side now say what each is without saying which campaign each belongs to,
+  which is honest and is not the answer. The fix is `campaigns.label` on the player's list row.
 - **Notifications proper are still out.** No mail, no badge outside the campaign screens, nothing
   that interrupts. What changed is that looking now answers the question; it did not before.
 ### Six Dependabot pull requests, and the four things in them that were not version numbers
