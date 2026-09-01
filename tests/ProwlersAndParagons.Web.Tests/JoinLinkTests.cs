@@ -6,7 +6,6 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Web.Pages;
 using ProwlersAndParagonsAutomation.Engine;
-using ProwlersAndParagonsAutomation.Web.Services;
 
 namespace ProwlersAndParagons.Web.Tests;
 
