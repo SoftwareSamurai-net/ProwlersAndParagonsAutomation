@@ -17,13 +17,13 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | **5074 across five suites** — 4041 on the engine, 769 rendering components with bUnit, 231 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 133**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13 — the thirteenth added after the merge, below), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **This row had gone wrong a third time and the failure is worth naming**: it read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them. A row that does not add up is the cheapest tell there is. Re-run the suites rather than adding to this number. |
+| Tests | **5075 across five suites** — 4042 on the engine, 769 rendering components with bUnit, 231 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The Dependabot slice added 1**, `WranglerIsPinnedToOneVersion` — see the completed entry below; the campaign slice before it added 133, measured at both ends (4034 / 701 / 192 / 14 / 0 = 4941 on `main`, against 4041 / 769 / 231 / 14 / 19 after). Per suite for the campaign slice: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **This row had gone wrong three times and the failure is worth naming**: it once read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them. A row that does not add up is the cheapest tell there is. Re-run the suites rather than adding to this number. |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **The deploy applies pending D1 migrations before the Pages upload, and it is green.** The first run failed — on a file mode rather than the credential everybody was watching; see the completed entry — and the run after it read the live database, found nothing pending, and shipped. **What that establishes is D1 *Read*, not Edit**: nothing was pending, so the apply path never ran, and a token holding only Read would produce this exact log and then fail on the first migration that actually has to be applied. The step needs **D1: Edit**, and that half is still untested. See [`docs/guide/hosting.md`](docs/guide/hosting.md) |
 | Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. **All six D1 migrations are applied to the remote database**, `0006` included — the owner applied it by hand, and the figure here is the deploy's own reading rather than a claim: `wrangler d1 migrations list --remote` answered *“No migrations to apply!”* on the run of 2026-09-01, so `apply-migrations.sh` skipped the apply and the Pages upload went ahead. This row said **0006 is pending** and was right when written; it went stale the moment somebody did the thing the gate exists to automate, which is the ordinary way a measured figure in this file stops being true. The `DB` binding is in place, `/api/me` answers `401` with JSON — checked by the deploy after every upload — and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong). **Adding an address now actually mails it** a one-click, three-day link — see the completed item below; until now the admin page said an address "can sign in now" and nothing ever told them so |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
-| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — measured, not assumed, on a clean export of the commit carrying this row. **The measurement that produced that figure is the reason to go on distrusting it**: the same scan run against `main` at `9add547` reported **2**, both `InvalidXmlDocComment` on a single unclosed `<para>` in `WorkflowFilterTests`, which arrived with the executable-bit guard in #114 and was reported by nothing for four days. Qodana came off pull requests deliberately, so the local `./scripts/qodana-scan.sh` that `CLAUDE.md` requires before one is opened is the *only* thing between a branch and `main` — this is what skipping it once looks like, and the answer is to run it rather than to put the workflow back. Earlier: 2 on the export of `76a4f80` (a local constant named `Opening`, and a `cref` to `IRulesSource` that does not resolve from the test project's namespace), 3 on `master`, 37 across three reconciled slices, 23 in the redesign slice — every one of them found by somebody re-running it, none by CI. **Do not name this commit's own sha here**: it was tried and an amend orphaned it within the hour, which is a dead pointer of exactly the kind this repository treats as worse than none. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
+| Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — measured, not assumed, on a clean export of the commit carrying this row. **Two measurements in one day are the reason to go on distrusting the figure.** Against `main` at `9add547` the same scan reported **2**, both `InvalidXmlDocComment` on a single unclosed `<para>` in `WorkflowFilterTests`, which arrived with the executable-bit guard in #114 and was reported by nothing for four days. And on the eight-package NuGet bump it reported **5** — the same 2, plus three `MethodHasAsyncOverload` in `AdminPageTests.cs`, **a file that bump does not touch**: a package upgrade moved an inspection in code nobody edited, which is the case a pull-request-mode scan structurally cannot see. Both are fixed and both are in the completed entry below. Qodana came off pull requests deliberately, so the local `./scripts/qodana-scan.sh` that `CLAUDE.md` requires before one is opened is the *only* thing between a branch and `main` — the answer to both of these is to run it rather than to put the workflow back. Earlier: 2 on the export of `76a4f80` (a local constant named `Opening`, and a `cref` to `IRulesSource` that does not resolve from the test project's namespace), 3 on `master`, 37 across three reconciled slices, 23 in the redesign slice — every one found by somebody re-running it, none by CI. **Do not name this commit's own sha here**: it was tried and an amend orphaned it within the hour, which is a dead pointer of exactly the kind this repository treats as worse than none. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
 | Licence | MIT, in `LICENSE`, covering this repository's own code only. The game system is © LakeSide Games. `data/rules/` holds structured metadata and this project's own descriptions; `data/rulebook/` holds the book's text **by the author's permission to this repository's owner**, is not served by the public site, and does not travel with a fork |
 
@@ -36,7 +36,7 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 Roughly in the order that unblocks the most. **[Item 11](#11-answered-it-is-a-tool-for-running-and-playing-pp)
 is answered and is the entry to read first** — the owner has said this is a tool for running *and*
 playing P&P, which unblocks all eight of the things that entry lists and widens what item 3 counts
-as in scope. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends, and a visitor with no account can watch a real conversation build one. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, and a payload size. (Item 4, the Power search's vocabulary, is closed — see below.)
+as in scope. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends, and a visitor with no account can watch a real conversation build one. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, a payload size, and a test-platform migration that is measured but not started (item 20). (Item 4, the Power search's vocabulary, is closed — see below.)
 
 [`docs/HANDOVER.md`](docs/HANDOVER.md) picks three of these and says what a slice on each would actually involve, including which approaches are already spent. Read it before choosing; read the entry here before starting.
 
@@ -1232,7 +1232,91 @@ a column written by the client that already knows, not a server that learns to r
 
 Not started.
 
+### 20. xunit.v3 4.0.0 is a test-platform migration, and it is measured but not done
+
+**Dependabot raised it as a chore ([#112](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/pull/112)) with [#111](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/pull/111) chained to it, and both were closed deliberately rather than merged or ignored.** 4.0.0 defaults to Microsoft.Testing.Platform v2, and MTP v2 refuses the VSTest target on the .NET 10 SDK this repository pins:
+
+```
+Microsoft.Testing.Platform.MSBuild.targets(320,5): error : Testing with VSTest target is no
+longer supported by Microsoft.Testing.Platform on .NET 10 SDK and later.
+```
+
+`dotnet build --configuration Release -p:ContinuousIntegrationBuild=true` is **clean at 0 warnings** on the bump. Only `dotnet test` fails, which is the tell: this is about how tests are invoked, not about the code.
+
+**The recipe works and is written down here so the slice does not start from scratch.** `dotnet.config` with a `[dotnet.test.runner]` section does *not* take on SDK 10.0.303 — `dotnet test --help` says the opt-in is `global.json`, and it is right. Adding
+
+```json
+"test": { "runner": "Microsoft.Testing.Platform" }
+```
+
+beside the existing `sdk` block, on a branch carrying both bumps, was measured to give:
+
+- `dotnet test --configuration Release -p:ContinuousIntegrationBuild=true` → `total: 4810, failed: 0`
+- `--no-build` works (`build.yml` depends on it), and so does naming one project (`visual-goldens.yml` depends on that, and it reported `total: 769`)
+- **both `xunit.runner.visualstudio` and `Microsoft.NET.Test.Sdk` delete cleanly** — removed from both test projects, all 4810 still run. Under MTP the test project self-hosts and the VSTest adapter is dead weight, which is why #111 was closed rather than merged: the correct change there is a removal, and a runner major without the framework major is a pairing xunit does not ship as a pair and nobody has tested.
+
+**What makes it a slice rather than a key is the guide it invalidates, and the news there is good.** [`docs/guide/testing.md`](docs/guide/testing.md) records, as a measured fact under VSTest, that *a crashed test process still prints `Passed! - Failed: 0`* and tells the reader to grep for `Catastrophic`. Under MTP that is gone. A deliberate stack overflow — a `[Fact]` calling an unbounded recursion — printed:
+
+```
+Test run summary: Zero tests ran
+  error: 1
+  total: 0
+Test run completed with non-success exit code: -1073741571
+```
+
+So the trap the guide exists to warn about is **closed**, not reworded. But that is a claim about a check, and this repository's rule is that a claim about a check is worth nothing until somebody has broken it and watched it fail — so the guide gets rewritten around a freshly-proved failure mode, not edited to match this paragraph. Two smaller consequences travel with it: the per-project `Passed!` lines are replaced by one combined `total:`, which `testing.md` tells a reader to count and which the Tests row above is a breakdown of; and `global.json` is read by `actions/setup-dotnet` in three workflows, so the opt-in is not local to the test projects.
+
+**Not started.** Dependabot will re-raise both when 4.0.1 or 4.1.0 lands, which is a fine moment to do it properly. The measurements above are from 2026-09-01 and are worth re-taking rather than trusting — they were made against SDK 10.0.303 and MTP 2.3.3.
+
 ## Completed work
+
+### Six Dependabot pull requests, and the four things in them that were not version numbers
+
+**Four merged, two closed, and one pull request opened that Dependabot had nothing to do with.** The first Dependabot batch this repository has ever had — raised 2026-08-28 by `a4ec6ef`, all six behind a `main` that had since taken three more merges, so every one was rebased before its green meant anything. What follows is the part worth keeping: **on a repository this heavily commented, a version bump's real cost is the prose it silently falsifies**, and four of the six had one.
+
+| | | |
+|---|---|---|
+| [#107](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/pull/107) | `cloudflare/wrangler-action` 3 → 4 | merged; deploy green |
+| [#108](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/pull/108) | `actions/setup-node` 4 → 7 | merged |
+| [#109](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/pull/109) | `actions/upload-artifact` 4 → 7 | merged |
+| [#110](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/pull/110) | eight NuGet packages | merged; deploy green |
+| [#111](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/pull/111) | `xunit.runner.visualstudio` 3.1.5 → 4.0.0 | **closed** — see item 20 |
+| [#112](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/pull/112) | `xunit.v3` 3.2.2 → 4.0.0 | **closed** — same |
+| [#116](https://github.com/SoftwareSamurai-net/ProwlersAndParagonsAutomation/pull/116) | not a bump | merged — the scan that found it is below |
+
+#### The bump that would have unpinned production, silently
+
+**`wrangler-action@v3` hard-codes `DEFAULT_WRANGLER_VERSION = "3.90.0"`. `@v4`'s is `"4"`** — a *range*, read out of both published `dist` bundles rather than inferred from release notes. So leaving `wranglerVersion` unset was a pin under v3 and is a floating dependency under v4: `npm i wrangler@4` resolves to whatever the newest 4.x is at the moment the runner asks. Two deploys minutes apart could bundle two wranglers. **The merge's own deploy log is the proof it was worth catching** — it reads `npm i wrangler@4.127.0` and then `⛅️ wrangler 4.127.0 (update available 4.127.1)`, which is the drift, named by wrangler itself, in the first run after the pin was stated.
+
+`a4ec6ef` had already half-seen this. It taught `build.yml`'s dry-run `sed` to match any major so a bump could not silently leave the dry-run behind, and then ended by warning that the version *inside* the `# wrangler=` comment was still hand-maintained. **That warning is now `WranglerIsPinnedToOneVersion`**, which reads all three places a wrangler version is written — the comment `build.yml` parses, the `wranglerVersion:` input the upload runs, and `scripts/apply-migrations.sh`'s own constant — and fails when they disagree *or when any one is missing*. Watched to fail four ways: each version changed alone, and the input deleted.
+
+**And the two pins became one.** `apply-migrations.sh` pinned 4.127.0 separately because 3.90.0 cannot parse `--cwd` and answers with a usage dump the gate correctly refuses on. That reasoning has expired, and its header says so rather than describing a `@v3` that is gone.
+
+**The dry-run's `[ -n "$version" ] || version=3.90.0` fallback is gone too**, because it was the same hazard wearing a belt: a `sed` that stopped matching would have bundled against a hardcoded version rather than saying so, under a comment reading *"same wrangler version as the deploy action, or the point is lost"*. It fails and names the line now.
+
+#### A comment that had been right about v4 and would have been wrong about v7
+
+`upload-artifact`'s step carries the repository's most-cited failure: `include-hidden-files` is set because without it the step **had never once uploaded anything** — the path is `.visual-regression/`, dot-prefixed paths are excluded by default, `if-no-files-found` defaults to `warn`, so it logged "No files were found" and went green on every failing run for as long as it existed. The comment saying so named **v4**, and three majors landed in between.
+
+Re-read out of `v7`'s own `action.yml`, both defaults survive. **Then proved rather than left at that**: a temporary commit copied one golden over another so the comparison genuinely failed and the step actually ran, beside a twin byte-identical to it but for the one line under test. The twin failed with `##[error]No files were found with the provided path: .visual-regression/`; the real step uploaded **9 files, 867,576 bytes**. The artifact was downloaded and listed rather than trusted to the log — eight captures under `actual/` and one diff PNG, for `shell-villain-light`, the single page whose golden had been corrupted, which is the positive control that the harness measured what it was aimed at.
+
+#### A package bump moved a static-analysis finding in a file it does not touch
+
+**A whole-tree Qodana scan goes 2 → 5 on #110.** `AdminPageTests.cs` calls `.Input(...)` at three sites inside `async Task` tests and ReSharper now reports `MethodHasAsyncOverload` on each; bunit has shipped `InputAsync` with an identical signature since 2.0.66, so this is the analyzer resolving something it did not resolve before rather than a new API. **Which package moved it is not the interesting part — that CI could not have seen it is.** Qodana runs on `main` and weekly, and in pull-request mode over changed files even then; this bump changes six `.csproj` files and nothing under `tests/ProwlersAndParagons.Web.Tests/`. The local whole-tree scan `CLAUDE.md` requires was the only thing that was ever going to report it. Fixed by awaiting the overload, and proved load-bearing: pointing one site at a different address turns the test red (768/769) and restoring it turns it green.
+
+**Spectre.Console 0.49.1 → 0.57.2 is eight minor versions inside a group named "minor and patch", and the front end it renders has no harness.** What could be measured, was. 0.55.0 names three breaking changes; the clean CI-strict build rules out the two compile-time ones. The third is behavioural — ANSI output disabled when stdout or stderr is redirected — and a probe against both versions in an identically redirected environment reproduces it: 0.49.1 reports `Ansi=True Links=True ColorSystem=TrueColor`, 0.57.2 reports `Ansi=False Links=False ColorSystem=EightBit`. **Both report `Interactive=False`, which is the half that matters**: `InteractiveTerminal.IsAvailable` reads `Capabilities.Interactive` and nothing else, so the wizard's entry gate is unmoved, and the capability that moved belongs to a mode the wizard refuses to start in. The wizard rendering in a real terminal remains unmeasured — that is the standing CLI gap, not something this bump introduced.
+
+#### The scan that was skipped, and what it was hiding
+
+**`main`'s whole-tree Qodana scan reported 2, not the 0 the Static analysis row claimed** — both `InvalidXmlDocComment`, one unclosed `<para>` in `EveryScriptAWorkflowRunsDirectlyIsExecutable`'s doc comment, which arrived with that guard in #114 and had been reported by nothing for four days. Fixed in #116, which is not a Dependabot pull request at all and exists only because the first thing this slice did was re-measure a figure instead of quoting it. Qodana came off pull requests deliberately, on the reasoning that the local scan `CLAUDE.md` requires runs first — **this is what one skip of that step looks like**, and the answer is to run it, not to put the workflow back. A sweep of every `.cs` and `.razor` file for an unbalanced `<para>` count finds no other file.
+
+#### The one that was not a chore
+
+#111 and #112 are closed, not merged and not shelved silently: the measurements are in item 20 with a working recipe, including the one genuinely good piece of news — under Microsoft.Testing.Platform a crashed test process no longer prints `Passed! - Failed: 0`, so the trap `docs/guide/testing.md` is built around is closed rather than reworded.
+
+**Also merged:** `setup-node` 4 → 7, which was not cosmetic — the previous production deploy carried *"Node.js 20 is deprecated … actions/setup-node@v4"*. Read out of the run log rather than assumed: `node: v22.23.2`, and the annotation is gone.
+
+Five suites: **4042 / 769 / 231 / 14 / 19 = 5075**, the one new test being `WranglerIsPinnedToOneVersion`. `dotnet build --configuration Release -p:ContinuousIntegrationBuild=true` at 0 warnings; whole-tree Qodana at 0. Both production deploys green.
 
 ### A campaign holds a clone of a character, and a player's edits arrive as an approval request
 
