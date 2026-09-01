@@ -4,6 +4,7 @@
 @inject Accounts Accounts
 @inject DiscardedCharacter Discarded
 @inject ApiMembershipStore Memberships
+@inject AccountCampaignStore Campaigns
 
 @* The characters this browser — or this account — is holding, and the way between them.
 
@@ -63,7 +64,37 @@
    **The count is stated once, in `Aside`, not repeated in the closing sentence too.** It used to
    be both — "3 of 5" beside the title and "3 of 5 on this account" again at the foot — which is
    the same fact read twice on a panel with four other things competing for the same glance. The
-   sentence at the foot now says only what `Aside` cannot: where a character actually lives. *@
+   sentence at the foot now says only what `Aside` cannot: where a character actually lives.
+
+   ── Two shapes, because a roster of thirty is not a panel on step one ────────────────────────
+
+   **The list moved to `/build/characters` and this panel is drawn in both places.** At
+   twenty-nine characters it was the tallest thing on the tier page, so somebody who came to
+   choose a tier scrolled a screen of other people's characters to reach the six cards — and a GM
+   sorting NPCs is not choosing a tier at all. `ListsEveryCharacter` is what differs: the tier
+   page keeps the character on screen and the two ways to make one, and links to the rest; the
+   roster page draws the list itself.
+
+   **One component and not two, because the actions are the same actions.** Starting another
+   character and importing one both go through `Keep`, which reports a refusal in words — a second
+   copy of that would be a second chance for one of them to forget to say anything. What the
+   parameter turns off is a list, not a behaviour.
+
+   **The filter is `OptionFilter.Matches`, which is the rule the six pick-lists and the command
+   palette already share.** A reader who has learnt that "plast" finds Plasticity has learnt
+   something about this app, and a roster that matched differently would be teaching them it was
+   about one list. The box is `.options-filter` for the same reason — the idiom exists.
+
+   **Grouped by game, and the heading only appears when there is more than one group.** The
+   campaign is already on every row (`SavedCharacterSummary.CampaignId`, free) so this costs no
+   read; but an account whose characters are all in the same place has nothing to tell apart, and
+   a single heading reading "In no game" over every row would be answering a question nobody
+   asked. With one group the sentence that was always there — where these characters live — is
+   the heading instead.
+
+   **Nothing here is drawn below `ToolsFrom` rows.** A search box, an order control and group
+   headings over four characters are furniture on a list a reader can already see the whole of.
+   Same rule as `_showTimes`, one threshold up. *@
 
 <Panel Title="Your characters" Aside="@Aside" NoPrint="true">
     <ChildContent>
@@ -124,14 +155,59 @@
             }
         </div>
 
-        @if (_others.Count > 0)
+        @if (_others.Count > 0 && !ListsEveryCharacter)
         {
-            <p class="others-head">@(_limit is not null ? "Also on this account" : "Also in this browser")</p>
+            @* **The tier page says what it has and where the rest are, and stops.** Everything
+               below this — the filter, the order, the group headings and the rows themselves —
+               belongs to the roster page, which is the whole of the move: this page is about
+               tiers. The count is here because "all your characters" with no number is a door
+               onto an unknown quantity, and knowing there are twenty-eight is most of the reason
+               to walk through it. *@
+            <p class="others-head">@Elsewhere</p>
+            <p><a class="btn" href="build/characters">All your characters (@_others.Count)</a></p>
+        }
+        else if (_others.Count > 0)
+        {
+            @if (_others.Count >= ToolsFrom)
+            {
+                @* The pick-lists' own box, class and all. `role="searchbox"` is not set and no
+                   combobox pattern is claimed: this filter drives no cursor and owns no listbox,
+                   unlike `OptionList`'s, so announcing one would promise a keyboard behaviour that
+                   is not here. A plain labelled search field is what this is. *@
+                <div class="options-filter">
+                    <input type="search" value="@_query" @oninput="Typed"
+                           placeholder="Find a character or a game"
+                           aria-label="Find a character or a game" />
+                    <span class="options-count">@Shown of @_others.Count</span>
+                </div>
 
-            <ul class="character-list">
-                @foreach (var one in _others)
-                {
-                    <li>
+                @* Three orders, and the reader's choice is not written down anywhere. It is a
+                   fact about this glance at this list, not a preference about the app — the same
+                   reason the open-character pointer is per-browser and not per-account. *@
+                <div class="roster-order" role="group" aria-label="Order these characters">
+                    @foreach (var order in Orders)
+                    {
+                        <button type="button"
+                                aria-pressed="@(_order == order ? "true" : "false")"
+                                @onclick="() => Reorder(order)">@Word(order)</button>
+                    }
+                </div>
+            }
+
+            @foreach (var group in Grouped())
+            {
+                <p class="others-head">
+                    @group.Heading
+                    @if (group.Aside is { } aside)
+                    {
+                        <span class="options-count">@aside</span>
+                    }
+                </p>
+
+                <ul class="character-list">
+                    @foreach (var one in group.Characters)
+                    {
+                        <li>
                         @* **The row is the button.** Opening is what a reader came here to do, and
                            it is now the whole width of the row rather than a chip at the far edge.
                            A real `<button>`, never a `<div>` with a click handler — the rule every
@@ -170,9 +246,18 @@
                         <button type="button" class="btn small quiet" @onclick="() => Delete(one.Id)">
                             Discard
                         </button>
-                    </li>
-                }
-            </ul>
+                        </li>
+                    }
+                </ul>
+            }
+
+            @* Only when a filter is the reason it is empty — the same rule `OptionList` follows.
+               A roster that is empty because there is genuinely nothing in it is the branch
+               above, which says where to start instead. *@
+            @if (_query.Length > 0 && Shown == 0)
+            {
+                <p class="options-empty">No character or game matches what you typed.</p>
+            }
         }
     }
 
@@ -229,9 +314,55 @@
 </Panel>
 
 @code {
+    /// <summary>
+    /// Whether this is the roster or the summary the tier page carries.
+    ///
+    /// <para><b>It turns off a list, never a behaviour.</b> Both shapes name the character on
+    /// screen, both offer the two ways to make one, and both report a refusal in the same words —
+    /// see <see cref="Keep"/>. What the roster adds is the other characters, the box to find one
+    /// with and the headings that group them; what the tier page shows instead is how many there
+    /// are and the way to them.</para>
+    ///
+    /// <para>Defaulted to the roster because that is what this component was before there were
+    /// two of them, so a caller that says nothing gets what every existing caller got.</para>
+    /// </summary>
+    [Parameter] public bool ListsEveryCharacter { get; set; } = true;
+
+    /// <summary>
+    /// How many other characters there have to be before this panel draws a filter box, an order
+    /// control and group headings.
+    ///
+    /// <para><b>The same argument <c>_showTimes</c> makes, one threshold up.</b> A time earns its
+    /// place once there are two characters to tell apart; a search box, three order buttons and a
+    /// set of headings earn theirs only once the list is longer than a glance. Below this the
+    /// panel is exactly what it was — a heading and some rows — because that is the right answer
+    /// for the account that has four.</para>
+    /// </summary>
+    private const int ToolsFrom = 6;
+
     private IReadOnlyList<SavedCharacterSummary> _characters = [];
     private IReadOnlyList<SavedCharacterSummary> _others = [];
     private string? _currentId;
+
+    /// <summary>What the reader has typed into the filter box. Empty admits everything.</summary>
+    private string _query = "";
+
+    /// <summary>Which order the rows are in. Not persisted — see the control's own comment.</summary>
+    private RosterOrder _order = RosterOrder.ByGame;
+
+    /// <summary>
+    /// What each of this account's campaigns is called, by id.
+    ///
+    /// <para><b>One call for the whole panel, like the standings beside it.</b> A group heading
+    /// needs a name and a row carries only an id, so the alternative is a resolve per row — which
+    /// is the read-per-row this panel's own remarks refuse for the Hero Point figure.</para>
+    ///
+    /// <para><b>Empty is not "no campaigns", it is "none known here".</b> A signed-out visitor and
+    /// a laptop with no network both land here, and an id this map cannot name is drawn under a
+    /// heading that says so rather than under one invented for it.</para>
+    /// </summary>
+    private IReadOnlyDictionary<string, string> _campaignNames =
+        new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// <summary>
     /// Where each of this account's characters stands in the games it is in, or null when that
@@ -258,6 +389,38 @@
     private string? _refusal;
 
     private string Aside => _limit is { } limit ? $"{_characters.Count} of {limit}" : "In this browser";
+
+    /// <summary>
+    /// Where the characters that are not on screen actually live.
+    ///
+    /// <para>The sentence this panel has always carried over its list, and it is now also the
+    /// heading a single group falls back to — see <see cref="Roster.Group"/>. One spelling,
+    /// because two would drift and the tier page prints it as well.</para>
+    /// </summary>
+    private string Elsewhere => _limit is not null ? "Also on this account" : "Also in this browser";
+
+    /// <summary>The three orders, in the order the control offers them.</summary>
+    private static readonly RosterOrder[] Orders =
+        [RosterOrder.ByGame, RosterOrder.Alphabetical, RosterOrder.Recent];
+
+    /// <summary>What one order's button reads.</summary>
+    private static string Word(RosterOrder order) => order switch
+    {
+        RosterOrder.ByGame => "By game",
+        RosterOrder.Alphabetical => "A–Z",
+        _ => "Recent",
+    };
+
+    /// <summary>How many rows the filter is letting through, across every group.</summary>
+    private int Shown => _others.Count(c => Roster.Admits(c, _query, _campaignNames));
+
+    /// <summary>The rows to draw, in their groups. Recomputed per render; see <see cref="Roster"/>.</summary>
+    private IReadOnlyList<RosterGroup> Grouped() =>
+        Roster.Group(_others, _query, _order, _campaignNames, Elsewhere);
+
+    private void Typed(ChangeEventArgs e) => _query = e.Value?.ToString() ?? "";
+
+    private void Reorder(RosterOrder order) => _order = order;
 
     /// <summary>
     /// What to say about the games one character is in, or null when there is nothing to say.
@@ -371,6 +534,15 @@
         _memberships = _limit is null ? null : await Memberships.MineAsync();
 
         _others = [.. _characters.Where(c => c.Id != _currentId)];
+
+        // Asked once for the whole panel too, and only where there is a list to group. A campaign
+        // id on a row is not a name, and resolving one per row is the read-per-row this panel
+        // refuses for the Hero Point figure. An account with no campaigns, and a visitor who is
+        // not signed in, both answer an empty list here — which the headings handle as
+        // "not here" rather than inventing a name. See `Roster.NameOf`.
+        _campaignNames = ListsEveryCharacter
+            ? (await Campaigns.ListAsync()).ToDictionary(c => c.Id, c => c.Label, StringComparer.Ordinal)
+            : new Dictionary<string, string>(StringComparer.Ordinal);
 
         // **A time earns its place only once there is something to tell apart.** Beside one other
         // character it is noise on a row that needs none; with several it is how a reader picks the

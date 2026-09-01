@@ -1152,6 +1152,48 @@ label {
 .btn.quiet { border-color: var(--rule); color: var(--muted); }
 .btn.quiet:hover:not(:disabled) { background: var(--panel-sunk); color: var(--ink); border-color: var(--heading); }
 
+/* **Three orders, drawn as one control rather than three buttons.** They are mutually exclusive
+   answers to one question, so they share an edge and only the chosen one is filled — the shape a
+   reader already knows from a set of tabs. Separate `.btn`s would have said "three things you can
+   do", which is three claims about what a click does rather than one about which order this is.
+
+   The current one is `aria-pressed`, not `disabled`: it is still a control, and disabling it
+   would take it off the keyboard's path just as somebody arrives to change it. The heading beside
+   the list says which order is in force in words; this says it in fill. */
+.roster-order {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: var(--space-3);
+    border: var(--rule-weight) solid var(--rule);
+    border-radius: var(--radius-small);
+    /* The children's own edges would double the ruled line between them; this hides the overflow
+       so the group reads as one object with divisions rather than three abutting boxes. */
+    overflow: hidden;
+    width: fit-content;
+}
+.roster-order button {
+    font: inherit;
+    font-size: var(--text-sm);
+    padding: var(--space-1) var(--space-3);
+    background: var(--panel);
+    color: var(--muted);
+    border: 0;
+    border-left: var(--rule-weight) solid var(--rule);
+    cursor: pointer;
+}
+.roster-order button:first-child { border-left: 0; }
+.roster-order button:hover { color: var(--ink); }
+.roster-order button[aria-pressed="true"] {
+    background: var(--panel-sunk);
+    color: var(--ink);
+    font-weight: 600;
+}
+
+/* The count beside a group's heading. `.options-count` carries the typeface, the tracking and the
+   tabular figures; what it does not carry is the space between it and the words before it, because
+   in the option lists it is the last item of a flex row rather than a phrase inside a sentence. */
+.others-head .options-count { margin-left: var(--space-2); }
+
 /* One bar, two equal doors. Starting fresh and importing are the same kind of act — both make
    a character that does not exist yet — so the group's own rule separates them from the list
    above, which is the job `ImportCharacter`'s `.small` was doing alone by simply being smaller

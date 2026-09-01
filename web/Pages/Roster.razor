@@ -1,0 +1,28 @@
+@page "/build/characters"
+
+<PageTitle>Your characters — Prowlers &amp; Paragons</PageTitle>
+
+@* Every character this browser or this account is holding, with the room to draw them all.
+
+   **It is under `/build` rather than beside it, and that is one line of consequence.**
+   `Areas.Of` reads the first path segment, so this address is `Area.Play` by construction — the
+   step band and the budget strip come with it, the banner names the palette, and the switcher is
+   in the banner where it is on every other builder page. A top-level `/characters` would have
+   needed a case in `Areas.Of` saying "this one is the builder too", which is the special case the
+   whole prefix scheme exists to avoid.
+
+   **The step band draws with no step marked, and that is correct rather than tolerated.** Each
+   step's `NavLink` is `NavLinkMatch.All`, so this address is none of them: what a reader sees is
+   the six steps of the job they are in, with none of them claimed. The budget strip below it
+   reports the character named in the panel's own first block, which is the character it is about —
+   unlike the three areas the strip was pulled off, where the figure on screen belonged to somebody
+   else.
+
+   **The page is the panel and nothing else.** Every action on a character — open, read, discard,
+   start another, import — is `CharacterManager`'s, and a second control here would be a second
+   place to keep in step. The heading is what a page owes a reader that a panel inside one does
+   not. *@
+<h1>Your characters</h1>
+<p class="muted">Everything you have built, and the games they are in.</p>
+
+<CharacterManager />
