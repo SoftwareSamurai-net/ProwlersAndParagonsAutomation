@@ -298,3 +298,96 @@ test('a GM account raised past 5 can hold more, by the SQL in the setup doc', as
 // migrations together, so it cannot reproduce a database 0002 has not yet run against; asserting
 // the migration's behaviour here would only re-describe what the fixture was built to already
 // have, not what the `INSERT … SELECT` actually does to an old row.
+
+// ── The three index fields, which say what a character is without a payload read ────────────
+//
+// `kind`, `tierId` and `spent` are `label`'s and `campaignId`'s kind of field: supplied by the
+// client, stored verbatim, handed back verbatim, and never derived — because the server cannot
+// derive them without parsing a payload, which is the one thing it does not do. What is tested
+// here is that bargain, and the bounds that keep them a column's worth of data. See 0007.
+
+test('the three index fields come back exactly as they were sent', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    assert.equal((await app.call(`/api/characters/${id(1)}`, {
+        method: 'PUT', cookie,
+        body: {
+            label: 'Cael Hughes', payload: '{}', kind: 'villain', tierId: 'high_level', spent: 164,
+        },
+    })).status, 204);
+
+    const listed = (await (await app.call('/api/characters', { cookie })).json()).characters[0];
+
+    assert.equal(listed.kind, 'villain');
+    assert.equal(listed.tierId, 'high_level');
+    assert.equal(listed.spent, 164);
+});
+
+test('a character sent without them lists with all three null, and that is not a failure', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    assert.equal((await put(app, cookie, { label: 'Ninefold' })).status, 204);
+
+    const listed = (await (await app.call('/api/characters', { cookie })).json()).characters[0];
+
+    assert.equal(listed.kind, null);
+    assert.equal(listed.tierId, null);
+    assert.equal(listed.spent, null, 'null is "the engine declined to price it", never 0');
+});
+
+test('a replace overwrites the index fields rather than leaving the old ones standing', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    const send = body => app.call(`/api/characters/${id(1)}`, { method: 'PUT', cookie, body });
+
+    await send({ label: 'Cael Hughes', payload: '{}', kind: 'villain', tierId: 'low_level', spent: 51 });
+    await send({ label: 'Cael Hughes', payload: '{}', kind: 'villain', tierId: 'high_level', spent: 164 });
+
+    const listed = (await (await app.call('/api/characters', { cookie })).json()).characters[0];
+
+    assert.equal(listed.tierId, 'high_level');
+    assert.equal(listed.spent, 164);
+});
+
+test('a replace that stops knowing the spend clears it rather than keeping a stale figure', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    const send = body => app.call(`/api/characters/${id(1)}`, { method: 'PUT', cookie, body });
+
+    await send({ label: 'Half-built', payload: '{}', kind: 'hero', tierId: 'standard', spent: 125 });
+
+    // What the browser sends once a Power is added with no variant chosen: the engine refuses to
+    // price the sheet, so there is no figure to send. A row that kept 125 would be reporting a
+    // cost nobody computed for the character that is actually there.
+    await send({ label: 'Half-built', payload: '{}', kind: 'hero', tierId: 'standard' });
+
+    assert.equal(
+        (await (await app.call('/api/characters', { cookie })).json()).characters[0].spent, null);
+});
+
+test('what the index fields refuse is a shape, never a value out of the rules', async () => {
+    const app = server();
+    const { cookie } = await signIn(app, 'gm@example.test');
+
+    const send = extra => app.call(`/api/characters/${id(1)}`,
+        { method: 'PUT', cookie, body: { label: 'x', payload: '{}', ...extra } });
+
+    // Refused: not a string, and a string longer than a column should be asked to hold.
+    assert.equal((await send({ kind: 7 })).status, 400);
+    assert.equal((await send({ tierId: 'x'.repeat(41) })).status, 400);
+
+    // Refused: not a whole number, negative, or past the bound.
+    assert.equal((await send({ spent: 1.5 })).status, 400);
+    assert.equal((await send({ spent: -1 })).status, 400);
+    assert.equal((await send({ spent: 1_000_001 })).status, 400);
+    assert.equal((await send({ spent: '125' })).status, 400);
+
+    // Accepted: a palette and a tier this server has never heard of, because it has never read
+    // `data/rules/` and must not start. A list of legal values here would be a copy of a rules
+    // file kept in the wrong building, stale the first time the data moved.
+    assert.equal((await send({ kind: 'eldritch', tierId: 'no_such_tier', spent: 0 })).status, 204);
+});
