@@ -110,7 +110,7 @@ jobs:
         # Pinned rather than taken from the runner image: the accounts tests need `node:sqlite`
         # and JSON import attributes, both of which are Node 22. A runner that happened to ship
         # an older one would fail in a way that looks like a broken test.
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
 
@@ -307,15 +307,41 @@ jobs:
         # got hold of.
         #
         # **`include-hidden-files` is why this step had never once uploaded anything.** The path
-        # is `.visual-regression/`, upload-artifact@v4 excludes dot-prefixed paths by default,
-        # and `if-no-files-found` defaults to `warn` — so the step logged "No files were found
-        # with the provided path" and went green, on every failing run, for as long as it has
-        # existed. That is this repository's oldest failure shape (a check satisfied by there
-        # being nothing to check) wearing a workflow step's clothes. `error` is set as well, so
-        # the same thing cannot happen quietly a second time: if this step runs and finds
-        # nothing, the run fails and says so.
+        # is `.visual-regression/`, upload-artifact excludes dot-prefixed paths by default, and
+        # `if-no-files-found` defaults to `warn` — so the step logged "No files were found with
+        # the provided path" and went green, on every failing run, for as long as it has existed.
+        # That is this repository's oldest failure shape (a check satisfied by there being
+        # nothing to check) wearing a workflow step's clothes. `error` is set as well, so the
+        # same thing cannot happen quietly a second time: if this step runs and finds nothing,
+        # the run fails and says so.
+        #
+        # **Both of those are v7's defaults, not v4's remembered — re-read and then proved.**
+        # The paragraph above described v4 and the pin is now `@v7`, which is exactly the dead
+        # pointer this repository treats as worse than none: three majors landed in between
+        # (v5 node24, v6 node24 by default, v7 ESM plus a new `archive` input), any of which
+        # could have moved a default and left the comment explaining a hazard that was gone —
+        # or, far worse, left the hazard in place while the comment read as history. `v7`'s own
+        # `action.yml` still declares `include-hidden-files` with `default: 'false'` and
+        # `if-no-files-found` with `default: 'warn'`, so the trap and both answers to it are
+        # unchanged.
+        #
+        # **Read is not proved, and this comment is the reason to distrust reading.** On the
+        # bump's own pull request a golden was deliberately corrupted so the comparison failed
+        # and this step actually ran, beside a temporary twin identical to it but for the one
+        # line under test. The twin — no `include-hidden-files`, same path, same
+        # `if-no-files-found: error` — failed with "No files were found with the provided path:
+        # .visual-regression/. No artifacts will be uploaded." in the same run in which this step
+        # uploaded 9 files and 867,576 bytes: the eight captures under
+        # `.visual-regression/actual/` and the one diff PNG for the single page whose golden was
+        # corrupted. That is the v4 defect reproduced on v7, and this step not having it, from
+        # one run rather than from two readings of a YAML file. The artifact was downloaded and
+        # its file list read, because "the step said it uploaded" is the claim, not the proof.
+        #
+        # v7's new `archive` input is deliberately left at its default: it uploads a single file
+        # unzipped and fails on a glob that resolves to more than one, and this path is a
+        # directory.
         if: ${{ !cancelled() && steps.visual.outcome == 'failure' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: visual-regression-diffs
           path: .visual-regression/
@@ -371,12 +397,25 @@ jobs:
         #
         # Same wrangler version as the deploy action, or the point is lost.
         run: |
-          # Assign, then replace on failure. `$(... || echo 3.90.0)` concatenates.
           # Matches any major, not `@v3` literally: Dependabot bumps this pin, and a pattern tied
-          # to one major would stop matching and fall through to the hardcoded version below —
-          # leaving the dry-run bundling with a wrangler the deploy no longer uses, silently.
+          # to one major would stop matching — which is what the fallback below used to hide.
           version=$(sed -n 's/^.*wrangler-action@v[0-9][0-9.]*.*# wrangler=\([0-9.]*\).*$/\1/p' .github/workflows/deploy.yml) || version=''
-          [ -n "$version" ] || version=3.90.0
+
+          # **This used to fall back to a hardcoded 3.90.0, and that fallback was the hazard.**
+          # The comment four lines above says "same wrangler version as the deploy action, or the
+          # point is lost" — and a fallback is precisely how the point gets lost quietly: the sed
+          # stops matching, the step goes on bundling against a version the deploy no longer
+          # uses, and everything is green. That is this repository's oldest failure shape again,
+          # so the answer is the one it always is: fail, name the line, and make somebody look.
+          # `WranglerIsPinnedToOneVersion` is the other half — it fails the suite when the three
+          # places that name a wrangler version stop agreeing, so this is the belt to that brace.
+          [ -n "$version" ] || {
+            echo "::error::Could not read a wrangler version out of deploy.yml's"
+            echo "::error::'uses: cloudflare/wrangler-action@…  # wrangler=<version>' line."
+            echo "::error::Refusing to bundle against a guess — the whole point of this step is"
+            echo "::error::that it uses the same wrangler the deploy will."
+            exit 1
+          }
 
           echo "Bundling the deploy with wrangler@$version, the same version as deploy.yml."
 

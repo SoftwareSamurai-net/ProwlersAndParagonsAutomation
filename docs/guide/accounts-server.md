@@ -53,6 +53,24 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   the same six-label format. `Areas.Of` answers it; `MainLayout` draws neither there. **It now
   covers the portfolio and the sign-in page too** — there are four areas; see [`browser.md`](browser.md), "Four areas, and the
   address decides which".
+- **A decision is recorded as a fact, and that is what `0007` is for.** Approving and rejecting
+  leave `has_approved` and `has_pending` in states the player has already seen — a rejection
+  reverts their standing to the sentence it showed before they sent anything — so `decision` is
+  the only thing distinguishing *turned down* from *approved earlier* and from *never sent*. Both
+  list rows carry it because they land in one record on the browser's side. Nothing clears it: a
+  new submission shadows it and the next decision overwrites it. `decided_at` is stored beside it
+  and stays off the wire until something draws a time.
+- **Ending a membership is one address with two meanings, and the column that matches is what
+  decides which.** `DELETE /api/memberships/{id}` is a player leaving *and* a GM removing
+  somebody; nothing in the request says which, so nothing in it can claim a role it does not have.
+  The row goes and the campaign's clone with it — **the opposite of deleting a campaign**, which
+  keeps every membership precisely so that writing the campaign back is a complete undo. The
+  asymmetry runs the same way as everywhere else here: the player's statement is a bare
+  `player_user_id = ?` so somebody can walk out of a game the GM has thrown away, and the GM's
+  carries the `EXISTS` so a deleted campaign's surviving rows stay survivable. It answers 204 even
+  when nothing matched — the end state asked for is true either way, and a 404-or-204 split would
+  say whether an id exists — with one refusal, 409 to a GM whose campaign is gone, because a
+  removal that did not happen must not be reported as one. See `docs/CHARACTERS-API.md`.
 - **It holds no rules and must never gain one.** A character is stored as an opaque string it
   never parses — the engine decides cost and legality and runs in the browser. A second place
   that understood the shape of a character is a second place to keep in step.
@@ -220,8 +238,12 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   scan will happily ship an incompatibility to the deploy.** This has happened once:
   `import ... with { type: 'json' }` in `worker/corpus.js` ran under Node 22 (both the accounts
   suite and my local `npx wrangler`) and failed on the deploy pipeline with
-  *"Expected ';' but found 'with'"* — because `cloudflare/wrangler-action@v3` pins wrangler at
-  **3.90.0**, whose bundled esbuild predates JSON import attributes. `assert { type: 'json' }`
+  *"Expected ';' but found 'with'"* — because `cloudflare/wrangler-action@v3` pinned wrangler at
+  **3.90.0**, whose bundled esbuild predates JSON import attributes. (The action is `@v4` and the
+  pin is `4.127.0` now, so that particular esbuild is behind us — **which is not a reason to
+  unbake the corpus**. The bake is what makes `worker/corpus.js` byte-checkable against the JSON
+  on disk, and the gap between wrangler's bundler and Node's is a permanent property of the two
+  moving separately, not a fact about one version.) `assert { type: 'json' }`
   is the older spelling and is deprecated in Node 22; that trade breaks the tests instead of
   the deploy. **So the corpus is baked into `worker/corpus.js` as an object literal by
   `scripts/inline-rulebook.mjs`**, and both are guarded: `tests/worker/router.test.mjs` asserts

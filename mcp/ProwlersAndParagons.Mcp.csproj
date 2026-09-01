@@ -25,7 +25,7 @@
              services by hand everywhere else, and the hosting package exists to wire them
              through dependency injection. Pinned exactly, like Spectre.Console — a floating
              version made restores non-reproducible once already. -->
-        <PackageReference Include="ModelContextProtocol.Core" Version="2.1.0" />
+        <PackageReference Include="ModelContextProtocol.Core" Version="2.2.0" />
     </ItemGroup>
 
     <ItemGroup>

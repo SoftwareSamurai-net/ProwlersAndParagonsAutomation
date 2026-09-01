@@ -76,20 +76,41 @@ request that added only a migration file changed nothing under `web/` or `worker
 workflow never ran at all — the auto-apply above would have been a no-op for exactly the change it
 exists to handle.
 
-**Pinned to `wrangler@4.127.0` for the `list`/`apply` calls, not the `3.90.0` the deploy bundles
-with for the actual Pages upload.** `3.90.0` does not understand `--cwd` at all — verified against
-the real binary, `npx wrangler@3.90.0 --cwd d1 d1 migrations list prowlers-and-paragons --remote`
-answers `Unknown argument: cwd` and dumps the subcommand's own usage rather than a result — which
-this gate would correctly call "unrecognised" and refuse on, every single run, for a reason that has
-nothing to do with what is actually pending. `4.127.0`'s two real shapes, `Migrations to be
-applied:` with a table and `No migrations to apply!`, were both read against the real production
-database before this was written.
+**Pinned to `wrangler@4.127.0` — and that is now the only wrangler version in this repository,
+which it was not.** It used to be pinned here *against* the deploy: `cloudflare/wrangler-action@v3`
+bundled `3.90.0` for the Pages upload, and `3.90.0` does not understand `--cwd` at all — verified
+against the real binary, `npx wrangler@3.90.0 --cwd d1 d1 migrations list prowlers-and-paragons
+--remote` answers `Unknown argument: cwd` and dumps the subcommand's own usage rather than a
+result — which this gate would correctly call "unrecognised" and refuse on, every single run, for a
+reason that has nothing to do with what is actually pending. `4.127.0`'s two real shapes,
+`Migrations to be applied:` with a table and `No migrations to apply!`, were both read against the
+real production database before this was written.
 
-**One thing this does not close on its own: the deploy token still needs D1: Edit granted in the
-Cloudflare dashboard.** Nothing in this repository can do that — it is an account permission, not a
-setting in a file — so until it is granted, `wrangler d1 migrations list` answers 7403 on every
-deploy and this gate refuses exactly as it did the first time, correctly. Grant D1: Edit on the same
-token that already holds Cloudflare Pages: Edit, then the mechanism above runs as designed.
+**The action is `@v4` now, and the two pins collapsed into one — but not by themselves.** `@v3`
+hard-coded `DEFAULT_WRANGLER_VERSION = "3.90.0"`, so leaving `wranglerVersion` unset *was* a pin;
+`@v4`'s default is the range `"4"` — read out of the two published `dist` bundles rather than
+inferred — which resolves to whatever the newest 4.x is at the moment the runner asks. Two deploys
+minutes apart could bundle two wranglers. So `deploy.yml` states `wranglerVersion: "4.127.0"`
+explicitly, and `WranglerIsPinnedToOneVersion` fails the suite when that input, the `# wrangler=`
+comment the pull-request dry-run parses, and `scripts/apply-migrations.sh`'s own constant stop
+agreeing. **That last part is the fix to a warning rather than to a bug**: commit `a4ec6ef` taught
+the dry-run's `sed` to match any major *and* ended by noting the version inside the comment was
+still hand-maintained, so a major bump had to update it or the two would drift apart again. This is
+that note, made to fail.
+
+**The deploy token needs D1: Edit, and that half has now run rather than being assumed.** It is an
+account permission granted in the Cloudflare dashboard, not a setting in a file, so nothing in this
+repository can do it: without it `wrangler d1 migrations list` answers 7403 on every deploy and this
+gate refuses exactly as it did the first time, correctly.
+
+**Until `0007_decision_recorded.sql` there was no evidence either way, and the reason is worth
+keeping.** The deploys before it found *nothing pending*, so the apply path never executed — and a
+token holding only D1: Read produces that identical log before failing on the first migration that
+actually has to be applied. Reading those runs as proof of Edit would have been the same mistake as
+reading a 7403 as all-clear, one step later. On the deploy of `a978806` the gate read one pending
+file, classified it additive, applied it, **and then asked the database again** — `No migrations to
+apply!`. That second question is the whole difference between "the schema moved" and "wrangler
+exited 0", and it is why the script asks it.
 
 - **Do not "fix" a 7403 by treating it as all-clear.** That is the exact failure this whole section
   exists to prevent: a check satisfied by there being nothing to check.

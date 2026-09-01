@@ -236,9 +236,19 @@ else
 
         var inGames = mine.Where(m => m.CharacterId == characterId).ToList();
 
-        return inGames.Count == 0
-            ? null
-            : string.Join(" · ", inGames.Select(m => Standings.Say(m.Standing, m.Label)));
+        if (inGames.Count == 0) return null;
+
+        // **`m.Label` is the CHARACTER's name, not the game's, and passing it here said the
+        // wrong thing in the reader's own words.** `Standings.Say`'s second argument is what the
+        // campaign is called; a character in two games rendered "Approved for Ninefold · Changes
+        // pending for Ninefold" — the same name twice, disambiguating nothing.
+        //
+        // **Nothing here can name the game**, and that is the real gap: a `MembershipSummary`
+        // carries `CampaignId` and no label, and a player is a member of campaigns they do not
+        // own, so `ApiCampaignStore` cannot look one up either. So this says the standing and
+        // claims nothing — see PROGRESS.md, which records what putting the label on the wire
+        // would take.
+        return string.Join(" · ", inGames.Select(m => Standings.Say(m.Standing)));
     }
 
     private Task Print() => Js.InvokeVoidAsync("print").AsTask();

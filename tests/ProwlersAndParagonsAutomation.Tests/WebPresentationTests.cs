@@ -4653,6 +4653,54 @@ public sealed class WebPresentationTests
             + string.Join("\n  ", unreachable));
     }
 
+    /// <summary>
+    /// <b>Nothing passes a character's own label to <c>Standings.Say</c> as the campaign's name.</b>
+    ///
+    /// <para>That argument is what the <em>game</em> is called, and two screens passed
+    /// <c>m.Label</c> — which a membership documents as what the <em>character</em> goes by. So a
+    /// character in two games rendered "Approved for Ninefold · Changes pending for Ninefold": the
+    /// same name against every row, on screens whose stated reason for naming a campaign at all is
+    /// that one game's answer is not the other's. It survived because no rendering test had two
+    /// campaigns in it, and because both halves of the sentence read plausibly on their own.</para>
+    ///
+    /// <para><b>A source guard rather than a rendered one, deliberately.</b> The defect is a wrong
+    /// argument, and markup with one campaign in it looks correct — this is the shape
+    /// <c>testing.md</c> puts in this project rather than in bUnit. <b>The extraction is asserted
+    /// non-empty first</b>, or a call site that has changed spelling would satisfy "none of them
+    /// does this" for free, which is how this repository has shipped a guard measuring nothing.</para>
+    ///
+    /// <para>Nothing can name the game today: a membership carries a campaign id and no label, and
+    /// a player belongs to games they do not own. Until the label is on the wire, these screens say
+    /// the standing and claim nothing.</para>
+    /// </summary>
+    [Fact]
+    public void NoScreenPassesACharactersLabelAsTheCampaignsName()
+    {
+        var calls = SourceFiles(WebRoot, "*.razor")
+            .Concat(SourceFiles(WebRoot, "*.cs"))
+            .Where(NotBuildArtefact)
+            .SelectMany(path => Regex.Matches(
+                    File.ReadAllText(path), @"Standings\.Say\(([^)]*)\)",
+                    RegexOptions.None, TimeSpan.FromSeconds(5))
+                .Select(m => (Path.GetFileName(path), Arguments: m.Groups[1].Value)))
+            .ToList();
+
+        Assert.True(calls.Count >= 3,
+            "found " + calls.Count + " calls to Standings.Say in web/, so this test is not "
+            + "looking at the call sites it exists for and would pass whatever they passed.");
+
+        var naming = calls
+            .Where(c => c.Arguments.Contains(',', StringComparison.Ordinal)
+                        && c.Arguments.Contains(".Label", StringComparison.Ordinal))
+            .Select(c => c.Item1 + ": Standings.Say(" + c.Arguments + ")")
+            .ToList();
+
+        Assert.True(naming.Count == 0,
+            "A membership's Label is the character's name, not the game's, and Standings.Say's "
+            + "second argument is the game's — so these say the character's own name where the "
+            + "campaign belongs:\n  " + string.Join("\n  ", naming));
+    }
+
     /// <summary>Not a build artefact — obj/ and bin/ hold generated copies of every component.</summary>
     private static bool NotBuildArtefact(string path) =>
         !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)

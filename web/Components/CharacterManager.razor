@@ -269,6 +269,13 @@
     ///
     /// <para><b>A character in two games says both.</b> The question is "which sheet do I print at
     /// the table", and one campaign's answer is not the other's.</para>
+    ///
+    /// <para><b>Neither is named, because nothing here can name one.</b> This passed the
+    /// character's own label as the campaign's for as long as it existed, which rendered the same
+    /// name against every row and told a reader nothing. A membership carries a campaign id and no
+    /// label, and a player belongs to games they do not own, so there is no second read that would
+    /// answer it — the label would have to come off the wire. Until it does, two standings side by
+    /// side say what each is without claiming which game each is about.</para>
     /// </summary>
     private string? CampaignStandingFor(string? characterId)
     {
@@ -277,7 +284,19 @@
         var mine = _memberships.Where(m => m.CharacterId == characterId).ToList();
         if (mine.Count == 0) return null;
 
-        return string.Join(" · ", mine.Select(m => Standings.Say(m.Standing, m.Label)));
+        // **`m.Label` is the CHARACTER's name, not the game's, and passing it here said the
+        // wrong thing in the reader's own words.** `Standings.Say`'s second argument is what the
+        // campaign is called; a character in two games rendered "Approved for Ninefold · Changes
+        // pending" — the same name twice, disambiguating nothing, on a screen whose whole reason
+        // for naming the campaign is that one game's answer is not the other's.
+        //
+        // **Nothing here can name the game**, and that is the real gap: a `MembershipSummary`
+        // carries `CampaignId` and no label, and a player is a member of campaigns they do not
+        // own, so `ApiCampaignStore` cannot look one up either. So this says the standing and
+        // claims nothing — see PROGRESS.md, which records what putting the label on the wire
+        // would take.
+
+        return string.Join(" · ", mine.Select(m => Standings.Say(m.Standing)));
     }
 
     /// <summary>

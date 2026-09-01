@@ -504,7 +504,7 @@ public sealed class FakeApi : HttpMessageHandler
     private sealed record MembershipRow(
         string CampaignId, string GmAccount, string PlayerAccount, string CharacterId,
         string Label, string? Approved, long? ApprovedAt, string? Pending, long? PendingAt,
-        int PendingVersion);
+        int PendingVersion, string? Decision = null);
 
     private readonly Dictionary<string, MembershipRow> _memberships = [];
 
@@ -522,6 +522,16 @@ public sealed class FakeApi : HttpMessageHandler
     /// sentence for that refusal is reachable in a test.
     /// </summary>
     public bool JoinIsRateLimited { get; set; }
+
+    /// <summary>
+    /// A word to answer in every list row's <c>decision</c>, in place of the row's own.
+    ///
+    /// <para><b>A seam, because the state it reaches cannot be provoked through the endpoints.</b>
+    /// The server writes only the two words it knows, so a third — one a later version could
+    /// spell — is unreachable by approving or rejecting anything. The browser must read an unknown
+    /// word as no decision rather than as a rejection, and without this that rule is a claim.</para>
+    /// </summary>
+    public string? DecisionOnTheWire { get; set; }
 
     // A `BeforeDeciding` seam lived here — a hook fired between a decision arriving and being
     // answered, so a test could let a resubmission land in between. **It is gone because it does
@@ -671,7 +681,7 @@ public sealed class FakeApi : HttpMessageHandler
     /// One list row. <c>characterId</c> is withheld from the GM exactly as the real server
     /// withholds it — a stub that sent it would make a test about that impossible to write.
     /// </summary>
-    private static string Row(string id, MembershipRow row, bool forGm) => $$"""
+    private string Row(string id, MembershipRow row, bool forGm) => $$"""
         {"id":{{Quote(id)}},"campaignId":{{Quote(row.CampaignId)}},
          "characterId":{{(forGm ? "null" : Quote(row.CharacterId))}},
          "label":{{Quote(row.Label)}},
@@ -679,7 +689,8 @@ public sealed class FakeApi : HttpMessageHandler
          "approvedAt":{{row.ApprovedAt?.ToString(CultureInfo.InvariantCulture) ?? "null"}},
          "hasPending":{{Lower(row.Pending is not null)}},
          "pendingAt":{{row.PendingAt?.ToString(CultureInfo.InvariantCulture) ?? "null"}},
-         "pendingVersion":{{row.PendingVersion}}}
+         "pendingVersion":{{row.PendingVersion}},
+         "decision":{{((DecisionOnTheWire ?? row.Decision) is not { } word ? "null" : Quote(word))}}}
         """;
 
     /// <summary>Redeem a join code, or refuse the four ways the real server refuses.</summary>
@@ -749,6 +760,44 @@ public sealed class FakeApi : HttpMessageHandler
         if (!System.Text.RegularExpressions.Regex.IsMatch(id, "^m_[A-Za-z0-9_-]{22}$"))
         {
             return await Status(HttpStatusCode.BadRequest);
+        }
+
+        // ── Ending a membership, ahead of the two 404s below ────────────────────────────
+        //
+        // **Before them because the real server answers differently on both.** `DELETE` is two
+        // statements, each scoped to its own owner column, and then a probe on the miss: a row
+        // this account cannot name answers 204 like an already-deleted one, and a GM whose game
+        // is gone answers 409 rather than the 404 a read of the same address gets. A fake that
+        // fell into the read's gates here would be more restrictive than the server, which is the
+        // same class of fault as being more permissive — it makes a reachable state untestable.
+        if (tail.Length == 0 && request.Method == HttpMethod.Delete)
+        {
+            if (!_memberships.TryGetValue(id, out var ending))
+            {
+                return await Status(HttpStatusCode.NoContent);
+            }
+
+            var isPlayers = ending.PlayerAccount == who.Key;
+            var isTheirGame = ending.GmAccount == who.Key;
+
+            // The player's half is a bare column and the GM's carries the campaign check, exactly
+            // as `leaveCampaign` and `removeMember` are written.
+            if (isPlayers || (isTheirGame && StillThere(ending)))
+            {
+                _memberships.Remove(id);
+
+                return await Status(HttpStatusCode.NoContent);
+            }
+
+            if (isTheirGame)
+            {
+                return await Json(
+                    """{"error":"That campaign is no longer here."}""",
+                    HttpStatusCode.Conflict);
+            }
+
+            // Somebody else's row. Nothing ended, and the answer says nothing about that.
+            return await Status(HttpStatusCode.NoContent);
         }
 
         // Scoped to whoever is asking, both ways round. **Not `(gm_user_id = ? OR
@@ -835,9 +884,17 @@ public sealed class FakeApi : HttpMessageHandler
                     """, HttpStatusCode.Conflict);
             }
 
+            // **Both arms write `decision`, which is the point of it.** A fake that recorded it
+            // only on the approve path would leave a rejection looking exactly as it did before
+            // `0007` — and the whole defect that migration exists for is a rejection being
+            // indistinguishable from an approval of an earlier snapshot.
             _memberships[id] = tail == "approve"
-                ? row with { Approved = row.Pending, ApprovedAt = ++_clock, Pending = null, PendingAt = null }
-                : row with { Pending = null, PendingAt = null };
+                ? row with
+                {
+                    Approved = row.Pending, ApprovedAt = ++_clock,
+                    Pending = null, PendingAt = null, Decision = "approved",
+                }
+                : row with { Pending = null, PendingAt = null, Decision = "rejected" };
 
             return await Status(HttpStatusCode.NoContent);
         }
