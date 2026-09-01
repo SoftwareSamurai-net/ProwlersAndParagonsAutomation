@@ -97,11 +97,19 @@ the dry-run's `sed` to match any major *and* ended by noting the version inside 
 still hand-maintained, so a major bump had to update it or the two would drift apart again. This is
 that note, made to fail.
 
-**One thing this does not close on its own: the deploy token still needs D1: Edit granted in the
-Cloudflare dashboard.** Nothing in this repository can do that — it is an account permission, not a
-setting in a file — so until it is granted, `wrangler d1 migrations list` answers 7403 on every
-deploy and this gate refuses exactly as it did the first time, correctly. Grant D1: Edit on the same
-token that already holds Cloudflare Pages: Edit, then the mechanism above runs as designed.
+**The deploy token needs D1: Edit, and that half has now run rather than being assumed.** It is an
+account permission granted in the Cloudflare dashboard, not a setting in a file, so nothing in this
+repository can do it: without it `wrangler d1 migrations list` answers 7403 on every deploy and this
+gate refuses exactly as it did the first time, correctly.
+
+**Until `0007_decision_recorded.sql` there was no evidence either way, and the reason is worth
+keeping.** The deploys before it found *nothing pending*, so the apply path never executed — and a
+token holding only D1: Read produces that identical log before failing on the first migration that
+actually has to be applied. Reading those runs as proof of Edit would have been the same mistake as
+reading a 7403 as all-clear, one step later. On the deploy of `a978806` the gate read one pending
+file, classified it additive, applied it, **and then asked the database again** — `No migrations to
+apply!`. That second question is the whole difference between "the schema moved" and "wrangler
+exited 0", and it is why the script asks it.
 
 - **Do not "fix" a 7403 by treating it as all-clear.** That is the exact failure this whole section
   exists to prevent: a check satisfied by there being nothing to check.
