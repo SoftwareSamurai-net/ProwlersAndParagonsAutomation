@@ -184,3 +184,186 @@ test('deleting a campaign row does not touch a character that names it', () => {
     assert.equal(rows.length, 1);
     assert.equal(rows[0].campaign_id, 'g_0000000000000000000000');
 });
+
+// ── 0006: the clone, the approval slot and the join code ─────────────────────────────────
+
+/** Every migration up to and including 0005 — the shape before campaign membership. */
+function preMembershipDb() {
+    const db = new DatabaseSync(':memory:');
+    for (const migration of MIGRATIONS.slice(0, 5)) db.exec(readFileSync(migration, 'utf8'));
+
+    return db;
+}
+
+function apply0006(db) {
+    db.exec(readFileSync(MIGRATIONS[5], 'utf8'));
+}
+
+test('a campaign written before 0006 survives it, with no code until it is next written', () => {
+    // **The ALTER cannot invent randomness for rows that already exist**, and that is the state
+    // this pins: a campaign made before join codes has none, which the screen reports rather than
+    // something that breaks. A `NOT NULL DEFAULT ''` would be worse — every such campaign would
+    // share one code, and the unique index would refuse the second row.
+    const db = preMembershipDb();
+    user(db, 'u_gm', 'gm@example.test');
+    db.prepare('INSERT INTO campaigns (user_id, id, label, payload, updated_at) VALUES (?, ?, ?, ?, ?)')
+        .run('u_gm', 'g_0000000000000000000000', 'Nightfall', '{"Campaign":{}}', 2000);
+
+    apply0006(db);
+
+    const rows = db.prepare('SELECT * FROM campaigns WHERE user_id = ?').all('u_gm');
+
+    assert.equal(rows.length, 1, 'the row must not be dropped — 0006 alters, it does not rebuild');
+    assert.equal(rows[0].join_code, null);
+    assert.equal(rows[0].label, 'Nightfall', 'the label survived the alter');
+    assert.equal(rows[0].payload, '{"Campaign":{}}', 'byte for byte, unparsed');
+    assert.equal(rows[0].updated_at, 2000);
+});
+
+test('any number of campaigns may have no code, and no two may share one', () => {
+    const db = preMembershipDb();
+    user(db, 'u_gm', 'gm@example.test');
+    apply0006(db);
+
+    const insert = (id, code) => db.prepare(
+        'INSERT INTO campaigns (user_id, id, label, payload, join_code, updated_at) '
+        + 'VALUES (?, ?, ?, ?, ?, ?)').run('u_gm', id, 'A game', '{}', code, 1000);
+
+    // NULLs are distinct in a unique index, which is what lets pre-0006 rows coexist.
+    assert.doesNotThrow(() => insert('g_000000000000000000000a', null));
+    assert.doesNotThrow(() => insert('g_000000000000000000000b', null));
+
+    assert.doesNotThrow(() => insert('g_000000000000000000000c', 'ABCDEFGHJK'));
+    assert.throws(() => insert('g_000000000000000000000d', 'ABCDEFGHJK'),
+        'two campaigns sharing a code would make redeeming it ambiguous');
+
+    // Across accounts too: a code is global, unlike an id, because it is redeemed by somebody who
+    // does not know whose campaign it is.
+    user(db, 'u_gm2', 'gm2@example.test');
+    assert.throws(() => db.prepare(
+        'INSERT INTO campaigns (user_id, id, label, payload, join_code, updated_at) '
+        + 'VALUES (?, ?, ?, ?, ?, ?)')
+        .run('u_gm2', 'g_000000000000000000000e', 'A game', '{}', 'ABCDEFGHJK', 1000));
+});
+
+test('a membership is one per character per campaign, and a character id is not global', () => {
+    const db = preMembershipDb();
+    user(db, 'u_gm', 'gm@example.test');
+    user(db, 'u_one', 'one@example.test');
+    user(db, 'u_two', 'two@example.test');
+    apply0006(db);
+
+    const insert = (id, campaignId, playerUserId, characterId) => db.prepare(
+        'INSERT INTO campaign_members '
+        + '(id, campaign_id, gm_user_id, player_user_id, character_id, label, joined_at) '
+        + 'VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(id, campaignId, 'u_gm', playerUserId, characterId, 'Ninefold', 1000);
+
+    insert('m_000000000000000000000a', 'g_a', 'u_one', 'c_x');
+
+    // The same character in the same campaign twice is one membership.
+    assert.throws(() => insert('m_000000000000000000000b', 'g_a', 'u_one', 'c_x'));
+
+    // The positive controls: another player's row with the same character id is not a conflict —
+    // so one account cannot squat on an id and block a join — and the same character in a second
+    // campaign is not a conflict either.
+    assert.doesNotThrow(() => insert('m_000000000000000000000c', 'g_a', 'u_two', 'c_x'));
+    assert.doesNotThrow(() => insert('m_000000000000000000000d', 'g_b', 'u_one', 'c_x'));
+});
+
+test('a fresh membership has no clone, nothing waiting, and version zero', () => {
+    const db = preMembershipDb();
+    user(db, 'u_gm', 'gm@example.test');
+    user(db, 'u_p', 'p@example.test');
+    apply0006(db);
+
+    db.prepare(
+        'INSERT INTO campaign_members '
+        + '(id, campaign_id, gm_user_id, player_user_id, character_id, label, joined_at) '
+        + 'VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run('m_0000000000000000000000', 'g_a', 'u_gm', 'u_p', 'c_x', 'Ninefold', 1000);
+
+    const row = db.prepare('SELECT * FROM campaign_members').all()[0];
+
+    assert.equal(row.approved_payload, null, 'joining is not submitting');
+    assert.equal(row.pending_payload, null);
+    assert.equal(row.pending_version, 0, 'the compare-and-swap has to start somewhere');
+});
+
+test('the clones are not in characters, so they cannot count against a cap', () => {
+    // **This is the whole reason 0006 adds a table rather than a column.** The cap in
+    // `db.putCharacter` is `COUNT(*) FROM characters WHERE user_id = ?`; a clone stored there
+    // would spend one of the GM's own five slots per player.
+    const db = preMembershipDb();
+    user(db, 'u_gm', 'gm@example.test');
+    user(db, 'u_p', 'p@example.test');
+    apply0006(db);
+
+    for (let i = 0; i < 6; i++) {
+        db.prepare(
+            'INSERT INTO campaign_members (id, campaign_id, gm_user_id, player_user_id, '
+            + 'character_id, label, approved_payload, approved_at, joined_at) '
+            + 'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(`m_00000000000000000000${i}0`, 'g_a', 'u_gm', 'u_p', `c_${i}`,
+                'Ninefold', '{}', 2000, 1000);
+    }
+
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM campaign_members').all()[0].n, 6);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM characters WHERE user_id = ?')
+        .all('u_gm')[0].n, 0, 'six clones must leave the GM’s own five slots untouched');
+});
+
+test('deleting a campaign leaves its memberships, exactly as it leaves its characters', () => {
+    // **No cascade from `campaigns`, on purpose and for the same reason 0005 has no foreign key on
+    // `characters.campaign_id`.** A cascade would delete the clone the GM accepted, which is the
+    // campaign's own record of what was agreed, on the strength of one click that may have been a
+    // mistake. Restoring the campaign has to put everything back.
+    const db = preMembershipDb();
+    user(db, 'u_gm', 'gm@example.test');
+    user(db, 'u_p', 'p@example.test');
+    apply0006(db);
+
+    db.prepare('INSERT INTO campaigns (user_id, id, label, payload, join_code, updated_at) '
+        + 'VALUES (?, ?, ?, ?, ?, ?)')
+        .run('u_gm', 'g_0000000000000000000000', 'Nightfall', '{}', 'ABCDEFGHJK', 1000);
+    db.prepare(
+        'INSERT INTO campaign_members (id, campaign_id, gm_user_id, player_user_id, '
+        + 'character_id, label, approved_payload, joined_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run('m_0000000000000000000000', 'g_0000000000000000000000', 'u_gm', 'u_p', 'c_x',
+            'Ninefold', '{"kept":true}', 1000);
+
+    db.prepare('DELETE FROM campaigns WHERE user_id = ? AND id = ?')
+        .run('u_gm', 'g_0000000000000000000000');
+
+    const rows = db.prepare('SELECT * FROM campaign_members').all();
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].approved_payload, '{"kept":true}');
+});
+
+test('deleting either account does cascade, unlike deleting the campaign', () => {
+    // **The one place a cascade is right**, and it is different in kind from the campaign above:
+    // a membership names two accounts and cannot mean anything with either of them gone. `users`
+    // has no delete route at all today, so this is about the schema being coherent rather than
+    // about a control anybody can press.
+    const db = preMembershipDb();
+    db.exec('PRAGMA foreign_keys = ON');
+    user(db, 'u_gm', 'gm@example.test');
+    user(db, 'u_p', 'p@example.test');
+    apply0006(db);
+
+    const insert = () => db.prepare(
+        'INSERT INTO campaign_members (id, campaign_id, gm_user_id, player_user_id, '
+        + 'character_id, label, joined_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run('m_0000000000000000000000', 'g_a', 'u_gm', 'u_p', 'c_x', 'Ninefold', 1000);
+
+    insert();
+    db.prepare('DELETE FROM users WHERE id = ?').run('u_p');
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM campaign_members').all()[0].n, 0);
+
+    // The positive control on the other column, or a cascade wired to one of the two would pass.
+    user(db, 'u_p', 'p@example.test');
+    insert();
+    db.prepare('DELETE FROM users WHERE id = ?').run('u_gm');
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM campaign_members').all()[0].n, 0);
+});

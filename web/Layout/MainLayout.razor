@@ -43,10 +43,10 @@
      in the middle, and a right side of tools — and the tools are now one idiom instead of three,
      because the two palette pills went into the settings menu.
 
-     **A third avenue costs nothing.** `.avenue-nav` is a flex list of links and `Areas.Of`
-     already reads the first path segment, so the door PROGRESS.md item 12 reserves for running a
-     game is one `NavLink`. It is not here, because there is nothing behind it yet and a door
-     onto an empty room is worse than a wall. *@
+     **A third avenue cost one `NavLink`, exactly as this note said it would.** `.avenue-nav` is a
+     flex list and `Areas.Of` reads the first path segment, so `Run` needed no layout change at
+     all. It said "not here, because a door onto an empty room is worse than a wall"; the room is
+     `/campaign`, and it exists now. *@
   <div class="banner-inner">
     <div class="banner-title">
         <NavLink class="banner-home" href="" Match="NavLinkMatch.All">Prowlers &amp; Paragons</NavLink>
@@ -63,8 +63,13 @@
 
        The current one is marked and still a link. A reader who clicks the section they are in
        expects the top of it, not nothing. *@
+    @* **The third door, and it is no longer absent.** This comment used to say a third avenue
+       costs one NavLink and that there was nothing behind it — a door onto an empty room being
+       worse than a wall. There is a room now: `/campaign` is where somebody runs a game, sees
+       what is waiting for their decision, and joins one with a code. *@
     <nav class="avenue-nav" aria-label="Sections">
         <NavLink class="banner-link" href="@Commands.FirstStep">Build</NavLink>
+        <NavLink class="banner-link" href="campaign">Run</NavLink>
         <NavLink class="banner-link" href="rules">Rules</NavLink>
     </nav>
 
@@ -294,6 +299,11 @@
         // was pulled off three areas to fix.
         Area.Sheet => "Character sheet",
         Area.Rules => "Rules reference",
+
+        // Deliberately not named Hero or Villain either. The characters on this screen are other
+        // people's, so naming *this* visitor's identity over them is the fault the budget strip
+        // was pulled off three areas to fix.
+        Area.Campaign => "Running a game",
         Area.Account => "Your account",
         _ => "Characters, and the rules behind them",
     };

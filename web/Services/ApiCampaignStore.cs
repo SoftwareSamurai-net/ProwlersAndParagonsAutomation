@@ -50,7 +50,7 @@ public sealed class ApiCampaignStore
                 : [.. listed.Campaigns
                     .Where(c => c.Id is { Length: > 0 })
                     .Select(c => new SavedCampaignSummary(
-                        c.Id!, c.Label ?? "Unnamed campaign", c.UpdatedAt))];
+                        c.Id!, c.Label ?? "Unnamed campaign", c.UpdatedAt, c.JoinCode))];
         }
         catch (Exception e) when (IsUnreachable(e)) { return []; }
     }
@@ -82,7 +82,7 @@ public sealed class ApiCampaignStore
         {
             using var body = new StringContent(
                 JsonSerializer.Serialize(
-                    new Sending(SavedCampaigns.LabelFor(campaign), StoredCampaign.Write(campaign)), Wire),
+                    new Sending(StoredCampaign.LabelFor(campaign), StoredCampaign.Write(campaign)), Wire),
                 Encoding.UTF8,
                 "application/json");
 
@@ -98,9 +98,9 @@ public sealed class ApiCampaignStore
     /// Throw one campaign away. Absent is not an error — the end state is the same, which is the
     /// rule <c>docs/CHARACTERS-API.md</c> states for a character and this route follows.
     ///
-    /// <para>Characters that named it keep their id; see <see cref="SavedCampaigns.DeleteAsync"/>.
-    /// The server could not do otherwise if it wanted to — it does not know what a character
-    /// payload contains.</para>
+    /// <para>Characters that named it keep their id, deliberately: no cascade, no nulled
+    /// column, and the browser reports the state instead. The server could not do otherwise if it
+    /// wanted to — it does not know what a character payload contains.</para>
     /// </summary>
     public async Task DeleteAsync(string id)
     {
@@ -125,7 +125,10 @@ public sealed class ApiCampaignStore
     private sealed record Listed(
         [property: JsonPropertyName("id")] string? Id,
         [property: JsonPropertyName("label")] string? Label,
-        [property: JsonPropertyName("updatedAt")] long UpdatedAt);
+        [property: JsonPropertyName("updatedAt")] long UpdatedAt,
+        // The one field of a campaign the server can read. Null for a campaign written before
+        // join codes existed — a state the screen reports rather than one that breaks anything.
+        [property: JsonPropertyName("joinCode")] string? JoinCode = null);
 
     /// <summary>What the browser sends to store one. `payload` is opaque to the server.</summary>
     private sealed record Sending(

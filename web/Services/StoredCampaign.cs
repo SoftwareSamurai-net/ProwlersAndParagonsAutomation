@@ -1,25 +1,75 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using ProwlersAndParagonsAutomation.Engine;
 
 namespace ProwlersAndParagonsAutomation.Web.Services;
 
 /// <summary>
-/// What a stored campaign actually is, in local storage and on the wire alike.
+/// One row a campaign list can draw. The campaign itself is fetched separately, exactly as
+/// <see cref="SavedCharacterSummary"/> keeps a character's payload out of its list.
+/// </summary>
+/// <param name="Id"><c>g_</c> followed by 22 URL-safe characters.</param>
+/// <param name="Label">What the GM called the game. Opaque here and on the server alike.</param>
+/// <param name="UpdatedAt">Unix milliseconds, for "most recently touched first" and nothing else.</param>
+/// <param name="JoinCode">
+/// The shared secret somebody joins with, or null for a campaign that has never been written
+/// since join codes existed.
+///
+/// <para><b>The one field of a campaign the server can read</b>, and it is in the list because the
+/// GM has to be able to read it out to somebody. It is not inside the payload and cannot be:
+/// redeeming a code means finding the campaign it belongs to, which is a query, and the payload is
+/// the one thing no query looks inside.</para>
+///
+/// <para><b>Stored and sent without its hyphen</b>, because that is the form the server compares
+/// against — <c>normaliseJoinCode</c> takes the punctuation out on the way in, so a player who
+/// types the code without it, or in lower case, still gets in. The hyphen is presentation, and it
+/// is put back by <see cref="Spoken"/> rather than carried on the wire.</para>
+/// </param>
+public sealed record SavedCampaignSummary(
+    string Id, string Label, long UpdatedAt, string? JoinCode = null)
+{
+    /// <summary>
+    /// The code as it is read out at a table: <c>XXXXX-XXXXX</c>, or null when there is none yet.
+    ///
+    /// <para><b>The hyphen is put back here and nowhere else.</b> It was meant to travel with the
+    /// code and did not: the server stores the normalised ten symbols, the list answers those, and
+    /// the screen printed them — so a code minted as <c>Q4TWX-NPRKM</c> was only ever shown as
+    /// <c>Q4TWXNPRKM</c>. Ten unbroken characters is what somebody misreads over a phone, which is
+    /// the whole reason the hyphen exists.</para>
+    ///
+    /// <para>Anything that is not the expected ten symbols is handed back untouched rather than
+    /// cut in half — a code from an older or newer minter is a thing to show, not a thing for a
+    /// formatter to have an opinion about.</para>
+    /// </summary>
+    public string? Spoken =>
+        JoinCode is { Length: 10 } code ? $"{code[..5]}-{code[5..]}" : JoinCode;
+}
+
+/// <summary>
+/// What a stored campaign actually is, and the two things a host needs to mint one.
 ///
 /// <para><b>One envelope, for the same reason <see cref="StoredCharacter"/> has one.</b> A
-/// campaign is kept in two very different places — this browser and an account's server — and if
-/// each owned its own envelope a version bump would land in one of them and not the other, so a
-/// campaign made on a laptop would read back wrongly on a phone. There is one writer and one
-/// reader, here.</para>
+/// campaign is written down by the browser and read back by whatever browser signs in next, and if
+/// each end owned its own envelope a version bump would land in one of them and not the other.
+/// There is one writer and one reader, here.</para>
 ///
-/// <para><b>Nothing here throws.</b> A hand-edited key, a payload from a later build, and an HTML
-/// error page arriving where JSON was expected are the same case to a caller: there is no
-/// campaign here, carry on. This is read on paths that run before a render, so an exception is
-/// not a lost campaign but an app that does not start.</para>
+/// <para><b>Nothing here throws.</b> A hand-edited payload, one from a later build, and an HTML
+/// error page arriving where JSON was expected are the same case to a caller: there is no campaign
+/// here, carry on.</para>
 ///
 /// <para><b>The version is its own, and starts at 1.</b> It is deliberately not shared with the
 /// character envelope: bumping one must never discard the other, and
-/// <c>StoredCharacter.Usable</c> discards a version mismatch in silence.</para>
+/// <see cref="StoredCharacter"/>'s reader discards a version mismatch in silence.</para>
+///
+/// <para><b>There is no local campaign store any more, and the removal is the decision rather than
+/// a tidy-up.</b> <c>SavedCampaigns</c> kept campaigns under <c>pp.campaign.v1</c> in this browser,
+/// beside the characters — written before there was a screen, and reachable only through
+/// <see cref="AccountCampaignStore"/>, which used it for anybody not signed in. A campaign exists
+/// so that two accounts can hand a snapshot between them: one kept in a single browser can never
+/// receive a submission, hold a clone, or be joined by the code it would advertise. So campaigns
+/// are account-only, and the two static helpers that class carried live here, where the envelope
+/// is. **Nothing was lost by deleting it**: no screen had ever created a campaign, so no visitor
+/// could be holding one under that key.</para>
 /// </summary>
 public static class StoredCampaign
 {
@@ -59,6 +109,34 @@ public static class StoredCampaign
             return string.IsNullOrWhiteSpace(campaign.Id) ? null : campaign;
         }
         catch (Exception e) when (IsUnreadable(e)) { return null; }
+    }
+
+    /// <summary>
+    /// <c>g_</c> plus 22 URL-safe characters — 16 random bytes, base64url without padding.
+    ///
+    /// <para><b>Mirrors <see cref="SavedCharacters.NewId"/> exactly except for the letter</b>, so
+    /// the server can validate a campaign id with the pattern it already validates a character id
+    /// with, and neither can be passed where the other is meant.</para>
+    /// </summary>
+    public static string NewId()
+    {
+        Span<byte> bytes = stackalloc byte[16];
+        RandomNumberGenerator.Fill(bytes);
+        var text = Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+        return $"g_{text}";
+    }
+
+    /// <summary>
+    /// The name to list a campaign under. Trimmed, and never empty — an unnamed game is an
+    /// ordinary state and a blank row reads as broken rather than as unnamed. The same rule
+    /// <see cref="SavedCharacters.LabelFor"/> applies to a character, and the server's own default
+    /// matches it.
+    /// </summary>
+    public static string LabelFor(Campaign campaign)
+    {
+        ArgumentNullException.ThrowIfNull(campaign);
+
+        return string.IsNullOrWhiteSpace(campaign.Name) ? "Unnamed campaign" : campaign.Name.Trim();
     }
 
     /// <summary>

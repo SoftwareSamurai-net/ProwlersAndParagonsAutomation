@@ -1,0 +1,534 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using ProwlersAndParagonsAutomation.Engine;
+
+namespace ProwlersAndParagonsAutomation.Web.Services;
+
+/// <summary>
+/// Where one character stands in one campaign — the answer to "which sheet do I print at the
+/// table".
+/// </summary>
+public enum CampaignStanding
+{
+    /// <summary>
+    /// This character is in no campaign, so the question does not arise. Distinct from
+    /// <see cref="NotSubmitted"/>, which is a character that <em>is</em> in one and has never sent
+    /// anything: telling a reader "not submitted" about a character nobody has put in a game would
+    /// be an answer to a question they have not asked.
+    /// </summary>
+    NotInACampaign,
+
+    /// <summary>In a campaign, and nothing has ever been sent for approval.</summary>
+    NotSubmitted,
+
+    /// <summary>A snapshot is waiting for the GM's decision.</summary>
+    ChangesPending,
+
+    /// <summary>
+    /// The campaign is holding a clone of this character and nothing is waiting. This is the sheet
+    /// that counts at the table.
+    /// </summary>
+    Approved,
+
+    /// <summary>
+    /// The campaign cannot be asked. A signed-out visitor, a laptop with no network, a session
+    /// that ended while the tab was open.
+    ///
+    /// <para><b>Not folded into <see cref="NotInACampaign"/>, and the reason is the whole of why
+    /// this value exists.</b> "This character is in no campaign" and "I could not find out" are
+    /// different sentences, and collapsing them tells somebody their character is out of a game it
+    /// is still in — the same fault <c>SheetPage</c> already records for a character that could
+    /// not be read.</para>
+    /// </summary>
+    Unknown,
+}
+
+/// <summary>
+/// One row of the approval list, on either side of it.
+/// </summary>
+/// <param name="Id"><c>m_</c> plus 22 URL-safe characters, minted by the server.</param>
+/// <param name="CampaignId">Which campaign. <c>g_</c> plus 22.</param>
+/// <param name="CharacterId">
+/// Which of the caller's own characters, or null when the caller is the GM — a GM approves a
+/// membership and is never told the id of a row in somebody else's account.
+/// </param>
+/// <param name="Label">What the character goes by. Opaque on the wire, like a character's.</param>
+/// <param name="HasApproved">Whether the campaign is holding a clone.</param>
+/// <param name="ApprovedAt">When the clone was accepted, in Unix milliseconds, or null.</param>
+/// <param name="HasPending">Whether a snapshot is waiting for a decision.</param>
+/// <param name="PendingAt">When it was sent, or null.</param>
+/// <param name="PendingVersion">
+/// The compare-and-swap token. A decision sends this back, and a mismatch is refused — see
+/// <see cref="ApiMembershipStore.ApproveAsync"/>.
+/// </param>
+public sealed record MembershipSummary(
+    string Id,
+    string CampaignId,
+    string? CharacterId,
+    string Label,
+    bool HasApproved,
+    long? ApprovedAt,
+    bool HasPending,
+    long? PendingAt,
+    int PendingVersion)
+{
+    /// <summary>
+    /// Where this character stands. Read off the two slots rather than stored, because a third
+    /// field saying the same thing is a third field that can disagree with them.
+    /// </summary>
+    public CampaignStanding Standing =>
+        HasPending ? CampaignStanding.ChangesPending
+        : HasApproved ? CampaignStanding.Approved
+        : CampaignStanding.NotSubmitted;
+}
+
+/// <summary>
+/// One membership in full: the campaign's clone, and the snapshot waiting for a decision.
+/// </summary>
+/// <param name="Id">The membership.</param>
+/// <param name="CampaignId">Which campaign.</param>
+/// <param name="CharacterId">The caller's own character, or null for the GM.</param>
+/// <param name="Label">What the character goes by.</param>
+/// <param name="IsGm">Which side of the membership the caller is on.</param>
+/// <param name="Approved">The clone, or null before the first approval.</param>
+/// <param name="Pending">The snapshot waiting, or null when nothing is.</param>
+/// <param name="PendingVersion">What a decision has to name.</param>
+public sealed record MembershipDetail(
+    string Id,
+    string CampaignId,
+    string? CharacterId,
+    string Label,
+    bool IsGm,
+    CharacterSheet? Approved,
+    CharacterSheet? Pending,
+    int PendingVersion);
+
+/// <summary>What became of a decision.</summary>
+public enum DecisionOutcome
+{
+    /// <summary>Applied. The clone is the snapshot, or the snapshot is gone.</summary>
+    Done,
+
+    /// <summary>
+    /// Refused, because the snapshot moved while the GM was looking at it. The newer one is
+    /// attached — see <see cref="Decision.Newer"/>.
+    ///
+    /// <para><b>This is the whole reason a decision carries a version.</b> Without it: the GM
+    /// reads snapshot A, the player resubmits B, the GM clicks Approve, and B is approved
+    /// unseen.</para>
+    /// </summary>
+    Stale,
+
+    /// <summary>Refused, because there is nothing waiting for a decision at all.</summary>
+    NothingWaiting,
+
+    /// <summary>Nothing could be reached, so nothing is known to have happened.</summary>
+    Unreachable,
+}
+
+/// <summary>
+/// What a decision answered.
+/// </summary>
+/// <param name="Outcome">Which of the four.</param>
+/// <param name="Newer">
+/// The snapshot the GM had not seen, on a <see cref="DecisionOutcome.Stale"/> refusal — so the
+/// screen can redraw the diff rather than telling somebody to go and look again. Null otherwise.
+/// </param>
+/// <param name="NewerVersion">Its version, which a second decision has to name.</param>
+public sealed record Decision(
+    DecisionOutcome Outcome, CharacterSheet? Newer = null, int NewerVersion = 0);
+
+/// <summary>
+/// A campaign's clones and the snapshots waiting for a decision, kept on the server.
+///
+/// <para><b>There is no local half and there must not be one.</b> Every other store in this
+/// directory has a browser copy beside its HTTP one, because a character is worth keeping for
+/// somebody who has not signed in. A membership is not: it exists so that two accounts can hand a
+/// snapshot between them, and a membership in one browser is a promise to somebody who can never
+/// be told. The whole feature is account-only — see <see cref="AccountCampaignStore"/>, which was
+/// changed to match.</para>
+///
+/// <para><b>Nothing here may throw.</b> A site deployed without its API, a laptop with no
+/// network, and a session that ended while the tab was open are all the same answer: nothing is
+/// known — carry on. <see cref="JsonException"/> is in the unreachable list for the reason
+/// <see cref="ApiCharacterStore"/> records: an unmatched path is served as the app's own page with
+/// a 200, so a success is not proof of an answer.</para>
+///
+/// <para><b>A payload is read through <see cref="StoredCharacter"/>, exactly as a character's
+/// is.</b> That reader costs and validates the sheet before answering, so a snapshot this build
+/// cannot make sense of comes back null rather than reaching a screen half-formed — and the
+/// engine, not this class, is what decides whether it is a character at all.</para>
+/// </summary>
+public sealed class ApiMembershipStore
+{
+    private const string List = "api/memberships";
+
+    private static readonly JsonSerializerOptions Wire =
+        new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    private readonly HttpClient _http;
+
+    /// <summary>
+    /// The one reader for a character payload, built the way <see cref="ApiCharacterStore"/>
+    /// builds its own: a snapshot is a character, and a second reader is a second chance to
+    /// disagree about what one is.
+    /// </summary>
+    private readonly StoredCharacter _payload;
+
+    public ApiMembershipStore(HttpClient http, CostCalculator costs, CharacterValidator validator)
+    {
+        _http = http;
+        _payload = new StoredCharacter(costs, validator);
+    }
+
+    /// <summary>
+    /// Every campaign the caller's own characters are in, with where each stands.
+    ///
+    /// <para>Null — not an empty list — when nothing could be asked. A screen drawing a standing
+    /// has to be able to tell "in no campaign" from "I could not find out"; an empty list says the
+    /// first, and saying it wrongly tells somebody their character is out of a game it is still
+    /// in.</para>
+    /// </summary>
+    public async Task<IReadOnlyList<MembershipSummary>?> MineAsync() => await ListAsync(List);
+
+    /// <summary>
+    /// Every membership of every campaign the caller runs — what is waiting, and what is settled.
+    ///
+    /// <para>Across every campaign in one call, because both screens want it: the campaign list
+    /// needs a waiting count per game and the approval screen needs the rows of one. Two calls
+    /// could disagree about the count.</para>
+    /// </summary>
+    public async Task<IReadOnlyList<MembershipSummary>?> InboxAsync() =>
+        await ListAsync($"{List}/inbox");
+
+    private async Task<IReadOnlyList<MembershipSummary>?> ListAsync(string address)
+    {
+        try
+        {
+            using var response = await _http.GetAsync(address);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var listed = await response.Content.ReadFromJsonAsync<WiredList>(Wire);
+            if (listed?.Memberships is null) return null;
+
+            return [.. listed.Memberships
+                .Where(m => m is { Id.Length: > 0, CampaignId.Length: > 0 })
+                .Select(m => new MembershipSummary(
+                    m.Id!, m.CampaignId!, m.CharacterId, m.Label ?? "Unnamed character",
+                    m.HasApproved, m.ApprovedAt, m.HasPending, m.PendingAt, m.PendingVersion))];
+        }
+        catch (Exception e) when (IsUnreachable(e)) { return null; }
+    }
+
+    /// <summary>
+    /// One membership in full, with both payloads read through the engine's own reader.
+    /// </summary>
+    public async Task<MembershipDetail?> ReadAsync(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return null;
+
+        try
+        {
+            using var response = await _http.GetAsync($"{List}/{Uri.EscapeDataString(id)}");
+            if (!response.IsSuccessStatusCode) return null;
+
+            var read = await response.Content.ReadFromJsonAsync<WiredDetail>(Wire);
+            if (read?.Id is not { Length: > 0 } || read.CampaignId is not { Length: > 0 })
+            {
+                return null;
+            }
+
+            return new MembershipDetail(
+                read.Id, read.CampaignId, read.CharacterId,
+                read.Label ?? "Unnamed character",
+                string.Equals(read.Role, "gm", StringComparison.Ordinal),
+                _payload.Read(read.Approved)?.Sheet,
+                _payload.Read(read.Pending)?.Sheet,
+                read.PendingVersion);
+        }
+        catch (Exception e) when (IsUnreachable(e)) { return null; }
+    }
+
+    /// <summary>
+    /// Put one of the caller's characters into a campaign, by a code somebody read out to them.
+    ///
+    /// <para><b>What comes back is the campaign</b>, because the browser can decide nothing about
+    /// a tier without it — and <see cref="CampaignJoin.Apply"/> is what decides: inherit into an
+    /// empty field, report a disagreement, and never repair one.</para>
+    ///
+    /// <para>Null for a code no campaign is using, a code the GM has replaced, a code that is not
+    /// a code at all, too many attempts, and a server that could not be reached. Those are five
+    /// different sentences to a reader and one answer here — see <see cref="JoinRefusal"/>, which
+    /// is what the screen tells them apart with.</para>
+    /// </summary>
+    public async Task<(string Id, Campaign Campaign)?> JoinAsync(
+        string code, string characterId, string label)
+    {
+        try
+        {
+            using var body = Body(new Joining(code, characterId, label));
+            using var response = await _http.PostAsync($"{List}/join", body);
+
+            _lastJoinRefusal = response.StatusCode switch
+            {
+                HttpStatusCode.OK => JoinRefusal.None,
+                HttpStatusCode.NotFound => JoinRefusal.NoSuchCampaign,
+                HttpStatusCode.BadRequest => JoinRefusal.NotACode,
+                HttpStatusCode.TooManyRequests => JoinRefusal.TooManyTries,
+                _ => JoinRefusal.Unreachable,
+            };
+
+            if (!response.IsSuccessStatusCode) return null;
+
+            var joined = await response.Content.ReadFromJsonAsync<WiredJoin>(Wire);
+            if (joined?.Id is not { Length: > 0 }) return null;
+
+            // The campaign's own payload, read by the one reader both stores share — so a campaign
+            // made on a laptop and joined on a phone is spelled the same either way.
+            var campaign = StoredCampaign.Read(joined.Payload);
+            if (campaign is null) return null;
+
+            return (joined.Id, campaign);
+        }
+        catch (Exception e) when (IsUnreachable(e))
+        {
+            _lastJoinRefusal = JoinRefusal.Unreachable;
+            return null;
+        }
+    }
+
+    /// <summary>Why the last join did not happen. <see cref="JoinRefusal.None"/> before any.</summary>
+    public JoinRefusal LastJoinRefusal => _lastJoinRefusal;
+
+    private JoinRefusal _lastJoinRefusal = JoinRefusal.None;
+
+    /// <summary>
+    /// Send a snapshot for approval. The version it was given, or null if it went nowhere.
+    ///
+    /// <para>The sheet is written down by <see cref="StoredCharacter.Write"/>, which is the same
+    /// envelope an ordinary save uses — so the GM reads exactly the bytes the player's own store
+    /// holds, and there is one writer rather than two that could drift.</para>
+    /// </summary>
+    public async Task<int?> SubmitAsync(string id, CharacterSheet sheet, SheetMode mode)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+
+        try
+        {
+            using var body = Body(new Sending(
+                SheetLabel(sheet), StoredCharacter.Write(sheet, mode)));
+
+            using var response = await _http.PutAsync(
+                $"{List}/{Uri.EscapeDataString(id)}/submission", body);
+
+            if (!response.IsSuccessStatusCode) return null;
+
+            return (await response.Content.ReadFromJsonAsync<WiredVersion>(Wire))?.Version;
+        }
+        catch (Exception e) when (IsUnreachable(e)) { return null; }
+    }
+
+    /// <summary>Accept the snapshot at <paramref name="version"/>, and nothing else.</summary>
+    public Task<Decision> ApproveAsync(string id, int version) => DecideAsync(id, "approve", version);
+
+    /// <summary>Turn down the snapshot at <paramref name="version"/>, and nothing else.</summary>
+    public Task<Decision> RejectAsync(string id, int version) => DecideAsync(id, "reject", version);
+
+    private async Task<Decision> DecideAsync(string id, string what, int version)
+    {
+        try
+        {
+            using var body = Body(new Deciding(version));
+            using var response = await _http.PostAsync(
+                $"{List}/{Uri.EscapeDataString(id)}/{what}", body);
+
+            if (response.IsSuccessStatusCode) return new Decision(DecisionOutcome.Done);
+
+            if (response.StatusCode != HttpStatusCode.Conflict)
+            {
+                return new Decision(DecisionOutcome.Unreachable);
+            }
+
+            var refused = await response.Content.ReadFromJsonAsync<WiredRefusal>(Wire);
+
+            // Nothing waiting and a snapshot that moved are both 409 and are different sentences.
+            // The server distinguishes them by whether it attached one.
+            if (refused?.Pending is not { Length: > 0 })
+            {
+                return new Decision(DecisionOutcome.NothingWaiting);
+            }
+
+            return new Decision(
+                DecisionOutcome.Stale,
+                _payload.Read(refused.Pending)?.Sheet,
+                refused.PendingVersion);
+        }
+        catch (Exception e) when (IsUnreachable(e))
+        {
+            return new Decision(DecisionOutcome.Unreachable);
+        }
+    }
+
+    /// <summary>
+    /// Replace a campaign's join code, and hand the new one back.
+    ///
+    /// <para>On the campaign rather than on a membership, because a code is a property of the game
+    /// — and it is a <c>POST</c> rather than a <c>PUT</c> because the caller does not choose the
+    /// value. Nobody already in the campaign is evicted.</para>
+    /// </summary>
+    public async Task<string?> NewCodeAsync(string campaignId)
+    {
+        try
+        {
+            using var body = Body(new object());
+            using var response = await _http.PostAsync(
+                $"api/campaigns/{Uri.EscapeDataString(campaignId)}/code", body);
+
+            if (!response.IsSuccessStatusCode) return null;
+
+            var minted = await response.Content.ReadFromJsonAsync<WiredCode>(Wire);
+
+            return minted?.JoinCode is { Length: > 0 } code ? code : null;
+        }
+        catch (Exception e) when (IsUnreachable(e)) { return null; }
+    }
+
+    /// <summary>
+    /// The name a snapshot is listed under. The sheet's own, never empty — the same rule
+    /// <see cref="SavedCharacters.LabelFor"/> applies, spelled once there and followed here.
+    /// </summary>
+    private static string SheetLabel(CharacterSheet sheet) =>
+        string.IsNullOrWhiteSpace(sheet.Name) ? "Unnamed character" : sheet.Name.Trim();
+
+    private static StringContent Body<T>(T value) =>
+        new(JsonSerializer.Serialize(value, Wire), Encoding.UTF8, "application/json");
+
+    /// <summary>Every way the server can fail to answer. All of them mean the same thing here.</summary>
+    private static bool IsUnreachable(Exception e) =>
+        e is HttpRequestException           // no network, DNS, TLS, a refused connection
+          or TaskCanceledException          // a timeout, or the host going away
+          or OperationCanceledException
+          or ObjectDisposedException
+          or JsonException                  // an answer that is not the answer
+          or NotSupportedException          // a content type this cannot read
+          or InvalidOperationException;     // no base address
+
+    private sealed record WiredList(
+        [property: JsonPropertyName("memberships")] WiredRow[]? Memberships);
+
+    private sealed record WiredRow(
+        [property: JsonPropertyName("id")] string? Id,
+        [property: JsonPropertyName("campaignId")] string? CampaignId,
+        [property: JsonPropertyName("characterId")] string? CharacterId,
+        [property: JsonPropertyName("label")] string? Label,
+        [property: JsonPropertyName("hasApproved")] bool HasApproved,
+        [property: JsonPropertyName("approvedAt")] long? ApprovedAt,
+        [property: JsonPropertyName("hasPending")] bool HasPending,
+        [property: JsonPropertyName("pendingAt")] long? PendingAt,
+        [property: JsonPropertyName("pendingVersion")] int PendingVersion);
+
+    private sealed record WiredDetail(
+        [property: JsonPropertyName("id")] string? Id,
+        [property: JsonPropertyName("campaignId")] string? CampaignId,
+        [property: JsonPropertyName("characterId")] string? CharacterId,
+        [property: JsonPropertyName("label")] string? Label,
+        [property: JsonPropertyName("role")] string? Role,
+        [property: JsonPropertyName("approved")] string? Approved,
+        [property: JsonPropertyName("pending")] string? Pending,
+        [property: JsonPropertyName("pendingVersion")] int PendingVersion);
+
+    private sealed record WiredJoin(
+        [property: JsonPropertyName("id")] string? Id,
+        [property: JsonPropertyName("campaignId")] string? CampaignId,
+        [property: JsonPropertyName("label")] string? Label,
+        [property: JsonPropertyName("payload")] string? Payload);
+
+    private sealed record WiredVersion([property: JsonPropertyName("version")] int Version);
+
+    private sealed record WiredRefusal(
+        [property: JsonPropertyName("pendingVersion")] int PendingVersion,
+        [property: JsonPropertyName("pending")] string? Pending);
+
+    private sealed record WiredCode([property: JsonPropertyName("joinCode")] string? JoinCode);
+
+    private sealed record Joining(
+        [property: JsonPropertyName("code")] string Code,
+        [property: JsonPropertyName("characterId")] string CharacterId,
+        [property: JsonPropertyName("label")] string Label);
+
+    private sealed record Sending(
+        [property: JsonPropertyName("label")] string Label,
+        [property: JsonPropertyName("payload")] string Payload);
+
+    private sealed record Deciding([property: JsonPropertyName("version")] int Version);
+}
+
+/// <summary>
+/// Why a join did not happen — five states a reader is owed different sentences for.
+///
+/// <para><b>A refusal that said nothing would be the worst outcome here.</b> A code box that
+/// clears itself and does nothing is indistinguishable from a control that is not wired up, which
+/// is the rule <c>DiscardedCharacter</c> and <c>CharacterManager</c> both already follow.</para>
+/// </summary>
+public enum JoinRefusal
+{
+    /// <summary>Nothing was refused.</summary>
+    None,
+
+    /// <summary>That is not a code at all — the wrong length, or letters no code contains.</summary>
+    NotACode,
+
+    /// <summary>
+    /// No campaign is using it. Deliberately one state rather than two: a code that never existed
+    /// and one the GM has replaced answer identically, so that asking twice cannot tell somebody a
+    /// code was once valid.
+    /// </summary>
+    NoSuchCampaign,
+
+    /// <summary>Too many codes tried too quickly.</summary>
+    TooManyTries,
+
+    /// <summary>Nothing was reached, so nothing is known.</summary>
+    Unreachable,
+}
+
+/// <summary>
+/// What a standing is called on screen.
+///
+/// <para><b>Here rather than in <see cref="Labels"/>, and the line is worth stating.</b> That class
+/// turns a rules key into readable text — a cost variant, a grade — for the handful of values the
+/// data gives no printed name to. A standing is not in the data at all: it is a fact about a
+/// decision somebody has or has not made, and naming it is presentation about this feature.</para>
+///
+/// <para><b>The campaign's name is in the sentence where there is one</b>, because the question
+/// this answers is "which sheet do I print at the table" and a bare "Approved" beside a character
+/// in three games answers it for none of them.</para>
+/// </summary>
+public static class Standings
+{
+    /// <summary>Where a character stands, in words.</summary>
+    /// <param name="standing">The standing.</param>
+    /// <param name="campaign">
+    /// What the game is called, where the row is about one campaign. Omitted on a screen that has
+    /// already said which campaign it is talking about.
+    /// </param>
+    public static string Say(CampaignStanding standing, string? campaign = null) => standing switch
+    {
+        CampaignStanding.Approved =>
+            string.IsNullOrWhiteSpace(campaign) ? "Approved" : $"Approved for {campaign}",
+
+        CampaignStanding.ChangesPending => "Changes pending",
+        CampaignStanding.NotSubmitted => "Not submitted",
+
+        // **Said rather than left blank.** A character whose standing could not be read is not a
+        // character out of the game, and a blank where a standing goes reads as the second.
+        CampaignStanding.Unknown => "Standing not known",
+
+        // Nothing at all: a character in no campaign has not been asked this question, and
+        // answering it would be the app replying to something nobody said.
+        _ => "",
+    };
+}

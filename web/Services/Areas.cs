@@ -47,6 +47,23 @@ public enum Area
     Rules,
 
     /// <summary>
+    /// Running a game: the campaigns somebody runs, what is waiting for their decision, and the
+    /// games their own characters are in.
+    ///
+    /// <para><b>The third door, and it is its own area for the reason the other four are.</b> Six
+    /// numbered creation steps and a running Hero Point total are the builder's; above a list of
+    /// games and a diff of somebody else's character they are an offer to continue something the
+    /// reader is not doing. The budget is worse than meaningless here — the spend on this screen
+    /// belongs to a <em>different</em> character, which is exactly the confusion the strip was
+    /// pulled off three areas to fix.</para>
+    ///
+    /// <para><b>It was reserved before it was built.</b> <c>MainLayout</c>'s own note says a third
+    /// avenue costs one <c>NavLink</c> and that a door onto an empty room is worse than a wall;
+    /// there is something behind it now.</para>
+    /// </summary>
+    Campaign,
+
+    /// <summary>
     /// Looking after the site rather than using it: who may have an account here, and the
     /// demonstrations kept for showing it to somebody.
     ///
@@ -94,6 +111,15 @@ public static class Areas
     /// </summary>
     private const string SheetPrefix = "sheet";
 
+    /// <summary>
+    /// The first path segment that marks running a game.
+    ///
+    /// <para>Singular, matching the address rather than the plural heading, and matched on the
+    /// segment like every other — so <c>/campaign</c> and <c>/campaign/{id}</c> are one area and a
+    /// later <c>/campaigns</c> would not be.</para>
+    /// </summary>
+    private const string CampaignPrefix = "campaign";
+
     /// <summary>The first path segment that marks the administration pages.</summary>
     private const string AccountPrefix = "admin";
 
@@ -131,6 +157,7 @@ public static class Areas
         if (Is(first, PlayPrefix)) return Area.Play;
         if (Is(first, SheetPrefix)) return Area.Sheet;
         if (Is(first, RulesPrefix)) return Area.Rules;
+        if (Is(first, CampaignPrefix)) return Area.Campaign;
         if (Is(first, AccountPrefix) || Is(first, SignInPrefix)) return Area.Account;
 
         return Area.Home;

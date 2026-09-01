@@ -260,10 +260,18 @@ export async function getCampaign(db, userId, id) {
         .bind(userId, id).first();
 }
 
-/** An account's campaigns, most recently touched first. */
+/**
+ * An account's campaigns, most recently touched first.
+ *
+ * <p><b>`join_code` is the one field of a campaign this server can read</b>, and it is here
+ * because the GM has to be able to read it out to somebody. It is not derived from the payload
+ * and it is not in it — see the migration: redeeming a code means finding the campaign it belongs
+ * to, which is a query, and the payload is the one thing no query looks inside.</p>
+ */
 export async function listCampaigns(db, userId) {
     const result = await db.prepare(
-        'SELECT id, label, updated_at FROM campaigns WHERE user_id = ? ORDER BY updated_at DESC')
+        'SELECT id, label, updated_at, join_code FROM campaigns '
+        + 'WHERE user_id = ? ORDER BY updated_at DESC')
         .bind(userId).all();
 
     return result.results;
@@ -277,13 +285,47 @@ export async function listCampaigns(db, userId) {
  * because a read followed by a write would let two PUTs both see room. Here there is nothing to
  * check, so this is an ordinary upsert and stays one; a cap added later would have to be written
  * in the statement rather than in front of it.</p>
+ *
+ * <p><b>The join code is minted on insert and kept on update, in the same statement.</b> A
+ * campaign nobody can join is useless, so the first write gives it one — but `putCampaign` is
+ * what an ordinary save calls, and a code that changed every time the GM renamed the game would
+ * lock out every player who had been told the old one. `COALESCE(campaigns.join_code, excluded.…)`
+ * is what says "only if there is not one already": rotating is a separate, deliberate act, in
+ * `rotateJoinCode` below.</p>
  */
-export async function putCampaign(db, { userId, id, label, payload, now }) {
+export async function putCampaign(db, { userId, id, label, payload, joinCode, now }) {
     await db.prepare(
-        'INSERT INTO campaigns (user_id, id, label, payload, updated_at) VALUES (?, ?, ?, ?, ?) '
+        'INSERT INTO campaigns (user_id, id, label, payload, join_code, updated_at) '
+        + 'VALUES (?, ?, ?, ?, ?, ?) '
         + 'ON CONFLICT (user_id, id) DO UPDATE SET '
-        + '  label = excluded.label, payload = excluded.payload, updated_at = excluded.updated_at')
-        .bind(userId, id, label, payload, now).run();
+        + '  label = excluded.label, payload = excluded.payload, '
+        + '  join_code = COALESCE(campaigns.join_code, excluded.join_code), '
+        + '  updated_at = excluded.updated_at')
+        .bind(userId, id, label, payload, joinCode, now).run();
+}
+
+/**
+ * Replace one campaign's join code, and say whether it landed.
+ *
+ * <p><b>Scoped to the caller's own campaign</b> — `user_id` is in the `WHERE`, so this statement
+ * has no way to rotate a code belonging to somebody else. False means no row matched: an id this
+ * account does not own, or one that is not there.</p>
+ *
+ * <p><b>The uniqueness is the index's, not a read in front of this.</b> A `SELECT` that found no
+ * campaign holding a candidate code, followed by an `UPDATE` that trusted it, is the race every
+ * other statement in this file is written to avoid. The caller retries on a conflict; see
+ * `campaigns.rotateCode`.</p>
+ *
+ * <p><b>Existing memberships are untouched, deliberately.</b> A code is redeemed once, into a
+ * membership row that does not refer back to it — so rotating shuts the door without evicting
+ * anybody who is already through it. Evicting is a different act (and is out of this slice).</p>
+ */
+export async function rotateJoinCode(db, { userId, id, joinCode }) {
+    const row = await db.prepare(
+        'UPDATE campaigns SET join_code = ? WHERE user_id = ? AND id = ? RETURNING id')
+        .bind(joinCode, userId, id).first();
+
+    return row !== null;
 }
 
 /**
@@ -300,6 +342,256 @@ export async function deleteCampaign(db, userId, id) {
         .bind(userId, id).first();
 
     return row !== null;
+}
+
+// ── Campaign membership: the clone, and the snapshot waiting for a decision ──────────────
+//
+// **Every statement below is scoped to whoever is asking, and there is no exception.** A GM's
+// reads and writes carry `gm_user_id = ?`; a player's carry `player_user_id = ?`. Nothing here
+// takes an account id from a caller, and nothing here lets one account name a row belonging to
+// another — so there is no query in this file a request could aim at somebody else's character.
+//
+// **The one read not scoped to the caller is `campaignByJoinCode`, and that is what a join code
+// is.** It is a secret the GM minted and chose to hand out; holding it is the whole of the
+// authorisation, exactly as holding a sign-in link is. It answers the campaign's own settings and
+// nothing else — no account id, no character, no other member's anything. See the note on it, and
+// `docs/CHARACTERS-API.md`, which records it as the one place the "only your own rows" rule bends.
+//
+// **Nothing here parses a payload and nothing here compares two.** The diff the GM reads is
+// computed in the browser by the engine, which is the authority on what a character costs.
+
+/**
+ * The campaign a join code belongs to, or null.
+ *
+ * <p><b>This is the one statement in this file that reads a row the caller does not own</b>, and
+ * it is deliberate rather than an oversight: joining by a shared code cannot be done any other
+ * way. What bounds it is what it answers — the campaign's id, its label and its own opaque
+ * payload, which is what the player needs in order to see the tier they are being asked to build
+ * to. It never answers an account id, a character, a clone, or anything about another member.</p>
+ *
+ * <p><b>The code is matched exactly, on the normalised form.</b> Both callers put a code through
+ * one normaliser before it reaches here, so the column and the comparison are always in the same
+ * spelling and this is an index probe rather than a scan.</p>
+ */
+export async function campaignByJoinCode(db, joinCode) {
+    return await db.prepare(
+        'SELECT user_id, id, label, payload FROM campaigns WHERE join_code = ?')
+        .bind(joinCode).first();
+}
+
+/**
+ * Join a campaign, or hand back the membership that already exists.
+ *
+ * <p><b>One statement, for the reason every upsert in this file is one.</b> A read that found no
+ * membership followed by an insert that trusted it would let two clicks on Join both insert, and
+ * the unique index would refuse the second with an error the caller has nowhere to report. The
+ * `ON CONFLICT` makes a second join an ordinary no-op that returns the row already there.</p>
+ *
+ * <p><b>`DO UPDATE SET label = excluded.label` rather than `DO NOTHING`</b>, because `RETURNING`
+ * on a `DO NOTHING` conflict yields nothing at all — the caller would read a successful re-join
+ * as a failure. Refreshing the label is also correct: it is the name the character goes by, and
+ * the character may have been renamed since it joined.</p>
+ *
+ * <p><b>Neither payload is touched here.</b> Joining is not submitting: a player joins, sees the
+ * tier, builds, and sends for approval when they choose to. A join that wrote a snapshot would
+ * put a character in front of the GM before the player meant it to be seen.</p>
+ *
+ * <p><b>`gm_user_id` is in the conflict target and comes back in the `RETURNING`</b>, and both
+ * halves matter. A `g_…` is unique per account rather than globally — see the migration — so
+ * without the column in the key a player joining a second GM's campaign that happens to share an
+ * id conflicts with their row in the first, and this hands back a membership belonging to a GM
+ * they never joined. The column in the key is the fix; the column in the `RETURNING` is what lets
+ * `memberships.join` refuse rather than trust the index, which is the half a test can break.</p>
+ */
+export async function joinCampaign(
+    db, { id, campaignId, gmUserId, playerUserId, characterId, label, now }) {
+    return await db.prepare(
+        'INSERT INTO campaign_members '
+        + '  (id, campaign_id, gm_user_id, player_user_id, character_id, label, joined_at) '
+        + 'VALUES (?, ?, ?, ?, ?, ?, ?) '
+        + 'ON CONFLICT (gm_user_id, campaign_id, player_user_id, character_id) DO UPDATE SET '
+        + '  label = excluded.label '
+        + 'RETURNING id, campaign_id, gm_user_id, label, pending_version')
+        .bind(id, campaignId, gmUserId, playerUserId, characterId, label, now)
+        .first();
+}
+
+/**
+ * One membership, readable by either side of it and by nobody else.
+ *
+ * <p><b>The `OR` is the scoping, not a widening of it.</b> A membership has two owners — the GM
+ * who owns the campaign and the player who owns the character — and each is entitled to the row
+ * for a different reason: the GM because it is a membership of their game, the player because it
+ * is their own character in it. A third account matches neither and gets null, which the route
+ * turns into the same 404 an id that never existed gets.</p>
+ *
+ * <p>Both payloads come back, which is what the diff needs: the clone the campaign is holding and
+ * the snapshot waiting for a decision. Neither is parsed here or anywhere on this side of the
+ * wire.</p>
+ *
+ * <p><b>The GM's half needs the campaign to still be there and the player's does not</b>, and the
+ * asymmetry is the whole design rather than an oversight. A player whose GM deleted the game keeps
+ * their membership and is told, on their own screen, that it names a campaign which is not here —
+ * their rows are theirs and nothing on this server reaches in to tidy them. A GM who deleted a
+ * game has said they are done with it, and a stale link back into an approval screen for it is not
+ * a state to report: it is a decision surface for a queue that no longer means anything. No row is
+ * touched either way, so restoring the campaign restores all of it.</p>
+ */
+export async function getMembership(db, userId, id) {
+    return await db.prepare(
+        'SELECT id, campaign_id, gm_user_id, player_user_id, character_id, label, '
+        + '       approved_payload, approved_at, pending_payload, pending_at, pending_version, '
+        + '       joined_at '
+        + 'FROM campaign_members WHERE id = ? AND ('
+        + '     player_user_id = ? '
+        + '  OR (gm_user_id = ? AND EXISTS (SELECT 1 FROM campaigns c '
+        + '                                 WHERE c.user_id = campaign_members.gm_user_id '
+        + '                                   AND c.id = campaign_members.campaign_id)))')
+        .bind(id, userId, userId).first();
+}
+
+/**
+ * Every membership of a character this account owns — the player's half.
+ *
+ * <p>No payload: this is what a standing beside a character's name is drawn from ("approved",
+ * "changes pending", "not submitted"), and a list carrying two whole characters per row would be
+ * the thing `SavedCharacterSummary` exists to avoid, one level up.</p>
+ */
+export async function listMembershipsForPlayer(db, playerUserId) {
+    const result = await db.prepare(
+        'SELECT id, campaign_id, character_id, label, approved_at, pending_at, pending_version, '
+        + '       approved_payload IS NOT NULL AS has_approved, '
+        + '       pending_payload IS NOT NULL AS has_pending '
+        + 'FROM campaign_members WHERE player_user_id = ? '
+        + 'ORDER BY joined_at DESC')
+        .bind(playerUserId).all();
+
+    return result.results;
+}
+
+/**
+ * Every membership of every campaign this account owns — the GM's half.
+ *
+ * <p>Across all their campaigns rather than one at a time, because both screens want it: the
+ * campaign list needs a waiting count per game, and the approval screen needs the rows of one.
+ * Two addresses answering from one statement cannot disagree about the count.</p>
+ *
+ * <p><b>No payload here either</b>, and no account id: a GM learns that a character called
+ * something is waiting, never whose account sent it.</p>
+ *
+ * <p><b>Only memberships of a campaign that is still there.</b> There is no cascade when a
+ * campaign is deleted and there is deliberately not going to be one — the player's half of a
+ * membership is theirs, and `campaigns.remove` keeps it so that restoring the campaign is a
+ * complete undo. But that left the GM being shown a request waiting on a game they had thrown
+ * away, with an Approve button under it, which is not honesty about a state: it is a queue that
+ * has stopped meaning anything. The `EXISTS` scopes the GM's half to campaigns they still have
+ * without touching the row, so a restore brings the whole thing back.</p>
+ */
+export async function listMembershipsForGm(db, gmUserId) {
+    const result = await db.prepare(
+        'SELECT id, campaign_id, label, approved_at, pending_at, pending_version, '
+        + '       approved_payload IS NOT NULL AS has_approved, '
+        + '       pending_payload IS NOT NULL AS has_pending '
+        + 'FROM campaign_members WHERE gm_user_id = ? '
+        + '  AND EXISTS (SELECT 1 FROM campaigns c '
+        + '              WHERE c.user_id = campaign_members.gm_user_id '
+        + '                AND c.id = campaign_members.campaign_id) '
+        + 'ORDER BY joined_at DESC')
+        .bind(gmUserId).all();
+
+    return result.results;
+}
+
+/**
+ * Send a snapshot for approval, replacing whatever was waiting, and hand back its version.
+ *
+ * <p><b>One slot and no history.</b> Resubmitting overwrites: approval history and rollback are
+ * deliberately out of this design, because one decision queue is what the owner asked for and a
+ * row per submission is a version-control system for characters.</p>
+ *
+ * <p><b>`pending_version + 1`, computed in the statement.</b> Two submissions arriving together
+ * would otherwise both read the same number and both write it, which is exactly the state the
+ * compare-and-swap on Approve exists to make impossible — a GM holding version 4 would then be
+ * able to approve a different snapshot also calling itself 4.</p>
+ *
+ * <p><b>Scoped to the player</b>: `player_user_id = ?` is in the `WHERE`, so this cannot write a
+ * snapshot into a membership belonging to somebody else, however the id was obtained. No row back
+ * means exactly that, and the route answers 404.</p>
+ *
+ * <p><b>And to a campaign that is still there</b>, the same `EXISTS` as the GM's list above and
+ * for the other half of the same reason: a submission into a deleted campaign is a snapshot sent
+ * to a queue nobody reads, and the player is told it was sent. Deleting is not a way to reject —
+ * the clone and the standing survive, so a restore brings back exactly what was there — but
+ * accepting new work into a game that is gone is not a state to report, it is one to refuse.</p>
+ */
+export async function submitToCampaign(db, { id, playerUserId, label, payload, now }) {
+    return await db.prepare(
+        'UPDATE campaign_members SET '
+        + '  label = ?, pending_payload = ?, pending_at = ?, '
+        + '  pending_version = pending_version + 1 '
+        + 'WHERE id = ? AND player_user_id = ? '
+        + '  AND EXISTS (SELECT 1 FROM campaigns c '
+        + '              WHERE c.user_id = campaign_members.gm_user_id '
+        + '                AND c.id = campaign_members.campaign_id) '
+        + 'RETURNING pending_version')
+        .bind(label, payload, now, id, playerUserId).first();
+}
+
+/**
+ * Accept the snapshot the GM was looking at, and only that one.
+ *
+ * <p><b>This is the compare-and-swap, and it is a real defect's fix rather than a nicety.</b>
+ * Without `pending_version = ?` in the `WHERE`: the GM reads snapshot A, the player resubmits B
+ * while the diff is on screen, the GM clicks Approve, and B — which nobody has looked at —
+ * becomes the campaign's clone. With it the mismatch matches no row, nothing is written, and the
+ * caller answers "this changed while you were looking; here it is".</p>
+ *
+ * <p><b>`pending_payload IS NOT NULL` is in the `WHERE` too</b>, so approving a membership with
+ * nothing waiting is refused rather than clearing the clone by copying a null over it.</p>
+ *
+ * <p><b>`pending_version` is not reset.</b> It keeps counting, so a resubmission after an
+ * approval cannot reuse a number the GM might still be holding on screen — the same defect with
+ * an extra step.</p>
+ *
+ * <p>Null back means refused, for either reason; the caller reads the row afterwards to say
+ * which.</p>
+ */
+export async function approveSubmission(db, { id, gmUserId, version, now }) {
+    return await db.prepare(
+        'UPDATE campaign_members SET '
+        + '  approved_payload = pending_payload, approved_at = ?, '
+        + '  pending_payload = NULL, pending_at = NULL '
+        + 'WHERE id = ? AND gm_user_id = ? AND pending_version = ? '
+        + '  AND pending_payload IS NOT NULL '
+        + '  AND EXISTS (SELECT 1 FROM campaigns c '
+        + '              WHERE c.user_id = campaign_members.gm_user_id '
+        + '                AND c.id = campaign_members.campaign_id) '
+        + 'RETURNING id, pending_version')
+        .bind(now, id, gmUserId, version).first();
+}
+
+/**
+ * Turn the snapshot down, and only the one the GM was looking at.
+ *
+ * <p>The same compare-and-swap as `approveSubmission`, for the same reason and with the same
+ * refusal: rejecting a snapshot nobody has read is the same fault as approving one. The clone is
+ * untouched — a rejection leaves the campaign exactly as it was, which is the whole of what
+ * rejecting means.</p>
+ *
+ * <p><b>The player's own character is untouched too</b>, and it is not this server's to touch:
+ * their rows are theirs, the rejection is a decision about the campaign's copy, and nothing here
+ * reaches into somebody's own work to undo it.</p>
+ */
+export async function rejectSubmission(db, { id, gmUserId, version }) {
+    return await db.prepare(
+        'UPDATE campaign_members SET pending_payload = NULL, pending_at = NULL '
+        + 'WHERE id = ? AND gm_user_id = ? AND pending_version = ? '
+        + '  AND pending_payload IS NOT NULL '
+        + '  AND EXISTS (SELECT 1 FROM campaigns c '
+        + '              WHERE c.user_id = campaign_members.gm_user_id '
+        + '                AND c.id = campaign_members.campaign_id) '
+        + 'RETURNING id, pending_version')
+        .bind(id, gmUserId, version).first();
 }
 
 /**

@@ -1,0 +1,500 @@
+@page "/campaign"
+@implements IDisposable
+@inject CharacterSession Session
+@inject AccountCampaignStore Store
+@inject ApiMembershipStore Memberships
+@inject AccountCharacterStore Characters
+@inject Accounts Accounts
+
+@* Running a game: the campaigns you run, the ones your characters are in, and the way between
+   them.
+
+   **A campaign holds a clone of a character, and a player's edits arrive as an approval
+   request.** A player builds freely and needs nobody's permission to do it; when they want a
+   change to count at the table they send a snapshot, and the GM accepts or rejects the whole
+   thing. Accepting replaces the campaign's clone. Both sides keep a copy, so neither is ever
+   editing the other's.
+
+   **Account only, and the refusal is the first thing on the page rather than a control that does
+   nothing.** A campaign exists so that two accounts can hand a snapshot between them: one kept in
+   a single browser could never receive a submission, and its join code would be a code nobody
+   could redeem. See `AccountCampaignStore`, which used to fall back and no longer does.
+
+   **The whole snapshot is accepted or rejected, never one field of it.** Partial application is a
+   merge algorithm for characters — a second engine, capable of producing a sheet neither person
+   authored. The diff on the approval screen is a report, and there is deliberately no way to
+   apply one row of it.
+
+   **A tier disagreement is ordinary traffic and reads as information.** The owner's campaigns
+   climb tiers in play, so a character built to one tier in a game played at another is a thing to
+   notice rather than a fault: nothing is repaired either way, because raising a tier turns an
+   illegal character legal in silence and lowering one moves Resolve. *@
+
+<PageTitle>Campaigns — Prowlers &amp; Paragons</PageTitle>
+
+<h1>Campaigns</h1>
+
+@if (_available is false)
+{
+    @* Said before anything else, because every control below it would do nothing. *@
+    <Panel Title="An account keeps a campaign">
+        <p>A campaign is shared with the people at your table. <a href="signin">Sign in</a> to make one.</p>
+        <p class="small muted">Your characters stay where they are either way.</p>
+    </Panel>
+}
+else if (_available is null)
+{
+    <Panel Title="One moment">
+        <p>Looking…</p>
+    </Panel>
+}
+else
+{
+    <Panel Title="Games you run" Aside="@RunAside">
+        @if (_running.Count == 0)
+        {
+            <EmptyState>No campaigns yet. Name one below and share its code with your players.</EmptyState>
+        }
+        else
+        {
+            <ul class="campaign-list">
+                @foreach (var one in _running)
+                {
+                    <li>
+                        <div class="campaign-row">
+                            <span class="who">
+                                <b class="nm">@one.Label</b>
+                                <span class="meta">@RunningDetail(one)</span>
+                            </span>
+
+                            @* The waiting count is the notification. There is deliberately
+                               nothing else — no badge elsewhere, no mail — because a count on the
+                               page somebody opens to run their game is where it is looked for. *@
+                            <a class="btn small" href="campaign/@one.Id">@ApprovalsLabel(one.Id)</a>
+
+                            <button type="button" class="btn small quiet"
+                                    aria-expanded="@(_open == one.Id ? "true" : "false")"
+                                    @onclick="() => Toggle(one.Id)">
+                                Settings
+                            </button>
+                        </div>
+
+                        @if (_open == one.Id)
+                        {
+                            <div class="campaign-settings">
+                                <p class="others-head">Join code</p>
+                                <p class="joincode">@(one.Spoken ?? "None yet")</p>
+                                <p class="small muted">Read this out to a player. A new code stops the old one working.</p>
+
+                                <div class="inline">
+                                    <button type="button" class="btn small"
+                                            @onclick="() => NewCode(one.Id)">New code</button>
+                                    <button type="button" class="btn small quiet"
+                                            @onclick="() => Edit(one)">Rename or retier</button>
+                                    <button type="button" class="btn small quiet"
+                                            @onclick="() => Delete(one.Id)">Delete</button>
+                                </div>
+
+                                <p class="small muted">
+                                    Deleting leaves every character naming it, and says so on their sheet.
+                                </p>
+                            </div>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+
+        @if (_editing is not null)
+        {
+            <div class="campaign-editor">
+                <p class="others-head">@(_editingIsNew ? "A new campaign" : "This campaign")</p>
+
+                <Field Label="Name" For="campaign-name">
+                    <input id="campaign-name" type="text" maxlength="80"
+                           @bind="_name" @bind:event="oninput" />
+                </Field>
+
+                <Field Label="Tier" For="campaign-tier">
+                    <select id="campaign-tier" value="@(_tierId ?? "")"
+                            @onchange="e => _tierId = Blank(e.Value?.ToString())">
+                        <option value="">The GM has not said</option>
+                        @foreach (var tier in Session.Rules.Tiers)
+                        {
+                            <option value="@tier.Id">@tier.Name</option>
+                        }
+                    </select>
+                </Field>
+
+                @* Reported, never enforced — see the note on `Campaign.TraitCapRank`. Applying it
+                   would move Resolve, which is (Trait Cap − highest rank) × 2, so a campaign's cap
+                   could silently change a figure the player paid Hero Points for. *@
+                <Field Label="Trait Cap" For="campaign-cap">
+                    <input id="campaign-cap" type="number" min="1" max="30"
+                           value="@_traitCap"
+                           @onchange="e => _traitCap = Number(e.Value?.ToString())" />
+                    <p class="small muted">Shown to your players. Nothing is checked against it.</p>
+                </Field>
+
+                <div class="inline">
+                    <button type="button" class="btn primary" @onclick="Save">Save</button>
+                    <button type="button" class="btn quiet" @onclick="() => _editing = null">Cancel</button>
+                </div>
+
+                @if (_problem is { } problem)
+                {
+                    <p class="small muted spaced" role="status">@problem</p>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="make-another">
+                <button type="button" class="btn primary" @onclick="StartNew">Name a campaign</button>
+            </div>
+        }
+    </Panel>
+
+    <Panel Title="Games you are in" Aside="@InAside">
+        @if (_playing is null)
+        {
+            <EmptyState>Your games could not be read. Try again in a moment.</EmptyState>
+        }
+        else if (_playing.Count == 0)
+        {
+            <EmptyState>None yet. Type a code below to put a character into somebody's game.</EmptyState>
+        }
+        else
+        {
+            <ul class="campaign-list">
+                @foreach (var one in _playing)
+                {
+                    <li>
+                        <div class="campaign-row">
+                            <span class="who">
+                                <b class="nm">@one.Label</b>
+                                <span class="meta">@Standings.Say(one.Standing)</span>
+                            </span>
+
+                            @* Sending is the player's act and it is theirs alone: a snapshot the
+                               app sent on every edit would put a character in front of the GM
+                               before anybody meant it to be seen. *@
+                            @if (one.CharacterId == _openId)
+                            {
+                                <button type="button" class="btn small" @onclick="() => Submit(one)">
+                                    Send for approval
+                                </button>
+                            }
+                            else
+                            {
+                                <a class="btn small quiet" href="sheet/@one.CharacterId">Sheet</a>
+                            }
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+
+        <div class="campaign-join">
+            <p class="others-head">Join a game</p>
+
+            <Field Label="Code" For="join-code">
+                <input id="join-code" type="text" maxlength="20"
+                       @bind="_code" @bind:event="oninput" />
+            </Field>
+
+            <p class="small muted">
+                The character on screen joins. Its tier is filled in if you have not chosen one.
+            </p>
+
+            <div class="inline">
+                <button type="button" class="btn primary" disabled="@(_openId is null)"
+                        @onclick="Join">Join</button>
+            </div>
+
+            @if (_joined is { } joined)
+            {
+                <p class="small muted spaced" role="status">@joined</p>
+            }
+        </div>
+    </Panel>
+}
+
+@code {
+    /// <summary>
+    /// Whether a campaign can be reached at all — null until the answer arrives.
+    ///
+    /// <para><b>Three states, not two.</b> "Not signed in" and "not asked yet" are different, and
+    /// drawing the refusal while the answer is still coming would tell a signed-in reader to sign
+    /// in, on every visit, for as long as the round trip takes.</para>
+    /// </summary>
+    private bool? _available;
+
+    private IReadOnlyList<SavedCampaignSummary> _running = [];
+
+    /// <summary>
+    /// The caller's own memberships, or null when they could not be read.
+    ///
+    /// <para><b>Null is not an empty list</b>, and collapsing the two would tell somebody their
+    /// character is out of a game it is still in.</para>
+    /// </summary>
+    private IReadOnlyList<MembershipSummary>? _playing = [];
+
+    /// <summary>Every membership of every campaign this account runs, for the waiting counts.</summary>
+    private IReadOnlyList<MembershipSummary>? _inbox = [];
+
+    /// <summary>Which campaign's settings are open, or null.</summary>
+    private string? _open;
+
+    /// <summary>The campaign being named or renamed, or null when none is.</summary>
+    private Campaign? _editing;
+
+    private bool _editingIsNew;
+    private string _name = "";
+    private string? _tierId;
+    private int? _traitCap;
+
+    /// <summary>What went wrong with the last save, or null. Cleared at the start of each one.</summary>
+    private string? _problem;
+
+    /// <summary>What became of the last join or send. Cleared when the character changes.</summary>
+    private string? _joined;
+
+    private string _code = "";
+
+    /// <summary>Which character is on screen — the one a join or a send is about.</summary>
+    private string? _openId;
+
+    private string RunAside => $"{_running.Count} to run";
+
+    private string InAside => _playing is { } playing ? $"{playing.Count} joined" : "Not read";
+
+    /// <summary>
+    /// What a campaign row says about itself: its tier, and how many characters are waiting.
+    ///
+    /// <para>The tier's <em>name</em>, never its id — an id is not what a tier is called, which is
+    /// the rule every finding in this application already follows.</para>
+    /// </summary>
+    private string RunningDetail(SavedCampaignSummary row)
+    {
+        var members = _inbox?.Where(m => m.CampaignId == row.Id).ToList() ?? [];
+
+        return members.Count == 0 ? "Nobody has joined yet" : $"{members.Count} in the game";
+    }
+
+    /// <summary>
+    /// The label on the way into the approval screen, carrying the waiting count.
+    ///
+    /// <para><b>The count is the whole of the notification.</b> There is no badge elsewhere and no
+    /// mail: a number on the page somebody opens to run their game is where it is looked for, and
+    /// anything more is a second thing to keep in step with this one.</para>
+    /// </summary>
+    private string ApprovalsLabel(string campaignId)
+    {
+        var waiting = _inbox?.Count(m => m.CampaignId == campaignId && m.HasPending) ?? 0;
+
+        return waiting == 0 ? "Approvals" : $"Approvals ({waiting})";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Accounts.Changed += Reload;
+        Session.Changed += Redraw;
+
+        await Refresh();
+    }
+
+    /// <summary>
+    /// The join and send controls read which character is on screen, so a change to the character
+    /// has to redraw. The lists are not re-read here — that would be a round trip per keystroke on
+    /// the finishing step, which is the split the character manager already makes.
+    /// </summary>
+    private void Redraw() => StateHasChanged();
+
+    private void Reload() => _ = InvokeAsync(async () =>
+    {
+        await Refresh();
+        StateHasChanged();
+    });
+
+    private async Task Refresh()
+    {
+        _available = await Store.IsAvailableAsync();
+
+        if (_available is not true)
+        {
+            _running = [];
+            _playing = [];
+            _inbox = [];
+            return;
+        }
+
+        _running = await Store.ListAsync();
+        _playing = await Memberships.MineAsync();
+        _inbox = await Memberships.InboxAsync();
+        _openId = await Characters.CurrentIdAsync();
+    }
+
+    private void Toggle(string id) => _open = _open == id ? null : id;
+
+    private void StartNew()
+    {
+        _editing = new Campaign(StoredCampaign.NewId(), "", null, null, false);
+        _editingIsNew = true;
+        _name = "";
+        _tierId = null;
+        _traitCap = null;
+        _problem = null;
+    }
+
+    private void Edit(SavedCampaignSummary row) => _ = InvokeAsync(async () =>
+    {
+        var campaign = await Store.LoadAsync(row.Id);
+
+        if (campaign is null)
+        {
+            _problem = "That campaign could not be read just now. Try again in a moment.";
+            StateHasChanged();
+            return;
+        }
+
+        _editing = campaign;
+        _editingIsNew = false;
+        _name = campaign.Name;
+        _tierId = campaign.TierId;
+        _traitCap = campaign.TraitCapRank;
+        _problem = null;
+
+        StateHasChanged();
+    });
+
+    /// <summary>
+    /// Write the campaign down, and say so when it went nowhere.
+    ///
+    /// <para><b>A refused save has to be said out loud</b>, because a form that clears itself and
+    /// does nothing is indistinguishable from a control that is not wired up — the rule the
+    /// character manager's own refusals follow.</para>
+    /// </summary>
+    private async Task Save()
+    {
+        if (_editing is not { } editing) return;
+
+        _problem = null;
+
+        var landed = await Store.SaveAsync(
+            editing with { Name = _name, TierId = _tierId, TraitCapRank = _traitCap });
+
+        if (!landed)
+        {
+            _problem = "That could not be saved just now. Try again in a moment.";
+            return;
+        }
+
+        _editing = null;
+        await Refresh();
+    }
+
+    /// <summary>
+    /// Replace the join code. Nobody already in the campaign is evicted — a code is redeemed once,
+    /// into a membership that does not refer back to it.
+    /// </summary>
+    private async Task NewCode(string id)
+    {
+        _problem = await Memberships.NewCodeAsync(id) is null
+            ? "A new code could not be made just now. Try again in a moment."
+            : null;
+
+        await Refresh();
+    }
+
+    /// <summary>
+    /// Throws a campaign away. Its members keep naming it and are reported as naming a campaign
+    /// that is not here — no cascade, no nulled field, so restoring it is a complete undo.
+    /// </summary>
+    private async Task Delete(string id)
+    {
+        await Store.DeleteAsync(id);
+        _open = null;
+
+        await Refresh();
+    }
+
+    /// <summary>
+    /// Put the character on screen into a campaign, by a code somebody read out.
+    ///
+    /// <para><b>The join's own outcome decides what is written, and a disagreement writes
+    /// nothing.</b> <see cref="CampaignJoin.Apply"/> inherits into an empty tier and reports a
+    /// mismatch otherwise — reported here as information rather than as an error, because a
+    /// campaign that climbs tiers in play makes this ordinary traffic.</para>
+    /// </summary>
+    private async Task Join()
+    {
+        _joined = null;
+
+        if (_openId is null) return;
+
+        var joined = await Memberships.JoinAsync(_code, _openId, Session.Sheet.Name);
+
+        if (joined is not { } got)
+        {
+            _joined = Memberships.LastJoinRefusal switch
+            {
+                JoinRefusal.NotACode => "That is not a code. Check the letters and try again.",
+                JoinRefusal.NoSuchCampaign => "No game is using that code. Ask for a fresh one.",
+                JoinRefusal.TooManyTries => "That is a lot of codes. Try again a little later.",
+                _ => "Nothing could be reached just now. Try again in a moment.",
+            };
+
+            return;
+        }
+
+        var outcome = CampaignJoin.Apply(Session.Sheet, got.Campaign);
+
+        // The session is told once, after the sheet has been changed — so the autosave that
+        // follows writes the character with its campaign rather than without it.
+        if (outcome is CampaignJoinOutcome.Inherited or CampaignJoinOutcome.Joined)
+        {
+            Session.NotifyChanged();
+        }
+
+        _joined = outcome switch
+        {
+            CampaignJoinOutcome.Inherited => $"Joined {got.Campaign.Name}. Its tier is now yours.",
+            CampaignJoinOutcome.Joined => $"Joined {got.Campaign.Name}.",
+            CampaignJoinOutcome.TierDisagrees =>
+                $"{got.Campaign.Name} is played at a different tier. Nothing was changed.",
+            _ => "That game is not here.",
+        };
+
+        _code = "";
+        await Refresh();
+    }
+
+    /// <summary>
+    /// Send the character on screen for approval.
+    ///
+    /// <para><b>One slot per character per campaign, and resubmitting overwrites it.</b> There is
+    /// no history and no rollback: a decision queue is what this is, and a row per submission would
+    /// be a version-control system for characters.</para>
+    /// </summary>
+    private async Task Submit(MembershipSummary one)
+    {
+        _joined = await Memberships.SubmitAsync(one.Id, Session.Sheet, Session.Mode) is null
+            ? "That could not be sent just now. Try again in a moment."
+            : $"Sent to {one.Label}. Your own copy is unchanged.";
+
+        await Refresh();
+    }
+
+    private static string? Blank(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private static int? Number(string? value) =>
+        int.TryParse(value, out var parsed) && parsed > 0 ? parsed : null;
+
+    public void Dispose()
+    {
+        Accounts.Changed -= Reload;
+        Session.Changed -= Redraw;
+    }
+}

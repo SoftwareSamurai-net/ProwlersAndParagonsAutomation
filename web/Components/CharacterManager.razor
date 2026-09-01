@@ -3,6 +3,7 @@
 @inject CharacterSession Session
 @inject Accounts Accounts
 @inject DiscardedCharacter Discarded
+@inject ApiMembershipStore Memberships
 
 @* The characters this browser — or this account — is holding, and the way between them.
 
@@ -100,6 +101,14 @@
                 <span class="lbl">Open now</span>
                 <b class="nm">@OpenName</b>
                 <span class="meta">@Standing</span>
+                @* **Which sheet counts at the table**, which is the question this answers and the
+                   spend beside it does not. Drawn only for a character that is actually in a game:
+                   "Not submitted" over one nobody has put in a campaign would be an answer to a
+                   question the reader has not asked. *@
+                @if (CampaignStandingFor(_currentId) is { } standing)
+                {
+                    <span class="meta">@standing</span>
+                }
             </span>
 
             @* Only when there is something to throw away. An empty slot has nothing to discard,
@@ -129,6 +138,10 @@
                            control in this app follows. *@
                         <button type="button" class="open-target" @onclick="() => Open(one.Id)">
                             <span class="nm">@one.Label</span>
+                            @if (CampaignStandingFor(one.Id) is { } inAGame)
+                            {
+                                <span class="meta">@inAGame</span>
+                            }
                             @if (_showTimes && Ages.Since(one.UpdatedAt, DateTimeOffset.UtcNow) is { } age)
                             {
                                 <span class="meta">@age</span>
@@ -219,6 +232,21 @@
     private IReadOnlyList<SavedCharacterSummary> _characters = [];
     private IReadOnlyList<SavedCharacterSummary> _others = [];
     private string? _currentId;
+
+    /// <summary>
+    /// Where each of this account's characters stands in the games it is in, or null when that
+    /// could not be asked.
+    ///
+    /// <para><b>Null is not an empty list.</b> A signed-out visitor, or a laptop with no network,
+    /// gets no standing at all rather than "Not submitted" on every row — which would tell
+    /// somebody their character is out of a game it is still in.</para>
+    ///
+    /// <para><b>One call for the whole panel, not one per row.</b> A membership carries no payload,
+    /// so this is a single list, unlike the Hero Point figure a row deliberately does not
+    /// carry — see the panel's own remarks on why every other row shows a time instead.</para>
+    /// </summary>
+    private IReadOnlyList<MembershipSummary>? _memberships;
+
     private int? _limit;
     private bool _full;
     private bool _showTimes;
@@ -230,6 +258,27 @@
     private string? _refusal;
 
     private string Aside => _limit is { } limit ? $"{_characters.Count} of {limit}" : "In this browser";
+
+    /// <summary>
+    /// What to say about the games one character is in, or null when there is nothing to say.
+    ///
+    /// <para><b>Null for three different reasons, and all three are right to be silent.</b> The
+    /// standings could not be read; this character is in no campaign; or there is no id to match
+    /// against because the open slot is empty. In every one of them a printed standing would be an
+    /// answer to a question nobody asked.</para>
+    ///
+    /// <para><b>A character in two games says both.</b> The question is "which sheet do I print at
+    /// the table", and one campaign's answer is not the other's.</para>
+    /// </summary>
+    private string? CampaignStandingFor(string? characterId)
+    {
+        if (characterId is null || _memberships is null) return null;
+
+        var mine = _memberships.Where(m => m.CharacterId == characterId).ToList();
+        if (mine.Count == 0) return null;
+
+        return string.Join(" · ", mine.Select(m => Standings.Say(m.Standing, m.Label)));
+    }
 
     /// <summary>
     /// What to call the character on screen.
@@ -297,6 +346,10 @@
         _limit = listed.Limit;
         _full = listed.Limit is not null && listed.IsFull;
         _currentId = await Store.CurrentIdAsync();
+
+        // Asked once for the whole panel. Null — not empty — for a visitor who is not signed in or
+        // whose network is down, so no row claims a standing nobody could check.
+        _memberships = _limit is null ? null : await Memberships.MineAsync();
 
         _others = [.. _characters.Where(c => c.Id != _currentId)];
 

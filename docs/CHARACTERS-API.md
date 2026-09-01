@@ -37,10 +37,15 @@ for, which is the thing `SavedCharacterSummary` exists to avoid.
 | `GET` | `/api/characters/{id}` | one character's payload, verbatim |
 | `PUT` | `/api/characters/{id}` | create or replace |
 | `DELETE` | `/api/characters/{id}` | remove one |
-| `GET` | `/api/campaigns` | the list — **no cap** |
+| `GET` | `/api/campaigns` | the list — **no cap**, and the join codes |
 | `GET` | `/api/campaigns/{id}` | one campaign's payload, verbatim |
 | `PUT` | `/api/campaigns/{id}` | create or replace |
 | `DELETE` | `/api/campaigns/{id}` | remove one |
+| `POST` | `/api/campaigns/{id}/code` | replace the join code |
+
+**And seven more under `/api/memberships`, plus the join-code rotation above** — a campaign's clone of a character and the snapshot
+waiting for a decision. See the section further down; every rule on this page applies to them, with
+one stated exception.
 
 Every one requires a session; without one, 401. All of them are scoped to the caller's own account
 — an `id` belonging to somebody else answers 404, never 403, because "that exists but is not yours"
@@ -99,13 +104,26 @@ string defaulting to `"Unnamed campaign"`, the payload is checked for being pars
 stored verbatim, `DELETE` answers 204 either way, and a session is required for all four.
 
 ```json
-{ "campaigns": [ { "id": "g_…", "label": "The Long Winter", "updatedAt": 1755600000000 } ] }
+{ "campaigns": [ { "id": "g_…", "label": "The Long Winter",
+                   "updatedAt": 1755600000000, "joinCode": "K7MPQ-3XWDR" } ] }
 ```
+
+**`joinCode` is the one field of a campaign this server can read**, and it is in the list because
+the GM has to be able to read it out to somebody. It cannot live inside `payload` — redeeming a code
+means finding the campaign it belongs to, which is a query. Null for a campaign written before join
+codes existed. See the membership section below.
 
 Three differences from characters, and each is a decision rather than an omission:
 
 - **No `limit`, and no 409.** `users.character_limit` is a cap on *characters*. There is no campaign
   cap, and answering with one would invent a rule this contract does not have.
+- **Account only, with no browser half at all.** This used to have one — `pp.campaign.v1`, beside
+  the characters, written before there was a screen. A campaign exists so that two accounts can hand
+  a snapshot between them: one kept in a single browser can never receive a submission, hold a
+  clone, or be joined by the code it would advertise. So `SavedCampaigns` is deleted and
+  `AccountCampaignStore` answers nothing for a signed-out visitor. Nothing was lost by removing it —
+  no screen had ever created a campaign, so nobody could have been holding one under that key. A
+  *character* still has a browser half, and always will.
 - **Deleting a campaign leaves its members naming it.** No cascade, no `SET NULL`, and deliberately
   no foreign key on `characters.campaign_id`. A character whose campaign is gone is *reported* by
   the browser as naming a campaign that is not here — the same shape an unknown tier takes — which
@@ -113,6 +131,150 @@ Three differences from characters, and each is a decision rather than an omissio
 - **The trait cap on a campaign is carried, never applied.** It is stored and returned like every
   other byte of the payload; nothing on either side enforces it in this slice.
 
+
+## Membership: a campaign's clone of a character, and the snapshot waiting for a decision
+
+**A campaign holds a clone of a character. The player's edits arrive as an approval request.**
+Fork and pull request, for characters. A player builds freely in their own rows and needs nobody's
+permission to do it; when they want a change to count at the table they *send it for approval*,
+which writes a snapshot into the campaign. The GM reads a field-level diff and accepts or rejects
+the **whole snapshot**. Accepting replaces the campaign's clone. Both sides keep a copy.
+
+| | | |
+|---|---|---|
+| `POST` | `/api/memberships/join` | redeem a join code, and put one of your characters in |
+| `GET` | `/api/memberships` | your own characters' memberships and where each stands |
+| `GET` | `/api/memberships/inbox` | every membership of every campaign you run |
+| `GET` | `/api/memberships/{id}` | one membership: the clone and the snapshot, in full |
+| `PUT` | `/api/memberships/{id}/submission` | send a snapshot for approval |
+| `POST` | `/api/memberships/{id}/approve` | accept the snapshot at a named version |
+| `POST` | `/api/memberships/{id}/reject` | turn it down, at a named version |
+| `POST` | `/api/campaigns/{id}/code` | replace a campaign's join code |
+
+Every one requires a session; without one, 401. `id` is `m_` plus 22 URL-safe characters — the
+`c_`/`g_` shape with a third letter, so none of the three can be passed where another is meant.
+
+### The clones are not in `characters`, and that is the whole reason a table exists for them
+
+The cap is `SELECT COUNT(*) FROM characters WHERE user_id = ?`, so a clone stored there would count
+against the GM's own `character_limit`: a GM with six players would hit their five-character cap
+before building a single NPC. A clone is not one of the GM's characters — it is the campaign's
+record of somebody else's. `0006_campaign_membership.sql` gives them their own table, and there is a
+test that six approved clones leave the GM's five slots untouched.
+
+### Two owners on one row, so every query stays scoped to whoever is asking
+
+A membership names the GM (who owns the campaign) and the player (who owns the character). The GM's
+reads carry `gm_user_id = ?`, the player's carry `player_user_id = ?`, and **no statement lets
+either name a row belonging to a third account.** A read of one membership is scoped to
+`(player_user_id = ? OR (gm_user_id = ? AND EXISTS (…the campaign…)))`, which is not a widening:
+each side is entitled to the row for a different reason, and a third account matches neither and
+gets the same 404 an id that never existed gets.
+
+**The two halves are deliberately not symmetric**, and the asymmetry is easy to read as a typo, so
+it is written out here rather than left in the SQL. The GM's half additionally requires the campaign
+to still exist — `EXISTS (SELECT 1 FROM campaigns c WHERE c.user_id = gm_user_id AND c.id =
+campaign_id)`, present on the inbox, this read, and both decisions — while the player's half is a
+bare `player_user_id = ?`. So a GM who deletes a game loses every membership in it, and the player
+keeps their row and is told **409, that campaign is no longer here**, rather than a 404 that would
+read as *you were never in it*. Writing the campaign back restores the GM's half whole, which is
+what makes a delete a complete undo. The `AND c.id` half of that `EXISTS` is load-bearing: without
+it, a GM who runs two campaigns and deletes one keeps reading the deleted one's clones.
+
+**The GM only ever sees a payload the player deliberately sent them**, never one this server went
+and fetched out of their account. And the GM is never told whose account it was: `characterId` is
+answered to the player, who needs it, and withheld from the GM, who approves `m_…`.
+
+### The one place the "only your own rows" rule bends, and why
+
+**`POST /api/memberships/join` resolves a campaign by its join code, which is a row the caller does
+not own.** That is what a join code *is*: a secret the GM minted and chose to hand out, and holding
+it is the whole of the authorisation — the same shape as holding a sign-in link. Joining by a shared
+code cannot be built any other way.
+
+What bounds it is what the answer contains: the campaign's id, its label and its own opaque
+payload, which is what the player needs in order to see the tier they are being asked to build to.
+It never answers an account id, a character, a clone, or anything about another member. It is rate
+limited per account, so the code space cannot be swept. And a code that never existed and one the GM
+has replaced answer **byte-identically**, so asking twice cannot tell somebody a code was once
+valid.
+
+Every other statement in `worker/db.js` is scoped to the caller. This one is called out in that
+file's own comments, in `worker/memberships.js`'s header, and here.
+
+### The join code
+
+`campaigns.join_code`: ten symbols from a 30-symbol alphabet — `23456789ABCDEFGHJKMNPQRSTVWXYZ`,
+with `I`, `L`, `O`, `U`, `0` and `1` left out because a code is read aloud at a table and typed by
+somebody else. Written `XXXXX-XXXXX`; stored and compared normalised, so lower case, a missing
+hyphen and stray spaces all still get in. About 5.9 × 10^14 codes.
+
+- **It cannot live inside `payload`.** Redeeming a code means finding the campaign it belongs to,
+  which is a query, and the payload is the one thing no query looks inside. So it is the one field
+  of a campaign this server can read — and it is in `GET /api/campaigns`, because the GM has to be
+  able to read it out.
+- **It is a capability, not an identifier**, which is why it is separate from `id` and why
+  `POST /api/campaigns/{id}/code` can replace it. An id leaked is leaked for ever. **Nobody already
+  in the campaign is evicted**: a code is redeemed once, into a membership that does not refer back
+  to it.
+- **An ordinary save does not rotate it.** `db.putCampaign` mints a candidate every time and keeps
+  the existing one with `COALESCE`, so renaming a game does not lock out everybody who was told the
+  old code.
+- **NULL is allowed**, meaning a campaign nobody can join yet — an `ALTER TABLE` cannot invent
+  randomness for rows that already exist. A `NOT NULL DEFAULT ''` would be worse: every such
+  campaign would share one code and the unique index would refuse the second row.
+
+### The approval slot is version-checked, and that is a compare-and-swap rather than a history
+
+`PUT /api/memberships/{id}/submission` answers `{ "version": 3 }`. Approve and Reject send that
+number back, and the `UPDATE`'s `WHERE` carries it.
+
+**Without it the GM approves a character nobody has looked at**: read snapshot A, the player
+resubmits B while the diff is on screen, press Approve, and B becomes the clone. A mismatch matches
+no row, nothing is written, and the answer is **409 with the newer snapshot attached** — so the
+screen can redraw the diff rather than telling somebody to go and look again:
+
+```json
+{ "error": "This changed while you were looking at it.", "pendingVersion": 4, "pending": "{…}" }
+```
+
+- **A decision naming no version is refused with 400**, never defaulted to the current one. That
+  would turn the compare-and-swap into a decision about the latest snapshot, reachable by omitting
+  one field.
+- **`pending_version` is never reset**, so a resubmission after an approval cannot reuse a number
+  the GM might still be holding on screen.
+- **There is exactly one slot per character per campaign, and resubmitting overwrites it.** No
+  history and no rollback: what this is is a decision queue, and a row per submission would be a
+  version-control system for characters.
+- **Nothing waiting is also 409**, with `"pending": null` — a different sentence to a reader, and
+  the two are told apart by whether a snapshot is attached.
+
+### Everything above keeps the one invariant this document opens with
+
+**The server never parses a character.** `approved_payload` and `pending_payload` are the same
+opaque strings `characters.payload` holds — checked for being parseable JSON and for the request
+being small enough, and nothing else. Round-tripped byte for byte for `{}`, `[]`, `123`, `null`, a
+payload naming a bogus tier, and one with no tier at all. **Nothing here compares two, either**: the
+diff the GM reads is computed in the browser, by the engine, which is the authority on what a
+character costs and whether it is legal.
+
+`label` travels alongside for the reason it does for a character: a server that will not look inside
+a payload cannot read a name out of one.
+
+### What is deliberately not here
+
+Notifications (a waiting count on the campaign screen is enough), a GM editing the clone directly,
+approval history or rollback, removing a player, and transferring a campaign. **And no way to apply
+one row of a diff**: partial application is a merge algorithm for characters — a second engine,
+capable of producing a sheet neither person authored.
+
+### Deleting a campaign leaves its memberships
+
+No cascade from `campaigns`, for the same reason `characters.campaign_id` has no foreign key: a
+cascade would delete the clone the GM accepted — the campaign's own record of what was agreed — on
+the strength of one click that may have been a mistake. Restoring the campaign has to put everything
+back. Deleting an *account* does cascade, on both columns: a membership names two accounts and means
+nothing with either of them gone.
 ## The cap
 
 `users.character_limit`, an integer, **default 5**.

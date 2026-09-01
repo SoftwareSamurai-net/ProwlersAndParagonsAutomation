@@ -1,6 +1,7 @@
 @page "/build"
 @implements IDisposable
 @inject CharacterSession Session
+@inject AccountCampaignStore Campaigns
 
 <PageTitle>Tier — Prowlers &amp; Paragons</PageTitle>
 
@@ -18,6 +19,20 @@
    `CharacterManager` shows. Discarding is still here; it is a row's own control now, plus the same
    "Start a new character" it always was. *@
 <CharacterManager />
+
+@* **One line, and deliberately not a second budget strip.** The running total lives on the strip
+   above and stays there; what this says is where the tier came from, which is the one thing the
+   cards below cannot say for themselves. A panel here would be the fourth band of chrome on the
+   page a visitor meets first.
+
+   **A disagreement reads as information, not as an error.** These campaigns climb tiers in play,
+   so a character built to one tier in a game played at another is ordinary traffic — and nothing
+   is repaired either way, because raising the tier turns an illegal character legal in silence and
+   lowering it moves Resolve. *@
+@if (_campaign is { } campaign)
+{
+    <p class="small muted">@CampaignLine(campaign)</p>
+}
 
 @* Six cards rather than six full-width rows. These are the one set of choices on the
    whole app a reader is meant to compare against each other rather than search through,
@@ -150,6 +165,35 @@
 
 @code {
     /// <summary>
+    /// The campaign this character belongs to, or null when it belongs to none — and null too when
+    /// it names one this account does not hold, which is reported by the finding rather than here.
+    /// </summary>
+    private Campaign? _campaign;
+
+    /// <summary>
+    /// Which campaign this character is in, and what it took from it.
+    ///
+    /// <para><b>The tier's printed name, never its id</b> — the rule every finding in this
+    /// application follows, because an id is not what a tier is called.</para>
+    /// </summary>
+    private string CampaignLine(Campaign campaign)
+    {
+        var mine = Session.Sheet.SelectedTierId;
+        var theirs = campaign.TierId;
+        var named = campaign.Name is { Length: > 0 } ? campaign.Name : "a campaign";
+
+        if (theirs is null) return $"In {named}, which sets no tier.";
+
+        var theirName = Session.Rules.GetTier(theirs)?.Name ?? theirs;
+
+        if (mine is null) return $"In {named}. Choose a tier, or take its {theirName}.";
+
+        return string.Equals(mine, theirs, StringComparison.Ordinal)
+            ? $"In {named}, played at {theirName} — the tier below."
+            : $"In {named}, played at {theirName}. Nothing has been changed either way.";
+    }
+
+    /// <summary>
     /// Redraw when the character changes, because a control on this page can change it without
     /// this page being the one that did.
     ///
@@ -167,6 +211,17 @@
     /// the sheet, so a redraw is all it needs.</para>
     /// </summary>
     protected override void OnInitialized() => Session.Changed += StateHasChanged;
+
+    /// <summary>
+    /// Resolve the campaign once, on the way in.
+    ///
+    /// <para><b>Not on every change to the character.</b> Resolving a campaign is a round trip, and
+    /// this page redraws on every step of a rank; re-reading it per keystroke is the read-per-letter
+    /// the character manager's own split exists to avoid. A campaign changes when somebody edits it
+    /// on the campaign screen, which is a navigation away from here and back.</para>
+    /// </summary>
+    protected override async Task OnInitializedAsync() =>
+        _campaign = await Campaigns.ForAsync(Session.Sheet);
 
     public void Dispose() => Session.Changed -= StateHasChanged;
 

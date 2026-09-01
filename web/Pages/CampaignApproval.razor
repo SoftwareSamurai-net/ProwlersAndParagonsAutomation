@@ -1,0 +1,412 @@
+@page "/campaign/{Id}"
+@inject CharacterSession Session
+@inject AccountCampaignStore Store
+@inject ApiMembershipStore Memberships
+
+@* What is waiting for a decision in one campaign, and the diff each request amounts to.
+
+   **Whole snapshots, never one field.** Approve replaces the campaign's clone with the snapshot;
+   Reject leaves the clone exactly as it was. There is deliberately no way to apply one row of the
+   diff: partial application is a merge algorithm for characters, which is a second engine capable
+   of producing a sheet neither person authored.
+
+   **The decision carries the version it was made about.** Read a snapshot, have the player
+   resubmit while it is on screen, press Approve, and without that version the second snapshot —
+   which nobody has looked at — becomes the clone. A mismatch is refused, and the refusal brings
+   the newer one back so the diff redraws rather than sending somebody to look again.
+
+   **The diff says how much it compared.** A diff showing nothing and a diff that failed to run
+   look identical, and "nothing changed" is the commonest honest answer this screen gives — so the
+   count of fields examined is printed beside it. See `CampaignDiff`.
+
+   **Nothing here repairs anything.** An illegal snapshot is reported and approved or turned down
+   as it stands; a tier that disagrees with the campaign's is information rather than an error,
+   because these campaigns climb tiers in play. *@
+
+<PageTitle>@Title — Prowlers &amp; Paragons</PageTitle>
+
+<h1>@Title</h1>
+
+@if (_state == Reading.NotSignedIn)
+{
+    <Panel Title="An account keeps a campaign">
+        <p><a href="signin">Sign in</a> to see what is waiting for you.</p>
+    </Panel>
+}
+else if (_state == Reading.NotYours)
+{
+    <Panel Title="Not this campaign">
+        <p>Nothing is wrong — there is simply no game here for this account.</p>
+        <p><a href="campaign">Back to your campaigns</a></p>
+    </Panel>
+}
+else if (_state == Reading.Looking)
+{
+    <Panel Title="One moment">
+        <p>Looking…</p>
+    </Panel>
+}
+else
+{
+    <Panel Title="Waiting for you" Aside="@WaitingAside">
+        @if (_waiting.Count == 0)
+        {
+            <EmptyState>Nothing is waiting. Your players' changes appear here when they send them.</EmptyState>
+        }
+        else
+        {
+            <ul class="campaign-list">
+                @foreach (var one in _waiting)
+                {
+                    <li>
+                        <div class="campaign-row">
+                            <span class="who">
+                                <b class="nm">@one.Label</b>
+                                <span class="meta">@Standings.Say(one.Standing)</span>
+                            </span>
+
+                            <button type="button" class="btn small"
+                                    aria-expanded="@(_reading == one.Id ? "true" : "false")"
+                                    @onclick="() => Look(one.Id)">
+                                @(_reading == one.Id ? "Close" : "Read the changes")
+                            </button>
+                        </div>
+
+                        @if (_reading == one.Id && _diff is { } diff)
+                        {
+                            <div class="campaign-diff">
+                                @* **Led by the spend, because that is what a GM decides on** — and
+                                   both figures are the engine's answers for the two sheets rather
+                                   than anything read out of a payload or worked out here. *@
+                                <p class="diff-spend">@Spend(diff)</p>
+
+                                @if (!diff.Ran)
+                                {
+                                    <EmptyState>
+                                        These changes could not be compared. Read the full sheet below instead.
+                                    </EmptyState>
+                                }
+                                else if (!diff.Explained)
+                                {
+                                    @* The spend moved and no row says why, which is a defect in
+                                       this screen rather than a state of the character — so it
+                                       says so, instead of drawing the empty list that reads as
+                                       agreement. See PROGRESS.md item 19. *@
+                                    <EmptyState>
+                                        The Hero Point total changed, but this comparison cannot say
+                                        what moved. Read the full sheet below before deciding.
+                                    </EmptyState>
+                                }
+                                else if (diff.Unchanged)
+                                {
+                                    @* The count is what tells a reader this ran. Without it an
+                                       empty list is indistinguishable from a comparison that
+                                       never happened. *@
+                                    <EmptyState>
+                                        Nothing changed — @diff.Compared fields compared. Approve to record it anyway.
+                                    </EmptyState>
+                                }
+                                else
+                                {
+                                    <ul class="diff-rows">
+                                        @foreach (var row in diff.Rows)
+                                        {
+                                            <li>
+                                                <span class="what">@row.What</span>
+                                                <span class="was">@Was(row)</span>
+                                            </li>
+                                        }
+                                    </ul>
+                                    <p class="small muted">@diff.Compared fields compared.</p>
+                                }
+
+                                @if (_full)
+                                {
+                                    <SheetView Character="_pending" ShowBudget="_pendingHasBudget" />
+                                }
+
+                                <div class="inline spaced">
+                                    <button type="button" class="btn primary"
+                                            @onclick="() => Decide(one.Id, approve: true)">Approve</button>
+                                    <button type="button" class="btn"
+                                            @onclick="() => Decide(one.Id, approve: false)">Reject</button>
+                                    <button type="button" class="btn quiet"
+                                            aria-pressed="@(_full ? "true" : "false")"
+                                            @onclick="() => _full = !_full">
+                                        @(_full ? "Hide the full sheet" : "Open the full sheet")
+                                    </button>
+                                </div>
+
+                            </div>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+
+        @* **Outside the open request, because half the messages close it.** Approving, turning
+           down, and both refusals set `_reading` to null — so while this sat inside
+           `@@if (_reading == one.Id …)` every one of those sentences was written and then thrown
+           away unrendered, and a GM who pressed Approve watched the panel collapse and was told
+           nothing at all. Only the one branch that keeps the request open could ever be read,
+           which is why the stale-approval test passed and nothing else noticed.
+
+           It is also the right place for `role="status"`: a live region that is destroyed and
+           rebuilt around each message is a live region a screen reader may never announce. *@
+        @if (_said is { } said)
+        {
+            <p class="small muted spaced" role="status">@said</p>
+        }
+    </Panel>
+
+    <p class="small muted spaced"><a href="campaign">Back to your campaigns</a></p>
+}
+
+@code {
+    /// <summary>How far the read of this campaign has got.</summary>
+    private enum Reading
+    {
+        /// <summary>Still asking.</summary>
+        Looking,
+
+        /// <summary>Nobody is signed in, so there is no campaign to read.</summary>
+        NotSignedIn,
+
+        /// <summary>
+        /// Signed in, and this account runs no campaign at that id. Deliberately the same answer
+        /// for an id that never existed and one belonging to somebody else: "that exists and is
+        /// not yours" is a fact about another account.
+        /// </summary>
+        NotYours,
+
+        /// <summary>Read.</summary>
+        Read,
+    }
+
+    /// <summary>Which campaign. A route parameter, so the address names the game.</summary>
+    [Parameter] public string? Id { get; set; }
+
+    private Reading _state = Reading.Looking;
+    private string? _label;
+    private IReadOnlyList<MembershipSummary> _waiting = [];
+
+    /// <summary>Which membership's changes are open, or null.</summary>
+    private string? _reading;
+
+    private CharacterDiff? _diff;
+    private CharacterSheet? _pending;
+    private bool? _pendingHasBudget;
+    private int _version;
+
+    /// <summary>Whether the full sheet is shown under the diff.</summary>
+    private bool _full;
+
+    /// <summary>What became of the last decision, or null.</summary>
+    private string? _said;
+
+    /// <summary>Which id the current read was for, so a route change re-reads.</summary>
+    private string? _read;
+
+    private string Title => _label ?? "A campaign";
+
+    private string WaitingAside
+    {
+        get
+        {
+            var pending = _waiting.Count(m => m.HasPending);
+
+            return pending == 0 ? "Nothing pending" : $"{pending} pending";
+        }
+    }
+
+    /// <summary>
+    /// The line the screen is led by: what the clone cost and what the snapshot costs.
+    ///
+    /// <para><b>Both figures are the engine's, for the two sheets.</b> A half-chosen Power is a
+    /// question the engine refuses rather than guesses at, and the honest line for that snapshot
+    /// says so instead of printing a number nobody asked for.</para>
+    /// </summary>
+    private static string Spend(CharacterDiff diff)
+    {
+        if (diff.SpentAfter is not { } after) return "The spend cannot be worked out yet.";
+
+        var budget = diff.Budget is { } cap ? $" of {cap}" : "";
+
+        return diff.SpentBefore is { } before && before != after
+            ? $"{before} → {after}{budget} Hero Points"
+            : $"{after}{budget} Hero Points";
+    }
+
+    /// <summary>One row's movement, written the way the diff's own remarks describe.</summary>
+    private static string Was(DiffRow row) => row.Kind switch
+    {
+        DiffKind.Added => row.After is { } after ? $"added {after}" : "added",
+        DiffKind.Removed => row.Before is { } before ? $"removed {before}" : "removed",
+        _ => $"{row.Before} → {row.After}",
+    };
+
+    /// <summary>
+    /// Read the campaign and what is waiting in it, once per id.
+    ///
+    /// <para><b>Keyed on the id rather than guarded by a bool</b>, because Blazor reuses this
+    /// component when only the route parameter changes — a one-shot flag would leave the first
+    /// campaign on screen under the second one's address, which is the trap
+    /// <c>SheetPage</c> already records.</para>
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_read == Id) return;
+
+        var asked = Id;
+        _read = asked;
+
+        _state = Reading.Looking;
+        _reading = null;
+        _diff = null;
+        _said = null;
+
+        if (string.IsNullOrWhiteSpace(asked))
+        {
+            _state = Reading.NotYours;
+            return;
+        }
+
+        if (!await Store.IsAvailableAsync())
+        {
+            _state = Reading.NotSignedIn;
+            return;
+        }
+
+        await Refresh(asked);
+    }
+
+    /// <summary>
+    /// Re-read the campaign and what is waiting in it.
+    ///
+    /// <para><b>The id it was asked for is passed in and re-checked before anything is written,
+    /// and the first version of this got that wrong in a way only a static analyser saw.</b> The
+    /// overtake check was <em>after</em> the write, where it does nothing at all: by then the
+    /// losing read had already put its answer on screen, and the `return` after it was a redundant
+    /// jump statement. So a second navigation arriving mid-read left the wrong campaign under the
+    /// right address, with nothing left to notice — verbatim the fault `SheetPage` records and
+    /// solves the same way.</para>
+    ///
+    /// <para>Null for the ordinary refresh after a decision, which is not a navigation and has no
+    /// id to lose a race to.</para>
+    /// </summary>
+    private async Task Refresh(string? asked = null)
+    {
+        var listed = await Store.ListAsync();
+
+        // Another navigation overtook this read. Its own pass has already reset the fields and
+        // will write its own answer; anything written past here would be the wrong campaign under
+        // the right address.
+        if (asked is not null && !string.Equals(_read, asked, StringComparison.Ordinal)) return;
+
+        var mine = listed.FirstOrDefault(c => c.Id == Id);
+
+        if (mine is null)
+        {
+            _state = Reading.NotYours;
+            return;
+        }
+
+        _label = mine.Label;
+
+        var inbox = await Memberships.InboxAsync();
+
+        // Null means the inbox could not be read, which is not the same as an empty campaign — so
+        // the list stays as it was rather than reporting that everybody has left.
+        if (inbox is not null)
+        {
+            _waiting = [.. inbox.Where(m => m.CampaignId == Id)];
+        }
+
+        _state = Reading.Read;
+    }
+
+    /// <summary>
+    /// Open one request's changes, computing the diff from the two payloads the server holds.
+    /// </summary>
+    private async Task Look(string membershipId)
+    {
+        _said = null;
+        _full = false;
+
+        if (_reading == membershipId)
+        {
+            _reading = null;
+            _diff = null;
+            return;
+        }
+
+        _reading = membershipId;
+        _diff = null;
+
+        if (await Memberships.ReadAsync(membershipId) is not { } detail) return;
+        if (detail.Pending is not { } pending) return;
+
+        _pending = pending;
+        _pendingHasBudget = !pending.UnlimitedBudget;
+        _version = detail.PendingVersion;
+
+        _diff = CampaignDiff.Between(detail.Approved, pending, Session.Rules, Session.Costs);
+    }
+
+    /// <summary>
+    /// Accept or turn down the snapshot on screen, naming the version it was read at.
+    ///
+    /// <para><b>A stale decision is refused and the newer snapshot is drawn</b>, rather than being
+    /// applied to whatever is current. That is a real defect if it is skipped: the GM would approve
+    /// a character nobody had looked at.</para>
+    /// </summary>
+    private async Task Decide(string membershipId, bool approve)
+    {
+        var decision = approve
+            ? await Memberships.ApproveAsync(membershipId, _version)
+            : await Memberships.RejectAsync(membershipId, _version);
+
+        switch (decision.Outcome)
+        {
+            case DecisionOutcome.Done:
+                _said = approve ? "Approved. The campaign holds this sheet now." : "Turned down.";
+                _reading = null;
+                _diff = null;
+                break;
+
+            case DecisionOutcome.Stale when decision.Newer is { } newer:
+                _said = "This changed while you were reading it. The newer version is below.";
+                _pending = newer;
+                _pendingHasBudget = !newer.UnlimitedBudget;
+                _version = decision.NewerVersion;
+                _diff = CampaignDiff.Between(
+                    (await Memberships.ReadAsync(membershipId))?.Approved,
+                    newer, Session.Rules, Session.Costs);
+                break;
+
+            // Stale with nothing to draw is NOT "nothing waiting", and saying so was wrong on
+            // screen: a snapshot is there, this build could not read it. `DecideAsync` reaches
+            // here whenever `StoredCharacter.Read` returns null for the newer payload — an
+            // envelope from a later version of the app, which the store's own notes treat as an
+            // ordinary thing to meet rather than an error.
+            case DecisionOutcome.Stale:
+                _said = "This changed while you were reading it, and the newer version could not "
+                    + "be opened here. Reload before deciding.";
+                _reading = null;
+                _diff = null;
+                break;
+
+            case DecisionOutcome.NothingWaiting:
+                _said = "There is nothing waiting here now.";
+                _reading = null;
+                _diff = null;
+                break;
+
+            default:
+                _said = "Nothing could be reached just now. Try again in a moment.";
+                break;
+        }
+
+        await Refresh();
+    }
+}

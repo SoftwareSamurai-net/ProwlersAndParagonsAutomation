@@ -132,7 +132,12 @@ export function taggedMail(send) {
 const KNOWN_ROUTES = Object.freeze([
     '/api/auth/request', '/api/auth/verify', '/api/auth/signout', '/api/me',
     '/api/me/display-name',
-    '/api/characters', '/api/campaigns', '/api/rulebook/power',
+    '/api/characters', '/api/campaigns',
+    // The two membership lists are exact addresses and each is filed under its own name: a GM's
+    // inbox failing and a player's standings failing are different faults with different causes,
+    // and folding them together would make the log say only "memberships".
+    '/api/memberships', '/api/memberships/inbox', '/api/memberships/join',
+    '/api/rulebook/power',
     '/api/rulebook/search', '/api/rulebook/contents', '/api/rulebook/passage',
     '/api/admin/error-log',
     '/api/transcripts',
@@ -165,6 +170,18 @@ export function routePattern(request) {
     // failures is then indistinguishable from a failure at an address nobody routes. With it, the
     // campaign routes are as legible in the log as the character ones and still cost one row.
     if (path.startsWith('/api/campaigns/')) return '/api/campaigns/{id}';
+
+    // **A membership id is caller-chosen in exactly the sense that matters here** — it is a string
+    // in a URL that this server did not put there on this request — so it needs this arm for the
+    // reason the two above have one: without it a broken approval is filed as `other`, beside
+    // requests to addresses nobody routes, and the log stops being readable at the moment it is
+    // most wanted.
+    //
+    // **The verb is deliberately not in the pattern**, though `PUT …/submission` and
+    // `POST …/approve` are different code paths. `route` is half of a primary key and a pattern per
+    // verb triples the rows this prefix can occupy for no gain: `kind` and `detail` already say
+    // which statement threw.
+    if (path.startsWith('/api/memberships/')) return '/api/memberships/{id}';
 
     return 'other';
 }

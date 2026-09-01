@@ -32,6 +32,9 @@ public sealed class WorkflowFilterTests
     private static string BuildWorkflow =>
         File.ReadAllText(Path.Combine(RepoRoot, ".github", "workflows", "build.yml"));
 
+    private static string DeployWorkflow =>
+        File.ReadAllText(Path.Combine(RepoRoot, ".github", "workflows", "deploy.yml"));
+
     /// <summary>
     /// The paths the build is allowed to skip. Two, and both are files no test opens: the log of
     /// what is done and what is left, and the handover written at the end of a slice. They are
@@ -296,5 +299,79 @@ public sealed class WorkflowFilterTests
             "The push triggers disagree about which branch they fire on, so at least one of them "
             + "runs on nothing and reports no failure for it:\n  "
             + string.Join("\n  ", named.Select(kv => $"{kv.Key}: [{string.Join(", ", kv.Value)}]")));
+    }
+
+    /// <summary>
+    /// <b>The silent-failure one.</b> Without <c>d1/migrations/**</c> in <c>deploy.yml</c>'s push
+    /// <c>paths:</c> list, a pull request that adds ONLY a migration file never triggers this
+    /// workflow at all — <c>scripts/apply-migrations.sh</c>, which applies exactly that kind of
+    /// change, would simply never run for it. A merged migration could then sit unapplied on
+    /// production until some unrelated <c>web/</c> or <c>worker/</c> change happened to trigger
+    /// the next deploy — the same shape of outage <c>docs/guide/hosting.md</c> records for
+    /// <c>0005_campaigns.sql</c>, one layer further back.
+    /// </summary>
+    [Fact]
+    public void DeployTriggersOnAMigrationFileAlone()
+    {
+        var text = DeployWorkflow;
+
+        // The positive control: the push trigger really does declare a paths filter, so the
+        // assertion below is checking a real list rather than passing vacuously against a typo
+        // that renamed the block.
+        Assert.True(text.Contains("paths:", StringComparison.Ordinal),
+            "deploy.yml's push trigger names no paths filter at all.");
+
+        Assert.Contains("'d1/migrations/**'", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>Ordering is the whole correctness of the migration-apply step.</b> It has to run before
+    /// the Pages upload: applying after would leave the deployed code briefly ahead of the schema
+    /// it depends on, which is the exact outage <c>docs/guide/hosting.md</c> records — every
+    /// migration in <c>d1/migrations</c> is written to tolerate the other order, code depending on
+    /// a schema that has not shipped yet is not.
+    ///
+    /// <para><b>Anchored on the step's own invocation, not on the script's name, and the first
+    /// version of this was defeated by exactly the duplicate this repository has been bitten by
+    /// five times.</b> It read <c>IndexOf("apply-migrations.sh")</c> — which finds the copy inside
+    /// the <c>paths:</c> filter near the top of the file, twenty lines above the deploy step and a
+    /// hundred above the apply step. So the comparison was satisfied by the path filter whatever
+    /// order the steps were in: moving the apply step to <em>after</em> the Pages upload left this
+    /// green. Proved by mutation.</para>
+    ///
+    /// <para>It reads the two <em>invocations</em> now — the <c>run:</c> line that actually calls
+    /// the script and the <c>uses:</c> line that actually deploys — with comments blanked first,
+    /// because the apply step's own comment names the script too.</para>
+    /// </summary>
+    [Fact]
+    public void MigrationsAreAppliedBeforeThePagesDeploy()
+    {
+        // Comment lines dropped, the same instrument
+        // SupersededRunsAreCancelledExceptWhereThatWouldBreakSomething uses and for the same
+        // reason: prose in this file names both landmarks.
+        var text = string.Join(
+            '\n',
+            DeployWorkflow.Split('\n').Where(l => !l.TrimStart().StartsWith('#')));
+
+        var apply = Regex.Match(text, @"^\s*run:\s*\./scripts/apply-migrations\.sh\s*$",
+            RegexOptions.Multiline, TimeSpan.FromSeconds(5));
+
+        var deploy = Regex.Match(text, @"^\s*uses:\s*cloudflare/wrangler-action@",
+            RegexOptions.Multiline, TimeSpan.FromSeconds(5));
+
+        // The positive control: both invocations must actually be found, or the ordering
+        // comparison below passes vacuously — which is how its first version passed against a
+        // deploy.yml with the steps in the wrong order.
+        Assert.True(apply.Success,
+            "deploy.yml has no step whose `run:` is ./scripts/apply-migrations.sh, so nothing "
+            + "applies a pending migration and this test is asserting nothing.");
+        Assert.True(deploy.Success,
+            "deploy.yml no longer deploys via cloudflare/wrangler-action, so this test cannot see "
+            + "what the apply step has to come before.");
+
+        Assert.True(apply.Index < deploy.Index,
+            "scripts/apply-migrations.sh must run BEFORE cloudflare/wrangler-action's Pages "
+            + "deploy — applying it after would ship code ahead of the schema it depends on. "
+            + $"The apply step is at character {apply.Index} and the deploy at {deploy.Index}.");
     }
 }

@@ -17,11 +17,11 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | 4940 across **four** suites — 4033 on the engine (9 added by the CI-minutes slice, on the two workflow filters), 701 rendering components with bUnit (**26 added this round**, on the sheet's own address: nine cases on `SheetPage` — the document alone on the page, showing not opening, the two nulls kept apart — and nine inline cases extending `AreaTests` to the fifth area, plus the theory that already existed. **Measured on this branch with master merged in — 4033 + 701 + 192 + 14 — rather than carried from any single branch**, which is what the rule below asks for. The round before added 10, on the banner printing the palette's chord — see the completed entry at the top; the round before added 46, sixteen of them on keeping a character while starting another and every one of them pressing a control against a storage that actually stores — see the completed entry at the top; the slice before added 20: eleven on the banner's character switcher, one that writes its proof page, three holding the anonymous slot against the three defects an adversarial review demonstrated, and five on `AccountCharacterStore` tracking the anonymous slot to what a signed-in reader has open and clearing it on sign-out — see the completed items below), 192 driving the accounts server over real SQLite, and 14 on the pixel comparator (`./scripts/test-visual.sh`, new: `scripts/visual/diff.mjs` and the hand-written PNG codec beneath it had no tests at all). All run in CI at the same strictness as the build, plus browser harnesses driven by headless Chrome — **twenty-one verdicts now, not nineteen** (the banner-alignment harness and its twin are the newest pair), because every behavioural harness has a deliberately-broken twin CI requires to say `FAIL` — and a pixel diff of seven proof pages against CI-rendered goldens. **Measured on the integration branch after every merge, not carried across from any single branch.** This row has been wrong twice before: three merged branches each claimed a different total, and the handover then copied one of them. Re-run the suites rather than adding to this number. **The bUnit figure was recorded as unexplained** — it read 474 twice and then 482 twice on a tree with no diff under `web/` — and that note is retired rather than carried: nothing in this slice reproduced it, and a count that moved once and has been stable since is not worth a paragraph of suspicion in the headline table. If it moves again on an unchanged tree, treat it as a finding |
+| Tests | **5073 across five suites** — 4040 on the engine, 769 rendering components with bUnit, 231 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 132**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+6** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→12), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **This row had gone wrong a third time and the failure is worth naming**: it read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them. A row that does not add up is the cheapest tell there is. Re-run the suites rather than adding to this number. |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
-| Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions |
-| Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. All four D1 migrations applied to the remote database, the `DB` binding is in place, `/api/me` answers `401` with JSON, and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong). **Adding an address now actually mails it** a one-click, three-day link — see the completed item below; until now the admin page said an address "can sign in now" and nothing ever told them so |
+| Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **One thing blocks the next deploy and it is a permission, not a file**: `deploy.yml` now applies pending D1 migrations before the Pages upload, and `scripts/apply-migrations.sh` aborts the job on the 7403 the deploy token answered last time it was asked to read D1. Grant **D1: Edit** on the same token that already holds Cloudflare Pages: Edit before merging this, or the site stops deploying exactly as it did when PR #104 was reverted — see [`docs/guide/hosting.md`](docs/guide/hosting.md) |
+| Accounts | **Invitation only, and sign-in works end to end. An account is now what opens the rulebook** — all ten chapters, searchable at `/rules`, plus the recordings and the two sample characters. The first five D1 migrations are applied to the remote database and **0006 is pending — measured against the live database, not assumed**; the `DB` binding is in place, `/api/me` answers `401` with JSON, and all four variables are set. **A link has been requested on the live site, delivered, and used to sign in** — watched, not tested, because no test can do it. The fault that blocked it for a week was the API key and not `MAIL_FROM`; see [item 8](#8-the-mail-provider-is-refusing-every-send--closed-and-the-reasoning-here-was-wrong). **Adding an address now actually mails it** a one-click, three-day link — see the completed item below; until now the admin page said an address "can sign in now" and nothing ever told them so |
 | Printed sheet | One A4 page on the published Hero Sheet's layout; Hero and Villain ink on white paper — see the completed item below |
 | Static analysis | Zero warnings at CI strictness; a whole-tree Qodana scan reports zero — **measured on a clean export of `76a4f80`, not assumed**, and that scan found 2 (a local constant named `Opening`, and a `cref` to `IRulesSource` that does not resolve from the test project's namespace), both fixed. It had drifted to 3 on `master` and to 37 across three reconciled slices before anybody checked, and the redesign slice put 23 there before they were fixed. Re-run `./scripts/qodana-scan.sh` rather than repeating the figure |
 | Known-wrong data | None outstanding. Every published Hero is now also checked for *legality*, not only cost — see the completed entry on the two the tool used to refuse |
@@ -647,11 +647,17 @@ a defect that a campaign is the place to fix:
    **Single-user first, no sharing**, because that needs nothing new from the server: a campaign is
    another opaque blob beside the characters.
 
-   **The non-visual half is done.** `engine/Campaign.cs` (a record with no logic and no reader),
-   `CharacterSheet.CampaignId`, `pp.campaign.v1` in local storage, a `campaigns` table and four
-   routes beside the character ones, `characters.campaign_id` on the wire and in the index, and
-   `web/Services/CampaignJoin.cs`. **No screen draws one yet** — that is the remaining half of this
-   item. The rules the slice settled, so nobody re-litigates them:
+   **Closed — see the completed entry at the top of this file, which supersedes the paragraph
+   above.** The shape the owner settled on is fork and pull request: a campaign holds a *clone* of a
+   character and the player's edits arrive as an approval request. So **"single-user first, no
+   sharing" is no longer the design**, sharing is in, the server did need something new (a clone
+   table, an approval slot version-checked against a stale decision, and a join code), and
+   **campaigns are account-only with the local half deleted** — one kept in a single browser could
+   never receive a submission. Three screens draw them.
+
+   What follows is the storage half as it shipped a slice earlier, kept because every rule in it
+   still holds. `pp.campaign.v1` is the one line that does not: there is no local campaign store any
+   more, and nothing was lost by removing it because no screen had ever created one.
 
    - **The server never learns what a campaign is.** A payload it stores verbatim, a label and a
      `campaignId` the client supplies exactly as it supplies `label`. It does not know what a tier
@@ -1053,7 +1059,424 @@ existing proof-harness step. Full account in `docs/HANDOVER.md`; the short versi
 
 ---
 
+### 14. A combat simulator — a second engine, and the balance question is now live
+
+**The owner wants to run encounters through the raw engine, over MCP rather than the browser, so
+balance can be measured instead of guessed.** This is not a change to `engine/`, and
+[`CLAUDE.md`](CLAUDE.md) already settles why: play rules do not go into `engine/`, which is the
+authority on cost and validity and knows nothing about resolving an action. **A combat simulator is
+a second engine beside it**, and that entry was written before anybody asked for one.
+
+**What makes it worth doing now is that there is something to measure.** Twenty-eight Pinnacle City
+NPC sheets exist at known tiers — Street Level through Iconic — against a stated 100-point party.
+Whether a Standard-tier Lynchpin is survivable for four 100-point Heroes, or whether Schism's
+Growth-above-the-cap trigger is a fair Arc Two problem, are questions with numeric answers nobody
+has computed.
+
+**The first cost is not the simulator, it is the data.** Chapters 3, 4 and 5 are extracted into
+`data/rulebook/` as prose, but *only* `data/rules/` is verified entry by entry against the page —
+so the action, combat and Resolve/Adversity rules would need the same treatment the 141 Powers got
+before any simulation could be trusted. Skipping that produces a simulator that is confidently
+wrong, which is worse than none.
+
+Not started. No estimate. Recorded so the architecture note above is not rediscovered from scratch.
+
+### 15. The Trait Cap is the tier's, and a campaign may want a tighter one
+
+`CharacterValidator` takes the Trait Cap from the chosen tier — 12d at Standard, 8d at Street Level.
+**A campaign can impose a tighter ceiling that no tier expresses.** The Pinnacle City setting caps a
+non-superhuman NPC at **6d — peak human, with 3d an average adult** — which is a house rule the tool
+cannot see, so a sheet breaking it still validates `ok: true`.
+
+Today this is audited by hand. It was audited by hand three times across twenty-eight sheets in one
+session and held every time, including across five independently-built clusters — but that is a
+property of that session, not of the tool, and nothing stops the next sheet breaking it silently.
+
+**The obvious shape is a `--trait-cap` override on `build`, or a field on the character file,
+reported under its own issue code so the repair is mechanical.** One thing to settle before
+building it, because it is not cosmetic: **the Trait Cap is also what Resolve is computed from** —
+`DerivedStatsCalculator` takes it off the gap between the cap and the highest relevant rank. So an
+override changes derived stats, and whether a *house* cap should move Resolve, or only gate
+validation while the tier's cap keeps doing the arithmetic, is the actual design question. The flag
+is the easy half.
+
+Not started.
+
+### 16. The tool costs one character, and a campaign is a roster
+
+**Found by using it for its actual purpose for the first time** — statting twenty-eight NPCs for a
+campaign in one sitting, across several agents working in parallel. Nothing below is a defect;
+every one of them is the shape of a tool built to cost *a* character meeting a job that is about
+*all of them*.
+
+- **`--from` takes one file.** Twenty-eight characters is twenty-eight process starts, and every
+  re-validation after an edit is another twenty-eight. Shell loops were written for this four
+  separate times in one session. `--from-dir`, or a repeatable `--from`, would make a roster-wide
+  re-check one command and one process.
+- **Export filenames carry a timestamp and nothing overwrites.**
+  `CharacterSheetRenderer` builds `{safeName}_{yyyyMMdd_HHmmss}`, so re-exporting a roster after an
+  edit *adds* a set rather than replacing one. Twenty-eight characters reached fifty-six `.txt`
+  files before anybody noticed, and a de-duplication script had to be written to find the newest of
+  each. A stable-name mode — `--overwrite`, or a `--out` that replaces — is the fix; the timestamp
+  is right for a single export and wrong for a roster.
+- **There is no cross-sheet question the tool can answer.** Every one that came up had to be a
+  throwaway script against the JSON: *which Traits on any of these sheets exceed 6d, and does a
+  Power justify it*; *is this character's power ladder monotonic across its three tiers*; *which
+  sheets are spending their remaining budget on Contacts because Contacts is the cheapest dial*.
+  The last two of those each caught a real defect — a "progression" sheet that was **weaker** than
+  the one below it, and five sheets padded with invented contact categories. Those are exactly the
+  questions a roster owner has, and the tool cannot be asked any of them.
+- **`--no-build` is undocumented and is the thing that makes concurrent use safe.** Several agents
+  running `dotnet run -- build` in one working tree collide on the compiler. `dotnet run --no-build`
+  fixes it completely and appears in neither `--help`, nor the skill, nor any guide. It was found by
+  guessing.
+
+None of this needs new rules knowledge — it is all the same engine, called differently.
+
+### 17. Closed: `master` in the prose after the branch became `main`
+
+The workflow triggers were fixed first and the prose was not, which is not cosmetic: this file's own
+Current state table said the site "deploys from `master`" while `main` said `main`, and that line
+produced the only real conflict in an otherwise clean rebase — one where **both sides held a true
+fact the other lacked** (this branch knew migration 0006 was pending; `main` knew the deploy branch
+had moved), so neither `--ours` nor `--theirs` was correct and it had to be resolved by hand.
+
+**Swept, and the rule that decided each mention is the point.** A sentence a reader would *act on*
+must be true today; a sentence recording what happened must not be rewritten, because rewriting it
+is how a record stops being one. So:
+
+- **Fixed, all present tense.** `docs/guide/hosting.md`'s two Qodana lines — a guide is
+  instructions, and they contradicted the comment inside `qodana_code_quality.yml` itself, which
+  already said `main`. Here: "Qodana … runs on `master` and weekly", "a scan of `master` **as
+  merged**", "Qodana still watches `master`", and the Hosting entry's "deployed by GitHub Actions on
+  every push to `master`".
+- **Left exactly as written, all past tense.** Qodana having drifted to 3 *on `master`*, the
+  migration gate's refusal having blocked `master`, PR #73 having gone into `master`, the three
+  visual-golden entries, and the mutation recorded as "taking Qodana off `master`". Each is a
+  statement about a day that happened.
+- **One rephrased rather than corrected**, because both halves were true and only one still is: the
+  `--branch` entry's "New projects default to `main`; we deploy `master`" was the *cause* of the
+  404 it describes. It now says "when this was found we deployed `master`", so the hazard still
+  reads as general — a `--branch` label that disagrees with the configured production branch
+  deploys nothing to production and goes green — without the entry claiming a mismatch that no
+  longer exists.
+
+**The counts this item used to carry were themselves wrong** — "fourteen mentions here and six
+across `docs/`" against sixteen lines and eighteen occurrences, drifted by later commits, which is
+the same failure the Tests row above records. That is why the sweep is recorded by *rule* rather
+than by number: a number in this file is a thing that goes stale, and the rule does not.
+
+**No guard, and deliberately.** A grep for `master` would have to allow every historical mention
+above, so it would be an allowlist of exactly the lines a person already decided about — the shape
+`WorkflowFilterTests` records rejecting for the same reason. The triggers themselves *are* guarded,
+which is the half whose failure is silent.
+
+### 18. The MCP server did not start
+
+`claude mcp` reported the `prowlers-and-paragons` server as `CONNECTION_CLOSED` for a whole session
+in which twenty-eight characters were built. **Cause unknown — it was not investigated**, because
+the CLI `build` command calls the identical `CostCalculator` and `CharacterValidator` and the
+costing is therefore the same. That is why this is recorded rather than fixed.
+
+It matters for two reasons that have nothing to do with today's numbers. The MCP server is **the
+documented way in for somebody who has not checked this repository out** — that is the whole of the
+settled decision in `CLAUDE.md` about assisted creation for a third party. And the owner has since
+said the MCP path is what he wants for designing characters conversationally in real time, which
+makes it the primary interface rather than the alternate one. A primary interface that failed to
+connect and was worked around should not stay unexamined.
+
+First step is to reproduce it and read the server's own stderr, not to change anything.
+
+### 19. The account cap is set by hand in SQL, and a GM cannot see what a player holds
+
+Two halves of one screen, and **the mechanism for the interesting half already exists** — this item
+is a UI over behaviour that is already correct, not a change to it.
+
+**The cap already does the right thing when it is lowered below what somebody holds.** `putCharacter`
+in `worker/db.js` is one `INSERT … SELECT` whose `WHERE` *is* the check:
+
+```sql
+WHERE EXISTS (SELECT 1 FROM characters WHERE user_id = ? AND id = ?)
+   OR (SELECT COUNT(*) FROM characters WHERE user_id = ?)
+       < (SELECT character_limit FROM users WHERE id = ?)
+```
+
+The first clause lets an id the account already owns through **however full the account is**, so
+dropping somebody from 25 to 3 while they hold ten keeps all ten openable, editable and saveable,
+and simply refuses the eleventh until they delete themselves back under. That is exactly the
+desired behaviour and it needs no migration, no new column and no data change — **the number is the
+whole mechanism.** It is also concurrency-safe by construction, for the reason the doc comment
+gives: a read-then-write would let two simultaneous PUTs both see room and both land.
+
+So what is missing is only the screen:
+
+- **Set the number.** A row per account in `/admin` — email, current character count, editable
+  `character_limit` — beside the invitations list already gated by `invitations.isAdministrator`.
+  This retires a real ops hazard: [`docs/guide/accounts-server.md`](docs/guide/accounts-server.md)
+  already calls `users.character_limit` "a *write* with no gate", and today raising a cap means
+  someone running SQL against the production database by hand.
+- **Surface what a player holds.** A read-only list of their sheets.
+
+**Scoped to campaign membership, and that is the decision rather than a detail.** The list shows the
+players in the GM's own campaigns — joined through `campaign_members` — not every account on the
+server. `isAdministrator` is one person today, so an all-accounts list would not bite yet; it would
+the moment a second GM is ever made an administrator, and a privilege that only misbehaves later is
+the kind this project has been bitten by before. The cost is accepted knowingly: **a GM cannot see a
+player's characters that are not in one of their campaigns, and should not.**
+
+**Show `label`, `updated_at` and the count. Do not open the payload.** `characters.payload` is an
+opaque blob the server never parses — the same property that keeps `campaigns` dumb — so listing a
+character's *tier* would mean parsing sheets server-side and giving the accounts server an opinion
+about what a character is. It has never had one. If a tier column is wanted later, the honest way is
+a column written by the client that already knows, not a server that learns to read.
+
+Not started.
+
 ## Completed work
+
+### A campaign holds a clone of a character, and a player's edits arrive as an approval request
+
+**Item 11's first of eight is closed, screens and all** — and the shape it closed with is not the
+one that entry describes. That entry says *single-user first, no sharing, because that needs nothing
+new from the server*. The owner has since decided the shape: fork and pull request, for characters.
+A player builds freely in their own rows and needs nobody's permission to do it; when they want a
+change to count at the table they *send it for approval*, which writes a snapshot into the campaign;
+the GM reads a field-level diff and accepts or rejects the whole snapshot; accepting replaces the
+campaign's clone. Both sides keep a copy. So sharing is in, the server did need something new, and
+the entry above is superseded rather than merely extended.
+
+**What made the previous half worth nothing until now is worth naming once more.** The storage half
+— `Campaign`, `CampaignJoin`, a `campaigns` table, four routes — shipped complete, tested, and
+**unreachable**: no screen in the application could create or see one. That is the fault this
+repository keeps hitting, and it is why the entry above said "no screen draws one yet" as though it
+were a status rather than a defect.
+
+#### The three screens
+
+`/campaign` is the third avenue, behind `Run`. It lists the games somebody runs and the ones their
+characters are in, names a campaign, shows and rotates its join code, and joins one by a code read
+out at a table. `/campaign/{id}` is the approval screen: the diff, Approve, Reject, and the full
+sheet under it. The character manager and `/sheet` carry a **standing** — `Approved for Nightfall` /
+`Changes pending` / `Not submitted` — which is the answer to "which sheet do I print at the table".
+One line on the tier page says which campaign and what was inherited, and it is deliberately not a
+second budget strip.
+
+`MainLayout`'s own note had said a third avenue would cost one `NavLink` and that a door onto an
+empty room is worse than a wall. It cost one `NavLink`.
+
+#### Storage: `0006_campaign_membership.sql`, and why the clones needed a table
+
+**The clones are not in `characters`.** That table's cap is
+`SELECT COUNT(*) FROM characters WHERE user_id = ?`, so a clone stored there would count against the
+GM's own `character_limit`: a GM with six players would hit their five-character cap before building
+a single NPC. `campaign_members` holds the clone, the snapshot waiting for a decision, and the
+version those decisions name. There is a test that six approved clones leave the GM's five slots
+untouched, with the cap's own 409 asserted beside it as the control.
+
+**The approval slot is version-checked, and skipping that is a defect rather than a missing
+nicety.** The GM reads snapshot A, the player resubmits B while the diff is on screen, the GM
+presses Approve — and B, which nobody has looked at, becomes the clone. So a submission increments a
+version, a decision sends that number back, it is in the `UPDATE`'s `WHERE`, and a mismatch is
+refused **with the newer snapshot attached** so the screen can redraw. It is a compare-and-swap and
+not a history: one slot per character per campaign, resubmitting overwrites, no rollback.
+
+#### The rules this slice settled, so nobody re-litigates them
+
+- **Campaigns are account-only, and the local half is deleted.** A campaign kept in one browser can
+  never receive a submission, hold a clone, or be joined by the code it would advertise — so an
+  anonymous campaign is a promise to somebody who can never be told. `SavedCampaigns` is gone and
+  `pp.campaign.v1` is unused; **nothing was lost, because no screen had ever created one.** A
+  *character* still has a browser half and always will. This reverses the storage slice's own
+  "the character trio again, one level up".
+- **Whole snapshots, never one field.** Partial application is a merge algorithm for characters — a
+  second engine, capable of producing a sheet neither person authored. `CampaignDiff` has no method
+  that could apply a row and a test asserts there is none.
+- **The diff says how much it compared, on the screen.** A diff showing nothing and a diff that
+  failed to run are indistinguishable, and "nothing changed" is the commonest honest answer this
+  screen gives. `CharacterDiff.Compared` counts fields *examined*; a comparison that has stopped
+  comparing reports zero, which is a red test and a visibly wrong sentence rather than a reassuring
+  empty list.
+- **Every diff row is in the book's words** — `Tier: Standard → High Level`, `Might 6d → 8d`,
+  `added Flight 4`. The guard is stated as a shape rather than a list of ids: no underscore reaches a
+  screen. An id the data does not know is printed as itself, deliberately, because a diff full of
+  rows called "Unnamed" tells a GM nothing.
+- **A tier disagreement is ordinary traffic and reads as information.** The owner's campaigns climb
+  tiers in play. Nothing is repaired either way: raising the tier turns an illegal character legal in
+  silence, and lowering it moves Resolve.
+- **The Trait Cap is still reported and never enforced**, and there is still no `TraitCapOverride`.
+- **Deleting a campaign leaves its memberships**, no cascade — a cascade would delete the clone the
+  GM accepted on the strength of one click. Deleting an *account* does cascade, on both columns.
+- **Nothing bumped `StoredCharacter.CurrentVersion`.** It is 1.
+- **The server still never parses a character.** Both payloads round-trip byte for byte, including
+  `{}`, `[]`, `123`, `null`, a bogus tier and no tier at all. **Nothing compares two, either** — the
+  diff is the browser's, computed by the engine.
+- **Every statement stays scoped to whoever is asking, with one exception that is stated rather than
+  buried.** A membership names two accounts and each side's queries carry its own column. The
+  exception is the join-code lookup, which reads a row the caller does not own — **because that is
+  what a join code is**: a secret the GM minted and handed out, holding it being the whole of the
+  authorisation, the same shape as holding a sign-in link. It answers the campaign's settings and
+  nothing else — no account id, no character, no other member — is rate limited per account, and
+  answers an unknown code and a replaced one byte-identically. Joining by a shared code cannot be
+  built any other way; see `docs/CHARACTERS-API.md`, which records it.
+
+#### Out of this slice, deliberately
+
+Notifications beyond the waiting count, a GM editing the clone directly, approval history or
+rollback, removing a player, transferring a campaign. Adversity still appears in no code — that is
+still a loose end of item 11 and this slice did not touch it.
+
+#### Three findings worth carrying, all from breaking a guard and watching it
+
+1. **A seam in the wrong place is a test that races nothing.** The render test for the stale-approval
+   refusal first put the resubmission between the click and the request, through a hook on the API
+   stub. Mutating the page to send the *current* version rather than the one it drew — the exact
+   defect — walked straight through it, because the broken page's extra read happens *before* such a
+   seam can fire. The real race is between the diff being drawn and the button being pressed, which a
+   test drives with no seam at all. The hook was deleted: one nothing races reads as a guarantee.
+2. **A fixture can hide a mutation three ways in one test.** `NoRowNamesAFieldOfAStoredCharacter`
+   used a made-up Flaw id (so the diff correctly printed it back), then a real one whose printed name
+   is the same word (so a case-insensitive check could not tell a leak from a lookup), then a tier
+   whose id has no underscore (so a mutation printing ids walked through the general rule). Each time
+   the fault was the fixture, not the guard.
+3. **`RedundantJumpStatement` found a real bug no test did.** The approval page's overtake check sat
+   *after* the write, where it does nothing — a second navigation mid-read left the wrong campaign
+   under the right address, verbatim the fault `SheetPage` records. Qodana saw it; nothing else did.
+
+#### An audit of the slice found three more, and two are fixed here
+
+1. **`campaign_members_one_per_character` was missing `gm_user_id`, and that was a cross-account
+   defect rather than a tidiness point — fixed.** `campaigns` is `PRIMARY KEY (user_id, id)`, so a
+   `g_…` is unique *per account* and two GMs may hold the same one; the id is the client's, it is
+   handed to every member in the join response, and it travels in an exported character's own
+   `CampaignId`, so knowing one takes no work. Without the column in the key, a player redeeming a
+   second GM's code conflicted with their row in the *first* campaign, `ON CONFLICT … DO UPDATE`
+   handed that row back, and the join answered 200 with the second GM's label and payload — so the
+   player built to the right tier and every snapshot they sent afterwards was delivered to a GM they
+   never joined, while the GM whose code they redeemed saw an empty inbox. Driven against real
+   SQLite before the fix and it reproduced exactly. The key now leads with `gm_user_id`, and
+   `memberships.join` also *checks* the row it got back belongs to the campaign whose code was
+   redeemed — the index is what makes it true, the check is the half a mutation can break. Both were
+   mutated independently and each fails on its own; with both reverted the guard reproduces the
+   original defect by name.
+
+2. **The join code's hyphen never reached a reader — fixed.** `crypto.js` said the hyphen "travels
+   with the code, because it is what makes ten characters readable". It did not: `normaliseJoinCode`
+   takes the punctuation out on the way in, the list answered the bare ten, and the screen printed
+   them — so a code minted as `Q4TWX-NPRKM` was only ever shown as `Q4TWXNPRKM`, which is exactly
+   the unbroken run somebody misreads over a phone. Worse, `rotateCode` answered the *hyphenated*
+   form, so the two addresses disagreed about one value and a screen redrawing from the list after
+   minting showed a different string from the one the mint had handed it. The wire is now the bare
+   ten everywhere and `SavedCampaignSummary.Spoken` puts the hyphen back at the point of display.
+
+   **And `FakeApi` had been minting `AAAA1-BBBB1` all along** — a shape the server never sends. The
+   fake and the server disagreed and nothing caught it, which is the drift `AccountsContractTests`
+   exists for and could not see, because a code's *form* is not a field name.
+
+3. **The diff reported "nothing changed" while the spend moved — fixed, and the guard that should
+   have caught it did not exist.** `CampaignDiff` compared a Power on `PowerId` and
+   `PurchasedRanks` and nothing else: not its `Pros`, `Cons`, `CostVariantKey`, `Units`,
+   `BaselineTraitId` or `SourceId`, not a Perk's or Flaw's narrative detail, not
+   `AbilityModifiers`, and gear only by its name — when a custom feature is the only thing gear
+   costs Hero Points for. Immunity moved from one unit to six produced `spend 7 → 22`, **no rows at
+   all**, and a healthy `Compared` of 7.
+
+   **`Compared` was never going to catch it.** It counts fields *examined*, which is the right
+   guard against a comparison that has stopped running and worth nothing against one that runs and
+   looks at the wrong half of a field — the Power's key *was* examined. That is this repository's
+   own recurring fault in a new place: a check measuring the wrong thing reads as a guarantee.
+   `NoRowNamesAFieldOfAStoredCharacter` reflects over `CharacterSheet`, but for **naming**, not
+   coverage.
+
+   Each list entry now carries a detail line built from the app's own labels — `SheetView`'s
+   `Name (Variant)`, `Labels.Humanise`, the rules data's own `CostUnitLabel` — so a row cannot
+   print a spelling the sheet would not. And the invariant is in the type rather than in a
+   reviewer's memory: `CharacterDiff.Explained` holds the engine's two figures against the rows,
+   and the screen says *the total changed but this comparison cannot say what* instead of drawing
+   the empty list that reads as agreement. `EveryChangeThatMovesTheSpendMovesARow` drives ten
+   cost-bearing fields and `EveryChangeAGmDecidesAboutMovesARow` the seven free-but-reportable
+   ones. **All four mutations go red** — a Power's detail back to its rank, gear's detail nulled,
+   an Ability's modifiers hidden, and the tier.
+
+4. **A fixture hid a mutation for the fourth time in this file's history, and the same way.** The
+   gear cases *added* a customised item, so nulling `GearDetail` entirely — exactly how the slice
+   shipped — left them green: an item that was not there and now is produces an Added row whatever
+   its detail says, and the behaviour under test was never reached. Changing an item already on the
+   fixture is the only mutation that can tell a detail comparison from no comparison. Caught by
+   re-running the mutation rather than by reading the test.
+
+5. **A deleted campaign left its memberships live — fixed, asymmetrically.** The GM's inbox still
+   showed a request waiting on a game they had thrown away, with an Approve button under it, the
+   detail read answered 200, and the player could go on submitting into it and be told it had been
+   sent. There is still no cascade and there is not going to be one — the player's row is theirs,
+   and keeping it is what makes restoring a campaign a complete undo — so the fix is an `EXISTS`
+   on the GM's half alone: the inbox, the detail read, and both decisions. The player keeps their
+   standing and gets a 409 naming the actual reason instead of a 404 that would read as *you have
+   no such membership*. The guard asserts the restore too.
+
+6. **`apply-migrations.sh` trusted an exit code on the one path that had no test.** Every refusal
+   path is driven by `migration-gate.test.mjs`; the apply itself had nothing, so a `wrangler d1
+   migrations apply` that exited 0 without applying anything was read as success — the same trust
+   that produced the outage the script exists to prevent. It now re-lists and requires the gate's
+   own `proceed`, asked through `gate.mjs` rather than by grepping wrangler's prose in a second
+   place. Driven with a stub wrangler both ways: the honest one passes, the one that exits 0
+   without applying fails the job — and the script as it was exits 0 and prints "Applied."
+
+#### A second review, and what it found that the first did not
+
+Three no-context reviewers were then run over the server half, the browser half and the docs, each
+told the constraints and nothing about the work. Five more findings, all reproduced by running:
+
+7. **The GM's status line was written and thrown away unrendered.** `_said` sat *inside*
+   `@if (_reading == one.Id && _diff is { } diff)` on the approval page — and approving, turning
+   down, and both refusals all set `_reading` to null. So a GM pressed Approve, the panel
+   collapsed, and **nothing said it had worked**; the only sentence anybody could ever read was
+   the stale-snapshot one, which is the single branch that keeps the request open. That is exactly
+   why the stale-approval test passed while every other message on the screen was invisible. Moved
+   out to the panel, where a `role="status"` live region also stops being destroyed and rebuilt
+   around each announcement.
+
+8. **A snapshot this build cannot open was called "nothing waiting".** `DecideAsync` reads the
+   newer payload through `StoredCharacter`, which answers null for an envelope a later version of
+   the app wrote — an ordinary thing to meet, by that class's own notes. The outcome is `Stale`
+   with nothing to draw, the page's switch had no arm for it, and it fell into `NothingWaiting`:
+   the GM was told the queue was empty about a request the player was waiting on.
+
+9. **`FakeApi` was more permissive than the server, which made both of the above untestable.** The
+   fake never checked whether a campaign still existed, so it kept answering 200 with the clone and
+   the waiting snapshot for a game the GM had deleted, and let the player submit into it. **A fake
+   that is more permissive than the server does not make tests fail; it makes them pass about a
+   state the server never produces** — the same class as the `AAAA1-BBBB1` join code the fake was
+   minting. Both halves of the real `EXISTS` are in it now.
+
+10. **The diff was still blind to six fields, and three guards could not see three more.**
+    `Appearance`, `Motivation`, `Quote`, `Connections`, `AbilitySources` and `TalentSources` were
+    compared nowhere at all — every one of them prints on the sheet, and a Trait's Source is not
+    derivable from its rank, decides which Pros an option allows, and prints inside a Power group.
+    And the fixture could not reach `PerkDetail`'s narrative half, `GearDetail`'s matched pair or
+    `ProConLabel`'s unit count, because the cases **added** the element rather than changing one:
+    all three mutations survived. `ACostedSheet` carries all three now. **Nine mutations, all
+    red.**
+
+11. **Two API documents described a `WHERE` clause the server does not have.**
+    `docs/CHARACTERS-API.md` and `docs/guide/accounts-server.md` both wrote `getMembership`'s
+    scoping as a symmetric `(gm_user_id = ? OR player_user_id = ?)`. It is not symmetric: the GM's
+    half additionally requires the campaign to exist and the player's deliberately does not, which
+    is the whole of finding 5 above. Both now write it out, and say why. `.editorconfig`'s
+    rationale for the same file said "five records" against ten and claimed nothing read them by
+    name, which is false of five of them.
+
+#### What is open in it, recorded rather than left in a pull request
+
+- **`ApiMembershipStore.LastJoinRefusal` is mutable state read out of band** after `JoinAsync`
+  returns null. Single-user WebAssembly, so it works; returning the refusal *in* the result is the
+  smaller surface. **`SubmitAsync` has the same shape and one real consequence**: it answers `int?`,
+  so a permanent 409 — *that campaign is no longer here* — is indistinguishable from a dropped
+  connection, and `Campaigns.razor` tells the player *"That could not be sent just now. Try again in
+  a moment"* about a state that will never succeed on retry. One change fixes both: a refusal on the
+  result of each.
+- **A GM cannot be told a submission's age**, because the two timestamps were removed from the
+  detail read rather than bound — see finding 3 above; they are in the two lists, where a "sent
+  three hours ago" belongs, and nothing prints one yet.
 
 ### A migration that was merged but never applied took character saving down in production
 
@@ -1606,10 +2029,10 @@ would have looked like the deletion had failed.
   `AccountsContractTests`, `docs/MCP-SETUP.md` and `README.md` by `McpSetupDocumentationTests`,
   `mcp/QUESTION-POLICY.md` by `McpQuestionPolicyTests`. Editing the index past its line budget, or
   adding a guide the routing table does not name, is a red build.
-- **Qodana came off every pull request** and runs on `master` and weekly. **What makes that safe is
+- **Qodana came off every pull request** and runs on `main` and weekly. **What makes that safe is
   that the pull request was never where the check first ran**: `CLAUDE.md`'s process already requires
   `./scripts/qodana-scan.sh` locally, reading zero, before one is opened. What is kept is the part a
-  local run cannot give — a scan of `master` **as merged**, which is a different claim from a scan of
+  local run cannot give — a scan of `main` **as merged**, which is a different claim from a scan of
   the branches that went into it — plus a weekly backstop for a skipped local step. If that weekly
   run starts finding things, the answer is that the local step is being skipped, not that this
   should go back on every push.
@@ -1634,7 +2057,7 @@ true of a repository on a different plan and the pattern is the sort of thing th
   could compose a path no scan sees. Growing `paths-ignore` therefore has to be deliberate, and this
   is what makes it one.
 - Plus: the guide directory is never skipped wholesale, both triggers carry the same list, `deploy`
-  still refuses to cancel, and Qodana still watches `master` and still has a schedule.
+  still refuses to cancel, and Qodana still watches `main` and still has a schedule.
 
 **Five mutations, all red**: skipping the guide set, skipping `CLAUDE.md`, dropping the cancellation,
 filtering one trigger and not the other, and taking Qodana off `master`.
@@ -6800,7 +7223,8 @@ The Villain deliberately leaves one Power without a Source, so the sheet prints 
 
 The site is up and the engine runs from Cloudflare: all six tiers render from the fetched rules, the Superhero Package costs 50 of 125, Armor at 4 purchased ranks with Burnout settles on **2 HP** rather than 0 — the rulebook floor, live — and both exports build with no CSP violations.
 
-**`--branch` is a label Cloudflare compares against the project's configured production branch, not a branch it reads.** New projects default to `main`; we deploy `master`. The mismatch does not fail anything: the upload succeeds, wrangler prints a `master.<project>.pages.dev` alias, the workflow goes green — and the production URL and any custom domain answer 404, because no production deployment exists. Nothing in the logs says so.
+**`--branch` is a label Cloudflare compares against the project's configured production branch, not a branch it reads.** New projects default to `main`; when this was found we deployed `master`. The mismatch does not
+fail anything: the upload succeeds, wrangler prints a `master.<project>.pages.dev` alias, the workflow goes green — and the production URL and any custom domain answer 404, because no production deployment exists. Nothing in the logs says so.
 
 The setup instructions omitted this, which is how it was found. Fixed three ways: the README makes the production branch its own numbered step and explains what going wrong looks like, the deploy step carries the same warning where someone editing `--branch` would read it, and the workflow now **checks the production hostname after deploying** and fails with the remedy in the error. A deploy step that passes while the site is 404 is worse than one that fails.
 
@@ -6824,7 +7248,7 @@ Checked every factual claim in the README against the tree and the data. The cou
 
 ### Hosted on Cloudflare Pages — [#18](https://github.com/DorianSheiles/ProwlersAndParagonsAutomation/pull/18)
 
-`superheroes.softwaresamurai.net`, deployed by GitHub Actions on every push to `master` that touches the app, the engine, the rules or the deploy itself. Direct upload rather than Cloudflare's Git integration, so there is one deploy path rather than two that can disagree. Setup and the token scoping are in the README.
+`superheroes.softwaresamurai.net`, deployed by GitHub Actions on every push to `main` that touches the app, the engine, the rules or the deploy itself. Direct upload rather than Cloudflare's Git integration, so there is one deploy path rather than two that can disagree. Setup and the token scoping are in the README.
 
 **The Content-Security-Policy is generated, and that is the part worth remembering.** Blazor emits an inline `<script type="importmap">` into `index.html` naming the fingerprinted framework assets, so its contents change whenever those are rebuilt. Under `script-src 'self'` an inline script is blocked and the app never boots — and the easy way out, `'unsafe-inline'`, gives up most of what the policy is for. `scripts/write-cloudflare-headers.sh` hashes the inline scripts of the `index.html` that was actually published, and **exits non-zero if it finds none**, because a hard-coded hash would rot silently and take the site down on some later deploy. CI runs the same script, so a policy that would break the app fails on the pull request instead.
 

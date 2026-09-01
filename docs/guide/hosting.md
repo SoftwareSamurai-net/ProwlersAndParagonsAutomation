@@ -21,50 +21,80 @@ Cloudflare Pages at `superheroes.softwaresamurai.net`, by `.github/workflows/dep
 
 ---
 
-## Nothing stops a deploy shipping past an unapplied migration — the guard needs a token that can read D1
+## Migrations apply themselves before the Pages upload, and refuse rather than guess
 
-**This is an open gap, not a solved one**, and it is here rather than in `PROGRESS.md` alone because
-anybody touching `deploy.yml` or `d1/` needs it.
+**This replaces both the manual step and the gate that only refused.** The history below is kept
+because the reasoning still matters — a future change to this area is a change to a mechanism that
+has already broken twice — but the mechanism itself has moved on from both.
 
-**Applying a migration is a separate act from deploying, and nothing reminds you.** After merging
-anything that adds a file under `d1/migrations`, run:
+**What it cost to learn, the first time.** `0005_campaigns.sql` added `characters.campaign_id`. It
+was written, reviewed and merged; the deploy shipped the Worker; nothing applied the migration.
+Production answered `D1_ERROR: no such column: campaign_id` on `/api/characters` — **breaking
+ordinary character saving for every signed-in reader**, over a feature nobody was using yet. 29
+failures. Every check passed while it happened and none could have: `./scripts/test-worker.sh`
+**builds its schema by running the migrations**, so it can never notice that production's schema was
+not built, and the post-deploy smoke check asks `/api/me`, which touches no table the migration
+changed.
 
-```bash
-npx wrangler --cwd d1 d1 migrations apply prowlers-and-paragons --remote
-```
+**What it cost to learn, the second time.** A step that only *refused* to deploy past a pending
+migration — never applying one, on the reasoning that applying from CI would let a bad migration
+ship itself — was built, driven through its branches, and merged as PR #104. It was reverted on its
+first real run: the deploy's `CLOUDFLARE_API_TOKEN` had no D1 permission at all, wrangler answered
+*"The given account is not valid or is not authorized to access this service [code: 7403]"*, the
+step could not tell whether anything was pending, and it refused — **correctly, by its own design**.
+But that left `main` unable to deploy at all, which is a worse failure than the one it prevents.
 
-**What it cost to learn.** `0005_campaigns.sql` added `characters.campaign_id`. It was written,
-reviewed and merged; the deploy shipped the Worker; nothing applied the migration. Production
-answered `D1_ERROR: no such column: campaign_id` on `/api/characters` — **breaking ordinary
-character saving for every signed-in reader**, over a feature nobody was using yet. 29 failures.
+**The mechanism that replaces both.** `scripts/apply-migrations.sh` runs
+`wrangler d1 migrations list prowlers-and-paragons --remote`, hands the real output to the pure
+decision in `scripts/d1-migrations/gate.mjs`, and:
 
-**Every check passed while it happened and none could have failed.** `./scripts/test-worker.sh` runs
-192 tests against real SQLite and **builds its schema by running the migrations**, so it can never
-notice that production's schema was not built — *a suite that constructs the world it tests cannot
-tell you the real world differs*. The post-deploy smoke check asks `/api/me`, which touches no table
-the migration changed: it proves the server is wired up and nothing about its schema.
+- **Nothing pending** — proceeds; the Pages upload continues.
+- **Only additive DDL is pending** — `ADD COLUMN`, `CREATE TABLE`, `CREATE INDEX`, a plain
+  `INSERT ... VALUES`, and the like — runs `wrangler d1 migrations apply` itself and continues.
+  Applying automatically is safe here in a way it was not for #104's design, because the classifier
+  never touches a migration whose SQL contains a destructive pattern.
+- **A destructive pattern is pending** — `DROP TABLE`, `DROP COLUMN`, `DELETE FROM`, `TRUNCATE`, or a
+  table rebuild (`ALTER TABLE ... RENAME TO`, or the `..._new`/`INSERT ... SELECT`/`DROP TABLE`
+  12-step) — **the deploy aborts**, naming the file and the exact statement. The one way past this
+  is the migration's own author adding `-- pp:allow-destructive: <reason>` to the file, because the
+  person who knows a destructive statement is safe this one time is whoever is writing it, not
+  whoever last edited the gate.
+- **Wrangler answers with anything this gate does not recognise — including empty output, or the
+  7403 unauthorised answer above** — the deploy aborts. An unauthorised answer is never read as
+  "nothing pending": the refusal names the exact permission needed, **D1: Edit**, alongside whatever
+  the token already has for Cloudflare Pages.
 
-### The guard, why it was reverted, and what brings it back
+Every branch is driven with canned wrangler output in `tests/deploy/migration-gate.test.mjs` (also
+runnable via `scripts/test-deploy-gate.sh`), including the classifier reading real content out of
+`d1/migrations` — comments and string literals are masked out before pattern-matching, so a comment
+*describing* a destructive statement is never mistaken for one, and a destructive keyword quoted
+inside a string literal is not either.
 
-A step that **refuses to deploy** while a migration is pending — never applying one, because
-applying from CI would mean a bad migration ships itself — was built, driven through all four of its
-branches, and merged. **It was reverted on its first real run.**
+**`d1/migrations/**` is in `deploy.yml`'s `paths:` filter now, and has to be.** Before this, a pull
+request that added only a migration file changed nothing under `web/` or `worker/`, so the deploy
+workflow never ran at all — the auto-apply above would have been a no-op for exactly the change it
+exists to handle.
 
-The deploy's `CLOUDFLARE_API_TOKEN` has no D1 permission. Wrangler answered *"The given account is
-not valid or is not authorized to access this service [code: 7403]"*, so the step could not tell
-whether migrations were pending and refused — **correctly, by its own design**. But that left
-`master` unable to deploy at all, which is a worse failure than the one it prevents.
+**Pinned to `wrangler@4.127.0` for the `list`/`apply` calls, not the `3.90.0` the deploy bundles
+with for the actual Pages upload.** `3.90.0` does not understand `--cwd` at all — verified against
+the real binary, `npx wrangler@3.90.0 --cwd d1 d1 migrations list prowlers-and-paragons --remote`
+answers `Unknown argument: cwd` and dumps the subcommand's own usage rather than a result — which
+this gate would correctly call "unrecognised" and refuse on, every single run, for a reason that has
+nothing to do with what is actually pending. `4.127.0`'s two real shapes, `Migrations to be
+applied:` with a table and `No migrations to apply!`, were both read against the real production
+database before this was written.
 
-- **It comes back the moment the deploy token can read D1.** It needs D1 *Read* on this account in
-  addition to what it already has for Pages. The step is in the history of PR #104 and needs no
-  redesign — only credentials.
-- **Do not "fix" it by treating an unauthorised answer as all-clear.** That turns the guard into the
-  thing it exists to prevent: a check satisfied by there being nothing to check, which is how the
-  outage above happened.
-- **Two details worth keeping when it returns.** An unrecognised answer must fail, because the step
-  reads wrangler's prose and a reworded release must not read as clear. And it must be pinned to a
-  wrangler whose output has actually been read: `3.90.0`, the version the deploy bundles with,
-  answers this command with a *usage dump*, which would have been an unrecognised answer every run.
+**One thing this does not close on its own: the deploy token still needs D1: Edit granted in the
+Cloudflare dashboard.** Nothing in this repository can do that — it is an account permission, not a
+setting in a file — so until it is granted, `wrangler d1 migrations list` answers 7403 on every
+deploy and this gate refuses exactly as it did the first time, correctly. Grant D1: Edit on the same
+token that already holds Cloudflare Pages: Edit, then the mechanism above runs as designed.
+
+- **Do not "fix" a 7403 by treating it as all-clear.** That is the exact failure this whole section
+  exists to prevent: a check satisfied by there being nothing to check.
+- **The classifier is a judge, not a fixer.** A destructive migration is refused, never rewritten
+  and never silently split into a safe and an unsafe half — the same rule this repository already
+  holds the rules engine to for an illegal character.
 
 ## A hung step costs six hours, and nothing was stopping it
 
@@ -130,9 +160,9 @@ gh run list --limit 100 --json name,status,createdAt,updatedAt --jq '
   **What makes that safe is that the pull request was never where this check first ran.**
   `CLAUDE.md`'s process requires `./scripts/qodana-scan.sh` locally, reading zero, before a pull
   request is opened — the CI copy was re-proving a thing already proved, at five and a half minutes
-  a push. What is kept is the part a local run cannot give: a scan of `master` **as merged**, which
+  a push. What is kept is the part a local run cannot give: a scan of `main` **as merged**, which
   is a different claim from a scan of the branches that went into it. If the weekly run starts
-  finding things on `master`, the answer is that the local step is being skipped — not that this
+  finding things on `main`, the answer is that the local step is being skipped — not that this
   should go back on every push.
 
 **Branch protection is unavailable on this plan, so no check is *required*** — which is why
