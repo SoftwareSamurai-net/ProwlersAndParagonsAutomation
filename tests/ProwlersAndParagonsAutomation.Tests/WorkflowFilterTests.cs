@@ -383,7 +383,7 @@ public sealed class WorkflowFilterTests
     /// merged answered <c>Permission denied</c> and exited <b>126</b> — before running a line of
     /// the gate it drives, and before the Pages upload that gate exists to hold back. The ordering
     /// held and the site was never at risk, but nothing could ship and nothing in five suites had
-    /// a word to say about it.
+    /// a word to say about it.</para>
     ///
     /// <para><b>No Windows checkout could have caught it, which is the whole reason this is a test
     /// rather than a habit.</b> Git for Windows does not honour the mode bit in the working tree,
