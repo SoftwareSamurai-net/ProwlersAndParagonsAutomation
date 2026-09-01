@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | **5074 across five suites** — 4041 on the engine, 769 rendering components with bUnit, 231 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 133**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13 — the thirteenth added after the merge, below), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **This row had gone wrong a third time and the failure is worth naming**: it read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them. A row that does not add up is the cheapest tell there is. Re-run the suites rather than adding to this number. |
+| Tests | **5079 across five suites** — 4046 on the engine, 769 rendering components with bUnit, 231 driving the accounts server over real SQLite, 14 on the pixel comparator, and 19 on the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **The campaign slice added 133**, and that is a subtraction rather than a claim: all five suites were run on this branch and all five on `main` — 4034 / 701 / 192 / 14 / 0 = 4941 — so the delta is measured at both ends. Per suite: **+7** engine (`PresentationFlagsTests` 3→5, `AccountsContractTests` 18→20, `WorkflowFilterTests` 10→13 — the thirteenth added after the merge, below), **+68** bUnit (`CampaignApprovalTests` 55 new, `CampaignStorageTests` 14→21, `AreaTests` 41→47), **+39** accounts (`memberships.test.mjs` 32 new, `migration.test.mjs` 8→15), and the deploy gate's **19**. **This row had gone wrong a third time and the failure is worth naming**: it read *5023 across 4040 / 730 / 228 / 14 / 19*, whose own summands add to 5031, because the figures were copied out of mid-branch commit messages and three more commits landed after them. A row that does not add up is the cheapest tell there is. Re-run the suites rather than adding to this number. **The handout added 5, all on the engine suite** — `JoinPageTests`' three, and one case each on `NoComponentNamesAColour` and `NoComponentNamesATypeface` for `join.html`. Both .NET suites were re-run for it (4046 and 769); the other three are untouched by a static page and are carried forward, which is the one thing this row is allowed to do and only because nothing in the change can reach them. |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **The deploy applies pending D1 migrations before the Pages upload, and it is green.** The first run failed — on a file mode rather than the credential everybody was watching; see the completed entry — and the run after it read the live database, found nothing pending, and shipped. **What that establishes is D1 *Read*, not Edit**: nothing was pending, so the apply path never ran, and a token holding only Read would produce this exact log and then fail on the first migration that actually has to be applied. The step needs **D1: Edit**, and that half is still untested. See [`docs/guide/hosting.md`](docs/guide/hosting.md) |
@@ -1477,6 +1477,48 @@ told the constraints and nothing about the work. Five more findings, all reprodu
 - **A GM cannot be told a submission's age**, because the two timestamps were removed from the
   detail read rather than bound — see finding 3 above; they are in the two lists, where a "sent
   three hours ago" belongs, and nothing prints one yet.
+
+### The handout is a static file at `/join.html`, and the scans that would have missed it
+
+**A GM had nothing to send a player.** The three campaign screens explain themselves to somebody
+already signed in, and every step before that — being invited, that an uninvited address is refused
+in silence, that the character on screen is the one a code joins — was known only to whoever built
+it. `web/wwwroot/join.html` is that page: invitation, sign-in, build, join by code, send for
+approval, plus what a standing means and what each join refusal says.
+
+- **A static file rather than a Blazor route, deliberately.** All of it is true before WebAssembly
+  has landed and none of it should sit behind the thing it explains — a route would mean
+  downloading the application to be told how to sign in to it. `_redirects` sends every unknown
+  path to `index.html` with a 200, and a file that exists on disk is served ahead of that rule, so
+  `/join.html` is the page. It needs no policy change either: `default-src 'self'` already covers a
+  same-origin stylesheet, the self-hosted faces and `js/theme.js`, which is included so the handout
+  arrives in whichever palette the reader already chose in the app.
+- **It names no colour, face or size of its own**, so it is in all four palettes and prints on the
+  print one. `join.css` is a second stylesheet rather than a section of `app.css`, which is the
+  application's: linking `app.css` would make every visitor download the wizard's rules to read a
+  paragraph, and make the handout wait on the largest stylesheet on the site.
+- **The presentation scans enumerate every stylesheet under `wwwroot` now, instead of reading
+  `app.css` by name.** `join.css` was outside `NoComponentNamesAColour` and
+  `NoComponentNamesATypeface` from the moment it landed, with the whole suite green — a list of
+  filenames goes stale on exactly the change that most needs checking, which is the failure
+  `RepositoryGuideTests` already exists to prevent for the guide set. `join.html` is named
+  alongside `index.html` for the same reason. Proven by mutation: a hex in `join.css` is reported
+  as *"join.css names a colour by hex value"*, and the first attempt at that mutation missed its
+  anchor and passed — a no-op, recorded here because it is the failure mode this discipline is for.
+- **`--heading` on `--surface` joins the measured contrast pairs.** Every `h1` and `h2` in the
+  application was already that pair and it was unlisted; the handout is entirely that pair, being a
+  page of headings with no panel under them. Green in all four palettes on the first run, so this
+  documents a gap in the list rather than a fault in the palettes.
+- **`EveryTokenTheHandoutAsksForIsDefinedInThemeCss`** is the guard the enumerated scans cannot
+  give. A misspelt custom property is the quietest failure in CSS — `var(--panel-sunken)` does not
+  warn, leaves the declaration with no value, and draws a card with no ground, which is
+  indistinguishable from a design that wanted none.
+
+**What is open: nothing in the application links to it.** A page nobody links to is a page nobody
+finds, and the two places that want it are the campaign settings panel — where *"share its code
+with your players"* is exactly the moment a GM needs something to send — and `/signin`, for a
+player who arrives at the sign-in form without knowing they must be invited first. Both are one
+anchor; neither is in this change, because the copy on those screens is the owner's to decide.
 
 ### The gate came back, and its own script was not executable
 
