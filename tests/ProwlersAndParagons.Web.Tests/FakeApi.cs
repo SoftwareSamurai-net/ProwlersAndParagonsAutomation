@@ -399,10 +399,10 @@ public sealed class FakeApi : HttpMessageHandler
             // list — the whole of what the real server does with these four.
             _characters[key] = new Stored(
                 label, payload, ++_clock,
-                Text(sent.RootElement, "campaignId"),
-                Text(sent.RootElement, "kind"),
-                Text(sent.RootElement, "tierId"),
-                Number(sent.RootElement, "spent"));
+                SentString(sent.RootElement, "campaignId"),
+                SentString(sent.RootElement, "kind"),
+                SentString(sent.RootElement, "tierId"),
+                SentNumber(sent.RootElement, "spent"));
 
             return Status(HttpStatusCode.NoContent);
         }
@@ -511,13 +511,14 @@ public sealed class FakeApi : HttpMessageHandler
 
     /// <summary>One optional string out of a sent body. Absent, null and not-a-string are all
     /// "nothing sent", which is what the server's own normalisers make of them.</summary>
-    private static string? Text(JsonElement body, string name) =>
+    private static string? SentString(JsonElement body, string name) =>
         body.TryGetProperty(name, out var found) && found.ValueKind == JsonValueKind.String
             ? found.GetString()
             : null;
 
-    /// <summary>One optional whole number out of a sent body, on the same terms as <see cref="Text"/>.</summary>
-    private static int? Number(JsonElement body, string name) =>
+    /// <summary>One optional whole number out of a sent body, on the same terms as
+    /// <see cref="SentString"/>.</summary>
+    private static int? SentNumber(JsonElement body, string name) =>
         body.TryGetProperty(name, out var found) && found.ValueKind == JsonValueKind.Number
             ? found.GetInt32()
             : null;

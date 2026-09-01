@@ -498,7 +498,7 @@
     {
         var tier = one.TierId is null
             ? null
-            : _names.Tiers.TryGetValue(one.TierId, out var known) ? known : one.TierId;
+            : _names.Tiers.GetValueOrDefault(one.TierId, one.TierId);
 
         return (one.Spent, tier) switch
         {

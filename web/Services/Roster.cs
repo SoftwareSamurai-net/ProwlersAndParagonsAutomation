@@ -117,7 +117,7 @@ public static class Roster
 
         if (campaignId is null) return NoGame;
 
-        return names.Games.TryGetValue(campaignId, out var name) ? name : GameNotHere;
+        return names.Games.GetValueOrDefault(campaignId, GameNotHere);
     }
 
     /// <summary>
@@ -137,7 +137,7 @@ public static class Roster
             one.Label,
             NameOf(one.CampaignId, names),
             Kinds.Word(one.Kind),
-            one.TierId is { } tier && names.Tiers.TryGetValue(tier, out var named) ? named : null);
+            one.TierId is { } tier ? names.Tiers.GetValueOrDefault(tier) : null);
     }
 
     /// <summary>
@@ -233,7 +233,7 @@ public static class Roster
     {
         if (everyGame.Count == 1) return null;
 
-        var total = sizes.TryGetValue(game, out var size) ? size : shown;
+        var total = sizes.GetValueOrDefault(game, shown);
 
         return query.Length == 0 ? $"{total}" : $"{shown} of {total}";
     }

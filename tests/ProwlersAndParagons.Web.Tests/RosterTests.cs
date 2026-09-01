@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Bunit;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Web.Components;
@@ -267,7 +268,7 @@ public sealed class RosterTests
         await Fill(ctx, 8);
 
         var cut = ctx.Render<CharacterManager>();
-        cut.Find(".options-filter input").Input("Character 3");
+        await cut.Find(".options-filter input").InputAsync("Character 3");
 
         Assert.Single(cut.FindAll(".character-list .open-target"));
         Assert.Contains("1 of 8", Text(cut.Markup), StringComparison.Ordinal);
@@ -287,7 +288,7 @@ public sealed class RosterTests
         await Fill(ctx, 8);
 
         var cut = ctx.Render<CharacterManager>();
-        cut.Find(".options-filter input").Input("nobody by that name");
+        await cut.Find(".options-filter input").InputAsync("nobody by that name");
 
         Assert.Empty(cut.FindAll(".character-list .open-target"));
         Assert.Contains("matches what you typed", Text(cut.Markup), StringComparison.Ordinal);
@@ -329,7 +330,7 @@ public sealed class RosterTests
         Assert.Equal(3, buttons.Count);
         Assert.Single(buttons, b => b.GetAttribute("aria-pressed") == "true");
 
-        cut.FindAll(".roster-order button")[1].Click();
+        await cut.FindAll(".roster-order button")[1].ClickAsync(new MouseEventArgs());
 
         Assert.Equal(
             "true", cut.FindAll(".roster-order button")[1].GetAttribute("aria-pressed"));
@@ -427,7 +428,7 @@ public sealed class RosterTests
         Assert.Empty(cut.FindAll(".character-list .when"));
 
         // "Recent" is the third of the three, in the order the control offers them.
-        cut.FindAll(".roster-order button")[2].Click();
+        await cut.FindAll(".roster-order button")[2].ClickAsync(new MouseEventArgs());
 
         Assert.Equal(8, cut.FindAll(".character-list .when").Count);
     }
@@ -451,12 +452,12 @@ public sealed class RosterTests
 
         var cut = ctx.Render<CharacterManager>();
 
-        cut.Find(".options-filter input").Input("villain");
+        await cut.Find(".options-filter input").InputAsync("villain");
         Assert.Single(cut.FindAll(".character-list .open-target"));
 
         // The tier the samples are built to, typed as the book writes it rather than as the id
         // spells it — which is the whole reason the names are resolved before matching.
-        cut.Find(".options-filter input").Input("Standard");
+        await cut.Find(".options-filter input").InputAsync("Standard");
         Assert.Equal(8, cut.FindAll(".character-list .open-target").Count);
     }
 
