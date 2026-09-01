@@ -307,15 +307,41 @@ jobs:
         # got hold of.
         #
         # **`include-hidden-files` is why this step had never once uploaded anything.** The path
-        # is `.visual-regression/`, upload-artifact@v4 excludes dot-prefixed paths by default,
-        # and `if-no-files-found` defaults to `warn` — so the step logged "No files were found
-        # with the provided path" and went green, on every failing run, for as long as it has
-        # existed. That is this repository's oldest failure shape (a check satisfied by there
-        # being nothing to check) wearing a workflow step's clothes. `error` is set as well, so
-        # the same thing cannot happen quietly a second time: if this step runs and finds
-        # nothing, the run fails and says so.
+        # is `.visual-regression/`, upload-artifact excludes dot-prefixed paths by default, and
+        # `if-no-files-found` defaults to `warn` — so the step logged "No files were found with
+        # the provided path" and went green, on every failing run, for as long as it has existed.
+        # That is this repository's oldest failure shape (a check satisfied by there being
+        # nothing to check) wearing a workflow step's clothes. `error` is set as well, so the
+        # same thing cannot happen quietly a second time: if this step runs and finds nothing,
+        # the run fails and says so.
+        #
+        # **Both of those are v7's defaults, not v4's remembered — re-read and then proved.**
+        # The paragraph above described v4 and the pin is now `@v7`, which is exactly the dead
+        # pointer this repository treats as worse than none: three majors landed in between
+        # (v5 node24, v6 node24 by default, v7 ESM plus a new `archive` input), any of which
+        # could have moved a default and left the comment explaining a hazard that was gone —
+        # or, far worse, left the hazard in place while the comment read as history. `v7`'s own
+        # `action.yml` still declares `include-hidden-files` with `default: 'false'` and
+        # `if-no-files-found` with `default: 'warn'`, so the trap and both answers to it are
+        # unchanged.
+        #
+        # **Read is not proved, and this comment is the reason to distrust reading.** On the
+        # bump's own pull request a golden was deliberately corrupted so the comparison failed
+        # and this step actually ran, beside a temporary twin identical to it but for the one
+        # line under test. The twin — no `include-hidden-files`, same path, same
+        # `if-no-files-found: error` — failed with "No files were found with the provided path:
+        # .visual-regression/. No artifacts will be uploaded." in the same run in which this step
+        # uploaded 9 files and 867,576 bytes: the eight captures under
+        # `.visual-regression/actual/` and the one diff PNG for the single page whose golden was
+        # corrupted. That is the v4 defect reproduced on v7, and this step not having it, from
+        # one run rather than from two readings of a YAML file. The artifact was downloaded and
+        # its file list read, because "the step said it uploaded" is the claim, not the proof.
+        #
+        # v7's new `archive` input is deliberately left at its default: it uploads a single file
+        # unzipped and fails on a glob that resolves to more than one, and this path is a
+        # directory.
         if: ${{ !cancelled() && steps.visual.outcome == 'failure' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: visual-regression-diffs
           path: .visual-regression/
