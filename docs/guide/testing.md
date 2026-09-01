@@ -69,6 +69,19 @@ The project targets **.NET 10** (`global.json` pins SDK `10.0.100` with `latestM
 - **The exit code is not evidence.** The script requires `qodana.sarif.json` to exist and to parse, and exits non-zero with the tail of the log when it does not. A zero it prints is a zero from a report that exists. Watched to fire too: with no report written it exits 1 saying `NOTHING WAS INSPECTED` and reports that the container's own status was 0, which is the whole trap in one line.
 - **The export needs its own control.** A `git archive` that produced nothing scans an empty tree, which is trap one again; the script checks `qodana.yaml` is in the export before mounting anything.
 
+**The export is deleted on the way out, and on Windows that is a bug fix rather than tidiness.**
+Qodana *builds* the project it is given, so `.qodana-scan/project/` does not stay the clean tree
+`git archive` wrote — it grows `obj/Release/net10.0/…` under every test project, about half a
+gigabyte of it. In a worktree whose root is already 125 characters the deepest of those lands near
+288, and Windows' 260-character limit starts refusing operations on it: **`git worktree remove`
+fails with "Filename too long" *after* deregistering the worktree**, which leaves the files orphaned
+and git no longer able to delete them. `results/` and `qodana.log` survive, because they are what
+the run is for and what a failure is read from; the export is `git archive <commit>` and one command
+reproduces it. It is a `trap … EXIT`, so the SARIF-missing bail-out and a Ctrl-C leave no more behind
+than a clean run — **a trap that only fires when nothing went wrong never fires on the runs that
+matter**, and that was watched by planting an `exit 1` immediately after it and checking the export
+was gone and the results were not.
+
 It also groups the findings by file, which the tool's own summary never does — that summary counts by rule.
 - What is silenced and why, in one line each: `engine/Models/*.cs` exists to be deserialized by reflection (four inspections), the test transcription records document a rulebook page rather than being read, a `[Theory]` body asserting on its parameter is not a precondition guard, `JsonValue.Create(...)!` is load-bearing (removing it fails the warnings-as-errors build), and this codebase writes explicit constructors and named backing fields on purpose.
 - `data/rules/*.json` is copied to the output directory by the csproj, so a published build works without the repo checked out.

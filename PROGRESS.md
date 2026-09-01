@@ -1274,6 +1274,35 @@ So the trap the guide exists to warn about is **closed**, not reworded. But that
 
 ## Completed work
 
+### The Qodana scan left its export behind, and on Windows that orphaned a worktree
+
+**`scripts/qodana-scan.sh` deleted its staging directory at the *start* of a run and never at the
+end.** That was invisible until it was not: Qodana *builds* the project it is given, so
+`.qodana-scan/project/` does not stay the clean tree `git archive` wrote — it grows
+`obj/Release/net10.0/…` under every test project, about half a gigabyte, and every worktree that had
+ever run a scan was still holding one.
+
+**The failure it caused is worse than the disk.** A worktree root under `.claude/worktrees/` is
+already ~125 characters; the deepest path in that export lands near 288, and Windows' 260-character
+limit starts refusing operations on it. `git worktree remove` then fails with **"Filename too
+long" *after* deregistering the worktree** — so the worktree is gone from `git worktree list`, the
+files are still on disk, and git can no longer help delete them. That is what happened cleaning up
+after the leave/notify/view slice.
+
+**`results/` and `qodana.log` survive and the export does not**, because the first two are what the
+run is for and what a failure is read from, and the third is `git archive <commit>` — one command
+reproduces it exactly.
+
+**It is a `trap … EXIT`, not a line at the end of the happy path.** The SARIF-missing bail-out and a
+Ctrl-C are the runs most likely to leave a mess, and a trap that only fires when nothing went wrong
+never fires on them. Watched by planting an `exit 1` immediately after the trap: the script exited
+1, `project/` was gone and `results/` was not.
+
+**Related and not fixed here:** `core.longpaths` is unset in this repository and globally, so git is
+capped at 260 characters whatever the OS allows; `git config --global core.longpaths true` is one
+command and covers every clone. The Windows `LongPathsEnabled` policy is the general fix and needs
+administrator rights. Neither is necessary now that the export goes.
+
 ### Swapping the character in the banner left the sheet on the old one
 
 **The owner reported the pill and the sheet disagreeing, and the sheet was right** — it was drawing
