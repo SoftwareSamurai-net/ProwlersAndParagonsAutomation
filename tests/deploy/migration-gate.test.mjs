@@ -170,12 +170,17 @@ Resource location: remote
 No migrations to apply!
 `;
 
-// Captured verbatim from `npx wrangler@3.90.0 --cwd d1 d1 migrations list ... --remote` — the
-// exact wrangler version deploy.yml bundles with (see the comment beside
-// cloudflare/wrangler-action@v3 in deploy.yml). 3.90.0 does not understand `--cwd` at all and
-// dumps this command's usage instead of running it, which is the whole reason this gate must
-// pin a newer wrangler for the list/apply calls rather than reusing that version. ANSI colour
-// codes stripped; everything else is verbatim.
+// Captured verbatim from `npx wrangler@3.90.0 --cwd d1 d1 migrations list ... --remote`. 3.90.0
+// does not understand `--cwd` at all and dumps this command's usage instead of running it.
+//
+// **This used to be "the exact wrangler version deploy.yml bundles with", and it is not any
+// more**: the action is `cloudflare/wrangler-action@v4` and everything here now pins 4.127.0,
+// held together by `WranglerIsPinnedToOneVersion`. The fixture stays, and is worth more than the
+// history it records — a usage dump is what *any* wrangler answers a flag it does not know, and
+// the version that will one day not know one is a version nobody has met yet. What must never
+// happen is a usage dump being read as "nothing pending"; that is what this case pins.
+//
+// ANSI colour codes stripped; everything else is verbatim.
 const REAL_390_USAGE_DUMP = `
 X [ERROR] Unknown argument: cwd
 

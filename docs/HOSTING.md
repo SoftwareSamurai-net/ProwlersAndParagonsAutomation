@@ -153,7 +153,9 @@ current scale.
 ## Where the automation lives
 
 - `.github/workflows/deploy.yml` — the deploy on push to `main`. Direct
-  upload, wrangler pinned at 3.90.0. Includes the post-deploy `/api/me` check.
+  upload, wrangler pinned at 4.127.0 — the same version scripts/apply-migrations.sh
+  runs, held there by `WranglerIsPinnedToOneVersion`. Includes the post-deploy
+  `/api/me` check.
 - `.github/workflows/build.yml` — both suites plus a `wrangler pages functions
   build` at the same pinned version, so a bundler incompatibility fails the PR.
 - `scripts/inline-rulebook.mjs` — the bake step. Runs in CI before the bundle.

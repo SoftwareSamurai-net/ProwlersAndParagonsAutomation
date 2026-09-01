@@ -397,12 +397,25 @@ jobs:
         #
         # Same wrangler version as the deploy action, or the point is lost.
         run: |
-          # Assign, then replace on failure. `$(... || echo 3.90.0)` concatenates.
           # Matches any major, not `@v3` literally: Dependabot bumps this pin, and a pattern tied
-          # to one major would stop matching and fall through to the hardcoded version below —
-          # leaving the dry-run bundling with a wrangler the deploy no longer uses, silently.
+          # to one major would stop matching — which is what the fallback below used to hide.
           version=$(sed -n 's/^.*wrangler-action@v[0-9][0-9.]*.*# wrangler=\([0-9.]*\).*$/\1/p' .github/workflows/deploy.yml) || version=''
-          [ -n "$version" ] || version=3.90.0
+
+          # **This used to fall back to a hardcoded 3.90.0, and that fallback was the hazard.**
+          # The comment four lines above says "same wrangler version as the deploy action, or the
+          # point is lost" — and a fallback is precisely how the point gets lost quietly: the sed
+          # stops matching, the step goes on bundling against a version the deploy no longer
+          # uses, and everything is green. That is this repository's oldest failure shape again,
+          # so the answer is the one it always is: fail, name the line, and make somebody look.
+          # `WranglerIsPinnedToOneVersion` is the other half — it fails the suite when the three
+          # places that name a wrangler version stop agreeing, so this is the belt to that brace.
+          [ -n "$version" ] || {
+            echo "::error::Could not read a wrangler version out of deploy.yml's"
+            echo "::error::'uses: cloudflare/wrangler-action@…  # wrangler=<version>' line."
+            echo "::error::Refusing to bundle against a guess — the whole point of this step is"
+            echo "::error::that it uses the same wrangler the deploy will."
+            exit 1
+          }
 
           echo "Bundling the deploy with wrangler@$version, the same version as deploy.yml."
 

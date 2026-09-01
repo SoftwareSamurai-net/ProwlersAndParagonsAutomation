@@ -459,4 +459,85 @@ public sealed class WorkflowFilterTests
                 parts => parts[0].Split(' ', 2)[0],
                 StringComparer.Ordinal);
     }
+
+    /// <summary>
+    /// <b>Every place that names a wrangler version names the same one.</b>
+    ///
+    /// <para>There are three, and until this test they were kept in step by a note asking the
+    /// next reader to remember. <c>deploy.yml</c>'s <c>wranglerVersion:</c> input is what the
+    /// Pages upload actually runs; the <c>#&#160;wrangler=</c> comment on the <c>uses:</c> line
+    /// above it is parsed by <c>build.yml</c>'s pull-request dry-run so it bundles against the
+    /// same one; and <c>scripts/apply-migrations.sh</c>'s <c>WRANGLER_VERSION</c> is what lists
+    /// and applies D1 migrations on the step before. Two of the three used to be different
+    /// versions on purpose, for a reason that has since expired — see that script's header.</para>
+    ///
+    /// <para><b>The comment is the one that rots, and it has a documented history of it.</b>
+    /// Commit <c>a4ec6ef</c> fixed the dry-run's <c>sed</c> to match any major precisely because
+    /// Dependabot would one day bump the pin — and it ends by warning that the version *inside*
+    /// that comment is still hand-maintained, so a major bump has to update it or the two drift
+    /// apart again. This is that warning turned into something that fails.</para>
+    ///
+    /// <para><b>And the input matters as much as the comment now, which it did not before.</b>
+    /// <c>wrangler-action@v3</c> hard-coded <c>DEFAULT_WRANGLER_VERSION = "3.90.0"</c>, so
+    /// omitting the input was itself a pin. <c>@v4</c>'s default is the range <c>"4"</c>, so
+    /// omitting it would let the deploy float to whatever 4.x npm serves that minute while the
+    /// dry-run and the migration step stayed fixed. Deleting the input is therefore a real defect
+    /// and not a tidy-up, and this test treats a missing one as a failure rather than as nothing
+    /// to compare.</para>
+    ///
+    /// <para>Watched to fail four ways: each of the three versions changed on its own, and the
+    /// <c>wranglerVersion:</c> line deleted entirely.</para>
+    /// </summary>
+    [Fact]
+    public void WranglerIsPinnedToOneVersion()
+    {
+        var deploy = DeployWorkflow;
+
+        var comment = Regex.Match(
+            deploy,
+            @"^\s*uses:\s*cloudflare/wrangler-action@\S+\s+#\s*wrangler=(?<version>[0-9][0-9.]*)",
+            RegexOptions.Multiline,
+            TimeSpan.FromSeconds(5));
+
+        var input = Regex.Match(
+            deploy,
+            @"^\s*wranglerVersion:\s*""(?<version>[0-9][0-9.]*)""\s*$",
+            RegexOptions.Multiline,
+            TimeSpan.FromSeconds(5));
+
+        var script = Regex.Match(
+            File.ReadAllText(Path.Combine(RepoRoot, "scripts", "apply-migrations.sh")),
+            @"^WRANGLER_VERSION=""(?<version>[0-9][0-9.]*)""\s*$",
+            RegexOptions.Multiline,
+            TimeSpan.FromSeconds(5));
+
+        // The positive controls. Any one of these missing makes the comparison below pass
+        // vacuously, which is the shape of every guard this repository has had to fix twice.
+        Assert.True(comment.Success,
+            "deploy.yml's wrangler-action line carries no `# wrangler=<version>` comment, so "
+            + "build.yml's dry-run has nothing to read and would refuse. Restore it.");
+
+        Assert.True(input.Success,
+            "deploy.yml's deploy step names no `wranglerVersion:`, so the action falls back to "
+            + "its own default — which on @v4 is the range \"4\", not a version. The upload would "
+            + "float to whatever 4.x npm serves while everything else here stays pinned.");
+
+        Assert.True(script.Success,
+            "scripts/apply-migrations.sh no longer declares WRANGLER_VERSION=\"<version>\", so "
+            + "this test cannot see what the migration step runs.");
+
+        var fromComment = comment.Groups["version"].Value;
+        var fromInput = input.Groups["version"].Value;
+        var fromScript = script.Groups["version"].Value;
+
+        Assert.True(
+            fromComment == fromInput && fromInput == fromScript,
+            $"Three places name a wrangler version and they disagree: deploy.yml's "
+            + $"`# wrangler=` comment says {fromComment}, its `wranglerVersion:` input says "
+            + $"{fromInput}, and scripts/apply-migrations.sh says {fromScript}. The comment is "
+            + "what build.yml's pull-request dry-run bundles with, the input is what the Pages "
+            + "upload runs, and the script is what lists and applies migrations against the real "
+            + "database — so a disagreement means at least one of the three is testing or "
+            + "deploying with a wrangler nothing else uses.");
+    }
 }
