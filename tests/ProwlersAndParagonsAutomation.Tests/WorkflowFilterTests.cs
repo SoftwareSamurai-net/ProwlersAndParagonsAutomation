@@ -374,4 +374,89 @@ public sealed class WorkflowFilterTests
             + "deploy — applying it after would ship code ahead of the schema it depends on. "
             + $"The apply step is at character {apply.Index} and the deploy at {deploy.Index}.");
     }
+
+    /// <summary>
+    /// <b>Every script a workflow runs as <c>./path</c> is executable in the index.</b>
+    ///
+    /// <para><b>This is not hygiene; it is the failure it was written after.</b>
+    /// <c>scripts/apply-migrations.sh</c> was committed <c>100644</c>, so the first deploy after it
+    /// merged answered <c>Permission denied</c> and exited <b>126</b> — before running a line of
+    /// the gate it drives, and before the Pages upload that gate exists to hold back. The ordering
+    /// held and the site was never at risk, but nothing could ship and nothing in five suites had
+    /// a word to say about it.
+    ///
+    /// <para><b>No Windows checkout could have caught it, which is the whole reason this is a test
+    /// rather than a habit.</b> Git for Windows does not honour the mode bit in the working tree,
+    /// so <c>./scripts/apply-migrations.sh</c> runs perfectly on the machine it was written on and
+    /// fails on every Linux runner. The mode is real either way — it is in the index — so this
+    /// reads it out of git rather than off the filesystem, which is the only place the answer is
+    /// the same on both.</para>
+    ///
+    /// <para>Collected out of the workflows themselves, so a script added later is covered without
+    /// anybody remembering this file exists. Watched to fail three ways: the real defect, the same
+    /// bit cleared on a script that was already right, and the scan matching nothing.</para>
+    /// </summary>
+    [Fact]
+    public void EveryScriptAWorkflowRunsDirectlyIsExecutable()
+    {
+        var workflows = Directory.GetFiles(
+            Path.Combine(RepoRoot, ".github", "workflows"), "*.yml");
+
+        var invoked = workflows
+            .SelectMany(file => Regex.Matches(
+                File.ReadAllText(file),
+                @"^\s*run:\s*\./(?<path>[\w./-]+\.sh)",
+                RegexOptions.Multiline, TimeSpan.FromSeconds(5)))
+            .Select(m => m.Groups["path"].Value)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        // Without this, a scan that stopped matching would leave an empty set and pass.
+        Assert.NotEmpty(invoked);
+
+        var modes = Modes();
+
+        foreach (var script in invoked)
+        {
+            Assert.True(modes.TryGetValue(script, out var mode),
+                $"a workflow runs ./{script}, which git is not tracking at all.");
+
+            Assert.True(mode == "100755",
+                $"a workflow runs ./{script} directly and git records it as {mode}, not 100755. "
+                + "On a Linux runner that is `Permission denied` and exit 126, which is exactly "
+                + "how the first deploy of scripts/apply-migrations.sh failed. Fix it with "
+                + $"`git update-index --chmod=+x {script}` — and note a Windows checkout runs it "
+                + "happily either way, so this cannot be checked by hand here.");
+        }
+    }
+
+    /// <summary>Every tracked script's mode, read out of git — the one place Windows agrees.</summary>
+    private static Dictionary<string, string> Modes()
+    {
+        using var git = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = "git",
+            Arguments = "ls-files --stage -- scripts",
+            WorkingDirectory = RepoRoot,
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+        });
+
+        Assert.NotNull(git);
+
+        var listed = git!.StandardOutput.ReadToEnd();
+        git.WaitForExit();
+
+        Assert.Equal(0, git.ExitCode);
+
+        return listed
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Split('\t', 2))
+            .Where(parts => parts.Length == 2)
+            .ToDictionary(
+                parts => parts[1].Trim(),
+                parts => parts[0].Split(' ', 2)[0],
+                StringComparer.Ordinal);
+    }
 }
