@@ -68,7 +68,7 @@ public sealed class ProgressArchiveTests
         var next = rest.IndexOf("\n## ", StringComparison.Ordinal);
         var section = next >= 0 ? rest[..next] : rest;
 
-        var entries = Regex.Matches(section, @"^### (.+)$", RegexOptions.Multiline, TimeSpan.FromSeconds(5))
+        var entries = Regex.Matches(section, "^### (.+)$", RegexOptions.Multiline, TimeSpan.FromSeconds(5))
             .Select(m => m.Groups[1].Value)
             .ToList();
 
