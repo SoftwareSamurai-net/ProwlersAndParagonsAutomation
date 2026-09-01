@@ -595,6 +595,59 @@ export async function rejectSubmission(db, { id, gmUserId, version }) {
 }
 
 /**
+ * The player walks out: their row goes, and the campaign's clone of their character goes with it.
+ *
+ * <p><b>A bare `player_user_id = ?`, with no `EXISTS` on the campaign.</b> Every other statement
+ * about a membership carries that check on the GM's half and deliberately not on the player's —
+ * see `getMembership` — and leaving is the clearest case for it: a player may walk out of a game
+ * whether or not the GM still has it, and a row orphaned by a deleted campaign is exactly the row
+ * somebody most wants rid of.</p>
+ *
+ * <p><b>The clone goes too, and that is a decision rather than a consequence.</b> Deleting a
+ * campaign keeps its memberships precisely so that writing the campaign back is a complete undo;
+ * this is not that. There is no undo for leaving, the player is the one asking, and a campaign
+ * holding the sheet of somebody who has left is a roster this app would have no way to correct.</p>
+ */
+export async function leaveCampaign(db, { id, playerUserId }) {
+    return await db.prepare(
+        'DELETE FROM campaign_members WHERE id = ? AND player_user_id = ? RETURNING id')
+        .bind(id, playerUserId).first();
+}
+
+/**
+ * The GM removes somebody: the same row, reached by the other owner.
+ *
+ * <p><b>The `EXISTS` is here for the reason it is on the inbox, the detail read and both
+ * decisions</b>, and leaving it off would be the one place a GM could still act on a game they
+ * deleted. That matters more here than anywhere else: the player's row surviving a deleted
+ * campaign is what makes writing the campaign back a complete undo, and a removal reaching into
+ * that would take the undo with it.</p>
+ */
+export async function removeMember(db, { id, gmUserId }) {
+    return await db.prepare(
+        'DELETE FROM campaign_members '
+        + 'WHERE id = ? AND gm_user_id = ? '
+        + '  AND EXISTS (SELECT 1 FROM campaigns c '
+        + '              WHERE c.user_id = campaign_members.gm_user_id '
+        + '                AND c.id = campaign_members.campaign_id) '
+        + 'RETURNING id')
+        .bind(id, gmUserId).first();
+}
+
+/**
+ * Whether this account is the GM of that membership, campaign or no campaign.
+ *
+ * <p><b>Asked only when `removeMember` matched nothing</b>, and only to tell two silences apart:
+ * a row this account cannot name, and a row it can name in a game it has deleted. Without it the
+ * second is answered as the first, which would tell a GM the removal was done about a row that is
+ * still there.</p>
+ */
+export async function isGmOfMembership(db, { id, gmUserId }) {
+    return await db.prepare('SELECT id FROM campaign_members WHERE id = ? AND gm_user_id = ?')
+        .bind(id, gmUserId).first();
+}
+
+/**
  * Count one attempt against a key and say how many are in the current window.
  *
  * <p><b>The window rolls in the statement rather than in a read-modify-write.</b> Two requests

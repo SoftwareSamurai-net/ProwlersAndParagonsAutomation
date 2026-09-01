@@ -332,6 +332,9 @@ public sealed class AccountsContractTests
     /// <summary>
     /// The membership addresses are routed, all seven of them, and all inside the signed-in gate.
     ///
+    /// <para><b>One of the seven answers two verbs</b>, and that is checked separately below: the
+    /// bare membership address is a <c>GET</c> to read it and a <c>DELETE</c> to end it.</para>
+    ///
     /// <para><b>Read structurally out of <c>worker/index.js</c> alone, never with
     /// <c>Contains</c></b> — the reason this file records three times over. Every one of these
     /// literals also appears in <c>worker/errors.js</c>'s <c>KNOWN_ROUTES</c> and in
@@ -392,6 +395,24 @@ public sealed class AccountsContractTests
             + "test cannot see which addresses share its gate and would pass whatever they were.");
 
         Assert.Contains("/api/memberships", gate.Groups["body"].Value, StringComparison.Ordinal);
+
+        // **The bare address answers two verbs, and the second is the one that can be lost
+        // silently.** A `DELETE` arm that went missing would fall to `methodNotAllowed`, which the
+        // browser reads as unreachable — so Leave and Remove would still be drawn, still be
+        // pressable, and permanently do nothing but say "try again in a moment". Extracted
+        // between the two branch conditions rather than searched for across the file, because
+        // `'DELETE'` also appears in the character routes.
+        var bare = Regex.Match(indexJs,
+            @"if \(tail === ''\)(?<body>.*?)if \(tail === 'submission'\)",
+            RegexOptions.Singleline, TimeSpan.FromSeconds(5));
+
+        Assert.True(bare.Success,
+            "worker/index.js no longer branches on an empty membership tail, so this test cannot "
+            + "see which verbs the bare address answers and would pass whatever they were.");
+
+        Assert.Contains("memberships.read", bare.Groups["body"].Value, StringComparison.Ordinal);
+        Assert.Contains("memberships.leave", bare.Groups["body"].Value, StringComparison.Ordinal);
+        Assert.Contains("'DELETE'", bare.Groups["body"].Value, StringComparison.Ordinal);
 
         // And the campaign's own sub-path, which is the eighth new address.
         Assert.True(

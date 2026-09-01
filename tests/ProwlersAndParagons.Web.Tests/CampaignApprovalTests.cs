@@ -1,4 +1,6 @@
+using AngleSharp.Dom;
 using Bunit;
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
@@ -1494,6 +1496,195 @@ public sealed class CampaignApprovalTests
 
         // And nothing invites a decision about it.
         Assert.Empty(page.FindAll(".campaign-diff .btn"));
+    }
+
+    // ── Ending a membership, from both screens ──────────────────────────────────────────
+    //
+    // **Both controls ask twice**, because the row goes and the campaign's copy goes with it and
+    // there is no undo behind either. Every case below asserts the first press did NOT end it,
+    // which is the only assertion that can tell a confirm from a control that happens to be
+    // labelled like one.
+
+    private static IElement ByLabel(IRenderedComponent<IComponent> page, string label) =>
+        page.FindAll("button").First(b =>
+            string.Equals(b.TextContent.Trim(), label, StringComparison.Ordinal));
+
+    /// <summary>
+    /// <b>A player leaves, and the campaign stops holding their character.</b>
+    /// </summary>
+    [Fact]
+    public async Task APlayerCanLeaveAndTheCampaignStopsHoldingThem()
+    {
+        var settled = await AWaitingRequest();
+        await using var ctx = settled.Ctx;
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+
+        // The GM approves first, so what is being destroyed is a clone somebody accepted rather
+        // than an empty row — which is the case worth being sure about.
+        var waiting = (await memberships.InboxAsync())!.Single();
+
+        Assert.Equal(
+            DecisionOutcome.Done,
+            (await memberships.ApproveAsync(settled.Membership, waiting.PendingVersion)).Outcome);
+
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        var page = ctx.Render<Campaigns>();
+
+        // The control: the row is on screen to lose.
+        Assert.Contains("Ninefold", page.Markup, StringComparison.Ordinal);
+
+        await ByLabel(page, "Leave").ClickAsync(new MouseEventArgs());
+
+        // **One press does not end it.** Without this the confirm is decoration.
+        var afterOnePress = await memberships.MineAsync();
+
+        Assert.NotNull(afterOnePress);
+        Assert.Single(afterOnePress);
+
+        await ByLabel(page, "Leave for good").ClickAsync(new MouseEventArgs());
+
+        var afterTwo = await memberships.MineAsync();
+
+        Assert.NotNull(afterTwo);
+        Assert.Empty(afterTwo);
+
+        // Read out rather than coalesced, for the reason the deleted-campaign case records: a
+        // null list means the read failed, which is a different fact from an empty one.
+        Assert.DoesNotContain("Ninefold", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("You have left that game", page.Markup, StringComparison.Ordinal);
+
+        // The GM's half goes with it — there is no row left to hold the clone they accepted.
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        var inbox = await memberships.InboxAsync();
+
+        Assert.NotNull(inbox);
+        Assert.Empty(inbox);
+    }
+
+    /// <summary>
+    /// <b>A GM removes somebody, reaching the same row by the other owner column.</b>
+    /// </summary>
+    [Fact]
+    public async Task AGmCanRemoveAPlayerFromTheApprovalScreen()
+    {
+        var settled = await AWaitingRequest();
+        await using var ctx = settled.Ctx;
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, "g_0000000000000000000000"));
+
+        Assert.Contains("Ninefold", page.Markup, StringComparison.Ordinal);
+
+        await ByLabel(page, "Remove").ClickAsync(new MouseEventArgs());
+
+        var afterOnePress = await memberships.InboxAsync();
+
+        Assert.NotNull(afterOnePress);
+        Assert.Single(afterOnePress);
+
+        await ByLabel(page, "Remove for good").ClickAsync(new MouseEventArgs());
+
+        var afterTwo = await memberships.InboxAsync();
+
+        Assert.NotNull(afterTwo);
+        Assert.Empty(afterTwo);
+
+        Assert.Contains("no longer holds that character", page.Markup, StringComparison.Ordinal);
+
+        // The player's half goes too. Unlike a deleted campaign — which keeps every membership so
+        // that writing it back is a complete undo — this ends the membership for both of them.
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        var mine = await memberships.MineAsync();
+
+        Assert.NotNull(mine);
+        Assert.Empty(mine);
+    }
+
+    /// <summary>
+    /// <b>A removal from a game the GM has deleted does not happen, and is not reported as
+    /// having happened.</b>
+    ///
+    /// <para>The player's row deliberately outlives a deleted campaign so that writing the
+    /// campaign back is a complete undo, and <c>removeMember</c>'s <c>EXISTS</c> is what keeps
+    /// that whole — the server answers 409 rather than a 204 that would report a removal that did
+    /// not occur.</para>
+    ///
+    /// <para><b>What the GM sees is the page having moved on</b>, not a sentence about the
+    /// refusal: reaching that 409 means having deleted the game, so by the time there is anything
+    /// to say the panel it would be said in is no longer drawn. A message composed for that state
+    /// would be thrown away unrendered, which is the fault finding 7 records about this screen —
+    /// so this asserts the page is right rather than that it apologises.</para>
+    /// </summary>
+    [Fact]
+    public async Task ARemovalFromADeletedGameDoesNotHappenAndIsNotReportedAsHavingHappened()
+    {
+        var settled = await AWaitingRequest();
+        await using var ctx = settled.Ctx;
+
+        var memberships = ctx.Services.GetRequiredService<ApiMembershipStore>();
+
+        var page = ctx.Render<CampaignApproval>(p => p.Add(c => c.Id, "g_0000000000000000000000"));
+
+        await ByLabel(page, "Remove").ClickAsync(new MouseEventArgs());
+
+        // Deleted between the confirm being offered and it being pressed — the other-tab case,
+        // and the only way a GM reaches this refusal at all.
+        await ctx.Services.GetRequiredService<ApiCampaignStore>()
+            .DeleteAsync("g_0000000000000000000000");
+
+        await ByLabel(page, "Remove for good").ClickAsync(new MouseEventArgs());
+
+        // Nothing claims the removal happened.
+        Assert.DoesNotContain("no longer holds that character", page.Markup, StringComparison.Ordinal);
+        Assert.Contains("no game here for this account", page.Markup, StringComparison.Ordinal);
+
+        // And the player still has their row, which is the whole reason that refusal exists.
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        var mine = await memberships.MineAsync();
+
+        Assert.NotNull(mine);
+        Assert.Single(mine);
+
+        // The store still models the server's answer, which is what the worker suite drives
+        // against real SQLite — the value is not reachable on this screen, and it is real.
+        ctx.Api.SignedIn = ("u_gm", "The GM");
+
+        Assert.Equal(LeftOutcome.GameIsGone, await memberships.LeaveAsync(settled.Membership));
+    }
+
+    /// <summary>
+    /// <b>Cancelling a confirm ends nothing and puts the control back.</b>
+    /// </summary>
+    [Fact]
+    public async Task CancellingAConfirmEndsNothing()
+    {
+        var joined = await AJoinedMember();
+        await using var ctx = joined.Ctx;
+
+        ctx.Api.SignedIn = ("u_player", "The Player");
+
+        var page = ctx.Render<Campaigns>();
+
+        await ByLabel(page, "Leave").ClickAsync(new MouseEventArgs());
+        await ByLabel(page, "Cancel").ClickAsync(new MouseEventArgs());
+
+        var still = await ctx.Services.GetRequiredService<ApiMembershipStore>().MineAsync();
+
+        Assert.NotNull(still);
+        Assert.Single(still);
+
+        // The plain control is back, and the confirm is not still sitting open.
+        Assert.Contains(page.FindAll("button"),
+            b => string.Equals(b.TextContent.Trim(), "Leave", StringComparison.Ordinal));
+
+        Assert.DoesNotContain(page.FindAll("button"),
+            b => string.Equals(b.TextContent.Trim(), "Leave for good", StringComparison.Ordinal));
     }
 
     /// <summary>

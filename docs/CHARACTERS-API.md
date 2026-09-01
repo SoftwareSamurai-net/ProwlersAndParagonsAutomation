@@ -146,6 +146,7 @@ the **whole snapshot**. Accepting replaces the campaign's clone. Both sides keep
 | `GET` | `/api/memberships` | your own characters' memberships and where each stands |
 | `GET` | `/api/memberships/inbox` | every membership of every campaign you run |
 | `GET` | `/api/memberships/{id}` | one membership: the clone and the snapshot, in full |
+| `DELETE` | `/api/memberships/{id}` | end it — the player leaving, or the GM removing them |
 | `PUT` | `/api/memberships/{id}/submission` | send a snapshot for approval |
 | `POST` | `/api/memberships/{id}/approve` | accept the snapshot at a named version |
 | `POST` | `/api/memberships/{id}/reject` | turn it down, at a named version |
@@ -184,6 +185,41 @@ it, a GM who runs two campaigns and deletes one keeps reading the deleted one's 
 **The GM only ever sees a payload the player deliberately sent them**, never one this server went
 and fetched out of their account. And the GM is never told whose account it was: `characterId` is
 answered to the player, who needs it, and withheld from the GM, who approves `m_…`.
+
+### Ending a membership: one address, two meanings, decided by the column that matches
+
+`DELETE /api/memberships/{id}` is a player walking out **and** a GM removing somebody, and nothing
+in the request says which. Two statements run in turn — `player_user_id = ?`, then
+`gm_user_id = ?` — so which one matches is what the request means, and a third account matches
+neither and ends nothing.
+
+**The row goes, and the campaign's clone goes with it.** That is the opposite of what deleting a
+*campaign* does, and the difference is the point: a deleted campaign keeps its memberships so that
+writing it back is a complete undo, and there is no undo behind ending a membership. A campaign
+holding the sheet of somebody who has left would be a roster this app has no way to correct.
+**Neither side's own character is touched** — the player's rows are theirs, and a removal is a
+decision about a roster rather than about somebody else's work, the same line a rejection draws.
+
+**The two halves are asymmetric in the same direction as every other statement here.** The
+player's is a bare `player_user_id = ?`; the GM's carries the `EXISTS` on the campaign. So a
+player may walk out of a game the GM has thrown away — which is the row somebody most wants rid of
+— and a GM who deleted a game cannot reach into the memberships that outlived it, because those
+surviving rows are exactly what makes writing the campaign back a complete undo.
+
+**204 whether or not a row matched**, for the reason `join` answers an existing membership rather
+than a conflict: what the caller asked for is *that membership is not there*, and it is not. It is
+also why an id belonging to somebody else answers identically — a 404-or-204 split would say
+whether an id exists.
+
+**The one refusal is 409, and only a GM can receive it**: the campaign is gone, so the removal did
+not happen and must not be reported as though it had. Same sentence both decisions give — *That
+campaign is no longer here.* A malformed id is still 400, which is a fact about the request rather
+than about a row.
+
+**Rejoining afterwards works and starts clean.** The unique index over
+`(gm_user_id, campaign_id, player_user_id, character_id)` is free again, so redeeming the code
+inserts a new `m_…` with no clone, nothing waiting and `pending_version` back at zero — rather
+than the `ON CONFLICT … DO UPDATE` that hands back an existing row.
 
 ### The one place the "only your own rows" rule bends, and why
 

@@ -80,6 +80,21 @@ else
                                 @(_reading == one.Id ? "Close"
                                     : one.HasPending ? "Read the changes" : "View sheet")
                             </button>
+
+                            @* Two presses, for the reason the player's own Leave records: the
+                               clone goes with the row and there is no undo behind it. *@
+                            @if (_removing == one.Id)
+                            {
+                                <button type="button" class="btn small"
+                                        @onclick="() => Remove(one.Id)">Remove for good</button>
+                                <button type="button" class="btn small quiet"
+                                        @onclick="() => _removing = null">Cancel</button>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn small quiet"
+                                        @onclick="() => _removing = one.Id">Remove</button>
+                            }
                         </div>
 
                         @if (_reading == one.Id)
@@ -305,6 +320,9 @@ else
     /// <summary>Which membership's changes are open, or null.</summary>
     private string? _reading;
 
+    /// <summary>Which membership is one press away from being removed, or null.</summary>
+    private string? _removing;
+
     /// <summary>Which of the seven the open row is showing. Meaningless while nothing is open.</summary>
     private Showing _showing = Showing.Asking;
 
@@ -511,6 +529,36 @@ else
         }
 
         _showing = row?.HasApproved == true ? Showing.CloneUnreadable : Showing.NothingSent;
+    }
+
+    /// <summary>
+    /// Remove somebody from the game. The row goes, and the campaign's clone with it.
+    ///
+    /// <para><b>The player's own character is untouched.</b> Their rows are theirs, and a removal
+    /// is a decision about this campaign's roster rather than about somebody else's work — the
+    /// same line a rejection draws, and for the same reason.</para>
+    /// </summary>
+    private async Task Remove(string membershipId)
+    {
+        _removing = null;
+
+        var left = await Memberships.LeaveAsync(membershipId);
+
+        if (_reading == membershipId) Close();
+
+        await Refresh();
+
+        // **Set after the refresh, and only while this campaign is still on screen.** The one
+        // refusal a GM can reach here is `GameIsGone`, and the only way to reach it is to have
+        // deleted the game — at which point `Refresh` has already moved the page to `NotYours`,
+        // where nothing in this panel is drawn. A sentence written for that state would be
+        // composed and thrown away unrendered, which is verbatim the fault finding 7 records
+        // about this very screen. So the page answers it by being the right page instead.
+        if (_state != Reading.Read) return;
+
+        _said = left == LeftOutcome.Done
+            ? "Removed. This campaign no longer holds that character."
+            : "Nothing could be reached just now. Try again in a moment.";
     }
 
     /// <summary>

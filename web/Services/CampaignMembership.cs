@@ -130,6 +130,33 @@ public enum DecisionOutcome
 }
 
 /// <summary>
+/// What became of an attempt to end a membership — a player leaving, or a GM removing somebody.
+///
+/// <para><b>Three values rather than a bool</b>, because the one refusal is a state the reader can
+/// do something about and "it did not work" is not the same sentence as "that game is not there
+/// any more".</para>
+/// </summary>
+public enum LeftOutcome
+{
+    /// <summary>
+    /// The membership is not there. <b>Also the answer to ending one twice</b>, and to ending one
+    /// belonging to somebody else: the server answers on the end state rather than on whether this
+    /// particular request was the one that changed it.
+    /// </summary>
+    Done,
+
+    /// <summary>
+    /// Refused: this account is the GM and has deleted the game. The player's row deliberately
+    /// outlives a deleted campaign so that writing it back is a complete undo, so a removal from
+    /// one is refused rather than reported as done.
+    /// </summary>
+    GameIsGone,
+
+    /// <summary>Nothing could be reached, so nothing is known to have happened.</summary>
+    Unreachable,
+}
+
+/// <summary>
 /// What a decision answered.
 /// </summary>
 /// <param name="Outcome">Which of the four.</param>
@@ -370,6 +397,38 @@ public sealed class ApiMembershipStore
         {
             return new Decision(DecisionOutcome.Unreachable);
         }
+    }
+
+    /// <summary>
+    /// End a membership: the player walking out, or the GM removing somebody.
+    ///
+    /// <para><b>One address and two meanings, and the server decides which from the owner column
+    /// that matches</b> — so nothing here sends a role, and nothing here could claim one it does
+    /// not have. A third account's request ends nothing and is told nothing.</para>
+    ///
+    /// <para><b>The row goes and the campaign's clone with it.</b> Deleting a campaign keeps its
+    /// memberships so that writing it back is a complete undo; this is the opposite act and has no
+    /// undo behind it, which is why both controls that reach it ask twice.</para>
+    ///
+    /// <para><b>The refusal comes back in the result rather than out of band.</b>
+    /// <see cref="LastJoinRefusal"/> is the older shape, and PROGRESS.md records returning it in
+    /// the result as the smaller surface — so nothing new is written the other way.</para>
+    /// </summary>
+    public async Task<LeftOutcome> LeaveAsync(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return LeftOutcome.Unreachable;
+
+        try
+        {
+            using var response = await _http.DeleteAsync($"{List}/{Uri.EscapeDataString(id)}");
+
+            if (response.IsSuccessStatusCode) return LeftOutcome.Done;
+
+            return response.StatusCode == HttpStatusCode.Conflict
+                ? LeftOutcome.GameIsGone
+                : LeftOutcome.Unreachable;
+        }
+        catch (Exception e) when (IsUnreachable(e)) { return LeftOutcome.Unreachable; }
     }
 
     /// <summary>

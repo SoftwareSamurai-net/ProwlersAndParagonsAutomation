@@ -691,7 +691,7 @@ test('the wrong method is refused on every membership address', async () => {
         ['POST', '/api/memberships'],
         ['POST', '/api/memberships/inbox'],
         ['GET', '/api/memberships/join'],
-        ['DELETE', `/api/memberships/${membership}`],
+        ['PATCH', `/api/memberships/${membership}`],
         ['POST', `/api/memberships/${membership}/submission`],
         ['PUT', `/api/memberships/${membership}/approve`],
         ['GET', `/api/campaigns/${gid()}/code`],
@@ -705,6 +705,159 @@ test('the wrong method is refused on every membership address', async () => {
     }
 });
 
+// ── Ending a membership ─────────────────────────────────────────────────────────────────
+//
+// **Both sides can end one, and each reaches the row by its own column** — which is what makes a
+// third account able to end nothing. The row goes and the campaign's clone goes with it: deleting
+// a *campaign* keeps its memberships so that writing it back is a complete undo, and ending a
+// *membership* is the opposite act with no undo behind it.
+
+const leave = (app, cookie, id) =>
+    app.call(`/api/memberships/${id}`, { method: 'DELETE', cookie });
+
+test('a player can leave, and the campaign stops holding their character', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    const sent = await submit(app, player.cookie, membership);
+    assert.equal(sent.status, 200);
+    assert.equal((await decide(app, gm.cookie, membership, 'approve', 1)).status, 204);
+
+    // The positive control, at both ends: the GM holds a clone and the player has a standing.
+    const before = await (await app.call('/api/memberships/inbox', { cookie: gm.cookie })).json();
+    assert.equal(before.memberships.length, 1);
+    assert.equal(before.memberships[0].hasApproved, true);
+
+    assert.equal((await leave(app, player.cookie, membership)).status, 204);
+
+    // Gone from both halves, and the clone with it — there is no row left to hold one.
+    const after = await (await app.call('/api/memberships/inbox', { cookie: gm.cookie })).json();
+    assert.equal(after.memberships.length, 0);
+
+    const mine = await (await app.call('/api/memberships', { cookie: player.cookie })).json();
+    assert.equal(mine.memberships.length, 0);
+
+    assert.equal((await app.call(`/api/memberships/${membership}`,
+        { cookie: gm.cookie })).status, 404);
+    assert.equal((await app.call(`/api/memberships/${membership}`,
+        { cookie: player.cookie })).status, 404);
+});
+
+test('a GM can remove a player, reaching the same row by the other column', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await submit(app, player.cookie, membership)).status, 200);
+
+    // The control: it is in the GM's inbox to lose.
+    const before = await (await app.call('/api/memberships/inbox', { cookie: gm.cookie })).json();
+    assert.equal(before.memberships.length, 1);
+
+    assert.equal((await leave(app, gm.cookie, membership)).status, 204);
+
+    const after = await (await app.call('/api/memberships/inbox', { cookie: gm.cookie })).json();
+    assert.equal(after.memberships.length, 0);
+
+    // And the player's half goes too. Unlike a deleted campaign, this is not an undoable act
+    // held open on one side: the membership is over for both of them.
+    const mine = await (await app.call('/api/memberships', { cookie: player.cookie })).json();
+    assert.equal(mine.memberships.length, 0);
+});
+
+test('a third account ends nothing, and learns nothing by asking', async () => {
+    const { app, membership } = await aTable();
+
+    const stranger = await signIn(app, 'stranger@example.test');
+
+    assert.equal((await leave(app, stranger.cookie, membership)).status, 204);
+
+    // The membership is still there, which is the whole point: the answer above says the caller
+    // has no such row, not that the row is gone.
+    const still = await (await app.call('/api/memberships/inbox',
+        { cookie: (await signIn(app, 'gm@example.test')).cookie })).json();
+
+    assert.equal(still.memberships.length, 1);
+});
+
+test('leaving twice is not an error, and neither is leaving what was never there', async () => {
+    const { app, player, membership } = await aTable();
+
+    assert.equal((await leave(app, player.cookie, membership)).status, 204);
+
+    // The end state the caller asked for is "that membership is not there", and it is not — the
+    // same reasoning `join` records for a second join with the same code. It is also why a row
+    // belonging to somebody else answers identically: a 404-or-204 split would say whether an id
+    // exists.
+    assert.equal((await leave(app, player.cookie, membership)).status, 204);
+    assert.equal((await leave(app, player.cookie, mid(7))).status, 204);
+
+    // A malformed id is still a 400 — that is a fact about the request, not about a row.
+    assert.equal((await leave(app, player.cookie, 'not-an-id')).status, 400);
+});
+
+test('a GM who deleted the game cannot remove its members, and is told why', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    assert.equal((await app.call(`/api/campaigns/${gid()}`,
+        { method: 'DELETE', cookie: gm.cookie })).status, 204);
+
+    // **Not 204.** The player's row deliberately outlives the campaign so that writing the
+    // campaign back is a complete undo, and `removeMember`'s `EXISTS` is what keeps that whole —
+    // so a removal that did not happen must not be reported as one.
+    const refused = await leave(app, gm.cookie, membership);
+
+    assert.equal(refused.status, 409);
+    assert.match((await refused.json()).error, /no longer here/);
+
+    // The player still has their row, and can still walk out of it themselves.
+    const mine = await (await app.call('/api/memberships', { cookie: player.cookie })).json();
+    assert.equal(mine.memberships.length, 1);
+
+    assert.equal((await leave(app, player.cookie, membership)).status, 204);
+});
+
+test('a player who left can rejoin with the same code, on a fresh membership', async () => {
+    const { app, player, code, membership } = await aTable();
+
+    assert.equal((await leave(app, player.cookie, membership)).status, 204);
+
+    // The unique index over (gm, campaign, player, character) is free again, so this is an insert
+    // rather than the `ON CONFLICT … DO UPDATE` that answers an existing row.
+    const again = await join(app, player.cookie, { code });
+
+    assert.equal(again.status, 200);
+
+    const rejoined = (await again.json()).id;
+
+    assert.notEqual(rejoined, membership, 'rejoining answered the row that was deleted');
+
+    // And it starts clean: no clone, nothing waiting, version back at zero.
+    const read = await (await app.call(`/api/memberships/${rejoined}`,
+        { cookie: player.cookie })).json();
+
+    assert.equal(read.approved, null);
+    assert.equal(read.pending, null);
+    assert.equal(read.pendingVersion, 0);
+});
+
+test('ending one membership leaves every other one alone', async () => {
+    const { app, gm, player, membership } = await aTable();
+
+    // A second character of the same player, in the same game.
+    const second = await join(app, player.cookie,
+        { code: await joinCodeFor(app, gm.cookie), characterId: cid(1), label: 'Second' });
+
+    assert.equal(second.status, 200);
+
+    const other = (await second.json()).id;
+
+    assert.equal((await leave(app, player.cookie, membership)).status, 204);
+
+    const mine = await (await app.call('/api/memberships', { cookie: player.cookie })).json();
+
+    assert.equal(mine.memberships.length, 1);
+    assert.equal(mine.memberships[0].id, other);
+    assert.equal(mine.memberships[0].characterId, cid(1));
+});
+
 test('a state-changing membership request from another origin is refused', async () => {
     const { app, gm, player, membership } = await aTable();
 
@@ -713,6 +866,8 @@ test('a state-changing membership request from another origin is refused', async
         [player.cookie, 'PUT', `/api/memberships/${membership}/submission`],
         [gm.cookie, 'POST', `/api/memberships/${membership}/approve`],
         [gm.cookie, 'POST', `/api/memberships/${membership}/reject`],
+        [player.cookie, 'DELETE', `/api/memberships/${membership}`],
+        [gm.cookie, 'DELETE', `/api/memberships/${membership}`],
         [gm.cookie, 'POST', `/api/campaigns/${gid()}/code`],
     ]) {
         const response = await app.call(path,

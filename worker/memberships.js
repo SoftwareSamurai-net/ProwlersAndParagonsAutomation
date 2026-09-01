@@ -292,6 +292,45 @@ export async function reject(request, env, deps, user, id) {
 }
 
 /**
+ * End a membership: the player leaving, or the GM removing them. One address, two meanings.
+ *
+ * <p><b>Which it means is decided by which owner column matches, not by anything the caller
+ * says.</b> A membership names two accounts and each side's statement carries its own column, so
+ * a third account matches neither and ends nothing — the same shape as every other statement
+ * here, and the reason this needs no role in the request.</p>
+ *
+ * <p><b>The row goes, and the campaign's clone with it.</b> Deleting a *campaign* keeps its
+ * memberships so that writing it back is a complete undo; ending a *membership* is the opposite
+ * act and has no undo. A campaign holding the sheet of somebody who has left would be a roster
+ * with no way to correct it.</p>
+ *
+ * <p><b>A second identical request is not an error</b>, for the reason `join` records about a
+ * second join: the end state the caller asked for is "that membership is not there", and it is
+ * not. It also means the answer says nothing about whether an id belongs to somebody else, which
+ * a 404-or-204 split would.</p>
+ *
+ * <p><b>The one refusal is a GM whose campaign is gone</b>, which is 409 and the same sentence
+ * both decisions give. Answering 204 there would report a removal that did not happen: the
+ * player's row deliberately outlives the campaign, and `removeMember`'s `EXISTS` is what keeps a
+ * restore whole.</p>
+ */
+export async function leave(request, env, deps, user, id) {
+    if (!sameOrigin(request)) return fail(403, 'This request did not come from this site.');
+    if (!ID_PATTERN.test(id)) return fail(400, 'That is not a membership id this server uses.');
+
+    if (await db.leaveCampaign(env.DB, { id, playerUserId: user.id })) return noContent();
+    if (await db.removeMember(env.DB, { id, gmUserId: user.id })) return noContent();
+
+    // Neither statement matched. That is a row belonging to somebody else, a row that was already
+    // gone, or a game this account has deleted — and only the last is a refusal.
+    if (await db.isGmOfMembership(env.DB, { id, gmUserId: user.id })) {
+        return fail(409, 'That campaign is no longer here.');
+    }
+
+    return noContent();
+}
+
+/**
  * The compare-and-swap both decisions share, and the refusal both give.
  *
  * <p>One function because a refusal has to read the same either way and two copies would be two

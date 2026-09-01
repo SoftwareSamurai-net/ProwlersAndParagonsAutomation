@@ -53,6 +53,17 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   the same six-label format. `Areas.Of` answers it; `MainLayout` draws neither there. **It now
   covers the portfolio and the sign-in page too** — there are four areas; see [`browser.md`](browser.md), "Four areas, and the
   address decides which".
+- **Ending a membership is one address with two meanings, and the column that matches is what
+  decides which.** `DELETE /api/memberships/{id}` is a player leaving *and* a GM removing
+  somebody; nothing in the request says which, so nothing in it can claim a role it does not have.
+  The row goes and the campaign's clone with it — **the opposite of deleting a campaign**, which
+  keeps every membership precisely so that writing the campaign back is a complete undo. The
+  asymmetry runs the same way as everywhere else here: the player's statement is a bare
+  `player_user_id = ?` so somebody can walk out of a game the GM has thrown away, and the GM's
+  carries the `EXISTS` so a deleted campaign's surviving rows stay survivable. It answers 204 even
+  when nothing matched — the end state asked for is true either way, and a 404-or-204 split would
+  say whether an id exists — with one refusal, 409 to a GM whose campaign is gone, because a
+  removal that did not happen must not be reported as one. See `docs/CHARACTERS-API.md`.
 - **It holds no rules and must never gain one.** A character is stored as an opaque string it
   never parses — the engine decides cost and legality and runs in the browser. A second place
   that understood the shape of a character is a second place to keep in step.
