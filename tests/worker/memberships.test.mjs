@@ -739,3 +739,52 @@ test('sweeping the join codes is bounded', async () => {
     app.now += 61 * 60 * 1000;
     assert.equal((await join(app, player.cookie, { code: 'ABCDE-FGHJK' })).status, 404);
 });
+
+test('two GMs may share a campaign id, and a join lands in the campaign whose code was redeemed', async () => {
+    // **A `g_…` is unique per account, not globally.** `campaigns` is `PRIMARY KEY (user_id, id)`,
+    // and the id is the client's — so two GMs holding the same one is a state the schema allows
+    // and a state an attacker can arrange, because a campaign's id is handed to every member of
+    // it in the join response and travels in an exported character's own `CampaignId`.
+    //
+    // The defect this guards: with `gm_user_id` out of `campaign_members_one_per_character`, the
+    // player's second join conflicted with their row in the *first* campaign, `ON CONFLICT … DO
+    // UPDATE` handed that row back, and every snapshot they sent afterwards was delivered to a GM
+    // they never joined — while the GM whose code they redeemed saw an empty inbox.
+    const app = server();
+
+    const alice = await signIn(app, 'alice@example.test');
+    assert.equal((await putCampaign(app, alice.cookie, { label: 'Alice’s game' })).status, 204);
+    const aliceCode = await joinCodeFor(app, alice.cookie);
+
+    const mallory = await signIn(app, 'mallory@example.test');
+    assert.equal((await putCampaign(app, mallory.cookie, { label: 'Mallory’s game' })).status, 204,
+        'campaign ids are per-account, so the same id in a second account is an ordinary write');
+    const malloryCode = await joinCodeFor(app, mallory.cookie);
+
+    assert.notEqual(aliceCode, malloryCode, 'two campaigns must never share a code');
+
+    const player = await signIn(app, 'player@example.test');
+
+    const first = await join(app, player.cookie, { code: aliceCode });
+    assert.equal(first.status, 200);
+    const inAlice = (await first.json()).id;
+
+    const second = await join(app, player.cookie, { code: malloryCode });
+    assert.equal(second.status, 200);
+    const inMallory = (await second.json()).id;
+
+    // The whole of it: two campaigns, two memberships.
+    assert.notEqual(inMallory, inAlice,
+        'the second join answered a membership of the first GM’s campaign');
+
+    // And the snapshot goes where the player thinks it goes. Asserted through the inboxes rather
+    // than through the id alone, because the id being different is the mechanism and this is the
+    // consequence — a mechanism that stopped producing it would still satisfy the line above.
+    assert.equal((await submit(app, player.cookie, inMallory)).status, 200);
+
+    const mallorysInbox = await (await app.call('/api/memberships/inbox', { cookie: mallory.cookie })).json();
+    const alicesInbox = await (await app.call('/api/memberships/inbox', { cookie: alice.cookie })).json();
+
+    assert.deepEqual(mallorysInbox.memberships.map(m => [m.id, m.hasPending]), [[inMallory, true]]);
+    assert.deepEqual(alicesInbox.memberships.map(m => [m.id, m.hasPending]), [[inAlice, false]]);
+});

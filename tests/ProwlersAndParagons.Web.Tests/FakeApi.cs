@@ -545,7 +545,13 @@ public sealed class FakeApi : HttpMessageHandler
     }
 
     /// <summary>
-    /// A join code, in the shape and alphabet the real server mints — ten symbols and a hyphen.
+    /// A join code, in the form the real server puts on the wire — <b>ten symbols and no hyphen</b>.
+    ///
+    /// <para><b>This minted a hyphenated eleven characters, and the server never sends one.</b>
+    /// `normaliseJoinCode` takes the punctuation out on the way in, so what is stored and what
+    /// both `/api/campaigns` and `/api/campaigns/{id}/code` answer is the bare ten — the hyphen is
+    /// presentation, put back by `SavedCampaignSummary.Spoken` where a reader is. A fake sending a
+    /// shape the server does not is a suite that cannot see the drift it exists to catch.</para>
     ///
     /// <para>Sequential rather than random for the reason the clock is a counter: a test asserting
     /// on a code has to be able to predict it, and two codes minted in one test must differ.</para>
@@ -554,7 +560,7 @@ public sealed class FakeApi : HttpMessageHandler
     {
         var n = ++_codes;
 
-        return $"AAAA{n % 10}-BBBB{n % 10}";
+        return $"AAAA{n % 10}BBBB{n % 10}";
     }
 
     private int _codes;

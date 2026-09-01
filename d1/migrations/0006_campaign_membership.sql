@@ -81,8 +81,17 @@ CREATE TABLE campaign_members (
 -- One membership per character per campaign. `player_user_id` is in the key as well as
 -- `character_id`, so one account cannot squat on an id belonging to another and block a join it
 -- has no business knowing about.
+--
+-- **`gm_user_id` leads the key, and leaving it out was a real hole rather than a tidiness point.**
+-- `campaigns` is `PRIMARY KEY (user_id, id)`, so a `g_…` is unique *per account* and two GMs may
+-- hold the same one — a `g_…` is handed to every member of a campaign in the join response and
+-- travels in an exported character's `CampaignId`, so knowing one takes no work. Without this
+-- column the two campaigns share a key here: a player joining the second one conflicts with their
+-- row in the first, `ON CONFLICT … DO UPDATE` hands back *that* row, and every snapshot they send
+-- afterwards is delivered to a GM they never joined — while the GM whose code they redeemed sees
+-- an empty inbox. The whole "two owners on one row" promise above is this column being in the key.
 CREATE UNIQUE INDEX campaign_members_one_per_character
-    ON campaign_members (campaign_id, player_user_id, character_id);
+    ON campaign_members (gm_user_id, campaign_id, player_user_id, character_id);
 
 -- The GM's read: every membership of a campaign they own.
 CREATE INDEX campaign_members_by_gm ON campaign_members (gm_user_id, campaign_id);

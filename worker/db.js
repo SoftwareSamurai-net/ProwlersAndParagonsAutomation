@@ -395,6 +395,13 @@ export async function campaignByJoinCode(db, joinCode) {
  * <p><b>Neither payload is touched here.</b> Joining is not submitting: a player joins, sees the
  * tier, builds, and sends for approval when they choose to. A join that wrote a snapshot would
  * put a character in front of the GM before the player meant it to be seen.</p>
+ *
+ * <p><b>`gm_user_id` is in the conflict target and comes back in the `RETURNING`</b>, and both
+ * halves matter. A `g_…` is unique per account rather than globally — see the migration — so
+ * without the column in the key a player joining a second GM's campaign that happens to share an
+ * id conflicts with their row in the first, and this hands back a membership belonging to a GM
+ * they never joined. The column in the key is the fix; the column in the `RETURNING` is what lets
+ * `memberships.join` refuse rather than trust the index, which is the half a test can break.</p>
  */
 export async function joinCampaign(
     db, { id, campaignId, gmUserId, playerUserId, characterId, label, now }) {
@@ -402,9 +409,9 @@ export async function joinCampaign(
         'INSERT INTO campaign_members '
         + '  (id, campaign_id, gm_user_id, player_user_id, character_id, label, joined_at) '
         + 'VALUES (?, ?, ?, ?, ?, ?, ?) '
-        + 'ON CONFLICT (campaign_id, player_user_id, character_id) DO UPDATE SET '
+        + 'ON CONFLICT (gm_user_id, campaign_id, player_user_id, character_id) DO UPDATE SET '
         + '  label = excluded.label '
-        + 'RETURNING id, campaign_id, label, pending_version')
+        + 'RETURNING id, campaign_id, gm_user_id, label, pending_version')
         .bind(id, campaignId, gmUserId, playerUserId, characterId, label, now)
         .first();
 }

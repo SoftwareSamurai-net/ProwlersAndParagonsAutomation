@@ -575,4 +575,50 @@ public sealed class CampaignStorageTests
         Assert.False(string.IsNullOrWhiteSpace(row.JoinCode),
             "a campaign nobody can be told the code of is a campaign nobody can join");
     }
+
+    /// <summary>
+    /// The code the GM reads out carries its hyphen, and the code on the wire does not.
+    ///
+    /// <para><b>The hyphen was meant to travel with the code and did not.</b> The server stores
+    /// the normalised ten symbols — <c>normaliseJoinCode</c> takes the punctuation out so a player
+    /// who types the code without it still gets in — the list answers those, and the screen
+    /// printed them, so a code minted as <c>Q4TWX-NPRKM</c> was only ever shown as
+    /// <c>Q4TWXNPRKM</c>. Ten unbroken characters is exactly what somebody misreads over a phone,
+    /// which is the whole reason the hyphen exists.</para>
+    ///
+    /// <para>Both halves are asserted: the wire form has no hyphen, and the spoken form does. A
+    /// test on one alone would be satisfied by a formatter that had stopped formatting, or by a
+    /// hyphen leaking back onto the wire the server compares against.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheSpokenJoinCodeCarriesItsHyphenAndTheWiredOneDoesNot()
+    {
+        var (store, _) = FreshStore(Signed);
+
+        Assert.True(await store.SaveAsync(ACampaign()));
+
+        var row = Assert.Single(await store.ListAsync());
+
+        Assert.Equal(10, row.JoinCode!.Length);
+        Assert.DoesNotContain('-', row.JoinCode);
+
+        Assert.Equal($"{row.JoinCode[..5]}-{row.JoinCode[5..]}", row.Spoken);
+    }
+
+    /// <summary>
+    /// A code that is not the ten symbols this minter produces is shown as it is, rather than cut
+    /// in half. A formatter with an opinion about a value it does not recognise is a formatter
+    /// that corrupts one.
+    /// </summary>
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", "")]
+    [InlineData("SHORT", "SHORT")]
+    [InlineData("ELEVENSYMBS", "ELEVENSYMBS")]
+    public void AnUnrecognisedJoinCodeIsShownUntouched(string? code, string? shown)
+    {
+        var row = new SavedCampaignSummary("g_0000000000000000000000", "A game", 0, code);
+
+        Assert.Equal(shown, row.Spoken);
+    }
 }

@@ -120,6 +120,16 @@ export async function join(request, env, deps, user) {
     // rather than a state, and it is reported as one rather than answered as a join.
     if (!membership) return fail(500, 'That campaign could not be joined just now.');
 
+    // **The row that came back belongs to the campaign whose code was redeemed, asserted rather
+    // than assumed.** The unique index is what makes this true; this is what makes it *checked*.
+    // A `g_…` is unique per account rather than globally, so a key missing `gm_user_id` would let
+    // a re-join hand back a membership of a different GM's campaign — and the player would go on
+    // sending snapshots to somebody they never joined. That is a defect to refuse, not to answer
+    // 200 to, and refusing it here is a line a mutation can break and watch fail.
+    if (membership.gm_user_id !== campaign.user_id) {
+        return fail(500, 'That campaign could not be joined just now.');
+    }
+
     return json({
         id: membership.id,
         campaignId: campaign.id,

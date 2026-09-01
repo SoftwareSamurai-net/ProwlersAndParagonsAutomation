@@ -1133,6 +1133,64 @@ every one of them is the shape of a tool built to cost *a* character meeting a j
 
 None of this needs new rules knowledge — it is all the same engine, called differently.
 
+### 19. The GM's diff is blind to every cost-bearing field except a rank
+
+**Found by auditing the clone-and-approve slice; reproduced, not reasoned about.**
+`CampaignDiff.Between` compares a Power on `PowerId` and `PurchasedRanks` and nothing else. It never
+looks at a Power's `Pros`, `Cons`, `CostVariantKey`, `Units`, `BaselineTraitId` or `SourceId`; never
+at `SelectedPerk.NarrativeDetail` or `SelectedFlaw.NarrativeDetail`; never at a piece of gear's
+`Features`, `Pros`, `Cons` or `PairedUnderTwoFisted` — and features are the only thing gear costs
+Hero Points for — and never at `CharacterSheet.AbilityModifiers`. Gear is keyed on its name alone.
+
+A probe against the real rules data, Immunity moved from one unit to six:
+
+```
+UNITS spend 7 -> 22; rows=0; unchanged=True; compared=7
+```
+
+**The GM's screen reads `7 → 22 Hero Points` above an empty list of changes.** That is a decision
+surface under-reporting, which is worse than one that over-reports: the whole point of the screen is
+that the GM reads a diff and accepts or rejects the *whole* snapshot.
+
+**And `Compared` — the positive control this slice is proud of — does not catch it**, because it
+counts fields *examined* and the Power key *was* examined. It reports a healthy 7. This is the
+repository's own recurring fault in a new place: a check that measures the wrong thing reads as a
+guarantee. `NoRowNamesAFieldOfAStoredCharacter` reflects over `CharacterSheet`, but for **naming**,
+not coverage; nothing guards coverage at all.
+
+**The mechanical half is easy and the design half is not.** Keying Powers on
+`(PowerId, CostVariantKey, BaselineTraitId)` and adding rows for `Units` and for Pros and Cons is a
+loop. What to *call* those rows is the question: `Deflection: covers both attack types` is a
+sentence the book would recognise, `Deflection: Pros +area` is the app describing its internals —
+the fault the naming guard exists for. Gear is the same question again, worse, because a customised
+item is a small character of its own.
+
+**Whatever the answer, the invariant belongs in the type rather than in a reviewer's memory:**
+`CharacterDiff` should carry `Explained => SpentBefore == SpentAfter || Rows.Count > 0`, the screen
+should refuse to say "nothing changed" when it is false, and a test should assert it per
+cost-bearing field. That is the check that goes red when the *next* field is added, which counting
+examined fields never will.
+
+### 20. A deleted campaign leaves its memberships live
+
+**Also from the audit, also reproduced.** `campaigns.remove` deletes one row; `campaign_members` has
+no foreign key to `campaigns` and no cleanup, and `listMembershipsForGm` never joins. So after a
+delete the GM's inbox still shows a pending submission for a game that is not there, the detail read
+answers 200, and the player can go on submitting into it.
+
+**The player's half of this is deliberate and documented** — `Campaigns.razor` says members "keep
+naming it and are reported as naming a campaign that is not here", so that restoring it is a
+complete undo. The GM's half is not addressed anywhere, and the two do not obviously want the same
+answer.
+
+**A related state nobody has decided about:** campaign ids are the client's and the browser keeps
+its local copy, so deleting a campaign on the server and then saving again re-adopts the old
+memberships and their approved payloads under a fresh join code.
+
+The narrow fix that keeps the stated undo property is an `EXISTS` against `campaigns` on the GM's
+reads and on `submitToCampaign`. The alternative is a cascade, which contradicts the undo note. It
+is a decision, not a loop.
+
 ### 17. `master` survives in the prose after the branch became `main`
 
 The workflow triggers were fixed. **The prose was not**, and it is not cosmetic: this file's own
@@ -1272,6 +1330,39 @@ still a loose end of item 11 and this slice did not touch it.
 3. **`RedundantJumpStatement` found a real bug no test did.** The approval page's overtake check sat
    *after* the write, where it does nothing — a second navigation mid-read left the wrong campaign
    under the right address, verbatim the fault `SheetPage` records. Qodana saw it; nothing else did.
+
+#### An audit of the slice found three more, and two are fixed here
+
+1. **`campaign_members_one_per_character` was missing `gm_user_id`, and that was a cross-account
+   defect rather than a tidiness point — fixed.** `campaigns` is `PRIMARY KEY (user_id, id)`, so a
+   `g_…` is unique *per account* and two GMs may hold the same one; the id is the client's, it is
+   handed to every member in the join response, and it travels in an exported character's own
+   `CampaignId`, so knowing one takes no work. Without the column in the key, a player redeeming a
+   second GM's code conflicted with their row in the *first* campaign, `ON CONFLICT … DO UPDATE`
+   handed that row back, and the join answered 200 with the second GM's label and payload — so the
+   player built to the right tier and every snapshot they sent afterwards was delivered to a GM they
+   never joined, while the GM whose code they redeemed saw an empty inbox. Driven against real
+   SQLite before the fix and it reproduced exactly. The key now leads with `gm_user_id`, and
+   `memberships.join` also *checks* the row it got back belongs to the campaign whose code was
+   redeemed — the index is what makes it true, the check is the half a mutation can break. Both were
+   mutated independently and each fails on its own; with both reverted the guard reproduces the
+   original defect by name.
+
+2. **The join code's hyphen never reached a reader — fixed.** `crypto.js` said the hyphen "travels
+   with the code, because it is what makes ten characters readable". It did not: `normaliseJoinCode`
+   takes the punctuation out on the way in, the list answered the bare ten, and the screen printed
+   them — so a code minted as `Q4TWX-NPRKM` was only ever shown as `Q4TWXNPRKM`, which is exactly
+   the unbroken run somebody misreads over a phone. Worse, `rotateCode` answered the *hyphenated*
+   form, so the two addresses disagreed about one value and a screen redrawing from the list after
+   minting showed a different string from the one the mint had handed it. The wire is now the bare
+   ten everywhere and `SavedCampaignSummary.Spoken` puts the hyphen back at the point of display.
+
+   **And `FakeApi` had been minting `AAAA1-BBBB1` all along** — a shape the server never sends. The
+   fake and the server disagreed and nothing caught it, which is the drift `AccountsContractTests`
+   exists for and could not see, because a code's *form* is not a field name.
+
+3. **The diff can report "nothing changed" while the spend moves — open, and it is a design
+   question rather than a missing loop.** See item 19.
 ### A migration that was merged but never applied took character saving down in production
 
 **The owner reported it from the live error log**, which is the only instrument that could have.

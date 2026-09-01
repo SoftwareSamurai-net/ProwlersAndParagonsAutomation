@@ -19,9 +19,31 @@ namespace ProwlersAndParagonsAutomation.Web.Services;
 /// GM has to be able to read it out to somebody. It is not inside the payload and cannot be:
 /// redeeming a code means finding the campaign it belongs to, which is a query, and the payload is
 /// the one thing no query looks inside.</para>
+///
+/// <para><b>Stored and sent without its hyphen</b>, because that is the form the server compares
+/// against — <c>normaliseJoinCode</c> takes the punctuation out on the way in, so a player who
+/// types the code without it, or in lower case, still gets in. The hyphen is presentation, and it
+/// is put back by <see cref="Spoken"/> rather than carried on the wire.</para>
 /// </param>
 public sealed record SavedCampaignSummary(
-    string Id, string Label, long UpdatedAt, string? JoinCode = null);
+    string Id, string Label, long UpdatedAt, string? JoinCode = null)
+{
+    /// <summary>
+    /// The code as it is read out at a table: <c>XXXXX-XXXXX</c>, or null when there is none yet.
+    ///
+    /// <para><b>The hyphen is put back here and nowhere else.</b> It was meant to travel with the
+    /// code and did not: the server stores the normalised ten symbols, the list answers those, and
+    /// the screen printed them — so a code minted as <c>Q4TWX-NPRKM</c> was only ever shown as
+    /// <c>Q4TWXNPRKM</c>. Ten unbroken characters is what somebody misreads over a phone, which is
+    /// the whole reason the hyphen exists.</para>
+    ///
+    /// <para>Anything that is not the expected ten symbols is handed back untouched rather than
+    /// cut in half — a code from an older or newer minter is a thing to show, not a thing for a
+    /// formatter to have an opinion about.</para>
+    /// </summary>
+    public string? Spoken =>
+        JoinCode is { Length: 10 } code ? $"{code[..5]}-{code[5..]}" : JoinCode;
+}
 
 /// <summary>
 /// What a stored campaign actually is, and the two things a host needs to mint one.

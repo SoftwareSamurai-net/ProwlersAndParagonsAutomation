@@ -78,18 +78,20 @@ export async function rotateCode(request, env, deps, user, id) {
     if (!ID_PATTERN.test(id)) return fail(400, 'That is not a campaign id this server uses.');
 
     for (let attempt = 0; attempt < CODE_MINT_ATTEMPTS; attempt++) {
-        const code = newJoinCode();
+        const code = normaliseJoinCode(newJoinCode());
 
         try {
-            const rotated = await db.rotateJoinCode(env.DB,
-                { userId: user.id, id, joinCode: normaliseJoinCode(code) });
+            const rotated = await db.rotateJoinCode(env.DB, { userId: user.id, id, joinCode: code });
 
             // Scoped to this account, so nothing matched means an id this account does not own —
             // the same 404 a read of somebody else's campaign gets, and for the same reason.
             if (!rotated) return fail(404, 'This account has no campaign with that id.');
 
-            // The hyphenated form goes back, because that is the form somebody reads out. The
-            // stored form has no hyphen; `normaliseJoinCode` is what keeps the two agreeing.
+            // **The stored form goes back, which is the form `/api/campaigns` answers.** This used
+            // to send the hyphenated one, and the two addresses disagreed about the same value —
+            // a screen that redrew from the list after minting showed a different string from the
+            // one the mint had just handed it. The hyphen is presentation and is put back by
+            // `SavedCampaignSummary.Spoken`, where a reader is.
             return json({ joinCode: code });
         } catch (error) {
             if (attempt === CODE_MINT_ATTEMPTS - 1) throw error;
