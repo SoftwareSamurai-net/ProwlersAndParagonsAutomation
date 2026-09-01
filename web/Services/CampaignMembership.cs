@@ -28,6 +28,23 @@ public enum CampaignStanding
     ChangesPending,
 
     /// <summary>
+    /// The GM turned the last snapshot down.
+    ///
+    /// <para><b>This value is the whole of a defect, not a refinement.</b> Rejecting clears the
+    /// pending slot and leaves the clone exactly as it was — which is what rejecting *means* — so
+    /// the two booleans this standing was derived from came back to precisely the state they were
+    /// in before the player sent anything. A rejection and an approval of an earlier snapshot
+    /// produced the identical sentence, and a rejection of a first submission produced <see
+    /// cref="NotSubmitted"/>. There was no way for a player to learn that a decision had been
+    /// made at all, let alone which way it went.</para>
+    ///
+    /// <para><b>It persists until they resubmit</b>, and needs no acknowledgement to clear it: a
+    /// new snapshot fills the pending slot, which shadows this, and the next decision overwrites
+    /// the fact itself.</para>
+    /// </summary>
+    ChangesTurnedDown,
+
+    /// <summary>
     /// The campaign is holding a clone of this character and nothing is waiting. This is the sheet
     /// that counts at the table.
     /// </summary>
@@ -44,6 +61,25 @@ public enum CampaignStanding
     /// not be read.</para>
     /// </summary>
     Unknown,
+}
+
+/// <summary>
+/// What the GM last decided about a membership, or <see cref="None"/> before any decision.
+///
+/// <para><b>Read off the wire's own word rather than off two booleans</b>, because the booleans
+/// cannot carry it: approving and rejecting leave them in states that are, respectively, what an
+/// approval of any earlier snapshot looks like and what having sent nothing looks like.</para>
+/// </summary>
+public enum MembershipDecision
+{
+    /// <summary>Nothing has been decided. An ordinary state, not a missing value.</summary>
+    None,
+
+    /// <summary>The last snapshot was accepted, and is the campaign's clone.</summary>
+    Approved,
+
+    /// <summary>The last snapshot was turned down. The clone is whatever it was before.</summary>
+    Rejected,
 }
 
 /// <summary>
@@ -64,6 +100,11 @@ public enum CampaignStanding
 /// The compare-and-swap token. A decision sends this back, and a mismatch is refused — see
 /// <see cref="ApiMembershipStore.ApproveAsync"/>.
 /// </param>
+/// <param name="Decision">
+/// What the GM last decided, or <see cref="MembershipDecision.None"/>. <b>Not derivable from the
+/// two booleans</b>, which is the whole reason it is on the wire: a rejection leaves them exactly
+/// as an approval of an earlier snapshot does.
+/// </param>
 public sealed record MembershipSummary(
     string Id,
     string CampaignId,
@@ -73,14 +114,25 @@ public sealed record MembershipSummary(
     long? ApprovedAt,
     bool HasPending,
     long? PendingAt,
-    int PendingVersion)
+    int PendingVersion,
+    MembershipDecision Decision = MembershipDecision.None)
 {
     /// <summary>
     /// Where this character stands. Read off the two slots rather than stored, because a third
     /// field saying the same thing is a third field that can disagree with them.
     /// </summary>
+    /// <summary>
+    /// Where this character stands, in the order the sentences displace one another.
+    ///
+    /// <para><b>A waiting snapshot comes first</b>, because it is the live fact and it is what
+    /// shadows a previous decision without anything having to clear one. <b>A rejection comes
+    /// before the clone</b>, because a clone is what a rejection deliberately leaves untouched —
+    /// putting <see cref="CampaignStanding.Approved"/> ahead of it is the bug this value exists to
+    /// fix, not a reordering of equals.</para>
+    /// </summary>
     public CampaignStanding Standing =>
         HasPending ? CampaignStanding.ChangesPending
+        : Decision == MembershipDecision.Rejected ? CampaignStanding.ChangesTurnedDown
         : HasApproved ? CampaignStanding.Approved
         : CampaignStanding.NotSubmitted;
 }
@@ -124,6 +176,33 @@ public enum DecisionOutcome
 
     /// <summary>Refused, because there is nothing waiting for a decision at all.</summary>
     NothingWaiting,
+
+    /// <summary>Nothing could be reached, so nothing is known to have happened.</summary>
+    Unreachable,
+}
+
+/// <summary>
+/// What became of an attempt to end a membership — a player leaving, or a GM removing somebody.
+///
+/// <para><b>Three values rather than a bool</b>, because the one refusal is a state the reader can
+/// do something about and "it did not work" is not the same sentence as "that game is not there
+/// any more".</para>
+/// </summary>
+public enum LeftOutcome
+{
+    /// <summary>
+    /// The membership is not there. <b>Also the answer to ending one twice</b>, and to ending one
+    /// belonging to somebody else: the server answers on the end state rather than on whether this
+    /// particular request was the one that changed it.
+    /// </summary>
+    Done,
+
+    /// <summary>
+    /// Refused: this account is the GM and has deleted the game. The player's row deliberately
+    /// outlives a deleted campaign so that writing it back is a complete undo, so a removal from
+    /// one is refused rather than reported as done.
+    /// </summary>
+    GameIsGone,
 
     /// <summary>Nothing could be reached, so nothing is known to have happened.</summary>
     Unreachable,
@@ -218,10 +297,27 @@ public sealed class ApiMembershipStore
                 .Where(m => m is { Id.Length: > 0, CampaignId.Length: > 0 })
                 .Select(m => new MembershipSummary(
                     m.Id!, m.CampaignId!, m.CharacterId, m.Label ?? "Unnamed character",
-                    m.HasApproved, m.ApprovedAt, m.HasPending, m.PendingAt, m.PendingVersion))];
+                    m.HasApproved, m.ApprovedAt, m.HasPending, m.PendingAt, m.PendingVersion,
+                    Decided(m.Decision)))];
         }
         catch (Exception e) when (IsUnreachable(e)) { return null; }
     }
+
+    /// <summary>
+    /// The wire's word for the last decision, or <see cref="MembershipDecision.None"/>.
+    ///
+    /// <para><b>A word this build does not know reads as no decision rather than as a
+    /// rejection.</b> A later version of the server could spell a third outcome, and defaulting an
+    /// unknown one to the value that changes what a player is told would be this build inventing a
+    /// decision nobody made — the same rule <see cref="StoredCharacter"/> follows for an envelope
+    /// it cannot open.</para>
+    /// </summary>
+    private static MembershipDecision Decided(string? wire) => wire switch
+    {
+        "approved" => MembershipDecision.Approved,
+        "rejected" => MembershipDecision.Rejected,
+        _ => MembershipDecision.None,
+    };
 
     /// <summary>
     /// One membership in full, with both payloads read through the engine's own reader.
@@ -373,6 +469,38 @@ public sealed class ApiMembershipStore
     }
 
     /// <summary>
+    /// End a membership: the player walking out, or the GM removing somebody.
+    ///
+    /// <para><b>One address and two meanings, and the server decides which from the owner column
+    /// that matches</b> — so nothing here sends a role, and nothing here could claim one it does
+    /// not have. A third account's request ends nothing and is told nothing.</para>
+    ///
+    /// <para><b>The row goes and the campaign's clone with it.</b> Deleting a campaign keeps its
+    /// memberships so that writing it back is a complete undo; this is the opposite act and has no
+    /// undo behind it, which is why both controls that reach it ask twice.</para>
+    ///
+    /// <para><b>The refusal comes back in the result rather than out of band.</b>
+    /// <see cref="LastJoinRefusal"/> is the older shape, and PROGRESS.md records returning it in
+    /// the result as the smaller surface — so nothing new is written the other way.</para>
+    /// </summary>
+    public async Task<LeftOutcome> LeaveAsync(string id)
+    {
+        if (string.IsNullOrEmpty(id)) return LeftOutcome.Unreachable;
+
+        try
+        {
+            using var response = await _http.DeleteAsync($"{List}/{Uri.EscapeDataString(id)}");
+
+            if (response.IsSuccessStatusCode) return LeftOutcome.Done;
+
+            return response.StatusCode == HttpStatusCode.Conflict
+                ? LeftOutcome.GameIsGone
+                : LeftOutcome.Unreachable;
+        }
+        catch (Exception e) when (IsUnreachable(e)) { return LeftOutcome.Unreachable; }
+    }
+
+    /// <summary>
     /// Replace a campaign's join code, and hand the new one back.
     ///
     /// <para>On the campaign rather than on a membership, because a code is a property of the game
@@ -428,7 +556,8 @@ public sealed class ApiMembershipStore
         [property: JsonPropertyName("approvedAt")] long? ApprovedAt,
         [property: JsonPropertyName("hasPending")] bool HasPending,
         [property: JsonPropertyName("pendingAt")] long? PendingAt,
-        [property: JsonPropertyName("pendingVersion")] int PendingVersion);
+        [property: JsonPropertyName("pendingVersion")] int PendingVersion,
+        [property: JsonPropertyName("decision")] string? Decision);
 
     private sealed record WiredDetail(
         [property: JsonPropertyName("id")] string? Id,
@@ -521,6 +650,14 @@ public static class Standings
             string.IsNullOrWhiteSpace(campaign) ? "Approved" : $"Approved for {campaign}",
 
         CampaignStanding.ChangesPending => "Changes pending",
+
+        // **Says which way it went, and does not offer to explain.** There is no reason on the
+        // wire and no place a GM types one, so a sentence promising more than the row holds would
+        // send somebody looking for something that is not there.
+        CampaignStanding.ChangesTurnedDown =>
+            string.IsNullOrWhiteSpace(campaign)
+                ? "Changes turned down"
+                : $"Changes turned down for {campaign}",
         CampaignStanding.NotSubmitted => "Not submitted",
 
         // **Said rather than left blank.** A character whose standing could not be read is not a

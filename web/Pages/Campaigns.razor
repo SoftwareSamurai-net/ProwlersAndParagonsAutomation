@@ -189,10 +189,36 @@ else
                             {
                                 <a class="btn small quiet" href="sheet/@one.CharacterId">Sheet</a>
                             }
+
+                            @* **Two presses, because there is no undo and the campaign's copy goes
+                               with it.** A campaign's own Delete is one press, but it sits inside a
+                               disclosure somebody opened on purpose; this control is in a row
+                               beside Send for approval, where a misclick is an ordinary thing. *@
+                            @if (_leaving == one.Id)
+                            {
+                                <button type="button" class="btn small"
+                                        @onclick="() => Leave(one.Id)">Leave for good</button>
+                                <button type="button" class="btn small quiet"
+                                        @onclick="() => _leaving = null">Cancel</button>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn small quiet"
+                                        @onclick="() => _leaving = one.Id">Leave</button>
+                            }
                         </div>
                     </li>
                 }
             </ul>
+        }
+
+        @* **Outside the list, and outside the join box below it.** A row that has just been left
+           is a row that no longer renders, so a sentence about leaving cannot live inside one —
+           the fault the approval screen records as finding 7, where every message but one was
+           written and thrown away unrendered. *@
+        @if (_said is { } said)
+        {
+            <p class="small muted spaced" role="status">@said</p>
         }
 
         <div class="campaign-join">
@@ -245,6 +271,12 @@ else
 
     /// <summary>Which campaign's settings are open, or null.</summary>
     private string? _open;
+
+    /// <summary>Which membership is one press away from being left, or null.</summary>
+    private string? _leaving;
+
+    /// <summary>What became of the last leave, or null. Rendered outside the row it was about.</summary>
+    private string? _said;
 
     /// <summary>The campaign being named or renamed, or null when none is.</summary>
     private Campaign? _editing;
@@ -415,6 +447,27 @@ else
     {
         await Store.DeleteAsync(id);
         _open = null;
+
+        await Refresh();
+    }
+
+    /// <summary>
+    /// Walk out of a game. This row goes, and the campaign's copy of the character goes with it.
+    ///
+    /// <para><b>The player's own character is untouched</b>, and it is not this app's to touch: a
+    /// membership ending is a fact about a campaign's roster, not about somebody's own work.</para>
+    /// </summary>
+    private async Task Leave(string membershipId)
+    {
+        _leaving = null;
+
+        // **`GameIsGone` is deliberately not a case here, and that is a fact about the server
+        // rather than a gap.** `leaveCampaign` is a bare `player_user_id = ?` with no `EXISTS` on
+        // the campaign, precisely so a player can walk out of a game the GM has thrown away — so
+        // the 409 that value models is one only a GM's removal can be answered.
+        _said = await Memberships.LeaveAsync(membershipId) == LeftOutcome.Done
+            ? "You have left that game. It no longer holds a copy of that character."
+            : "That could not be done just now. Try again in a moment.";
 
         await Refresh();
     }

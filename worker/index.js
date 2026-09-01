@@ -248,9 +248,19 @@ async function route(request, env, deps) {
 
             const tail = rest.join('/');
 
+            // **The one address here that answers two verbs**, because ending a membership is
+            // not a property of one — it is the membership itself, and `DELETE` on the thing is
+            // the shape every other resource in this server uses.
             if (tail === '') {
-                return only('GET', method,
-                    () => memberships.read(request, env, deps, user, membershipId));
+                if (method === 'GET') {
+                    return memberships.read(request, env, deps, user, membershipId);
+                }
+
+                if (method === 'DELETE') {
+                    return memberships.leave(request, env, deps, user, membershipId);
+                }
+
+                return methodNotAllowed('GET, DELETE');
             }
 
             if (tail === 'submission') {
