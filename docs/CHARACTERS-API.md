@@ -43,7 +43,7 @@ for, which is the thing `SavedCharacterSummary` exists to avoid.
 | `DELETE` | `/api/campaigns/{id}` | remove one |
 | `POST` | `/api/campaigns/{id}/code` | replace the join code |
 
-**And eight more under `/api/memberships`** — a campaign's clone of a character and the snapshot
+**And seven more under `/api/memberships`, plus the join-code rotation above** — a campaign's clone of a character and the snapshot
 waiting for a decision. See the section further down; every rule on this page applies to them, with
 one stated exception.
 
@@ -167,9 +167,19 @@ test that six approved clones leave the GM's five slots untouched.
 A membership names the GM (who owns the campaign) and the player (who owns the character). The GM's
 reads carry `gm_user_id = ?`, the player's carry `player_user_id = ?`, and **no statement lets
 either name a row belonging to a third account.** A read of one membership is scoped to
-`(gm_user_id = ? OR player_user_id = ?)`, which is not a widening: each side is entitled to the row
-for a different reason, and a third account matches neither and gets the same 404 an id that never
-existed gets.
+`(player_user_id = ? OR (gm_user_id = ? AND EXISTS (…the campaign…)))`, which is not a widening:
+each side is entitled to the row for a different reason, and a third account matches neither and
+gets the same 404 an id that never existed gets.
+
+**The two halves are deliberately not symmetric**, and the asymmetry is easy to read as a typo, so
+it is written out here rather than left in the SQL. The GM's half additionally requires the campaign
+to still exist — `EXISTS (SELECT 1 FROM campaigns c WHERE c.user_id = gm_user_id AND c.id =
+campaign_id)`, present on the inbox, this read, and both decisions — while the player's half is a
+bare `player_user_id = ?`. So a GM who deletes a game loses every membership in it, and the player
+keeps their row and is told **409, that campaign is no longer here**, rather than a 404 that would
+read as *you were never in it*. Writing the campaign back restores the GM's half whole, which is
+what makes a delete a complete undo. The `AND c.id` half of that `EXISTS` is load-bearing: without
+it, a GM who runs two campaigns and deletes one keeps reading the deleted one's clones.
 
 **The GM only ever sees a payload the player deliberately sent them**, never one this server went
 and fetched out of their account. And the GM is never told whose account it was: `characterId` is

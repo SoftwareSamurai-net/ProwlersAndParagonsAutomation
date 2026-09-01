@@ -150,14 +150,24 @@ resharper_class_never_instantiated_local_highlighting = none
 # The same objection as web/Services/ApiCharacterStore.cs above, for the approval
 # half of the same wire — and one addition that is not about the wire at all.
 #
-# The five private Wired*/Joining/Sending/Deciding records are the shapes of the
-# JSON the /api/memberships addresses exchange, constructed and read only by
-# System.Text.Json through reflection: every positional parameter is a
-# JsonPropertyName-bound property that nothing in this class touches by name.
-# Acting on any of these would silently drop a field from the wire — a decision
-# with no version, which is the compare-and-swap gone — and would not fail to
-# build. AccountsContractTests reads these records against the server's own object
-# literals precisely because a dropped field is otherwise invisible.
+# The ten private Wired*/Joining/Sending/Deciding records are the shapes of the
+# JSON the /api/memberships addresses exchange. Every positional parameter is a
+# JsonPropertyName-bound property, so acting on any inspection here would silently
+# drop a field from the wire — a decision with no version, which is the
+# compare-and-swap gone — and would not fail to build. AccountsContractTests reads
+# these records against the server's own object literals precisely because a
+# dropped field is otherwise invisible.
+#
+# **Only some of the ten are wholly unread, and this comment used to claim all of
+# them were.** It said "five" — there are ten — and "nothing in this class touches
+# them by name", which is false of most: WiredRow is read field by field in
+# ListAsync, WiredDetail in ReadAsync, WiredRefusal in DecideAsync, WiredVersion in
+# SubmitAsync and WiredCode in RotateCodeAsync. What actually needs the exemption is
+# the narrower set — WiredJoin's CampaignId and Label, which nothing reads, and the
+# three request-only records (Joining, Sending, Deciding), which System.Text.Json
+# constructs by reflection and nothing here ever instantiates. The suppression is
+# file-scoped either way; the rationale is what a maintainer reads to decide whether
+# it still applies, so it has to be true of the file it sits on.
 #
 # MembershipSummary and MembershipDetail are public and .Global for the reason
 # Invitations' Invitation is: the screens render them. Their unread positional

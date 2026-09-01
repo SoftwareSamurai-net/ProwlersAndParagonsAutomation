@@ -295,9 +295,14 @@ that boring**. Eight addresses — seven under `/api/memberships`, one under
   cap's own 409 asserted beside it as the control.
 - **Two owners on one row, so every statement stays scoped to whoever is asking.** `gm_user_id` owns
   the campaign, `player_user_id` owns the character, and no query lets either name a third account's
-  row. `getMembership`'s `(gm_user_id = ? OR player_user_id = ?)` is not a widening: each side is
-  entitled to the row for a different reason, and a third account matches neither and gets the same
-  404 an id that never existed gets.
+  row. `getMembership`'s `(player_user_id = ? OR (gm_user_id = ? AND EXISTS (…the campaign…)))` is
+  not a widening: each side is entitled to the row for a different reason, and a third account
+  matches neither and gets the same 404 an id that never existed gets. **The GM's half carries
+  that `EXISTS` and the player's deliberately does not** — see the deleted-campaign bullet below.
+  A reader who takes the two
+  halves for a symmetric `OR` will misread the inbox, this read and both decisions, all four of
+  which carry it, and the `AND c.id = campaign_id` inside it is what keeps a GM's second
+  campaign from standing in for the one they deleted.
 - **`campaignByJoinCode` is the one read in `db.js` that is not scoped to the caller, and that is
   what a join code is.** A secret the GM minted and chose to hand out; holding it is the whole of the
   authorisation, the same shape as holding a sign-in link. Joining by a shared code cannot be built
