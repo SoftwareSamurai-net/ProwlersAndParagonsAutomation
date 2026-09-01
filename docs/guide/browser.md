@@ -15,6 +15,18 @@ Blazor WebAssembly, so `CostCalculator` and `CharacterValidator` run in the brow
 - `Program.cs` fetches every name in `RulesRepository.DataFileNames` **before the first render** and hands them to an `InMemoryRulesSource`. The engine is synchronous by design; a half-loaded repository throws.
 - **The rules are copied into `web/wwwroot/data/rules/` by the csproj, not committed there** (`wwwroot/data/` is gitignored). `Content Include` with `LinkBase` looks like it would do this and does not — the asset is registered against a content root the file is not under, so every request answers `200` with an empty body. Copy before static-asset discovery.
 - `CharacterSession` (scoped) owns the `CharacterSheet` and forwards to the calculators. **Anything resembling arithmetic in that file is a bug.**
+- **Putting a character on screen is `CharacterSession.Open`. The silent one is named
+  `RestoreBeforeFirstRender` and `Program.cs` is its only caller.** Assigning `Sheet` without
+  ringing `Changed` is right exactly once — the boot, where there is nothing rendered to tell.
+  Everywhere else it is a defect that **does not show up where you make it**: whoever swaps the
+  character is a component handling a click, so Blazor re-renders *that* component either way, and
+  the control you are looking at follows perfectly while every subscriber goes on drawing what was
+  replaced. **This trap has now been sprung twice.** Import once had no `NotifyChanged()` at all,
+  so an imported character was not autosaved until a later edit touched it — recorded further down
+  this file. Then five call sites reached for the silent `Restore` and the banner's pill named the
+  new character over the old one's sheet. The long name is the fix, and
+  `NothingDrawnCallsTheSilentRestore` holds it: nothing under `Components`, `Pages` or `Layout` may
+  call it, with `Program.cs` still doing so as the positive control.
 - **An animation may interpolate between two engine answers; it may never invent one.** The rule
   above is about *authority*, not about every pixel: a frame part-way through a counting figure is
   transient presentation, and the engine stays authoritative for any figure that **comes to rest,

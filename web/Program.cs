@@ -133,7 +133,7 @@ catch
 try
 {
     saved = await store.LoadAsync();
-    if (saved is { } restored) session.Restore(restored.Sheet, restored.Mode);
+    if (saved is { } restored) session.RestoreBeforeFirstRender(restored.Sheet, restored.Mode);
 }
 catch (Exception)
 {
