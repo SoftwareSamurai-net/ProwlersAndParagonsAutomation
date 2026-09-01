@@ -1102,6 +1102,67 @@ is the easy half.
 
 Not started.
 
+### 16. The tool costs one character, and a campaign is a roster
+
+**Found by using it for its actual purpose for the first time** — statting twenty-eight NPCs for a
+campaign in one sitting, across several agents working in parallel. Nothing below is a defect;
+every one of them is the shape of a tool built to cost *a* character meeting a job that is about
+*all of them*.
+
+- **`--from` takes one file.** Twenty-eight characters is twenty-eight process starts, and every
+  re-validation after an edit is another twenty-eight. Shell loops were written for this four
+  separate times in one session. `--from-dir`, or a repeatable `--from`, would make a roster-wide
+  re-check one command and one process.
+- **Export filenames carry a timestamp and nothing overwrites.**
+  `CharacterSheetRenderer` builds `{safeName}_{yyyyMMdd_HHmmss}`, so re-exporting a roster after an
+  edit *adds* a set rather than replacing one. Twenty-eight characters reached fifty-six `.txt`
+  files before anybody noticed, and a de-duplication script had to be written to find the newest of
+  each. A stable-name mode — `--overwrite`, or a `--out` that replaces — is the fix; the timestamp
+  is right for a single export and wrong for a roster.
+- **There is no cross-sheet question the tool can answer.** Every one that came up had to be a
+  throwaway script against the JSON: *which Traits on any of these sheets exceed 6d, and does a
+  Power justify it*; *is this character's power ladder monotonic across its three tiers*; *which
+  sheets are spending their remaining budget on Contacts because Contacts is the cheapest dial*.
+  The last two of those each caught a real defect — a "progression" sheet that was **weaker** than
+  the one below it, and five sheets padded with invented contact categories. Those are exactly the
+  questions a roster owner has, and the tool cannot be asked any of them.
+- **`--no-build` is undocumented and is the thing that makes concurrent use safe.** Several agents
+  running `dotnet run -- build` in one working tree collide on the compiler. `dotnet run --no-build`
+  fixes it completely and appears in neither `--help`, nor the skill, nor any guide. It was found by
+  guessing.
+
+None of this needs new rules knowledge — it is all the same engine, called differently.
+
+### 17. `master` survives in the prose after the branch became `main`
+
+The workflow triggers were fixed. **The prose was not**, and it is not cosmetic: this file's own
+Current state table still said the site "deploys from `master`" while `main` said `main`, and that
+line produced the only real conflict in an otherwise clean rebase — one where **both sides held a
+true fact the other lacked** (this branch knew migration 0006 was pending; `main` knew the deploy
+branch had moved), so neither `--ours` nor `--theirs` was correct and it had to be resolved by hand,
+row by row.
+
+Fourteen mentions remain in this file and six across `docs/`. A dead branch name in prose is the
+same failure mode as a dead pointer in `CLAUDE.md`'s guide table: it sends a reader somewhere that
+is not there any more, and `RepositoryGuideTests` exists precisely because that costs more than it
+looks like it should. Worth a sweep, and worth a guard if one is cheap.
+
+### 18. The MCP server did not start
+
+`claude mcp` reported the `prowlers-and-paragons` server as `CONNECTION_CLOSED` for a whole session
+in which twenty-eight characters were built. **Cause unknown — it was not investigated**, because
+the CLI `build` command calls the identical `CostCalculator` and `CharacterValidator` and the
+costing is therefore the same. That is why this is recorded rather than fixed.
+
+It matters for two reasons that have nothing to do with today's numbers. The MCP server is **the
+documented way in for somebody who has not checked this repository out** — that is the whole of the
+settled decision in `CLAUDE.md` about assisted creation for a third party. And the owner has since
+said the MCP path is what he wants for designing characters conversationally in real time, which
+makes it the primary interface rather than the alternate one. A primary interface that failed to
+connect and was worked around should not stay unexamined.
+
+First step is to reproduce it and read the server's own stderr, not to change anything.
+
 ## Completed work
 
 ### A campaign holds a clone of a character, and a player's edits arrive as an approval request
