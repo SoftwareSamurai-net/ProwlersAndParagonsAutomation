@@ -212,19 +212,26 @@ asymmetry is not a flourish; it falls straight out of where the data lives.
    The kit exists outside this repository. Anything sent is outward-facing and costs the hourly
    allowance to test, so it is proofed with `scripts/probe-mail.mjs` and not against a real inbox.
 
-1. **`PROGRESS.md` item 10 still needs the owner's decision, and this round sharpened its
-   argument.** Stage one needs no permission; stage two — the development-only session seam — is
-   the owner's call, with a zero-risk alternative written up beside it. Nothing was implemented.
-   **Read the new subsection in that item before proposing anything**, because it corrects the
-   item's own framing: the defect above was not an *assembly* fault, which is what item 10 argues
-   about. Every unit test passed honestly because every one of them called the store directly, and a
-   test that reaches the machinery by hand cannot notice that nothing else reaches it.
+1. **`PROGRESS.md` item 10's stage one is built; stage two is what is left of it.**
+   `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages dev` version the
+   deploy pins, and drives real Chrome over the DevTools Protocol — boot, a character built and
+   surviving a reload, a theme surviving a reload, the four palettes, and nine addresses. Five
+   checks, a positive control on each, and a deliberately-broken twin of the whole published site
+   that each must go red against. It runs on every pull request. **Read
+   [`docs/guide/testing.md`](guide/testing.md)'s *Driving the assembled app* before touching it**;
+   the rules there about not reaching past the browser are the whole point of it.
 
-   **One row of item 10's table is now partly closed in-process.** `RenderContext(storesForReal:
-   true)` swaps bUnit's recorder — which answers null to every interop read — for a storage that
-   actually holds what is written. It closes `ppStore` and nothing else: no boot, no routing, no
-   Functions, nothing behind sign-in, and `theme.js`/`palette.js`/`motion.js` still answered by a
-   recorder.
+   **What is left is the signed-in half**, and it needs no approval about danger any more: seed a
+   hashed login token into the local D1 and drive `/signin?token=…`, which runs the application's
+   real verify path and puts nothing in the shipped bundle. It does need `functions/` bundled and a
+   D1 binding, which is a change to how `scripts/e2e.sh` starts its server rather than only new
+   checks. A second target — the same driver against the *deployed* site, anonymously — proves the
+   real edge and is independent of it.
+
+   **Three things stage one does not reach, so nobody over-reads five green checks**: `motion.js`
+   and `palette.js` (still only a `file://` proof page), a `_redirects` regression (wrangler
+   rejects this site's own SPA rule locally and falls back by its own default, so deep links work
+   there for a different reason than in production), and screen readers, which stay owed.
 
 2. **The codebase half of item 7**, untouched: dead code, engine hot paths, payload waste, the token
    side. `PROGRESS.md` is now over 5,600 lines and is read at the start of every slice by

@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | **Five suites, and the figures are not written down here.** Run `./scripts/count-tests.sh` — it runs all five, reads each count out of the line that runner printed, and refuses to total anything when a suite did not report. **The figures used to be in this cell and went wrong four separate ways**; the four are recorded in [`docs/guide/testing.md`](docs/guide/testing.md), where the lesson keeps being true after the numbers stop being. The five are the engine, the components under bUnit, the accounts server over real SQLite, the pixel comparator, and the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). |
+| Tests | **Five suites, and the figures are not written down here.** Run `./scripts/count-tests.sh` — it runs all five, reads each count out of the line that runner printed, and refuses to total anything when a suite did not report. **The figures used to be in this cell and went wrong four separate ways**; the four are recorded in [`docs/guide/testing.md`](docs/guide/testing.md), where the lesson keeps being true after the numbers stop being. The five are the engine, the components under bUnit, the accounts server over real SQLite, the pixel comparator, and the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **A sixth thing drives the assembled application and is deliberately not one of the five**: `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages dev` version the deploy pins, and drives real Chrome over the DevTools Protocol — five checks with a positive control each and a deliberately-broken twin of the whole site each. It reports verdicts rather than a test count, so `count-tests.sh` does not know about it; see [item 10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) for what it does and does not reach. |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **The deploy applies pending D1 migrations before the Pages upload, and the apply half is now proven rather than assumed.** The first run failed on a file mode rather than the credential everybody was watching; the run after it read the live database, found nothing pending, and shipped — which established D1 *Read* only, because a token holding just Read produces that exact log and then fails on the first migration that actually has to be applied. **`0007_decision_recorded.sql` was that migration.** On the deploy of `a978806` the gate read one pending file, classified it additive, applied it (`0007_decision_recorded.sql ✅`), **and then asked the database again** — `No migrations to apply!`, the script's own positive control, which is what makes this "the schema moved" rather than "wrangler exited 0". So **D1: Edit is granted and the whole mechanism has now run end to end.** See [`docs/guide/hosting.md`](docs/guide/hosting.md) |
@@ -59,10 +59,12 @@ because two of them are not work an agent can pick up:
   character and a campaign is a roster),
   [19](#19-the-account-cap-is-set-by-hand-in-sql-and-a-gm-cannot-see-what-a-player-holds) (a screen
   over behaviour that is already correct), [1](#1-close-the-last-four-heroes) (the last four Heroes,
-  1 HP out each), and **stage one of
-  [10](#10-nothing-drives-the-assembled-app--stage-one-approved-2026-09-02-not-started), approved on
-  2026-09-02 and the one to do first** — every other item in this group is UI work that would land
-  on top of the hole it closes.
+  1 HP out each), and **stage two of
+  [10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort)**
+  — the signed-in half of the driver, which is a change to `scripts/e2e.sh`'s server setup plus a
+  seeded login row, and no longer waiting on anybody. **Stage one is built**, so the rest of this
+  group is no longer landing on top of a hole: a slice here now has something that would notice if
+  it broke the running app.
 - **Recorded, with nothing asking for them.** [1b](#1b-semantic-procon-constraints-are-still-unenforced)
   (semantic Pro/Con constraints, no consumer), [2](#2-what-the-sheet-still-cannot-say) (a mid-sheet
   page is anonymous, with no portable CSS answer),
@@ -506,64 +508,52 @@ rather than dropped for being hard. None of the 39 new sentences were edited aft
 measured — every miss above is a real gap, not a sentence that could as honestly have named a
 different Power.
 
-### 10. Nothing drives the assembled app — **stage one approved 2026-09-02, not started**
+### 10. Driving the assembled app — **stage one is built; stage two is only a decision about effort**
 
 **Asked for by the owner after a slice where two real defects were found by screenshotting and none
 by the suites.** Both were in the same class: they existed only once markup, stylesheet and layout
-were put together on a page. The question is what would have caught them without a person looking.
+were put together on a page. The question was what would have caught them without a person looking.
 
-**What is verified today, and it is more than it sounds.** Three suites, nineteen browser verdict
-harnesses each with a deliberately-broken twin, and a pixel diff of eight proof pages against
-CI-rendered goldens. `ProofPages` renders components through bUnit into static HTML against the
-real `theme.css` and `app.css`, which headless Chrome then screenshots — that is what catches a
-contrast fault or a broken layout.
+**Stage one is built.** `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages
+dev` version `.github/workflows/deploy.yml` pins, and drives real Chrome over the DevTools
+Protocol — five checks, anonymous only, no credential and no bypass: the app boots; a character is
+built by clicking and typing and survives a reload; a chosen theme survives a reload and is
+stamped before the app boots; all four palettes are reached through the two switches in the
+settings menu and resolve to four different sets of colours; and nine addresses are served at
+their own paths, with client-side routing proved by a token that survives the click. Each check
+states a positive control before its outcome, and each has a deliberately-broken twin of the whole
+published site that it is required to go red against. It runs on every pull request.
 
-**What is not verified, which is narrower and sharper than "the app is untested".** A proof page is
-*markup and CSS*. It is not the running application:
+**How it works, and every limit of it, is in [`docs/guide/testing.md`](docs/guide/testing.md)** —
+read that before changing it. The account of building it, including four faults the harness found
+in itself, is in [the archive](docs/progress/).
 
-| Not exercised by anything | Consequence |
+**What that closes and what it leaves open**, against the table this entry was originally built
+around:
+
+| Was not exercised by anything | Now |
 |---|---|
-| Blazor WebAssembly actually booting | A boot-time failure is invisible until the deploy |
-| Every `js/*.js` interop — `ppStore`, `theme.js`, `palette.js`, `motion.js` | bUnit answers **null** to every interop read, which is why two tests in this slice had to *plant* a storage pointer to reach the branch they were written for |
-| Client-side routing | `Areas.Of` is asserted by unit test, never by a browser following a link |
-| Pages Functions against the real edge | The worker suite runs on local Node; D1 and the real request pipeline are checked only by the deploy's own JSON smoke check |
-| **Anything behind sign-in** | `/rules`, `/admin`, the portfolio, the replay and every account-storage path — an assistant cannot sign in, so none of it is verified against the deployed stack |
+| Blazor WebAssembly actually booting | **Closed.** The framework starting, its payload arriving with bytes in it, and the boot screen being replaced by a rendered page are three separate assertions, and the real `_headers` is in force so a Content-Security-Policy that refuses one of the app's own scripts is a red check |
+| Every `js/*.js` interop | **Closed for `ppStore` and `theme.js`.** The character-storage path is driven by clicking, and `ppThemeStats.stamps` is read across a genuine reload rather than a re-executed module. `motion.js` and `palette.js` are still only a proof harness and a bUnit recorder |
+| Client-side routing | **Closed.** A `NavLink` is clicked, and a per-document token surviving the click is what proves the router handled it rather than the browser reloading |
+| Pages Functions against the real edge | **Open, and now deliberately so rather than by omission.** Nothing is bundled: wrangler takes `functions/` from the working directory, and the harness runs from one without it, so `/api/` falls through `_redirects` and the app reads an unparseable answer as anonymous — which is its own documented behaviour. Binding a local D1 is stage two's first step |
+| **Anything behind sign-in** | **Open — stage two, below.** `/rules`, `/admin`, the portfolio, the replay and every account-storage path |
 
-**The proposal, in two stages, because the first needs no permission and the second does.**
+**Three gaps stage one does not close and did not claim to**, each named here so nobody reads the
+five green checks as more than they are:
 
-**Stage one — the anonymous half, and it is most of the value.** A `scripts/e2e.sh` that publishes
-the site, serves it with `wrangler pages dev` **at the version `.github/workflows/deploy.yml`
-pins** (the marker comment is already load-bearing for exactly this reason), and drives real Chrome
-over the DevTools Protocol. No account, no credential, no bypass. It would cover: the app boots and
-renders; a character can be built, saved, reloaded from storage and swapped; the theme survives a
-reload (today proved by `proof-theme.html` re-executing the module, not by a reload); the four
-palettes; the routes. **No new npm dependency** — this repository has never had a `package.json`,
-and CDP over a WebSocket is a few hundred lines of Node, the same trade already made for the PNG
-codec.
+- **A `_redirects` regression is invisible locally.** `wrangler pages dev` *rejects* this site's
+  own `/* /index.html 200` rule as an infinite loop and ignores it, then serves `index.html` for
+  unmatched paths by its own default. So deep links work in the harness for a different reason
+  than they work in production. Measured rather than assumed — wrangler names the rule in its
+  startup output as the one invalid rule it found.
+- **`motion.js` and `palette.js`.** The reduced-motion behaviour and the Ctrl-K chord are both
+  behavioural and both still only asserted by a `file://` proof page.
+- **Screen readers**, which stay owed and which no harness closes: it needs a person with a screen
+  reader, and asserting `aria-pressed` is the string `"true"` is not the same as having been
+  listened to. `docs/HANDOVER.md` says so and should keep saying so.
 
-**Stage two — the signed-in half, and this is the part to approve or refuse.** Testing an account
-flow locally needs a session without a mailbox, which means a **development-only seam that mints
-one**. That is the single most dangerous thing that could be added to this repository: an auth
-bypass that reached production would be worse than every gap it closes. It is only worth doing with
-all of these, and the owner should say whether it is worth doing at all:
-
-- keyed on a secret supplied to `wrangler pages dev` and **absent from `wrangler.toml` and every
-  workflow**, so the deployed site has no value to check against;
-- the code path compiled out, or a test asserting the published bundle does not contain it — the
-  `AccountsContractTests` shape, which already reads both sides of the wire;
-- refused unless the request is from localhost.
-
-**A cheaper alternative to stage two, if the answer is no:** point the harness at the *deployed*
-site and drive only what an anonymous visitor can reach. That verifies the real edge, the real
-Functions and the real bundle, and simply cannot test an account. Given the account paths are the
-ones with a shared-machine consequence, that is a real loss — but it is an honest one, and it
-carries no risk at all.
-
-**Not proposed, deliberately.** Screen-reader testing stays owed and no harness closes it: it needs
-a person with a screen reader, and asserting `aria-pressed` is the string `"true"` is not the same
-as having been listened to. `docs/HANDOVER.md` says so and should keep saying so.
-
-#### The argument sharpened, by a defect that proves a different point from the one this item was making
+#### The argument this item was sharpened by, which is why stage one was worth more than it claimed
 
 **A feature was built, tested, adversarially reviewed by two independent agents and shipped, while
 nothing in the application ever wrote to the store it read from.** The manager's list, the banner's
@@ -571,40 +561,25 @@ switcher, `DiscardedCharacter` and both undo buffers all read `SavedCharacters`'
 ever added a character to it. See [the archive](docs/progress/).
 
 **That is not the defect class this item was written about, and the difference matters.** Everything
-here so far argues about *assembly* — markup plus stylesheet plus layout, interop, routing, the real
-edge. This one was none of those. Every unit and component test passed, and passed honestly, because
-**every one of them called the store directly.** A test that reaches the machinery by hand cannot
-notice that nothing else reaches it. **Nothing in this repository asks whether a feature is reachable
-by an ordinary person doing an ordinary thing**, and an end-to-end harness is the only kind of check
+above argues about *assembly* — markup plus stylesheet plus layout, interop, routing, the real
+edge. This one was none of those. Every unit and component test passed, and passed honestly,
+because **every one of them called the store directly.** A test that reaches the machinery by hand
+cannot notice that nothing else reaches it. **Nothing in this repository asked whether a feature is
+reachable by an ordinary person doing an ordinary thing**, and a driver is the only kind of check
 that asks that question by construction, because it has no other way in.
 
-So stage one's value is higher than this item claimed, and for a reason not listed above.
+That is why `scripts/e2e/drive.mjs` may not reach past the browser — no `localStorage.setItem` to
+arrange a state, no calling into a component, and a real mouse event at real coordinates rather
+than `el.click()` from inside the page. A harness that sets up its own world stops answering the
+question it exists for.
 
-#### One row of the table is now partly closed, in-process, and it is worth knowing how far
+#### And an honest limit, which is an argument against reading this as a substitute
 
-> *Every `js/*.js` interop — bUnit answers **null** to every interop read, which is why two tests in
-> this slice had to plant a storage pointer to reach the branch they were written for.*
-
-`RenderContext(storesForReal: true)` registers a local storage that actually holds what is written
-to it, in place of bUnit's recorder. A test can now press the control a person presses and then ask
-what is in storage — which is what the sixteen tests in `StartAnotherTests` do, and what made the
-defect above visible at all.
-
-**It closes `ppStore` and nothing else.** `theme.js`, `palette.js` and `motion.js` are still
-answered by a recorder; there is still no boot, no routing, no Functions and nothing behind sign-in.
-And it is a *fake* — a dictionary that behaves the way `localStorage` is documented to behave, not
-the browser's own. It narrows one row of the table; it does not remove it.
-
-**The cost of it is one thing to remember**: it replaces bUnit's `IJSRuntime`, and with it
-`JSInterop.Invocations`, which most of this project's interop assertions read. `FakeLocalStorage`
-grew a call log for that. So it is opt-in, and every existing test is untouched.
-
-#### And an honest limit on what stage one would have bought here
-
-**Three further defects in the same slice were found by an adversarial review, and a harness would
-have caught at most one of them.** They were: a store reporting a successful write over a browser
-that had refused storage; a cap read before the write it was meant to gate, racing a fire-and-forget
-autosave; and an undo left armed that would have duplicated the character it was offered to rescue.
+**Three further defects in the slice that sharpened this were found by an adversarial review, and a
+harness would have caught at most one of them.** They were: a store reporting a successful write
+over a browser that had refused storage; a cap read before the write it was meant to gate, racing a
+fire-and-forget autosave; and an undo left armed that would have duplicated the character it was
+offered to rescue.
 
 A driver reproduces the third if somebody thinks to press Undo after starting another character. It
 will not reproduce the first without a browser configured to refuse storage, and it will not
@@ -613,25 +588,16 @@ button press is not something a harness *drives*, it is something a harness gets
 three were found by a reader who was told to look for data loss and given nothing else.
 
 **So the two are not substitutes and should not be argued for as one.** A harness answers "is this
-reachable"; a hostile reader answers "what does this do when something goes wrong". This slice
+reachable"; a hostile reader answers "what does this do when something goes wrong". That slice
 needed both and neither would have been enough.
 
-#### The decision: stage one is approved, stage two is still open
+#### Stage two: seed the database, do not open a seam
 
-**The owner approved stage one on 2026-09-02 and asked for it not to be built yet.** So this entry
-stays here, and stays open, but it is no longer waiting on anybody — it is scheduled work with the
-argument already made. Whoever picks it up should read the two sections above before the plan
-itself: the value is higher than the plan claims, and the honest limit on it is real.
-
-**Stage two as written is the wrong solution to a solved problem, and the whole of its danger was
-self-inflicted.** The plan above assumed the only way to reach a signed-in session locally was a
-seam *in the application* that mints one. Minting a session without a mailbox is an authentication
-bypass, and everything behind sign-in is the rulebook that is here by the author's personal
-permission and deliberately not served publicly, the recordings, the admin page and other people's
-characters — so the three conditions above are three independent locks on one door. **The door did
-not have to be built.**
-
-#### Seed the database, do not open a seam
+**Stage two as originally written was the wrong solution to a solved problem, and the whole of its
+danger was self-inflicted.** The plan assumed the only way to reach a signed-in session locally was
+a seam *in the application* that mints one — an authentication bypass, guarding the rulebook that
+is here by the author's personal permission, the recordings, the admin page and other people's
+characters. **The door did not have to be built.**
 
 Read off the code rather than reasoned about: `worker/tokens.js` stores **only the SHA-256 of a
 sign-in token** (`worker/crypto.js`'s `hash`, plain WebCrypto, which Node provides identically),
@@ -649,18 +615,17 @@ would have caused. This is ordinary test-seeding, and it is strictly better than
 in the shipped bundle, no secret, no localhost test, nothing to compile out, and no test needed to
 assert the published bundle does not contain it.
 
-**What it needs**, so nobody discovers it late: a local D1 that exists and is migrated —
-`scripts/apply-migrations.sh` already does that — and the binding's name. **What it still cannot
-reach** is the mail send itself, which is `scripts/probe-mail.mjs`'s job and is not a browser's, and
-the deployed site, which cannot be seeded by anybody and should not be.
+**What it needs**, so nobody discovers it late: `functions/` has to be bundled, which means running
+`wrangler pages dev` from the repository root and giving it a D1 binding — the one thing stage one
+deliberately does not do, so this is a change to `scripts/e2e.sh`'s server setup and not only new
+checks. A local D1 that exists and is migrated is `scripts/apply-migrations.sh`'s job already.
+**What it still cannot reach** is the mail send itself, which is `scripts/probe-mail.mjs`'s job and
+is not a browser's, and the deployed site, which cannot be seeded by anybody and should not be.
 
-**So both stages are buildable and neither carries the risk this entry was built around.** The
-zero-risk alternative written up above — point the harness at the deployed site and drive only the
-anonymous half — stops being a fallback and becomes a *second, additional* target: the local run
-seeds and signs in, a deployed run proves the real edge anonymously. The owner approved stage one;
-stage two no longer needs an approval about danger, only a decision about effort.
-
-**Nothing here has been implemented.**
+**And the zero-risk alternative stops being a fallback and becomes a second target.** Pointing the
+same driver at the *deployed* site verifies the real edge, the real Functions and the real bundle
+anonymously — so the local run seeds and signs in, and a deployed run proves production. Neither
+needs an approval about danger any more; both are a decision about effort.
 
 ### 11. Answered: it is a tool for running *and* playing P&P
 
