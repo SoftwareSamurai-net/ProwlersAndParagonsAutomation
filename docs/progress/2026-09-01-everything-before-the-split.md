@@ -1242,7 +1242,7 @@ Neither was anticipated, and both were right:
 
 - **`EveryRoutedPageIsReachableFromAnotherPage` failed.** Nothing linked to `/sheet`. The page was
   a working feature nobody could reach — the exact class of fault [item
-  10](#10-nothing-drives-the-assembled-app--a-plan-awaiting-the-owners-approval) argues about, and
+  10](#10-nothing-drives-the-assembled-app--stage-one-approved-2026-09-02-not-started) argues about, and
   here a test already covers it. The fix is two links in the character manager: the open character's
   block gets one, and **every other row gets `sheet/{id}`**, which is the read-without-opening the
   second address exists for. The pitch had guessed those placements; the test is what made them
