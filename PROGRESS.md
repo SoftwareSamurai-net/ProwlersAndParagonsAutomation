@@ -1222,9 +1222,11 @@ watched to fail; the point of moving the registration into the repository is tha
 it at all, which was impossible while it lived in one file on one machine.
 
 What is left open is small and belongs to whoever meets it: Claude Code gates a repository-proposed
-server behind **one approval per checkout** (`enableAllProjectMcpServers` answers it in advance),
-and the publish route in the guide is still the right one for Claude Desktop or a client that is
-not working inside a checkout. Full account, including the MSIX-redirection hazard that may or may
+server behind **one approval per checkout**, granted outside an interactive session by
+`enabledMcpjsonServers` in that checkout's git-ignored `.claude/settings.local.json` — not by the
+key of the same name in `~/.claude.json`, and not visibly, because `claude mcp list` says *Pending
+approval* either way. The publish route in the guide is still the right one for Claude Desktop or a
+client that is not working inside a checkout. Full account, including the MSIX-redirection hazard that may or may
 not have caused the original loss, in [the archive](docs/progress/2026-09-02-the-mcp-server-that-was-never-there.md).
 
 ### 19. The account cap is set by hand in SQL, and a GM cannot see what a player holds

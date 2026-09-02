@@ -74,6 +74,14 @@ questions about the rules. It does not replace `build --from`; both call the sam
   parse. Do not replace either with the other. **The runtime half now
   covers both launch paths**, because there are two: the published binary, and `dotnet run` from a
   checkout, which is what the repository's own `.mcp.json` uses.
+- **A checkout's own server is gated, and the gate is invisible in the obvious place.** Claude Code
+  will not start a server proposed by `.mcp.json` until that checkout approves it, and the approval
+  that works without an interactive session is `enabledMcpjsonServers` in the checkout's
+  git-ignored `.claude/settings.local.json`. **The per-project key of the same name in
+  `~/.claude.json` does not work, and `claude mcp list` reports *Pending approval* either way** —
+  both measured, by a headless session that either has the six tools or has not. Debug a missing
+  tool list with that, never with `claude mcp list`:
+  `claude -p "Do you have a tool named mcp__prowlers-and-paragons__creation_guide? Answer YES or NO only."`
 - **"`dotnet run` writes MSBuild's progress to standard output" was the reason this guide gave for
   publishing, and on the pinned .NET 10 SDK it is false.** Measured through a forced full NuGet
   restore and a recompile, that launch put 4,448 bytes on standard output and every one was
