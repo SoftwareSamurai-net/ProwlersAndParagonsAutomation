@@ -130,6 +130,28 @@ tolerance=0.02
 # and this repository has been bitten by exactly that shape more than once.
 compare_deadline=120s
 
+# How long one *screenshot* may take before it is killed and named.
+#
+# **This was the gap that actually cost a job, and `compare_deadline` above did not cover it.**
+# The comment at that variable, and `docs/guide/hosting.md`, both blamed the comparator for a
+# step that ran to GitHub's ceiling saying nothing — and capping the comparison is what came of
+# it. Then the run of `6d1078e` was killed by the 30-minute job cap after **1666 seconds in this
+# step having printed not one line**: not a single `pixel-identical`, so it never reached a
+# comparison at all. The orphan processes the runner killed on the way out were `chrome` and
+# `chrome_crashpad_handler`. It hung in the *first capture*, and the capture was the one thing
+# here with no deadline on it — so the earlier diagnosis was wrong about which half hung, and
+# the fix aimed at the half that was already bounded.
+#
+# **One value, used by both the `timeout` and the message quoting it**, same rule as above: a
+# message naming a number that lives somewhere else is a claim with a shelf life.
+#
+# 120s against a capture measured at about a second, and about seventeen for the first cold
+# launch on a runner — so this is not a performance budget, it is far enough above the real cost
+# that a loaded runner cannot trip it and far below the point where anybody would rather have
+# been told. Deliberately the same figure as `compare_deadline`: two different operations, and
+# no reason yet to believe they need different numbers.
+screenshot_deadline=120s
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --update-goldens) update_goldens=1 ;;
@@ -170,7 +192,18 @@ fi
 # take the same arguments and both write to the same host path.
 use_docker=1
 native_chrome=""
-if [ "$(uname -s)" = "Linux" ]; then
+
+# **`PP_CHROME_BIN` is a test seam, and it is the only way the deadline below can be watched to
+# fire.** Same shape and same reason as `WRANGLER_BIN` in scripts/apply-migrations.sh: a guard
+# that has never failed is a claim, and the thing this one guards is a browser that does not
+# come back — which cannot be arranged with a real Chrome. Point it at a script that sleeps and
+# the timeout fires; point it at one that copies a golden into the requested `--screenshot=`
+# path and the whole loop runs green. Both were run. It also forces the native path, because a
+# stand-in is not a container.
+if [ -n "${PP_CHROME_BIN:-}" ]; then
+  native_chrome="$PP_CHROME_BIN"
+  use_docker=0
+elif [ "$(uname -s)" = "Linux" ]; then
   for candidate in google-chrome google-chrome-stable chromium-browser chromium; do
     if command -v "$candidate" >/dev/null 2>&1; then
       native_chrome="$candidate"
@@ -206,12 +239,15 @@ run_chrome() {
 
   if [ "$use_docker" -eq 0 ]; then
     local profile; profile="$(mktemp -d)"
-    "$native_chrome" \
+    local status=0
+    timeout "${screenshot_deadline}" "$native_chrome" \
       --headless=new --no-sandbox --disable-gpu --allow-file-access-from-files \
       --hide-scrollbars --user-data-dir="$profile" --virtual-time-budget=5000 --force-prefers-reduced-motion --run-all-compositor-stages-before-draw \
       --window-size="${width},${height}" --screenshot="$out_host" $extra_flags \
-      "file://$wwwroot/$page" >/dev/null 2>&1 || true
+      "file://$wwwroot/$page" >/dev/null 2>&1 || status=$?
     rm -rf "$profile"
+
+    [ "$status" -eq 124 ] && return 124
     [ -s "$out_host" ]
     return
   fi
@@ -231,9 +267,11 @@ run_chrome() {
   # to report a rendering failure that was actually a scheduling one. A distinct profile
   # directory per attempt rules out a stale singleton lock as the cause of the retry being needed.
   local attempt
+  local status
   for attempt in 1 2 3; do
     rm -f "$wwwroot/$out_name"
-    MSYS_NO_PATHCONV=1 docker run --rm --user root \
+    status=0
+    MSYS_NO_PATHCONV=1 timeout "${screenshot_deadline}" docker run --rm --user root \
       --entrypoint google-chrome \
       -v "${host_wwwroot}:/data" -w /data \
       "$docker_chrome_image" \
@@ -241,7 +279,13 @@ run_chrome() {
       --hide-scrollbars --user-data-dir="/tmp/pp-chrome-profile-${attempt}" \
       --virtual-time-budget=5000 --force-prefers-reduced-motion --run-all-compositor-stages-before-draw \
       --window-size="${width},${height}" --screenshot="/data/${out_name}" $extra_flags \
-      "file:///data/${page}" >/dev/null 2>&1 || true
+      "file:///data/${page}" >/dev/null 2>&1 || status=$?
+
+    # **A hang is not retried, and that is the difference between the two faults.** The retry
+    # below exists for a container that produced *no screenshot* and then exited — a scheduling
+    # blip that the identical command survives standing alone. A capture that never returns is
+    # the renderer being wedged, and three attempts at it is three deadlines rather than one.
+    [ "$status" -eq 124 ] && return 124
 
     if [ -s "$wwwroot/$out_name" ]; then
       mv "$wwwroot/$out_name" "$out_host"
@@ -356,7 +400,22 @@ while IFS= read -r line; do
 
   actual="$actual_dir/$name.png"
   rm -f "$actual"
-  run_chrome "$actual" "$width" "$height" "$page" "$extra" || true
+  capture_status=0
+  run_chrome "$actual" "$width" "$height" "$page" "$extra" || capture_status=$?
+
+  # **A wedged renderer aborts the run; a missing screenshot only fails its page.** The two are
+  # different findings and want different handling. "No screenshot after retrying" is about this
+  # page, so the loop goes on and every failing page gets reported in one run. A capture that
+  # never returned is about *Chrome*, and every remaining page would queue up behind the same
+  # deadline — eight of them is sixteen minutes, which is how a 30-minute job cap gets hit by a
+  # check that had already found its answer in the first two.
+  if [ "$capture_status" -eq 124 ]; then
+    echo "::error::$name: the screenshot of $page did not finish within ${screenshot_deadline} and was" \
+         "killed. Chrome did not come back — this is the hang that cost a six-hour job once and a" \
+         "cancelled one again on 6d1078e, and the page is named here so it can be reproduced." \
+         "Stopping rather than asking the same wedged renderer for the remaining pages."
+    exit 1
+  fi
 
   if [ ! -s "$actual" ]; then
     echo "::error::$name: Chrome produced no screenshot for $page after retrying"
