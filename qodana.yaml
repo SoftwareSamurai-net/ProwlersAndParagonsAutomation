@@ -41,10 +41,42 @@ linter: jetbrains/qodana-cdnet:2026.2
 profile:
   name: qodana.recommended
 
-# Guarantee the SDK named in global.json is present before inspection.
-# The bundled 10.0.x SDK already satisfies global.json's `rollForward: latestMinor`,
-# so this is belt-and-braces for when global.json is bumped ahead of the image.
-bootstrap: curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --jsonfile /data/project/global.json -i /usr/share/dotnet
+# Guarantee the SDK named in global.json is present before inspection — but only install one
+# when the image does not already have it, which it does.
+#
+# **This used to install unconditionally, and that cost 14 seconds of every scan.** The comment
+# here always said the bundled 10.0.x satisfies `global.json`'s `rollForward: latestMinor` and
+# that the install was belt-and-braces for a `global.json` bumped ahead of the image — so the
+# common case was downloading 239 MB of SDK 10.0.100 over an SDK that was already fine.
+#
+# **The premise is now measured rather than asserted.** `jetbrains/qodana-cdnet:2026.2` ships
+# 8.0.422, 9.0.315 and **10.0.301**, and with this repository's `global.json` mounted at
+# `/data/project`, `dotnet --version` inside the image answers `10.0.301` and exits 0.
+#
+# **`dotnet --version` is the predicate because it is the same question the scan asks.** Run from
+# a directory with a `global.json`, it resolves that file and fails when nothing installed
+# satisfies it — so this is not a version string compared by hand, it is the SDK resolver itself
+# giving its answer. Watched to fail, not reasoned about: against a `global.json` demanding
+# 11.0.100 the same command exits **155** with "Install the [11.0.100] .NET SDK", which is the
+# branch that still runs the install.
+#
+# So the belt-and-braces is intact — bump `global.json` past the image and the install comes back
+# by itself — and it now costs a fifth of a second rather than fourteen when it is not needed.
+#
+# **The `echo` is not decoration.** A skipped install and a completed one are both silent in a log
+# nobody reads to the end, and this repository's oldest failure is a step that did nothing looking
+# exactly like a step that worked. The branch that ran says so by name.
+#
+# **A folded block scalar, and not for looks.** Written as a plain `bootstrap: if …` one-liner
+# this file stops parsing: a colon-space inside a plain scalar ends the key, so the `echo`
+# message below turned `qodana.yaml` into a YAML error. `>-` folds these lines into one command
+# and lets the text contain whatever it needs to.
+bootstrap: >-
+  if cd /data/project && dotnet --version >/dev/null 2>&1;
+  then echo "Qodana bootstrap - the image's own SDK $(dotnet --version) satisfies global.json, so nothing is installed.";
+  else echo "Qodana bootstrap - no installed SDK satisfies global.json, so one is being installed.";
+  curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --jsonfile /data/project/global.json -i /usr/share/dotnet;
+  fi
 
 # Without this, Qodana for .NET cannot locate the project and reports nothing.
 dotnet:
