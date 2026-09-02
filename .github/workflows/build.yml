@@ -100,33 +100,21 @@ jobs:
           # Honours the SDK version pinned in global.json.
           global-json-file: global.json
 
-      - name: Cache the NuGet packages
-        # **There was no cache of any kind in this repository's workflows**, so every run
-        # re-downloaded every package: 16 seconds a run, on a restore that resolves the same
-        # graph every time.
-        #
-        # **Not `actions/setup-dotnet`'s own `cache:` input, and that is not a preference.**
-        # That input caches against a `packages.lock.json`, and this repository has none — it
-        # fails resolving `cache-dependency-path` rather than silently doing nothing, which is
-        # the better failure but still not a cache. Keyed on the project files instead: a
-        # `PackageReference` cannot move without one of them changing, and `Directory.Build.props`
-        # and `global.json` are in the key because both change what gets restored.
-        #
-        # **The `restore-keys` prefix is what stops a one-package bump costing a cold restore.**
-        # A near-miss entry restores, `dotnet restore` fetches only what actually moved, and the
-        # run then saves a fresh entry under the exact key.
-        #
-        # Qodana's caches once filled all 10 GB of this repository's ceiling at ~420 MB a branch
-        # and evicted each other; this one is a few tens of megabytes, and the key changes only
-        # when a dependency does rather than on every commit.
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props', 'global.json') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
-
       - name: Restore
+        # **A `~/.nuget/packages` cache stood here for one day and was deleted on measurement.**
+        # It was added on the reasonable-sounding ground that a run should not re-resolve the same
+        # graph every time — and then two runs that *hit* the cache restored in 11s and 15s, which
+        # is what this step already did on `main` with no cache at all. Counting the cache step's
+        # own cost (5s to pull 190 MB, plus its post step) it was **16-21 seconds against 11**: a
+        # net loss in its best case, since a hit is as good as a cache gets.
+        #
+        # **The wrangler cache below was added in the same change and is kept**, because the same
+        # arithmetic says the opposite there: 4s to restore, replacing a 12s registry fetch. Two
+        # caches, one measurement each, two different answers — which is the reason to measure a
+        # cache rather than assume one.
+        #
+        # See docs/progress/2026-09-02-the-caches-second-run.md. Do not re-add this without a run
+        # that shows Restore beating 11 seconds.
         run: dotnet restore
 
       - name: Build
