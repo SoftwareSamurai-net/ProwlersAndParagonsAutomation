@@ -101,8 +101,15 @@ make "the suite passed" ambiguous:
 | `tests/visual` | `./scripts/test-visual.sh` | the pixel comparator and its PNG codec |
 | `tests/deploy` | `./scripts/test-deploy-gate.sh` | the deploy's D1 migration gate |
 
-**The fifth is the newest and the reason it exists is worth stating: a workflow cannot be executed
-by any of the other four.** `scripts/d1-migrations/gate.mjs` is the *decision* the deploy makes about
+**There is a sixth thing that drives the project and is deliberately not in that table.**
+`./scripts/e2e.sh` runs the assembled application in real Chrome against a real server, reports
+verdicts rather than test counts, and cannot run without publishing a site first — so
+`./scripts/count-tests.sh` does not know about it and should not: a suite whose figure is "five
+checks" alongside four suites' thousands would make the total meaningless. See **Driving the
+assembled app** at the end of this file.
+
+**The fifth is the newest of the five and the reason it exists is worth stating: a workflow cannot
+be executed by any of the other four.** `scripts/d1-migrations/gate.mjs` is the *decision* the deploy makes about
 pending migrations — apply, refuse, or proceed — pulled out of the shell so it can be driven with
 canned wrangler output. That is the same shape `scripts/visual/diff.mjs` took for the same reason,
 and its six branches are each proved by mutation rather than by reading.
@@ -201,3 +208,90 @@ harnesses. The PNG codec is ~150 lines against `node:zlib` rather than a depende
   those pages byte for byte, which is why it survived.
 
 
+
+
+## Driving the assembled app
+
+`./scripts/e2e.sh` is the only thing here that runs the application. Everything else runs a *part*
+of it: `dotnet test` drives the engine, bUnit renders components, the proof harnesses drive markup
+and CSS over `file://`, and the pixel diff compares pictures of that markup. None of them boots
+Blazor WebAssembly, follows a link, reloads a page, executes a line of `js/*.js` for real, or is
+subject to the Content-Security-Policy the deploy generates.
+
+It publishes the site, serves it with the same `wrangler pages dev` version
+`.github/workflows/deploy.yml` pins, and drives real Chrome over the DevTools Protocol.
+`scripts/e2e/cdp.mjs` is the protocol client — Node's own global `WebSocket`, no `package.json`,
+the same trade `scripts/visual/png.mjs` makes against an image library. `scripts/e2e/drive.mjs`
+holds the five checks; `scripts/e2e/defects.mjs` holds their negative controls.
+
+```bash
+./scripts/e2e.sh                # publish, serve, drive, and drive every twin
+./scripts/e2e.sh --real-only    # the ten-second loop while writing a check. NOT a full run
+```
+
+**The question it answers is not "does the app work".** It is *is this reachable* — and that is a
+question nothing else here asks. A feature shipped in this repository while nothing in the
+application ever wrote to the store it read from: the manager's list, the banner's switcher and
+both undo buffers all read an index, every unit and component test passed honestly, and every one
+of them called the store directly. A test that reaches a feature by hand cannot notice that
+nothing else reaches it. So four rules, and each of them is load-bearing:
+
+- **Nothing in `drive.mjs` may reach past the browser.** No `localStorage.setItem` to arrange a
+  state, no calling into a component, no planted storage pointer. Every state a check needs is
+  arrived at by clicking what a person clicks — real `Input.dispatchMouseEvent` at real
+  coordinates, not `el.click()` from inside the page, which is the same mistake one layer out.
+  The only reads that go round the front are the ones *asserting* on storage after the app wrote
+  it.
+- **Every check states its positive control first, and a failed control is reported as its own
+  sentence.** `[CONTROL] the work did not happen: …` and `[OUTCOME] …` are different bug reports —
+  "the palette never changed" and "the palette changed to the wrong colour" — and this repository
+  has a history of reporting the first as the second.
+- **Every check has a deliberately-broken twin, and a check with no twin fails the run.** The
+  names the driver reported and the names the twins cover are compared, so a sixth check cannot
+  join the suite unproven.
+- **A twin must *say* FAIL, never merely fail to say PASS.** Each check catches internally and
+  prints a verdict either way, because a driver that died before reaching a check leaves the line
+  out entirely — and "not PASS" would call that a working negative control. `e2e.sh` treats a
+  missing verdict as a failure of the twin.
+
+`scripts/e2e/defects.mjs` builds each twin by copying the published directory and substituting
+**one documented line**, and **throws if that line does not occur exactly once** — the
+`ProofPages.WithDefect` property, against a published site rather than a single file. Zero
+occurrences means the twin has stopped reproducing anything and would pass for the wrong reason;
+more than one means it is not the single change it documents.
+
+### Three things about the server, each of which cost a debugging round
+
+- **`wrangler pages dev` is run from `.e2e/`, and the placement is the configuration.** Wrangler
+  bundles a `functions/` directory found in the *working directory* — there is no flag for it — so
+  running from the repository root would bundle the accounts API, which needs a D1 binding stage
+  one deliberately does not have. From `.e2e/` there is none to find, every `/api/` address falls
+  through `_redirects` to `index.html`, and the app reads an unparseable answer as "anonymous",
+  which is its own documented behaviour rather than a special case for the harness. The site
+  directories are named *relative* to that directory for a second reason: wrangler is Node and
+  cannot read a Git Bash path like `/c/Users/…`.
+- **Readiness is the served body, not the status code and not wrangler's own log line.** Wrangler
+  prints `Ready on http://…` and then, if its worker has died, answers requests by hanging for
+  ever — which is exactly what happened here, twice, and read as a broken page. The probe requires
+  the app's own boot screen to be in the answer.
+- **MSYS pids and Windows pids are two namespaces and mixing them broke this twice.** `$!` is an
+  MSYS pid and `taskkill` speaks Windows pids, so the first cleanup killed nothing and the script
+  hung for ever after printing five green verdicts. Translating with `ps -W` was worse: it lists
+  Windows-only processes with their *Windows* pid in the first column, so the match hit an
+  unrelated process and the tree kill took out the driver — which then reported no verdict and
+  looked exactly like a harness that could not see its own defect. The answer is neither: MSYS
+  `kill` stops the wrapper, and the port's listener — a real Windows pid, read out of `netstat` —
+  is cleared afterwards.
+
+### What it does not cover, stated so nobody assumes otherwise
+
+- **Anything behind sign-in.** Stage two of `PROGRESS.md` item 10, which seeds a login token into
+  the local D1 rather than opening a seam in the application.
+- **Pages Functions and D1.** Nothing is bundled, on purpose — see above.
+- **A `_redirects` regression.** `wrangler pages dev` **rejects** this site's own
+  `/* /index.html 200` rule as an infinite loop and ignores it, then serves `index.html` for
+  unmatched paths by its own default — so deep links work locally for a different reason than they
+  work in production, and a change to `_redirects` is invisible here. Measured, not assumed: the
+  rule is named in wrangler's startup output as the one invalid rule it found.
+- **Screen readers.** Still owed and no harness closes it. `aria-pressed` being the string
+  `"true"` is not the same as having been listened to.

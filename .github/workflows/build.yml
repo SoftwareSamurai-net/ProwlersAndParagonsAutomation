@@ -572,3 +572,36 @@ jobs:
             exit 1
           }
           echo "Bundled $(wc -c < "$out/worker.js") bytes."
+
+      - name: Drive the assembled app in a browser
+        # **The first thing in this repository that runs the application.** Everything above is a
+        # part of it: `dotnet test` drives the engine, bUnit renders components, the proof
+        # harnesses drive markup and CSS over `file://`, and the pixel diff compares pictures of
+        # that markup. None of them boots Blazor WebAssembly, follows a link, reloads a page, runs
+        # a line of `js/*.js` for real, or is subject to the Content-Security-Policy the step
+        # above generates. `scripts/e2e.sh` publishes the site, serves it with the same
+        # `wrangler pages dev` version `deploy.yml` pins, and drives real Chrome over the DevTools
+        # Protocol. Stage one of PROGRESS.md item 10; anonymous only, no credential, no bypass.
+        #
+        # **And it asks a question none of the others can.** A feature shipped here while nothing
+        # in the application ever wrote to the store it read from — every unit and component test
+        # passed honestly, because every one of them called the store directly. A test that
+        # reaches a feature by hand cannot notice that nothing else reaches it. A driver has no
+        # other way in.
+        #
+        # **`PP_E2E_SITE_ALREADY_BUILT=1` reuses the publish above**, which has already had
+        # `write-cloudflare-headers.sh` run over it — so this serves the same bytes and the same
+        # policy the deploy would upload, and does not pay for a second `dotnet publish`.
+        #
+        # **The script drives a deliberately-broken twin of the site for every check and requires
+        # each one to go red.** That is not belt-and-braces: four checks in this repository have
+        # passed while the thing they measured never ran, and `MustNotShow`'s denylist was walked
+        # straight through by `|| true`. It also fails if a check has no twin, so a sixth check
+        # cannot join the suite unproven.
+        #
+        # `ubuntu-latest` ships Google Chrome and the step above has already warmed the npm cache
+        # for this exact wrangler, so this costs a step rather than a dependency. It runs last
+        # because it is the slowest thing here and the cheapest failures should be reported first.
+        env:
+          PP_E2E_SITE_ALREADY_BUILT: "1"
+        run: ./scripts/e2e.sh
