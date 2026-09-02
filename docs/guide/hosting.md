@@ -136,9 +136,30 @@ passed, so it was not a deterministic fault in the page or the golden.
   different facts.
 - **The deadline is one variable used by both the `timeout` and the message quoting it.** A message
   naming a number that lives somewhere else is a claim with a shelf life.
-- **The cause is still open.** The comparator is plain Node over two decoded PNGs, and
-  `scripts/visual/png.mjs` is a hand-written decoder that had no tests at all until recently. That
-  it passed on identical inputs rules out a deterministic loop and rules in very little else.
+- **The cause is no longer open, and it was not the comparator — this bullet used to say it
+  probably was.** It happened again on the run of `6d1078e`, and that run says which half: the
+  step spent **1666 seconds having printed not one line**, not a single `pixel-identical`, so it
+  never reached a comparison at all. The orphan processes the runner killed on the way out were
+  `chrome` and `chrome_crashpad_handler`. It hung in the **first capture** — and the capture was
+  the one thing in that script with no deadline on it, because `compare_deadline` bounds
+  `node diff.mjs` and nothing bounded Chrome.
+
+  **So the earlier fix was aimed at the half that was already bounded.** `screenshot_deadline`
+  now caps each capture at 120s, a capture timeout **aborts** the run rather than failing one
+  page (eight pages queued behind a wedged renderer is sixteen minutes, which is how a
+  30-minute cap gets hit by a check that had its answer in the first two), and a hang is
+  reported separately from "no screenshot was produced" because they are different faults —
+  the second is retried, the first is not.
+
+  Watched to fire, both ways, via the `PP_CHROME_BIN` seam: a stand-in that sleeps gives
+  `exit 1` at 122s naming the page, and one that copies the goldens into the requested
+  `--screenshot=` path takes all eight pages green in 52s without tripping it.
+
+  **What is still open is why Chrome wedges**, and it is intermittent rather than deterministic:
+  the re-run of that same commit did the whole comparison step in **13 seconds**. A re-run over
+  byte-identical inputs passing is what this bullet said the first time, and it still holds —
+  what has changed is that the failure now costs two minutes and names a page instead of
+  cancelling the job.
 
 **Default `timeout-minutes` is unlimited**, which is the whole trap: every job in every repository
 here runs to six hours before anybody is told, and the failure is indistinguishable from a job that
