@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "prowlers-and-paragons": {
+      "type": "stdio",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "mcp/ProwlersAndParagons.Mcp.csproj",
+        "--configuration",
+        "Release",
+        "--verbosity",
+        "quiet"
+      ],
+      "env": {}
+    }
+  }
+}

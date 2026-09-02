@@ -22,6 +22,32 @@ thing to publish.
 
 ---
 
+## 0. Checked this repository out? It is already configured
+
+[`.mcp.json`](../.mcp.json) at the root of this repository registers the server for anybody
+working in this checkout, on any operating system, with **no path to install and none to keep
+up to date**. It starts the server through the build tool from a path relative to the checkout,
+so a clone, a fresh machine and a git worktree are all already correct.
+
+```bash
+dotnet build --configuration Release
+```
+
+Run that once after cloning — not because the server needs it, but because the first launch
+would otherwise compile while the client is waiting for a reply.
+
+**Claude Code asks once, per checkout, before it will start a server a repository has proposed.**
+That is a deliberate gate on running a program a repository handed you; `claude mcp list` reports
+the server as *Pending approval* until somebody answers it in an interactive session. To answer it
+in advance for a checkout you already trust, set `enableAllProjectMcpServers` in that project's
+`.claude/settings.json`.
+
+**Everything below is for the other case**: connecting a client that is not working inside this
+checkout — Claude Desktop, or a Claude Code you use everywhere *except* here. That wants a copy of
+the server installed somewhere of its own.
+
+---
+
 ## 1. Publish it somewhere it will stay
 
 Pick the block for your shell. **An unexpanded variable does not error** — it publishes the
@@ -50,7 +76,10 @@ dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o "$HOME/.local/sh
 
 That produces `ProwlersAndParagons.Mcp.exe` (no extension on macOS and Linux) with the rules files beside it, so it needs no repository checked out and no working directory of its own. It is framework-dependent, so the machine running it still needs the **.NET 10 runtime** — add `--self-contained -r win-x64` (or your own runtime identifier) to publish one that does not.
 
-**Point your client at that binary rather than at `dotnet run`.** MSBuild writes its own progress to standard output, which is where the protocol lives — a client reading it sees a corrupt stream and drops the session.
+**Point your client at that binary rather than at the build tool.** Not because the build tool
+is unsafe — [`.mcp.json`](../.mcp.json) uses it, and a launch measured through a full NuGet restore
+and a recompile put 4,448 bytes on standard output and every one of them was protocol. It is that
+the build tool needs the checkout, and the whole point of publishing is a copy that does not.
 
 **Re-publish to the same path after a `git pull`.** The server holds its own copy of the rules, so an old binary keeps answering with old rules, perfectly happily.
 
@@ -79,7 +108,7 @@ claude mcp add --scope user prowlers-and-paragons -- "$HOME/.local/share/prowler
 
 **If `claude` is not a recognised command**, the CLI is installed and not on your `PATH` — the native installer puts it at `%USERPROFILE%\.local\bin\claude.exe` on Windows and `~/.local/bin/claude` elsewhere. Call it by full path (`& "$env:USERPROFILE\.local\bin\claude.exe" mcp add …` in PowerShell), or put that directory on your `PATH` and open a new terminal.
 
-`--scope user` registers it for **every project on your machine**, which is what you want for a character builder: you are most likely to use it in a session that has nothing to do with this repository. The default scope is `local`, which is this-project-only — fine if you only ever build characters while working on the tool itself, and confusing if you expect it elsewhere. There is deliberately no `.mcp.json` checked in here, because a project-scoped entry needs an absolute path and there is no path that is right on two machines.
+`--scope user` registers it for **every project on your machine**, which is what you want for a character builder: you are most likely to use it in a session that has nothing to do with this repository. The default scope is `local`, which is this-project-only — fine if you only ever build characters while working on the tool itself, and confusing if you expect it elsewhere. Section 0 covers the checkout itself, through the `.mcp.json` at the root — that entry is project-scoped and needs no absolute path, because it starts the server from a path relative to the repository.
 
 Check it, and remove it, with:
 
@@ -144,6 +173,11 @@ The hard part of this front end is not the transport — it is deciding which qu
 
 ## Troubleshooting
 
+- **`CONNECTION_CLOSED`, and no server log anywhere.** The registered file is not there, so
+  nothing ever started — there is no stderr to read because there was no process. Run the command
+  in the registration by hand: `No such file or directory` is the whole diagnosis. This has
+  happened here; see item 18 in [`PROGRESS.md`](../PROGRESS.md). Working inside the checkout, use
+  section 0 and delete the registration that names a path.
 - **Nothing appears in the client's tool list.** Check the path is absolute and the file exists. The server writes one line to standard error on startup naming the rules directory it found; clients keep that in their MCP log.
 - **`claude mcp list` shows it and the session does not.** The session was already running when you added it, or it was added at `local` scope from a different project. Start a new session, and check `claude mcp list` from the directory you are actually working in.
 - **It answers with rules you have edited since.** The published binary carries its own copy. Re-publish over the same path, or point `PROWLERS_RULES_DIR` at your checkout's `data/rules` while you are changing them.
