@@ -82,14 +82,23 @@ questions about the rules. It does not replace `build --from`; both call the sam
   both measured, by a headless session that either has the six tools or has not. Debug a missing
   tool list with that, never with `claude mcp list`:
   `claude -p "Do you have a tool named mcp__prowlers-and-paragons__creation_guide? Answer YES or NO only."`
-- **"`dotnet run` writes MSBuild's progress to standard output" was the reason this guide gave for
-  publishing, and on the pinned .NET 10 SDK it is false.** Measured through a forced full NuGet
-  restore and a recompile, that launch put 4,448 bytes on standard output and every one was
-  protocol. The claim is not merely stale — `.mcp.json` depends on it being false, which is why
-  `TheBuildToolLaunchSpeaksNothingButTheProtocol` now holds it rather than a sentence doing so.
-  Publishing is still right for a client that is **not working inside a checkout**, because
-  `dotnet run` needs the checkout; that is a different reason and the one `docs/MCP-SETUP.md` now
-  gives.
+- **"`dotnet run` writes MSBuild's progress to standard output" was this guide's reason for
+  publishing. It was too broad, then the correction was too broad in the other direction, and the
+  true statement is narrower than both.** A launch measured through a forced full NuGet restore and
+  a recompile put 4,448 bytes on standard output and every one was protocol — so the blanket
+  warning was wrong. But a launch whose *copy* fails, which is what happens when a server from an
+  earlier session still holds `mcp/bin/Release`, writes `MSB3026` retries there: twelve of them, in
+  the middle of a JSON-RPC stream, read by
+  `TheBuildToolLaunchSpeaksNothingButTheProtocol` on the first run that was not the one it was
+  written on. **So the safe launch is one that does not build**, and `.mcp.json` passes
+  `--no-build`. That is why `dotnet build --configuration Release` is a required step after a clone
+  and after a pull rather than a convenience, and why the not-built case matters: exit 1, empty
+  standard output, one line on standard error.
+- **Neither version of that claim was found by reading.** The first survived years in three
+  documents and a source comment; the second survived an adversarial review and a merge, and lasted
+  half an hour against a machine that happened to have a server running. Publishing is still right
+  for a client **not working inside a checkout**, because `dotnet run` needs the checkout — a
+  different reason, and the one `docs/MCP-SETUP.md` now leads with.
 - **The two halves are complementary only as far as the runtime half is driven, and this note
   used to claim more than that.** It said the runtime test existed to catch "a spelling split
   across two lines". It did not: it sent `initialize`, `notifications/initialized` and

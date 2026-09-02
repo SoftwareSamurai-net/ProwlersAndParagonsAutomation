@@ -46,8 +46,9 @@ because two of them are not work an agent can pick up:
   (branding, and a kit that lives outside this repository),
   [21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job) (whether
   character variants deserve a mechanism — left ajar on purpose, and its own entry recommends
-  deferring), and the *second* stage of
-  [10](#10-nothing-drives-the-assembled-app--stage-one-approved-2026-09-02-not-started) alone.
+  deferring). **Item 10's second stage left this group on 2026-09-02**: the danger it was waiting on
+  a decision about was an artefact of the plan, not of the problem, and seeding the local database
+  needs no application change at all.
 - **Ready to build, specified enough to start.**
   [12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer) (the three-door
   rearrangement, unblocked now item 11 is answered),
@@ -622,15 +623,42 @@ stays here, and stays open, but it is no longer waiting on anybody — it is sch
 argument already made. Whoever picks it up should read the two sections above before the plan
 itself: the value is higher than the plan claims, and the honest limit on it is real.
 
-**Stage two — the development-only session seam — was not approved and was not refused.** It is
-still the most dangerous thing that could be added to this repository, for a reason worth stating
-plainly here rather than leaving implied: minting a session without a mailbox is an authentication
-bypass, and everything behind sign-in is the rulebook that is in this repository by the author's
-personal permission and deliberately not served publicly, the recordings, the admin page and other
-people's characters. It is also the class of thing that ships by accident rather than by decision —
-a flag defaulting the wrong way, a build that does not strip it — which is why the three conditions
-above are three independent locks on one door. The zero-risk alternative beside it stands: point the
-harness at the deployed site and drive only what an anonymous visitor can reach.
+**Stage two as written is the wrong solution to a solved problem, and the whole of its danger was
+self-inflicted.** The plan above assumed the only way to reach a signed-in session locally was a
+seam *in the application* that mints one. Minting a session without a mailbox is an authentication
+bypass, and everything behind sign-in is the rulebook that is here by the author's personal
+permission and deliberately not served publicly, the recordings, the admin page and other people's
+characters — so the three conditions above are three independent locks on one door. **The door did
+not have to be built.**
+
+#### Seed the database, do not open a seam
+
+Read off the code rather than reasoned about: `worker/tokens.js` stores **only the SHA-256 of a
+sign-in token** (`worker/crypto.js`'s `hash`, plain WebCrypto, which Node provides identically),
+the raw token travels by email, and `db.spendLoginToken` verifies by hash lookup and burns the row.
+So a harness can do what an email does, from outside the application:
+
+1. generate a token in Node and hash it — the same function, no shared code needed;
+2. insert the row into the **local** D1 —
+   `wrangler d1 execute <db> --local --command "INSERT INTO login_tokens (token_hash, email, expires_at) VALUES (…)"`;
+3. drive Chrome to `/signin?token=<raw token>`.
+
+The application then runs **its real verify path** — hash lookup, expiry test, single-use burn,
+session cookie issued. Nothing is bypassed and nothing is faked but a row, which is what an email
+would have caused. This is ordinary test-seeding, and it is strictly better than the seam: no code
+in the shipped bundle, no secret, no localhost test, nothing to compile out, and no test needed to
+assert the published bundle does not contain it.
+
+**What it needs**, so nobody discovers it late: a local D1 that exists and is migrated —
+`scripts/apply-migrations.sh` already does that — and the binding's name. **What it still cannot
+reach** is the mail send itself, which is `scripts/probe-mail.mjs`'s job and is not a browser's, and
+the deployed site, which cannot be seeded by anybody and should not be.
+
+**So both stages are buildable and neither carries the risk this entry was built around.** The
+zero-risk alternative written up above — point the harness at the deployed site and drive only the
+anonymous half — stops being a fallback and becomes a *second, additional* target: the local run
+seeds and signs in, a deployed run proves the real edge anonymously. The owner approved stage one;
+stage two no longer needs an approval about danger, only a decision about effort.
 
 **Nothing here has been implemented.**
 

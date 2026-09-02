@@ -458,6 +458,16 @@ public sealed class McpStdioTests
     /// arguments here would go on passing after somebody changed the registration, which is the
     /// failure this whole area is about: a launch nothing tests.</para>
     ///
+    /// <para><b>And it earned its place on the first run that was not the one it was written on.</b>
+    /// The registration originally let the launch build. With an MCP server already running from a
+    /// previous session — the ordinary state of a machine using this — the copy into
+    /// <c>mcp/bin/Release</c> fails, MSBuild writes <c>MSB3026</c> retries <em>to standard
+    /// output</em>, and this test read twelve of them in the middle of the JSON-RPC stream. So the
+    /// old blanket warning was not wrong about MSBuild, only about when: what is measurably clean
+    /// is a launch that <em>does not build</em>. `.mcp.json` passes <c>--no-build</c>, and a
+    /// checkout that has not been built gets exit 1, an empty standard output and one line on
+    /// standard error — a dead server with a log, never a corrupt stream.</para>
+    ///
     /// <para><b>What this does not hold, said plainly.</b> The registration's environment block
     /// exists for the dotnet CLI's one-time welcome and telemetry notice, and <em>no test here can
     /// observe that</em>: the sentinel is written by the first <c>dotnet</c> invocation on a
@@ -485,6 +495,36 @@ public sealed class McpStdioTests
         var registration = JsonNode.Parse(
             File.ReadAllText(Path.Combine(RulesFixture.RepoRoot, ".mcp.json")))!;
         var server = registration["mcpServers"]!["prowlers-and-paragons"]!;
+
+        // <b>The registration does not build, so something has to have.</b> CI builds Release and
+        // tests it, so this is a no-op there; a developer running the suite in Debug may have no
+        // Release output at all, and the honest answer is to produce it rather than to skip. Not
+        // asserted on its exit code: with a server already running the copy into mcp/bin fails
+        // while leaving a perfectly good binary in place, which is the very condition that made
+        // this test necessary. What matters is the file.
+        var built = Path.Combine(
+            RulesFixture.RepoRoot, "mcp", "bin", "Release", "net10.0",
+            OperatingSystem.IsWindows() ? "ProwlersAndParagons.Mcp.exe" : "ProwlersAndParagons.Mcp");
+
+        if (!File.Exists(built))
+        {
+            using var build = Process.Start(new ProcessStartInfo("dotnet")
+            {
+                ArgumentList =
+                {
+                    "build", Path.Combine("mcp", "ProwlersAndParagons.Mcp.csproj"),
+                    "--configuration", "Release", "--verbosity", "quiet"
+                },
+                WorkingDirectory = RulesFixture.RepoRoot,
+                UseShellExecute = false
+            })!;
+
+            await build.WaitForExitAsync(giveUp.Token);
+        }
+
+        Assert.True(File.Exists(built),
+            $"'{built}' is not there, and .mcp.json's launch passes --no-build, so nothing will "
+            + "produce it. Run: dotnet build --configuration Release");
 
         var start = new ProcessStartInfo(server["command"]!.GetValue<string>())
         {

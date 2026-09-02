@@ -33,8 +33,15 @@ so a clone, a fresh machine and a git worktree are all already correct.
 dotnet build --configuration Release
 ```
 
-Run that once after cloning — not because the server needs it, but because the first launch
-would otherwise compile while the client is waiting for a reply.
+**Run that after cloning, and after every `git pull`** — the registration passes `--no-build`, so
+nothing else will. A checkout that has not been built gets exit 1, an empty standard output and one
+line on standard error: a server that is not there, with a log saying so.
+
+**It is `--no-build` because a launch that compiles can corrupt the stream, and this was measured
+rather than guessed.** With a server already running from an earlier session — the ordinary state of
+a machine that uses this — the copy into `mcp/bin/Release` fails, and MSBuild writes its `MSB3026`
+retries **to standard output**, where the protocol lives. A harness read twelve of those lines in
+the middle of a JSON-RPC stream. A launch that does not build has nothing to say.
 
 **Claude Code will not start a server a repository proposed until somebody says so, once per
 checkout.** That is a deliberate gate on running a program a clone handed you. Answer it either way:
@@ -94,10 +101,10 @@ dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o "$HOME/.local/sh
 
 That produces `ProwlersAndParagons.Mcp.exe` (no extension on macOS and Linux) with the rules files beside it, so it needs no repository checked out and no working directory of its own. It is framework-dependent, so the machine running it still needs the **.NET 10 runtime** — add `--self-contained -r win-x64` (or your own runtime identifier) to publish one that does not.
 
-**Point your client at that binary rather than at the build tool.** Not because the build tool
-is unsafe — [`.mcp.json`](../.mcp.json) uses it, and a launch measured through a full NuGet restore
-and a recompile put 4,448 bytes on standard output and every one of them was protocol. It is that
-the build tool needs the checkout, and the whole point of publishing is a copy that does not.
+**Point your client at that binary rather than at the build tool.** Two reasons, and the first is
+the plain one: the build tool needs the checkout, and the whole point of publishing is a copy that
+does not. The second is that **the build tool is only safe on that stream while it is not
+building** — see section 0 — and a published binary never builds at all.
 
 **Re-publish to the same path after a `git pull`.** The server holds its own copy of the rules, so an old binary keeps answering with old rules, perfectly happily.
 
