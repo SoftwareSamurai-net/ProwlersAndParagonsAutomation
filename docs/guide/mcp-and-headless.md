@@ -71,9 +71,17 @@ questions about the rules. It does not replace `build --from`; both call the sam
   The source half exists because **a stray line does not necessarily break a client** — the
   first runtime test drove the binary through the SDK's own client and asserted the session
   worked, and a real stray line left it perfectly happy, because the client skips what it cannot
-  parse. Do not replace either with the other. **This is also why the
-  setup guide (`docs/MCP-SETUP.md`) points a client at the published binary rather than at `dotnet run`**, which writes
-  MSBuild's own progress to standard output.
+  parse. Do not replace either with the other. **The runtime half now
+  covers both launch paths**, because there are two: the published binary, and `dotnet run` from a
+  checkout, which is what the repository's own `.mcp.json` uses.
+- **"`dotnet run` writes MSBuild's progress to standard output" was the reason this guide gave for
+  publishing, and on the pinned .NET 10 SDK it is false.** Measured through a forced full NuGet
+  restore and a recompile, that launch put 4,448 bytes on standard output and every one was
+  protocol. The claim is not merely stale — `.mcp.json` depends on it being false, which is why
+  `TheBuildToolLaunchSpeaksNothingButTheProtocol` now holds it rather than a sentence doing so.
+  Publishing is still right for a client that is **not working inside a checkout**, because
+  `dotnet run` needs the checkout; that is a different reason and the one `docs/MCP-SETUP.md` now
+  gives.
 - **The two halves are complementary only as far as the runtime half is driven, and this note
   used to claim more than that.** It said the runtime test existed to catch "a spelling split
   across two lines". It did not: it sent `initialize`, `notifications/initialized` and

@@ -74,6 +74,30 @@ occurred, so the flag stays.
 written into its doc comment: a fenced block is the part people copy, every fenced block in that
 guide is for a client working *outside* a checkout, and `dotnet run` needs the checkout.
 
+**The measurement was the whole justification, and a measurement is not a guard.** A review of this
+slice made the point that reversing years-old guidance on one hand-run on one warm machine leaves
+nothing to catch a future SDK that reintroduces a banner — and `.mcp.json` now *depends* on that
+guidance being wrong, which turns a claim in a document into a property of the product.
+`TheBuildToolLaunchSpeaksNothingButTheProtocol` holds it: it reads the command and arguments out of
+`.mcp.json` (a copy here would go on passing after somebody edited the registration), starts them
+from the repository root the way a client starts a project-scoped server, and requires every line
+of standard output to parse as JSON.
+
+The same review found the fresh-machine case untested — the dotnet CLI's one-time welcome and
+telemetry notice is exactly the stray-stdout failure this design must not have, and it cannot
+appear on a machine that has run `dotnet` before. `.mcp.json` sets `DOTNET_NOLOGO`,
+`DOTNET_CLI_TELEMETRY_OPTOUT` and `DOTNET_SKIP_FIRST_TIME_EXPERIENCE` rather than relying on a
+measurement that could not have observed it.
+
+## Two other documents were still asserting the corrected claim
+
+Also from the review, and the more serious finding of the two: `docs/guide/mcp-and-headless.md` and
+`README.md` both still said a client must point at the built binary because `dotnet run` writes to
+standard output. `CLAUDE.md` sends anybody touching `mcp/` to that guide first, so leaving it would
+have handed the next reader the reasoning this slice had just measured false. Both now give the
+reason that is actually true — `dotnet run` needs the checkout, so publishing is for a client that
+has not got one — and the README says that a checkout already has the server.
+
 ## The guards
 
 Two new ones in `McpSetupDocumentationTests`, both broken and watched to fail:
@@ -82,6 +106,8 @@ Two new ones in `McpSetupDocumentationTests`, both broken and watched to fail:
 |---|---|---|
 | `TheProjectRegistrationNamesAProjectThatIsThere` | `mcp/Gone.csproj` | red |
 | `TheProjectRegistrationIsRelativeToTheCheckout` | `C:/somewhere/…csproj` | red |
+| `TheBuildToolLaunchSpeaksNothingButTheProtocol` | a `Console.Out.WriteLine` in `Program.cs` | red |
+| — its positive control | `.mcp.json` naming `mcp/Gone.csproj`, so nothing starts | red |
 
 The first is the guard for this exact failure in the only place it can now be caught: a
 registration that names something not on disk. It is deliberately about the path and not the flags
