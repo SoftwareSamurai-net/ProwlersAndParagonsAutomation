@@ -42,11 +42,12 @@ last thing that *was* broken — the MCP server, [item 18](#18-the-mcp-server-di
 — is closed. What is left sorts into three kinds, and **the kind matters more than the number**,
 because two of them are not work an agent can pick up:
 
-- **Waiting on the owner, not on effort.** [10](#10-nothing-drives-the-assembled-app--a-plan-awaiting-the-owners-approval)
-  (a plan for driving the assembled app, written and unapproved),
-  [13](#13-the-owners-branding-and-the-sign-in-email) (branding, and a kit that lives outside this
-  repository), [21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job)
-  (whether character variants deserve a mechanism — left ajar on purpose).
+- **Waiting on the owner, not on effort.** [13](#13-the-owners-branding-and-the-sign-in-email)
+  (branding, and a kit that lives outside this repository),
+  [21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job) (whether
+  character variants deserve a mechanism — left ajar on purpose, and its own entry recommends
+  deferring), and the *second* stage of
+  [10](#10-nothing-drives-the-assembled-app--stage-one-approved-2026-09-02-not-started) alone.
 - **Ready to build, specified enough to start.**
   [12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer) (the three-door
   rearrangement, unblocked now item 11 is answered),
@@ -57,7 +58,10 @@ because two of them are not work an agent can pick up:
   character and a campaign is a roster),
   [19](#19-the-account-cap-is-set-by-hand-in-sql-and-a-gm-cannot-see-what-a-player-holds) (a screen
   over behaviour that is already correct), [1](#1-close-the-last-four-heroes) (the last four Heroes,
-  1 HP out each).
+  1 HP out each), and **stage one of
+  [10](#10-nothing-drives-the-assembled-app--stage-one-approved-2026-09-02-not-started), approved on
+  2026-09-02 and the one to do first** — every other item in this group is UI work that would land
+  on top of the hole it closes.
 - **Recorded, with nothing asking for them.** [1b](#1b-semantic-procon-constraints-are-still-unenforced)
   (semantic Pro/Con constraints, no consumer), [2](#2-what-the-sheet-still-cannot-say) (a mid-sheet
   page is anonymous, with no portable CSS answer),
@@ -501,7 +505,7 @@ rather than dropped for being hard. None of the 39 new sentences were edited aft
 measured — every miss above is a real gap, not a sentence that could as honestly have named a
 different Power.
 
-### 10. Nothing drives the assembled app — **a plan, awaiting the owner's approval**
+### 10. Nothing drives the assembled app — **stage one approved 2026-09-02, not started**
 
 **Asked for by the owner after a slice where two real defects were found by screenshotting and none
 by the suites.** Both were in the same class: they existed only once markup, stylesheet and layout
@@ -611,12 +615,24 @@ three were found by a reader who was told to look for data loss and given nothin
 reachable"; a hostile reader answers "what does this do when something goes wrong". This slice
 needed both and neither would have been enough.
 
-#### The decision this item is waiting for has not changed
+#### The decision: stage one is approved, stage two is still open
 
-Stage one needs no permission and is now better motivated than it was. **Stage two — the
-development-only session seam — is still the owner's call and is still the most dangerous thing that
-could be added to this repository**, along with the zero-risk alternative written up beside it.
-Nothing here has been implemented.
+**The owner approved stage one on 2026-09-02 and asked for it not to be built yet.** So this entry
+stays here, and stays open, but it is no longer waiting on anybody — it is scheduled work with the
+argument already made. Whoever picks it up should read the two sections above before the plan
+itself: the value is higher than the plan claims, and the honest limit on it is real.
+
+**Stage two — the development-only session seam — was not approved and was not refused.** It is
+still the most dangerous thing that could be added to this repository, for a reason worth stating
+plainly here rather than leaving implied: minting a session without a mailbox is an authentication
+bypass, and everything behind sign-in is the rulebook that is in this repository by the author's
+personal permission and deliberately not served publicly, the recordings, the admin page and other
+people's characters. It is also the class of thing that ships by accident rather than by decision —
+a flag defaulting the wrong way, a build that does not strip it — which is why the three conditions
+above are three independent locks on one door. The zero-risk alternative beside it stands: point the
+harness at the deployed site and drive only what an anonymous visitor can reach.
+
+**Nothing here has been implemented.**
 
 ### 11. Answered: it is a tool for running *and* playing P&P
 
