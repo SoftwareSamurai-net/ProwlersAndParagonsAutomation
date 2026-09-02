@@ -99,6 +99,45 @@ logs="$work/logs"
 # reporting itself ready.
 first_port=8788
 
+# How long one drive of the site may take before it is killed and named.
+#
+# **This file capped everything except the thing it exists to run, which is the same gap it just
+# fixed one level down.** `scripts/visual-regression.sh` bounded the *comparison* and not the
+# *capture*, and a wedged Chrome duly spent 1666 seconds saying nothing and cancelled the Build
+# job — see `docs/guide/hosting.md`. Every wait inside `drive.mjs` is bounded (45s for a render,
+# 30s for a navigation) and `start_server` gives up after 180s, but nothing bounded a *drive*:
+# six servers times five checks times two waits is well past the 30-minute job cap, so a browser
+# that stopped answering here would cancel the job in exactly the same way.
+#
+# **One value, used by both the `timeout` and the messages quoting it**, same rule as the two
+# deadlines in the visual check.
+#
+# 300s against a measured worst case of about 105s — that is the `base-href-dropped` twin, which
+# spends two deliberate 45-second timeouts proving deep links cannot load the framework. The real
+# site's five checks are about 26 seconds. So this is not a performance budget; it is far enough
+# above the honest cost that a loaded runner cannot trip it.
+#
+# `-k 10s` escalates to SIGKILL, because a driver killed mid-run does not get to run its own
+# `close()`. Its Chrome can outlive it: on a runner that is collected when the job ends — the
+# cancelled run's log shows exactly that, `Terminate orphan process: (chrome)` — and locally
+# `release_port` does not cover it, so a hang here may leave one headless Chrome behind.
+drive_deadline=300s
+
+# The command that drives one site. Overridable **only** as a test seam, the same reason as
+# `PP_CHROME_BIN` in scripts/visual-regression.sh and `WRANGLER_BIN` in
+# scripts/apply-migrations.sh: a driver that never returns cannot be arranged with the real one,
+# and a deadline that has never been watched to fire is a claim rather than a guard.
+#
+# **An array and not a string, which is where `WRANGLER_BIN`'s shape does not carry over.** That
+# one is `npx --yes wrangler@<version>` and word-splits safely because it contains no path. This
+# repository's own checkout is under "Personal Projects", so a `$driver` left to split would tear
+# the script's path in half at the space and run `node` against a directory that does not exist.
+if [ -n "${PP_E2E_DRIVER:-}" ]; then
+  read -r -a driver <<< "$PP_E2E_DRIVER"
+else
+  driver=(node "$root/scripts/e2e/drive.mjs")
+fi
+
 real_only=0
 
 while [ $# -gt 0 ]; do
@@ -348,11 +387,33 @@ start_server site "$port" real || exit 1
 
 real_log="$logs/real-drive.log"
 real_status=0
-node "$root/scripts/e2e/drive.mjs" "http://127.0.0.1:${port}" 2>&1 \
+
+# **`pipefail` is what makes this the driver's status and not `tee`'s, and a `PIPESTATUS` line
+# here used to throw it away.** This was `… || real_status=$?` followed by
+# `real_status=${PIPESTATUS[0]:-$real_status}`, which looks like a belt to that brace and is the
+# opposite: `set -o pipefail` at the top of this file already gives the pipeline the driver's
+# exit code, so the `||` captures it correctly — and then the second line reads `PIPESTATUS`
+# *after an assignment*, which is `0`. `:-` defaults only on empty or unset, and `0` is neither,
+# so a real 124 became a 0 every time.
+#
+# Found by watching the deadline below fire: it exited 1, but through the summary-line arm rather
+# than the timeout arm, because `real_status` was never anything but zero. Which means the
+# non-zero-status check has been dead since this script was written, and the count check was
+# quietly carrying it — a redundant guard covering for a broken one, and the reason to break a
+# guard rather than read it.
+timeout -k 10s "$drive_deadline" "${driver[@]}" "http://127.0.0.1:${port}" 2>&1 \
   | tee "$real_log" || real_status=$?
-real_status=${PIPESTATUS[0]:-$real_status}
 
 stop_server
+
+if [ "$real_status" -eq 124 ]; then
+  echo ""
+  echo "::error::the driver did not finish within ${drive_deadline} against the real site and was"
+  echo "::error::killed. Every wait inside it is bounded, so this is the browser or the server"
+  echo "::error::having stopped answering rather than a slow check — read $real_log for how far it"
+  echo "::error::got. Reported separately from a failed check because they are different faults."
+  exit 1
+fi
 
 # **The count comes out of the harness's own summary line rather than being assumed.** A driver
 # that died on its second check still prints two verdicts, and two greens out of five is not four
@@ -452,9 +513,25 @@ for line in "${defect_lines[@]}"; do
   start_server "twins/$name" "$port" "twin-$name" || exit 1
 
   twin_log="$logs/twin-$name-drive.log"
-  node "$root/scripts/e2e/drive.mjs" "http://127.0.0.1:${port}" > "$twin_log" 2>&1 || true
+  twin_status=0
+  timeout -k 10s "$drive_deadline" "${driver[@]}" "http://127.0.0.1:${port}" \
+    > "$twin_log" 2>&1 || twin_status=$?
 
   stop_server
+
+  # **A hung driver stops the run, for the same reason a hung capture stops the visual check.**
+  # Five twins at this deadline is twenty-five minutes on top of the real site, which is the
+  # 30-minute job cap — and if the driver stopped coming back once, the remaining twins are going
+  # to ask the same question of the same browser. The "printed no verdict" arm below is for a
+  # driver that *finished* without reaching this check, which is a different and recoverable
+  # thing; this one is not.
+  if [ "$twin_status" -eq 124 ]; then
+    echo "::error::twin '$name': the driver did not finish within ${drive_deadline} and was killed,"
+    echo "::error::so $check has no verdict here and this twin proved nothing. Every wait inside the"
+    echo "::error::driver is bounded, so read $twin_log for how far it got. Stopping rather than"
+    echo "::error::driving the remaining twins through the same browser."
+    exit 1
+  fi
 
   # A twin's verdict is a FAIL it *printed*, never the absence of a PASS: a driver that fell over
   # before reaching this check leaves the line out entirely, and "not PASS" would call that a
