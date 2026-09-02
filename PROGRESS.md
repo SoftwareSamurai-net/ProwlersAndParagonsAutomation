@@ -36,7 +36,44 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 Roughly in the order that unblocks the most. **[Item 11](#11-answered-it-is-a-tool-for-running-and-playing-pp)
 is answered and is the entry to read first** — the owner has said this is a tool for running *and*
 playing P&P, which unblocks all eight of the things that entry lists and widens what item 3 counts
-as in scope. **Nothing here is a defect** — the tool creates, prices, validates, prints and exports characters through four front ends, and a visitor with no account can watch a real conversation build one. What is left is four Heroes a Hero Point out, some polish on the printed sheet, one sub-tool nobody has needed, a payload size, and a test-platform migration that is measured but not started (item 20). (Item 4, the Power search's vocabulary, is closed — see below.)
+as in scope. **Nothing here is a defect.** The tool creates, prices, validates, prints and exports characters
+through four front ends, a visitor with no account can watch a real conversation build one, and the
+last thing that *was* broken — the MCP server, [item 18](#18-the-mcp-server-did-not-start--closed-nothing-had-started-and-there-is-now-nowhere-for-that-to-hide)
+— is closed. What is left sorts into three kinds, and **the kind matters more than the number**,
+because two of them are not work an agent can pick up:
+
+- **Waiting on the owner, not on effort.** [10](#10-nothing-drives-the-assembled-app--a-plan-awaiting-the-owners-approval)
+  (a plan for driving the assembled app, written and unapproved),
+  [13](#13-the-owners-branding-and-the-sign-in-email) (branding, and a kit that lives outside this
+  repository), [21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job)
+  (whether character variants deserve a mechanism — left ajar on purpose).
+- **Ready to build, specified enough to start.**
+  [12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer) (the three-door
+  rearrangement, unblocked now item 11 is answered),
+  [14](#14-a-combat-simulator--a-second-engine-and-the-balance-question-is-now-live) (a combat
+  simulator, explicitly a *second* engine),
+  [15](#15-the-trait-cap-is-the-tiers-and-a-campaign-may-want-a-tighter-one) (a campaign-tighter
+  Trait Cap), [16](#16-the-tool-costs-one-character-and-a-campaign-is-a-roster) (the tool costs one
+  character and a campaign is a roster),
+  [19](#19-the-account-cap-is-set-by-hand-in-sql-and-a-gm-cannot-see-what-a-player-holds) (a screen
+  over behaviour that is already correct), [1](#1-close-the-last-four-heroes) (the last four Heroes,
+  1 HP out each).
+- **Recorded, with nothing asking for them.** [1b](#1b-semantic-procon-constraints-are-still-unenforced)
+  (semantic Pro/Con constraints, no consumer), [2](#2-what-the-sheet-still-cannot-say) (a mid-sheet
+  page is anonymous, with no portable CSS answer),
+  [5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect) (payload size),
+  [20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done) (a test-platform
+  migration, measured and blocked on MTP v2 versus the .NET 10 SDK),
+  [3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)
+  (the play chapters, in scope in principle since item 11 was answered).
+
+(Item 4, the Power search's vocabulary, is closed — see below.)
+
+**Several of these touch the same files, so they are not independent slices.** 12 and 16 both
+rearrange the app's chrome; 15 and 16 both reach into what a campaign is allowed to say about a
+character; 14 and 3 are the same question about play rules from two directions. Two branches that
+merge cleanly can still contradict each other, so take them one at a time and re-read this file
+between.
 
 [`docs/HANDOVER.md`](docs/HANDOVER.md) picks three of these and says what a slice on each would actually involve, including which approaches are already spent. Read it before choosing; read the entry here before starting.
 
