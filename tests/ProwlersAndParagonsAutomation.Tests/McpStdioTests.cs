@@ -442,17 +442,19 @@ public sealed class McpStdioTests
     }
 
     /// <summary>
-    /// <b>The other launch path — the one the repository's own <c>.mcp.json</c> uses — puts
-    /// nothing but protocol on standard output either.</b>
+    /// <b>The launch the repository's own <c>.mcp.json</c> performs puts nothing but protocol on
+    /// standard output.</b>
     ///
     /// <para><b>This exists because a sentence used to stand in for it.</b> `docs/MCP-SETUP.md`
     /// and `docs/guide/mcp-and-headless.md` both asserted that the build tool writes MSBuild's
     /// progress to standard output, so a client pointed at it sees a corrupt stream. On the .NET
-    /// 10 SDK this repository pins that is false, and `.mcp.json` now <em>depends</em> on it being
-    /// false — which turns a stale claim in a document into a live property of the product, and a
-    /// live property is held by a test. A future SDK that reintroduces a banner, a restore notice,
-    /// or the CLI's own first-run greeting on that stream breaks the checked-in registration for
-    /// everybody who clones this, and nothing else here would notice.</para>
+    /// 10 SDK this repository pins that is false: a launch driven through a forced full NuGet
+    /// restore and a recompile carried 4,448 bytes on standard output and every one of them was
+    /// protocol. The blanket warning was too broad — and the registration has since stopped
+    /// depending on the question either way, because it no longer invokes the build tool at all.
+    /// A future SDK that reintroduces a banner, a restore notice, or the CLI's own first-run
+    /// greeting on that stream would still break the checked-in registration for everybody who
+    /// clones this, and nothing else here would notice.</para>
     ///
     /// <para><b>The command comes out of <c>.mcp.json</c>, not out of this file.</b> A copy of the
     /// arguments here would go on passing after somebody changed the registration, which is the
@@ -462,11 +464,22 @@ public sealed class McpStdioTests
     /// The registration originally let the launch build. With an MCP server already running from a
     /// previous session — the ordinary state of a machine using this — the copy into
     /// <c>mcp/bin/Release</c> fails, MSBuild writes <c>MSB3026</c> retries <em>to standard
-    /// output</em>, and this test read twelve of them in the middle of the JSON-RPC stream. So the
-    /// old blanket warning was not wrong about MSBuild, only about when: what is measurably clean
-    /// is a launch that <em>does not build</em>. `.mcp.json` passes <c>--no-build</c>, and a
-    /// checkout that has not been built gets exit 1, an empty standard output and one line on
-    /// standard error — a dead server with a log, never a corrupt stream.</para>
+    /// output</em>, and this test read twelve of them in the middle of the JSON-RPC stream.
+    /// <c>--no-build</c> answered that and left the deeper fault standing, because the fault was
+    /// never really about this stream: <b>the server's read path was the build's write path</b>, so
+    /// the same running server failed <c>dotnet build --configuration Release</c> outright at 10
+    /// warnings and 2 errors — MSBuild's <c>Copy</c> retry default — and cleared to 0 and 0 when it
+    /// was stopped. The registration now runs a copy published to <c>mcp-server/</c>, which is off
+    /// that path entirely, and a Release build recopying the very file that had been locked
+    /// succeeded while such a server was live and answering <c>tools/list</c>.</para>
+    ///
+    /// <para><b>The not-published case keeps the property that mattered, and that is why the
+    /// registration says <c>exec</c>.</b> <c>dotnet exec</c> on a file that is not there exits 129
+    /// with an <em>empty</em> standard output and one line on standard error naming the path;
+    /// plain <c>dotnet &lt;dll&gt;</c> writes its "Possible reasons for this include" block to
+    /// standard <em>output</em>. Both are a dead server rather than a corrupt session, but only one
+    /// of them leaves this stream clean. The spelling is held by
+    /// <see cref="McpSetupDocumentationTests"/>, which reads the same file.</para>
     ///
     /// <para><b>What this does not hold, said plainly.</b> The registration's environment block
     /// exists for the dotnet CLI's one-time welcome and telemetry notice, and <em>no test here can
@@ -483,12 +496,12 @@ public sealed class McpStdioTests
     /// arrive before it judges anything.</para>
     /// </summary>
     [Fact]
-    public async Task TheBuildToolLaunchSpeaksNothingButTheProtocol()
+    public async Task TheCheckedInRegistrationSpeaksNothingButTheProtocol()
     {
         var cancellation = TestContext.Current.CancellationToken;
 
-        // Generous, and for one reason: this launch may compile. A warm run is a couple of
-        // seconds; a cold one on a fresh clone is a build of engine, sheets and mcp.
+        // Generous, and for one reason: this may have to publish first. A warm run is a couple of
+        // seconds; a cold one on a fresh clone is a build of engine, sheets and mcp on top.
         using var giveUp = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         giveUp.CancelAfter(TimeSpan.FromMinutes(5));
 
@@ -496,35 +509,35 @@ public sealed class McpStdioTests
             File.ReadAllText(Path.Combine(RulesFixture.RepoRoot, ".mcp.json")))!;
         var server = registration["mcpServers"]!["prowlers-and-paragons"]!;
 
-        // <b>The registration does not build, so something has to have.</b> CI builds Release and
-        // tests it, so this is a no-op there; a developer running the suite in Debug may have no
-        // Release output at all, and the honest answer is to produce it rather than to skip. Not
-        // asserted on its exit code: with a server already running the copy into mcp/bin fails
-        // while leaving a perfectly good binary in place, which is the very condition that made
-        // this test necessary. What matters is the file.
-        var built = Path.Combine(
-            RulesFixture.RepoRoot, "mcp", "bin", "Release", "net10.0",
-            OperatingSystem.IsWindows() ? "ProwlersAndParagons.Mcp.exe" : "ProwlersAndParagons.Mcp");
+        // <b>The registration never builds, so something has to have published.</b> CI publishes
+        // nothing, and a developer running the suite may have no `mcp-server/` at all; the honest
+        // answer is to produce it rather than to skip. Not asserted on its exit code: with a
+        // server already running out of that directory the copy fails while leaving a perfectly
+        // good binary in place — the same condition that made this test necessary, now confined
+        // to the one command it is allowed to affect. What matters is the file.
+        var published = Path.Combine(
+            RulesFixture.RepoRoot, "mcp-server", "ProwlersAndParagons.Mcp.dll");
 
-        if (!File.Exists(built))
+        if (!File.Exists(published))
         {
-            using var build = Process.Start(new ProcessStartInfo("dotnet")
+            using var publish = Process.Start(new ProcessStartInfo("dotnet")
             {
                 ArgumentList =
                 {
-                    "build", Path.Combine("mcp", "ProwlersAndParagons.Mcp.csproj"),
-                    "--configuration", "Release", "--verbosity", "quiet"
+                    "publish", Path.Combine("mcp", "ProwlersAndParagons.Mcp.csproj"),
+                    "-c", "Release", "-o", "mcp-server", "--verbosity", "quiet"
                 },
                 WorkingDirectory = RulesFixture.RepoRoot,
                 UseShellExecute = false
             })!;
 
-            await build.WaitForExitAsync(giveUp.Token);
+            await publish.WaitForExitAsync(giveUp.Token);
         }
 
-        Assert.True(File.Exists(built),
-            $"'{built}' is not there, and .mcp.json's launch passes --no-build, so nothing will "
-            + "produce it. Run: dotnet build --configuration Release");
+        Assert.True(File.Exists(published),
+            $"'{published}' is not there, and .mcp.json's launch never builds, so nothing will "
+            + "produce it. Run: dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release "
+            + "-o mcp-server");
 
         var start = new ProcessStartInfo(server["command"]!.GetValue<string>())
         {
@@ -533,7 +546,7 @@ public sealed class McpStdioTests
             RedirectStandardError = true,
             UseShellExecute = false,
 
-            // The project path in the registration is relative, and a client starts a
+            // The path in the registration is relative, and a client starts a
             // project-scoped server from the project root. Anywhere else and this would be
             // testing a launch nobody performs.
             WorkingDirectory = RulesFixture.RepoRoot
@@ -574,8 +587,8 @@ public sealed class McpStdioTests
             Assert.All(lines, line => Assert.True(
                 JsonNode.Parse(line) is not null,
                 $"'{line}' is on standard output and is not a JSON-RPC message. Standard output "
-                + "belongs to the protocol, and .mcp.json starts the server through the build "
-                + "tool — so anything that tool prints there breaks every checkout."));
+                + "belongs to the protocol, and this is the launch every checkout performs — "
+                + "so anything that reaches that stream breaks all of them at once."));
         }
         finally
         {

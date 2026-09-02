@@ -71,9 +71,10 @@ questions about the rules. It does not replace `build --from`; both call the sam
   The source half exists because **a stray line does not necessarily break a client** — the
   first runtime test drove the binary through the SDK's own client and asserted the session
   worked, and a real stray line left it perfectly happy, because the client skips what it cannot
-  parse. Do not replace either with the other. **The runtime half now
-  covers both launch paths**, because there are two: the published binary, and `dotnet run` from a
-  checkout, which is what the repository's own `.mcp.json` uses.
+  parse. Do not replace either with the other. **The runtime half
+  covers both launch paths**, because there are two: the binary in `mcp/bin/Release` that
+  `dotnet test` produces, and the command in the repository's own `.mcp.json`, read out of that
+  file rather than copied into the test.
 - **A checkout's own server is gated, and the gate is invisible in the obvious place.** Claude Code
   will not start a server proposed by `.mcp.json` until that checkout approves it, and the approval
   that works without an interactive session is `enabledMcpjsonServers` in the checkout's
@@ -82,23 +83,33 @@ questions about the rules. It does not replace `build --from`; both call the sam
   both measured, by a headless session that either has the six tools or has not. Debug a missing
   tool list with that, never with `claude mcp list`:
   `claude -p "Do you have a tool named mcp__prowlers-and-paragons__creation_guide? Answer YES or NO only."`
-- **"`dotnet run` writes MSBuild's progress to standard output" was this guide's reason for
-  publishing. It was too broad, then the correction was too broad in the other direction, and the
-  true statement is narrower than both.** A launch measured through a forced full NuGet restore and
-  a recompile put 4,448 bytes on standard output and every one was protocol — so the blanket
-  warning was wrong. But a launch whose *copy* fails, which is what happens when a server from an
-  earlier session still holds `mcp/bin/Release`, writes `MSB3026` retries there: twelve of them, in
-  the middle of a JSON-RPC stream, read by
-  `TheBuildToolLaunchSpeaksNothingButTheProtocol` on the first run that was not the one it was
-  written on. **So the safe launch is one that does not build**, and `.mcp.json` passes
-  `--no-build`. That is why `dotnet build --configuration Release` is a required step after a clone
-  and after a pull rather than a convenience, and why the not-built case matters: exit 1, empty
-  standard output, one line on standard error.
-- **Neither version of that claim was found by reading.** The first survived years in three
-  documents and a source comment; the second survived an adversarial review and a merge, and lasted
-  half an hour against a machine that happened to have a server running. Publishing is still right
-  for a client **not working inside a checkout**, because `dotnet run` needs the checkout — a
-  different reason, and the one `docs/MCP-SETUP.md` now leads with.
+- **`.mcp.json` runs `dotnet exec mcp-server/ProwlersAndParagons.Mcp.dll`, and the reason is the
+  build, not the stream.** Three versions of a claim about standard output preceded this and every
+  one was too broad in one direction or the other: `dotnet run` was said to write MSBuild's progress
+  there (a launch driven through a forced full restore and a recompile put 4,448 bytes on that
+  stream and every one was protocol); then the correction was too broad the other way; then
+  `--no-build` was adopted, correctly, because a launch whose *copy* fails writes `MSB3026` retries
+  there. **What none of them addressed is that the server's read path was the build's write path.**
+  A server running out of `mcp/bin/Release` fails a Release build of this repository — 10 warnings
+  and 2 errors, MSBuild's `Copy` retry default, all twelve naming
+  `ProwlersAndParagons.Engine.dll` and the process holding it; 0 and 0 once it is stopped; 0 and 0
+  with the same server running from `mcp-server/` instead, on a build that genuinely recopied that
+  file. Measured 2026-09-02.
+- **So the trade is which command wants the server stopped, and it is now `dotnet publish -o
+  mcp-server`** — deliberate and rare — rather than every Release build and every
+  `dotnet test --configuration Release`, which is what an agent does on the way to a push. Nothing
+  is lost in freshness: `--no-build` meant the running server was already a snapshot of the last
+  build, and it is now a snapshot of the last publish. The not-published case keeps the property
+  that mattered — `dotnet exec` on a file that is not there exits **129** with an **empty standard
+  output** and one line on standard error naming the path, where plain `dotnet <dll>` puts its
+  "Possible reasons for this include" block on standard *output*. That is the whole reason the
+  registration says `exec`.
+- **None of those versions was found by reading, and this one was not either.** The first survived
+  years in three documents and a source comment; the second survived an adversarial review and a
+  merge, and lasted half an hour against a machine that happened to have a server running; the third
+  was correct about the stream and never asked what the running process was holding. Publishing is
+  still right for a client **not working inside a checkout** too, because `dotnet run` needs the
+  checkout — a different reason, and the one `docs/MCP-SETUP.md` leads section 1 with.
 - **The two halves are complementary only as far as the runtime half is driven, and this note
   used to claim more than that.** It said the runtime test existed to catch "a spelling split
   across two lines". It did not: it sent `initialize`, `notifications/initialized` and

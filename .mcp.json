@@ -4,14 +4,8 @@
       "type": "stdio",
       "command": "dotnet",
       "args": [
-        "run",
-        "--project",
-        "mcp/ProwlersAndParagons.Mcp.csproj",
-        "--configuration",
-        "Release",
-        "--verbosity",
-        "quiet",
-        "--no-build"
+        "exec",
+        "mcp-server/ProwlersAndParagons.Mcp.dll"
       ],
       "env": {
         "DOTNET_NOLOGO": "1",

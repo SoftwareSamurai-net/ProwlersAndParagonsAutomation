@@ -443,7 +443,7 @@ public sealed class McpSetupDocumentationTests
     }
 
     /// <summary>
-    /// <b>The checked-in registration names a project file that exists.</b>
+    /// <b>The checked-in registration runs what section 0 tells you to publish.</b>
     ///
     /// <para>This is the guard for the failure that has actually cost this repository a session.
     /// The MCP server was registered at a path outside the checkout, the file at that path was
@@ -452,11 +452,27 @@ public sealed class McpSetupDocumentationTests
     /// lived in a file on one machine that no test had ever heard of.</para>
     ///
     /// <para><b>Moving the registration into the repository is what makes it checkable at all</b>,
-    /// and this is the check. It is deliberately about the thing that rots — the path — rather
-    /// than about the flags beside it.</para>
+    /// and this is the check. It is deliberately about the things that rot — the path and the
+    /// command — rather than about every flag beside them.</para>
+    ///
+    /// <para><b>It used to assert that the registered <c>--project</c> was on disk, and it cannot
+    /// any more.</b> The registration runs a published copy rather than the project, because a
+    /// server holding <c>mcp/bin/Release</c> fails a Release build of this repository outright;
+    /// and a published copy is git-ignored build output, so a clone does not have one to point at.
+    /// What replaces existence is the pairing that actually rots: the guide publishes a project to
+    /// a directory, and the registration runs an assembly out of <em>that</em> directory. Both
+    /// halves are checked here, the project file is still required to exist, and the directory is
+    /// still required to be ignored — a committed copy would go stale in silence.</para>
+    ///
+    /// <para><b>And <c>exec</c> is asserted rather than assumed.</b> <c>dotnet exec missing.dll</c>
+    /// exits 129 with an empty standard output and one line on standard error; plain
+    /// <c>dotnet missing.dll</c> exits 1 and puts its "Possible reasons for this include" block on
+    /// standard <em>output</em>, which is the stream the protocol lives on. Both measured. Dropping
+    /// the word is a one-token edit that leaves a working server and breaks the never-published
+    /// case in exactly the way this repository has spent three corrections on.</para>
     /// </summary>
     [Fact]
-    public void TheProjectRegistrationNamesAProjectThatIsThere()
+    public void TheCheckedInRegistrationRunsWhatSectionZeroPublishes()
     {
         var registration = JsonNode.Parse(File.ReadAllText(Path(".mcp.json")))!;
         var server = registration["mcpServers"]?["prowlers-and-paragons"];
@@ -465,14 +481,40 @@ public sealed class McpSetupDocumentationTests
         Assert.Equal("dotnet", server!["command"]?.GetValue<string>());
 
         var arguments = server["args"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
-        var project = arguments[arguments.IndexOf("--project") + 1];
 
-        Assert.EndsWith(".csproj", project, StringComparison.Ordinal);
-        Assert.True(
-            File.Exists(Path(project.Split('/'))),
-            $".mcp.json registers '{project}', and there is no project file there. A registration "
-            + "naming something that is not on disk is the whole of how this server failed before: "
-            + "the client cannot start it and has no log to hand you.");
+        Assert.Equal("exec", arguments[0]);
+
+        var assembly = Slashes(arguments[^1]);
+        var directory = assembly[..assembly.LastIndexOf('/')];
+
+        Assert.Contains($"{directory}/", File.ReadAllText(Path(".gitignore")), StringComparison.Ordinal);
+
+        // Every publish command in the guide that lands in that directory. Matched by where it
+        // publishes to rather than by document order, so this cannot be satisfied by whichever
+        // block happens to come first.
+        var publishes = Rx(@"dotnet publish (\S+\.csproj) -c Release -o (\S+)").Matches(Guide)
+            .Select(m => (Project: m.Groups[1].Value, Output: Slashes(m.Groups[2].Value.Trim('"'))))
+            .Where(p => p.Output.TrimEnd('/') == directory)
+            .ToList();
+
+        Assert.True(publishes.Count > 0,
+            $".mcp.json runs an assembly out of '{directory}', and no command in the guide "
+            + "publishes there. Both would look right on their own and no tool would appear.");
+
+        foreach (var (project, _) in publishes)
+        {
+            var onDisk = Path(project.Split('/', '\\'));
+
+            Assert.True(File.Exists(onDisk),
+                $"The guide publishes '{project}', which is not in this repository.");
+
+            var assemblyName = Rx("<AssemblyName>([^<]+)</AssemblyName>")
+                .Match(File.ReadAllText(onDisk)).Groups[1].Value;
+
+            Assert.False(string.IsNullOrWhiteSpace(assemblyName));
+
+            Assert.Equal($"{assemblyName}.dll", assembly[(directory.Length + 1)..]);
+        }
     }
 
     /// <summary>

@@ -80,7 +80,9 @@ dotnet run -- build --from character.json --no-export
 # Run the browser front end
 dotnet run --project web/ProwlersAndParagons.Web.csproj
 
-# Publish the MCP server where a client can launch it (see docs/guide/mcp-and-headless.md)
+# Publish the MCP server. This is also what .mcp.json launches, so run it after a clone and
+# after a pull — and stop any running server first, since that one command is the only one a
+# running server blocks (see docs/guide/mcp-and-headless.md)
 dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o mcp-server
 
 # Publish the browser front end as a static site

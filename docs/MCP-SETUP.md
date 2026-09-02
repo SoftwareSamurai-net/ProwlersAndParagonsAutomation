@@ -22,26 +22,44 @@ thing to publish.
 
 ---
 
-## 0. Checked this repository out? It is already configured
+## 0. Checked this repository out? Publish once and it is configured
 
-[`.mcp.json`](../.mcp.json) at the root of this repository registers the server for anybody
-working in this checkout, on any operating system, with **no path to install and none to keep
-up to date**. It starts the server through the build tool from a path relative to the checkout,
-so a clone, a fresh machine and a git worktree are all already correct.
+[`.mcp.json`](../.mcp.json) at the root of this repository registers the server for anybody working
+in this checkout, on any operating system, from a path relative to the checkout — so a clone, a
+fresh machine and a git worktree are all already correct, with **no absolute path to install and
+none to keep up to date**. It wants one command first:
 
 ```bash
-dotnet build --configuration Release
+dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o mcp-server
 ```
 
-**Run that after cloning, and after every `git pull`** — the registration passes `--no-build`, so
-nothing else will. A checkout that has not been built gets exit 1, an empty standard output and one
-line on standard error: a server that is not there, with a log saying so.
+**Run that after cloning, and again after a `git pull` that moves the engine or the rules** — the
+registration runs the published copy and never builds, so nothing else will bring it up to date. A
+checkout that has not published gets exit 129, an **empty standard output** and one line on standard
+error naming the file that is missing: a server that is not there, with a log saying so.
 
-**It is `--no-build` because a launch that compiles can corrupt the stream, and this was measured
-rather than guessed.** With a server already running from an earlier session — the ordinary state of
-a machine that uses this — the copy into `mcp/bin/Release` fails, and MSBuild writes its `MSB3026`
-retries **to standard output**, where the protocol lives. A harness read twelve of those lines in
-the middle of a JSON-RPC stream. A launch that does not build has nothing to say.
+**It runs a published copy rather than `mcp/bin/Release` because a running server blocks a Release
+build of this repository, and that was measured rather than reasoned about.** A server holding
+`mcp/bin/Release` is the ordinary state of a machine that uses this, and with one running:
+
+| Command | Server in `mcp/bin/Release` | Server in `mcp-server/` |
+|---|---|---|
+| `dotnet build` | succeeded, 0 warnings, 0 errors | succeeded, 0/0 |
+| `dotnet build --configuration Release` | **FAILED, 10 warnings, 2 errors** | **succeeded, 0/0** |
+
+Measured 2026-09-02 on the pinned SDK. The ten and the two are not arbitrary: they are MSBuild's
+`Copy` retry default — ten `MSB3026` retries, then `MSB3027` and `MSB3021` — and all twelve name one
+file, `engine/bin/Release/net10.0/ProwlersAndParagons.Engine.dll`, being copied into `mcp/bin/`, with
+the holding process named in the message. Stopping the server cleared it to 0 and 0. The right-hand
+column is the same build, on the same machine, genuinely recopying that file while the published
+server was live and answering `tools/list`.
+
+**The lock moves rather than vanishing, and that is the whole trade.** `dotnet publish -o
+mcp-server` is now the command that wants the server stopped first, which is a thing you do
+deliberately and rarely; `dotnet build`, `dotnet build --configuration Release`, `dotnet test` and
+everything on the way to a push are free. Nothing is lost in freshness either — the registration
+never rebuilt on launch, so the running server was always the last thing built, and it is now the
+last thing published.
 
 **Claude Code will not start a server a repository proposed until somebody says so, once per
 checkout.** That is a deliberate gate on running a program a clone handed you. Answer it either way:
@@ -97,14 +115,14 @@ dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o "$LOCALAPPDATA/P
 dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o "$HOME/.local/share/prowlers-and-paragons"
 ```
 
-`-o mcp-server` inside the checkout works too, but **the path you give your client has to keep existing** — a checkout you move, or a git worktree you delete when a branch is done, takes the server with it. Somewhere outside the repository is the boring choice, which is what all three blocks above do.
+`-o mcp-server` inside the checkout is what section 0 does, and it is right for a client working *in* the checkout because the registration is relative to it. For a client that is not, **the path you give it has to keep existing** — a checkout you move, or a git worktree you delete when a branch is done, takes the server with it. Somewhere outside the repository is the boring choice, which is what all three blocks above do.
 
 That produces `ProwlersAndParagons.Mcp.exe` (no extension on macOS and Linux) with the rules files beside it, so it needs no repository checked out and no working directory of its own. It is framework-dependent, so the machine running it still needs the **.NET 10 runtime** — add `--self-contained -r win-x64` (or your own runtime identifier) to publish one that does not.
 
-**Point your client at that binary rather than at the build tool.** Two reasons, and the first is
-the plain one: the build tool needs the checkout, and the whole point of publishing is a copy that
-does not. The second is that **the build tool is only safe on that stream while it is not
-building** — see section 0 — and a published binary never builds at all.
+**Point your client at that binary rather than at the build tool.** The build tool needs the
+checkout, and the whole point of publishing is a copy that does not. A published binary also never
+builds, which is what keeps it off the build's write path — the reason section 0 uses one too, for a
+client that *is* in a checkout.
 
 **Re-publish to the same path after a `git pull`.** The server holds its own copy of the rules, so an old binary keeps answering with old rules, perfectly happily.
 
@@ -210,5 +228,6 @@ The hard part of this front end is not the transport — it is deciding which qu
 - **`claude mcp list` shows it and the session does not.** The session was already running when you added it, or it was added at `local` scope from a different project. Start a new session, and check `claude mcp list` from the directory you are actually working in.
 - **It answers with rules you have edited since.** The published binary carries its own copy. Re-publish over the same path, or point `PROWLERS_RULES_DIR` at your checkout's `data/rules` while you are changing them.
 - **"The rules files could not be found."** You are running the binary somewhere without its `data/rules/` folder beside it. Either publish again with `-o`, or set `PROWLERS_RULES_DIR` to a directory holding `tiers.json` and the rest.
-- **The session drops immediately.** Something is writing to standard output. Point the client at the built binary, not at `dotnet run`.
+- **The session drops immediately.** Something is writing to standard output. Point the client at the published binary, not at `dotnet run`.
+- **A Release build fails with `MSB3027` and a file in `mcp/bin/`.** A server is running out of that directory, which is the failure section 0 exists to prevent — an older registration, or a client started before this one landed. The message names the holding process; stop it, and re-read section 0.
 
