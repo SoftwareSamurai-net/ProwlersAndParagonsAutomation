@@ -441,6 +441,108 @@ public sealed class McpStdioTests
             await server.StandardError.ReadToEndAsync(cancellation), StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// <b>The other launch path — the one the repository's own <c>.mcp.json</c> uses — puts
+    /// nothing but protocol on standard output either.</b>
+    ///
+    /// <para><b>This exists because a sentence used to stand in for it.</b> `docs/MCP-SETUP.md`
+    /// and `docs/guide/mcp-and-headless.md` both asserted that the build tool writes MSBuild's
+    /// progress to standard output, so a client pointed at it sees a corrupt stream. On the .NET
+    /// 10 SDK this repository pins that is false, and `.mcp.json` now <em>depends</em> on it being
+    /// false — which turns a stale claim in a document into a live property of the product, and a
+    /// live property is held by a test. A future SDK that reintroduces a banner, a restore notice,
+    /// or the CLI's own first-run greeting on that stream breaks the checked-in registration for
+    /// everybody who clones this, and nothing else here would notice.</para>
+    ///
+    /// <para><b>The command comes out of <c>.mcp.json</c>, not out of this file.</b> A copy of the
+    /// arguments here would go on passing after somebody changed the registration, which is the
+    /// failure this whole area is about: a launch nothing tests.</para>
+    ///
+    /// <para><b>What this does not hold, said plainly.</b> The registration's environment block
+    /// exists for the dotnet CLI's one-time welcome and telemetry notice, and <em>no test here can
+    /// observe that</em>: the sentinel is written by the first <c>dotnet</c> invocation on a
+    /// machine, and a test run is several such invocations deep before this one starts. Applying
+    /// the block above makes this launch the one a client performs; it does not make deleting the
+    /// block fail. That is belt and braces on an unreachable case, not coverage, and recording it
+    /// as coverage would be the mistake CLAUDE.md describes as a mutation that is semantically
+    /// null being written up as a hole that was closed.</para>
+    ///
+    /// <para><b>Positive control first.</b> The assertion "no line was bad" is satisfied by a
+    /// stream with no lines at all, and a launch that never ran is exactly how three of this
+    /// repository's historical guards were wrong. So this requires the <c>initialize</c> reply to
+    /// arrive before it judges anything.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheBuildToolLaunchSpeaksNothingButTheProtocol()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+
+        // Generous, and for one reason: this launch may compile. A warm run is a couple of
+        // seconds; a cold one on a fresh clone is a build of engine, sheets and mcp.
+        using var giveUp = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+        giveUp.CancelAfter(TimeSpan.FromMinutes(5));
+
+        var registration = JsonNode.Parse(
+            File.ReadAllText(Path.Combine(RulesFixture.RepoRoot, ".mcp.json")))!;
+        var server = registration["mcpServers"]!["prowlers-and-paragons"]!;
+
+        var start = new ProcessStartInfo(server["command"]!.GetValue<string>())
+        {
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+
+            // The project path in the registration is relative, and a client starts a
+            // project-scoped server from the project root. Anywhere else and this would be
+            // testing a launch nobody performs.
+            WorkingDirectory = RulesFixture.RepoRoot
+        };
+
+        foreach (var argument in server["args"]!.AsArray())
+            start.ArgumentList.Add(argument!.GetValue<string>());
+
+        // <b>The environment too, because the point is to start what a client starts.</b> A
+        // launch that reads two of the registration's three fields is a launch nobody performs,
+        // and the third is the one most likely to be edited without thinking.
+        foreach (var variable in server["env"]!.AsObject())
+            start.Environment[variable.Key] = variable.Value!.GetValue<string>();
+
+        using var launched = Process.Start(start)
+            ?? throw new InvalidOperationException("The registered command did not start.");
+
+        try
+        {
+            await Say(launched,
+                """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}""",
+                giveUp.Token);
+
+            var lines = new List<string>();
+
+            while (await launched.StandardOutput.ReadLineAsync(giveUp.Token) is { } line)
+            {
+                lines.Add(line);
+                if (line.Contains("\"id\":1", StringComparison.Ordinal)) break;
+            }
+
+            // The control: the launch reached the server and the server answered. Without this,
+            // a build that failed and printed nothing would pass every assertion below.
+            Assert.True(lines.Count > 0,
+                "The registration in .mcp.json produced no reply to initialize at all. The "
+                + "launch itself is broken, which is worse than the stray-line case this guards.");
+
+            Assert.All(lines, line => Assert.True(
+                JsonNode.Parse(line) is not null,
+                $"'{line}' is on standard output and is not a JSON-RPC message. Standard output "
+                + "belongs to the protocol, and .mcp.json starts the server through the build "
+                + "tool — so anything that tool prints there breaks every checkout."));
+        }
+        finally
+        {
+            Stop(launched);
+        }
+    }
+
     private static Process Start(string executable, string? rulesDirectory)
     {
         var start = new ProcessStartInfo(executable)

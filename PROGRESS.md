@@ -1202,21 +1202,30 @@ above, so it would be an allowlist of exactly the lines a person already decided
 `WorkflowFilterTests` records rejecting for the same reason. The triggers themselves *are* guarded,
 which is the half whose failure is silent.
 
-### 18. The MCP server did not start
+### 18. The MCP server did not start — **closed. Nothing had started, and there is now nowhere for that to hide**
 
-`claude mcp` reported the `prowlers-and-paragons` server as `CONNECTION_CLOSED` for a whole session
-in which twenty-eight characters were built. **Cause unknown — it was not investigated**, because
-the CLI `build` command calls the identical `CostCalculator` and `CharacterValidator` and the
-costing is therefore the same. That is why this is recorded rather than fixed.
+**The registered binary was not on disk.** `~/.claude.json` named
+`%LOCALAPPDATA%\ProwlersAndParagons\mcp-server\ProwlersAndParagons.Mcp.exe` and neither that
+folder nor its parent existed, so the client launched a path that returned `No such file or
+directory` and reported `CONNECTION_CLOSED`. **The instruction to "read the server's own stderr"
+could never have been carried out**: there was no process, so there was no log — which is exactly
+why a session spent looking for one found nothing.
 
-It matters for two reasons that have nothing to do with today's numbers. The MCP server is **the
-documented way in for somebody who has not checked this repository out** — that is the whole of the
-settled decision in `CLAUDE.md` about assisted creation for a third party. And the owner has since
-said the MCP path is what he wants for designing characters conversationally in real time, which
-makes it the primary interface rather than the alternate one. A primary interface that failed to
-connect and was worked around should not stay unexamined.
+The server itself was never at fault. Over stdio it answers `initialize` and `tools/list` with
+4,448 bytes of protocol and one line on standard error, all six tools present.
 
-First step is to reproduce it and read the server's own stderr, not to change anything.
+**The fix is that there is no longer an install path to go stale.** [`.mcp.json`](.mcp.json) at the
+repository root registers the server project-scoped, through the build tool, at a path relative to
+the checkout — so a clone, another machine, another operating system and a git worktree are all
+correct with nothing published. Two guards in `McpSetupDocumentationTests` hold it, both broken and
+watched to fail; the point of moving the registration into the repository is that a check can see
+it at all, which was impossible while it lived in one file on one machine.
+
+What is left open is small and belongs to whoever meets it: Claude Code gates a repository-proposed
+server behind **one approval per checkout** (`enableAllProjectMcpServers` answers it in advance),
+and the publish route in the guide is still the right one for Claude Desktop or a client that is
+not working inside a checkout. Full account, including the MSIX-redirection hazard that may or may
+not have caused the original loss, in [the archive](docs/progress/2026-09-02-the-mcp-server-that-was-never-there.md).
 
 ### 19. The account cap is set by hand in SQL, and a GM cannot see what a player holds
 

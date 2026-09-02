@@ -7,8 +7,15 @@ using ProwlersAndParagonsAutomation.Mcp;
 // greeting, a warning, MSBuild's own chatter — is not a cosmetic problem: it lands in the
 // middle of a JSON-RPC stream and the client drops the session with an error the person
 // reading it cannot connect to anything. Everything this program says to a human goes to
-// standard error, which clients collect into a log. That is also why docs/MCP-SETUP.md tells
-// a stranger to point their client at the built binary rather than at `dotnet run`.
+// standard error, which clients collect into a log.
+//
+// **This used to end by saying that is why the setup guide points a stranger at the built
+// binary rather than at `dotnet run`, on the grounds that the build tool writes MSBuild's
+// chatter to standard output. On the .NET 10 SDK this repository pins, it does not** —
+// measured through a forced full NuGet restore and a recompile — and the repository's own
+// `.mcp.json` starts the server exactly that way. Publishing is still right for a client
+// working outside a checkout, because `dotnet run` needs the checkout; that is a different
+// reason. `TheBuildToolLaunchSpeaksNothingButTheProtocol` holds the stream itself.
 
 var arguments = CommandLine.Read(args);
 

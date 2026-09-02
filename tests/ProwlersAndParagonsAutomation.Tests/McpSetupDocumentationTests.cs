@@ -406,12 +406,22 @@ public sealed class McpSetupDocumentationTests
     }
 
     /// <summary>
-    /// The guide does not tell anybody to point a client at <c>dotnet run</c>.
+    /// No fenced block in the guide starts the server through <c>dotnet run</c>.
     ///
-    /// <para>MSBuild writes its own progress to standard output, which is where the protocol
-    /// lives, so a client reading it sees a corrupt stream and drops the session. The guide
-    /// warns about this in as many words; what this checks is that no <em>instruction</em> in
-    /// it does the opposite — a command block is the part people copy.</para>
+    /// <para><b>The reason is no longer the one this test was written for, and the assertion
+    /// outlived it.</b> It used to be that MSBuild wrote its progress to standard output, where
+    /// the protocol lives, so a client reading it saw a corrupt stream. Measured on the .NET 10
+    /// SDK this repository pins — a launch driven through a forced full NuGet restore and a
+    /// recompile — standard output carried 4,448 bytes and every one of them was protocol. The
+    /// blanket warning was too broad, and <c>.mcp.json</c> now relies on it not being true.</para>
+    ///
+    /// <para>What survives is narrower and still worth holding: <b>a fenced block is the part
+    /// people copy</b>, and every fenced block in this guide is for the case where the client is
+    /// <em>not</em> working inside a checkout. <c>dotnet run</c> needs the checkout, so a copyable
+    /// block offering it hands a stranger a command that breaks the moment they move or delete the
+    /// folder — which is the failure recorded as item 18 in <c>PROGRESS.md</c>, in a different
+    /// spelling. The in-checkout case is served by <c>.mcp.json</c>, which is not a block anybody
+    /// copies, and is held by <see cref="TheProjectRegistrationNamesAProjectThatIsThere"/>.</para>
     ///
     /// <para><b>Every fenced block, whatever it is tagged.</b> The first version listed
     /// <c>bash</c> and <c>json</c>, and a <c>powershell</c> block carrying
@@ -430,5 +440,56 @@ public sealed class McpSetupDocumentationTests
         Assert.NotEmpty(blocks);
         Assert.All(blocks, block =>
             Assert.DoesNotContain("dotnet run", block, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>The checked-in registration names a project file that exists.</b>
+    ///
+    /// <para>This is the guard for the failure that has actually cost this repository a session.
+    /// The MCP server was registered at a path outside the checkout, the file at that path was
+    /// not there, and the client reported <c>CONNECTION_CLOSED</c> — a failure with no server log
+    /// to read, because no process ever started. Nothing in a build could see it: the registration
+    /// lived in a file on one machine that no test had ever heard of.</para>
+    ///
+    /// <para><b>Moving the registration into the repository is what makes it checkable at all</b>,
+    /// and this is the check. It is deliberately about the thing that rots — the path — rather
+    /// than about the flags beside it.</para>
+    /// </summary>
+    [Fact]
+    public void TheProjectRegistrationNamesAProjectThatIsThere()
+    {
+        var registration = JsonNode.Parse(File.ReadAllText(Path(".mcp.json")))!;
+        var server = registration["mcpServers"]?["prowlers-and-paragons"];
+
+        Assert.NotNull(server);
+        Assert.Equal("dotnet", server!["command"]?.GetValue<string>());
+
+        var arguments = server["args"]!.AsArray().Select(a => a!.GetValue<string>()).ToList();
+        var project = arguments[arguments.IndexOf("--project") + 1];
+
+        Assert.EndsWith(".csproj", project, StringComparison.Ordinal);
+        Assert.True(
+            File.Exists(Path(project.Split('/'))),
+            $".mcp.json registers '{project}', and there is no project file there. A registration "
+            + "naming something that is not on disk is the whole of how this server failed before: "
+            + "the client cannot start it and has no log to hand you.");
+    }
+
+    /// <summary>
+    /// <b>The registration is relative, so a clone, a worktree and another machine are all
+    /// already right.</b> An absolute path is correct on exactly one computer, and the guide used
+    /// to say — wrongly — that this was a reason not to check a registration in at all.
+    /// </summary>
+    [Fact]
+    public void TheProjectRegistrationIsRelativeToTheCheckout()
+    {
+        var registration = JsonNode.Parse(File.ReadAllText(Path(".mcp.json")))!;
+        var arguments = registration["mcpServers"]!["prowlers-and-paragons"]!["args"]!
+            .AsArray().Select(a => a!.GetValue<string>());
+
+        Assert.All(arguments, argument => Assert.False(
+            System.IO.Path.IsPathRooted(argument) || argument.Contains(':'),
+            $"'{argument}' is an absolute path. It is right on the machine it was written on and "
+            + "on no other, which is the whole reason this registration is in the repository."));
     }
 }
