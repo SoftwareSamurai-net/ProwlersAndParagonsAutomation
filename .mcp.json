@@ -10,7 +10,8 @@
         "--configuration",
         "Release",
         "--verbosity",
-        "quiet"
+        "quiet",
+        "--no-build"
       ],
       "env": {
         "DOTNET_NOLOGO": "1",
