@@ -89,6 +89,21 @@ appear on a machine that has run `dotnet` before. `.mcp.json` sets `DOTNET_NOLOG
 `DOTNET_CLI_TELEMETRY_OPTOUT` and `DOTNET_SKIP_FIRST_TIME_EXPERIENCE` rather than relying on a
 measurement that could not have observed it.
 
+**A second review then pointed out that this had been written up as though it were guarded, and it
+is not.** The first-run sentinel is dismissed by the first `dotnet` invocation on a machine, and a
+test run is several invocations deep before the nested launch starts — so no test under
+`dotnet test` can reach the case, in CI or locally. Two things changed rather than one: the harness
+now applies the registration's `env` block as well as its command and arguments, because a launch
+reading two of three fields is a launch nobody performs; and the doc comment says in as many words
+that deleting the block would not fail anything. **It is belt and braces on an unreachable case,
+and calling it coverage would be the failure `CLAUDE.md` describes** — a semantically null mutation
+written up as a hole that was closed. There is deliberately no row for it in the table below.
+
+**`mcp/Program.cs` was still asserting it too**, in the header comment that explains why standard
+output belongs to the protocol — the same species of drift as the two documents below, in the place
+`CLAUDE.md` sends every reader of `mcp/`. Found by the second review, after the first had swept the
+documentation and missed a source file. It now carries the corrected reason and names the test.
+
 ## Two other documents were still asserting the corrected claim
 
 Also from the review, and the more serious finding of the two: `docs/guide/mcp-and-headless.md` and

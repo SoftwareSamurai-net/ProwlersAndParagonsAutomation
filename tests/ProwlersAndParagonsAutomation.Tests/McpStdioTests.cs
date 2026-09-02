@@ -458,6 +458,15 @@ public sealed class McpStdioTests
     /// arguments here would go on passing after somebody changed the registration, which is the
     /// failure this whole area is about: a launch nothing tests.</para>
     ///
+    /// <para><b>What this does not hold, said plainly.</b> The registration's environment block
+    /// exists for the dotnet CLI's one-time welcome and telemetry notice, and <em>no test here can
+    /// observe that</em>: the sentinel is written by the first <c>dotnet</c> invocation on a
+    /// machine, and a test run is several such invocations deep before this one starts. Applying
+    /// the block above makes this launch the one a client performs; it does not make deleting the
+    /// block fail. That is belt and braces on an unreachable case, not coverage, and recording it
+    /// as coverage would be the mistake CLAUDE.md describes as a mutation that is semantically
+    /// null being written up as a hole that was closed.</para>
+    ///
     /// <para><b>Positive control first.</b> The assertion "no line was bad" is satisfied by a
     /// stream with no lines at all, and a launch that never ran is exactly how three of this
     /// repository's historical guards were wrong. So this requires the <c>initialize</c> reply to
@@ -492,6 +501,12 @@ public sealed class McpStdioTests
 
         foreach (var argument in server["args"]!.AsArray())
             start.ArgumentList.Add(argument!.GetValue<string>());
+
+        // <b>The environment too, because the point is to start what a client starts.</b> A
+        // launch that reads two of the registration's three fields is a launch nobody performs,
+        // and the third is the one most likely to be edited without thinking.
+        foreach (var variable in server["env"]!.AsObject())
+            start.Environment[variable.Key] = variable.Value!.GetValue<string>();
 
         using var launched = Process.Start(start)
             ?? throw new InvalidOperationException("The registered command did not start.");
