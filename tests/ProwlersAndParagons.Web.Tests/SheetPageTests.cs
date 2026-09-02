@@ -105,6 +105,70 @@ public sealed class SheetPageTests
     }
 
     /// <summary>
+    /// The page has a heading, and exactly one.
+    ///
+    /// <para><b>It had none at all, and this was the only address in the app that did.</b> The
+    /// driver in <c>scripts/e2e/</c> read the heading structure of eleven routes: ten had exactly
+    /// one <c>h1</c> as their first heading, and <c>/sheet</c> had zero, its first heading being
+    /// an <c>h3</c> inside a section bar. Only the <c>_missing</c> branch ever emitted one.</para>
+    ///
+    /// <para><b>Three things assume it is there, which is why this is a defect rather than a
+    /// choice.</b> <c>App.razor</c> renders <c>&lt;FocusOnNavigate Selector="h1" /&gt;</c>, so on
+    /// this page focus moved nowhere on arrival; <c>app.css</c> carries an
+    /// <c>h1[tabindex="-1"]:focus</c> rule written for that focus target; and the print block
+    /// hides <c>h1</c> with the comment "the page heading — the sheet has its own banner".</para>
+    ///
+    /// <para><b>Asserted on the rendered output rather than on the source</b>, because the source
+    /// was never wrong in a way a scan could see: <c>SheetPage.razor</c> has always contained an
+    /// <c>h1</c>, inside <c>@if (_missing)</c>. A file-reading guard would have called this page
+    /// covered — which is the trap <c>CLAUDE.md</c> names about source-reading tests.</para>
+    ///
+    /// <para>Watched to fail: with the <c>h1</c> removed, the count is zero.</para>
+    /// </summary>
+    [Fact]
+    public void TheSheetHasOnePageHeadingNamingTheCharacter()
+    {
+        using var ctx = new RenderContext();
+        Open(ctx, "Lynchpin");
+
+        var page = ctx.Render<SheetPage>();
+
+        // Positive control: the sheet rendered at all, or an assertion about its heading is an
+        // assertion about a page that produced nothing.
+        Assert.Single(page.FindAll(".sheet"));
+
+        var headings = page.FindAll("h1");
+        Assert.Single(headings);
+        Assert.Equal("Lynchpin", headings[0].TextContent.Trim());
+
+        // The heading Blazor's FocusOnNavigate will look for is the *first* one on the page, so a
+        // heading that exists below an h3 would still leave the hierarchy starting in the middle.
+        var levels = page.FindAll("h1, h2, h3, h4, h5, h6");
+        Assert.Equal("H1", levels[0].TagName);
+    }
+
+    /// <summary>
+    /// The heading is not drawn over the sheet, which is the whole reason it is <c>sr-only</c>.
+    ///
+    /// <para>The masthead already prints the name at heading size; a second visible copy above it
+    /// is the chrome this page exists to drop, and
+    /// <see cref="TheDocumentIsAloneOnThePage"/> is the guard for that property in general. This
+    /// one pins the specific mechanism, because "add an h1" and "add a visible h1" are one
+    /// character apart and only one of them is right here.</para>
+    /// </summary>
+    [Fact]
+    public void ThePageHeadingIsNotDrawnOverTheDocument()
+    {
+        using var ctx = new RenderContext();
+        Open(ctx, "Lynchpin");
+
+        var page = ctx.Render<SheetPage>();
+
+        Assert.Single(page.FindAll(".sheet"));
+        Assert.Contains("sr-only", page.Find("h1").GetAttribute("class") ?? "", StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// The builder's two bands are not drawn over it — asserted through the layout, because a page
     /// cannot see the shell above it.
     ///
