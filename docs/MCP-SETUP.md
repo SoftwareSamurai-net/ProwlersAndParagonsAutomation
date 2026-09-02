@@ -36,11 +36,29 @@ dotnet build --configuration Release
 Run that once after cloning — not because the server needs it, but because the first launch
 would otherwise compile while the client is waiting for a reply.
 
-**Claude Code asks once, per checkout, before it will start a server a repository has proposed.**
-That is a deliberate gate on running a program a repository handed you; `claude mcp list` reports
-the server as *Pending approval* until somebody answers it in an interactive session. To answer it
-in advance for a checkout you already trust, set `enableAllProjectMcpServers` in that project's
-`.claude/settings.json`.
+**Claude Code will not start a server a repository proposed until somebody says so, once per
+checkout.** That is a deliberate gate on running a program a clone handed you. Answer it either way:
+
+- **In an interactive session**, Claude Code asks the first time.
+- **Without one**, list the server in `enabledMcpjsonServers` in that checkout's
+  `.claude/settings.local.json` — a personal, git-ignored file, so this approves it for you and
+  not for everybody who clones:
+
+```json
+{
+  "enabledMcpjsonServers": ["prowlers-and-paragons"]
+}
+```
+
+**`claude mcp list` goes on printing *Pending approval* afterwards, and is wrong about it.** The
+same per-project key in `~/.claude.json` looks like it should work and does not. Both were measured
+rather than reasoned about, and this is the command that settles it on your machine:
+
+```bash
+claude -p "Do you have a tool named mcp__prowlers-and-paragons__creation_guide? Answer YES or NO only."
+```
+
+`YES` means the server is connected, whatever `claude mcp list` says.
 
 **Everything below is for the other case**: connecting a client that is not working inside this
 checkout — Claude Desktop, or a Claude Code you use everywhere *except* here. That wants a copy of
@@ -173,6 +191,9 @@ The hard part of this front end is not the transport — it is deciding which qu
 
 ## Troubleshooting
 
+- **The tools are not there and nothing is wrong with the server.** It is the approval gate in
+  section 0, not a fault. `claude mcp list` says *Pending approval* whether or not it has been
+  approved, so use the one-line `claude -p` check there instead.
 - **`CONNECTION_CLOSED`, and no server log anywhere.** The registered file is not there, so
   nothing ever started — there is no stderr to read because there was no process. Run the command
   in the registration by hand: `No such file or directory` is the whole diagnosis. This has

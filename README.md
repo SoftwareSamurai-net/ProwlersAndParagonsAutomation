@@ -144,7 +144,7 @@ dotnet test
 
 The MCP server lets you describe a character in ordinary words — *"a washed-up boxer who punches through time"* — and get a legal, costed one back, with Claude asking you the two or three questions the description leaves open. **It handles no credentials and holds no API key**: the server is a local program that answers questions about the rules, and the conversation happens in the Claude client you already use.
 
-**Working in a checkout of this repository, you have it already** — [`.mcp.json`](.mcp.json) registers the server for any clone, machine or git worktree, with nothing to install. Claude Code asks once per checkout before it will start a server a repository proposed.
+**Working in a checkout of this repository, you have it already** — [`.mcp.json`](.mcp.json) registers the server for any clone, machine or git worktree, with nothing to install. Claude Code asks once per checkout before it will start a server a repository proposed — answer it in the session, or list the server in `enabledMcpjsonServers` in that checkout's `.claude/settings.local.json`.
 
 **→ [Setting it up on your machine](docs/MCP-SETUP.md)** — that checked-in registration, publishing a copy for a client working outside the checkout, registering it with Claude Code or Claude Desktop, what the six tools are for, and what to check when it does not connect.
 
