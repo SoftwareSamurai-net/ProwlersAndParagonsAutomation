@@ -1296,11 +1296,21 @@ The server itself was never at fault. Over stdio it answers `initialize` and `to
 4,448 bytes of protocol and one line on standard error, all six tools present.
 
 **The fix is that there is no longer an install path to go stale.** [`.mcp.json`](.mcp.json) at the
-repository root registers the server project-scoped, through the build tool, at a path relative to
-the checkout — so a clone, another machine, another operating system and a git worktree are all
-correct with nothing published. Two guards in `McpSetupDocumentationTests` hold it, both broken and
-watched to fail; the point of moving the registration into the repository is that a check can see
-it at all, which was impossible while it lived in one file on one machine.
+repository root registers the server project-scoped, at a path relative to the checkout — so a
+clone, another machine, another operating system and a git worktree are all correct with no absolute
+path to install. Two guards in `McpSetupDocumentationTests` hold it, both broken and watched to
+fail; the point of moving the registration into the repository is that a check can see it at all,
+which was impossible while it lived in one file on one machine.
+
+**It runs `dotnet exec mcp-server/ProwlersAndParagons.Mcp.dll` rather than the build tool, and that
+sentence used to read "through the build tool ... with nothing published".** The registration was
+launching out of `mcp/bin/Release`, which is the directory a Release build of this repository writes
+to — so a connected server failed `dotnet build --configuration Release` at 10 warnings and 2
+errors until it was stopped. One command after a clone or a pull is the cost, and it buys back every
+Release build and every `dotnet test --configuration Release`:
+`dotnet publish mcp/ProwlersAndParagons.Mcp.csproj -c Release -o mcp-server`. Measured both ways,
+with the guards broken and watched to fail, in
+[the archive](docs/progress/2026-09-02-the-lock-was-the-servers-read-path.md).
 
 What is left open is small and belongs to whoever meets it: Claude Code gates a repository-proposed
 server behind **one approval per checkout**, granted outside an interactive session by

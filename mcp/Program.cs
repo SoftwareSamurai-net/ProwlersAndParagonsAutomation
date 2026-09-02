@@ -9,14 +9,15 @@ using ProwlersAndParagonsAutomation.Mcp;
 // reading it cannot connect to anything. Everything this program says to a human goes to
 // standard error, which clients collect into a log.
 //
-// **The claim that used to close this comment — that the build tool writes MSBuild's chatter
-// here, so a client must be pointed at a published binary — was too broad, and its correction
-// was too broad the other way.** A launch that compiles cleanly says nothing on this stream. A
-// launch whose *copy* fails, which is what happens when a server from an earlier session still
-// holds `mcp/bin/Release`, writes `MSB3026` retries straight into it. So `.mcp.json` passes
-// `--no-build`, and `dotnet build --configuration Release` is a required step rather than a
-// convenience. `TheBuildToolLaunchSpeaksNothingButTheProtocol` holds the stream itself, and
-// found that defect rather than being written for it.
+// **This comment has carried three wrong versions of one claim about the build tool, and the
+// thing that actually decided the launch was not about this stream at all.** A launch that
+// compiles cleanly says nothing here; a launch whose *copy* fails writes `MSB3026` retries
+// straight into it. But the reason `.mcp.json` now runs `dotnet exec` against a copy published
+// to `mcp-server/` is that a server running out of `mcp/bin/Release` holds the file a Release
+// build of this repository is trying to write — 10 warnings and 2 errors, cleared by stopping
+// it, and cleared equally by moving the server's read path off the build's write path.
+// `TheCheckedInRegistrationSpeaksNothingButTheProtocol` holds the stream itself, reading the
+// command out of `.mcp.json` rather than out of this file.
 
 var arguments = CommandLine.Read(args);
 
