@@ -54,6 +54,27 @@ else
        `ShowBudget` is passed only for a named character, for the reason SheetView's own remarks
        give: whether *that* character has a Hero Point limit has nothing to do with the mode this
        visitor happens to be in. *@
+    @* **The page heading, and it is `sr-only` because the sheet already shows the name.**
+       Without it this was the only address in the app with no `h1` at all — measured across
+       eleven routes, every other one has exactly one and this one's first heading was an `h3`
+       inside a section bar. Three separate things in this repository assume the heading exists:
+       `App.razor` focuses `Selector="h1"` after every navigation, so on this page focus moved
+       nowhere and a keyboard reader got no announcement of having arrived; `app.css` carries an
+       `h1[tabindex="-1"]:focus` rule written for exactly that focus target; and the print block's
+       `h1 { display: none }` is commented "the page heading — the sheet has its own banner",
+       which is a statement that one is there to hide.
+
+       **Invisible rather than drawn, because the omission was semantic and not visual.** The
+       masthead already prints the name at heading size in `--heading` ink; a second visible copy
+       above it would be the chrome this page exists to drop. `@Title` is the same string the
+       browser puts in its own print header, so the document identifies itself the same way in
+       both places.
+
+       **Not `.ident-name` promoted to an `h1` inside `SheetView`**, which was the tidier-looking
+       option: that component is also drawn by the review step, which has an `h1` of its own, and
+       promoting it there would give that page two. *@
+    <h1 class="sr-only">@Title</h1>
+
     @* **`@key` on the id, and it is load-bearing rather than tidy.** `SheetView` subscribes to the
        session only when it is drawing the session's own character, and this page is the first host
        where that parameter flips on a live instance — Blazor reuses the component when only the
