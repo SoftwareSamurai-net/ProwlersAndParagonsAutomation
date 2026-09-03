@@ -38,6 +38,19 @@ if (string.IsNullOrEmpty(baseUrl))
 
 // The order is the cheapest failure first: if the app cannot boot, everything below it is a
 // timeout apiece, and `Harness.AppEverRendered` latches on BOOT's verdict to keep it to one.
-Check[] checks = [Boot.Check];
+//
+// **The five names below `Boot` are the ones `scripts/e2e/drive.mjs` drives today**, and they are
+// listed here before they are ported so that the set this driver reports matches the set
+// `scripts/e2e/defects.mjs` twins — `e2e.sh` fails if those two disagree, in either direction, and
+// it is right to. An unported check is red and says why; see `NotYetPorted`. One line each, so two
+// slices porting two different checks do not conflict over the shape of this list.
+Check[] checks =
+[
+    Boot.Check,
+    NotYetPorted.Check("BUILD"),
+    NotYetPorted.Check("THEME"),
+    NotYetPorted.Check("PALETTE"),
+    NotYetPorted.Check("ROUTES"),
+];
 
 return await Runner.Drive(baseUrl, checks);
