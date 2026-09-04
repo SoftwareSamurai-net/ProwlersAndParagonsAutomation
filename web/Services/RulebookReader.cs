@@ -51,6 +51,31 @@ public sealed record RulebookResult(
     string Snippet);
 
 /// <summary>
+/// How this app cites a passage: the chapter, and the page a paper copy prints it on.
+///
+/// <para><b>One spelling, because two surfaces print it.</b> The rules reference puts it in a
+/// row's cost slot and the command palette puts it in a row's detail line — and a citation
+/// reading <c>Ch.4 p.62</c> on one screen and something else on the other would be the app
+/// disagreeing with itself about where a rule is, on the one figure the whole page exists to let
+/// somebody check against the book on the table.</para>
+///
+/// <para><b>A static beside the record rather than a property on it</b>, because
+/// <see cref="RulebookResult"/> is the wire shape — what the server sent, field for field — and a
+/// computed member on it is one more thing a reader has to decide came from the server or from
+/// here.</para>
+/// </summary>
+public static class RulebookCitation
+{
+    /// <summary>The citation for one result, as both surfaces print it.</summary>
+    public static string For(RulebookResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+
+        return FormattableString.Invariant($"Ch.{result.Chapter} p.{result.PrintedPage}");
+    }
+}
+
+/// <summary>
 /// What a search found, and how.
 /// </summary>
 /// <param name="Query">What was asked, as it was asked.</param>
@@ -217,7 +242,18 @@ public sealed class RulebookReader
     /// and <see cref="RulebookResults.Found"/> would be a count of the whole book presented as a
     /// count of the chapter.</para>
     /// </param>
-    public async Task<RulebookResults?> SearchAsync(string query, int? chapter = null)
+    /// <param name="limit">
+    /// How many rows to send back, or null for as many as the server is willing to.
+    ///
+    /// <para><b>Asking for fewer is safe and asking for more is not.</b> The server's own
+    /// <c>MOST_RESULTS</c> caps this and a caller cannot raise it — see
+    /// <c>docs/guide/accounts-server.md</c> — so this only ever narrows. It is worth asking for
+    /// because <see cref="RulebookResults.Found"/> is computed over the whole ranking and only
+    /// then is the list cut, so a short answer still says truthfully how many passages matched:
+    /// the palette shows five rows, and thirty passages and their snippets is a large answer to
+    /// send for one keystroke.</para>
+    /// </param>
+    public async Task<RulebookResults?> SearchAsync(string query, int? chapter = null, int? limit = null)
     {
         ArgumentNullException.ThrowIfNull(query);
 
@@ -225,8 +261,12 @@ public sealed class RulebookReader
             ? FormattableString.Invariant($"&chapter={number}")
             : "";
 
+        var most = limit is { } rows
+            ? FormattableString.Invariant($"&limit={rows}")
+            : "";
+
         return await AskForAsync<RulebookResults>(
-            "api/rulebook/search?q=" + Uri.EscapeDataString(query) + scope);
+            "api/rulebook/search?q=" + Uri.EscapeDataString(query) + scope + most);
     }
 
     /// <summary>One passage in full, by the address a result carries.</summary>

@@ -57,7 +57,7 @@ else
                 @foreach (var result in found.Results)
                 {
                     var key = (result.Chapter, result.Index);
-                    <ChosenRow Cost="@Cite(result)">
+                    <ChosenRow Cost="@RulebookCitation.For(result)">
                         <Body>
                             <div>
                                 <b>@result.Heading</b>
@@ -248,9 +248,6 @@ else
         _passage = null;
         _passage = await Rulebook.PassageAsync(result.Chapter, result.Index);
     }
-
-    private static string Cite(RulebookResult result) =>
-        FormattableString.Invariant($"Ch.{result.Chapter} p.{result.PrintedPage}");
 
     /// <summary>
     /// What was found, in the reader's terms.

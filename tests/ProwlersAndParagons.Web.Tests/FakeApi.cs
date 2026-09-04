@@ -1041,7 +1041,16 @@ public sealed class FakeApi : HttpMessageHandler
                 || h.Passage.Prose.Contains(w, StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
-        var rows = hits.Select(h => $$"""
+        // **`limit` cuts the list and never the count**, which is the ordering the real server's
+        // own comment insists on: `found` is computed over the whole ranking and only then is the
+        // list cut, so a caller asking for five rows is still told how many passages matched. A
+        // stub that cut `found` too would let a palette showing five rows report "5 passages" for
+        // a word the book uses forty times, which is the one thing this API is built not to say.
+        var listed = int.TryParse(asked["limit"], out var most) && most > 0
+            ? hits.Take(most)
+            : hits;
+
+        var rows = listed.Select(h => $$"""
             {"chapter":{{h.Chapter.Number}},"chapterTitle":{{Quote(h.Chapter.Title)}},
              "index":{{h.Index}},"heading":{{Quote(h.Passage.Heading)}},"printedPage":21,
              "sourceRef":{{Quote($"Ultimate Edition, Ch.{h.Chapter.Number} {h.Chapter.Title}, pp.1-2")}},
