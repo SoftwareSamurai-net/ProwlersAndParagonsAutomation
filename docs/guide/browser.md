@@ -612,6 +612,15 @@ the storage half, which shipped a slice earlier.
   fields rather than in its sentence, the way the tier finding carries the two ids.
   `AnEmptyTraitCapInheritsTheCampaigns` is the positive control and asserts the Resolve it moves,
   because a join that wrote a field nothing read would satisfy an assertion about the field alone.
+- **`CampaignJoin.Inspect` is drawn at the head of "Games you are in" on `/campaign`, and nowhere
+  else.** All three of its findings — `UNKNOWN_CAMPAIGN`, `CAMPAIGN_TIER_MISMATCH`,
+  `CAMPAIGN_TRAIT_CAP_MISMATCH` — reach a reader there and only there. **It shipped reaching
+  nobody**: the method was called by tests alone for a whole slice, so a character at 8d in a 6d
+  game was told on no screen, which is the fault this repository keeps hitting. The page resolves
+  the character's campaign **once per campaign id** and asks `Inspect` **every render** — the tier
+  and the cap move without the id moving, and re-resolving per keystroke is the read-per-letter
+  `ChooseTier` already refuses. The screen looks the two tier ids and the two ranks up and says
+  them, which is the other half of the finding carrying them as fields rather than in its sentence.
 - **`CharacterSession.TraitCap` is the cap in force, not the tier's**, and it is
   `DerivedStatsCalculator.EffectiveTraitCap` rather than a second spelling of the coalesce. Every
   rank field on every step is bounded by it, and the number the browser bounds by has to be the

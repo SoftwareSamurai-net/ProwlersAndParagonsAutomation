@@ -150,6 +150,15 @@ public static class CampaignJoin
     /// <summary>
     /// What is worth saying about the campaign this character names, without changing anything.
     ///
+    /// <para><b>It is drawn on the campaigns page, at the head of "Games you are in", and that is
+    /// the only place.</b> This is worth stating because it was true of nothing for a whole slice:
+    /// the findings below were computed, tested and shown to nobody, which is the fault this
+    /// repository keeps hitting — a feature that works and no reader can reach. The page resolves
+    /// the character's campaign once per campaign id and asks this on every render, so a
+    /// disagreement that arrived by the GM retiering the campaign shows up as readily as one that
+    /// arrived by a refused join. A second surface would be a second thing to keep in step; if one
+    /// is ever added, say so here.</para>
+    ///
     /// <para>Two findings, and both are the same shape as the tier findings the engine already
     /// produces:</para>
     /// <list type="bullet">
