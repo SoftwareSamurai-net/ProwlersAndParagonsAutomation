@@ -237,6 +237,22 @@ public sealed class FakeApi : HttpMessageHandler
     /// </summary>
     public Func<HttpRequestMessage, Task>? Holding { get; set; }
 
+    /// <summary>
+    /// Set to refuse every address under <c>/api/rulebook/</c> with a 401 while
+    /// <see cref="SignedIn"/> still says somebody is here.
+    ///
+    /// <para><b>This is the session that expired, and it is not the same state as being signed
+    /// out.</b> The browser remembers who it is — <see cref="Accounts"/> asks the server once and
+    /// keeps the answer — so a session dropped on the server, or signed out in another tab, is a
+    /// client that goes on believing it may read the book and a server that refuses every request
+    /// for it. There is no way to reach that through this app's own UI, and it is exactly the state
+    /// in which "the book has nothing for you" is a lie.</para>
+    ///
+    /// <para>On the prefix, because that is where the real server refuses: one rule for all four
+    /// addresses, checked before any of them is dispatched.</para>
+    /// </summary>
+    public bool BookRefusesTheSession { get; set; }
+
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -249,6 +265,9 @@ public sealed class FakeApi : HttpMessageHandler
         if (ServerNotDeployed) return await Text(HttpStatusCode.OK, "<!DOCTYPE html><html><body></body></html>");
 
         if (Holding is { } gate) await gate(request);
+
+        if (BookRefusesTheSession && path.StartsWith("/api/rulebook/", StringComparison.Ordinal))
+            return await Status(HttpStatusCode.Unauthorized);
 
         return await Answer(path, request);
     }

@@ -91,8 +91,15 @@
                has not come back yet — so printing it early says "nothing matches" and then
                replaces it with five rows, which reads as the app changing its mind rather than as
                an answer arriving. Nothing is drawn in its place: a spinner for a fifth of a second
-               is worse than a box that has simply not answered yet. *@
-            @if (_found.Count == 0 && !Commands.BookIsBeingAsked)
+               is worse than a box that has simply not answered yet.
+
+               **Nor when the book could not be asked at all.** The sentence is a claim about the
+               corpus, and a session that expired server-side, a 500 or a laptop off the network
+               are not the corpus saying anything — printing it there tells a reader the rulebook
+               has no entry for a word it may well have three of. That state is quiet on purpose:
+               no rows and no sentence, because "the book could not be reached" over an open
+               palette is an error report for something the reader did not ask for. *@
+            @if (_found.Count == 0 && !Commands.BookIsBeingAsked && !Commands.BookCouldNotBeAsked)
             {
                 <p class="palette-empty">Nothing here matches what you typed.</p>
             }
@@ -233,15 +240,22 @@
     private void Typed(ChangeEventArgs e)
     {
         _query = e.Value?.ToString() ?? "";
-        Recount();
 
         // Back to the top on every keystroke. Keeping the position would leave the reader on
         // whatever row happened to be fourth in a list they have just replaced.
         _active = 0;
 
-        // Fire and forget: the answer arrives through BookAnswered, and awaiting it here would
-        // hold up the redraw of the rows that are already known.
+        // **Asked before the rows are counted, and that ordering is the whole of it.** The service
+        // drops the book's rows the moment the query moves, and it does that in the part of this
+        // call that runs before its first await — so counting afterwards is what puts the render
+        // that follows this keystroke on the new query rather than showing the last question's
+        // passages for the pause plus a round trip.
+        //
+        // Fire and forget past that point: the answer arrives through BookAnswered, and awaiting
+        // it here would hold up the redraw of the rows that are already known.
         _ = Commands.AskTheBookAsync(_query);
+
+        Recount();
     }
 
     /// <summary>
@@ -334,11 +348,16 @@
         if (Commands.IsOpen && _entering)
         {
             _entering = false;
-            await Keys.Enter(_box);
 
-            // Again on every open, because signing in and out happens inside the visit and the
-            // answer decides both whether the book is asked and whether the box says it will be.
+            // **Who is here, and only then the caret.** Again on every open, because signing in
+            // and out happens inside the visit and the answer decides both whether the book is
+            // asked and whether the box says it will be — so it has to be settled *before* the box
+            // can be typed into. The other order left a window one interop hop wide in which a
+            // signed-out reader's first keystrokes were asked on behalf of an account that was
+            // gone; `NoteWhoIsAskingAsync` drops whatever is already in flight, and the ask itself
+            // re-reads the offer after its pause, so all three guards close the same window.
             await Commands.NoteWhoIsAskingAsync();
+            await Keys.Enter(_box);
             return;
         }
 

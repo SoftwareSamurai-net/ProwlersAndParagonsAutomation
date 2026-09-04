@@ -20,10 +20,18 @@ namespace ProwlersAndParagons.Web.Tests;
 /// <para><b>This is a sweep, not another per-row check.</b> <c>RowDescriptionTests</c> resolves the
 /// target for a Powers row and an Ability row, one surface at a time, which catches an instance;
 /// this walks every rendered surface and resolves *every* token of
-/// <c>aria-describedby</c>, <c>aria-labelledby</c> and <c>aria-controls</c>, which catches the
-/// class. All three are space-separated ID lists, so each token is resolved separately — an
-/// attribute naming two ids of which one is real would satisfy any check that looked the whole
-/// value up as a single id.</para>
+/// <c>aria-describedby</c>, <c>aria-labelledby</c>, <c>aria-controls</c> and
+/// <c>aria-activedescendant</c>, which catches the class. The first three are space-separated ID
+/// lists, so each token is resolved separately — an attribute naming two ids of which one is real
+/// would satisfy any check that looked the whole value up as a single id.</para>
+///
+/// <para><b><c>aria-activedescendant</c> is here because it is the one that moves.</b> The others
+/// name an element that is either rendered or is not; this one names a <i>row</i>, by an id derived
+/// from a position in a list that grows and shrinks under the reader — the palette's book rows
+/// arrive a fifth of a second after the typing that asked for them, and five of them can vanish at
+/// once. A cursor left pointing at a row that is no longer drawn is the same dangling promise as an
+/// <c>aria-controls</c> on a shut panel, and the palette is swept open, with the book answering, so
+/// this is checked against the longest list the app ever draws rather than the shortest.</para>
 ///
 /// <para><b>What this does not do is close the screen-reader item.</b> It is a structural check and
 /// nothing more: it cannot hear an announcement, cannot tell a useful description from a useless
@@ -35,7 +43,10 @@ namespace ProwlersAndParagons.Web.Tests;
 public sealed class AriaReferenceTests
 {
     private static readonly string[] ReferenceAttributes =
-        ["aria-describedby", "aria-labelledby", "aria-controls"];
+        ["aria-describedby", "aria-labelledby", "aria-controls", "aria-activedescendant"];
+
+    /// <summary>How long to let the book answer. Far longer than it needs — see PaletteBookTests.</summary>
+    private static readonly TimeSpan Patient = TimeSpan.FromSeconds(10);
 
     /// <summary>
     /// Renders one surface and returns how many references it carried, having resolved each.
@@ -78,7 +89,7 @@ public sealed class AriaReferenceTests
     }
 
     [Fact]
-    public void EveryAriaReferenceOnEverySurfaceResolves()
+    public async Task EveryAriaReferenceOnEverySurfaceResolves()
     {
         var total = 0;
 
@@ -126,6 +137,30 @@ public sealed class AriaReferenceTests
             Assert.Single(opened.FindAll(".character-switch-list"));
 
             total += ResolveEveryReference(opened, "MainLayout (menus open)");
+        }
+
+        // **The palette open, for a reader the book answers**, which is the surface the moving
+        // reference lives on and the one the sweep above renders shut. Signed in before the sample
+        // is loaded, because Accounts answers who is here once and remembers it.
+        using (var reading = new RenderContext())
+        {
+            reading.Api.SignedIn = ("acct_reader", "A reader");
+            reading.With(SheetMode.Hero);
+            reading.Services.GetRequiredService<Commands>().Open();
+
+            var palette = reading.Render<CommandPalette>();
+            palette.Find(".palette-box").Input("knockback");
+
+            await palette.WaitForAssertionAsync(
+                () => Assert.NotEmpty(palette.FindAll(".palette-group ~ .palette-row")), Patient);
+
+            // The positive control on this surface, and it is two claims. The book really did
+            // answer, so the list being swept is the long one; and the cursor attribute really is
+            // on the page, so the token added to the swept set above resolves something rather
+            // than sweeping an attribute this app never writes.
+            Assert.NotEmpty(palette.FindAll("[aria-activedescendant]"));
+
+            total += ResolveEveryReference(palette, "CommandPalette (open, book answering)");
         }
 
         // The positive control, and it is the point of the count. Every assertion above is an
