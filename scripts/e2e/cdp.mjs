@@ -46,10 +46,21 @@ export function requireWebSocket() {
 export function findChrome() {
     if (process.env.PP_E2E_CHROME) return process.env.PP_E2E_CHROME;
 
+    // **macOS is its own branch and was missing one.** `process.platform` is `darwin` there, so
+    // it fell through to the Linux list, found none of those paths, and threw "no Chrome found"
+    // on a machine with Chrome installed in the ordinary place — the script was unrunnable on a
+    // Mac without setting PP_E2E_CHROME by hand, which is not something its help text says you
+    // must do. CI is Linux and could never see it.
     const candidates = process.platform === 'win32'
         ? [
             'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
             'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+        ]
+        : process.platform === 'darwin'
+        ? [
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            `${process.env.HOME ?? ''}/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`,
+            '/Applications/Chromium.app/Contents/MacOS/Chromium',
         ]
         : [
             '/usr/bin/google-chrome',

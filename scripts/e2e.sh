@@ -154,6 +154,26 @@ first_port=8788
 # `release_port` does not cover it, so a hang here may leave one headless Chrome behind.
 drive_deadline=300s
 
+# **`timeout` is GNU coreutils and macOS does not ship it.** The deadline above is not optional —
+# its own comment records a wedged Chrome spending 1666 seconds and cancelling the Build job — so
+# the answer to a missing `timeout` is to find the one this host has, never to drop the cap and
+# run unbounded. Homebrew installs coreutils' copy prefixed as `gtimeout` by default, which
+# shadows nothing.
+#
+# Refusing is the third branch on purpose, and it is the same reasoning as the wrangler pin above:
+# a fallback that quietly runs without the deadline is how the point gets lost, and this script
+# would then hang exactly the way the comment above says it must not.
+if command -v timeout >/dev/null 2>&1; then
+  timeout_cmd=(timeout)
+elif command -v gtimeout >/dev/null 2>&1; then
+  timeout_cmd=(gtimeout)
+else
+  echo "error: no 'timeout' command (GNU coreutils) is available, and every drive below must be" >&2
+  echo "       bounded — an unbounded one has already cost this project a cancelled CI job." >&2
+  echo "       macOS: brew install coreutils   (installs it as 'gtimeout', shadowing nothing)" >&2
+  exit 1
+fi
+
 # **There are two drivers, and which one runs is an argument rather than a guess.**
 #
 # `scripts/e2e/drive.mjs` is the hand-rolled DevTools Protocol client this script was written
@@ -377,6 +397,21 @@ port_in_use() {
   # Not Linux and not Windows — a Mac, most likely. `ss` if it is there, and otherwise refuse
   # rather than guess: guessing "free" is precisely what produced `Address already in use` from
   # workerd three twins into a run, and a fallback that can be silently wrong is worse than none.
+  #
+  # **`lsof` before `ss`, because on the Mac this branch names, `ss` is the one that is absent.**
+  # iproute2 is Linux's; macOS ships `lsof` in the base system and no `ss` at all, so this arm
+  # refused on the very platform its own comment says it is for — the run died at the first port
+  # check with "no /proc/net/tcp and no 'ss' on PATH". CI is Linux and takes the branch above, so
+  # nothing there could ever have seen it.
+  #
+  # `-sTCP:LISTEN` is what keeps this equivalent to the `0A` test above rather than merely close
+  # to it: it matches listeners only, so a socket in TIME_WAIT is not counted as occupying the
+  # port — the same distinction the Linux arm makes deliberately, for the same reason.
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1 && return 0
+    return 1
+  fi
+
   if command -v ss >/dev/null 2>&1; then
     ss -ltn 2>/dev/null | awk -v want=":$port$" '$4 ~ want { found = 1 } END { exit !found }'
     return $?
@@ -440,6 +475,21 @@ release_port() {
 # `/proc/*/stat` reader has.
 children_of() {
   local parent="$1" entry pid stat
+
+  # **`/proc` is Linux's and macOS has none, so this returned nothing there — and returning
+  # nothing is silent.** `kill_tree` then killed only the pid it was handed, which is the `npx`
+  # wrapper; wrangler's own node and the `workerd` under it survived and kept the port. That is
+  # the identical defect the Linux arm below this function was written to fix (`pkill -P` killing
+  # direct children only), reappearing on a platform the fix could not reach. Measured: six
+  # `wrangler`/`workerd` groups still listening on 8788-8793 after a completed run, one per
+  # server, with `release_port` warning about every one of them and the run still reporting PASS.
+  #
+  # `pgrep -P` gives direct children and is in the macOS base system; `kill_tree` already
+  # recurses, so one level is all this has to answer — the same shape the `/proc` walk provides.
+  if [ ! -d /proc ]; then
+    pgrep -P "$parent" 2>/dev/null
+    return 0
+  fi
 
   for entry in /proc/[0-9]*; do
     pid="${entry##*/}"
@@ -590,7 +640,7 @@ real_status=0
 # non-zero-status check has been dead since this script was written, and the count check was
 # quietly carrying it — a redundant guard covering for a broken one, and the reason to break a
 # guard rather than read it.
-timeout -k 10s "$drive_deadline" "${driver[@]}" "http://127.0.0.1:${port}" 2>&1 \
+"${timeout_cmd[@]}" -k 10s "$drive_deadline" "${driver[@]}" "http://127.0.0.1:${port}" 2>&1 \
   | tee "$real_log" || real_status=$?
 
 stop_server
@@ -658,7 +708,17 @@ echo ""
 echo "=== The deliberately-broken twins ================================================"
 
 # `name:CHECK` per line.
-mapfile -t defect_lines < <(node "$root/scripts/e2e/defects.mjs" --list)
+#
+# **A read loop rather than `mapfile`, because macOS ships bash 3.2 and `mapfile` is bash 4.**
+# Apple has not shipped a newer bash since 2007 (the licence changed), so `/usr/bin/env bash` on
+# a Mac is 3.2 unless somebody has installed another one — and this script otherwise goes out of
+# its way to work on Git Bash and Linux alike. It failed here *after* reporting all five real
+# checks green, which is the worst place to fail: the run looks like a pass until the twins,
+# which are the half that proves the checks can fail at all.
+defect_lines=()
+while IFS= read -r defect_line; do
+  [ -n "$defect_line" ] && defect_lines+=("$defect_line")
+done < <(node "$root/scripts/e2e/defects.mjs" --list)
 
 if [ "${#defect_lines[@]}" -eq 0 ]; then
   echo "::error::defects.mjs listed no twins, so there is no negative control for anything."
@@ -755,7 +815,7 @@ for line in "${defect_lines[@]}"; do
   # names are compared against the twin list. Here, a name matching nothing would leave the
   # verdict line absent — and the "printed no verdict" arm below already calls that a failed
   # negative control rather than a pass.
-  timeout -k 10s "$drive_deadline" "${driver[@]}" "http://127.0.0.1:${port}" --only "$check" \
+  "${timeout_cmd[@]}" -k 10s "$drive_deadline" "${driver[@]}" "http://127.0.0.1:${port}" --only "$check" \
     > "$twin_log" 2>&1 || twin_status=$?
 
   stop_server

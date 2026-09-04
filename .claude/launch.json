@@ -4,9 +4,9 @@
     {
       "name": "web",
       "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--project", "web/ProwlersAndParagons.Web.csproj"],
-      "port": 5000,
-      "url": "http://localhost:5000"
+      "runtimeArgs": ["run", "--project", "web/ProwlersAndParagons.Web.csproj", "--urls", "http://localhost:5050"],
+      "port": 5050,
+      "url": "http://localhost:5050"
     }
   ]
 }
