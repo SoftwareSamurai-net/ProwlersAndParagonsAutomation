@@ -909,6 +909,14 @@ works and nobody can reach.
   obvious fixture ids (`code`, `flight`) are written exactly the way their printed names are, so a
   case-insensitive check on those cannot tell a leak from a correct lookup. That took three goes at
   one fixture; the test records all three.
+- **The Trait Cap row is the cap in force, not the field.** `Trait Cap 12d → 6d`, through
+  `EffectiveTraitCap`, so the ceiling a GM decides about is the one the validator judged the
+  submission by and the one its Resolve was measured from. A house cap written at exactly the
+  tier's own moves nothing and says nothing — the same rule the 0d rank follows. **Without this row
+  the screen said "nothing changed" over a real change**: the cap costs no Hero Points, so the
+  spend could not be the trigger, and a player who set one between submissions moved their Resolve
+  and could turn a legal Ability illegal while the GM's list stayed empty. A tier change moves this
+  row as well as the Tier row, which is two facts and not a duplicate.
 - **An id the rules data does not know is printed as itself, deliberately.** A payload can name a
   Power from a build these rules do not have, and a diff full of rows called "Unnamed" tells a GM
   nothing.

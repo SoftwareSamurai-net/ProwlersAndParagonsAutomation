@@ -296,9 +296,53 @@ public sealed class CampaignApprovalTests
         Assert.True(diff.Rows.Count > 0, $"{what}: nothing was reported to the GM");
     }
 
+    /// <summary>
+    /// <b>The Trait Cap row is the cap in force, in the words every rank in this app is written
+    /// in.</b>
+    ///
+    /// <para>The theory above only requires <em>a</em> row; this requires the right one. It is
+    /// <c>Trait Cap 12d → 6d</c> and not <c>TraitCapRank: → 6</c>, because the field going from
+    /// absent to present is this application's bookkeeping and the ceiling moving from the
+    /// Standard tier's 12d to a table's 6d is what the GM is deciding about.</para>
+    ///
+    /// <para>The last case is the control that keeps the rule honest in the other direction: a
+    /// house cap written at exactly the tier's own ceiling moves nothing and says nothing, the
+    /// same way a rank stepped back to zero reads as removed rather than as <c>0d</c>.</para>
+    /// </summary>
+    [Fact]
+    public void TheTraitCapRowNamesBothCeilingsTheWayARankIsWritten()
+    {
+        var before = ASheet();
+        var after = ASheet();
+        after.TraitCapRank = 6;
+
+        var row = CampaignDiff.Between(before, after, Rules, Costs).Rows
+            .Single(r => r.What == "Trait Cap");
+
+        Assert.Equal("12d", row.Before);
+        Assert.Equal("6d", row.After);
+        Assert.Equal(DiffKind.Changed, row.Kind);
+
+        // A house cap equal to the tier's is not a change to the character.
+        var same = ASheet();
+        same.TraitCapRank = 12;
+
+        Assert.DoesNotContain(CampaignDiff.Between(before, same, Rules, Costs).Rows,
+            r => r.What == "Trait Cap");
+    }
+
     public static TheoryData<string, Action<CharacterSheet>> FreeButReportableChanges() => new()
     {
         { "the tier", s => s.SelectedTierId = "high_level" },
+
+        // **A house Trait Cap costs nothing and changes what the character is.** It is the datum
+        // Resolve is measured from and the ceiling every Ability is judged against, so a player
+        // who set one between submissions moved their Resolve and could turn a legal Trait
+        // illegal — while this screen, which compared no such field, said nothing changed. The
+        // fixture is at the Standard tier, whose cap is 12d, so this really is 12d → 6d and not a
+        // row about a field going from absent to present.
+        { "a house Trait Cap", s => s.TraitCapRank = 6 },
+
         { "building without a points limit", s => s.UnlimitedBudget = true },
         { "Hero or Villain", s => s.IsVillain = true },
         { "a Flaw taken", s => s.Flaws.Add(new SelectedFlaw("alter_ego")) },
