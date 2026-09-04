@@ -95,6 +95,32 @@ window.ppMotion = {
 // work happened before it asserts the work was right.
 window.ppMotionStats = { counts: 0, transitions: 0, landings: 0 };
 
+// **Write the figure without replacing the text node, and this is a correctness rule rather
+// than a micro-optimisation.** `element.textContent = value` removes every child and inserts a
+// *new* text node — including the one Blazor's renderer is holding a reference to. From the
+// first count onward Blazor's own updates to this figure land on a detached node and never
+// reach the screen, so what a reader sees is whatever this script last wrote.
+//
+// That looks fine as long as every change is followed by a count, and it is not: an unchanged
+// `_shown`, a clock frozen because the tab was hidden, a swallowed interop failure — each
+// leaves the previous number on screen beside a correctly-updated "N left", so the strip
+// contradicts itself. Observed as a spent figure reading 97 against "99 left", with Blazor's
+// detached node holding the right answer all along.
+//
+// Setting `nodeValue` keeps the node identity, so Blazor stays in charge of the figure and this
+// script only borrows it for the animation. The fallback covers the first write into an element
+// Blazor rendered empty, and anything that is not a single text node.
+const write = (element, value) => {
+    const node = element.firstChild;
+
+    if (node !== null && node.nodeType === Node.TEXT_NODE && element.childNodes.length === 1) {
+        node.nodeValue = value;
+        return;
+    }
+
+    element.textContent = value;
+};
+
 window.ppCount = (element, from, to) => {
     if (!element) return;
 
@@ -106,7 +132,7 @@ window.ppCount = (element, from, to) => {
 
     // Reduced motion, or nothing to count: the answer, immediately.
     if (still() || from === to) {
-        element.textContent = to;
+        write(element, to);
         return;
     }
 
@@ -124,7 +150,7 @@ window.ppCount = (element, from, to) => {
         : raw.endsWith("s") ? parseFloat(raw) * 1000
         : NaN;
 
-    if (!(ms > 0)) { element.textContent = to; return; }
+    if (!(ms > 0)) { write(element, to); return; }
 
     // The clock. It animates nothing anybody can see — opacity from 1 to 1 — because what is
     // wanted is a timeline, not an effect. The figure is text, and text is not interpolable.
@@ -147,14 +173,14 @@ window.ppCount = (element, from, to) => {
 
         if (now === null || now === undefined || Number(now) >= ms) {
             // Assigned, never interpolated: the resting figure is the engine's.
-            element.textContent = to;
+            write(element, to);
             return;
         }
 
         const t = Math.min(1, Math.max(0, Number(now) / ms));
 
         // Cubic ease out, matching --ease-out: quick away, settling into place.
-        element.textContent = Math.round(from + ((to - from) * (1 - Math.pow(1 - t, 3))));
+        write(element, Math.round(from + ((to - from) * (1 - Math.pow(1 - t, 3)))));
     };
 
     let handle = 0;

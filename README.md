@@ -31,7 +31,7 @@ were; the descriptions were in the rules data the whole time with nothing showin
 printed Range, rank type and cost; 27 baseline-rank Powers; 23 generic Pros and 28 generic Cons
 including the variable-cost ones; the 106 Power-specific Pros and Cons, several of which change a
 Power's cost *per rank*; 53 Flaws, 13 Perks, the six Sources and the tiers. A data edit that
-contradicts the book fails CI. → [The rules engine](docs/RULES-ENGINE.md)
+contradicts the book fails CI. → [The rules engine](docs/guide/rules-engine.md)
 
 **Applicability derived from the rulebook, not curated per Power.** Each generic option states which
 Powers it applies to, so nothing legal is hidden — and where a Power's *own* printed text names an
@@ -85,6 +85,9 @@ pixels than a person can hold in their head.
 
 ## Prerequisites
 
+**Building and running the four front ends needs only the .NET SDK.** The engine, both interactive
+apps, the headless build command and the MCP server are all `dotnet`.
+
 | Tool | Version |
 |---|---|
 | .NET SDK | **10.0.100 or newer** (pinned in `global.json`, `rollForward: latestMinor`) |
@@ -95,6 +98,24 @@ If `dotnet build` fails with *"A compatible .NET SDK was not found"*, you are on
 ```bash
 winget install --id Microsoft.DotNet.SDK.10
 ```
+
+**Running everything under `scripts/`, including most of the test suite, needs more.** The accounts
+server is JavaScript because Cloudflare Workers is, so eight of the twelve scripts there need Node;
+two of those also want Chrome or Docker, each for a specific, narrow reason rather than as a general
+dependency:
+
+| Tool | Version | What needs it |
+|---|---|---|
+| Node | **22 or newer** | `test-worker.sh`, `e2e.sh`, `test-visual.sh`, `test-deploy-gate.sh`, `apply-migrations.sh`, `count-tests.sh`, the inline-\*.mjs data bakers, `probe-mail.mjs` |
+| Chrome | any real build | `e2e.sh` drives it over the DevTools Protocol — no pixel comparison, so any Chrome answers |
+| Docker | running daemon | **only** `qodana-scan.sh` (no non-container form) and `visual-regression.sh`'s pixel comparison specifically — [`docs/guide/testing.md`](docs/guide/testing.md) measures why even two different real *Linux* Chromes disagree by tens of thousands of pixels, so nothing installed locally makes that comparison trustworthy off Linux; `e2e.sh` and everything else fall back to Docker only when Node itself is missing |
+
+On macOS with Homebrew, `./scripts/dev-setup.sh` installs the .NET SDK, Node and Chrome at the
+versions this repository already pins elsewhere (`global.json`'s SDK version, the `# wrangler=`
+comment `deploy.yml` carries), reading each rather than restating it — and explains why it does not
+install Docker, and what stays unavailable without it. Linux CI already has Node and Chrome on the
+runner image; a Windows machine follows the `winget` command each script prints when it cannot find
+what it needs.
 
 The source rulebook PDF is **not included** in this repository (copyright), and never will be. Place your own copy in `docs/` if you need to re-run data extraction: `*.pdf` is gitignored repository-wide, and CI fails the build if a PDF is ever tracked.
 
@@ -161,14 +182,13 @@ The detail lives in its own file per domain, so this page stays something you ca
 | | |
 |---|---|
 | [**Architecture**](docs/ARCHITECTURE.md) | The four layers and the no-upward-dependency rule, and what every directory in the repository is for |
-| [**The rules engine**](docs/RULES-ENGINE.md) | Power costs, rank types, baseline ranks, derived statistics, the tiers, the wizard's steps, and the JSON conventions the rules data follows |
-| [**Code quality**](docs/CODE-QUALITY.md) | The analyzer contract, the two test projects, and what CI actually enforces |
+| [**The rules engine**](docs/guide/rules-engine.md) | Power costs, rank types, baseline ranks, derived statistics, the Sources, and the JSON conventions the rules data follows |
+| [**Tests and code quality**](docs/guide/testing.md) | The two test projects, the analyzer contract, what CI actually enforces, and the pixel goldens |
 | [**Hosting**](docs/HOSTING.md) | Where the running site lives — the DNS chain, the Pages project, the D1 database, the mail provider, and why each piece is where it is |
 | [**Deploying the browser front end**](docs/DEPLOYING.md) | Cloudflare Pages, the generated security headers, and the payload |
 | [**Connecting the MCP server**](docs/MCP-SETUP.md) | Pointing your own Claude at the published binary |
 | [**Turning accounts on**](docs/ACCOUNTS-SETUP.md) | The database, the binding and the sending domain that sign-in needs — and why nothing breaks before they exist |
 | [**Rulebook coverage**](docs/RULEBOOK-COVERAGE.md) | Which chapters are extracted and verified, and which are deliberately not |
-| [**Extracting the rules**](docs/RULES_EXTRACTION_GUIDE.md) | How the rules data was read out of the PDF, if you need to redo it |
 
 Two more that are not reference material:
 

@@ -404,8 +404,8 @@ label `"Unnamed character"`, so nobody who had saved one loses it.
 
 ## The browser side
 
-`ICharacterStore` becomes plural, and this is the interface change `docs/HANDOVER.md` warned to make
-only once one character round-trips. It has, so this is that moment.
+`ICharacterStore` becomes plural, and this is the interface change that was always meant to wait
+until one character round-trips. It has, so this is that moment.
 
 - **Local storage gets the same shape**: many characters, an index and one entry each, still keyed
   under the identity prefix so an account's local list and the anonymous one stay separate.

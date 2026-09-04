@@ -58,7 +58,7 @@ cheaper of the two places to find it.
 ## Not claimed
 
 **This does not speed up a pull request.** Qodana runs on `main` and weekly, deliberately — see
-[the earlier CI entry](2026-09-01-everything-before-the-split.md#ci-cost-three-times-what-it-needed-to-and-the-measurement-is-the-interesting-part)
+[the earlier CI entry](../guide/hosting.md#what-each-workflow-costs-and-the-three-things-that-hold-it-down)
 — so fourteen seconds comes off a workflow that gates nothing. It is worth doing because it is
 fourteen seconds of pure waste with a one-line fix, not because anybody was waiting on it.
 

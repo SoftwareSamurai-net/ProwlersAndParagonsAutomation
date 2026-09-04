@@ -36,24 +36,40 @@ public sealed class WorkflowFilterTests
         File.ReadAllText(Path.Combine(RepoRoot, ".github", "workflows", "deploy.yml"));
 
     /// <summary>
-    /// The paths the build is allowed to skip. One, and it is a file no test opens: the handover
-    /// written at the end of a slice.
+    /// The paths the build is allowed to skip. <b>None</b> — the one entry this ever held,
+    /// <c>docs/HANDOVER.md</c>, has been deleted rather than replaced.
     ///
-    /// <para><b>It was two, and <c>PROGRESS.md</c> came off deliberately.</b> That file stopped
-    /// being unread when <see cref="ProgressArchiveTests"/> began holding its completed-work
-    /// section to being a pointer rather than a place entries pile up — and a skipped path whose
+    /// <para><b>It was two, then one, and there is no third waiting.</b> <c>PROGRESS.md</c> came
+    /// off deliberately when <see cref="ProgressArchiveTests"/> began holding its completed-work
+    /// section to being a pointer rather than a place entries pile up — a skipped path whose
     /// contents a test checks is a change that merges without the build that would have caught it,
     /// which is the exact failure <see cref="NoFileATestReadsIsSkippedByTheBuild"/> exists to
-    /// report. <b>It reported it</b>, on the commit that added that test.</para>
+    /// report. <b>It reported it</b>, on the commit that added that test. <c>docs/HANDOVER.md</c>
+    /// held the same status until it was deleted, and almost every other Markdown file here is
+    /// opened by some test by name, so there is nothing left to vouch for.</para>
+    ///
+    /// <para><b>Do not add a path here to give the workflow's skip key something to point at.</b>
+    /// This is an allowlist because nothing can prove a file unread — a test could compose a path
+    /// no scan sees. Earning a place means actually satisfying yourself no test reads it, the way
+    /// the paragraph above did twice. Empty is the honest state until a real candidate turns up.</para>
     /// </summary>
-    private static readonly string[] KnownInert = ["docs/HANDOVER.md"];
+    private static readonly string[] KnownInert = [];
 
-    private static List<string> Ignored()
+    private static List<string> Ignored() => ParsePathsIgnore(BuildWorkflow);
+
+    /// <summary>
+    /// Every skip-list entry in some workflow YAML, flattened in the order it appears.
+    ///
+    /// <para>Split out of <see cref="Ignored"/> so <see cref="TheParserStillFindsASkipList"/> can
+    /// drive <b>this exact method</b> against a fixture. A second parser written for the fixture
+    /// would only prove that two copies agree with each other.</para>
+    /// </summary>
+    private static List<string> ParsePathsIgnore(string yaml)
     {
         var found = new List<string>();
         var inBlock = false;
 
-        foreach (var line in BuildWorkflow.Split('\n'))
+        foreach (var line in yaml.Split('\n'))
         {
             var trimmed = line.Trim();
 
@@ -106,13 +122,50 @@ public sealed class WorkflowFilterTests
     }
 
     /// <summary>
-    /// <b>The positive control, and it is not ceremony.</b> Every assertion below is an absence,
-    /// and a parser that had stopped finding the block would satisfy all of them.
+    /// <b>The positive control, and it is not ceremony — read this before touching
+    /// <see cref="ParsePathsIgnore"/> or <see cref="Match"/>.</b>
+    ///
+    /// <para>This used to assert <c>Assert.NotEmpty(Ignored())</c> straight against the workflow,
+    /// on the sound reasoning that every other assertion here is an <em>absence</em>: a parser
+    /// that had stopped finding the block would return nothing and satisfy all of them.</para>
+    ///
+    /// <para><b>That stopped being able to tell the truth from a broken parser the moment
+    /// <c>docs/HANDOVER.md</c> was deleted.</b> It was the build's last skippable path, so
+    /// <see cref="Ignored"/> now legitimately returns nothing — and a bare non-empty assertion
+    /// could no longer distinguish "the parser broke" from "there is honestly nothing to skip",
+    /// which is precisely the ambiguity a positive control exists to remove.</para>
+    ///
+    /// <para>So the fixture is what has to be non-empty, and the real workflow is free to be
+    /// empty. The <c>types:</c> line after the list is deliberate: a parser that failed to end the
+    /// block there would run on into content that was never part of it, and the expected list
+    /// would not match.</para>
     /// </summary>
     [Fact]
-    public void TheBuildReallyDoesSkipSomething()
+    public void TheParserStillFindsASkipList()
     {
-        Assert.NotEmpty(Ignored());
+        const string fixture = """
+            pull_request:
+              paths-ignore:
+                - 'fixture/one.md'
+                - 'fixture/two.md'
+              types: [opened]
+            push:
+              branches:
+                - main
+            """;
+
+        Assert.Equal(["fixture/one.md", "fixture/two.md"], ParsePathsIgnore(fixture));
+    }
+
+    /// <summary>
+    /// <b>The other half of the old positive control, kept because it is still a real claim about
+    /// this repository.</b> Test sources open dozens of Markdown files by name, and
+    /// <see cref="Ignored"/> being empty says nothing about whether that scan still works — so it
+    /// is asserted directly rather than leaning on the workflow having something to compare with.
+    /// </summary>
+    [Fact]
+    public void SomeTestStillOpensAMarkdownFileByName()
+    {
         Assert.NotEmpty(ReadBySomeTest());
     }
 
@@ -185,10 +238,13 @@ public sealed class WorkflowFilterTests
     [Fact]
     public void ThePullRequestAndThePushSkipTheSameThings()
     {
-        var blocks = Regex.Matches(BuildWorkflow, "paths-ignore:", RegexOptions.None, TimeSpan.FromSeconds(5));
-
-        Assert.Equal(2, blocks.Count);
-        Assert.Equal(KnownInert.Length * 2, Ignored().Count);
+        // **Checked two ways, because one of them alone has a hole.** `Ignored()` being empty is
+        // the ordinary case — an entry added under one trigger and not the other. But a bare skip
+        // key with no list items under it parses to nothing, so `Ignored()` would stay empty and
+        // notice nothing, while the workflow had quietly grown a filter on one trigger. The text
+        // check is what closes that, and it is the mutation this test was watched to fail on.
+        Assert.DoesNotContain("paths-ignore:", BuildWorkflow, StringComparison.Ordinal);
+        Assert.Empty(Ignored());
     }
 
     /// <summary>
