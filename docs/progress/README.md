@@ -53,12 +53,22 @@ hindsight.
 
 ## What the tooling knows about this directory
 
-- **`ProgressArchiveTests`** requires every file here to open with an `# ` title, requires this
-  README and the pre-split archive to exist, and requires `PROGRESS.md` to keep no `###` entries
-  under its own **Completed work** heading — which is what stops the section growing back.
+- **`ProgressArchiveTests`** requires every file here to open with an `# ` title and to be named
+  `YYYY-MM-DD-a-slug.md`, requires this README and *at least one* entry beside it, and requires
+  `PROGRESS.md` to keep no `###` entries under its own **Completed work** heading — which is what
+  stops the section growing back.
+
+  **This bullet used to claim the test requires "the pre-split archive" by name. It never did**,
+  and the difference mattered: the test checks only that the directory is non-empty, so the
+  6,723-line pre-split file was deletable all along, and a reader trusting this sentence would
+  have believed otherwise. It has since been deleted, after a full close-read established that
+  five facts in it existed nowhere else — two were moved into `docs/guide/testing.md` and
+  `docs/guide/hosting.md`, and the rest described problems that no longer exist. **Do not
+  paraphrase a test in this file again without opening it.**
 - **`build.yml` does *not* ignore this directory, and that was decided rather than overlooked.**
-  It was nearly added to `paths-ignore` beside `PROGRESS.md` on the reasoning that finished work is
-  inert — but it is not inert while `ProgressArchiveTests` reads it, and skipping it would hide the
-  one change that test exists to catch. `WorkflowFilterTests.ADirectoryReadByWildcardIsNeverSkipped`
+  It was nearly added to the build's skip list beside `PROGRESS.md` on the reasoning that finished
+  work is inert — but it is not inert while `ProgressArchiveTests` reads it, and skipping it would
+  hide the one change that test exists to catch. **That list no longer exists at all**: its last
+  entry, `docs/HANDOVER.md`, was deleted with it, and neither trigger carries the key now. `WorkflowFilterTests.ADirectoryReadByWildcardIsNeverSkipped`
   states that rule for both this directory and `docs/guide/`. The cost is a build on a pull request
   that touches nothing else, which is rare: a slice's own code triggers one anyway.
