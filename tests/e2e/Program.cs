@@ -67,11 +67,12 @@ for (var i = 1; i < args.Length; i++)
 // The order is the cheapest failure first: if the app cannot boot, everything below it is a
 // timeout apiece, and `Harness.AppEverRendered` latches on BOOT's verdict to keep it to one.
 //
-// **The five names below `Boot` are the ones `scripts/e2e/drive.mjs` drives today**, and they are
-// listed here before they are ported so that the set this driver reports matches the set
-// `scripts/e2e/defects.mjs` twins — `e2e.sh` fails if those two disagree, in either direction, and
-// it is right to. An unported check is red and says why; see `NotYetPorted`. One line each, so two
-// slices porting two different checks do not conflict over the shape of this list.
+// **The set of names here has to match the set `scripts/e2e/defects.mjs` twins**, because
+// `e2e.sh` compares them and fails on a driven check with no negative control. While this driver
+// was being built one check at a time, the unported ones were listed here anyway, as a
+// `NotYetPorted` placeholder that reported FAIL — present and red rather than absent, so the
+// comparison stayed meaningful and a partial driver could not look like a smaller suite. All six
+// are ported, so that class is gone; if a seventh check is added, add its twin in the same change.
 //
 // **A11Y is second, and its position is part of what it measures.** Every other check here is
 // indifferent to what ran before it — "state left behind by an earlier check is deliberate, a

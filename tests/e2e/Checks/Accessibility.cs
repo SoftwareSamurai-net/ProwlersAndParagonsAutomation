@@ -122,7 +122,20 @@ public static class Accessibility
     /// </summary>
     private const string ExemptRule = "color-contrast";
 
-    /// <inheritdoc cref="ExemptRule"/>
+    /// <summary>
+    /// The exact selector axe reports for the exempt element, compared for equality.
+    ///
+    /// <para><b>It was <c>Contains(".disabled")</c> and that was overbroad, found by review rather
+    /// than by a run.</b> <c>AxeResultNode.Target.ToString()</c> is the CSS selector axe generated
+    /// for the node, so a substring test would exempt any future element whose selector merely
+    /// contained those characters — <c>.disabled-icon</c>, <c>.disabled-hint</c>, a genuinely
+    /// broken element on an unrelated page — and the <c>exempted &gt; 0</c> control below would
+    /// stay perfectly green while the exemption widened. No such class exists under <c>web/</c>
+    /// today, so it was a latent hole and not an active one; it also flatly contradicted this
+    /// file's own claim to drop nodes "node by node" and to be "counted, so it cannot quietly
+    /// grow". Equality means an exemption that stops matching is reported by its control instead,
+    /// which is the failure everybody wants.</para>
+    /// </summary>
     private const string ExemptTarget = ".disabled";
 
     /// <summary>
@@ -254,7 +267,7 @@ public static class Accessibility
     /// </summary>
     private static bool IsExempt(string rule, AxeResultNode node) =>
         rule == ExemptRule
-        && node.Target.ToString().Contains(ExemptTarget, StringComparison.Ordinal);
+        && string.Equals(node.Target.ToString(), ExemptTarget, StringComparison.Ordinal);
 
     /// <summary>The one-line "why" axe attaches to a failing node.</summary>
     private static string Summarise(IEnumerable<AxeResultCheck> checks) =>

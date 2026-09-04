@@ -314,6 +314,79 @@ listeners_on() {
     | sort -u
 }
 
+# Whether anything is listening on a port. Portable, and portable is the point.
+#
+# **`listeners_on` above is Windows-only — `on_windows || return 0` — so on Linux it reported every
+# port free, and `next_free_port` therefore never skipped anything.** That was invisible for as
+# long as this script ran once per job: ports are handed out by incrementing, so a fresh run
+# starting at 8788 never collided with itself. Running it twice in one job broke it immediately —
+# the second run started again at 8788, walked up to 8793, and got
+# `Address already in use (127.0.0.1:8793)` from workerd, three twins in.
+#
+# **It reads the listener table; it does not try to connect.** A `/dev/tcp` probe was the first
+# attempt and it is wrong in a way worth writing down, because it looked right and passed once: a
+# connection *consumes a slot in the server's accept backlog*, so against a server that is
+# listening but not accepting, the first probe succeeds and the second is refused. The port then
+# reads as free on the very call that matters. Found by testing the probe against a deliberately
+# small backlog — `next_free_port` returned the occupied port while `port_in_use` on its own had
+# just said the port was busy. A real `wrangler pages dev` accepts, so this would have worked in
+# practice and failed the first time something did not; a probe with a side effect is not a probe.
+#
+# `ss` is on `ubuntu-latest`; `netstat` is the Windows path and answers the same question there.
+# TIME_WAIT is deliberately not counted: it is not a listener, `SO_REUSEADDR` lets the next server
+# bind over it, and treating one as occupied would skip ports for no reason.
+port_in_use() {
+  local port="$1"
+
+  if on_windows; then
+    [ -n "$(listeners_on "$port")" ] && return 0
+    return 1
+  fi
+
+  # **`/proc/net/tcp` is the primary, not the fallback, and that ordering was arrived at by
+  # checking rather than assuming.** `ss` is the obvious tool and it is *not* on every Linux image
+  # — `mcr.microsoft.com/dotnet/sdk:10.0` has no iproute2 at all. Making the harness depend on it
+  # would trade a wrong answer for a hard failure on some machine nobody tested. The kernel's own
+  # table needs no package, cannot be missing on Linux, and lists listeners without opening a
+  # connection to them.
+  #
+  # **Not opening a connection is the whole point.** The first version of this probe was
+  # `/dev/tcp`, which looked right and passed once: connecting consumes a slot in the server's
+  # accept backlog, so against a server that listens but is not accepting, the first probe
+  # succeeds and the second is refused — and the port reads as free on the call that matters.
+  # Found by testing the probe against a deliberately small backlog, where `port_in_use` said
+  # "busy" and `next_free_port` immediately handed that same port back.
+  #
+  # State `0A` is TCP_LISTEN. TIME_WAIT is `06` and is deliberately not counted: it is not a
+  # listener, `SO_REUSEADDR` lets the next server bind over it, and treating one as occupied would
+  # skip ports for no reason.
+  local hex
+  hex="$(printf '%04X' "$port")"
+
+  local table
+  for table in /proc/net/tcp /proc/net/tcp6; do
+    [ -r "$table" ] || continue
+    awk -v want=":$hex" '$4 == "0A" && index($2, want) == length($2) - length(want) + 1 { found = 1 }
+         END { exit !found }' "$table" && return 0
+  done
+
+  if [ -r /proc/net/tcp ]; then
+    return 1
+  fi
+
+  # Not Linux and not Windows — a Mac, most likely. `ss` if it is there, and otherwise refuse
+  # rather than guess: guessing "free" is precisely what produced `Address already in use` from
+  # workerd three twins into a run, and a fallback that can be silently wrong is worse than none.
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn 2>/dev/null | awk -v want=":$port$" '$4 ~ want { found = 1 } END { exit !found }'
+    return $?
+  fi
+
+  echo "::error::cannot tell whether port $port is free: no /proc/net/tcp and no 'ss' on PATH." >&2
+  echo "::error::Refusing rather than guessing it is free — see this function's comment." >&2
+  exit 2
+}
+
 # The first port at or after `$1` that nothing is listening on.
 #
 # **Occupied ports are skipped, never cleared.** An earlier version killed whatever held the port
@@ -321,7 +394,7 @@ listeners_on() {
 next_free_port() {
   local port="$1"
 
-  while [ -n "$(listeners_on "$port")" ]; do
+  while port_in_use "$port"; do
     port=$((port + 1))
   done
 
@@ -340,21 +413,58 @@ release_port() {
   local deadline=$((SECONDS + 30))
 
   while [ "$SECONDS" -lt "$deadline" ]; do
-    local holders
-    holders="$(listeners_on "$port")"
-    [ -z "$holders" ] && return 0
+    port_in_use "$port" || return 0
 
-    local pid
-    for pid in $holders; do
-      if on_windows; then taskkill //F //T //PID "$pid" >/dev/null 2>&1 || true
-      else kill -9 "$pid" >/dev/null 2>&1 || true
-      fi
-    done
+    # Only Windows can name the holder; `kill_tree` in `stop_server` is what does the work
+    # everywhere else, and this is the backstop that says so if it did not.
+    if on_windows; then
+      local pid
+      for pid in $(listeners_on "$port"); do
+        taskkill //F //T //PID "$pid" >/dev/null 2>&1 || true
+      done
+    fi
 
     sleep 1
   done
 
   echo "::warning::something is still listening on port $port after 30s of asking it not to."
+}
+
+# The direct children of a pid, from the kernel rather than from a tool.
+#
+# **`pgrep -P` is the obvious way and it is not guaranteed to be there** — the same lesson
+# `port_in_use` just learned about `ss`, which is missing from `mcr.microsoft.com/dotnet/sdk:10.0`.
+# `/proc/<pid>/stat` cannot be missing on Linux. Its fourth field is the parent pid, and the second
+# is the command name in parentheses, which can itself contain spaces — so the parse starts after
+# the last `)` rather than counting fields from the left, which is the bug every naive
+# `/proc/*/stat` reader has.
+children_of() {
+  local parent="$1" entry pid stat
+
+  for entry in /proc/[0-9]*; do
+    pid="${entry##*/}"
+    stat="$(cat "$entry/stat" 2>/dev/null)" || continue
+    stat="${stat##*) }"
+
+    # After the trim, field 2 is ppid: "<state> <ppid> ...".
+    set -- $stat
+    [ "${2:-}" = "$parent" ] && echo "$pid"
+  done
+}
+
+# Every descendant of a pid, depth first, then the pid itself.
+#
+# **One level at a time rather than a process group**: `( ... ) &` in a non-interactive shell is
+# not a group leader, so `kill -- -$pid` names nothing, and turning on job control to make it one
+# changes how every other background command in this script behaves.
+kill_tree() {
+  local pid="$1" child
+
+  for child in $(children_of "$pid"); do
+    kill_tree "$child"
+  done
+
+  kill -9 "$pid" >/dev/null 2>&1 || true
 }
 
 stop_server() {
@@ -390,8 +500,14 @@ stop_server() {
     winpid="$(ps 2>/dev/null | tr -d '\r' | awk -v p="$pid" '$1 == p { print $4 }' | head -1)"
     [ -n "${winpid:-}" ] && taskkill //F //T //PID "$winpid" >/dev/null 2>&1 || true
   else
-    # Children first: killing the wrapper alone can leave wrangler running.
-    pkill -P "$pid" >/dev/null 2>&1 || true
+    # **The whole tree, not the children, and that distinction leaked a server on every Linux
+    # run.** This was `pkill -P "$pid"`, which kills *direct* children only — and wrangler's tree
+    # is `npx` -> node -> `workerd`, so `workerd` survived, kept the port, and outlived the step.
+    # Nobody noticed while the script ran once per job, because the leaked port was never asked
+    # for again; the second run in one job walked straight into it. `release_port` did not cover
+    # it either: it reads pids out of `netstat`, which is Windows-only, so on Linux it returned
+    # immediately having done nothing and warned about nothing.
+    kill_tree "$pid"
   fi
 
   kill "$pid" >/dev/null 2>&1 || true
