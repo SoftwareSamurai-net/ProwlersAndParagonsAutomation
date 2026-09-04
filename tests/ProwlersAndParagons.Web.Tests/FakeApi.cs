@@ -221,7 +221,23 @@ public sealed class FakeApi : HttpMessageHandler
     /// </summary>
     public string? LinkRequestReference { get; set; }
 
-    protected override Task<HttpResponseMessage> SendAsync(
+    /// <summary>
+    /// Held between a request being recorded and its answer being handed back, so a test can
+    /// decide the order two answers arrive in.
+    ///
+    /// <para><b>This is a seam at the wire and nowhere else, which is the only place one belongs
+    /// here.</b> The campaign approval work records the lesson: a seam placed where the race is
+    /// not races nothing and reads as a guarantee. The race the palette guards against is between
+    /// two HTTP answers to two different queries, so the gate is on the answer — the request has
+    /// already been counted into <see cref="Asked"/> by the time it is reached, which is what lets
+    /// a test know a call is in flight before releasing it.</para>
+    ///
+    /// <para>Null for every test that does not care, and then this costs an <c>await</c> on an
+    /// already-completed task.</para>
+    /// </summary>
+    public Func<HttpRequestMessage, Task>? Holding { get; set; }
+
+    protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -230,9 +246,16 @@ public sealed class FakeApi : HttpMessageHandler
         Asked.Add(request.Method + " " + path + request.RequestUri.Query);
 
         if (Unreachable) throw new HttpRequestException("no network");
-        if (ServerNotDeployed) return Text(HttpStatusCode.OK, "<!DOCTYPE html><html><body></body></html>");
+        if (ServerNotDeployed) return await Text(HttpStatusCode.OK, "<!DOCTYPE html><html><body></body></html>");
 
-        return path switch
+        if (Holding is { } gate) await gate(request);
+
+        return await Answer(path, request);
+    }
+
+    /// <summary>What this server answers one address with. Split out so the gate above can wrap it.</summary>
+    private Task<HttpResponseMessage> Answer(string path, HttpRequestMessage request) =>
+        path switch
         {
             "/api/me" => Identity(),
             "/api/me/display-name" => SetDisplayName(request),
@@ -281,7 +304,6 @@ public sealed class FakeApi : HttpMessageHandler
 
             _ => Status(HttpStatusCode.NotFound),
         };
-    }
 
     /// <summary>Whoever <see cref="SignedIn"/> says, or 401. One answer, so two routes agree.</summary>
     private Task<HttpResponseMessage> Identity() =>

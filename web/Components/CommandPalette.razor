@@ -1,12 +1,19 @@
 @* The command palette: Ctrl-K from anywhere, type, press Enter.
 
-   It offers the six creation steps, and — once something has been typed — the Powers. What
-   it offers and in what order is decided in the service behind it, not here; this file is
-   the surface.
+   It offers the six creation steps, and — once something has been typed — the Powers, and for
+   a reader who is signed in the rulebook's own passages. What it offers and in what order is
+   decided in the service behind it, not here; this file is the surface.
 
    **It is rendered once, by the layout, rather than per page.** A palette that existed only
    on some steps would be an affordance a reader could not rely on, and reliability is the
-   whole value of a keyboard shortcut. *@
+   whole value of a keyboard shortcut.
+
+   **The book grew this file and the service, and not `js/palette.js`.** That script says in as
+   many words to resist growing it, and it has not grown by a byte — it is still one listener,
+   two focus calls and one question about the keyboard, and there is a test holding it to
+   exactly that. What a corpus needs is a request, a pause, a race guard and three more rows,
+   and every one of those is a decision about what the palette offers, which has always been
+   decided in `Commands` and drawn here. *@
 
 @implements IAsyncDisposable
 @inject Commands Commands
@@ -35,8 +42,8 @@
                    aria-controls="palette-results"
                    aria-activedescendant="@ActiveId"
                    aria-autocomplete="list"
-                   aria-label="Go to a step, or find a Power"
-                   placeholder="Go to a step, or find a Power"
+                   aria-label="@Prompt"
+                   placeholder="@Prompt"
                    value="@_query"
                    @oninput="Typed"
                    @onkeydown="Key"
@@ -48,6 +55,23 @@
                 {
                     var index = i;
                     var command = _found[i];
+
+                    @* The book's rows are marked off from the app's own, because they are two
+                       kinds of thing: above this line are places to go and controls to open,
+                       below it are the publisher's words. Nothing on the page should leave the
+                       two looking like one voice — the same reason the entry beside a Power is
+                       set apart as a quotation rather than run in with the mechanics.
+
+                       `role="presentation"` and no id: it is decoration, and the listbox's
+                       children stay options alone so `aria-activedescendant` keeps naming a row
+                       and the indices below stay the indices of `_found`. What it says is not
+                       load-bearing for a screen reader, because every row it heads carries its
+                       own chapter and page in its detail line. *@
+                    if (StartsTheBook(index))
+                    {
+                        <li class="palette-group" role="presentation">In the book</li>
+                    }
+
                     <li id="@RowId(index)"
                         role="option"
                         class="@(index == _active ? "palette-row current" : "palette-row")"
@@ -62,7 +86,13 @@
                 }
             </ul>
 
-            @if (_found.Count == 0)
+            @* **Not while the book is still being asked.** The sentence is about everything the
+               palette offers, and for a signed-in reader one of those things is a question that
+               has not come back yet — so printing it early says "nothing matches" and then
+               replaces it with five rows, which reads as the app changing its mind rather than as
+               an answer arriving. Nothing is drawn in its place: a spinner for a fifth of a second
+               is worse than a box that has simply not answered yet. *@
+            @if (_found.Count == 0 && !Commands.BookIsBeingAsked)
             {
                 <p class="palette-empty">Nothing here matches what you typed.</p>
             }
@@ -100,6 +130,26 @@
     private static string RowId(int index) => $"palette-row-{index}";
 
     /// <summary>
+    /// What the box calls itself, and it promises the book only to somebody who will be shown it.
+    ///
+    /// <para><b>A label promising a rulebook to an anonymous reader is the wrong promise</b> — the
+    /// server refuses them the book on the prefix and the palette makes no request on their
+    /// behalf, so naming it here would advertise a thing they will type into and never see. It is
+    /// the same objection the banner's control was kept a button for.</para>
+    ///
+    /// <para><b>The <c>aria-label</c> is the label and the placeholder carries the same words as a
+    /// hint.</b> A placeholder is not a label: it goes away the moment anybody types.</para>
+    /// </summary>
+    private string Prompt => Commands.BookIsOffered
+        ? "Go to a step, find a Power, or search the book"
+        : "Go to a step, or find a Power";
+
+    /// <summary>Whether this row is the first of the book's, and so wants the heading above it.</summary>
+    private bool StartsTheBook(int index) =>
+        _found[index].Kind == CommandKind.Passage
+        && (index == 0 || _found[index - 1].Kind != CommandKind.Passage);
+
+    /// <summary>
     /// Which row the reader is on, for assistive technology. Null when there is nothing to be
     /// on — an empty result set has no current row, and naming one that is not rendered leaves
     /// a reference pointing at nothing, the same fault as an unconditional aria-controls on
@@ -110,6 +160,7 @@
     protected override void OnInitialized()
     {
         Commands.Changed += Refresh;
+        Commands.BookAnswered += Redraw;
         Recount();
     }
 
@@ -134,13 +185,50 @@
             _query = "";
             _active = 0;
             _entering = true;
+
+            // The box is empty again, so whatever the book last answered is about a question
+            // nobody is asking. This clears those rows through the same path a keystroke takes,
+            // which is what makes an answer already in flight land on nothing.
+            _ = Commands.AskTheBookAsync("");
+
             Recount();
         }
 
         StateHasChanged();
     });
 
-    private void Recount() => _found = Commands.Matching(_query, PowerLimit);
+    /// <summary>
+    /// The book answered, or the offer of it moved. Redraw, and nothing else.
+    ///
+    /// <para><b>It is a second handler rather than a second raiser of <see cref="Commands.Changed"/>
+    /// for one reason</b>: <see cref="Refresh"/> above empties the box whenever that event arrives
+    /// while the palette is open, and the book's answer is caused by what is in the box. One event
+    /// for both would clear the query a fifth of a second after it was typed.</para>
+    /// </summary>
+    private void Redraw() => _ = InvokeAsync(() =>
+    {
+        Recount();
+        StateHasChanged();
+    });
+
+    /// <summary>
+    /// The rows: the steps and the Powers the service matched, then the book's passages.
+    ///
+    /// <para><b>One flat list, so one index means one row.</b> <c>aria-activedescendant</c> names
+    /// a row by an id derived from its position, and the arrow keys move through the same
+    /// positions — a second list beside this one would be a second numbering, and the two would
+    /// disagree the first time a group was empty. The book is appended rather than interleaved, so
+    /// an answer arriving cannot move the row the reader has Enter poised over.</para>
+    /// </summary>
+    private void Recount()
+    {
+        _found = [.. Commands.Matching(_query, PowerLimit), .. Commands.Book];
+
+        // The list can shrink under the current row — the book's answer replacing five rows with
+        // none is the ordinary way — and a row named by aria-activedescendant that is no longer
+        // rendered is the dangling reference this palette already has a test about.
+        if (_active >= _found.Count) _active = 0;
+    }
 
     private void Typed(ChangeEventArgs e)
     {
@@ -150,6 +238,10 @@
         // Back to the top on every keystroke. Keeping the position would leave the reader on
         // whatever row happened to be fourth in a list they have just replaced.
         _active = 0;
+
+        // Fire and forget: the answer arrives through BookAnswered, and awaiting it here would
+        // hold up the redraw of the rows that are already known.
+        _ = Commands.AskTheBookAsync(_query);
     }
 
     /// <summary>
@@ -197,15 +289,27 @@
     /// </summary>
     private void Run(Command command)
     {
-        if (command.Kind == CommandKind.Power)
+        switch (command.Kind)
         {
-            Commands.RequestPower(command.Target);
-            Nav.NavigateTo("build/characteristics");
-            return;
-        }
+            case CommandKind.Power:
+                Commands.RequestPower(command.Target);
+                Nav.NavigateTo("build/characteristics");
+                return;
 
-        Commands.Close();
-        Nav.NavigateTo(command.Target);
+            // A passage is a request too, and for the same reason: the page that can read one is
+            // another page. What is handed over is the reader's own query, so /rules answers the
+            // question they actually asked rather than a heading picked out of it — and the row
+            // they chose is in that answer, a few rows down the same ranked list.
+            case CommandKind.Passage:
+                Commands.RequestSearch(command.Target);
+                Nav.NavigateTo("rules");
+                return;
+
+            default:
+                Commands.Close();
+                Nav.NavigateTo(command.Target);
+                return;
+        }
     }
 
     private void Close() => Commands.Close();
@@ -220,12 +324,21 @@
         {
             _self = DotNetObjectReference.Create(this);
             await Keys.Listen(_self);
+
+            // Asked here as well as on every open, so the very first press of the chord draws a
+            // box already labelled with what it will do. This component is created once by the
+            // layout, long before anybody opens it.
+            await Commands.NoteWhoIsAskingAsync();
         }
 
         if (Commands.IsOpen && _entering)
         {
             _entering = false;
             await Keys.Enter(_box);
+
+            // Again on every open, because signing in and out happens inside the visit and the
+            // answer decides both whether the book is asked and whether the box says it will be.
+            await Commands.NoteWhoIsAskingAsync();
             return;
         }
 
@@ -250,6 +363,7 @@
     public ValueTask DisposeAsync()
     {
         Commands.Changed -= Refresh;
+        Commands.BookAnswered -= Redraw;
         _self?.Dispose();
         return ValueTask.CompletedTask;
     }

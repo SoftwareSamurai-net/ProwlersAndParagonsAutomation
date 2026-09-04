@@ -93,11 +93,16 @@ two `.key` boxes.
   opens the palette, because that is a click Blazor handles. `RenderContext` answers `false` for
   every test and proof page, so what renders is an ordinary Windows reader rather than a broken
   deployment; `GuardedInteropTests` owns the `null`.
-- **A button and not a text box**, though [`PROGRESS.md`](../../PROGRESS.md) item 12 puts a rules
-  search here eventually. A box that looked like a search field while searching Powers and step
-  names would be the wrong promise twice over: the rulebook is a different corpus and it is behind
-  an account, and growing the palette onto it is the part of item 12 that still has to be argued —
-  `palette.js` says in as many words to resist growing it.
+- **Still a button and not a text box, and that is now the only half of item 12 left.** The corpus
+  moved behind the chord — see the section below — so the objection the button was kept for is
+  half spent: the rulebook is no longer a thing the palette does not do. What keeps it a button is
+  the other half, `proof-align.html`. The banner's baseline is measured on every CI run and the
+  `.key` boxes inside this control are part of that arithmetic, so swapping it for a field is a
+  change to the one band in the app whose alignment is proved in a browser rather than reasoned
+  about. **If you do it: keep the field on the `.banner-tool` baseline idiom, give it a visible
+  label or an `aria-label`, and make typing into it open the palette with the text carried in.** A
+  second search implementation in the banner is the thing to refuse — there is one palette and one
+  `Commands`.
 - **The word is "Search" and the palette still calls itself "Go to".** The label has to survive
   being read at a glance beside the other tools; "Go to" between two underlined links read as a
   third link with no destination. What the palette offers is unchanged and its own box says so in
@@ -109,6 +114,64 @@ which needs a Body fragment and a router", and that was never true — `BannerTe
 the layout on its own since the day it was written, `Body` left null and every band drawn. Five
 uppercased banner selectors were standing behind a reason nobody re-read. **When a test exempts a
 selector, check the reason still holds before adding a sixth.**
+
+### The book behind the chord, and why the doorbell did not grow
+
+**The palette offers the rulebook's own passages now, to a reader who is signed in**, as a third
+group under "In the book" — the book's heading as the row's label and the printed citation as its
+detail, in the spelling `/rules` uses, from `RulebookCitation.For`.
+
+- **`js/palette.js` is unchanged, byte for byte, and there is a test that says so.** That file says
+  in as many words to resist growing it, and a corpus is exactly the thing it means: it is still one
+  listener, two focus calls and one question about the keyboard. What a second body of text
+  actually needs is a request, a pause, a race guard and three more rows, and every one of those is
+  a decision about *what the palette offers* — which has always lived in `Commands` and been drawn
+  by `CommandPalette`. `TheDoorbellHasNotGrown` hashes the shipped file; changing it deliberately
+  means changing that test in the same commit, which is the point.
+- **A second corpus behind an account gate is safe here because the palette only ever offers what
+  `RulebookReader` answers.** The book is bundled into the worker and never staged into `wwwroot`;
+  the server refuses every address under `/api/rulebook/` on the prefix; and for an anonymous
+  reader the palette makes **no request at all** and shows no row, no cached prose and no claim
+  that the book exists. Signing out drops the rows on the spot, the same fault `RulebookReader`'s
+  own cache was fixed for.
+- **The box's `aria-label` promises the book only to somebody who will be shown it.** "Go to a
+  step, find a Power, or search the book" for a signed-in reader and the old two-thirds for
+  everybody else — a label naming a rulebook to a reader the server will refuse is the wrong
+  promise, which is the same objection the banner's control was kept a button for. A placeholder
+  is still not a label: both are set and both say the same words.
+- **There is no "sign in to search the book" row, deliberately.** An inert row that does nothing is
+  the fault `/rules`' "What is here" panel was fixed for, and a row that *did* navigate to sign-in
+  would answer a question about Plasticity with an advertisement for an account. `/rules` is where
+  that offer belongs and it says it in a panel; the banner links there from every route.
+- **Three, 220ms, five — and each figure has a reason rather than a taste.** Three characters
+  because `terms()` in `worker/search.js` drops every word of two or fewer, so a shorter query is
+  one the server cannot run and would answer `found: 0` for a question it never asked. 220ms
+  because this is the **only thing in the app that goes over the network per keystroke** — the
+  steps and the 141 Powers are filtered in the browser. Five rows because the palette is a way to
+  reach something and `/rules` is the results page.
+- **The race guard is not optional and a pause is not one.** Two queries typed a second apart are
+  two requests that really were made, and the older one can answer last — the autosave's defect in
+  a new place, and silent when it happens, because the rows look like an answer and are just the
+  answer to the question before last. Every search takes a number and an answer is dropped if a
+  higher one has already landed. The test holds the first response at the wire and releases it
+  after the second, with both requests asserted so a dropped answer cannot be mistaken for a
+  request that never happened.
+- **The rows are appended, never interleaved**, so an answer arriving cannot move the row the
+  reader has Enter poised over. One flat list, one index: `aria-activedescendant` names a row by
+  its position and the arrow keys move through the same positions, so a second list beside it would
+  be a second numbering. The "In the book" heading is `role="presentation"` and carries no id — the
+  listbox's children stay options alone — and it is not load-bearing for a screen reader, because
+  every row under it carries its own chapter and page.
+- **"Nothing here matches what you typed" is held back while an answer is outstanding.** Printed
+  early it says nothing matches and is then replaced by five rows, which reads as the app changing
+  its mind. Nothing is drawn in its place; a spinner for a fifth of a second is worse than a box
+  that has not answered yet.
+- **Choosing a row is a request, not a URL.** It hands the reader's own query to `/rules` through
+  `Commands.RequestSearch` — the idiom that already hands a Power to the editor on another step,
+  taken once so it cannot re-run over what somebody has since typed. `/rules?q=…` was the
+  alternative and was refused for now: it needs a query string parsed back out of the address by
+  hand, and a second way into a page whose one entry point is its own form, for the one thing it
+  buys, which is a link somebody could share.
 
 ## The sheet as a document, at `/sheet`
 
@@ -366,6 +429,14 @@ anybody.
   rejected in `PROGRESS.md` and stays rejected: a row labelled with a chapter that answers with hits
   from three other chapters is the original "looks like a list of links and is not one" complaint in
   a new spelling.
+- **This page can be arrived at with the question already asked.** Choosing a passage in the
+  command palette hands the reader's own query over through `Commands.RequestSearch` and lands
+  here, and `OnInitializedAsync` *takes* it — once, so it cannot re-run over whatever has since
+  been typed into the box, the same read-once rule a requested Power follows. It is taken even when
+  the book is refused, or it would sit waiting to fire on some later visit; nothing is searched in
+  that case, because a search this account cannot make answers null and would draw nothing beside a
+  panel already saying to sign in. See the palette's own section above for why the query travels
+  this way rather than as `?q=`.
 - **A scoped answer says which chapter it came out of, and the box is the way back.** The results
   panel is headed "What Ch.4 says" rather than "What the book says", a scoped miss names the chapter
   and points at the Search button, and submitting the form always clears the scope — a narrowing

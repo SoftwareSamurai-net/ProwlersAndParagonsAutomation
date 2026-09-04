@@ -1,5 +1,6 @@
 @page "/rules"
 @inject RulebookReader Rulebook
+@inject Commands Commands
 
 @* Looking a rule up, which is the thing that happens every session rather than once.
 
@@ -166,10 +167,29 @@ else
     /// answer for all four. Asking a second time to find out would be asking the same question
     /// twice and believing the second one.</para>
     /// </summary>
+    /// <remarks>
+    /// <para><b>A query arriving from the palette is run here, once.</b> Choosing a passage in the
+    /// palette hands the reader's own words over through <see cref="Commands.RequestSearch"/> and
+    /// comes here — the same idiom that hands a Power to the editor on another step, and for the
+    /// same reason: this is the page that can actually read a passage. It is <i>taken</i> rather
+    /// than peeked at, so it runs on arrival and never again; left set it would re-run the
+    /// palette's question over whatever had since been typed into the box.</para>
+    ///
+    /// <para><b>It is asked for after the refusal is known, and skipped when the book is
+    /// refused.</b> Running a search this account cannot make would answer null, which this page
+    /// draws as nothing at all — beside a panel already saying to sign in first.</para>
+    /// </remarks>
     protected override async Task OnInitializedAsync()
     {
         _contents = await Rulebook.ContentsAsync();
         _refused = _contents is null;
+
+        var asked = Commands.TakeRequestedSearch();
+
+        if (_refused || string.IsNullOrWhiteSpace(asked)) return;
+
+        _query = asked;
+        await RunAsync(null);
     }
 
     private string Held => _contents is { } contents
