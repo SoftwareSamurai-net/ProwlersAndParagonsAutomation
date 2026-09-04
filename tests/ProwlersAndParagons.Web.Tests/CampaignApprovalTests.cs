@@ -796,13 +796,13 @@ public sealed class CampaignApprovalTests
         Assert.Equal("Nightfall", joined!.Value.Campaign.Name);
 
         Assert.Equal(CampaignJoinOutcome.Inherited,
-            CampaignJoin.Apply(inheriting, joined.Value.Campaign));
+            CampaignJoin.Apply(inheriting, joined.Value.Campaign).Outcome);
         Assert.Equal("standard", inheriting.SelectedTierId);
 
         var disagreeing = new CharacterSheet { SelectedTierId = "iconic", Name = "Ninefold" };
 
         Assert.Equal(CampaignJoinOutcome.TierDisagrees,
-            CampaignJoin.Apply(disagreeing, joined.Value.Campaign));
+            CampaignJoin.Apply(disagreeing, joined.Value.Campaign).Outcome);
 
         // Nothing written at all — not the tier, not the sandbox, not even the campaign id.
         Assert.Equal("iconic", disagreeing.SelectedTierId);

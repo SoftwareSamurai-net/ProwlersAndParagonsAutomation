@@ -703,21 +703,19 @@ else
             return;
         }
 
-        var outcome = CampaignJoin.Apply(Session.Sheet, got.Campaign);
+        var result = CampaignJoin.Apply(Session.Sheet, got.Campaign);
 
         // The session is told once, after the sheet has been changed — so the autosave that
         // follows writes the character with its campaign rather than without it.
-        if (outcome is CampaignJoinOutcome.Inherited or CampaignJoinOutcome.Joined)
+        if (result.Outcome is CampaignJoinOutcome.Inherited or CampaignJoinOutcome.Joined)
         {
             Session.NotifyChanged();
         }
 
-        _joined = outcome switch
+        _joined = result.Outcome switch
         {
-            CampaignJoinOutcome.Inherited => got.Campaign.TraitCapRank is null
-                ? $"Joined {got.Campaign.Name}. Its tier is now yours."
-                : $"Joined {got.Campaign.Name}. Its tier and its Trait Cap are now yours.",
-            CampaignJoinOutcome.Joined => $"Joined {got.Campaign.Name}.",
+            CampaignJoinOutcome.Inherited or CampaignJoinOutcome.Joined =>
+                $"Joined {got.Campaign.Name}.{Took(result, got.Campaign)}",
             CampaignJoinOutcome.TierDisagrees =>
                 $"{got.Campaign.Name} is played at a different tier. Nothing was changed.",
             _ => "That game is not here.",
@@ -726,6 +724,35 @@ else
         _code = "";
         await Refresh();
     }
+
+    /// <summary>
+    /// What the join actually took, said exactly — or nothing, for a join that took nothing.
+    ///
+    /// <para><b>Read off the result rather than guessed from the outcome.</b> This sentence used
+    /// to claim "Its tier and its Trait Cap are now yours" whenever the campaign had a cap at all,
+    /// including over a character that already had one of its own and kept it — which is the one
+    /// thing joining most carefully does not do. A message claiming a change nobody made is worse
+    /// than no message: it teaches a reader to distrust the ones that are true.</para>
+    ///
+    /// <para><b>The cap half names the figure and says what it moves.</b> A cap arriving on a
+    /// character changes its Resolve, which is <c>(Trait Cap − highest rank) × 2</c> — a figure
+    /// somebody may have spent Hero Points on. That is not a thing to leave a player to discover
+    /// on the sheet.</para>
+    /// </summary>
+    private static string Took(CampaignJoinResult result, Campaign campaign) => result switch
+    {
+        { TookTier: true, TookTraitCap: true } =>
+            $" Its tier and its {campaign.TraitCapRank}d Trait Cap are now yours,"
+            + " and Resolve is measured from the cap.",
+
+        { TookTier: true } => " Its tier is now yours.",
+
+        { TookTraitCap: true } =>
+            $" Its {campaign.TraitCapRank}d Trait Cap is now yours,"
+            + " and Resolve is measured from it.",
+
+        _ => "",
+    };
 
     /// <summary>
     /// Send the character on screen for approval.

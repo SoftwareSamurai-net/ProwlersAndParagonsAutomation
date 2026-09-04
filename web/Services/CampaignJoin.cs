@@ -8,6 +8,10 @@ public enum CampaignJoinOutcome
     /// <summary>
     /// The character's tier was empty, so the campaign's settings were copied into it and the
     /// character now names the campaign.
+    ///
+    /// <para><b>Which settings, exactly, is on <see cref="CampaignJoinResult"/> and not derivable
+    /// from here</b> — a campaign that names no tier gives none, and a character that already had
+    /// a house cap keeps it even in this branch.</para>
     /// </summary>
     Inherited,
 
@@ -29,6 +33,34 @@ public enum CampaignJoinOutcome
     /// <summary>There is no such campaign here, so there was nothing to join.</summary>
     CampaignIsNotHere,
 }
+
+/// <summary>
+/// What a join did, and what it actually copied.
+///
+/// <para><b>The two flags are here because the outcome alone could not carry the sentence.</b>
+/// <see cref="CampaignJoinOutcome.Inherited"/> and <see cref="CampaignJoinOutcome.Joined"/> both
+/// copy <em>some</em> subset of a campaign's settings — the tier only where the character had
+/// none, the cap only where the character had none, a campaign that sets neither copies nothing at
+/// all — and a screen reading the outcome alone had to guess. It guessed wrong: "Its tier and its
+/// Trait Cap are now yours" was printed over a join that took the tier and left a cap the
+/// character already had, which is the one thing this class most carefully does not do. A message
+/// that claims a change nobody made is worse than no message, because it teaches a reader to
+/// distrust the ones that are true.</para>
+/// </summary>
+/// <param name="Outcome">What happened.</param>
+/// <param name="TookTier">
+/// Whether the campaign's tier was written onto the character. False where the character already
+/// had one, and false where the campaign names none — a GM who has not set a power level is not
+/// giving anybody one.
+/// </param>
+/// <param name="TookTraitCap">
+/// Whether the campaign's house Trait Cap was written onto the character. False where the
+/// character already had a cap of its own, and false where the campaign has set none. <b>This is
+/// the flag that changes a figure</b>: Resolve is measured from the cap, so a join that took one
+/// moved it.
+/// </param>
+public readonly record struct CampaignJoinResult(
+    CampaignJoinOutcome Outcome, bool TookTier = false, bool TookTraitCap = false);
 
 /// <summary>One thing a host can say about a character's campaign. A report, never a repair.</summary>
 /// <param name="Code">
@@ -108,11 +140,16 @@ public static class CampaignJoin
     /// The campaign, already resolved by a store, or null when the id named no campaign this
     /// browser or account holds.
     /// </param>
-    public static CampaignJoinOutcome Apply(CharacterSheet sheet, Campaign? campaign)
+    /// <returns>
+    /// What happened, <b>and which settings were really copied</b> — see
+    /// <see cref="CampaignJoinResult"/> for why the outcome alone was not enough to write a true
+    /// sentence with.
+    /// </returns>
+    public static CampaignJoinResult Apply(CharacterSheet sheet, Campaign? campaign)
     {
         ArgumentNullException.ThrowIfNull(sheet);
 
-        if (campaign is null) return CampaignJoinOutcome.CampaignIsNotHere;
+        if (campaign is null) return new(CampaignJoinOutcome.CampaignIsNotHere);
 
         // An empty tier is the inheriting case, and it is the only one that copies a setting. The
         // sandbox toggle travels with the tier rather than on its own: they are one statement
@@ -120,12 +157,17 @@ public static class CampaignJoin
         // campaign.
         if (sheet.SelectedTierId is null)
         {
+            // Read before the write, both of them: what was copied is what the character did not
+            // already have, and after the assignment there is no way to tell.
+            var takesTier = campaign.TierId is not null;
+            var takesCap = sheet.TraitCapRank is null && campaign.TraitCapRank is not null;
+
             sheet.CampaignId = campaign.Id;
             sheet.SelectedTierId = campaign.TierId;
             sheet.UnlimitedBudget = campaign.UnlimitedBudget;
             sheet.TraitCapRank ??= campaign.TraitCapRank;
 
-            return CampaignJoinOutcome.Inherited;
+            return new(CampaignJoinOutcome.Inherited, takesTier, takesCap);
         }
 
         // A campaign that names no tier has nothing to disagree with — a GM who has not set a
@@ -133,7 +175,7 @@ public static class CampaignJoin
         if (campaign.TierId is not null
             && !string.Equals(campaign.TierId, sheet.SelectedTierId, StringComparison.Ordinal))
         {
-            return CampaignJoinOutcome.TierDisagrees;
+            return new(CampaignJoinOutcome.TierDisagrees);
         }
 
         sheet.CampaignId = campaign.Id;
@@ -142,9 +184,15 @@ public static class CampaignJoin
         // it: a character that has already been built to a house cap keeps it, and the
         // disagreement is Inspect's to report. Writing over one would move Resolve on somebody's
         // finished character in the course of typing a join code.
+        //
+        // Which is exactly why the answer says whether it happened. `??=` is silent by
+        // construction, and a screen that assumed it had fired told somebody their Resolve had
+        // moved when it had not.
+        var tookCap = sheet.TraitCapRank is null && campaign.TraitCapRank is not null;
+
         sheet.TraitCapRank ??= campaign.TraitCapRank;
 
-        return CampaignJoinOutcome.Joined;
+        return new(CampaignJoinOutcome.Joined, TookTraitCap: tookCap);
     }
 
     /// <summary>

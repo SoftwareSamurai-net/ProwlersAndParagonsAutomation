@@ -612,6 +612,15 @@ the storage half, which shipped a slice earlier.
   fields rather than in its sentence, the way the tier finding carries the two ids.
   `AnEmptyTraitCapInheritsTheCampaigns` is the positive control and asserts the Resolve it moves,
   because a join that wrote a field nothing read would satisfy an assertion about the field alone.
+- **A join says exactly what it took, because the outcome could not.** `Apply` returns
+  `CampaignJoinResult` — the outcome plus `TookTier` and `TookTraitCap` — and each sentence states
+  that and nothing more: "Its 6d Trait Cap is now yours, and Resolve is measured from it." One
+  outcome covers four different things having happened (both, tier only, cap only, neither), and
+  the page guessed from the outcome alone. It guessed wrong, claiming "Its tier and its Trait Cap
+  are now yours" over a join that took the tier and left a cap the character already had — the one
+  thing joining most carefully does not do, announced out loud. The write is `??=` and is silent by
+  construction, so the flags are read *before* it. **A message claiming a change nobody made is
+  worse than no message**, which is the same rule the three kept-but-no-room refusals follow.
 - **`CampaignJoin.Inspect` is drawn at the head of "Games you are in" on `/campaign`, and nowhere
   else.** All three of its findings — `UNKNOWN_CAMPAIGN`, `CAMPAIGN_TIER_MISMATCH`,
   `CAMPAIGN_TRAIT_CAP_MISMATCH` — reach a reader there and only there. **It shipped reaching
