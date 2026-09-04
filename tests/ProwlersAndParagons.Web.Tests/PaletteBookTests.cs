@@ -82,16 +82,40 @@ public sealed class PaletteBookTests
     private static List<string> Searches(RenderContext ctx) =>
         [.. ctx.Api.Asked.Where(a => a.Contains("/api/rulebook/search", StringComparison.Ordinal))];
 
+    /// <summary>
+    /// How long to let something that is going to happen actually happen.
+    ///
+    /// <para><b>Far longer than anything here needs, on purpose.</b> bUnit's default is a second,
+    /// and a second is a plausible stall on a loaded runner — so a wait tuned close to the pause
+    /// would be a test that goes red when the machine is busy, which is a check that ends up
+    /// deleted. Nothing waits this long when it is working; a run that does is already
+    /// failing.</para>
+    /// </summary>
+    private static readonly TimeSpan Patient = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// How long a thing that must <i>not</i> happen is given to happen anyway.
+    ///
+    /// <para><b>This one is the dangerous direction and it is set against a shortened pause.</b> A
+    /// wait that is too short here does not fail — it <em>passes</em>, having asked "did it search
+    /// yet" before it would have. So each such test takes the pause down to
+    /// <see cref="Impatient"/> first and then waits this long, which is twenty-five times it.</para>
+    /// </summary>
+    private static readonly TimeSpan LongEnoughToBeSure = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>A pause short enough that "it has not asked yet" stops being a possible reading.</summary>
+    private static readonly TimeSpan Impatient = TimeSpan.FromMilliseconds(20);
+
     /// <summary>Wait for something the renderer is not going to redraw when it happens.</summary>
     private static async Task Until(Func<bool> ready, string what)
     {
-        for (var i = 0; i < 200; i++)
+        for (var i = 0; i < 1000; i++)
         {
             if (ready()) return;
-            await Task.Delay(10);
+            await Task.Delay(10, Xunit.TestContext.Current.CancellationToken);
         }
 
-        Assert.Fail($"Waited two seconds and {what} never happened.");
+        Assert.Fail($"Waited ten seconds and {what} never happened.");
     }
 
     /// <summary>
@@ -112,7 +136,7 @@ public sealed class PaletteBookTests
 
         page.Find(".palette-box").Input("knockback");
 
-        await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)));
+        await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
 
         Assert.Equal("In the book", page.Find(".palette-group").TextContent.Trim());
         Assert.Contains("KNOCKBACK", BookRows(page));
@@ -155,7 +179,7 @@ public sealed class PaletteBookTests
 
         await theirs.WaitForAssertionAsync(() =>
             Assert.Contains("book", theirs.Find(".palette-box").GetAttribute("aria-label")!,
-                StringComparison.Ordinal));
+                StringComparison.Ordinal), Patient);
 
         Assert.Equal(
             theirs.Find(".palette-box").GetAttribute("aria-label"),
@@ -176,13 +200,17 @@ public sealed class PaletteBookTests
         using (var anonymous = Anonymous())
         {
             var page = anonymous.Render<CommandPalette>();
+
+            // The pause is taken down first, so what follows is "it did not ask" and cannot be
+            // "it has not asked yet" — the reading that would make this pass for the wrong reason
+            // on a machine that stalled. Waiting the shipped pause and a bit was the version of
+            // this that flaked; twenty-five times a 20ms pause is not a close call.
+            CommandsOf(anonymous).BookPause = Impatient;
             anonymous.Api.Asked.Clear();
 
             page.Find(".palette-box").Input("knockback");
 
-            // Longer than the pause, so this is "it did not ask" rather than "it has not asked
-            // yet". The pause is the shipped figure; this waits several times it.
-            await Task.Delay(CommandsOf(anonymous).BookPause * 4, Xunit.TestContext.Current.CancellationToken);
+            await Task.Delay(LongEnoughToBeSure, Xunit.TestContext.Current.CancellationToken);
 
             Assert.Empty(Searches(anonymous));
             Assert.Empty(page.FindAll(".palette-group"));
@@ -198,7 +226,7 @@ public sealed class PaletteBookTests
 
         theirs.Find(".palette-box").Input("knockback");
 
-        await theirs.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(theirs)));
+        await theirs.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(theirs)), Patient);
         Assert.Single(Searches(signedIn));
     }
 
@@ -216,10 +244,14 @@ public sealed class PaletteBookTests
         using var ctx = SignedIn();
 
         var page = ctx.Render<CommandPalette>();
+
+        // Same reason as the anonymous test: an absence measured against a shortened pause, so
+        // "it has not asked yet" is not a reading this can pass under.
+        CommandsOf(ctx).BookPause = Impatient;
         ctx.Api.Asked.Clear();
 
         page.Find(".palette-box").Input("kn");
-        await Task.Delay(CommandsOf(ctx).BookPause * 4, Xunit.TestContext.Current.CancellationToken);
+        await Task.Delay(LongEnoughToBeSure, Xunit.TestContext.Current.CancellationToken);
 
         Assert.Empty(Searches(ctx));
 
@@ -227,7 +259,7 @@ public sealed class PaletteBookTests
         // something: two characters is a threshold rather than the search being switched off.
         page.Find(".palette-box").Input("kno");
 
-        await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)));
+        await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
         Assert.Single(Searches(ctx));
     }
 
@@ -242,6 +274,14 @@ public sealed class PaletteBookTests
     /// for two keystrokes" is satisfied perfectly by a palette that asks once and never again, so
     /// the same two keystrokes are driven with the answer waited for in between, and that must
     /// produce two.</para>
+    ///
+    /// <para><b>The burst is driven against a longer pause than the app ships, and that is a
+    /// deliberate weakening.</b> At 220ms this test was asking whether two calls to
+    /// <c>Input</c> could be dispatched inside a fifth of a second, which is a question about how
+    /// busy the machine is — it flaked once inside a full five-suite run. What it is <i>for</i> is
+    /// whether a keystroke arriving during the pause collapses the one before it, and that is the
+    /// same mechanism at any figure. The shipped number is asserted for the one property this
+    /// test can honestly hold it to: that it is a pause at all.</para>
     /// </summary>
     [Fact]
     public async Task TwoKeystrokesInABurstAreOneRequestAndTwoApartAreTwo()
@@ -249,16 +289,24 @@ public sealed class PaletteBookTests
         using (var burst = SignedIn())
         {
             var page = burst.Render<CommandPalette>();
+
+            // A pause of zero is no debounce, and it is the mutation this whole test exists to
+            // catch — so the shipped default is checked before it is replaced.
+            Assert.True(CommandsOf(burst).BookPause > TimeSpan.Zero,
+                "the shipped pause is zero, so nothing is debounced and the drive below proves "
+                + "nothing about a burst.");
+
+            CommandsOf(burst).BookPause = TimeSpan.FromSeconds(1);
             burst.Api.Asked.Clear();
 
             page.Find(".palette-box").Input("trai");
             page.Find(".palette-box").Input("trait");
 
-            await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)));
+            await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
 
-            // Quiet for longer than the pause after the answer landed, so a second request that
-            // was merely slow would still have been counted by the time this reads.
-            await Task.Delay(CommandsOf(burst).BookPause * 2, Xunit.TestContext.Current.CancellationToken);
+            // Quiet after the answer landed, so a second request that was merely slow would still
+            // have been counted by the time this reads.
+            await Task.Delay(LongEnoughToBeSure, Xunit.TestContext.Current.CancellationToken);
 
             Assert.Single(Searches(burst));
         }
@@ -268,7 +316,7 @@ public sealed class PaletteBookTests
         apart.Api.Asked.Clear();
 
         theirs.Find(".palette-box").Input("trai");
-        await theirs.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(theirs)));
+        await theirs.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(theirs)), Patient);
 
         theirs.Find(".palette-box").Input("trait");
         await Until(() => Searches(apart).Count == 2, "the second keystroke asked the book");
@@ -299,11 +347,19 @@ public sealed class PaletteBookTests
         CommandsOf(ctx).BookPause = TimeSpan.Zero;
 
         var slow = new TaskCompletionSource();
+        var wentThrough = false;
 
         ctx.Api.Holding = async request =>
         {
             if (request.RequestUri!.AbsolutePath != "/api/rulebook/search") return;
-            if (request.RequestUri.Query.Contains("q=trait", StringComparison.Ordinal)) await slow.Task;
+            if (!request.RequestUri.Query.Contains("q=trait", StringComparison.Ordinal)) return;
+
+            await slow.Task;
+
+            // Recorded so the wait below is on the gate having actually let go, rather than on a
+            // duration somebody picked. What is left after this is deserializing a small body,
+            // which is not a thing to time out on.
+            wentThrough = true;
         };
 
         var page = ctx.Render<CommandPalette>();
@@ -313,15 +369,17 @@ public sealed class PaletteBookTests
         await Until(() => Searches(ctx).Count == 1, "the first query reached the server");
 
         page.Find(".palette-box").Input("surprise");
-        await page.WaitForAssertionAsync(() => Assert.Equal(["SURPRISE"], BookRows(page)));
+        await page.WaitForAssertionAsync(() => Assert.Equal(["SURPRISE"], BookRows(page)), Patient);
 
         // Now let the older question answer, having been overtaken.
         slow.SetResult();
-        await Until(() => slow.Task.IsCompleted, "the held answer was released");
-        await Task.Delay(100, Xunit.TestContext.Current.CancellationToken);
+        await Until(() => wentThrough, "the held answer was let through");
+        await Task.Delay(LongEnoughToBeSure, Xunit.TestContext.Current.CancellationToken);
 
         // The positive control: both queries really were asked and really were answered, so this
-        // is a late answer being dropped rather than a request that never happened.
+        // is a late answer being dropped rather than a request that never happened. And the window
+        // above is known to be long enough because the mutation was watched: with the sequence
+        // check removed from `Settle`, this same drive reports "TRAIT CAP" here.
         Assert.Equal(2, Searches(ctx).Count);
         Assert.Contains(Searches(ctx), a => a.Contains("q=trait", StringComparison.Ordinal));
         Assert.Contains(Searches(ctx), a => a.Contains("q=surprise", StringComparison.Ordinal));
@@ -347,14 +405,14 @@ public sealed class PaletteBookTests
         var page = ctx.Render<CommandPalette>();
         page.Find(".palette-box").Input("knockback");
 
-        await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)));
+        await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
 
         // The positive control: with no request made, the page draws its box and no answer at all.
         // Without it, "the results are there" is satisfied by a page that always shows them. It is
         // asked by panel heading rather than by `.chosen`, because the chapter index below the
         // results is drawn in the same list component and would answer either way.
         var cold = ctx.Render<RulesReference>();
-        await cold.WaitForAssertionAsync(() => Assert.NotEmpty(cold.FindAll("#rules-search")));
+        await cold.WaitForAssertionAsync(() => Assert.NotEmpty(cold.FindAll("#rules-search")), Patient);
         Assert.Null(Results(cold));
 
         page.FindAll(".palette-group ~ .palette-row")[0].Click();
@@ -364,7 +422,7 @@ public sealed class PaletteBookTests
             StringComparison.Ordinal);
 
         var rules = ctx.Render<RulesReference>();
-        await rules.WaitForAssertionAsync(() => Assert.NotNull(Results(rules)));
+        await rules.WaitForAssertionAsync(() => Assert.NotNull(Results(rules)), Patient);
 
         Assert.Equal("knockback", rules.Find("#rules-search").GetAttribute("value"));
         Assert.Contains("KNOCKBACK", Results(rules)!.TextContent, StringComparison.Ordinal);
@@ -391,7 +449,7 @@ public sealed class PaletteBookTests
 
         var page = ctx.Render<CommandPalette>();
         page.Find(".palette-box").Input("knockback");
-        await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)));
+        await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
 
         var inThePalette = page.FindAll(".palette-group ~ .palette-row")
             .ToDictionary(
@@ -403,7 +461,7 @@ public sealed class PaletteBookTests
         rules.Find("#rules-search").Input("knockback");
         rules.Find("form").Submit();
 
-        await rules.WaitForAssertionAsync(() => Assert.NotEmpty(rules.FindAll(".chosen > li")));
+        await rules.WaitForAssertionAsync(() => Assert.NotEmpty(rules.FindAll(".chosen > li")), Patient);
 
         var onThePage = rules.FindAll(".chosen > li").ToDictionary(
             li => li.QuerySelector("b")!.TextContent.Trim(),
