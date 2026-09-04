@@ -214,10 +214,12 @@ asymmetry is not a flourish; it falls straight out of where the data lives.
 
 1. **`PROGRESS.md` item 10's stage one is built; stage two is what is left of it.**
    `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages dev` version the
-   deploy pins, and drives real Chrome over the DevTools Protocol — boot, a character built and
-   surviving a reload, a theme surviving a reload, the four palettes, and nine addresses. Five
+   deploy pins, and drives real Chrome — boot, a character built and surviving a reload, a theme
+   surviving a reload, the four palettes, nine addresses, and axe-core across four palettes. Six
    checks, a positive control on each, and a deliberately-broken twin of the whole published site
-   that each must go red against. It runs on every pull request. **Read
+   that each must go red against. There are two drivers: `scripts/e2e/drive.mjs` and, behind
+   `--driver dotnet`, a Playwright one that adds the accessibility check. Both run on every pull
+   request. **Read
    [`docs/guide/testing.md`](guide/testing.md)'s *Driving the assembled app* before touching it**;
    the rules there about not reaching past the browser are the whole point of it.
 
@@ -228,7 +230,7 @@ asymmetry is not a flourish; it falls straight out of where the data lives.
    checks. A second target — the same driver against the *deployed* site, anonymously — proves the
    real edge and is independent of it.
 
-   **Three things stage one does not reach, so nobody over-reads five green checks**: `motion.js`
+   **Three things stage one does not reach, so nobody over-reads six green checks**: `motion.js`
    and `palette.js` (still only a `file://` proof page), a `_redirects` regression (wrangler
    rejects this site's own SPA rule locally and falls back by its own default, so deep links work
    there for a different reason than in production), and screen readers, which stay owed.

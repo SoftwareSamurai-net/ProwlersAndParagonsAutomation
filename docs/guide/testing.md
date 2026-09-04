@@ -104,9 +104,14 @@ make "the suite passed" ambiguous:
 **There is a sixth thing that drives the project and is deliberately not in that table.**
 `./scripts/e2e.sh` runs the assembled application in real Chrome against a real server, reports
 verdicts rather than test counts, and cannot run without publishing a site first — so
-`./scripts/count-tests.sh` does not know about it and should not: a suite whose figure is "five
+`./scripts/count-tests.sh` does not know about it and should not: a suite whose figure is "six
 checks" alongside four suites' thousands would make the total meaningless. See **Driving the
 assembled app** at the end of this file.
+
+**`tests/e2e` is a .NET project and is still not a `dotnet test` project, for the same reason.** It
+is the Playwright driver `e2e.sh` can be pointed at, it prints verdicts, and `dotnet test` would
+report it as a suite of zero. It is in the solution so that `dotnet build` compiles it under the
+same analyzer contract as everything else; nothing else picks it up.
 
 **The fifth is the newest of the five and the reason it exists is worth stating: a workflow cannot
 be executed by any of the other four.** `scripts/d1-migrations/gate.mjs` is the *decision* the deploy makes about
@@ -215,19 +220,48 @@ harnesses. The PNG codec is ~150 lines against `node:zlib` rather than a depende
 `./scripts/e2e.sh` is the only thing here that runs the application. Everything else runs a *part*
 of it: `dotnet test` drives the engine, bUnit renders components, the proof harnesses drive markup
 and CSS over `file://`, and the pixel diff compares pictures of that markup. None of them boots
-Blazor WebAssembly, follows a link, reloads a page, executes a line of `js/*.js` for real, or is
-subject to the Content-Security-Policy the deploy generates.
+Blazor WebAssembly, follows a link, reloads a page, executes a line of `js/*.js` for real, is
+subject to the Content-Security-Policy the deploy generates, or asks axe what a screen reader would
+be told.
 
 It publishes the site, serves it with the same `wrangler pages dev` version
-`.github/workflows/deploy.yml` pins, and drives real Chrome over the DevTools Protocol.
-`scripts/e2e/cdp.mjs` is the protocol client — Node's own global `WebSocket`, no `package.json`,
-the same trade `scripts/visual/png.mjs` makes against an image library. `scripts/e2e/drive.mjs`
-holds the five checks; `scripts/e2e/defects.mjs` holds their negative controls.
+`.github/workflows/deploy.yml` pins, and drives real Chrome.
 
 ```bash
-./scripts/e2e.sh                # publish, serve, drive, and drive every twin
-./scripts/e2e.sh --real-only    # the ten-second loop while writing a check. NOT a full run
+./scripts/e2e.sh                     # publish, serve, drive, and drive every twin
+./scripts/e2e.sh --driver dotnet     # the same, with the Playwright driver
+./scripts/e2e.sh --real-only         # the ten-second loop while writing a check. NOT a full run
 ```
+
+### Two drivers, and `e2e.sh` is neither of them
+
+**What that script owns is everything around a drive** — publishing, parsing the wrangler version,
+starting the server from a directory with no `functions/` in it, building each twin, and deciding
+what the verdicts mean. A driver takes a URL and prints three kinds of line. That split is why a
+second driver cost a flag rather than a rewrite.
+
+| `--driver` | What it is | Checks |
+|---|---|---|
+| `node` (default) | `scripts/e2e/drive.mjs` over `scripts/e2e/cdp.mjs`, a hand-rolled DevTools Protocol client against Node's own global `WebSocket` — the same trade `scripts/visual/png.mjs` makes against an image library | BOOT, BUILD, THEME, PALETTE, ROUTES |
+| `dotnet` | `tests/e2e`, over `Microsoft.Playwright` and `Deque.AxeCore.Playwright` | the same five, plus **A11Y** |
+
+**Neither is retired.** `PROGRESS.md` item 10 states the condition under which `scripts/e2e/` goes,
+and removing a working harness before its replacement has a record is how an upgrade becomes a
+regression. Both are run by `build.yml`.
+
+**The Playwright driver does not bring a browser with it, and that decided the whole design.**
+`Channel = "chrome"` launches the Google Chrome already on the machine — the one `cdp.mjs` finds
+and the one `ubuntu-latest` ships. So there is no `playwright install`, nothing to cache, and no
+*third* renderer beside the runner's Chrome and the digest-pinned `selenium/standalone-chrome` the
+goldens need; a third one would mean regenerating every golden, and again on every upgrade. It also
+keeps the no-npm rule: both packages are NuGet, restored by the `dotnet restore` that already runs.
+**Measured on the runner: +4 seconds to Restore** (the `Microsoft.Playwright` package is 201.6 MB),
+and nothing anywhere else.
+
+**And Playwright for .NET has no snapshot comparison and no baseline management.**
+`ToHaveScreenshotAsync` and `--update-snapshots` belong to `@playwright/test`, the JavaScript
+runner; the .NET `PageAssertions` and `LocatorAssertions` surfaces have no such member. Nothing here
+goes near the pixel path, which is unchanged.
 
 **The question it answers is not "does the app work".** It is *is this reachable* — and that is a
 question nothing else here asks. A feature shipped in this repository while nothing in the
@@ -236,19 +270,38 @@ both undo buffers all read an index, every unit and component test passed honest
 of them called the store directly. A test that reaches a feature by hand cannot notice that
 nothing else reaches it. So four rules, and each of them is load-bearing:
 
-- **Nothing in `drive.mjs` may reach past the browser.** No `localStorage.setItem` to arrange a
-  state, no calling into a component, no planted storage pointer. Every state a check needs is
-  arrived at by clicking what a person clicks — real `Input.dispatchMouseEvent` at real
-  coordinates, not `el.click()` from inside the page, which is the same mistake one layer out.
-  The only reads that go round the front are the ones *asserting* on storage after the app wrote
-  it.
+- **No driver may reach past the browser.** No `localStorage.setItem` to arrange a state, no
+  calling into a component, no planted storage pointer. Every state a check needs is arrived at by
+  clicking what a person clicks — real `Input.dispatchMouseEvent` at real coordinates (which is
+  what `ILocator.ClickAsync` does too), not `el.click()` from inside the page, which is the same
+  mistake one layer out. The only reads that go round the front are the ones *asserting* on storage
+  after the app wrote it. `E2eDriverTests` scans both drivers for the lazy spelling — and says in
+  its own doc comment what a denylist cannot do, so nobody reads it as the guarantee.
 - **Every check states its positive control first, and a failed control is reported as its own
   sentence.** `[CONTROL] the work did not happen: …` and `[OUTCOME] …` are different bug reports —
   "the palette never changed" and "the palette changed to the wrong colour" — and this repository
   has a history of reporting the first as the second.
 - **Every check has a deliberately-broken twin, and a check with no twin fails the run.** The
-  names the driver reported and the names the twins cover are compared, so a sixth check cannot
-  join the suite unproven.
+  names the driver reported and the names the twins cover are compared, so a check cannot join the
+  suite unproven.
+
+  **The converse moved when the second driver arrived, and this is the one thing here that got
+  weaker.** `e2e.sh` used to require the two sets to be *equal*, which also caught a twin naming a
+  check nobody runs. It cannot any more: the two drivers do not run the same checks — `A11Y` needs
+  axe-core — so equality would fail every `node` run over a twin the other driver covers perfectly
+  well. What is kept in the script is the direction whose failure costs a missed regression. The
+  orphan direction is now `E2eDriverTests.EveryCheckHasATwinAndEveryTwinHasACheck`, which reads
+  *both* drivers and `defects.mjs` as source — strictly more than the script could ever see, since
+  it runs one driver and cannot tell "no driver has this check" from "not this one" — and costs a
+  second in `dotnet test` rather than a publish, a server and a browser.
+
+- **A twin is driven with `--only <CHECK>`, and the real site never is.** Exactly one verdict is
+  read out of a twin's run, and the other five were a server round trip and a browser boot apiece
+  against a site broken in a way unrelated to them: with `A11Y` scanning four palettes at 45s a
+  drive, six twins spent four and a half minutes re-measuring accessibility nothing looked at. It
+  cannot make a run quietly smaller — the check names compared against the twin list come from the
+  *unfiltered* real-site run, and a name matching nothing leaves the verdict absent, which is
+  already read as a failed negative control rather than a pass.
 - **A twin must *say* FAIL, never merely fail to say PASS.** Each check catches internally and
   prints a verdict either way, because a driver that died before reaching a check leaves the line
   out entirely — and "not PASS" would call that a working negative control. `e2e.sh` treats a
@@ -294,4 +347,46 @@ more than one means it is not the single change it documents.
   work in production, and a change to `_redirects` is invisible here. Measured, not assumed: the
   rule is named in wrangler's startup output as the one invalid rule it found.
 - **Screen readers.** Still owed and no harness closes it. `aria-pressed` being the string
-  `"true"` is not the same as having been listened to.
+  `"true"` is not the same as having been listened to. **The A11Y check narrows this and does not
+  close it**: axe finds a missing `lang`, a heading level skipped, a control with no accessible
+  name — the things a machine can see. It cannot tell you whether the result is usable.
+
+### What the A11Y check measured, and the readings it corrected
+
+**axe's full default ruleset, nothing turned off, four palettes × four addresses: 536 passing rule
+instances and one violation, the same one in every palette, exempt under WCAG's own text.** So
+`theme.css`'s contrast claims hold in the assembled app — which nothing had ever checked. It writes
+its ratios into its comments as claims beside its own "re-measure if you change it; do not eyeball",
+two of its tokens are `color-mix()` which only a browser resolves, and
+`EveryScreenPairInUseHoldsItsContrastFloor` measures the *tokens*, not every rendered combination.
+
+**The one finding, with its figures, because somebody has to decide about it.** The wizard's Next
+control on `/build` before a tier is chosen — `StepButtons.razor` renders an anchor with
+`aria-disabled="true"`, `app.css` paints it at `opacity: 0.45` — measures 2.23:1 Hero/Light, 3.28:1
+Hero/Dark, 2.54:1 Villain/Light, 3.22:1 Villain/Dark, against 4.5:1. WCAG 1.4.3 exempts text in an
+*inactive* component and this one is inactive; axe cannot apply that exemption because it looks for
+the `disabled` attribute, which an anchor cannot carry. So the check drops those nodes **node by
+node rather than turning `color-contrast` off**, counts them, prints the count in its verdict, and
+goes red if the exemption ever matches nothing. Whether a disabled Next should be legible anyway is
+a design decision, not a conformance one — `PROGRESS.md` item 10 carries it.
+
+**Getting there produced two wrong readings and nearly discarded a right one.** The first said 32
+violations; the second said 2, then 3, then 2, on different elements each run, reporting one
+background as `#15151a`, `#17171c` and `#19191e`. Three shades of one colour is the tell: axe
+measures contrast against the composited pixel, and `.panel` carries
+`animation: rise var(--enter) both`, which starts at `opacity: 0`. **This is the same trap the
+pixel diff has one layer over**, where a screenshot without `--virtual-time-budget` "proofs a
+washed-out lie". `Scan` now awaits every animation's own `finished` promise.
+
+**Then a correct reading was nearly deleted as a third artefact, and that is the sharper lesson.**
+A draft had found the `.disabled` control at a stable 2.23:1; a later pass could not reproduce it
+and concluded the whole thing was the animation race. Both were measuring honestly — A11Y ran
+*last*, so `BUILD` had already saved a character, the wizard's Next was enabled, and the element
+was not on the page. Under `--only A11Y`, which is how every twin drives it, it is. **Re-running a
+measurement is not reproducing it**: for a driver, "the same state" includes which checks ran
+before. A11Y is second in the list now, and its position is part of what it measures.
+
+**Rules are selected by name, never by WCAG tag.** The obvious `RunOnly` on `wcag2a,wcag2aa` is
+wrong here: `color-contrast` carries `wcag2aa`, but `heading-order` and `page-has-heading-one` carry
+only `cat.semantics, best-practice` — axe never WCAG-tags a best-practice rule — so a tag filter
+would run one of the three rules this work was scoped around and drop the other two.

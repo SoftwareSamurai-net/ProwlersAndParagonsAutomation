@@ -32,8 +32,36 @@ var baseUrl = (args.Length > 0 ? args[0] : "").TrimEnd('/');
 if (string.IsNullOrEmpty(baseUrl))
 {
     await Console.Error.WriteLineAsync(
-        "usage: dotnet run --project tests/e2e -- <base-url>");
+        "usage: dotnet run --project tests/e2e -- <base-url> [--only CHECK[,CHECK...]]");
     return 2;
+}
+
+// **`--only` exists for one caller and one reason: a twin needs one check, not six.**
+//
+// `scripts/e2e.sh` drives a deliberately-broken twin per check and reads exactly one verdict out
+// of each run — the check that twin must turn red. The other five verdicts are not read by
+// anything, and with `A11Y` scanning four palettes across four addresses they were 45 seconds
+// apiece, six times over: four and a half minutes of a CI job spent re-measuring the
+// accessibility of a site broken on purpose in a way that has nothing to do with accessibility.
+//
+// **What this does not do is let a run quietly get smaller.** `e2e.sh` drives the *real* site with
+// no filter, reads the check names out of that run, and requires every one of them to have a twin.
+// A name that does not match anything here leaves the twin's verdict line absent, which `e2e.sh`
+// already treats as a failed negative control rather than as a pass — so a typo is red, not quiet.
+var only = new HashSet<string>(StringComparer.Ordinal);
+
+for (var i = 1; i < args.Length; i++)
+{
+    if (args[i] != "--only") continue;
+
+    if (i + 1 >= args.Length)
+    {
+        await Console.Error.WriteLineAsync("--only needs a comma-separated list of check names");
+        return 2;
+    }
+
+    foreach (var name in args[i + 1].Split(',', StringSplitOptions.RemoveEmptyEntries))
+        only.Add(name.Trim());
 }
 
 // The order is the cheapest failure first: if the app cannot boot, everything below it is a
@@ -44,13 +72,38 @@ if (string.IsNullOrEmpty(baseUrl))
 // `scripts/e2e/defects.mjs` twins — `e2e.sh` fails if those two disagree, in either direction, and
 // it is right to. An unported check is red and says why; see `NotYetPorted`. One line each, so two
 // slices porting two different checks do not conflict over the shape of this list.
+//
+// **A11Y is second, and its position is part of what it measures.** Every other check here is
+// indifferent to what ran before it — "state left behind by an earlier check is deliberate, a
+// browser a person has used is not a fresh one". A11Y is not: `BUILD` leaves a character in local
+// storage, which enables the wizard's Next control, which changes which elements exist on
+// `/build`. Run after BUILD it scans a page with an enabled Next; run alone under `--only A11Y`,
+// or second, it scans one with a disabled Next. Those are different pages and they give different
+// answers, and a check whose subject depends on execution order is not reproducible. Second is
+// the position that agrees with `--only`, which is how every twin drives it.
 Check[] checks =
 [
     Boot.Check,
+    Accessibility.Check,
     Build.Check,
     Theme.Check,
     Palette.Check,
     Routes.Check,
 ];
+
+if (only.Count > 0)
+{
+    var unknown = only.Except(checks.Select(c => c.Name), StringComparer.Ordinal).ToList();
+
+    if (unknown.Count > 0)
+    {
+        await Console.Error.WriteLineAsync(
+            $"--only names checks this driver does not have: {string.Join(", ", unknown)}. "
+            + $"Known: {string.Join(", ", checks.Select(c => c.Name))}");
+        return 2;
+    }
+
+    checks = [.. checks.Where(c => only.Contains(c.Name))];
+}
 
 return await Runner.Drive(baseUrl, checks);

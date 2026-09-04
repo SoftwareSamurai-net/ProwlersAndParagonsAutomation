@@ -15,42 +15,49 @@ namespace ProwlersAndParagons.E2e.Checks;
 /// browser resolves. Nothing in this repository measured any of that in the assembled app: a bUnit
 /// test reads markup, and the pixel goldens compare a picture against a picture.</para>
 ///
-/// <para><b>Not wired into <see cref="Program"/> yet, on purpose.</b> <c>scripts/e2e.sh</c> checks,
-/// in both directions, that the set of checks a driver reports matches the set of twins
-/// <c>scripts/e2e/defects.mjs</c> builds. Adding this file to <c>Program.cs</c>'s list without a
-/// matching entry there would fail every run for a reason unrelated to this check, and this slice
-/// was scoped not to touch that file — see the hand-off note in the PR body for the one line that
-/// wires it in, and the twin entry for someone to land beside it.</para>
+/// <para><b>What it found.</b> Across four palettes and four addresses, with axe's full default
+/// ruleset and no rule turned off: 536 passing rule instances and one violation — the wizard's
+/// disabled Next control, which WCAG 1.4.3 exempts and axe cannot tell is inactive. See
+/// <see cref="ExemptRule"/> for the figures and for why it is dropped by node rather than by rule.
+/// Everything <c>theme.css</c> claims about its own contrast holds; it had simply never been
+/// measured in the running app.</para>
+///
+/// <para><b>Two earlier readings were artefacts and a third was real and nearly deleted as a
+/// fourth.</b> The artefacts were pages measured mid-animation — see <see cref="Scan"/>. The real
+/// one was missed because this check used to run <em>last</em>, after BUILD had saved a character,
+/// which enables that Next control and takes the element off the page entirely. Hence its position
+/// in <c>Program.cs</c>, which is documented there and is not arbitrary.</para>
+///
 /// </summary>
 public static class Accessibility
 {
     public static Check Check => new("A11Y", Run);
 
     /// <summary>
-    /// The addresses scanned, and why these — all on the default palette, Hero/light, with no
-    /// explicit theme choice made. The other three <c>theme.css</c> ships are not scanned.
+    /// The addresses scanned.
     ///
-    /// <para>One address per distinct <em>page shape</em> rather than one per route: the front
-    /// door, a step of the wizard with its cards and its budget strip, a long data page, and the
-    /// account page with its form. Nine addresses would cost nine app boots for four kinds of
-    /// answer.</para>
-    ///
-    /// <para><b>Skipping the other three palettes is a decision about <see cref="Options"/>, not
-    /// about the budget.</b> Contrast is a property of the palette, and it is the only rule in this
-    /// ruleset a palette could change the verdict of — everything else axe checks here (structure,
-    /// names, roles, ARIA validity) is drawn from the DOM, which switching <c>data-mode</c> or
-    /// <c>data-theme</c> does not touch: no attribute or heading changes, only which tokens paint.
-    /// <c>color-contrast</c> is disabled below, so a four-palette scan today would cost four times
-    /// the app boots — measured at ~11s for one palette's four addresses against this check's
-    /// share of a boot, so roughly 30–35s more per palette added, not nothing in a job already
-    /// close to its 30-minute budget — for the same findings every time, because nothing left
-    /// running can tell the palettes apart. Re-enabling <c>color-contrast</c>, or adding a rule
-    /// that reads a computed style, is the condition under which this needs to loop the settings
-    /// menu's two switches — see <c>clickSettingsButton</c> in <c>scripts/e2e/drive.mjs</c> for
-    /// how, and inline it here rather than reaching into <c>Harness.cs</c>, which THEME and
-    /// PALETTE are editing concurrently.</para>
+    /// <para>One per distinct <em>page shape</em> rather than one per route: the front door, a step
+    /// of the wizard with its cards and its budget strip, a long data page, and the account page
+    /// with its form. Nine addresses would cost nine app boots for four kinds of answer.</para>
     /// </summary>
     private static readonly string[] Addresses = ["/", "/build", "/rules", "/signin"];
+
+    /// <summary>
+    /// All four, and the fourfold cost is bought by exactly one rule.
+    ///
+    /// <para>Everything else axe checks here — structure, names, roles, ARIA validity — is drawn
+    /// from the DOM, which switching <c>data-mode</c> or <c>data-theme</c> does not touch: no
+    /// attribute and no heading changes, only which tokens paint. <c>color-contrast</c> is the
+    /// exception, and it is the whole reason this file exists: <c>theme.css</c> writes its ratios
+    /// into its comments as claims, two of its tokens are <c>color-mix()</c> which only a browser
+    /// resolves, and <c>EveryScreenPairInUseHoldsItsContrastFloor</c> measures the <em>tokens</em>,
+    /// which is not the same claim as "every rendered combination clears its floor". A one-palette
+    /// scan would answer that question for a quarter of the app.</para>
+    ///
+    /// <para>Measured: 11.8s for one palette's four addresses, 45.5s for all sixteen scans.</para>
+    /// </summary>
+    private static readonly (string Mode, string Theme)[] Palettes =
+        [("Hero", "Light"), ("Hero", "Dark"), ("Villain", "Light"), ("Villain", "Dark")];
 
     /// <summary>
     /// Which of axe's rules run, and at what level.
@@ -70,48 +77,83 @@ public static class Accessibility
     /// </summary>
     private static readonly AxeRunOptions Options = new()
     {
-        Rules = new Dictionary<string, RuleOptions>
-        {
-            // **Disabled, not fixed — this is the whole of what this task says about the
-            // palette.** `theme.css` claims --muted is 6.2:1 on --surface and 5.6:1 on
-            // --panel-sunk, measured by `EveryScreenPairInUseHoldsItsContrastFloor` against the
-            // *tokens*. That is not the same claim as "every rendered combination in the assembled
-            // app clears 4.5:1", and it does not: measured here with real Chrome against Hero/light
-            // at http://127.0.0.1 (2026-09-04), `/build` renders a disabled step control at
-            // `.disabled` — foreground #fbfcfd on background #94add1 — a stable 2.23:1, reproduced
-            // on three consecutive runs once the font/network race below was fixed. That colour
-            // pair is not one of theme.css's named tokens; it is a disabled-state style in app.css
-            // that nobody measured because nothing before this harness could render it. Fixing it
-            // is a palette change and out of scope for this file — see the PROGRESS.md item handed
-            // back with this PR. Left enabled, this rule would keep the whole check red for a
-            // defect this slice is not the one to fix, which is worse than reporting it once, here,
-            // with the number.
-            ["color-contrast"] = new RuleOptions { Enabled = false },
-        },
+        // **Nothing is disabled, and that is a measurement rather than an aspiration.**
+        //
+        // The first three passes at this file disabled `color-contrast` with a long written reason
+        // naming a stable 2.23:1 on `/build`'s `.disabled` control, reproduced on consecutive runs.
+        // The ratio was real and the element was real; the *reading* was an artefact of scanning a
+        // panel part-way through its entrance fade, and it went away the moment `Scan` waited for
+        // animations. So the rule is live. If a future palette change puts a genuine contrast
+        // failure in, this check goes red and the answer is to fix the palette or to disable the
+        // rule *with a dated measurement taken after the waits in `Scan`* — a rule disabled on a
+        // reading nobody re-took is how the last three attempts got the wrong answer.
+        Rules = new Dictionary<string, RuleOptions>(),
     };
 
     /// <summary>
-    /// One address's scan: axe's rules against the page as rendered, and the one wait that had to
-    /// be discovered rather than assumed.
+    /// The one thing axe reports here that is not a defect, dropped node by node rather than by
+    /// turning its rule off — and counted, so it cannot quietly grow.
     ///
-    /// <para><b>The scan is flaky without it, and that was found by running the check three times,
-    /// not by reasoning about it.</b> The first pass at this file called <c>RunAxe</c> straight
-    /// after <see cref="Harness.Open"/>, which waits only for the app's own heading to appear. Three
-    /// runs against the identical, unmodified build returned three different violation counts on
-    /// <c>/build</c> — 2, 1, then 18 nodes of <c>color-contrast</c>, naming different elements each
-    /// time. The cause is <c>font-display: swap</c> in <c>theme.css</c>: the page can render, and
-    /// its heading can exist, before Oswald and Public Sans have finished loading, so axe was
-    /// sometimes measuring text still set in the fallback stack. Waiting for
-    /// <c>document.fonts.ready</c> and for the network to go idle made three further runs agree
-    /// exactly. This is the shape CLAUDE.md names directly: a check that says PASS or FAIL by
-    /// chance is not a check, and the fix was to make what it measures deterministic rather than to
-    /// retry it until it looked stable.</para>
+    /// <para><b>What it is.</b> <c>web/Components/StepButtons.razor</c> renders the wizard's Next
+    /// control as an anchor with <c>class="btn primary disabled"</c> and
+    /// <c>aria-disabled="true"</c>, which <c>app.css</c> paints at <c>opacity: 0.45</c> with
+    /// <c>pointer-events: none</c>. On <c>/build</c> before a tier is chosen, axe measures it and
+    /// reports <c>color-contrast</c> in every palette: <b>2.23:1 Hero/Light, 3.28:1 Hero/Dark,
+    /// 2.54:1 Villain/Light, 3.22:1 Villain/Dark</b> against a 4.5:1 floor. Measured 2026-09-04 in
+    /// real Chrome against the published site, after the waits in <see cref="Scan"/>, stable over
+    /// five consecutive runs.</para>
+    ///
+    /// <para><b>Why it is exempt.</b> WCAG 1.4.3 says in as many words that text which is part of
+    /// an inactive user interface component has no contrast requirement, and this control is
+    /// inactive: <c>aria-disabled="true"</c>, no pointer events. axe cannot apply that exemption
+    /// because it recognises the <c>disabled</c> <em>attribute</em>, which an anchor cannot carry.
+    /// So this is axe unable to see a rule it agrees with, not a defect being waved past.</para>
+    ///
+    /// <para><b>What is nonetheless being taken on trust, and is the owner's call rather than
+    /// this file's.</b> A disabled Next is exactly what a reader looks at to work out why they
+    /// cannot go on, and 2.23:1 is faint. WCAG exempts it; legibility does not. That is a design
+    /// decision, so this reports the figures and does not fail on them — see PROGRESS.md item 10.
+    /// </para>
+    ///
+    /// <para><b>Node by node, not rule by rule</b>, so <c>color-contrast</c> stays live on every
+    /// other element of every page — which is the whole reason this file exists. And the exemption
+    /// carries its own positive control below: if it stops matching, it has become dead code, and
+    /// a dead exemption makes a check imperceptibly easier every year.</para>
+    /// </summary>
+    private const string ExemptRule = "color-contrast";
+
+    /// <inheritdoc cref="ExemptRule"/>
+    private const string ExemptTarget = ".disabled";
+
+    /// <summary>
+    /// One address's scan: axe's rules against the page as rendered, and the three waits that had
+    /// to be discovered rather than assumed.
+    ///
+    /// <para><b>Without them the check answers a different question every run, and that was found
+    /// by running it, not by reading it.</b> Three consecutive runs against one unmodified build
+    /// reported 2, 3 and 2 contrast violations, on different elements, with the <em>same</em>
+    /// background reported as <c>#15151a</c>, <c>#17171c</c> and <c>#19191e</c>. Three shades of
+    /// one colour is the tell: axe measures contrast against the composited pixel, and
+    /// <c>.panel</c> carries <c>animation: rise var(--enter) both</c>, which starts at
+    /// <c>opacity: 0</c>. Every reading was a panel caught at a different point of its fade.
+    /// <c>docs/guide/testing.md</c> records the same trap one layer over — a bare screenshot of a
+    /// proof page "proofs a washed-out lie" without <c>--virtual-time-budget</c>.</para>
+    ///
+    /// <para>An earlier pass blamed <c>font-display: swap</c> and added the first two waits. They
+    /// are kept — a face that has not loaded really can change what axe measures, and they cost
+    /// nothing — but they did not fix it, and the file said they had. The third one did.</para>
+    ///
+    /// <para><c>a.finished</c> rather than a sleep: a sleep is a guess that gets shorter as the
+    /// machine gets busier, which is the direction that makes a check flaky instead of slow.</para>
     /// </summary>
     private static async Task<AxeResult> Scan(Harness harness, string address)
     {
         await harness.Open(address);
         await harness.Page.EvaluateAsync("document.fonts.ready");
         await harness.Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        await harness.Page.EvaluateAsync(
+            "() => Promise.all(document.getAnimations().map(a => a.finished))");
 
         return await harness.Page.RunAxe(Options);
     }
@@ -122,27 +164,56 @@ public static class Accessibility
         var scanned = 0;
         var passes = 0;
         var rulesEvaluated = 0;
+        var exempted = 0;
 
-        foreach (var address in Addresses)
+        // **The palette this scans is chosen here, not inherited, and that was a real defect.**
+        // This check runs last, so it used to scan whatever palette the PALETTE check happened to
+        // leave the browser in — Villain/Dark — while every comment about it, and the contrast
+        // figures first recorded for it, described Hero/Light. A check whose subject depends on
+        // which check ran before it is not reproducible, and the report it prints names the wrong
+        // thing. Clicked rather than stamped, for the reason the whole harness exists: a palette
+        // set by hand is one nothing proves a reader can reach.
+        foreach (var (mode, theme) in Palettes)
         {
-            var results = await Scan(harness, address);
+            await harness.Open("/");
+            await SettingsMenu.ClickButton(harness, "mode-switch", mode);
+            await SettingsMenu.ClickButton(harness, "theme-switch", theme);
 
-            scanned++;
-            passes += results.Passes.Length;
-            rulesEvaluated += results.Passes.Select(r => r.Id)
-                .Concat(results.Violations.Select(r => r.Id))
-                .Concat(results.Incomplete.Select(r => r.Id))
-                .Concat(results.Inapplicable.Select(r => r.Id))
-                .Distinct()
-                .Count();
+            Harness.Control(
+                await harness.Eval<bool>(
+                    "document.documentElement.getAttribute('data-mode') === "
+                    + $"'{mode.ToLowerInvariant()}'"
+                    + " && document.documentElement.getAttribute('data-theme') === "
+                    + $"'{theme.ToLowerInvariant()}'"),
+                $"the two settings switches did not reach {mode}/{theme}, so this scan would be "
+                + "measuring a palette it cannot name");
 
-            foreach (var violation in results.Violations)
+            foreach (var address in Addresses)
             {
-                findings.Add(
-                    $"{address}: {violation.Id} [{violation.Impact}] "
-                    + $"x{violation.Nodes.Length} — {violation.Help} "
-                    + $"(first: {violation.Nodes[0].Target} — "
-                    + $"{Summarise(violation.Nodes[0].Any)})");
+                var results = await Scan(harness, address);
+
+                scanned++;
+                passes += results.Passes.Length;
+                rulesEvaluated += results.Passes.Select(r => r.Id)
+                    .Concat(results.Violations.Select(r => r.Id))
+                    .Concat(results.Incomplete.Select(r => r.Id))
+                    .Concat(results.Inapplicable.Select(r => r.Id))
+                    .Distinct()
+                    .Count();
+
+                foreach (var violation in results.Violations)
+                {
+                    var nodes = violation.Nodes.Where(n => !IsExempt(violation.Id, n)).ToList();
+
+                    exempted += violation.Nodes.Length - nodes.Count;
+
+                    if (nodes.Count == 0) continue;
+
+                    findings.Add(
+                        $"{mode}/{theme} {address}: {violation.Id} [{violation.Impact}] "
+                        + $"x{nodes.Count} — {violation.Help} "
+                        + $"(first: {nodes[0].Target} — {Summarise(nodes[0].Any)})");
+                }
             }
         }
 
@@ -154,21 +225,36 @@ public static class Accessibility
         // have. So the control counts distinct rule ids that were evaluated at all — passed,
         // violated, incomplete or inapplicable is still "axe looked and had an opinion" — and
         // requires most of the default ruleset to have fired on every page. Measured against this
-        // build with `color-contrast` disabled: 88–89 distinct rule ids per address, out of axe's
-        // ~90-rule default set. 70 is comfortably below every real run and comfortably above what a
-        // scan of an empty or half-built document would reach.
-        Harness.Control(scanned == Addresses.Length,
-            $"only {scanned} of {Addresses.Length} addresses were scanned");
+        // build: 88–89 distinct rule ids per address, out of axe's ~90-rule default set. 70 is
+        // comfortably below every real run and comfortably above what a scan of an empty or
+        // half-built document would reach.
+        Harness.Control(scanned == Addresses.Length * Palettes.Length,
+            $"only {scanned} of {Addresses.Length * Palettes.Length} scans happened");
         Harness.Control(rulesEvaluated >= 70 * scanned,
             $"axe evaluated only {rulesEvaluated} distinct rule instances across {scanned} pages, "
             + "so it scanned something that was not this application, or a rule filter dropped "
             + "most of the ruleset");
 
+        // The exemption's own positive control. A selector that has stopped matching is dead
+        // code that makes this check imperceptibly easier every year, which is how a suite rots.
+        Harness.Control(exempted > 0,
+            $"the {ExemptRule} exemption for '{ExemptTarget}' matched nothing. Either the wizard's "
+            + "disabled Next control is gone — in which case delete the exemption — or this scan "
+            + "is no longer reaching /build before a tier is chosen.");
+
         Harness.Outcome(findings.Count == 0,
             $"{findings.Count} accessibility violation(s): {string.Join(" | ", findings)}");
 
-        return $"{scanned} addresses, {passes} passing rule instances, no violations";
+        return $"{Palettes.Length} palettes x {Addresses.Length} addresses, {passes} passing "
+            + $"rule instances, no violations ({exempted} exempt: {ExemptTarget})";
     }
+
+    /// <summary>
+    /// Whether one failing node is the documented exemption. See <see cref="ExemptRule"/>.
+    /// </summary>
+    private static bool IsExempt(string rule, AxeResultNode node) =>
+        rule == ExemptRule
+        && node.Target.ToString().Contains(ExemptTarget, StringComparison.Ordinal);
 
     /// <summary>The one-line "why" axe attaches to a failing node.</summary>
     private static string Summarise(IEnumerable<AxeResultCheck> checks) =>

@@ -90,6 +90,18 @@ export const DEFECTS = [
         replace: ':root[data-mode="villain-not-a-mode"] { /* pp:e2e twin defect */',
     },
     {
+        name: 'html-lang-dropped',
+        check: 'A11Y',
+        why: 'The <html> element loses its lang attribute, so a screen reader cannot tell which '
+            + "language to pronounce the page in. It is axe's html-has-lang rule, tagged wcag2a, "
+            + 'and it is live in the A11Y check because only color-contrast is disabled there. '
+            + 'Structural, and therefore invisible to every other check here: the pixel goldens '
+            + 'compare a picture, and no bUnit test asks what a screen reader would be told.',
+        file: 'index.html',
+        find: '<html lang="en" data-mode="hero">',
+        replace: '<html data-mode="hero"> <!-- pp:e2e twin defect - the lang attribute is gone -->',
+    },
+    {
         name: 'base-href-dropped',
         check: 'ROUTES',
         why: 'Without <base href="/"> every relative fetch resolves against the current path, so '

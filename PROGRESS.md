@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | **Five suites, and the figures are not written down here.** Run `./scripts/count-tests.sh` — it runs all five, reads each count out of the line that runner printed, and refuses to total anything when a suite did not report. **The figures used to be in this cell and went wrong four separate ways**; the four are recorded in [`docs/guide/testing.md`](docs/guide/testing.md), where the lesson keeps being true after the numbers stop being. The five are the engine, the components under bUnit, the accounts server over real SQLite, the pixel comparator, and the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **A sixth thing drives the assembled application and is deliberately not one of the five**: `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages dev` version the deploy pins, and drives real Chrome over the DevTools Protocol — five checks with a positive control each and a deliberately-broken twin of the whole site each. It reports verdicts rather than a test count, so `count-tests.sh` does not know about it; see [item 10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) for what it does and does not reach. |
+| Tests | **Five suites, and the figures are not written down here.** Run `./scripts/count-tests.sh` — it runs all five, reads each count out of the line that runner printed, and refuses to total anything when a suite did not report. **The figures used to be in this cell and went wrong four separate ways**; the four are recorded in [`docs/guide/testing.md`](docs/guide/testing.md), where the lesson keeps being true after the numbers stop being. The five are the engine, the components under bUnit, the accounts server over real SQLite, the pixel comparator, and the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **A sixth thing drives the assembled application and is deliberately not one of the five**: `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages dev` version the deploy pins, and drives real Chrome — six checks with a positive control each and a deliberately-broken twin of the whole site each, through either of two drivers (`--driver node|dotnet`; the second is Playwright and adds the axe-core accessibility check). It reports verdicts rather than a test count, so `count-tests.sh` does not know about it; see [item 10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) for what it does and does not reach. |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **The deploy applies pending D1 migrations before the Pages upload, and the apply half is now proven rather than assumed.** The first run failed on a file mode rather than the credential everybody was watching; the run after it read the live database, found nothing pending, and shipped — which established D1 *Read* only, because a token holding just Read produces that exact log and then fails on the first migration that actually has to be applied. **`0007_decision_recorded.sql` was that migration.** On the deploy of `a978806` the gate read one pending file, classified it additive, applied it (`0007_decision_recorded.sql ✅`), **and then asked the database again** — `No migrations to apply!`, the script's own positive control, which is what makes this "the schema moved" rather than "wrangler exited 0". So **D1: Edit is granted and the whole mechanism has now run end to end.** See [`docs/guide/hosting.md`](docs/guide/hosting.md) |
@@ -515,14 +515,23 @@ by the suites.** Both were in the same class: they existed only once markup, sty
 were put together on a page. The question was what would have caught them without a person looking.
 
 **Stage one is built.** `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages
-dev` version `.github/workflows/deploy.yml` pins, and drives real Chrome over the DevTools
-Protocol — five checks, anonymous only, no credential and no bypass: the app boots; a character is
-built by clicking and typing and survives a reload; a chosen theme survives a reload and is
-stamped before the app boots; all four palettes are reached through the two switches in the
-settings menu and resolve to four different sets of colours; and nine addresses are served at
-their own paths, with client-side routing proved by a token that survives the click. Each check
-states a positive control before its outcome, and each has a deliberately-broken twin of the whole
-published site that it is required to go red against. It runs on every pull request.
+dev` version `.github/workflows/deploy.yml` pins, and drives real Chrome — six checks, anonymous
+only, no credential and no bypass: the app boots; a character is built by clicking and typing and
+survives a reload; a chosen theme survives a reload and is stamped before the app boots; all four
+palettes are reached through the two switches in the settings menu and resolve to four different
+sets of colours; nine addresses are served at their own paths, with client-side routing proved by a
+token that survives the click; and axe-core finds no accessibility violation across four palettes
+and four addresses. Each check states a positive control before its outcome, and each has a
+deliberately-broken twin of the whole published site that it is required to go red against. It runs
+on every pull request.
+
+**There are two drivers and the sixth check is why.** `scripts/e2e/drive.mjs` is the original, a
+hand-rolled DevTools Protocol client; `tests/e2e` is a C# one over `Microsoft.Playwright`, which
+runs the same five plus `A11Y` — axe-core inside the page, which the hand-rolled client cannot do.
+`e2e.sh --driver node|dotnet` picks one and owns everything around a drive either way. The
+Playwright driver adds **+4 seconds** to the runner's Restore step and nothing else: `Channel =
+"chrome"` launches the Chrome already on the machine, so there is no `playwright install`, nothing
+to cache, and no third renderer to invalidate the pixel goldens against.
 
 **How it works, and every limit of it, is in [`docs/guide/testing.md`](docs/guide/testing.md)** —
 read that before changing it. The account of building it, including four faults the harness found
@@ -538,6 +547,7 @@ around:
 | Client-side routing | **Closed.** A `NavLink` is clicked, and a per-document token surviving the click is what proves the router handled it rather than the browser reloading |
 | Pages Functions against the real edge | **Open, and now deliberately so rather than by omission.** Nothing is bundled: wrangler takes `functions/` from the working directory, and the harness runs from one without it, so `/api/` falls through `_redirects` and the app reads an unparseable answer as anonymous — which is its own documented behaviour. Binding a local D1 is stage two's first step |
 | **Anything behind sign-in** | **Open — stage two, below.** `/rules`, `/admin`, the portfolio, the replay and every account-storage path |
+| Accessibility of the *rendered* app | **Closed for what a machine can see, and it found one thing.** axe's full default ruleset, four palettes by four addresses: 536 passing rule instances and a single violation — the wizard's disabled Next control, exempt under WCAG 1.4.3 and dropped by name with the figures written down (see the judgement call below). `theme.css`'s own contrast claims hold. **Screen readers stay owed** |
 
 **Three gaps stage one does not close and did not claim to**, each named here so nobody reads the
 five green checks as more than they are:
@@ -552,6 +562,56 @@ five green checks as more than they are:
 - **Screen readers**, which stay owed and which no harness closes: it needs a person with a screen
   reader, and asserting `aria-pressed` is the string `"true"` is not the same as having been
   listened to. `docs/HANDOVER.md` says so and should keep saying so.
+
+#### One thing the accessibility check found that is a decision, not a defect
+
+**The wizard's Next control, before a tier is chosen, is faint in every palette**: measured in real
+Chrome against the published site on 2026-09-04, `.disabled` on `/build` resolves to **2.23:1
+(Hero/Light), 3.28:1 (Hero/Dark), 2.54:1 (Villain/Light), 3.22:1 (Villain/Dark)** against a 4.5:1
+floor. `StepButtons.razor` renders it as an anchor with `aria-disabled="true"` and `app.css` paints
+it at `opacity: 0.45`.
+
+**It is not a conformance failure.** WCAG 1.4.3 exempts text that is part of an inactive user
+interface component, and this control is inactive — `aria-disabled="true"`, `pointer-events: none`.
+axe reports it only because it recognises the `disabled` *attribute*, which an anchor cannot carry.
+The A11Y check therefore drops those nodes by name, counts them, and prints the count.
+
+**It might still be worth changing, and that is the owner's call rather than a harness's.** A
+disabled Next is exactly the thing a reader looks at to work out why they cannot go on, and 2.23:1
+is faint enough that some readers will not. Raising `opacity` on `.btn.disabled` — or giving the
+step a sentence saying what is missing, which the Campaigns page already does for a disabled Join —
+would answer it. Nothing is broken until somebody decides that; the figures are here so the
+decision is made against numbers rather than a glance.
+
+#### What has to be true before `scripts/e2e/` is deleted
+
+**Not yet, and this is the condition rather than a feeling.** The hand-rolled driver is green,
+twinned, and the one with a track record; the Playwright one is a week old. A migration that
+removes the working harness before the replacement has a record is how an upgrade becomes a
+regression, so both run in `build.yml` and the deletion is a separate change nobody has made.
+
+**The condition: twenty consecutive green `Build` runs on `main` in which the `--driver dotnet`
+step reported six checks green against the real site and all six twins red.** Green is enough
+because both drivers run in the same job — either going red fails it — so twenty green runs is
+also twenty runs in which the two did not disagree. Count them with
+
+```bash
+gh run list --repo SoftwareSamurai-net/ProwlersAndParagonsAutomation \
+  --workflow build.yml --branch main --limit 30 \
+  --json conclusion,headSha --jq '.[] | "\(.conclusion) \(.headSha[0:8])"'
+```
+
+and read the `E2E: PASS` line out of the Playwright step of the oldest one in the window, so the
+count is of runs that actually drove it rather than of runs that skipped it.
+
+**Two things that are not the condition, said because they are the tempting shortcuts.** "The
+Playwright one is nicer" is not a reason to delete a working check. And "CI is slow" is a reason to
+drop one driver from the job, which is a different and reversible change — the file can stay.
+
+**When it goes**, `scripts/e2e/cdp.mjs` and `scripts/e2e/drive.mjs` go together,
+`scripts/e2e/defects.mjs` stays (both drivers share it), `e2e.sh`'s `--driver` flag becomes
+unnecessary, and `E2eDriverTests`' cross-driver assertions need rewriting rather than deleting —
+their own messages say so.
 
 #### The argument this item was sharpened by, which is why stage one was worth more than it claimed
 
@@ -568,7 +628,7 @@ cannot notice that nothing else reaches it. **Nothing in this repository asked w
 reachable by an ordinary person doing an ordinary thing**, and a driver is the only kind of check
 that asks that question by construction, because it has no other way in.
 
-That is why `scripts/e2e/drive.mjs` may not reach past the browser — no `localStorage.setItem` to
+That is why neither driver may reach past the browser — no `localStorage.setItem` to
 arrange a state, no calling into a component, and a real mouse event at real coordinates rather
 than `el.click()` from inside the page. A harness that sets up its own world stops answering the
 question it exists for.

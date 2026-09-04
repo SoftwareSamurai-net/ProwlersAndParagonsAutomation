@@ -605,3 +605,38 @@ jobs:
         env:
           PP_E2E_SITE_ALREADY_BUILT: "1"
         run: ./scripts/e2e.sh
+
+      - name: Drive the assembled app again, with Playwright and axe
+        # **The second driver, and the only new thing it does is the accessibility check.** The
+        # other five checks are a port, run here as well because a port is a claim until it has a
+        # record: PROGRESS.md item 10 states the condition under which `scripts/e2e/` is deleted,
+        # and it is twenty consecutive green Build runs of *this* step. Until then both run, and
+        # either going red fails the job — which is also what makes "twenty green runs" mean the
+        # two drivers never disagreed.
+        #
+        # **`A11Y` is what is not a port.** axe-core inside the page, four palettes by four
+        # addresses. `theme.css` writes its contrast ratios into its own comments as claims and
+        # says "re-measure if you change it; do not eyeball"; two of its tokens are `color-mix()`,
+        # which only a browser resolves. Nothing before this measured either in the assembled app.
+        #
+        # **`PP_E2E_CHROME` rather than Playwright's own channel resolution.** `Channel = "chrome"`
+        # is what keeps this from downloading a third Chrome, and it works — but "Playwright will
+        # find `/opt/google/chrome/chrome` on this image" is an assumption, and the step above
+        # already resolves the same browser with `command -v`. Passing the answer removes the
+        # assumption rather than trusting it, and if the image ever moves Chrome, both steps fail
+        # in the same recognisable way instead of one failing mysteriously.
+        #
+        # **No `playwright install` step and nothing cached**, which is not an omission: the NuGet
+        # package carries the driver, `Channel`/`ExecutablePath` supplies the browser, and the whole
+        # cost of both packages is +4 seconds on Restore, measured against the parent commit.
+        #
+        # It reuses the same publish as the step above for the same reason that one does.
+        env:
+          PP_E2E_SITE_ALREADY_BUILT: "1"
+        run: |
+          set -euo pipefail
+
+          chrome="$(command -v google-chrome || command -v chromium-browser || command -v chromium)"
+          echo "Driving with $chrome"
+
+          PP_E2E_CHROME="$chrome" ./scripts/e2e.sh --driver dotnet

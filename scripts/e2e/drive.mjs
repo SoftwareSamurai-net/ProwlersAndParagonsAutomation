@@ -34,8 +34,34 @@ import { launch, sleep } from './cdp.mjs';
 const base = (process.argv[2] ?? '').replace(/\/$/, '');
 
 if (!base) {
-    console.error('usage: node scripts/e2e/drive.mjs <base-url>');
+    console.error('usage: node scripts/e2e/drive.mjs <base-url> [--only CHECK[,CHECK...]]');
     process.exit(2);
+}
+
+/**
+ * The checks to run, if the caller named some. Empty means all of them.
+ *
+ * **One caller and one reason: a twin needs one check, not five.** scripts/e2e.sh drives a
+ * deliberately-broken twin per check and reads exactly one verdict out of each run — the check
+ * that twin must turn red. The other four verdicts are read by nothing, and each one is a server,
+ * a boot and a set of waits. Six twins times four unread checks is most of a CI job.
+ *
+ * **It cannot make a run quietly smaller.** e2e.sh drives the *real* site with no filter, reads
+ * the check names out of that run, and requires each to have a twin; and a name that matches
+ * nothing here leaves the twin's verdict line absent, which e2e.sh already treats as a failed
+ * negative control rather than as a pass.
+ */
+const only = new Set();
+
+for (let i = 3; i < process.argv.length; i++) {
+    if (process.argv[i] !== '--only') continue;
+
+    if (!process.argv[i + 1]) {
+        console.error('--only needs a comma-separated list of check names');
+        process.exit(2);
+    }
+
+    for (const name of process.argv[i + 1].split(',')) if (name.trim()) only.add(name.trim());
 }
 
 /**
@@ -539,13 +565,26 @@ async function checkRoutes(page) {
 // ---------------------------------------------------------------------------------------------
 // Running them.
 
-const CHECKS = [
+const ALL_CHECKS = [
     ['BOOT', checkBoot],
     ['BUILD', checkBuild],
     ['THEME', checkTheme],
     ['PALETTE', checkPalettes],
     ['ROUTES', checkRoutes],
 ];
+
+if (only.size > 0) {
+    const known = new Set(ALL_CHECKS.map(([name]) => name));
+    const unknown = [...only].filter(name => !known.has(name));
+
+    if (unknown.length > 0) {
+        console.error(`--only names checks this driver does not have: ${unknown.join(', ')}. `
+            + `Known: ${[...known].join(', ')}`);
+        process.exit(2);
+    }
+}
+
+const CHECKS = only.size > 0 ? ALL_CHECKS.filter(([name]) => only.has(name)) : ALL_CHECKS;
 
 /**
  * Run one check and print its verdict.
