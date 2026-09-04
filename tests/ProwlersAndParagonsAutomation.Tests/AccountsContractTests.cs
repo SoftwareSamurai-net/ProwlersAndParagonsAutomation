@@ -624,6 +624,51 @@ public sealed class AccountsContractTests
         Assert.Equal(heldReads, heldSends);
     }
 
+    /// <summary>
+    /// The cap box's <c>max</c> is the server's <c>MAX_CHARACTER_LIMIT</c>.
+    ///
+    /// <para><b>The guide claimed the range was not restated on the page, and it was.</b>
+    /// <c>web/Services/AdminAccounts.cs</c> really does hold no bound — the refusal comes back
+    /// from the server — but <c>Admin.razor</c> writes <c>max="500"</c> onto the input, which is a
+    /// second copy of a number that lives in <c>worker/adminAccounts.js</c>. A copy nothing
+    /// compares is a copy that drifts: raise the server's bound and the box goes on refusing at
+    /// the old one, from inside the browser, where there is no message to read.</para>
+    ///
+    /// <para>The floor is pinned the same way and is written out rather than read, because
+    /// <c>0</c> in the server's check is a literal in a comparison rather than a named constant —
+    /// naming it there for this test's benefit would be the test deciding the code's shape.</para>
+    /// </summary>
+    [Fact]
+    public void TheCapBoxIsBoundedByTheServersOwnMaximum()
+    {
+        var adminJs = File.ReadAllText(WorkerFile("adminAccounts.js"));
+        var razor = File.ReadAllText(
+            Path.Combine(RulesFixture.RepoRoot, "web", "Pages", "Admin.razor"));
+
+        var declared = Regex.Match(adminJs,
+            @"export const MAX_CHARACTER_LIMIT\s*=\s*(?<value>\d+)\s*;",
+            RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        Assert.True(declared.Success,
+            "worker/adminAccounts.js no longer exports MAX_CHARACTER_LIMIT as a literal, so there "
+            + "is nothing to pin the cap box's max to and this test would pass whatever it was.");
+
+        var box = Regex.Match(razor,
+            @"<input id=""@capId"" type=""number"" min=""(?<min>\d+)"" max=""(?<max>\d+)""",
+            RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        Assert.True(box.Success,
+            "web/Pages/Admin.razor no longer draws the cap as a number input with min and max, so "
+            + "this test cannot see the bound the browser enforces.");
+
+        Assert.Equal(declared.Groups["value"].Value, box.Groups["max"].Value);
+        Assert.Equal("0", box.Groups["min"].Value);
+
+        // And the floor the server checks is still zero, so the pair above is the whole range
+        // rather than half of it.
+        Assert.Contains("characterLimit < 0", adminJs, StringComparison.Ordinal);
+    }
+
     /// <summary>The keys of a JavaScript object literal, sorted.</summary>
     private static string[] LiteralKeys(string body) =>
         [.. Regex.Matches(body, @"(\w+):", RegexOptions.None, TimeSpan.FromSeconds(5))

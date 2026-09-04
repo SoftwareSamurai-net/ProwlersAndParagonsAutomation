@@ -546,12 +546,58 @@ public sealed class FakeApi : HttpMessageHandler
     /// <summary>Set to have a player's sheets refuse, the shape of a membership ended mid-read.</summary>
     public bool HeldCharactersUnavailable { get; set; }
 
+    /// <summary>
+    /// Set to have the list of players answer a status this client does not model — a 500.
+    ///
+    /// <para><b>The mirror of <see cref="HeldCharactersUnavailable"/>, and it exists because the
+    /// panel could not be driven into the state it was getting wrong.</b> Storage failing under
+    /// the list is not a decision about the reader, and the panel drew it as *"Nobody is in one
+    /// of your campaigns yet."* — a GM told their games are empty on the strength of a request
+    /// that failed. A knob rather than <see cref="Unreachable"/> for the reason
+    /// <see cref="CapChangeBreaks"/> gives: taking the server away refuses the page's own gate
+    /// too, so the panel is never drawn and its sentence is unreachable.</para>
+    /// </summary>
+    public bool ManagedAccountsUnavailable { get; set; }
+
+    /// <summary>
+    /// Answers held until a test lets them go, keyed by the address whose sheets were asked for.
+    ///
+    /// <para><b>The only way to have two requests in flight at once</b>, which is the state the
+    /// disclosure was getting wrong: everything else here answers before the click returns, so
+    /// there is no window in which a second row can be opened. Complete the source and that
+    /// address's answer is handed over as it always would have been.</para>
+    /// </summary>
+    public Dictionary<string, TaskCompletionSource> HoldSheets { get; } =
+        new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Every held answer that has since been let go, in the order they were handed over.
+    ///
+    /// <para><b>The positive control for a test about a stale answer being dropped.</b> That test
+    /// is an absence, and an absence over a response that never came back at all is satisfied for
+    /// free — which is the single most common way a check in this repository has been wrong.</para>
+    /// </summary>
+    public List<string> Released { get; } = [];
+
     private Task<HttpResponseMessage> ManagedAccountList()
     {
         if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
         if (!ManagesInvitations) return Status(HttpStatusCode.NotFound);
+        if (ManagedAccountsUnavailable) return Status(HttpStatusCode.InternalServerError);
 
         return Json($$"""{"accounts":[{{string.Join(",", Players.Select(Row))}}]}""");
+    }
+
+    /// <summary>An answer that does not arrive until the gate opens. See <see cref="HoldSheets"/>.</summary>
+    private async Task<HttpResponseMessage> WhenReleased(
+        string email, TaskCompletionSource gate, Task<HttpResponseMessage> answer)
+    {
+        await gate.Task;
+
+        var response = await answer;
+        Released.Add(email);
+
+        return response;
     }
 
     private static string Row(
@@ -617,7 +663,11 @@ public sealed class FakeApi : HttpMessageHandler
              "spent":{{s.Spent?.ToString(CultureInfo.InvariantCulture) ?? "null"}}}
             """);
 
-        return Json($$"""{"email":{{Quote(email)}},"characters":[{{string.Join(",", rows)}}]}""");
+        var answer = Json($$"""{"email":{{Quote(email)}},"characters":[{{string.Join(",", rows)}}]}""");
+
+        return HoldSheets.TryGetValue(email, out var gate)
+            ? WhenReleased(email, gate, answer)
+            : answer;
     }
 
     /// <summary>

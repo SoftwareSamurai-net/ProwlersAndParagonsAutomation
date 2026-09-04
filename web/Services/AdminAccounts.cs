@@ -147,16 +147,31 @@ public sealed class AdminAccounts
 
             // 404 is what an account this is not for is told, deliberately — the same answer an
             // address this server does not route gives, so an ordinary account cannot learn the
-            // endpoint exists. Also what a site with no server at all eventually produces.
-            if (!response.IsSuccessStatusCode)
+            // endpoint exists.
+            if (response.StatusCode == HttpStatusCode.NotFound)
             {
                 return AdminAccountsView.Refused(AdminAccountsRequest.NotForYou);
             }
 
+            // **Everything else that is not a 2xx is the server being broken, not a decision about
+            // the reader** — and folding the two together is the defect this branch shipped. A 500
+            // from storage, a 502 from in front of it and a 405 from a route that moved all arrived
+            // as "this is not for you", which the panel drew as *"Nobody is in one of your
+            // campaigns yet."* A GM was told their games are empty on the strength of a request
+            // that failed — which is exactly the rule the panel already keeps one level down, where
+            // a player who holds nothing and a list that could not be read are two sentences.
+            if (!response.IsSuccessStatusCode)
+            {
+                return AdminAccountsView.Refused(AdminAccountsRequest.Unavailable);
+            }
+
             var body = await response.Content.ReadFromJsonAsync<WiredAccounts>(Wire);
 
+            // A 200 carrying something that is not this answer is the site deployed without its
+            // server: its own `index.html` under every address. Not a decision about the reader
+            // either, so it lands on the same side as the statuses above.
             return body?.Accounts is null
-                ? AdminAccountsView.Refused(AdminAccountsRequest.NotForYou)
+                ? AdminAccountsView.Refused(AdminAccountsRequest.Unavailable)
                 : new AdminAccountsView(AdminAccountsRequest.Loaded, body.Accounts);
         }
         catch (Exception e) when (IsUnreachable(e))

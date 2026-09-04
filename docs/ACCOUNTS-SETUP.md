@@ -360,9 +360,11 @@ and inventing a role to answer it looked like a far larger change than reading a
 What changed is that the invitation-list work made "am I an admin" a question the *server*
 already answers, on every request, for an unrelated reason. Gating a read-only error-log endpoint
 behind that existing check adds no role to `Identity` and no new concept — it is the same
-question `/api/admin/invitations` already asks. The character-limit cap above is a different
-case and is unaffected: raising it is a write with no gate built for it yet, so it stays a
-by-hand `UPDATE`.
+question `/api/admin/invitations` already asks. **The character-limit cap above went the same
+way, for the same reason and one slice later**: the `Who plays in your campaigns` panel on
+`/admin` sets the cap of anybody who is a player in a campaign you run, behind that same check.
+The by-hand `UPDATE` is what is left over — your own cap, and an account that is not in one of
+your games.
 
 **One row per `(category, route)`, counted rather than appended.** A failing dependency throws on
 every request, so a log with a row per occurrence would turn one outage into a full database.

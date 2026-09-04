@@ -139,6 +139,34 @@ test('the redaction takes out the shapes it claims to, and leaves prose alone', 
     assert.equal(redact(''), '');
 });
 
+test('an address whose local part is not ASCII is still taken out whole', () => {
+    // **The local part used to be `[A-Za-z0-9._%+-]+`, which is not what an address may hold.**
+    // Anything outside that set ended the match early and only the tail was replaced, so the
+    // recognisable half of a real person's address stayed in `error_log.detail` — the one column
+    // whose whole design is that it is safe to read aloud. A unicode local part is ordinary
+    // (`users.email` is a text column and `normaliseEmail` lower-cases rather than transliterates),
+    // and a quoted one may hold a slash.
+    for (const address of ['dorián@example.test', 'ríoghnach.ní.bhriain@example.test',
+                           'a/b@example.test', "o'brien+p&p@example.test", '日本@example.test']) {
+        const detail = redact(`the provider refused ${address} outright`);
+
+        assert.equal(detail, 'the provider refused [address] outright',
+            `part of ${address} survived redaction as ${detail}`);
+    }
+
+    // Bare local parts, the other arm, on the same terms.
+    assert.equal(redact('no row for dorián@localhost'), 'no row for [address]');
+
+    // **The positive control, and it is the half that keeps this honest**: a rule wide enough to
+    // eat the address is wide enough to eat the sentence around it, and `[address]` on its own
+    // would satisfy every assertion above. The words either side have to still be there.
+    const around = redact('D1_ERROR: UNIQUE constraint failed on dorián@example.test at insert');
+
+    assert.equal(around,
+        'D1_ERROR: UNIQUE constraint failed on [address] at insert',
+        'the redaction ate the message around the address as well as the address');
+});
+
 // ---------------------------------------------------------------------------------------------
 // 2. The public body carries a category and a reference, and no exception text.
 // ---------------------------------------------------------------------------------------------

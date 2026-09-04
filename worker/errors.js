@@ -236,9 +236,17 @@ export function redact(message) {
     const cleaned = message
         // Addresses first, so what is left of one is labelled as an address rather than
         // disappearing into the token rule below.
-        .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[address]')
+        //
+        // **The local part is any run of characters that is not whitespace and not another `@`**,
+        // rather than the RFC-ish `[A-Za-z0-9._%+-]+` it used to be. That set is not what an
+        // address is allowed to hold — a unicode local part is ordinary, a quoted one may hold a
+        // slash — and every character outside it ended the match early, so `dorián@example.test`
+        // left `dori` in front of an `[address]` and `"a/b"@example.test` left the whole first
+        // half in `error_log.detail`. Over-matching here costs a word of legibility either side of
+        // the address, which is the trade this whole function is written to make.
+        .replace(/[^\s@]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[address]')
         // A local part with no dotted domain is still an address, and D1 quotes them bare.
-        .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+/g, '[address]')
+        .replace(/[^\s@]+@[A-Za-z0-9.-]+/g, '[address]')
         .replace(/[A-Za-z0-9_-]{20,}/g, '[redacted]')
         .replace(/\s+/g, ' ')
         .trim();

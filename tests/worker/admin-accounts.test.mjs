@@ -242,6 +242,14 @@ test('the caller is never in their own list and cannot cap themselves', async ()
     const refused = await setLimit(app, boss, ADMIN, 500);
     assert.equal(refused.status, 404);
 
+    // **And the third statement, which had no test at all.** `db.playerOfGm` carries the same
+    // `u.id <> ?` and nothing was asking it to: the whole file stayed green with the clause taken
+    // out, so a GM could have read their own account's characters back through a screen that is
+    // supposed not to be about them. Same 404 as the two above, and for the same reason —
+    // in-scope-but-empty and out-of-scope must not be told apart here.
+    assert.equal((await heldBy(app, boss, ADMIN)).status, 404,
+        'a GM reached their own account through the screen that excludes them');
+
     // Nothing moved, which is what the 404 has to mean here.
     const own = await (await app.call('/api/characters', { cookie: boss })).json();
     assert.equal(own.limit, 5, 'the caller raised their own cap through the admin screen');

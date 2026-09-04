@@ -1,5 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
+using Bunit.Extensions.WaitForHelpers;
+using Microsoft.Extensions.DependencyInjection;
 using ProwlersAndParagonsAutomation.Web.Pages;
 
 namespace ProwlersAndParagons.Web.Tests;
@@ -388,6 +390,10 @@ public sealed class AdminPageTests
         var page = ctx.Render<Admin>();
 
         Assert.Contains("Nobody is in one of your campaigns yet", page.Markup, StringComparison.Ordinal);
+
+        // And it really is reassurance rather than the panel's own failure sentence, which is the
+        // distinction `PlayersThatCouldNotBeReadDoNotReadAsAGmWithNoPlayers` is the other half of.
+        Assert.DoesNotContain("could not be read", page.Markup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -599,11 +605,291 @@ public sealed class AdminPageTests
         Assert.Contains("GET /api/admin/accounts", ctx.Api.Asked);
     }
 
+    /// <summary>
+    /// A list that could not be read is not the same sentence as a GM with no players.
+    ///
+    /// <para><b>The panel shipped with these folded together and it is the worst kind of quiet
+    /// wrong answer</b>: <c>ListAsync</c> turned every non-2xx into "not for you", the page turned
+    /// everything that was not <c>Loaded</c> into an empty list, and one 500 out of storage drew
+    /// *"Nobody is in one of your campaigns yet."* A GM was told their games are empty on the
+    /// strength of a request that failed — the same fault the disclosure one level down was
+    /// deliberately written not to have.</para>
+    /// </summary>
+    [Fact]
+    public void PlayersThatCouldNotBeReadDoNotReadAsAGmWithNoPlayers()
+    {
+        using var ctx = WithAPlayer();
+        ctx.Api.ManagedAccountsUnavailable = true;
+
+        var page = ctx.Render<Admin>();
+
+        Assert.Contains("could not be read", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Nobody is in one of your campaigns", page.Markup,
+            StringComparison.Ordinal);
+
+        // Nothing is offered to edit over a list nobody has, and the count says so rather than
+        // reporting the zero it did not measure.
+        Assert.Empty(page.FindAll("#cap-0"));
+        Assert.DoesNotContain("0 players", page.Markup, StringComparison.Ordinal);
+
+        // The positive control: the two panels either side of it still drew, so this is a panel
+        // reporting a failure rather than a page that fell over.
+        Assert.Contains("guest@example.test", page.Markup, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A refusal and a failure are two answers out of the list itself.
+    ///
+    /// <para><b>The panel's sentence cannot tell them apart and should not try</b> — it says
+    /// "could not be read" for everything that is not <c>Loaded</c>, which is the right thing to
+    /// say to a GM and useless as a guard on the mapping. So the mapping is asserted where it is
+    /// made. <b>404 is the gate</b> and the only status that is a decision about the reader; a
+    /// 500, a 502 from in front of the server, a 405 from a route that has moved are the server
+    /// being broken, and folding them into the gate's answer is what let one failed read draw
+    /// <em>"Nobody is in one of your campaigns yet."</em></para>
+    /// </summary>
+    [Fact]
+    public async Task ARefusalAndAFailureAreTwoAnswersOutOfTheListItself()
+    {
+        await using var ctx = WithAPlayer();
+        var accounts = ctx.Services.GetRequiredService<AdminAccounts>();
+
+        // The positive control, first: this fixture really does load, so the three refusals below
+        // are the knobs doing something rather than the request failing whatever is set.
+        Assert.Equal(AdminAccountsRequest.Loaded, (await accounts.ListAsync()).Result);
+
+        // The gate's own 404 — the same answer an unrouted address gets, deliberately.
+        ctx.Api.ManagesInvitations = false;
+        Assert.Equal(AdminAccountsRequest.NotForYou, (await accounts.ListAsync()).Result);
+
+        // Storage failing underneath a caller the gate was perfectly happy with.
+        ctx.Api.ManagesInvitations = true;
+        ctx.Api.ManagedAccountsUnavailable = true;
+        Assert.Equal(AdminAccountsRequest.Unavailable, (await accounts.ListAsync()).Result);
+
+        // A site deployed without its server: its own page, under every address, with a 200.
+        ctx.Api.ManagedAccountsUnavailable = false;
+        ctx.Api.ServerNotDeployed = true;
+        Assert.Equal(AdminAccountsRequest.Unavailable, (await accounts.ListAsync()).Result);
+
+        ctx.Api.ServerNotDeployed = false;
+        ctx.Api.SignedIn = null;
+        Assert.Equal(AdminAccountsRequest.NotSignedIn, (await accounts.ListAsync()).Result);
+    }
+
+    /// <summary>
+    /// A box with nothing in it is not a number, and Save may not be live over one.
+    ///
+    /// <para><b>The draft was a parsed <c>int</c>, so an unparseable box kept the last thing that
+    /// did parse.</b> Type 25, clear the box, and Save stayed live against a 25 nothing on screen
+    /// was showing — a control whose effect is not the state of the control. The draft is the text
+    /// now.</para>
+    /// </summary>
+    [Fact]
+    public void ABoxWithNoNumberInItPutsSaveOutOfReach()
+    {
+        using var ctx = WithAPlayer();
+
+        var page = ctx.Render<Admin>();
+
+        page.Find("#cap-0").Input("25");
+
+        // The positive control: without this the assertion below is satisfied by a button that was
+        // never live at all, which is a different bug and not this one.
+        Assert.False(Save(page).HasAttribute("disabled"),
+            "Save never went live, so nothing here is about clearing the box");
+
+        page.Find("#cap-0").Input("");
+
+        Assert.True(Save(page).HasAttribute("disabled"),
+            "Save is live over an empty box, so pressing it writes a number nothing is showing");
+
+        // And the box shows what was typed rather than the number the page last managed to parse.
+        Assert.Equal("", page.Find("#cap-0").GetAttribute("value"));
+
+        // The other spellings a `type="number"` box hands over as text.
+        foreach (var nonsense in new[] { "-", "--", "1e5", "  " })
+        {
+            page.Find("#cap-0").Input(nonsense);
+
+            Assert.True(Save(page).HasAttribute("disabled"), $"Save is live over \"{nonsense}\"");
+        }
+
+        // Still reachable afterwards: this disables Save, it does not break the row.
+        page.Find("#cap-0").Input("25");
+        Assert.False(Save(page).HasAttribute("disabled"));
+    }
+
+    /// <summary>
+    /// Saving one row leaves what is half-typed in another row alone.
+    ///
+    /// <para><b><c>Reload</c> cleared every draft</b> — after a cap, after an invitation, after a
+    /// withdrawal — so a GM typing a number into the second row and saving the first watched the
+    /// second box snap back to the server's value with nothing said. Only a row that has actually
+    /// gone from the list may take its draft with it.</para>
+    /// </summary>
+    [Fact]
+    public void SavingOneRowDoesNotThrowAwayWhatIsTypedInAnother()
+    {
+        using var ctx = WithAPlayer();
+        ctx.Api.Players.Add(("second@example.test", "Vanta", 1, 5));
+
+        var page = ctx.Render<Admin>();
+
+        page.Find("#cap-1").Input("40");
+        page.Find("#cap-0").Input("25");
+
+        Save(page).Click();
+
+        page.WaitForAssertion(() =>
+            Assert.Contains("2 of 25 characters", page.Markup, StringComparison.Ordinal));
+
+        // The second row's box still holds what was typed into it, and its Save is still live.
+        Assert.Equal("40", page.Find("#cap-1").GetAttribute("value"));
+        Assert.False(
+            page.FindAll("button").Last(b => b.TextContent.Trim() is "Save" or "Saving…")
+                .HasAttribute("disabled"),
+            "the second row's Save went dead, so its draft was discarded");
+
+        // And the saved row is quiet again, because what is in its box is what the server holds.
+        Assert.True(Save(page).HasAttribute("disabled"));
+    }
+
+    /// <summary>
+    /// A player who has left the list takes their draft with them.
+    ///
+    /// <para>The half of the old <c>Clear()</c> that was right: a draft kept against an address
+    /// that is no longer drawn would be waiting to reappear in a box beside somebody else's
+    /// number if that player ever came back with a different cap.</para>
+    /// </summary>
+    [Fact]
+    public void ADraftAgainstAPlayerWhoHasGoneGoesWithThem()
+    {
+        using var ctx = WithAPlayer();
+        ctx.Api.Players.Add(("second@example.test", "Vanta", 1, 5));
+
+        var page = ctx.Render<Admin>();
+
+        page.Find("#cap-1").Input("40");
+
+        // They leave the campaign between one answer and the next, and the row that was theirs is
+        // now the first player's.
+        ctx.Api.Players.RemoveAll(p => p.Email == "second@example.test");
+
+        page.Find("#cap-0").Input("25");
+        Save(page).Click();
+
+        page.WaitForAssertion(() =>
+            Assert.Contains("2 of 25 characters", page.Markup, StringComparison.Ordinal));
+
+        Assert.DoesNotContain("second@example.test", page.Markup, StringComparison.Ordinal);
+        Assert.DoesNotContain("40", page.Markup, StringComparison.Ordinal);
+
+        // Put them back with a different cap: the box shows the server's number, not the 40.
+        ctx.Api.Players.Add(("second@example.test", "Vanta", 1, 7));
+        page.Find("#cap-0").Input("30");
+        Save(page).Click();
+
+        page.WaitForAssertion(() =>
+            Assert.Contains("second@example.test", page.Markup, StringComparison.Ordinal));
+        Assert.Equal("7", page.Find("#cap-1").GetAttribute("value"));
+    }
+
+    /// <summary>
+    /// An answer nobody is waiting for any more is dropped rather than drawn.
+    ///
+    /// <para><b>There is one open disclosure and one <c>_sheets</c> behind it.</b> Opening the
+    /// second player's sheets while the first player's request is still in flight let the first
+    /// player's characters land underneath the second player's name — a GM reading one person's
+    /// sheets attributed to another, which is worse than either row failing to draw at all.</para>
+    /// </summary>
+    [Fact]
+    public void AnAnswerForARowNobodyIsLookingAtAnyMoreIsDropped()
+    {
+        using var ctx = WithAPlayer();
+        ctx.Api.Players.Add(("second@example.test", "Vanta", 1, 5));
+        ctx.Api.Held["player@example.test"] = [("c_0", "Ninefold", 1_700_000_000_000, null, null, null)];
+        ctx.Api.Held["second@example.test"] = [("c_1", "Riptide", 1_700_000_000_000, null, null, null)];
+
+        var slow = new TaskCompletionSource();
+        ctx.Api.HoldSheets["player@example.test"] = slow;
+
+        var page = ctx.Render<Admin>();
+
+        // Open the first row — held — then the second, which answers at once.
+        Disclosures(page)[0].Click();
+        Disclosures(page)[1].Click();
+
+        page.WaitForAssertion(() =>
+            Assert.Contains("Riptide", page.Markup, StringComparison.Ordinal));
+
+        slow.SetResult();
+
+        // **The positive control, and it is the whole of what makes the assertion below mean
+        // anything**: this test is an absence, and an absence over a response that never came
+        // back is satisfied for free. That is the way three of this repository's four historical
+        // guard faults were wrong.
+        page.WaitForAssertion(() =>
+            Assert.Contains("player@example.test", ctx.Api.Released, StringComparer.Ordinal));
+
+        // And now the absence, given two seconds to happen in. Under the defect the first row's
+        // list lands under the second row's open disclosure and this wait *succeeds*, which is
+        // what turns the assertion red.
+        Assert.Throws<WaitForFailedException>(() => page.WaitForAssertion(
+            () => Assert.Contains("Ninefold", page.Markup, StringComparison.Ordinal),
+            TimeSpan.FromSeconds(2)));
+
+        // The row that was asked for last is the one that is open, and it holds its own list.
+        Assert.Equal("true", Disclosures(page)[1].GetAttribute("aria-expanded"));
+        Assert.Equal("false", Disclosures(page)[0].GetAttribute("aria-expanded"));
+        Assert.Contains("Riptide", page.Find("#sheets-1").TextContent, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Every cap box is named by the player it caps.
+    ///
+    /// <para><b>They were all accessibly named "Characters they may keep".</b> The accessible name
+    /// is the whole of what is announced on arriving at a control, so twenty rows were twenty
+    /// boxes a screen-reader user could not tell apart — the address is on screen above each one
+    /// and nothing joined them. A clipped span in the label, the same <c>sr-only</c> idiom the
+    /// term descriptions and the empty-cell notes use.</para>
+    /// </summary>
+    [Fact]
+    public void EachRowsCapBoxIsNamedByThePlayerItCaps()
+    {
+        using var ctx = WithAPlayer();
+        ctx.Api.Players.Add(("second@example.test", "Vanta", 1, 5));
+
+        var page = ctx.Render<Admin>();
+
+        var labels = page.FindAll("label")
+            .Where(l => l.GetAttribute("for")?.StartsWith("cap-", StringComparison.Ordinal) == true)
+            .ToList();
+
+        var names = labels.Select(l => l.TextContent.Trim()).ToList();
+
+        // The positive control: two labels found, so the assertions below are not about an empty
+        // list agreeing with itself.
+        Assert.Equal(2, names.Count);
+
+        Assert.Equal(names.Count, names.Distinct(StringComparer.Ordinal).Count());
+        Assert.Contains(names, n => n.Contains("player@example.test", StringComparison.Ordinal));
+        Assert.Contains(names, n => n.Contains("second@example.test", StringComparison.Ordinal));
+
+        // Still says what the box is for, and the address is only for a reader who cannot see the
+        // row it is in — clipped, never `display: none`, which would take the name with it.
+        Assert.All(names, n => Assert.Contains("Characters they may keep", n, StringComparison.Ordinal));
+        Assert.All(labels, l => Assert.Equal("sr-only", l.QuerySelector("span")?.GetAttribute("class")));
+    }
+
     /// <summary>The first player row's Save button, re-found so a redraw is not read stale.</summary>
     private static IElement Save(IRenderedComponent<Admin> page) =>
         page.FindAll("button").First(b => b.TextContent.Trim() is "Save" or "Saving…");
 
     /// <summary>The first player row's sheets disclosure, on the same terms.</summary>
-    private static IElement Disclosure(IRenderedComponent<Admin> page) =>
-        page.FindAll("button").First(b => b.HasAttribute("aria-expanded"));
+    private static IElement Disclosure(IRenderedComponent<Admin> page) => Disclosures(page)[0];
+
+    /// <summary>Every sheets disclosure, in row order, re-found for the same reason.</summary>
+    private static IReadOnlyList<IElement> Disclosures(IRenderedComponent<Admin> page) =>
+        [.. page.FindAll("button").Where(b => b.HasAttribute("aria-expanded"))];
 }

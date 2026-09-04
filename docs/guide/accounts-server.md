@@ -476,8 +476,11 @@ account. A panel on `/admin` renders them. The contract is `docs/CHARACTERS-API.
 - **The caller is excluded from their own list and cannot cap their own address.** A GM can redeem
   their own join code, so without `u.id <> ?` they would be a player in their own campaign with an
   editable number beside their name — and `docs/CHARACTERS-API.md` states that a cap somebody can
-  raise on themselves is not a cap. The exclusion is in the list *and* in the write, so the rule
-  survives somebody typing the address in rather than clicking a row.
+  raise on themselves is not a cap. The exclusion is in **all three** statements — the list, the
+  read behind their characters, and the write — so the rule survives somebody typing the address in
+  rather than clicking a row. **The third had no test and the suite stayed green without it**, which
+  is exactly the shape of hole this repository keeps finding: one clause of three covered by nobody,
+  because the other two are the ones anybody thinks to drive.
 - **Never the payload.** The characters list answers `label`, `updated_at` and the three index
   columns `0008` added — `kind`, `tier_id`, `spent` — every one written by the client, stored
   verbatim and handed back verbatim. Listing a tier by parsing a sheet would give this server an
