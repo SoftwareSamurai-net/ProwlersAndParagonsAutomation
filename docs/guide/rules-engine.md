@@ -18,7 +18,44 @@ Health  = max(⌈(Toughness + Might) / 2⌉, ⌈(Toughness + Willpower) / 2⌉)
 Resolve = max(0, (TraitCap − highestRelevantRank) × 2)
           + Determination Resolve bought (5 HP each)
           + count of Condition/Plot Hook flaws
+
+TraitCap = CharacterSheet.TraitCapRank ?? tier.TraitCapRank
 ```
+
+**`TraitCap` there is `DerivedStatsCalculator.EffectiveTraitCap(sheet, tier)`, and a *house* cap
+substitutes for the tier’s rather than merely gating validation.** A campaign may impose a ceiling
+no tier expresses — Pinnacle City caps a non-superhuman NPC at 6d where the Standard tier allows
+12d — and `CharacterSheet.TraitCapRank` is that ceiling, null meaning “the tier’s”.
+
+The owner settled the design question on 2026-09-05, and the arithmetic is the reason there was no
+honest alternative: **the cap *is* the datum Resolve is measured from.** Gate on a 6d house cap
+while the tier’s 12d keeps doing the arithmetic and a character sitting at 4d is paid
+`(12 − 4) × 2 = 16` Resolve for a restraint the campaign imposed on them rather than one they chose.
+Substituting pays `(6 − 4) × 2 = 4`, and staying low becomes a decision with a price — spend the
+room under the cap on power, or leave it unspent and take the Resolve. The trade is the player’s to
+make.
+
+Two consequences come with it, both intended:
+
+- **A tighter cap lowers the Resolve *ceiling* too** — 24 at a 12d cap, 12 at 6d — which is what
+  being tied to the cap means in the other direction, and reads as a nerf the first time somebody
+  sees it. `ATighterCapLowersTheResolveCeiling` pins both figures.
+- **It is noise on a Villain.** Only Heroes have Resolve (below), so on the NPC sheets that
+  surfaced this the house cap is doing validation work and the Resolve half is a figure nobody
+  should quote. Both halves land; only one is visible per kind of character.
+
+**Read the cap through `EffectiveTraitCap` and nowhere else.** Six places answer “what is this
+character’s cap” — `CalculateResolve`, `CharacterValidator.CheckTraitCap`,
+`CharacterSession.TraitCap`, `BuildCommand`, `Judgement` and the JSON export — and a seventh
+spelling of `sheet.TraitCapRank ?? tier.TraitCapRank` is how one of them ends up disagreeing with
+the figure printed beside it.
+
+**Nonsense is reported and still used, like everything else here.** A house cap above the tier’s is
+`TRAIT_CAP_ABOVE_TIER` (`Value` the house cap, `Limit` the tier’s) and one below 1d is
+`TRAIT_CAP_BELOW_MINIMUM` (`Limit` 1) — and `EffectiveTraitCap` still answers the number as
+written, so the Resolve and the `TRAIT_ABOVE_CAP` findings beside them agree with the character’s
+own file. Clamping would be the engine making a design decision about somebody’s game and would
+leave the finding describing a number nothing used.
 
 Three Edge details are easy to get wrong and were all bugs at one point: Danger Sense **replaces** Perception rather than adding to it, Lightning Reflexes is a **flat +6** with no rank, and Super Speed is missing from most summaries. All three are verified against Ch.2 — p.60 names the three, and their own entries are pp.25, 33 and 44.
 

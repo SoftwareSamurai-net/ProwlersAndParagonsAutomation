@@ -318,6 +318,76 @@ public sealed class DerivedStatsCalculatorTests
                 power, new SelectedPower(power.Id, 0) { BaselineTraitId = "might" }));
     }
 
+    // ── The house Trait Cap ──────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>The character's own cap wins, and the tier's answers when it has none.</b> Both
+    /// directions are asserted from one tier so that a method which simply returned its argument
+    /// cannot pass: a house cap under the tier's and one over it both come back as written.
+    /// </summary>
+    [Theory]
+    [InlineData(null, 12)]
+    [InlineData(6, 6)]
+    [InlineData(20, 20)]
+    public void TheEffectiveCapIsTheCharactersOwnOrTheTiers(int? house, int expected)
+    {
+        var tier  = _f.Rules.GetTier("standard")!;
+        var sheet = new CharacterSheet { SelectedTierId = "standard", TraitCapRank = house };
+
+        Assert.Equal(12, tier.TraitCapRank);
+        Assert.Equal(expected, DerivedStatsCalculator.EffectiveTraitCap(sheet, tier));
+    }
+
+    /// <summary>
+    /// A character with neither has no cap, rather than a zero anybody could measure against —
+    /// and a house cap answers with no tier at all, which is what makes it the character's own.
+    /// </summary>
+    [Fact]
+    public void WithNoTierTheCapIsTheHouseOneOrNothing()
+    {
+        Assert.Null(DerivedStatsCalculator.EffectiveTraitCap(new CharacterSheet(), null));
+        Assert.Equal(6, DerivedStatsCalculator.EffectiveTraitCap(
+            new CharacterSheet { TraitCapRank = 6 }, null));
+    }
+
+    /// <summary>
+    /// <b>A tighter cap lowers the Resolve ceiling, which is the consequence the owner asked to
+    /// be carried into the slice.</b> Resolve is measured from the cap, so the most a character
+    /// can hold is twice it — 24 at a 12d cap and 12 at 6d — and this is the half that reads as a
+    /// nerf the first time somebody meets it. Measured on a character sitting at the 1d floor,
+    /// which is as far from the cap as a legal Trait gets.
+    /// </summary>
+    [Theory]
+    [InlineData(null, 22)]
+    [InlineData(6, 10)]
+    public void ATighterCapLowersTheResolveCeiling(int? house, int expected)
+    {
+        var sheet = new CharacterSheet { SelectedTierId = "standard", TraitCapRank = house };
+        foreach (var ability in _f.Rules.Abilities) sheet.AbilityRanks[ability.Id] = 1;
+
+        // (cap - 1) x 2: one rank under the ceiling of 2 x cap, because 0d is not a legal Trait.
+        Assert.Equal(expected, _f.Derived.CalculateResolve(sheet));
+    }
+
+    /// <summary>
+    /// <b>A house cap the validator refuses still does the arithmetic.</b> The engine reports and
+    /// never repairs, so a cap above the tier's is an error <em>and</em> the figure it produces —
+    /// clamping it here would make the finding beside it describe a number nothing used.
+    /// </summary>
+    [Fact]
+    public void ACapAboveTheTiersIsStillTheOneResolveIsMeasuredFrom()
+    {
+        var sheet = new CharacterSheet
+        {
+            SelectedTierId = "standard",
+            TraitCapRank = 20,
+            AbilityRanks = { ["might"] = 4 },
+        };
+
+        Assert.Equal(32, _f.Derived.CalculateResolve(sheet));   // (20 - 4) x 2, not (12 - 4) x 2
+        Assert.Contains(_f.Validator.Validate(sheet).Issues, i => i.Code == "TRAIT_CAP_ABOVE_TIER");
+    }
+
     [Fact]
     public void EffectiveRankIsBaselinePlusPurchased()
     {

@@ -590,9 +590,14 @@ the storage half, which shipped a slice earlier.
   Resolve, which is `(TraitCap − highestRelevantRank) × 2`. `AnEmptyTierIsInherited` is the positive
   control that keeps the mismatch assertion from being an absence satisfied by a join that does
   nothing.
-- **The Trait Cap on a campaign is reported and never enforced**, deliberately and with the owner's
-  approval. `CampaignTests.ACampaignsTraitCapDoesNotMoveResolve` pins it at three caps including
-  none. Do not add a `TraitCapOverride` to `CharacterSheet` and do not touch `CheckTraitCap`.
+- **A campaign's Trait Cap is copied onto the character and is read from there, never from the
+  campaign.** That deferral is over: the owner settled on 2026-09-05 that a house cap *substitutes*
+  for the tier's, so it moves Resolve — see [`rules-engine.md`](rules-engine.md) for the
+  arithmetic and why gating was not an honest alternative. What survives unchanged is the route.
+  `CharacterSheet.TraitCapRank` is a field on the character; `Campaign.TraitCapRank` is still read
+  by nothing that computes anything, and `CampaignTests.ACampaignsTraitCapIsNotReadFromTheCampaign`
+  pins that at three caps including none. **If a reader for `CampaignId` is ever written, that is
+  the test that fails.**
 - **`CampaignId` is not in `CharacterSession.IsWorthKeeping`, and must not be.** Adding it would
   make picking a campaign create a real, listed, empty character the moment it happened — verbatim
   the defect that predicate was added to fix.
