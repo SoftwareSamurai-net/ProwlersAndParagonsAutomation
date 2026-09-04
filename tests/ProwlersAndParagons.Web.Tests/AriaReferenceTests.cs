@@ -27,8 +27,8 @@ namespace ProwlersAndParagons.Web.Tests;
 ///
 /// <para><b>What this does not do is close the screen-reader item.</b> It is a structural check and
 /// nothing more: it cannot hear an announcement, cannot tell a useful description from a useless
-/// one, and cannot say whether a live region fires at the right moment. `docs/HANDOVER.md` records
-/// that testing with a real screen reader is owed on eight surfaces, and this test is not a
+/// one, and cannot say whether a live region fires at the right moment. `PROGRESS.md`'s item 10
+/// records that testing with a real screen reader is owed on eight surfaces, and this test is not a
 /// substitute for any of it — it removes one whole class of silent breakage so that a person doing
 /// that work is not spending it on broken plumbing.</para>
 /// </summary>

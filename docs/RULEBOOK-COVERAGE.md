@@ -162,7 +162,7 @@ edit contradicting the book fails a test. This one cannot fail a test, because i
 
 ### One thing this corrected, which was written down wrong
 
-An earlier draft of `docs/HANDOVER.md` said the **ABILITY RANKS and TALENT RANKS tables** (Ch.2
+An earlier session note said the **ABILITY RANKS and TALENT RANKS tables** (Ch.2
 pp.17–18 — Impaired/Undeveloped/…, Clueless/Unskilled/…) were "not in `data/rules/` at all" and
 told the next session to extract them. **They are there and they are read**: `rank_guide` on
 every entry in `abilities.json` and `talents.json`, bound to `AbilityModel.RankGuide` and

@@ -82,7 +82,7 @@ character; 14 and 3 are the same question about play rules from two directions. 
 merge cleanly can still contradict each other, so take them one at a time and re-read this file
 between.
 
-[`docs/HANDOVER.md`](docs/HANDOVER.md) picks three of these and says what a slice on each would actually involve, including which approaches are already spent. Read it before choosing; read the entry here before starting.
+Each entry below says what a slice on it would actually involve, including which approaches are already spent. Read the entry here before starting.
 
 ### 1. Close the last four Heroes
 
@@ -568,7 +568,39 @@ five green checks as more than they are:
   behavioural and both still only asserted by a `file://` proof page.
 - **Screen readers**, which stay owed and which no harness closes: it needs a person with a screen
   reader, and asserting `aria-pressed` is the string `"true"` is not the same as having been
-  listened to. `docs/HANDOVER.md` says so and should keep saying so.
+  listened to. **This is a decision, not a backlog gap** — *"I don't care about accessibility /
+  screen reader stuff. So defer until the application is finished. Which it is far from."* — the
+  owner, 2026-08-27. Do not spend a slice on it and do not offer it as the next thing to do. It
+  stays recorded because the debt is real, and it is owed on eight surfaces: the command palette,
+  the pips, the sign-in page, the light/dark control, the row descriptions, the rules search, the
+  row findings and the undo announcement.
+
+  **The structural half is done and does not need revisiting.** `AriaReferenceTests` sweeps every
+  rendered surface and resolves every `aria-describedby`, `aria-labelledby` and `aria-controls`
+  token, so a dangling IDREF cannot reach whoever eventually does the real work — it carries a
+  count as its own positive control, since every assertion in it is an absence and a sweep that
+  rendered nothing would satisfy all of them. It cannot hear an announcement, and it is not
+  progress against the eight surfaces above. Keep writing components to the rules in
+  [`docs/guide/browser.md`](docs/guide/browser.md) — the `title`-attribute ban, string-valued ARIA
+  booleans, conditional `aria-controls` — because those are cheap at the time and expensive to
+  retrofit.
+
+**A fourth gap, found while fixing a leak rather than by design: `kill_tree` itself is unproven.**
+`stop_server`'s Linux arm used `pkill -P`, which kills direct children only — wrangler's tree is
+`npx` → node → `workerd`, so `workerd` outlived its step still holding a port. The fix walks
+`/proc/<pid>/stat` recursively. The identical defect then reappeared on macOS, which has no
+`/proc`, so `children_of` returned nothing there too, silently, and `kill_tree` again killed only
+the `npx` wrapper — measured at six `wrangler`/`workerd` groups still listening on 8788–8793 after
+a completed run, with the run still reporting PASS. Both platforms are now fixed (macOS falls back
+to `pgrep -P`), and **both were verified only by outcome** — zero leaked processes and no held
+ports after a full run — **never by driving `kill_tree` directly**. `port_in_use` alone masks the
+leak by stepping over the held port, so a green run cannot distinguish "nothing leaked" from
+"something leaked and nothing looked". What is missing: start a server, call `stop_server`, and
+assert directly that nothing is listening and no `workerd` process remains, on both the Linux path
+(in a container, since the obvious `bash -c '…' &` fixture collapses to one process — `exec`
+replaces it rather than forking a real multi-process tree to kill) and the macOS path. See
+[`docs/progress/2026-09-04-the-stage-two-brief.md`](docs/progress/2026-09-04-the-stage-two-brief.md)
+item 3 for the container recipe already worked out.
 
 #### One thing the accessibility check found that is a decision, not a defect
 
@@ -1002,8 +1034,7 @@ Not urgent. The site works, and a returning visitor pays nothing.
 
 ### 6. The mutation-audit backlog — **closed**, all 33
 
-**Recorded here so it outlives [`docs/HANDOVER.md`](docs/HANDOVER.md)**, which is a note between
-sessions and gets deleted. Three agents that knew nothing about the work were asked, for every
+**Recorded here rather than in a session handover note, which does not outlive the session.** Three agents that knew nothing about the work were asked, for every
 guard test, to name a plausible bug it claims to cover but would not catch, **and to demonstrate
 it by mutation rather than argue it**. They ran 64 mutations and **38 survived**. Five were in the
 rulebook corpus and were fixed at the time; the remaining 33 were grouped into three slices.
@@ -1013,7 +1044,7 @@ rulebook corpus and were fixed at the time; the remaining 33 were grouped into t
 three branches and reconciled afterwards**, which is why each entry quotes a test count measured
 against its own branch rather than against this tree; the reconciled figure is the one in the
 table at the top of this file. The merge touched only this file, `CLAUDE.md` and
-`docs/HANDOVER.md` — no test and no source file was resolved by hand.
+`docs/HANDOVER.md` (since deleted) — no test and no source file was resolved by hand.
 
 None of the 33 was a bug in the product. Every one was a **test that did not hold what it claimed
 to hold**, which is a different and quieter problem: the suite's headline number goes up and its
@@ -1146,7 +1177,7 @@ is now audited too. Full writeup in the entry in [the archive](docs/progress/); 
 Nine browser harnesses asserted verdicts — sticky, narrow, motion, theme, shortcut, insets — and
 none of them looked at a pixel, so four palettes and three new screens were judged by eye. Closed
 by `scripts/visual-regression.sh`, wired into `.github/workflows/build.yml` right after the
-existing proof-harness step. Full account in `docs/HANDOVER.md`; the short version:
+existing proof-harness step:
 
 - Screenshots seven proof pages at a fixed 1280×900 viewport (the four palettes via
   `proof-shell-*.html`, plus the front door in both light and forced dark, plus the rules

@@ -170,7 +170,6 @@ ProwlersAndParagonsAutomation/
 ├── PROGRESS.md                   # What is done and what remains — kept current
 ├── CLAUDE.md                     # The disciplines that apply everywhere, and the guide routing table
 ├── docs/guide/                   # One file per area: the decisions that are expensive to re-derive
-├── docs/HANDOVER.md              # Where the last session stopped and what the next one is for
 ├── docs/MCP-SETUP.md             # Connecting the server to Claude Code or Claude Desktop
 └── Program.cs                    # CLI entry point
 ```

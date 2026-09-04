@@ -3,43 +3,45 @@ name: Build
 on:
   workflow_dispatch:
   pull_request:
-    # **One file now, and it used to be two.** Almost every Markdown file in this repository is
-    # read by a test — `CLAUDE.md` and `docs/guide/*.md` by `RepositoryGuideTests`,
-    # `docs/ACCOUNTS-SETUP.md` by `AccountsContractTests`, `docs/MCP-SETUP.md` and `README.md` by
-    # `McpSetupDocumentationTests`, `mcp/QUESTION-POLICY.md` by `McpQuestionPolicyTests` — so
-    # "it is only docs" is false here far more often than it looks. Editing the index past its
-    # line budget, or adding a guide the routing table does not name, is a red build.
+    # **Two files were ever judged safe to skip here, and now there are none.** `PROGRESS.md` came
+    # off first, once `ProgressArchiveTests` began opening it to hold its completed-work section to
+    # being a pointer rather than a place entries accumulate. `docs/HANDOVER.md` was the second, and
+    # it has been deleted rather than replaced — a session handover note that no longer exists needs
+    # no exemption.
     #
-    # **`PROGRESS.md` came off this list when it stopped being unread.** `ProgressArchiveTests`
-    # opens it now, to hold the completed-work section to being a pointer rather than a place
-    # entries accumulate — which is what the shared anchor between every two concurrent branches
-    # used to be. A skipped path whose contents a test checks is a change that merges without the
-    # build that would have caught it, and `WorkflowFilterTests` says so by name.
+    # Almost every other Markdown file here is read by a test anyway — `CLAUDE.md` and
+    # `docs/guide/*.md` by `RepositoryGuideTests`, `docs/ACCOUNTS-SETUP.md` by
+    # `AccountsContractTests`, `docs/MCP-SETUP.md` and `README.md` by `McpSetupDocumentationTests`,
+    # `mcp/QUESTION-POLICY.md` by `McpQuestionPolicyTests` — so "it is only docs" is false here far
+    # more often than it looks, and a skipped path whose contents a test checks is a change that
+    # merges without the build that would have caught it.
     #
-    # The file it left behind is 85% smaller for the same reason, so what a build now runs over is
-    # open work and a state table rather than six thousand lines of archive.
-    paths-ignore:
-      - 'docs/HANDOVER.md'
+    # **There is deliberately no skip key here at all, rather than an empty one.** The two mean the
+    # same thing to Actions, but a key sitting empty reads as an invitation to put something back
+    # the moment a file merely looks unread rather than has been shown to be. If one ever earns its
+    # place again, restore the key here and in the other trigger, and add the same path to
+    # `WorkflowFilterTests.KnownInert` — its doc comment says what earning it means.
   push:
     branches:
       - main
-    # **One file now, and it used to be two.** Almost every Markdown file in this repository is
-    # read by a test — `CLAUDE.md` and `docs/guide/*.md` by `RepositoryGuideTests`,
-    # `docs/ACCOUNTS-SETUP.md` by `AccountsContractTests`, `docs/MCP-SETUP.md` and `README.md` by
-    # `McpSetupDocumentationTests`, `mcp/QUESTION-POLICY.md` by `McpQuestionPolicyTests` — so
-    # "it is only docs" is false here far more often than it looks. Editing the index past its
-    # line budget, or adding a guide the routing table does not name, is a red build.
+    # **Two files were ever judged safe to skip here, and now there are none.** `PROGRESS.md` came
+    # off first, once `ProgressArchiveTests` began opening it to hold its completed-work section to
+    # being a pointer rather than a place entries accumulate. `docs/HANDOVER.md` was the second, and
+    # it has been deleted rather than replaced — a session handover note that no longer exists needs
+    # no exemption.
     #
-    # **`PROGRESS.md` came off this list when it stopped being unread.** `ProgressArchiveTests`
-    # opens it now, to hold the completed-work section to being a pointer rather than a place
-    # entries accumulate — which is what the shared anchor between every two concurrent branches
-    # used to be. A skipped path whose contents a test checks is a change that merges without the
-    # build that would have caught it, and `WorkflowFilterTests` says so by name.
+    # Almost every other Markdown file here is read by a test anyway — `CLAUDE.md` and
+    # `docs/guide/*.md` by `RepositoryGuideTests`, `docs/ACCOUNTS-SETUP.md` by
+    # `AccountsContractTests`, `docs/MCP-SETUP.md` and `README.md` by `McpSetupDocumentationTests`,
+    # `mcp/QUESTION-POLICY.md` by `McpQuestionPolicyTests` — so "it is only docs" is false here far
+    # more often than it looks, and a skipped path whose contents a test checks is a change that
+    # merges without the build that would have caught it.
     #
-    # The file it left behind is 85% smaller for the same reason, so what a build now runs over is
-    # open work and a state table rather than six thousand lines of archive.
-    paths-ignore:
-      - 'docs/HANDOVER.md'
+    # **There is deliberately no skip key here at all, rather than an empty one.** The two mean the
+    # same thing to Actions, but a key sitting empty reads as an invitation to put something back
+    # the moment a file merely looks unread rather than has been shown to be. If one ever earns its
+    # place again, restore the key here and in the other trigger, and add the same path to
+    # `WorkflowFilterTests.KnownInert` — its doc comment says what earning it means.
 
 # **Supersede a run rather than racing it.** A force-push to a pull request branch — a rebase, a
 # fixup, a corrected commit message — used to leave the previous run burning to completion on a

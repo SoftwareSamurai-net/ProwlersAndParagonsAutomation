@@ -1157,8 +1157,7 @@ public sealed class WebPresentationTests
 
     /// <summary>
     /// The shell spaces its own direct children with <c>gap</c>, not by leaning on
-    /// <c>.panel</c>'s trailing margin — closing the item recorded in
-    /// <c>docs/HANDOVER.md</c>'s "Still open from before" list.
+    /// <c>.panel</c>'s trailing margin.
     ///
     /// <para><b>The bug this replaces: any non-panel child of the shell got no spacing at
     /// all.</b> <c>.panel</c> carried <c>margin-bottom: var(--space-5)</c>, so a column of
