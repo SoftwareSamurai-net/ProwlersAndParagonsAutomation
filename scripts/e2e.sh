@@ -1,9 +1,28 @@
 #!/usr/bin/env bash
 # Drives the assembled application: the real published site, served by the real `wrangler pages
-# dev`, in real Chrome, over the DevTools Protocol.
+# dev`, in real Chrome.
 #
-#   ./scripts/e2e.sh                 # publish, serve, drive, and drive every twin
-#   ./scripts/e2e.sh --real-only     # skip the negative controls (NOT a full run — see below)
+#   ./scripts/e2e.sh                    # publish, serve, drive, and drive every twin
+#   ./scripts/e2e.sh --driver dotnet    # the same, with the Playwright driver
+#   ./scripts/e2e.sh --real-only        # skip the negative controls (NOT a full run — see below)
+#
+# ------------------------------------------------------------------------------------------------
+# THERE ARE TWO DRIVERS AND THIS SCRIPT IS NEITHER OF THEM.
+#
+# What this file owns is everything *around* a drive: publishing, parsing the wrangler version out
+# of deploy.yml, starting the server from a directory with no `functions/` in it, building each
+# deliberately-broken twin, driving it, and deciding what the verdicts mean. A driver takes a URL
+# and prints three kinds of line. That split is the whole reason a second driver cost a flag here
+# rather than a rewrite.
+#
+#   node    scripts/e2e/drive.mjs — a hand-rolled DevTools Protocol client, five checks. The
+#           default, and the one with a track record.
+#   dotnet  tests/e2e — Microsoft.Playwright, the same five plus `A11Y`, which runs axe-core
+#           inside the page and which the hand-rolled client cannot do at all.
+#
+# **Neither is retired and the second has not replaced the first.** `PROGRESS.md` item 10 states
+# the condition under which `scripts/e2e/` goes, and removing a working harness before its
+# replacement has a record is how an upgrade becomes a regression.
 #
 # Stage one of `PROGRESS.md` item 10, and **anonymous only**: no account, no credential, no
 # bypass. Everything behind sign-in is stage two's business and nothing here reaches for it.
@@ -47,6 +66,15 @@
 # that downloads a second Chrome, and what is actually needed is a WebSocket and a dozen DevTools
 # methods. `scripts/e2e/cdp.mjs` is that, against Node's own global `WebSocket`.
 #
+# **The Playwright driver does not break that and it is worth saying why, because it obviously
+# looks as though it should.** Both its packages are NuGet, restored by the `dotnet restore` this
+# repository already runs — measured at +4 seconds on the runner. And it does not download a
+# browser: `Channel = "chrome"` launches the Google Chrome already on the machine, the same one
+# `cdp.mjs` finds and the same one `ubuntu-latest` ships. So there is no `playwright install`
+# step, nothing to cache, and no *third* renderer beside the runner's Chrome and the digest-pinned
+# selenium/standalone-chrome the pixel goldens need — which docs/guide/testing.md records as
+# costing 32,462 pixels of disagreement on a single page.
+#
 # ------------------------------------------------------------------------------------------------
 # EVERY CHECK HAS A DELIBERATELY-BROKEN TWIN, AND THAT IS NOT OPTIONAL.
 #
@@ -63,9 +91,12 @@
 #     so `drive.mjs` catches inside each check and prints a verdict either way.
 #   - **A twin throws if its documented line has moved**, so it cannot quietly stop reproducing
 #     its defect and start passing for the wrong reason. Same shape as `ProofPages.WithDefect`.
-#   - **Every check must have a twin.** The check names the real run reported and the check names
-#     the twins cover are compared, and a mismatch fails this script. Adding a sixth check without
-#     a negative control is a red run rather than a silence.
+#   - **Every check must have a twin.** The check names the real run reported are compared against
+#     the check names the twins cover, and a check with no twin fails this script. Adding one
+#     without a negative control is a red run rather than a silence. The *converse* — a twin whose
+#     check nobody runs — moved to `E2eDriverTests` when the second driver arrived, because this
+#     script runs one driver and cannot tell "no driver has this check" from "not this one". The
+#     comment at that comparison says so at length; do not restore the equality test.
 #
 # `--real-only` exists for the ten-second local loop while a check is being written. It prints
 # that the run proved nothing about whether the checks can fail, and CI never passes it.
@@ -123,29 +154,43 @@ first_port=8788
 # `release_port` does not cover it, so a hang here may leave one headless Chrome behind.
 drive_deadline=300s
 
-# The command that drives one site. Overridable **only** as a test seam, the same reason as
-# `PP_CHROME_BIN` in scripts/visual-regression.sh and `WRANGLER_BIN` in
-# scripts/apply-migrations.sh: a driver that never returns cannot be arranged with the real one,
-# and a deadline that has never been watched to fire is a claim rather than a guard.
+# **There are two drivers, and which one runs is an argument rather than a guess.**
 #
-# **An array and not a string, which is where `WRANGLER_BIN`'s shape does not carry over.** That
-# one is `npx --yes wrangler@<version>` and word-splits safely because it contains no path. This
-# repository's own checkout is under "Personal Projects", so a `$driver` left to split would tear
-# the script's path in half at the space and run `node` against a directory that does not exist.
-if [ -n "${PP_E2E_DRIVER:-}" ]; then
-  read -r -a driver <<< "$PP_E2E_DRIVER"
-else
-  driver=(node "$root/scripts/e2e/drive.mjs")
-fi
-
+# `scripts/e2e/drive.mjs` is the hand-rolled DevTools Protocol client this script was written
+# for. `tests/e2e` is a C# one over Microsoft.Playwright, which drives the same five checks plus
+# an axe-core accessibility check the other cannot do at all. Both print the same three lines
+# this script reads, which is the only contract between them. **Neither is retired**;
+# `PROGRESS.md` item 10 carries the condition under which the first one is, and until that is met
+# the argument for keeping it is that it is the one with a track record.
+#
+# **`PP_E2E_DRIVER` stays, and is still only a test seam** — same reason as `PP_CHROME_BIN` in
+# scripts/visual-regression.sh and `WRANGLER_BIN` in scripts/apply-migrations.sh: a driver that
+# never returns cannot be arranged with a real one, and a deadline that has never been watched to
+# fire is a claim rather than a guard. **It cannot carry a real driver any more, and that is why
+# `--driver` exists.** `read -r -a` word-splits, this repository's own checkout is under
+# "Personal Projects", and the .NET driver's path therefore tears in half at the space — so the
+# seam that was fine for `node scripts/e2e/drive.mjs` silently could not express the second
+# driver at all. `--driver` builds the array itself and never splits a path.
 real_only=0
+driver_name=node
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --real-only) real_only=1 ;;
+    --driver)
+      shift
+      driver_name="${1:-}"
+      case "$driver_name" in
+        node|dotnet) ;;
+        *) echo "error: --driver takes 'node' or 'dotnet', not '${driver_name}'" >&2; exit 2 ;;
+      esac
+      ;;
     -h|--help)
-      echo "usage: $0 [--real-only]"
+      echo "usage: $0 [--driver node|dotnet] [--real-only]"
       echo ""
+      echo "  --driver      which harness drives the site. 'node' is scripts/e2e/drive.mjs, the"
+      echo "                default and the one with a track record; 'dotnet' is tests/e2e, the"
+      echo "                Playwright one, which also runs the accessibility check."
       echo "  --real-only   drive the real site and skip the twins. NOT a full run: it proves"
       echo "                nothing about whether any check is able to fail."
       echo ""
@@ -158,6 +203,7 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+
 
 # ------------------------------------------------------------------------------------------------
 # The wrangler the deploy uses. Read, never declared here — see this file's header.
@@ -185,6 +231,33 @@ echo "deploy.yml pins wrangler@${wrangler_version}; serving with that."
 
 rm -rf "$twins" "$logs"
 mkdir -p "$work" "$twins" "$logs"
+
+# An array and not a string, which is where `WRANGLER_BIN`'s shape does not carry over: that one
+# is `npx --yes wrangler@<version>` and word-splits safely because it contains no path.
+if [ -n "${PP_E2E_DRIVER:-}" ]; then
+  read -r -a driver <<< "$PP_E2E_DRIVER"
+elif [ "$driver_name" = "dotnet" ]; then
+  e2e_dll="$root/tests/e2e/bin/Release/net10.0/ProwlersAndParagons.E2e.dll"
+
+  # **Built here rather than assumed, and the build output is not a verdict.** `dotnet run` would
+  # interleave MSBuild's output with the three lines this script parses; `dotnet build` followed
+  # by the dll keeps the driver's stdout to the protocol. If the dll is missing after a
+  # successful build, something is wrong with the project rather than with the site, and saying
+  # so here is cheaper than a driver that prints nothing and reads as a browser that hung.
+  echo "Building the Playwright driver..."
+  dotnet build "$root/tests/e2e/ProwlersAndParagons.E2e.csproj" \
+    -c Release --nologo -v q > "$logs/driver-build.log" 2>&1 \
+    || { echo "::error::building tests/e2e failed:"; tail -30 "$logs/driver-build.log"; exit 2; }
+
+  [ -s "$e2e_dll" ] || {
+    echo "::error::tests/e2e built without producing $e2e_dll."
+    exit 2
+  }
+
+  driver=(dotnet "$e2e_dll")
+else
+  driver=(node "$root/scripts/e2e/drive.mjs")
+fi
 
 if [ "${PP_E2E_SITE_ALREADY_BUILT:-0}" != "1" ]; then
   echo "Publishing the browser front end..."
@@ -241,6 +314,79 @@ listeners_on() {
     | sort -u
 }
 
+# Whether anything is listening on a port. Portable, and portable is the point.
+#
+# **`listeners_on` above is Windows-only — `on_windows || return 0` — so on Linux it reported every
+# port free, and `next_free_port` therefore never skipped anything.** That was invisible for as
+# long as this script ran once per job: ports are handed out by incrementing, so a fresh run
+# starting at 8788 never collided with itself. Running it twice in one job broke it immediately —
+# the second run started again at 8788, walked up to 8793, and got
+# `Address already in use (127.0.0.1:8793)` from workerd, three twins in.
+#
+# **It reads the listener table; it does not try to connect.** A `/dev/tcp` probe was the first
+# attempt and it is wrong in a way worth writing down, because it looked right and passed once: a
+# connection *consumes a slot in the server's accept backlog*, so against a server that is
+# listening but not accepting, the first probe succeeds and the second is refused. The port then
+# reads as free on the very call that matters. Found by testing the probe against a deliberately
+# small backlog — `next_free_port` returned the occupied port while `port_in_use` on its own had
+# just said the port was busy. A real `wrangler pages dev` accepts, so this would have worked in
+# practice and failed the first time something did not; a probe with a side effect is not a probe.
+#
+# `ss` is on `ubuntu-latest`; `netstat` is the Windows path and answers the same question there.
+# TIME_WAIT is deliberately not counted: it is not a listener, `SO_REUSEADDR` lets the next server
+# bind over it, and treating one as occupied would skip ports for no reason.
+port_in_use() {
+  local port="$1"
+
+  if on_windows; then
+    [ -n "$(listeners_on "$port")" ] && return 0
+    return 1
+  fi
+
+  # **`/proc/net/tcp` is the primary, not the fallback, and that ordering was arrived at by
+  # checking rather than assuming.** `ss` is the obvious tool and it is *not* on every Linux image
+  # — `mcr.microsoft.com/dotnet/sdk:10.0` has no iproute2 at all. Making the harness depend on it
+  # would trade a wrong answer for a hard failure on some machine nobody tested. The kernel's own
+  # table needs no package, cannot be missing on Linux, and lists listeners without opening a
+  # connection to them.
+  #
+  # **Not opening a connection is the whole point.** The first version of this probe was
+  # `/dev/tcp`, which looked right and passed once: connecting consumes a slot in the server's
+  # accept backlog, so against a server that listens but is not accepting, the first probe
+  # succeeds and the second is refused — and the port reads as free on the call that matters.
+  # Found by testing the probe against a deliberately small backlog, where `port_in_use` said
+  # "busy" and `next_free_port` immediately handed that same port back.
+  #
+  # State `0A` is TCP_LISTEN. TIME_WAIT is `06` and is deliberately not counted: it is not a
+  # listener, `SO_REUSEADDR` lets the next server bind over it, and treating one as occupied would
+  # skip ports for no reason.
+  local hex
+  hex="$(printf '%04X' "$port")"
+
+  local table
+  for table in /proc/net/tcp /proc/net/tcp6; do
+    [ -r "$table" ] || continue
+    awk -v want=":$hex" '$4 == "0A" && index($2, want) == length($2) - length(want) + 1 { found = 1 }
+         END { exit !found }' "$table" && return 0
+  done
+
+  if [ -r /proc/net/tcp ]; then
+    return 1
+  fi
+
+  # Not Linux and not Windows — a Mac, most likely. `ss` if it is there, and otherwise refuse
+  # rather than guess: guessing "free" is precisely what produced `Address already in use` from
+  # workerd three twins into a run, and a fallback that can be silently wrong is worse than none.
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn 2>/dev/null | awk -v want=":$port$" '$4 ~ want { found = 1 } END { exit !found }'
+    return $?
+  fi
+
+  echo "::error::cannot tell whether port $port is free: no /proc/net/tcp and no 'ss' on PATH." >&2
+  echo "::error::Refusing rather than guessing it is free — see this function's comment." >&2
+  exit 2
+}
+
 # The first port at or after `$1` that nothing is listening on.
 #
 # **Occupied ports are skipped, never cleared.** An earlier version killed whatever held the port
@@ -248,7 +394,7 @@ listeners_on() {
 next_free_port() {
   local port="$1"
 
-  while [ -n "$(listeners_on "$port")" ]; do
+  while port_in_use "$port"; do
     port=$((port + 1))
   done
 
@@ -267,21 +413,58 @@ release_port() {
   local deadline=$((SECONDS + 30))
 
   while [ "$SECONDS" -lt "$deadline" ]; do
-    local holders
-    holders="$(listeners_on "$port")"
-    [ -z "$holders" ] && return 0
+    port_in_use "$port" || return 0
 
-    local pid
-    for pid in $holders; do
-      if on_windows; then taskkill //F //T //PID "$pid" >/dev/null 2>&1 || true
-      else kill -9 "$pid" >/dev/null 2>&1 || true
-      fi
-    done
+    # Only Windows can name the holder; `kill_tree` in `stop_server` is what does the work
+    # everywhere else, and this is the backstop that says so if it did not.
+    if on_windows; then
+      local pid
+      for pid in $(listeners_on "$port"); do
+        taskkill //F //T //PID "$pid" >/dev/null 2>&1 || true
+      done
+    fi
 
     sleep 1
   done
 
   echo "::warning::something is still listening on port $port after 30s of asking it not to."
+}
+
+# The direct children of a pid, from the kernel rather than from a tool.
+#
+# **`pgrep -P` is the obvious way and it is not guaranteed to be there** — the same lesson
+# `port_in_use` just learned about `ss`, which is missing from `mcr.microsoft.com/dotnet/sdk:10.0`.
+# `/proc/<pid>/stat` cannot be missing on Linux. Its fourth field is the parent pid, and the second
+# is the command name in parentheses, which can itself contain spaces — so the parse starts after
+# the last `)` rather than counting fields from the left, which is the bug every naive
+# `/proc/*/stat` reader has.
+children_of() {
+  local parent="$1" entry pid stat
+
+  for entry in /proc/[0-9]*; do
+    pid="${entry##*/}"
+    stat="$(cat "$entry/stat" 2>/dev/null)" || continue
+    stat="${stat##*) }"
+
+    # After the trim, field 2 is ppid: "<state> <ppid> ...".
+    set -- $stat
+    [ "${2:-}" = "$parent" ] && echo "$pid"
+  done
+}
+
+# Every descendant of a pid, depth first, then the pid itself.
+#
+# **One level at a time rather than a process group**: `( ... ) &` in a non-interactive shell is
+# not a group leader, so `kill -- -$pid` names nothing, and turning on job control to make it one
+# changes how every other background command in this script behaves.
+kill_tree() {
+  local pid="$1" child
+
+  for child in $(children_of "$pid"); do
+    kill_tree "$child"
+  done
+
+  kill -9 "$pid" >/dev/null 2>&1 || true
 }
 
 stop_server() {
@@ -317,8 +500,14 @@ stop_server() {
     winpid="$(ps 2>/dev/null | tr -d '\r' | awk -v p="$pid" '$1 == p { print $4 }' | head -1)"
     [ -n "${winpid:-}" ] && taskkill //F //T //PID "$winpid" >/dev/null 2>&1 || true
   else
-    # Children first: killing the wrapper alone can leave wrangler running.
-    pkill -P "$pid" >/dev/null 2>&1 || true
+    # **The whole tree, not the children, and that distinction leaked a server on every Linux
+    # run.** This was `pkill -P "$pid"`, which kills *direct* children only — and wrangler's tree
+    # is `npx` -> node -> `workerd`, so `workerd` survived, kept the port, and outlived the step.
+    # Nobody noticed while the script ran once per job, because the leaked port was never asked
+    # for again; the second run in one job walked straight into it. `release_port` did not cover
+    # it either: it reads pids out of `netstat`, which is Windows-only, so on Linux it returned
+    # immediately having done nothing and warned about nothing.
+    kill_tree "$pid"
   fi
 
   kill "$pid" >/dev/null 2>&1 || true
@@ -476,14 +665,38 @@ if [ "${#defect_lines[@]}" -eq 0 ]; then
   exit 1
 fi
 
-# **Every check must have a twin, and this is the guard that says so.** The names the real run
-# reported and the names the twins cover have to be the same set; a sixth check added without a
-# negative control fails here rather than joining the suite unproven.
-checks_run=$(grep -o '^E2E CHECK [A-Z][A-Z_]*' "$real_log" | sed 's/^E2E CHECK //' | sort -u)
+# **Every check must have a twin, and this is the guard that says so.**
+#
+# **`[A-Z][A-Z0-9_]*` and not `[A-Z][A-Z_]*`, which was a real hole rather than tidying.** The
+# pattern had no digits in it, so the first check name to contain one — `A11Y` — matched as the
+# single letter `A`, and the comparison below would have disagreed for a reason that says nothing
+# about twins. The identical fault was found by mutation in `E2eDriverTests` on the same day, in
+# four places, which is the argument for looking wherever a pattern like this is copied.
+checks_run=$(grep -o '^E2E CHECK [A-Z][A-Z0-9_]*' "$real_log" | sed 's/^E2E CHECK //' | sort -u)
 checks_twinned=$(printf '%s\n' "${defect_lines[@]}" | cut -d: -f2 | sort -u)
 
-if [ "$checks_run" != "$checks_twinned" ]; then
-  echo "::error::the checks the driver runs and the checks the twins cover disagree."
+# **Only one direction is checked here now, and the other moved. Read this before restoring it.**
+#
+# It used to require the two sets to be *equal*. That was right while there was one driver. There
+# are two — `scripts/e2e/drive.mjs` and `tests/e2e` — and they do not run the same checks: the
+# Playwright one adds `A11Y`, which needs axe-core and which the hand-rolled client cannot do. So
+# equality would fail every run of the node driver, for a twin that is covered perfectly well by
+# the other, and the only ways out of that are to delete a negative control or to keep two twin
+# lists. Both are worse than what was lost.
+#
+# **What is kept is the direction whose failure costs a missed regression**: a check that is
+# driven and has no twin has never been watched to fail, and joins the suite as a claim.
+#
+# **What moved is the orphan direction** — a twin naming a check nobody runs — into
+# `E2eDriverTests.EveryCheckHasATwinAndEveryTwinHasACheck`, which reads *both* drivers' check
+# lists and `defects.mjs` as source. That is strictly more than this script could ever see: it
+# runs one driver, so it cannot tell "no driver has this check" from "not this one". And it costs
+# a second in `dotnet test` instead of a publish, a server and a browser.
+unproven=$(comm -23 <(echo "$checks_run") <(echo "$checks_twinned"))
+
+if [ -n "$unproven" ]; then
+  echo "::error::these checks were driven and have no deliberately-broken twin:"
+  echo "::error::  $(echo "$unproven" | tr '\n' ' ')"
   echo "::error::  driven:  $(echo "$checks_run" | tr '\n' ' ')"
   echo "::error::  twinned: $(echo "$checks_twinned" | tr '\n' ' ')"
   echo "::error::A check with no twin has never been watched to fail. Add one to"
@@ -492,10 +705,24 @@ if [ "$checks_run" != "$checks_twinned" ]; then
 fi
 
 twin_failures=0
+twins_driven=0
 
 for line in "${defect_lines[@]}"; do
   name="${line%%:*}"
   check="${line##*:}"
+
+  # A twin for a check this driver did not run. Skipped rather than failed — the other driver
+  # covers it, and `E2eDriverTests` is what proves *some* driver does. Reported so that a run's
+  # own output says which negative controls it did and did not exercise, because "all twins
+  # turned their check red" over a silently smaller list is this repository's oldest failure
+  # shape wearing a green tick.
+  if ! echo "$checks_run" | grep -qx "$check"; then
+    echo ""
+    echo "--- twin '$name' — skipped: this driver does not run $check ---"
+    continue
+  fi
+
+  twins_driven=$((twins_driven + 1))
 
   echo ""
   echo "--- twin '$name' — $check must fail ---"
@@ -514,7 +741,21 @@ for line in "${defect_lines[@]}"; do
 
   twin_log="$logs/twin-$name-drive.log"
   twin_status=0
-  timeout -k 10s "$drive_deadline" "${driver[@]}" "http://127.0.0.1:${port}" \
+  # **`--only $check`, because a twin needs one verdict and the other five cost minutes.**
+  #
+  # Exactly one line of a twin's run is read below: whether `$check` said FAIL. Everything else
+  # the driver would do here is a server round trip and a browser boot against a site broken on
+  # purpose in a way unrelated to it. Measured on the Playwright driver, where `A11Y` scans four
+  # palettes across four addresses at 45 seconds a drive: six twins were spending four and a half
+  # minutes re-measuring the accessibility of deliberately-broken sites, which no line of this
+  # script looks at.
+  #
+  # **This cannot make a run quietly smaller, which is the only thing that would make it a bad
+  # trade.** The real site above is driven with no filter at all, and it is that run whose check
+  # names are compared against the twin list. Here, a name matching nothing would leave the
+  # verdict line absent — and the "printed no verdict" arm below already calls that a failed
+  # negative control rather than a pass.
+  timeout -k 10s "$drive_deadline" "${driver[@]}" "http://127.0.0.1:${port}" --only "$check" \
     > "$twin_log" 2>&1 || twin_status=$?
 
   stop_server
@@ -538,7 +779,7 @@ for line in "${defect_lines[@]}"; do
   # working negative control.
   if grep -q "^E2E CHECK ${check}: FAIL" "$twin_log"; then
     echo "  ok    $check went red, as it must: $(grep "^E2E CHECK ${check}: FAIL" "$twin_log" \
-      | sed 's/^E2E CHECK [A-Z][A-Z_]*: FAIL — //')"
+      | sed 's/^E2E CHECK [A-Z][A-Z0-9_]*: FAIL — //')"
   elif grep -q "^E2E CHECK ${check}: PASS" "$twin_log"; then
     echo "::error::twin '$name' reports $check as PASSING. The check cannot see the defect it"
     echo "::error::exists to catch, so its green verdict against the real site means nothing."
@@ -554,10 +795,21 @@ done
 echo ""
 
 if [ "$twin_failures" -ne 0 ]; then
-  echo "::error::$twin_failures of ${#defect_lines[@]} twins did not turn their check red."
+  echo "::error::$twin_failures of $twins_driven twins did not turn their check red."
   exit 1
 fi
 
-echo "All ${#defect_lines[@]} twins turned their own check red."
+# **The count comes from the twins actually driven, not from the length of the list.** With two
+# drivers the list is longer than any one run exercises, and "all 6 twins turned their check red"
+# printed after driving 5 of them is a sentence that is not true — which is the shape of the four
+# green-but-vacuous checks this whole harness exists to stop.
+if [ "$twins_driven" -eq 0 ]; then
+  echo "::error::no twin was driven at all, so nothing here has a negative control. The set of"
+  echo "::error::checks the driver reported and the set defects.mjs twins have stopped"
+  echo "::error::overlapping; read the two lists above."
+  exit 1
+fi
+
+echo "All $twins_driven of ${#defect_lines[@]} twins turned their own check red."
 echo ""
 echo "E2E: PASS — $expected checks green against the real site, and each one watched to fail."
