@@ -97,6 +97,8 @@ Check[] checks =
     Theme.Check,
     Palette.Check,
     Routes.Check,
+    Motion.Check,
+    Command.Check,
     Rules.Check,
     Admin.Check,
 ];

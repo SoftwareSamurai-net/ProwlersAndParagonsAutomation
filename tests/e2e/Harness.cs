@@ -36,8 +36,65 @@ public sealed class ControlFailedException(string what)
 /// top, so a click at a coordinate the element has not settled on yet is retried rather than lost.
 /// </para>
 /// </summary>
-public sealed class Harness(IPage page, string baseUrl)
+public sealed class Harness(IPage page, string baseUrl, IBrowser? browser = null)
 {
+    /// <summary>
+    /// The browser behind this harness, or <c>null</c> for one made over a page somebody else owns.
+    ///
+    /// <para>Only <see cref="InAnotherBrowser"/> needs it, and only one check does.</para>
+    /// </summary>
+    private readonly IBrowser? _browser = browser;
+
+    /// <summary>
+    /// Run <paramref name="body"/> against a second, independent browser context.
+    ///
+    /// <para><b>One check needs this and the reason is worth stating, because a second context is
+    /// otherwise exactly the kind of thing a harness should not grow.</b> `prefers-reduced-motion`
+    /// is a property of a context, fixed when it is created — Playwright's
+    /// <c>BrowserNewContextOptions.ReducedMotion</c> — so a check that asks "does this page animate
+    /// for somebody who asked for no movement" cannot ask it of the page it already has. And it
+    /// must ask twice: "nothing animated" is satisfied by a page that never rendered, which is
+    /// three of this repository's four historical guard faults, so the positive control is the
+    /// same page animating when motion is allowed.</para>
+    ///
+    /// <para>The context is closed afterwards whatever happens, and it carries the same recorder
+    /// and the same viewport as the main one, so a check reads the same page in both.</para>
+    /// </summary>
+    public async Task<T> InAnotherBrowser<T>(
+        BrowserNewContextOptions options, Func<Harness, Task<T>> body)
+    {
+        if (_browser is null)
+        {
+            throw new CheckFailedException(
+                "this harness was built without a browser, so it cannot open a second context. "
+                + "Runner.Drive passes one; a harness made by hand over an existing page does not.");
+        }
+
+        options.ViewportSize ??= new ViewportSize { Width = 1280, Height = 900 };
+
+        var context = await _browser.NewContextAsync(options);
+
+        try
+        {
+            var page = await context.NewPageAsync();
+            await page.AddInitScriptAsync(Recorder);
+
+            var harness = new Harness(page, BaseUrl);
+
+            page.Console += (_, message) =>
+            {
+                if (message.Type == "error") harness.ConsoleErrors.Add(message.Text);
+            };
+            page.PageError += (_, error) => harness.Exceptions.Add(error);
+
+            return await body(harness);
+        }
+        finally
+        {
+            await context.CloseAsync();
+        }
+    }
+
     /// <summary>
     /// Installed into every document before anything else runs.
     ///

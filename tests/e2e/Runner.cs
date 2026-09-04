@@ -40,7 +40,7 @@ public static class Runner
         });
 
         var page = await context.NewPageAsync();
-        var harness = new Harness(page, baseUrl);
+        var harness = new Harness(page, baseUrl, browser);
 
         page.Console += (_, message) =>
         {

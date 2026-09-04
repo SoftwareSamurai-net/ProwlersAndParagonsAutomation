@@ -336,6 +336,17 @@ EOF
   exit 2
 fi
 
+# The database's name, beside its id and read the same way — `d1 execute` takes the name and
+# `pages dev --d1` takes the id, so both are needed and neither is written here.
+database_name=$(sed -n 's/^[[:space:]]*database_name[[:space:]]*=[[:space:]]*"\([^"]*\)".*$/\1/p' \
+  "$root/d1/wrangler.toml" | head -1)
+
+[ -n "$database_name" ] || {
+  echo "::error::Could not read a database_name out of d1/wrangler.toml. Refusing to guess: see"
+  echo "::error::the database_id refusal above, which is the same failure from the other side."
+  exit 2
+}
+
 # **Migrated here rather than by `scripts/apply-migrations.sh`, which is a different job.** That
 # script is the deploy's, it runs `--remote` against production, and it exists to refuse a
 # destructive migration before an upload. This needs the opposite: a throwaway local database
@@ -350,26 +361,28 @@ CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' \
     --local --persist-to "$d1_state" > "$logs/d1-migrate.log" 2>&1 \
   || { echo "::error::migrating the local D1 failed:"; tail -30 "$logs/d1-migrate.log"; exit 2; }
 
-# **The positive control for the migration, and it is not decoration.** A `d1 migrations apply`
-# that matched no migrations exits zero and prints a table with nothing in it, which is
-# indistinguishable from success right up until a signed-in check reports `no such table:
-# login_tokens` as though the application were at fault.
-if ! grep -q "0001_accounts.sql" "$logs/d1-migrate.log"; then
-  echo "::error::the local D1 migration ran without naming 0001_accounts.sql, so the schema the"
-  echo "::error::signed-in checks need may not be there. Read $logs/d1-migrate.log."
+# **The positive control is the schema, not the migration's own output, and the difference cost a
+# red run to find.** This first asked whether the apply had *named* `0001_accounts.sql` — which it
+# does on a fresh database and does not on one that is already migrated, where it says "No
+# migrations to apply!" and exits zero. So the check failed against a perfectly good database on
+# the second run of the day, which is precisely the state a developer's `.e2e/` is in and the state
+# CI never sees.
+#
+# Asking the database instead is right in both: a `SELECT` against `login_tokens` succeeds only if
+# the table is there, whether it arrived just now or last week. Without it, a database that was
+# never migrated fails much later, as `D1_ERROR: no such table` inside a check, reported as though
+# the application were at fault.
+if ! CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' \
+    npx --yes "wrangler@${wrangler_version}" --cwd "$root/d1" \
+      d1 execute "$database_name" --local --persist-to "$d1_state" \
+      --command "SELECT count(*) FROM login_tokens" > "$logs/d1-schema.log" 2>&1; then
+  echo "::error::the local D1 has no login_tokens table, so it was never migrated. Nothing behind"
+  echo "::error::sign-in can be driven against it. The apply's own output:"
+  tail -20 "$logs/d1-migrate.log"
+  echo "::error::and the query that failed:"
+  tail -20 "$logs/d1-schema.log"
   exit 2
 fi
-
-# The database's name, beside its id above and read the same way — `d1 execute` takes the name and
-# `pages dev --d1` takes the id, so both are needed and neither is written here.
-database_name=$(sed -n 's/^[[:space:]]*database_name[[:space:]]*=[[:space:]]*"\([^"]*\)".*$/\1/p' \
-  "$root/d1/wrangler.toml" | head -1)
-
-[ -n "$database_name" ] || {
-  echo "::error::Could not read a database_name out of d1/wrangler.toml. Refusing to guess: see"
-  echo "::error::the database_id refusal above, which is the same failure from the other side."
-  exit 2
-}
 
 # Mints a token, writes the world it belongs to, and prints the raw token — which is the one thing
 # the driver needs and the only thing it is told. See scripts/e2e/seed.mjs's header for why this is
@@ -546,42 +559,14 @@ release_port() {
   echo "::warning::something is still listening on port $port after 30s of asking it not to."
 }
 
-# The direct children of a pid, from the kernel rather than from a tool.
+# `children_of` and `kill_tree`, which `stop_server` needs on Linux.
 #
-# **`pgrep -P` is the obvious way and it is not guaranteed to be there** — the same lesson
-# `port_in_use` just learned about `ss`, which is missing from `mcr.microsoft.com/dotnet/sdk:10.0`.
-# `/proc/<pid>/stat` cannot be missing on Linux. Its fourth field is the parent pid, and the second
-# is the command name in parentheses, which can itself contain spaces — so the parse starts after
-# the last `)` rather than counting fields from the left, which is the bug every naive
-# `/proc/*/stat` reader has.
-children_of() {
-  local parent="$1" entry pid stat
-
-  for entry in /proc/[0-9]*; do
-    pid="${entry##*/}"
-    stat="$(cat "$entry/stat" 2>/dev/null)" || continue
-    stat="${stat##*) }"
-
-    # After the trim, field 2 is ppid: "<state> <ppid> ...".
-    set -- $stat
-    [ "${2:-}" = "$parent" ] && echo "$pid"
-  done
-}
-
-# Every descendant of a pid, depth first, then the pid itself.
-#
-# **One level at a time rather than a process group**: `( ... ) &` in a non-interactive shell is
-# not a group leader, so `kill -- -$pid` names nothing, and turning on job control to make it one
-# changes how every other background command in this script behaves.
-kill_tree() {
-  local pid="$1" child
-
-  for child in $(children_of "$pid"); do
-    kill_tree "$child"
-  done
-
-  kill -9 "$pid" >/dev/null 2>&1 || true
-}
+# **In a file of their own so that a test can drive them**, which is the whole reason they moved:
+# they fixed a real `workerd` leak and nothing had ever watched the fix work. A green run here
+# proves nothing about it — `port_in_use` steps over a held port — so the proof is
+# `tests/shell/kill-tree.test.sh`, sourcing the same file rather than a copy of it.
+# shellcheck source=scripts/e2e/process-tree.sh
+. "$root/scripts/e2e/process-tree.sh"
 
 stop_server() {
   local pid="$server_pid"

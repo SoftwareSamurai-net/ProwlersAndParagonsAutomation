@@ -126,6 +126,30 @@ export const DEFECTS = [
         replace: '<html data-mode="hero"> <!-- pp:e2e twin defect - the lang attribute is gone -->',
     },
     {
+        name: 'reduced-motion-ignored',
+        check: 'MOTION',
+        why: 'js/motion.js stops asking whether the reader wanted less movement, so every entry '
+            + 'point animates for everybody. This is the mutation CLAUDE.md names as the one two '
+            + 'existing guards survive: they assert the file *mentions* still(), and a still() '
+            + 'that answers false mentions it perfectly. The counters still move — the script '
+            + 'runs, and runs wrong — so MOTION goes red on its outcome and not its control.',
+        file: 'js/motion.js',
+        find: 'const still = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;',
+        replace: 'const still = () => false; // pp:e2e twin defect — the preference is ignored',
+    },
+    {
+        name: 'palette-chord-does-nothing',
+        check: 'COMMAND',
+        why: 'js/palette.js still hears Ctrl-K and still counts the press — so the listener, the '
+            + 'chord and the positive control are all intact — and the call back into the '
+            + 'component is gone, so nothing opens. The failure a reader sees is a keyboard '
+            + 'shortcut that does nothing at all, and every proof page in this repository would '
+            + 'still pass: they assert the counter, which is exactly what this leaves working.',
+        file: 'js/palette.js',
+        find: '            owner.invokeMethodAsync("Toggle");',
+        replace: '            /* pp:e2e twin defect — the chord is heard and dropped */',
+    },
+    {
         name: 'base-href-dropped',
         check: 'ROUTES',
         why: 'Without <base href="/"> every relative fetch resolves against the current path, so '
