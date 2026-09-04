@@ -361,8 +361,19 @@ public sealed class Commands
     /// <para><b>Asked rather than subscribed to.</b> <see cref="Accounts"/> raises an event when
     /// the answer changes, and a guarantee that depends on an event being raised is one somebody
     /// can remove by editing another file — the same reasoning <see cref="RulebookReader"/>
-    /// records for its own cache. Signing out drops the rows on the spot: prose the book answered
-    /// for an account must not sit in the palette for whoever opens it next.</para>
+    /// records for its own cache. The palette asks on every open, which is where it matters:
+    /// signing out is done from the account page, so the next open is the first thing that could
+    /// show a signed-out reader an account's prose.</para>
+    ///
+    /// <para><b>The clearing below is defence and not the mechanism, and saying so is the point.</b>
+    /// Opening the palette empties the box and clears the rows through the ordinary path, so on
+    /// every route a reader can actually take this line has already been done for it — a mutation
+    /// removing it survives, and recording it as covered would be recording coverage that is not
+    /// there. It stays because it costs nothing and the fault it guards against is one this app
+    /// has already shipped once, in <see cref="RulebookReader"/>'s cache: Blazor WebAssembly has
+    /// one DI scope for the life of the app and signing out is pure SPA state with no reload, so
+    /// anything holding the book's words holds them across a sign-out unless something drops
+    /// them.</para>
     /// </summary>
     public async Task NoteWhoIsAskingAsync()
     {

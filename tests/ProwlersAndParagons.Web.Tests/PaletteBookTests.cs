@@ -231,6 +231,54 @@ public sealed class PaletteBookTests
     }
 
     /// <summary>
+    /// Signing out takes the book's words off the screen, and does not wait to be asked again.
+    ///
+    /// <para><b>Blazor WebAssembly has one DI scope for the life of the app and signing out is
+    /// pure SPA state with no reload</b>, so anything holding the book's prose holds it across a
+    /// sign-out unless something drops it. That is not hypothetical here: it is verbatim the leak
+    /// <see cref="RulebookReader"/>'s own cache was fixed for, where a signed-in visitor on a
+    /// shared machine could sign out and be shown a Power's entry the server would have
+    /// refused.</para>
+    /// </summary>
+    [Fact]
+    public async Task SigningOutTakesTheBooksWordsOffTheScreen()
+    {
+        using var ctx = SignedIn();
+
+        var page = ctx.Render<CommandPalette>();
+        page.Find(".palette-box").Input("knockback");
+
+        // The positive control, and it is the whole test: the rows are there to be lost.
+        await page.WaitForAssertionAsync(() => Assert.NotEmpty(BookRows(page)), Patient);
+
+        var accounts = ctx.Services.GetRequiredService<Accounts>();
+        ctx.Api.SignedIn = null;
+        await accounts.SignOutAsync();
+
+        // Closed and opened again, because that is what a reader does — signing out is done from
+        // the account page, and the palette asks who is here on every open.
+        CommandsOf(ctx).Close();
+        CommandsOf(ctx).Open();
+
+        await page.WaitForAssertionAsync(() => Assert.Empty(BookRows(page)), Patient);
+
+        CommandsOf(ctx).BookPause = Impatient;
+        ctx.Api.Asked.Clear();
+
+        // And the same query the account could search is not even sent now. Asserting only that
+        // the rows are gone would be satisfied by the box having been emptied on the way in,
+        // which happens on every open and is not this.
+        page.Find(".palette-box").Input("knockback");
+        await Task.Delay(LongEnoughToBeSure, Xunit.TestContext.Current.CancellationToken);
+
+        Assert.Empty(Searches(ctx));
+        Assert.Empty(BookRows(page));
+        Assert.Empty(page.FindAll(".palette-group"));
+        Assert.Equal("Go to a step, or find a Power",
+            page.Find(".palette-box").GetAttribute("aria-label"));
+    }
+
+    /// <summary>
     /// A word shorter than the server can search on is not sent.
     ///
     /// <para><b>The figure is the server's, not a taste.</b> <c>terms()</c> in

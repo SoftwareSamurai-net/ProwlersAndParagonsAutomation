@@ -132,8 +132,12 @@ detail, in the spelling `/rules` uses, from `RulebookCitation.For`.
   `RulebookReader` answers.** The book is bundled into the worker and never staged into `wwwroot`;
   the server refuses every address under `/api/rulebook/` on the prefix; and for an anonymous
   reader the palette makes **no request at all** and shows no row, no cached prose and no claim
-  that the book exists. Signing out drops the rows on the spot, the same fault `RulebookReader`'s
-  own cache was fixed for.
+  that the book exists. **And it re-asks who is here on every open**, so signing out leaves the
+  next opening of the palette with no rows, no request and the shorter label — the same fault
+  `RulebookReader`'s own cache was fixed for, in the place it would reappear. `Commands` also
+  clears the rows when the answer moves, and that line is honestly defence rather than the
+  mechanism: opening empties the box through the ordinary path, so a mutation removing it
+  survives. Its doc comment says so, rather than claiming coverage that is not there.
 - **The box's `aria-label` promises the book only to somebody who will be shown it.** "Go to a
   step, find a Power, or search the book" for a signed-in reader and the old two-thirds for
   everybody else — a label naming a rulebook to a reader the server will refuse is the wrong
