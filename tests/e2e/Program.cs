@@ -50,7 +50,7 @@ Check[] checks =
     Build.Check,
     Theme.Check,
     Palette.Check,
-    NotYetPorted.Check("ROUTES"),
+    Routes.Check,
 ];
 
 return await Runner.Drive(baseUrl, checks);
