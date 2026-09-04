@@ -694,6 +694,14 @@ same driver at the *deployed* site verifies the real edge, the real Functions an
 anonymously — so the local run seeds and signs in, and a deployed run proves production. Neither
 needs an approval about danger any more; both are a decision about effort.
 
+**The brief written to hand this to an agent is
+[`docs/progress/2026-09-04-the-stage-two-brief.md`](docs/progress/2026-09-04-the-stage-two-brief.md).**
+It is a prompt rather than an account — the one file in that directory that is not finished work,
+and it says so in its own first paragraph. It carries the five pieces above as instructions, the
+measured job cost as a constraint, stage one's three guard faults as worked examples, and six
+questions it refuses to answer in advance. **This entry stays the authority**; if the two disagree,
+the brief is the older document and the brief is wrong.
+
 ### 11. Answered: it is a tool for running *and* playing P&P
 
 **The owner spent a session reading a competitor (PNP Ready) and brought back eight ideas.** This

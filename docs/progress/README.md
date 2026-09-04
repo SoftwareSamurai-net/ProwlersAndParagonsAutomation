@@ -36,6 +36,21 @@ for entries in the old section still hold here.
   worthless — the same reason `docs/notes/s11-undo.md` still describes a method that has been
   renamed.
 
+
+## The one exception, and why it is not a second convention
+
+**`2026-09-04-the-stage-two-brief.md` is a brief for work that has not been done**, which is the
+opposite of what this directory is for. It is here anyway because the two reasons the directory
+exists both apply to it and neither is about finishedness: it is long enough to push `PROGRESS.md`'s
+open items further from the top, and it is a single author's argument that no concurrent branch
+wants to edit — so a file of its own cannot collide.
+
+**What keeps this from becoming "anything long goes in here":** the brief is anchored by an open
+`PROGRESS.md` item that links to it and stays the authority, and it is frozen the same way an entry
+is — when its work lands, that slice writes its own file and the brief is not edited to agree with
+it. A document that says what was known beforehand is worth nothing once it has been tidied into
+hindsight.
+
 ## What the tooling knows about this directory
 
 - **`ProgressArchiveTests`** requires every file here to open with an `# ` title, requires this
