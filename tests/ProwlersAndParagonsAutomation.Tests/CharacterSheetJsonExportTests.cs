@@ -123,6 +123,38 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
     }
 
     /// <summary>
+    /// <b>A house Trait Cap survives being written out and read back, and an absent one costs a
+    /// character nothing.</b> Portability is the only reason the cap is on the character rather
+    /// than only on the campaign, so that is the thing worth asserting.
+    ///
+    /// <para>The second half is the compatibility guarantee that let <c>StoredCharacter</c>'s
+    /// version stay where it is: a character with no house cap writes <b>byte-for-byte</b> what it
+    /// wrote before the field existed, so every export and fixture already on disk is unchanged
+    /// and every stored character reads back as "the tier's".</para>
+    /// </summary>
+    [Fact]
+    public void AHouseTraitCapSurvivesARoundTripAndAnAbsentOneAddsNoBytes()
+    {
+        var plain = CharacterSheetJson.Write(SampleCharacters.Hero());
+
+        Assert.DoesNotContain("TraitCapRank", plain, StringComparison.Ordinal);
+
+        var housed = SampleCharacters.Hero();
+        housed.TraitCapRank = 6;
+
+        var written = CharacterSheetJson.Write(housed);
+        Assert.Contains("\"TraitCapRank\":6", written, StringComparison.Ordinal);
+
+        // Strict, because a submitted file is read that way and a field the strict reader refuses
+        // is a field a caller cannot use.
+        var back = CharacterSheetJson.Read(written, strict: true);
+        Assert.NotNull(back);
+        Assert.Equal(6, back!.TraitCapRank);
+
+        Assert.Null(CharacterSheetJson.Read(plain, strict: true)!.TraitCapRank);
+    }
+
+    /// <summary>
     /// <b>The cap the character is built to, beside the tier's own.</b> They are the same figure
     /// until a table tightens one, and then they are not: <c>tier.trait_cap</c> stays a fact about
     /// the tier and the top-level one is what <c>derived.resolve</c> was measured from. A document
