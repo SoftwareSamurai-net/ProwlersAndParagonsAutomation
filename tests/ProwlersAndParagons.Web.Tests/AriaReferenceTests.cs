@@ -128,6 +128,40 @@ public sealed class AriaReferenceTests
             total += ResolveEveryReference(opened, "MainLayout (menus open)");
         }
 
+        // **The administrator's page, in both states of its own disclosure**, for the reason the
+        // banner's two are swept in both: the list of a player's sheets renders inside an `@if`,
+        // so an `aria-controls` written unconditionally on the button dangles whenever it is shut.
+        // That is the budget disclosure's shipped bug in a third place, and it is not visible from
+        // the open state alone — a reference resolves for the wrong reason when the element it
+        // names happens to be there.
+        //
+        // A second context because this page needs a signed-in administrator with a player in one
+        // of their campaigns; the default context is an anonymous visitor and the page draws a
+        // refusal with nothing on it at all.
+        using (var ctx = new RenderContext())
+        {
+            ctx.Api.SignedIn = ("acct-1", "boss");
+            ctx.Api.ManagesInvitations = true;
+            ctx.Api.You = "boss@example.test";
+            ctx.Api.Invited.Add(("i_guest", "guest@example.test", false, false, true));
+            ctx.Api.Players.Add(("player@example.test", "Kestrel", 2, 5));
+            ctx.Api.Held["player@example.test"] = [("c_0", "Ninefold", 1_700_000_000_000, null, null, null)];
+
+            var shut = ctx.Render<Admin>();
+            total += ResolveEveryReference(shut, "Admin (sheets shut)");
+
+            var opened = ctx.Render<Admin>();
+            opened.WaitForAssertion(() => Assert.NotEmpty(opened.FindAll("[aria-expanded]")));
+            opened.FindAll("[aria-expanded]")[0].Click();
+
+            // The positive control on the click, the same one the banner pair carries: a
+            // disclosure that opened nothing leaves a page with no new reference to resolve,
+            // which satisfies every assertion in the sweep.
+            opened.WaitForAssertion(() => Assert.Single(opened.FindAll("#sheets-0")));
+
+            total += ResolveEveryReference(opened, "Admin (sheets open)");
+        }
+
         // The positive control, and it is the point of the count. Every assertion above is an
         // absence; a run in which nothing rendered, or in which the app stopped using ARIA
         // references altogether, would satisfy all of them while proving nothing at all.

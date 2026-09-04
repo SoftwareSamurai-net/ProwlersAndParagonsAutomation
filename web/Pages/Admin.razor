@@ -1,6 +1,7 @@
 @page "/admin"
 @inject Invitations Invitations
 @inject ErrorLog ErrorLog
+@inject AdminAccounts AdminAccounts
 
 @* Who may have an account here, and what has gone wrong while running the site.
    Both stay on one page because both are the same gate — the server asks the identical question,
@@ -122,6 +123,107 @@
         </p>
     </Panel>
 
+    @* The players in your own campaigns, and the one number this page can move for them.
+
+       **The cap used to be raised by hand in SQL against the live database**, which is the ops
+       hazard this retires — `docs/guide/accounts-server.md` called `users.character_limit` a
+       write with no gate, and it was.
+
+       **Scoped to your campaigns and not to the whole server**, joined through `campaign_members`
+       on the far side. One administrator today would not notice the difference; a second one
+       would, and a privilege that only misbehaves later is the kind worth not granting.
+
+       **A row is keyed by the address**, which is on the invitation list above anyway. Nothing
+       here is told an account id — the same rule the approval screen keeps.
+
+       **The sheets are names and times, never a character.** A GM reads a member's actual sheet
+       on the approval screen, where it is one that member sent them. *@
+    <Panel Title="Who plays in your campaigns" Aside="@PlayersCounted">
+        @if (_accounts.Count == 0)
+        {
+            <p>Nobody is in one of your campaigns yet. Anyone who joins one appears here.</p>
+        }
+        else
+        {
+            <p>
+                How many characters each of them may keep. Lowering it never touches what they
+                already have — it only stops the next one.
+            </p>
+
+            <ChosenList>
+                @for (var i = 0; i < _accounts.Count; i++)
+                {
+                    var one = _accounts[i];
+                    var capId = $"cap-{i}";
+                    var sheetsId = $"sheets-{i}";
+                    var open = _showing == one.Email;
+
+                    <ChosenRow>
+                        <Body>
+                            <strong>@(one.DisplayName ?? one.Email)</strong>
+                            <span class="small muted">@one.Email · @Held(one)</span>
+
+                            <Field For="@capId">
+                                <LabelContent>Characters they may keep</LabelContent>
+                                <ChildContent>
+                                    <input id="@capId" type="number" min="0" max="500"
+                                           value="@Draft(one)"
+                                           @oninput="e => Redraft(one, e.Value)" />
+                                </ChildContent>
+                            </Field>
+
+                            @* aria-controls only while the list is really rendered: naming an
+                               element inside an @if unconditionally leaves a dangling IDREF,
+                               which is the bug the budget disclosure shipped once. aria-expanded
+                               is a string, because Blazor renders a true bool as `=""`, which is
+                               invalid ARIA that reads as *not* expanded. *@
+                            <button type="button" class="btn small"
+                                    aria-expanded="@(open ? "true" : "false")"
+                                    aria-controls="@(open ? sheetsId : null)"
+                                    @onclick="() => ShowSheets(one.Email)">
+                                @(open ? "Hide their sheets" : "Their sheets")
+                            </button>
+
+                            @if (open)
+                            {
+                                <div id="@sheetsId">
+                                    @if (_sheets.Count == 0)
+                                    {
+                                        <p class="small muted">@EmptySheets</p>
+                                    }
+                                    else
+                                    {
+                                        <ul>
+                                            @foreach (var sheet in _sheets)
+                                            {
+                                                <li>
+                                                    @sheet.Label
+                                                    <span class="small muted">@Describe(sheet)</span>
+                                                </li>
+                                            }
+                                        </ul>
+                                    }
+                                </div>
+                            }
+                        </Body>
+                        <Actions>
+                            <button type="button" class="btn"
+                                    disabled="@(!Changed(one) || _capping is not null)"
+                                    @onclick="() => Cap(one)">
+                                @(_capping == one.Email ? "Saving…" : "Save")
+                            </button>
+                        </Actions>
+                    </ChosenRow>
+                }
+            </ChosenList>
+        }
+
+        @if (_capProblem is { } capProblem)
+        {
+            <p role="alert">@capProblem</p>
+        }
+    </Panel>
+
     <Panel Title="What has gone wrong" Aside="@ErrorLogCounted">
         @if (_errorRows.Count == 0)
         {
@@ -178,11 +280,62 @@ else
     private InvitationAddResult? _addedOutcome;
     private string? _problem;
 
+    /// <summary>The accounts panel's own refusal, kept apart from the invitation list's.</summary>
+    private string? _capProblem;
+
     /// <summary>The id being withdrawn, so one button reads as busy rather than all of them.</summary>
     private string? _working;
 
     private string Counted =>
         _invitations.Count == 1 ? "1 address" : $"{_invitations.Count} addresses";
+
+    private IReadOnlyList<ManagedAccount> _accounts = [];
+
+    /// <summary>What is typed into each row's box, keyed by the address the row is keyed by.</summary>
+    private readonly Dictionary<string, int> _drafts = new(StringComparer.Ordinal);
+
+    /// <summary>The address whose cap is being written, so one button reads as busy, not all.</summary>
+    private string? _capping;
+
+    /// <summary>Whose sheets are open, or null. One at a time — this is a disclosure, not a table.</summary>
+    private string? _showing;
+
+    private IReadOnlyList<ManagedCharacter> _sheets = [];
+
+    /// <summary>
+    /// The sentence for a disclosure that came back with nothing, which is two different facts.
+    ///
+    /// <para>An account that holds no characters, and an account whose list could not be read —
+    /// and a panel that said "none" for the second would be telling somebody their player has
+    /// built nothing on the strength of a failed request.</para>
+    /// </summary>
+    private string _emptySheets = "";
+
+    private string EmptySheets => _emptySheets;
+
+    private string PlayersCounted =>
+        _accounts.Count == 1 ? "1 player" : $"{_accounts.Count} players";
+
+    /// <summary>What a row says about the number beside it, in the same "N of M" the roster uses.</summary>
+    private static string Held(ManagedAccount one) =>
+        $"{one.CharacterCount} of {one.CharacterLimit} characters";
+
+    private int Draft(ManagedAccount one) =>
+        _drafts.TryGetValue(one.Email, out var typed) ? typed : one.CharacterLimit;
+
+    private bool Changed(ManagedAccount one) => Draft(one) != one.CharacterLimit;
+
+    /// <summary>
+    /// Take what was typed, when it is a number at all.
+    ///
+    /// <para>An empty or half-typed box leaves the last number that parsed, so the row keeps
+    /// showing something the Save button can compare against. <b>The range is not checked here</b>
+    /// — that is the server's, and a second copy of it would be a rule this page made up.</para>
+    /// </summary>
+    private void Redraft(ManagedAccount one, object? typed)
+    {
+        if (int.TryParse(typed?.ToString(), out var number)) _drafts[one.Email] = number;
+    }
 
     private string ErrorLogCounted =>
         _errorRows.Count == 0 ? "none recorded"
@@ -207,6 +360,93 @@ else
                 ? log.Rows
                 : []
             : [];
+
+        // Asked for on the same terms as the failure log, and for the same reason: the server
+        // gates all three identically, so there is nothing to gain by calling before the first
+        // answer says it could possibly succeed.
+        _accounts = _state == ListRequest.Loaded
+            ? (await AdminAccounts.ListAsync()) is { Result: AdminAccountsRequest.Loaded } players
+                ? players.Accounts
+                : []
+            : [];
+
+        // **Anything typed against a row that is no longer there goes with it.** A draft kept
+        // across a reload would sit in a box beside somebody else's number after the list moved.
+        _drafts.Clear();
+    }
+
+    /// <summary>
+    /// Set one player's cap, and say which of the three things happened.
+    ///
+    /// <para>The list is re-read afterwards rather than the row being patched in place: the count
+    /// beside the cap is the server's answer about that account, and a page that trusted its own
+    /// arithmetic there would be showing a figure nobody computed.</para>
+    /// </summary>
+    private async Task Cap(ManagedAccount one)
+    {
+        _capping = one.Email;
+        _capProblem = null;
+
+        var outcome = await AdminAccounts.SetCharacterLimitAsync(one.Email, Draft(one));
+
+        _capProblem = outcome.Result switch
+        {
+            CapChange.Refused => "That was not saved. A cap is a whole number from 0 to 500.",
+            CapChange.NotThere =>
+                "That was not saved. That account is no longer in one of your campaigns.",
+            CapChange.Unavailable => "That was not saved, and nothing said why. Reload and retry.",
+            _ => null,
+        };
+
+        await Reload();
+        _capping = null;
+    }
+
+    /// <summary>
+    /// Open one player's sheets, or shut the one that is open.
+    ///
+    /// <para>Read when it is opened rather than with the list, because a list of twenty players
+    /// would otherwise be twenty requests for something nobody has asked to see.</para>
+    /// </summary>
+    private async Task ShowSheets(string email)
+    {
+        if (_showing == email)
+        {
+            _showing = null;
+            _sheets = [];
+
+            return;
+        }
+
+        _showing = email;
+
+        var held = await AdminAccounts.HeldByAsync(email);
+
+        _sheets = held.Characters;
+        _emptySheets = held.Result == AdminAccountsRequest.Loaded
+            ? "Nothing saved to their account yet."
+            : "Their sheets could not be read just now.";
+    }
+
+    /// <summary>
+    /// What a sheet says beyond its name: the tier it is built to, its spend, and when it moved.
+    ///
+    /// <para><b>Every one of the three is drawn only when there is one</b>, which is the front
+    /// door's rule and the roster's: a row written before the index columns existed has no tier
+    /// and no figure, and the engine refuses to price an incomplete selection rather than guessing
+    /// — so "no figure" is an answer rather than a gap. <b>A tier is printed as the id it is</b>,
+    /// the same choice the diff makes: this page has not read the rules and "Unnamed" would tell a
+    /// reader less than the id does.</para>
+    /// </summary>
+    private static string Describe(ManagedCharacter sheet)
+    {
+        var parts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(sheet.TierId)) parts.Add(sheet.TierId);
+        if (sheet.Spent is { } spent) parts.Add($"{spent} HP");
+        if (Ages.Since(sheet.UpdatedAt, DateTimeOffset.UtcNow) is { } age) parts.Add(age);
+
+        return string.Join(" · ", parts);
     }
 
     /// <summary>A plain name for the subsystem, matching the words <c>SignIn.razor</c> uses for

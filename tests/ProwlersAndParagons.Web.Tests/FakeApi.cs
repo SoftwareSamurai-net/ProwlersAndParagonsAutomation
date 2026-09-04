@@ -279,6 +279,10 @@ public sealed class FakeApi : HttpMessageHandler
 
             "/api/admin/error-log" => ErrorLogList(),
 
+            "/api/admin/accounts" => ManagedAccountList(),
+            var p when p.StartsWith("/api/admin/accounts/", StringComparison.Ordinal) =>
+                ManagedAccount(request, p["/api/admin/accounts/".Length..]),
+
             _ => Status(HttpStatusCode.NotFound),
         };
     }
@@ -489,6 +493,131 @@ public sealed class FakeApi : HttpMessageHandler
             """);
 
         return Json($$"""{"rows":[{{string.Join(",", rows)}}]}""");
+    }
+
+    // ── The players in the signed-in account's own campaigns ─────────────────────────────
+    //
+    // **Gated by `ManagesInvitations` like the two above, because the real server gates all three
+    // from the identical `invitations.isAdministrator` check.** What the real server *decides* —
+    // that the list is scoped to `campaign_members`, that the caller is not in it, that an address
+    // outside the scope answers byte-identically to one nobody has used — is tested against the
+    // real code in `tests/worker/admin-accounts.test.mjs` against real SQLite. What is tested here
+    // is the other half: what the panel does with 200, 400, 404 and nothing at all.
+    //
+    // **So the scope is a list a test fills rather than a join reimplemented here.** A second
+    // implementation of the scoping in this class would be a second thing to keep in step, and a
+    // test passing against it would say nothing about the server.
+
+    /// <summary>
+    /// The players this account may see, as the accounts endpoint reports them.
+    ///
+    /// <para>A list rather than a canned body, so a test can set a cap and assert the row redraws.
+    /// Each entry is exactly the shape the server sends; the contract between the two is pinned by
+    /// <c>AccountsContractTests</c> and not by this.</para>
+    /// </summary>
+    public List<(string Email, string? DisplayName, int CharacterCount, int CharacterLimit)>
+        Players { get; } = [];
+
+    /// <summary>
+    /// What each of those players holds, keyed by address. An address with no entry holds nothing,
+    /// which is an ordinary state and not a refusal.
+    /// </summary>
+    public Dictionary<string, List<(string Id, string Label, long UpdatedAt, string? Kind,
+        string? TierId, int? Spent)>> Held { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>Set to have every cap change refused the way a number out of range is: 400.</summary>
+    public bool RefuseCapChanges { get; set; }
+
+    /// <summary>Set to have every cap change answer the 404 an out-of-scope address gets.</summary>
+    public bool CapAccountIsGone { get; set; }
+
+    /// <summary>
+    /// Set to have a cap change answer a status this client does not model — a 409.
+    ///
+    /// <para><b>A knob rather than <see cref="Unreachable"/>, and the difference is the whole
+    /// test it makes possible.</b> Taking the server away refuses the page's own gate too, so the
+    /// panel is not drawn at all and its refusal is unreachable. A server that answers *something*
+    /// this client has no branch for is the state where a sentence has to be said, and it is a
+    /// real one: the real server can answer 405, and something in front of it can answer anything
+    /// at all.</para>
+    /// </summary>
+    public bool CapChangeBreaks { get; set; }
+
+    /// <summary>Set to have a player's sheets refuse, the shape of a membership ended mid-read.</summary>
+    public bool HeldCharactersUnavailable { get; set; }
+
+    private Task<HttpResponseMessage> ManagedAccountList()
+    {
+        if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
+        if (!ManagesInvitations) return Status(HttpStatusCode.NotFound);
+
+        return Json($$"""{"accounts":[{{string.Join(",", Players.Select(Row))}}]}""");
+    }
+
+    private static string Row(
+        (string Email, string? DisplayName, int CharacterCount, int CharacterLimit) player) =>
+        $$"""
+        {"email":{{Quote(player.Email)}},"displayName":{{Quote(player.DisplayName)}},
+         "characterCount":{{player.CharacterCount}},"characterLimit":{{player.CharacterLimit}}}
+        """;
+
+    /// <summary>
+    /// One player's cap or one player's sheets, keyed by the address in the path.
+    ///
+    /// <para>The address arrives percent-encoded, exactly as the real server receives it, so a
+    /// client that forgot to escape it would miss here as it would there.</para>
+    /// </summary>
+    private Task<HttpResponseMessage> ManagedAccount(HttpRequestMessage request, string rest)
+    {
+        if (SignedIn is null) return Status(HttpStatusCode.Unauthorized);
+        if (!ManagesInvitations) return Status(HttpStatusCode.NotFound);
+
+        var slash = rest.IndexOf('/', StringComparison.Ordinal);
+        if (slash < 0) return Status(HttpStatusCode.NotFound);
+
+        var email = Uri.UnescapeDataString(rest[..slash]);
+        var tail = rest[(slash + 1)..];
+
+        if (tail == "character-limit")
+        {
+            if (request.Method != HttpMethod.Put) return Status(HttpStatusCode.MethodNotAllowed);
+            if (RefuseCapChanges) return Status(HttpStatusCode.BadRequest);
+            if (CapAccountIsGone) return Status(HttpStatusCode.NotFound);
+            if (CapChangeBreaks) return Status(HttpStatusCode.Conflict);
+
+            var at = Players.FindIndex(p => p.Email == email);
+            if (at < 0) return Status(HttpStatusCode.NotFound);
+
+            var body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            using var sent = JsonDocument.Parse(body);
+
+            if (!sent.RootElement.TryGetProperty("characterLimit", out var wanted)
+                || wanted.ValueKind != JsonValueKind.Number)
+            {
+                return Status(HttpStatusCode.BadRequest);
+            }
+
+            Players[at] = Players[at] with { CharacterLimit = wanted.GetInt32() };
+
+            return Json($$"""{"account":{{Row(Players[at])}}}""");
+        }
+
+        if (tail != "characters") return Status(HttpStatusCode.NotFound);
+        if (request.Method != HttpMethod.Get) return Status(HttpStatusCode.MethodNotAllowed);
+        if (HeldCharactersUnavailable) return Status(HttpStatusCode.NotFound);
+        if (!Players.Exists(p => p.Email == email)) return Status(HttpStatusCode.NotFound);
+
+        var sheets = Held.TryGetValue(email, out var theirs) ? theirs : [];
+
+        // **No payload, exactly as the real server sends none.** A fake that answered one would
+        // make "this panel never shows a character" a claim no test could check.
+        var rows = sheets.Select(s => $$"""
+            {"id":{{Quote(s.Id)}},"label":{{Quote(s.Label)}},"updatedAt":{{s.UpdatedAt}},
+             "kind":{{Quote(s.Kind)}},"tierId":{{Quote(s.TierId)}},
+             "spent":{{s.Spent?.ToString(CultureInfo.InvariantCulture) ?? "null"}}}
+            """);
+
+        return Json($$"""{"email":{{Quote(email)}},"characters":[{{string.Join(",", rows)}}]}""");
     }
 
     /// <summary>
