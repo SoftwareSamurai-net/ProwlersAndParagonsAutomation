@@ -49,7 +49,7 @@ Check[] checks =
     Boot.Check,
     Build.Check,
     Theme.Check,
-    NotYetPorted.Check("PALETTE"),
+    Palette.Check,
     NotYetPorted.Check("ROUTES"),
 ];
 
