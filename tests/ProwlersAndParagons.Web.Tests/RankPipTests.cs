@@ -1,3 +1,4 @@
+using System.Globalization;
 using Bunit;
 using Microsoft.AspNetCore.Components.Web;
 using ProwlersAndParagonsAutomation.Web.Components;
@@ -20,14 +21,14 @@ public sealed class RankPipTests
     /// <paramref name="package"/> are the two lower bounds the rules impose.
     /// </summary>
     private static (IRenderedComponent<RankRow> Row, List<int> Asked) Row(
-        RenderContext ctx, int rank = 4, int floor = 1, int package = 0)
+        RenderContext ctx, int rank = 4, int floor = 1, int package = 0, int max = Max)
     {
         var asked = new List<int>();
 
         var row = ctx.Render<RankRow>(p => p
             .Add(x => x.Name, "Might")
             .Add(x => x.Rank, rank)
-            .Add(x => x.Max, Max)
+            .Add(x => x.Max, max)
             .Add(x => x.Floor, floor)
             .Add(x => x.PackageFloor, package)
             .Add(x => x.RankChanged, asked.Add));
@@ -204,6 +205,82 @@ public sealed class RankPipTests
         Row(ctx);
 
         Assert.Single(ctx.JSInterop.Invocations, i => i.Identifier == "ppSlider.guard");
+    }
+
+    /// <summary>
+    /// <b>A house Trait Cap below a package's granted rank does not take the step down with
+    /// it.</b>
+    ///
+    /// <para>A campaign's cap is a number the GM types — the form takes 1 to 30 — and a table
+    /// capped at 2d with a character on the 3d package leaves this row with a minimum above its
+    /// maximum. <c>Math.Clamp</c> throws <c>ArgumentException</c> on exactly that, so the first
+    /// click on any pip used to take out the whole Abilities step; the character is one the
+    /// validator already has findings about, and a row that throws reports none of them.</para>
+    ///
+    /// <para>The row is bounded by the floor instead, so the click lands on a legal rank. The
+    /// positive control is that a rank really was asked for: an implementation that swallowed the
+    /// click would satisfy "no exception" perfectly.</para>
+    /// </summary>
+    [Fact]
+    public void ACapBelowThePackageFloorDoesNotThrow()
+    {
+        using var ctx = new RenderContext();
+        var (row, asked) = Row(ctx, rank: 3, floor: 1, package: 3, max: 2);
+
+        var drawn = row.FindAll(".pip").Count;
+
+        Assert.NotEqual(0, drawn);
+
+        // Re-found each time: the click re-renders the row, and a handler read off the previous
+        // pass is a handler the renderer no longer knows.
+        for (var i = 0; i < drawn; i++)
+        {
+            row.FindAll(".pip")[i].Click();
+        }
+
+        row.Find(".pips").KeyDown(new KeyboardEventArgs { Key = "End" });
+        row.Find(".pips").KeyDown(new KeyboardEventArgs { Key = "Home" });
+
+        Assert.NotEmpty(asked);
+        Assert.All(asked, rank => Assert.Equal(3, rank));
+    }
+
+    /// <summary>
+    /// <b>A rank above the cap in force is announced inside the slider's own range.</b>
+    ///
+    /// <para>A character built to 8d whose table then caps at 6d drew six pips and announced
+    /// <c>aria-valuenow="8"</c> against <c>aria-valuemax="6"</c> — a value outside the control's
+    /// declared range, which is the fault the budget strip already records for its
+    /// <c>progressbar</c>. Nothing is repaired: the rank stays where the sheet has it and the
+    /// validator's <c>TRAIT_ABOVE_CAP</c> finding under the row is what says it is wrong.</para>
+    /// </summary>
+    [Fact]
+    public void ARankAboveTheCapIsStillInsideTheAnnouncedRange()
+    {
+        using var ctx = new RenderContext();
+        var (row, asked) = Row(ctx, rank: 8, floor: 1, max: 6);
+
+        var pips = row.Find(".pips");
+
+        var now = int.Parse(pips.GetAttribute("aria-valuenow")!, CultureInfo.InvariantCulture);
+        var most = int.Parse(pips.GetAttribute("aria-valuemax")!, CultureInfo.InvariantCulture);
+        var least = int.Parse(pips.GetAttribute("aria-valuemin")!, CultureInfo.InvariantCulture);
+
+        Assert.Equal(8, now);
+        Assert.True(now <= most, $"aria-valuenow {now} is above aria-valuemax {most}");
+        Assert.True(least <= now, $"aria-valuenow {now} is below aria-valuemin {least}");
+
+        // Every rank the row draws is reachable, which is what "the bounds it announces are the
+        // bounds it enforces" means — eight pips over a six-pip promise would be the same lie the
+        // other way up.
+        Assert.Equal(8, row.FindAll(".pip").Count);
+
+        // It comes down and does not climb: nothing here lowers the rank, and nothing lets it go
+        // higher than the sheet already has it.
+        row.Find(".pips").KeyDown(new KeyboardEventArgs { Key = "ArrowRight" });
+        row.Find(".pips").KeyDown(new KeyboardEventArgs { Key = "ArrowLeft" });
+
+        Assert.Equal([8, 7], asked);
     }
 
     /// <summary>

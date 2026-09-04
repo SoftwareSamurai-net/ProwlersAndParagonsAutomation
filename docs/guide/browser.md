@@ -416,6 +416,17 @@ the Trait Cap was silent on its own row until the end. `web/Services/SheetFindin
   token was needed — `--danger` and `--heading` on `--panel` are already held to 4.5:1 in all four
   palettes by `EveryScreenPairInUseHoldsItsContrastFloor`. Adding one would have needed a fresh
   measurement, since the screen palette has no luminance test.
+- **A cap tighter than a row's own floor is drawn, not enforced, and above all not thrown over.**
+  `RankRow.Ceiling` is `max(Max, Min, Rank)` and `Max` is the Trait Cap in force. Two states reach
+  it and both are ordinary once a house cap exists: a campaign capped at 2d over a package that
+  grants 3d made `Min > Max`, and `Math.Clamp` throws `ArgumentException` on exactly that — the
+  first pip click took out the whole step, on a character the validator already had
+  `TRAIT_CAP_BELOW_MINIMUM` and `TRAIT_ABOVE_CAP` to say something about. And an 8d Trait under a
+  6d cap drew six pips announcing `aria-valuenow=8` against `aria-valuemax=6`, a `slider` outside
+  its own range — the fault the budget strip records for `progressbar`, one component over. The
+  ceiling gives way to what is on the sheet, so the rank comes down and cannot climb; nothing is
+  repaired and the findings under the row do the talking. There is no "over the cap" ink, and a
+  second way of saying what the finding says is not worth a token.
 - **`HP_BUDGET_EXCEEDED` and the tier findings are deliberately unrouted.** They belong to no row,
   and the budget strip already exists for the first of them. A finding pinned to an arbitrary row
   would be worse than one shown where it belongs.
