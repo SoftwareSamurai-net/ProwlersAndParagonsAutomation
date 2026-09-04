@@ -571,10 +571,17 @@ public sealed class AccountsContractTests
             $"found {routed.Count} routed prefixes in worker/index.js; the pattern has stopped "
             + "matching and this test is asserting nothing.");
 
-        // Only the prefixes that carry a caller-chosen id need an arm; the admin one does too and
-        // deliberately does not have one, so this is scoped to the two stores rather than to
-        // every prefix. Widening it is a decision about the error log, not about this test.
-        foreach (var prefix in routed.Where(p => p is "/api/characters/" or "/api/campaigns/"))
+        // Only the prefixes that carry a caller-chosen id need an arm.
+        // `/api/admin/invitations/` deliberately does not have one, so this is scoped to a list
+        // rather than to every prefix. Widening it is a decision about the error log, not about
+        // this test.
+        //
+        // **`/api/admin/accounts/` is on the list and its arm buys something the other two do
+        // not.** The key under that prefix is an *email address*, so without a pattern the path
+        // filed against a failure would name a person — in the one table whose whole design is
+        // that it is safe to read aloud. The other two only lose legibility.
+        foreach (var prefix in routed.Where(p =>
+                     p is "/api/characters/" or "/api/campaigns/" or "/api/admin/accounts/"))
         {
             Assert.True(
                 errorsJs.Contains($"path.startsWith('{prefix}')", StringComparison.Ordinal),
@@ -584,6 +591,7 @@ public sealed class AccountsContractTests
         }
 
         Assert.Contains("'/api/campaigns'", errorsJs, StringComparison.Ordinal);
+        Assert.Contains("'/api/admin/accounts'", errorsJs, StringComparison.Ordinal);
     }
 
     /// <summary>

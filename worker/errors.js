@@ -140,6 +140,10 @@ const KNOWN_ROUTES = Object.freeze([
     '/api/rulebook/power',
     '/api/rulebook/search', '/api/rulebook/contents', '/api/rulebook/passage',
     '/api/admin/error-log',
+    // The list of players in the caller's own campaigns. Its own name rather than folded in with
+    // the row below, because a list that cannot be drawn and one account's cap that cannot be set
+    // are different faults with different causes.
+    '/api/admin/accounts',
     '/api/transcripts',
 ]);
 
@@ -182,6 +186,14 @@ export function routePattern(request) {
     // verb triples the rows this prefix can occupy for no gain: `kind` and `detail` already say
     // which statement threw.
     if (path.startsWith('/api/memberships/')) return '/api/memberships/{id}';
+
+    // **The key under this prefix is an email address, which is exactly why the arm is here.**
+    // Without it, a failure setting somebody's cap is filed as `other` beside every request to an
+    // address nobody routes — and, worse than for the three above, the *path* under this prefix
+    // names a person. Filing it as a pattern is what keeps an address out of a table whose whole
+    // design is that it is safe to read aloud. Both sub-paths share the one pattern, verb
+    // included, for the reason the membership arm gives: `route` is half of a primary key.
+    if (path.startsWith('/api/admin/accounts/')) return '/api/admin/accounts/{key}';
 
     return 'other';
 }

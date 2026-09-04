@@ -441,6 +441,18 @@ test('the route is a pattern from a closed list, and anything else is other', ()
     // A campaign's join-code rotation is under the campaign's own id, and so is its pattern.
     assert.equal(at('/api/campaigns/g_abcdefghijklmnopqrstuv/code'), '/api/campaigns/{id}');
 
+    // **The admin accounts screen, whose key is an email address**, which is why the arm matters
+    // more here than for the three id prefixes above: without it the *path* — naming a person —
+    // would be the thing filed, and this table's whole design is that it is safe to read aloud.
+    // Both sub-paths share one pattern, for the reason the memberships one does.
+    assert.equal(at('/api/admin/accounts'), '/api/admin/accounts');
+    assert.equal(at('/api/admin/accounts/someone%40example.test/character-limit'),
+        '/api/admin/accounts/{key}');
+    assert.equal(at('/api/admin/accounts/someone%40example.test/characters'),
+        '/api/admin/accounts/{key}');
+    assert.ok(!at('/api/admin/accounts/someone%40example.test/characters').includes('example'),
+        'an address reached the pattern the error log files a failure under');
+
     assert.equal(at('/api/me/'), '/api/me', 'a trailing slash is the same address');
     assert.equal(at('/api/nothing-here'), 'other');
     assert.equal(at('/api/../secret'), 'other');
