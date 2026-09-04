@@ -591,14 +591,29 @@ five green checks as more than they are:
 `/proc/<pid>/stat` recursively. The identical defect then reappeared on macOS, which has no
 `/proc`, so `children_of` returned nothing there too, silently, and `kill_tree` again killed only
 the `npx` wrapper — measured at six `wrangler`/`workerd` groups still listening on 8788–8793 after
-a completed run, with the run still reporting PASS. Both platforms are now fixed (macOS falls back
-to `pgrep -P`), and **both were verified only by outcome** — zero leaked processes and no held
-ports after a full run — **never by driving `kill_tree` directly**. `port_in_use` alone masks the
-leak by stepping over the held port, so a green run cannot distinguish "nothing leaked" from
-"something leaked and nothing looked". What is missing: start a server, call `stop_server`, and
-assert directly that nothing is listening and no `workerd` process remains, on both the Linux path
-(in a container, since the obvious `bash -c '…' &` fixture collapses to one process — `exec`
-replaces it rather than forking a real multi-process tree to kill) and the macOS path. See
+a completed run, with the run still reporting PASS.
+
+**macOS is fixed and Linux is not, and that was established by reading a CI log rather than by
+reasoning.** The macOS half falls back to `pgrep -P` where there is no `/proc`, and a full local run
+now leaves zero `workerd` processes and no held ports. The Linux half — `pkill -P` replaced with a
+recursive walk of `/proc/<pid>/stat` — **does not work, and never did**: the runner emits
+`something is still listening on port N after 30s of asking it not to` for **every twin, on every
+run**. Twelve such warnings on `main` at `8f2add6` (run `33848074411`), eleven on the branch that
+fixed macOS (`f0c77f2`, run `33899283677`) — so it predates that work and is not a regression from
+it. The ports simply step upward, 8789 through 8799, as each abandoned server is stepped over.
+
+**The reason nobody noticed is the reason this entry exists.** Both halves were verified by
+*outcome* — "no leaked processes after a run" — and on Linux that check passes while the leak
+continues, because `next_free_port` walks past the held port and never asks for it again. A green
+run cannot distinguish "nothing leaked" from "something leaked and nothing looked", which makes the
+outcome the wrong thing to measure. **Do not accept an outcome check as proof for this again.**
+
+What is missing: start a server, call `stop_server`, and assert directly that nothing is listening
+and no `workerd` process remains — on the Linux path (in a container, since the obvious
+`bash -c '…' &` fixture collapses to one process: `exec` replaces it rather than forking a real
+multi-process tree to kill) and on the macOS path. Only then diagnose why the `/proc` walk fails on
+the runner; a second fix confirmed by the same blind outcome check would land exactly here again.
+See
 [`docs/progress/2026-09-04-the-stage-two-brief.md`](docs/progress/2026-09-04-the-stage-two-brief.md)
 item 3 for the container recipe already worked out.
 
