@@ -154,6 +154,19 @@ else
                         Tighter than the tier's. A character joining with no cap of its own takes
                         this; one that has a cap keeps it, and says so.
                     </p>
+
+                    @* **Said, and not refused.** The box takes 1 to 30 whatever tier is chosen, so
+                       a cap above the tier's ceiling was accepted in silence beside a hint saying
+                       "Tighter than the tier's" — and every character that then inherited it
+                       carried a `TRAIT_CAP_ABOVE_TIER` error the GM never saw coming. Refusing was
+                       the alternative and is the wrong one here: a GM may type the cap before
+                       choosing the tier, and a Save that does nothing is a control that looks
+                       broken. Reporting is also what the engine does with the same mistake one
+                       level down, so the two answers agree. *@
+                    @if (LooseCap is { } loose)
+                    {
+                        <p class="small muted" role="status">@loose</p>
+                    }
                 </Field>
 
                 <div class="inline">
@@ -387,6 +400,39 @@ else
     };
 
     private string TierName(string id) => Session.Rules.GetTier(id)?.Name ?? id;
+
+    /// <summary>
+    /// What is wrong with the cap in the form, or null when nothing is.
+    ///
+    /// <para><b>A house cap tightens a tier's ceiling and never loosens it</b>, and the box takes
+    /// any whole number from 1 to 30 whatever tier is chosen beside it. So a GM could set 20d over
+    /// the Standard tier's 12d and be told nothing, under a hint that said "Tighter than the
+    /// tier's" — and every character joining with no cap of its own would inherit an error the
+    /// engine reports as <c>TRAIT_CAP_ABOVE_TIER</c> on a screen the GM never opens.</para>
+    ///
+    /// <para><b>Reported rather than refused, and that is a decision.</b> This is a form checking
+    /// its own input against a tier the same form chose, which is one of the few places refusing
+    /// would be defensible — but a GM may type the cap before picking the tier, and a Save that
+    /// silently does nothing is a control that looks broken. Reporting is also the answer the
+    /// engine gives the same mistake one level down, so the two cannot disagree about what a bad
+    /// cap means.</para>
+    ///
+    /// <para>Nothing is said for a campaign that names no tier: a GM who has not set a power level
+    /// has nothing to be above.</para>
+    /// </summary>
+    private string? LooseCap
+    {
+        get
+        {
+            if (_traitCap is not { } cap || _tierId is null) return null;
+            if (Session.Rules.GetTier(_tierId) is not { } tier) return null;
+
+            return cap <= tier.TraitCapRank
+                ? null
+                : $"That is above the {tier.Name} tier's {tier.TraitCapRank}d. A house cap "
+                  + "tightens a tier's ceiling and never loosens it.";
+        }
+    }
 
     private string RunAside => $"{_running.Count} to run";
 

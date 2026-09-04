@@ -57,9 +57,15 @@
     <ul class="small muted">
         <li>
             Trait Cap @(Session.TraitCap)d.
+            @* **Neutral about which way it moved, deliberately.** This used to read "caps tighter
+               than its tier's", which `Session.TraitCapIsNotTheTiers` cannot tell: a cap above the
+               tier's is an error the validator reports as `TRAIT_CAP_ABOVE_TIER`, and it is
+               reported and still used — so this line really can be drawn over a looser cap, saying
+               the opposite of what is on screen. What is true in both directions is that the house
+               cap is the one in force. *@
             @if (Session.TraitCapIsNotTheTiers)
             {
-                @: This game caps tighter than its tier's @(Session.TierTraitCap)d, and Resolve is measured from the cap in force.
+                @: Not the tier's @(Session.TierTraitCap)d — this game's cap is the one Resolve is measured from.
             }
         </li>
         <li>@Plural(ResolveFlaws, "Condition or Plot Hook flaw", "Condition or Plot Hook flaws").</li>

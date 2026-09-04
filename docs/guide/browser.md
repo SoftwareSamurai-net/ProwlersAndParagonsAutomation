@@ -636,7 +636,24 @@ the storage half, which shipped a slice earlier.
   number the validator judges by and the number Resolve was measured from. **Wherever the cap is
   printed — the budget strip, the printed sheet's meta line, the Resolve breakdown, a replay's
   verdict — the tier's is named beside it when the two differ**, because "Trait Cap 6d" at the
-  Standard tier looks like a mistake to anybody who knows the tier allows 12d.
+  Standard tier looks like a mistake to anybody who knows the tier allows 12d. **All four are
+  tested, and for a while only the strip was** — `TraitCapOnScreenTests` covers the other three,
+  each with the control that a character on its tier's own cap is told one figure and not two.
+- **No screen claims which *way* the cap moved, because nothing on a screen can tell.**
+  `CharacterSession.TraitCapIsNotTheTiers` is a difference, not a direction, and a cap *above* the
+  tier's is reachable: the GM's form takes 1 to 30 whatever tier is chosen, and the validator
+  reports `TRAIT_CAP_ABOVE_TIER` and **still uses the number as written**. The Resolve breakdown
+  said "This game caps tighter than its tier's 12d" and would have said it over a 20d cap, between
+  the two figures that contradict it. It reads "Not the tier's 12d" now, which is true either way.
+- **The GM's form says when a cap is above the tier it chose, and does not refuse it.** A house cap
+  tightens a tier's ceiling and never loosens it, and the box accepted 20d at Standard in silence
+  under a hint reading "Tighter than the tier's" — so every character joining with no cap of its
+  own inherited an error on a screen the GM never opens. **Refusing was the alternative and this is
+  one of the few places it would have been defensible** — a form checking its own input against a
+  tier the same form chose is not the engine judging somebody's character. It reports because a GM
+  may type the cap before picking the tier, and a Save that silently does nothing is a control that
+  looks broken; reporting is also the answer the engine gives the same mistake one level down, so
+  the two cannot disagree about what a bad cap means.
 - **A campaign's Trait Cap is read from the character, never from the campaign.** That deferral is over: the owner settled on 2026-09-05 that a house cap *substitutes*
   for the tier's, so it moves Resolve — see [`rules-engine.md`](rules-engine.md) for the
   arithmetic and why gating was not an honest alternative. What survives unchanged is the route.
