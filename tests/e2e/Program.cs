@@ -82,6 +82,13 @@ for (var i = 1; i < args.Length; i++)
 // or second, it scans one with a disabled Next. Those are different pages and they give different
 // answers, and a check whose subject depends on execution order is not reproducible. Second is
 // the position that agrees with `--only`, which is how every twin drives it.
+//
+// **The two signed-in checks are last, and their position is not arbitrary either.** Signing in
+// replaces whatever character this browser was holding with the account's — `SignIn.razor` does
+// that deliberately, so that a sign-in never leaves somebody else's work on screen under your name
+// — and `BUILD` is a check about a character surviving a reload. Run before it, `RULES` would pull
+// the rug out from under it; run after, neither notices the other. `A11Y`'s comment above says the
+// same thing about the same page from the other direction.
 Check[] checks =
 [
     Boot.Check,
@@ -90,6 +97,8 @@ Check[] checks =
     Theme.Check,
     Palette.Check,
     Routes.Check,
+    Rules.Check,
+    Admin.Check,
 ];
 
 if (only.Count > 0)

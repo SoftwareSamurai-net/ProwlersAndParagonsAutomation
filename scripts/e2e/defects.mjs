@@ -24,9 +24,33 @@
 // a preference that is read but never applied, a palette block whose selector stops matching, and
 // a `<base href>` that is not `/`. The last is named in `docs/guide/hosting.md` as a way to break
 // every asset fetch at once.
+//
+// ------------------------------------------------------------------------------------------------
+// AND A SECOND KIND OF DEFECT, BECAUSE A SIGNED-IN CHECK CANNOT HAVE THE FIRST.
+//
+// **The published site is a Blazor WebAssembly bundle: the application's own logic is inside
+// `_framework/*.wasm`, and there is no line in it to substitute.** Everything the list above
+// breaks is one of the four hand-written files beside that bundle — `index.html`, a `js/*.js`, a
+// `css/*.css`. A check that a signed-in reader can read the book, or that an ordinary account is
+// refused the admin page, is answered by `worker/` on the server, and `wrangler pages dev` bundles
+// `functions/` from the working directory: the twin and the real site are served by the *same*
+// server code, so a defect in the site cannot reach it.
+//
+// **So a signed-in check's negative control is a defect in what is seeded, and `SEED_DEFECTS` is
+// where it is declared.** The property that matters is kept rather than the mechanism: this file
+// is still the one place a negative control is written down, `e2e.sh` still requires every driven
+// check to appear here, and a twin is still a whole second run of the byte-identical harness. What
+// differs is that the second run's database says something else — an expired token, or an account
+// the deployment considers its owner — rather than the second run's `index.html`.
+//
+// **What that costs, said plainly:** a seed twin does not prove the check would notice a broken
+// *page*, because it does not break one. `RULES` is twinned on its positive control — no session,
+// so nothing to read — and `ADMIN` on its outcome, which is the stronger of the two and is why the
+// admin refusal is worth more than the rulebook check. Neither is offered as more than that.
 
 import { cpSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 /**
  * One defect: which check it must turn red, which published file it lives in, and the exact one
@@ -115,6 +139,42 @@ export const DEFECTS = [
 ];
 
 /**
+ * The negative controls for the checks that need a signed-in reader.
+ *
+ * **Each of these is a row, not a file** — see this file's header for why a signed-in check cannot
+ * have a file defect. `scripts/e2e/seed.mjs` reads whichever one it is named and writes the world
+ * accordingly; the site served is the real one, byte for byte, and so is the server.
+ *
+ * **Both are faults this deployment could really have.** A clock skew or a slow mail queue makes
+ * every link arrive expired; an `ADMIN_EMAIL` pointed at the wrong address, or a `grants_admin`
+ * left set on an invitation, makes an ordinary account an administrator. The second is the one
+ * worth having: it turns `ADMIN`'s *outcome* red rather than its control, so that check is watched
+ * to fail for the reason it exists.
+ */
+export const SEED_DEFECTS = [
+    {
+        name: 'signin-token-already-expired',
+        check: 'RULES',
+        why: 'The seeded sign-in token is minted already expired, so `db.spendLoginToken`\'s '
+            + '`expires_at > ?` refuses it and the browser never gets a session. RULES then has '
+            + 'no account to read the book with, and says so as a control failure: the work did '
+            + 'not happen. This is what proves the check is not reading prose that was in the '
+            + 'published site all along — anonymous, `/rules` is a sign-in prompt.',
+        lifetimeMs: -1000,
+    },
+    {
+        name: 'seeded-account-is-the-owner',
+        check: 'ADMIN',
+        why: 'The seeded invitation carries `grants_admin = 1`, so `invitations.isAdministrator` '
+            + 'says yes and the admin page lets the driver in. ADMIN exists to prove an ordinary '
+            + 'account is refused, and this is that refusal removed — the check goes red on its '
+            + 'outcome rather than on its control, which is the shape a negative control should '
+            + 'have wherever it can be got.',
+        grantsAdmin: 1,
+    },
+];
+
+/**
  * Write a twin of `siteDir` into `intoDir` with one defect applied.
  *
  * The whole published directory is copied rather than symlinked or overlaid: `wrangler pages dev`
@@ -153,28 +213,60 @@ export function buildTwin(siteDir, intoDir, defect) {
 
 // ---------------------------------------------------------------------------------------------
 // Called by scripts/e2e.sh.
+//
+// **Guarded, because this file is now imported as well as run.** `scripts/e2e/seed.mjs` imports
+// `SEED_DEFECTS` from here so that a negative control is declared in exactly one place — and
+// without this guard the import executed the block below, which found no command, printed the
+// usage line and exited 2. The seed then failed with a message about `defects.mjs --list`, from a
+// script that had asked it for nothing.
 
-const [command, ...rest] = process.argv.slice(2);
+if (isBeingRun()) run();
 
-if (command === '--list') {
-    // `name:check` per line, which is all the shell needs: it drives each twin and requires that
-    // check to be red in it.
-    for (const defect of DEFECTS) console.log(`${defect.name}:${defect.check}`);
-} else if (command === '--build') {
-    const [siteDir, intoDir, name] = rest;
-    const defect = DEFECTS.find(d => d.name === name);
+/** Whether this file was executed rather than imported. */
+function isBeingRun() {
+    const entry = process.argv[1];
 
-    if (!defect) {
-        console.error(`no such twin: ${name}. Known: ${DEFECTS.map(d => d.name).join(', ')}`);
+    return !!entry && pathToFileURL(entry).href === import.meta.url;
+}
+
+function run() {
+    const [command, ...rest] = process.argv.slice(2);
+
+    if (command === '--list') {
+        // `name:check:kind` per line, which is all the shell needs: it drives each twin and
+        // requires that check to be red in it.
+        //
+        // **The kind is the third field rather than a second command**, so the shell has one list
+        // to iterate and one loop to keep in step. A `file` twin is a copy of the published site
+        // with a line changed; a `seed` twin is the real site served against a differently-seeded
+        // database.
+        for (const defect of DEFECTS) console.log(`${defect.name}:${defect.check}:file`);
+        for (const defect of SEED_DEFECTS) console.log(`${defect.name}:${defect.check}:seed`);
+    } else if (command === '--build') {
+        const [siteDir, intoDir, name] = rest;
+        const defect = DEFECTS.find(d => d.name === name);
+
+        if (!defect) {
+            // Named apart rather than lumped into "no such twin", because the two are different
+            // mistakes: a seed twin has no directory to build and asking for one means the shell's
+            // loop has lost track of which kind it is holding.
+            const seed = SEED_DEFECTS.find(d => d.name === name);
+
+            console.error(seed
+                ? `'${name}' is a seed twin, not a file twin: there is no site to build. `
+                  + `scripts/e2e.sh serves the real site and seeds the database with `
+                  + `--defect ${name} instead.`
+                : `no such twin: ${name}. Known: ${DEFECTS.map(d => d.name).join(', ')}`);
+            process.exit(2);
+        }
+
+        buildTwin(siteDir, intoDir, defect);
+        console.log(`${defect.name}: ${defect.file} — ${defect.check} must fail against this.`);
+    } else if (command === '--why') {
+        const defect = [...DEFECTS, ...SEED_DEFECTS].find(d => d.name === rest[0]);
+        console.log(defect ? defect.why : `no such twin: ${rest[0]}`);
+    } else {
+        console.error('usage: defects.mjs --list | --build <site> <into> <name> | --why <name>');
         process.exit(2);
     }
-
-    buildTwin(siteDir, intoDir, defect);
-    console.log(`${defect.name}: ${defect.file} — ${defect.check} must fail against this.`);
-} else if (command === '--why') {
-    const defect = DEFECTS.find(d => d.name === rest[0]);
-    console.log(defect ? defect.why : `no such twin: ${rest[0]}`);
-} else {
-    console.error('usage: defects.mjs --list | --build <site> <into> <name> | --why <name>');
-    process.exit(2);
 }

@@ -108,21 +108,48 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # ------------------------------------------------------------------------------------------------
 # Where everything lives.
 #
-# **`wrangler pages dev` is run from `$work`, and that placement is the configuration.** Wrangler
+# **`wrangler pages dev` is run from `$root`, and that placement is the configuration.** Wrangler
 # bundles a `functions/` directory found in the *working directory* — there is no flag for it — so
-# running it from the repository root would bundle the accounts API, which needs a D1 binding this
-# stage deliberately does not have. From here there is no `functions/` to find, wrangler says
-# "No Functions. Shimming...", every `/api/` address falls through `_redirects` to `index.html`,
-# and the app reads an unparseable answer as "anonymous" — which is exactly what stage one wants
-# and is the app's own documented behaviour rather than a special case for this harness.
+# running from the repository root bundles the accounts API, and the server this harness drives is
+# the whole application rather than its static half.
 #
-# **And the site directories are named relative to `$work` on purpose.** Wrangler is Node, so it
-# cannot read a Git Bash path like `/c/Users/...`; passing `site` from inside `$work` needs no
-# conversion and therefore cannot be got wrong on one platform and not the other.
+# **This was the other way round for the whole of stage one, and the reversal is the change worth
+# reading.** It ran from `$work` specifically so that no `functions/` was found: wrangler said "No
+# Functions. Shimming...", every `/api/` address fell through `_redirects` to `index.html`, and the
+# app read an unparseable answer as "anonymous". That was a real answer to a real question — stage
+# one had no database to bind and no business inventing one — but it meant nothing behind sign-in
+# was reachable, and it meant the six anonymous checks were passing against a server that was not
+# the deployed shape.
+#
+# **What made the reversal cheap is measured rather than assumed: all six anonymous checks pass
+# unchanged against the bundled server.** `/api/me` answers `401 {"error":"Nobody is signed in."}`
+# instead of an unparseable `index.html`, and the app treats both as "anonymous" — so there is one
+# server configuration here and not two. That mattered: two would have meant two publishes, two
+# starts and two drives per run, against a Build job already measured at 18–19 minutes.
+#
+# **And the site directories are named relative to `$root` on purpose.** Wrangler is Node, so it
+# cannot read a Git Bash path like `/c/Users/...`; passing `.e2e/site` from inside `$root` needs no
+# conversion and therefore cannot be got wrong on one platform and not the other. The two paths
+# that *must* be absolute — the D1 state directory, which wrangler resolves against `--cwd` rather
+# than against the process — are written as `$root/...`, which MSYS converts on the way to a native
+# binary and Linux passes through.
 work="$root/.e2e"
 site="$work/site"
 twins="$work/twins"
 logs="$work/logs"
+
+# Where the local D1 lives, and the name every server and every seed reaches it by.
+#
+# **`--persist-to` is given to both `wrangler d1` and `wrangler pages dev`, and they have to agree
+# or the harness seeds one database and serves another.** They would still both work: the sign-in
+# would simply refuse, `RULES` would go red on its control, and the run would report a defect that
+# is not in the application at all. So this is one variable, used in both places.
+d1_state="$work/d1state"
+
+# The addresses the seeded world uses. `worker/invitations.js` makes whoever `ADMIN_EMAIL` names
+# the bootstrap administrator, so this is deliberately **not** the address the driver signs in as —
+# see `scripts/e2e/seed.mjs`, which declares both and is the only place they are written down.
+e2e_owner_email="owner@e2e.invalid"
 
 # The first port tried. Each server gets its own rather than waiting for one to be released:
 # a stale listener on a port a new server then fails to bind is not hypothetical — it happened
@@ -285,6 +312,95 @@ done
 rm -rf "$site"
 cp -r "$root/publish/wwwroot" "$site"
 echo "Serving $(find "$site" -type f | wc -l | tr -d ' ') published files."
+
+# ------------------------------------------------------------------------------------------------
+# The local database the signed-in checks drive against.
+#
+# **Read out of `d1/wrangler.toml`, never declared here**, for the same reason the wrangler version
+# is read out of `deploy.yml`: a constant copied into a second file is a constant that drifts, and
+# a harness that seeded one database while the server bound another would report a defect that is
+# not in the application. If the parse fails this script refuses rather than guessing — the same
+# rule, and for the same reason, as the version above.
+database_id=$(sed -n 's/^[[:space:]]*database_id[[:space:]]*=[[:space:]]*"\([^"]*\)".*$/\1/p' \
+  "$root/d1/wrangler.toml" | head -1)
+
+if [ -z "$database_id" ]; then
+  cat >&2 <<'EOF'
+::error::Could not read a database_id out of d1/wrangler.toml.
+::error::
+::error::Refusing to bind a guess. `wrangler pages dev --d1 DB=<id>` and
+::error::`wrangler d1 execute --local` key their local state by that id, so a wrong one is not an
+::error::error anywhere — it is a second, empty database that the seed writes to and the server
+::error::never reads. Every signed-in check would go red on its control, blaming the application.
+EOF
+  exit 2
+fi
+
+# **Migrated here rather than by `scripts/apply-migrations.sh`, which is a different job.** That
+# script is the deploy's, it runs `--remote` against production, and it exists to refuse a
+# destructive migration before an upload. This needs the opposite: a throwaway local database
+# brought up to the same schema, with no gate and nothing to protect. The one thing they share is
+# `d1/migrations`, which is the source both read.
+echo "Migrating the local D1 in ${d1_state}..."
+mkdir -p "$d1_state"
+
+CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' \
+  npx --yes "wrangler@${wrangler_version}" --cwd "$root/d1" \
+    d1 migrations apply prowlers-and-paragons \
+    --local --persist-to "$d1_state" > "$logs/d1-migrate.log" 2>&1 \
+  || { echo "::error::migrating the local D1 failed:"; tail -30 "$logs/d1-migrate.log"; exit 2; }
+
+# **The positive control for the migration, and it is not decoration.** A `d1 migrations apply`
+# that matched no migrations exits zero and prints a table with nothing in it, which is
+# indistinguishable from success right up until a signed-in check reports `no such table:
+# login_tokens` as though the application were at fault.
+if ! grep -q "0001_accounts.sql" "$logs/d1-migrate.log"; then
+  echo "::error::the local D1 migration ran without naming 0001_accounts.sql, so the schema the"
+  echo "::error::signed-in checks need may not be there. Read $logs/d1-migrate.log."
+  exit 2
+fi
+
+# The database's name, beside its id above and read the same way — `d1 execute` takes the name and
+# `pages dev --d1` takes the id, so both are needed and neither is written here.
+database_name=$(sed -n 's/^[[:space:]]*database_name[[:space:]]*=[[:space:]]*"\([^"]*\)".*$/\1/p' \
+  "$root/d1/wrangler.toml" | head -1)
+
+[ -n "$database_name" ] || {
+  echo "::error::Could not read a database_name out of d1/wrangler.toml. Refusing to guess: see"
+  echo "::error::the database_id refusal above, which is the same failure from the other side."
+  exit 2
+}
+
+# Mints a token, writes the world it belongs to, and prints the raw token — which is the one thing
+# the driver needs and the only thing it is told. See scripts/e2e/seed.mjs's header for why this is
+# test-seeding rather than an authentication bypass.
+#
+# **Node writes the SQL and this runs it**, rather than Node shelling out to wrangler itself: Node
+# refuses to spawn `npx.cmd` without a shell, and putting the seed's SQL through `cmd.exe`'s
+# quoting is the thing that refusal exists to prevent. seed.mjs's header records the failure.
+#
+# `$1` is an optional seed-defect name; with none, the world is the ordinary one.
+seed_database() {
+  local defect="${1:-}"
+  local sql="$work/seed.sql"
+  local args=(--root "$root" --sql-out "$sql")
+  local token
+
+  [ -n "$defect" ] && args+=(--defect "$defect")
+
+  token="$(node "$root/scripts/e2e/seed.mjs" "${args[@]}")" || return 1
+
+  CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' \
+    npx --yes "wrangler@${wrangler_version}" --cwd "$root/d1" \
+      d1 execute "$database_name" --local --persist-to "$d1_state" \
+      --file "$sql" > "$logs/d1-seed.log" 2>&1 || {
+    echo "::error::seeding the local D1 failed:" >&2
+    tail -20 "$logs/d1-seed.log" >&2
+    return 1
+  }
+
+  printf '%s' "$token"
+}
 
 # ------------------------------------------------------------------------------------------------
 # Starting and stopping one server.
@@ -519,7 +635,7 @@ stop_server() {
 
 trap stop_server EXIT INT TERM
 
-# start_server <directory-relative-to-$work> <port> <log-name>
+# start_server <directory-relative-to-$root> <port> <log-name>
 start_server() {
   local dir="$1" port="$2" name="$3"
   local log="$logs/$name.log"
@@ -527,10 +643,13 @@ start_server() {
   server_port="$port"
 
   (
-    cd "$work" || exit 1
+    cd "$root" || exit 1
     CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' \
       exec npx --yes "wrangler@${wrangler_version}" pages dev "$dir" \
-        --ip 127.0.0.1 --port "$port" > "$log" 2>&1
+        --ip 127.0.0.1 --port "$port" \
+        --d1 "DB=${database_id}" --persist-to "$d1_state" \
+        --binding "SITE_URL=http://127.0.0.1:${port}" "ADMIN_EMAIL=${e2e_owner_email}" \
+        > "$log" 2>&1
   ) &
   server_pid=$!
 
@@ -551,6 +670,21 @@ start_server() {
     if body=$(curl -fsS --max-time 5 "http://127.0.0.1:${port}/" 2>/dev/null); then
       case "$body" in
         *'class="boot"'*)
+          # **The server has to be the whole application, and this is what says so.** Wrangler
+          # bundles `functions/` from its working directory and prints "No Functions. Shimming..."
+          # when it finds none — which is stage one's server, and which every signed-in check would
+          # then fail against while blaming the application for refusing a session it was never
+          # offered. A directory moved, a `cd` lost in an edit, or a `functions/` renamed all land
+          # here, and all of them are silent otherwise.
+          if grep -q "No Functions" "$log"; then
+            echo "::error::wrangler found no functions/ directory, so /api/ is not being served by"
+            echo "::error::the accounts server at all — it falls through _redirects to index.html."
+            echo "::error::Nothing behind sign-in can work against this server. wrangler bundles"
+            echo "::error::functions/ from its working directory and this ran in $(pwd)."
+            tail -20 "$log"
+            return 1
+          fi
+
           echo "  wrangler pages dev serving $dir on http://127.0.0.1:${port}"
           return 0
           ;;
@@ -572,7 +706,31 @@ echo ""
 echo "=== The real site ================================================================"
 
 port="$(next_free_port "$first_port")"
-start_server site "$port" real || exit 1
+start_server .e2e/site "$port" real || exit 1
+
+# **A token per drive, minted immediately before it, because a token is single-use.**
+#
+# `db.spendLoginToken` burns the row on first click, so one token cannot serve the real run and
+# then a twin: the second drive would find it used, fail to sign in, and report the application as
+# broken. Seeding per drive also resets the world — see seed.mjs — so no check can pass on a
+# session an earlier drive left behind, which is the same fault as a feature reading a store
+# nothing writes to.
+#
+# **The driver is told a token and nothing else.** It has no database, no wrangler and no
+# credential; it navigates to `/signin?t=<token>` the way a person clicks a link in their mail, and
+# the application does the rest. That is what keeps "nothing reaches past the browser" true here:
+# the row is what an email would have caused, and everything after it is the app's own verify path.
+export PP_E2E_SIGNIN_TOKEN
+PP_E2E_SIGNIN_TOKEN="$(seed_database)" || {
+  echo "::error::seeding the local D1 failed, so no signed-in check can run. See above."
+  exit 1
+}
+
+[ -n "$PP_E2E_SIGNIN_TOKEN" ] || {
+  echo "::error::the seed printed no token. A driver handed an empty one would sit on the sign-in"
+  echo "::error::form and report every signed-in check red, blaming the application."
+  exit 1
+}
 
 real_log="$logs/real-drive.log"
 real_status=0
@@ -657,7 +815,8 @@ fi
 echo ""
 echo "=== The deliberately-broken twins ================================================"
 
-# `name:CHECK` per line.
+# `name:CHECK:kind` per line, where kind is `file` or `seed` — see defects.mjs on why a signed-in
+# check cannot have a file twin.
 mapfile -t defect_lines < <(node "$root/scripts/e2e/defects.mjs" --list)
 
 if [ "${#defect_lines[@]}" -eq 0 ]; then
@@ -674,6 +833,7 @@ fi
 # four places, which is the argument for looking wherever a pattern like this is copied.
 checks_run=$(grep -o '^E2E CHECK [A-Z][A-Z0-9_]*' "$real_log" | sed 's/^E2E CHECK //' | sort -u)
 checks_twinned=$(printf '%s\n' "${defect_lines[@]}" | cut -d: -f2 | sort -u)
+
 
 # **Only one direction is checked here now, and the other moved. Read this before restoring it.**
 #
@@ -708,8 +868,19 @@ twin_failures=0
 twins_driven=0
 
 for line in "${defect_lines[@]}"; do
-  name="${line%%:*}"
-  check="${line##*:}"
+  IFS=: read -r name check kind <<< "$line"
+
+  # A line that lost its third field would leave `kind` empty, and an empty kind falling through
+  # to the file branch would try to build a site for a seed twin and fail with a message about a
+  # missing directory. Named here instead.
+  case "$kind" in
+    file|seed) ;;
+    *)
+      echo "::error::defects.mjs listed '$line', whose kind field is '${kind:-(missing)}' rather"
+      echo "::error::than 'file' or 'seed'. That list is this script's only contract with it."
+      exit 1
+      ;;
+  esac
 
   # A twin for a check this driver did not run. Skipped rather than failed — the other driver
   # covers it, and `E2eDriverTests` is what proves *some* driver does. Reported so that a run's
@@ -727,17 +898,43 @@ for line in "${defect_lines[@]}"; do
   echo ""
   echo "--- twin '$name' — $check must fail ---"
 
-  # Throws, loudly, if the one documented line it substitutes has moved.
-  node "$root/scripts/e2e/defects.mjs" --build "$site" "$twins/$name" "$name" || {
-    echo "::error::twin '$name' could not be built — see above. Until it can be, $check has no"
-    echo "::error::negative control and has not been watched to fail."
-    exit 1
-  }
+  # **Two kinds of twin, and they differ only in what is made broken.** Both serve a site with
+  # `functions/` bundled and both are driven by the byte-identical harness; a `file` twin is a copy
+  # of the published output with one documented line changed, and a `seed` twin is the *real*
+  # published output served against a database seeded wrong. See defects.mjs on why a check that is
+  # answered by the server cannot have the first kind.
+  if [ "$kind" = "file" ]; then
+    # Throws, loudly, if the one documented line it substitutes has moved.
+    node "$root/scripts/e2e/defects.mjs" --build "$site" "$twins/$name" "$name" || {
+      echo "::error::twin '$name' could not be built — see above. Until it can be, $check has no"
+      echo "::error::negative control and has not been watched to fail."
+      exit 1
+    }
+
+    twin_dir=".e2e/twins/$name"
+  else
+    twin_dir=".e2e/site"
+  fi
 
   # A port of its own rather than the one just released: nothing then depends on how quickly the
   # previous server let go of it, and a socket in TIME_WAIT cannot be read as this server.
   port="$(next_free_port "$((port + 1))")"
-  start_server "twins/$name" "$port" "twin-$name" || exit 1
+  start_server "$twin_dir" "$port" "twin-$name" || exit 1
+
+  # **Re-seeded for every twin, not only for the seed ones.** A token is single-use, so even a file
+  # twin needs a live one or its own run would fail to sign in — and a twin that went red because
+  # its token was spent by the previous drive is a negative control proving nothing at all. For a
+  # seed twin this is also where the defect is applied.
+  if [ "$kind" = "seed" ]; then
+    PP_E2E_SIGNIN_TOKEN="$(seed_database "$name")"
+  else
+    PP_E2E_SIGNIN_TOKEN="$(seed_database)"
+  fi
+
+  [ -n "$PP_E2E_SIGNIN_TOKEN" ] || {
+    echo "::error::twin '$name': the seed printed no token, so this twin proved nothing."
+    exit 1
+  }
 
   twin_log="$logs/twin-$name-drive.log"
   twin_status=0
