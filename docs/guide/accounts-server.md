@@ -115,9 +115,12 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   user)`, to gate `/api/admin/invitations` — and `/admin` already answers an ordinary account the
   same `404` an unrouted address gets, so the page cannot be discovered by trying. A read-only
   `/api/admin/error-log`, gated by that identical check, adds no role to `Identity` and no new
-  concept; it is the same question asked once more. The unrelated precedent —
-  `users.character_limit`, raised by hand in SQL — still stands: that is a *write* with no gate
-  built for it, which reading a table never needed one for in the first place.
+  concept; it is the same question asked once more. **The precedent this used to cite against
+  itself is gone**: `users.character_limit` was a *write* with no gate built for it, raised by hand
+  in SQL against the live database, and that is now a third address behind the identical check —
+  see "The accounts screen" below. What is unchanged is the reasoning, which the screen follows
+  rather than reverses: the gate is the one that already existed, and the write is scoped so that
+  nobody can raise their own.
   - **A category is assigned where a failure is caught, never at a throw site.** `handle()`
     wraps the two subsystems on the way in — `taggedStorage` round the D1 binding,
     `taggedMail` round the send — so `db.js` and `mail.js` know nothing about any of it. A
