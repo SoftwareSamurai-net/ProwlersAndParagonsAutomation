@@ -210,7 +210,139 @@ public sealed class HeadlessBuildTests : IDisposable
         Assert.Equal(tier.HeroPoints - _f.Costs.TotalCost(hero),
                      (int)run.Report["hero_points"]!["remaining"]!);
         Assert.Equal(tier.TraitCapRank, (int)run.Report["trait_cap"]!);
+        Assert.Equal(tier.TraitCapRank, (int)run.Report["tier_trait_cap"]!);
         Assert.Equal(hero.SelectedPackageId, (string?)run.Report["character"]!["package"]);
+    }
+
+    // ── The house Trait Cap ───────────────────────────────────────────────
+
+    /// <summary>
+    /// <b><c>--trait-cap</c> is the whole finding, end to end.</b> A campaign caps a
+    /// non-superhuman at 6d and the tool could not see it, so a 7d Ability at the Standard
+    /// tier validated <c>ok: true</c>. Under the flag it is <c>TRAIT_ABOVE_CAP</c> against a
+    /// limit of 6, and Resolve moves with the cap because the cap is what Resolve is measured
+    /// from — the two halves the owner settled together, asserted together.
+    ///
+    /// <para>The run without the flag is the positive control: 7d really is legal at this tier,
+    /// so nothing below can be satisfied by a character that was already illegal.</para>
+    /// </summary>
+    [Fact]
+    public void TheTraitCapFlagMovesTheCapTheCharacterIsJudgedAndPaidAgainst()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.AbilityRanks["intellect"] = 7;
+        var file = CharacterFile(CharacterSheetJson.Write(sheet));
+
+        var tier = _f.Rules.GetTier("standard")!;
+        var free = Invoke("--from", file, "--no-export");
+
+        Assert.Equal(BuildCommand.Ok, free.ExitCode);
+        Assert.Null(free.Issue("TRAIT_ABOVE_CAP"));
+        Assert.Equal(tier.TraitCapRank, (int)free.Report["trait_cap"]!);
+        Assert.Equal((tier.TraitCapRank - 7) * 2, (int)free.Report["derived"]!["resolve"]!);
+
+        var capped = Invoke("--from", file, "--no-export", "--trait-cap", "6");
+
+        Assert.Equal(BuildCommand.CharacterIllegal, capped.ExitCode);
+        Assert.Equal(6, (int)capped.Report["trait_cap"]!);
+        Assert.Equal(tier.TraitCapRank, (int)capped.Report["tier_trait_cap"]!);
+
+        var issue = capped.Issue("TRAIT_ABOVE_CAP");
+        Assert.NotNull(issue);
+        Assert.Equal("intellect", (string?)issue["subject_id"]);
+        Assert.Equal(7, (int)issue["value"]!);
+        Assert.Equal(6, (int)issue["limit"]!);
+
+        // Resolve is measured from the cap in force, so a rank over it pays nothing.
+        Assert.Equal(0, (int)capped.Report["derived"]!["resolve"]!);
+    }
+
+    /// <summary>
+    /// The flag applies to <b>every</b> character in a roster and beats the field on the file.
+    /// A house cap is a fact about the table, and a caller checking twenty-eight sheets against
+    /// a campaign's rule must not be answered about twenty-seven of them plus whatever the
+    /// twenty-eighth believed about itself.
+    /// </summary>
+    [Fact]
+    public void TheTraitCapFlagAppliesToEveryCharacterAndBeatsTheFileField()
+    {
+        var plain = _f.LegalSheet();
+        plain.Name = "Plain";
+
+        var believes = _f.LegalSheet();
+        believes.Name = "Believes";
+        believes.TraitCapRank = 10;
+
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(plain)),
+                         "--from", CharacterFile(CharacterSheetJson.Write(believes)),
+                         "--no-export", "--trait-cap", "6");
+
+        var reported = run.Report["characters"]!.AsArray()
+            .Select(c => (int)c!["trait_cap"]!)
+            .ToList();
+
+        Assert.Equal([6, 6], reported);
+        Assert.All(run.Report["characters"]!.AsArray(),
+            c => Assert.Equal(_f.Rules.GetTier("standard")!.TraitCapRank, (int)c!["tier_trait_cap"]!));
+    }
+
+    /// <summary>
+    /// <b>The file's own field is honoured with no flag at all</b>, which is what makes a
+    /// character portable: the cap travels with it and does not have to be remembered on a
+    /// command line.
+    /// </summary>
+    [Fact]
+    public void AHouseCapOnTheFileIsHonouredWithNoFlag()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.TraitCapRank = 6;
+        sheet.AbilityRanks["intellect"] = 7;
+
+        var run = Invoke("--from", CharacterFile(CharacterSheetJson.Write(sheet)), "--no-export");
+
+        Assert.Equal(6, (int)run.Report["trait_cap"]!);
+        Assert.Equal(6, (int)run.Issue("TRAIT_ABOVE_CAP")!["limit"]!);
+    }
+
+    /// <summary>
+    /// A cap that is not a whole number is an argument fault — exit 2, and the report names the
+    /// flag rather than the character. A number that is merely nonsense is not: 0d and a cap
+    /// above the tier's are findings on the character, the same ones the file's field gets, so
+    /// the flag and the field cannot disagree about what a bad cap means.
+    /// </summary>
+    [Theory]
+    [InlineData("six")]
+    [InlineData("6d")]
+    [InlineData("")]
+    public void ATraitCapThatIsNotAWholeNumberIsRefused(string value)
+    {
+        var run = Invoke("--from", SampleHeroFile(), "--no-export", "--trait-cap", value);
+
+        Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
+        Assert.Equal("BAD_ARGUMENTS", (string?)run.Issues[0]!["code"]);
+        Assert.Contains("--trait-cap", (string?)run.Issues[0]!["message"] ?? "", StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ATraitCapWithNoValueIsRefused()
+    {
+        var run = Invoke("--from", SampleHeroFile(), "--no-export", "--trait-cap");
+
+        Assert.Equal(BuildCommand.InputUnusable, run.ExitCode);
+        Assert.Equal("BAD_ARGUMENTS", (string?)run.Issues[0]!["code"]);
+    }
+
+    [Theory]
+    [InlineData("0", "TRAIT_CAP_BELOW_MINIMUM")]
+    [InlineData("40", "TRAIT_CAP_ABOVE_TIER")]
+    public void ACapThatIsANumberAndStillNonsenseIsAFindingOnTheCharacter(string value, string code)
+    {
+        var run = Invoke("--from", SampleHeroFile(), "--no-export", "--trait-cap", value);
+
+        Assert.Equal(BuildCommand.CharacterIllegal, run.ExitCode);
+        Assert.NotNull(run.Issue(code));
+        Assert.Equal(int.Parse(value, System.Globalization.CultureInfo.InvariantCulture),
+                     (int)run.Report["trait_cap"]!);
     }
 
     /// <summary>

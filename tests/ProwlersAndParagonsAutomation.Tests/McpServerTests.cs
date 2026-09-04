@@ -327,6 +327,8 @@ public sealed class McpServerTests
                 report["hero_points"]!["remaining"]!.GetValue<int>());
             Assert.Equal(_f.Rules.GetTier(sheet.SelectedTierId!)!.TraitCapRank,
                 report["trait_cap"]!.GetValue<int>());
+            Assert.Equal(_f.Rules.GetTier(sheet.SelectedTierId!)!.TraitCapRank,
+                report["tier_trait_cap"]!.GetValue<int>());
 
             Assert.Equal(_f.Derived.CalculateEdge(sheet), report["derived"]!["edge"]!.GetValue<int>());
             Assert.Equal(_f.Derived.CalculateHealth(sheet), report["derived"]!["health"]!.GetValue<int>());
@@ -340,6 +342,33 @@ public sealed class McpServerTests
             Assert.Equal(_f.Costs.TotalPerksCost(sheet), spending["perks"]!.GetValue<int>());
             Assert.Equal(_f.Costs.TotalGearCost(sheet), spending["gear"]!.GetValue<int>());
         }
+    }
+
+    /// <summary>
+    /// <b>A house Trait Cap reaches the MCP report, and the tier's is reported beside it.</b>
+    /// A conversation quoting a cap of 12d over a Resolve computed from 6d would be advising
+    /// somebody to build to a ceiling their table does not have. `trait_cap` is the cap in force
+    /// and `tier_trait_cap` is what the tier would have allowed.
+    /// </summary>
+    [Fact]
+    public void TheReportCarriesTheHouseTraitCapAndTheTiersBesideIt()
+    {
+        var sheet = _f.LegalSheet();
+        sheet.TraitCapRank = 6;
+        sheet.AbilityRanks["intellect"] = 7;
+
+        var report = Check(sheet);
+        var tier   = _f.Rules.GetTier(sheet.SelectedTierId!)!;
+
+        Assert.Equal(6, report["trait_cap"]!.GetValue<int>());
+        Assert.Equal(tier.TraitCapRank, report["tier_trait_cap"]!.GetValue<int>());
+        Assert.NotEqual(6, tier.TraitCapRank);
+
+        // Resolve is measured from the cap in force, and the finding is against it too.
+        Assert.Equal(_f.Derived.CalculateResolve(sheet), report["derived"]!["resolve"]!.GetValue<int>());
+        var issue = Assert.Single(report["issues"]!.AsArray(),
+            i => (string?)i!["code"] == "TRAIT_ABOVE_CAP")!;
+        Assert.Equal(6, issue["limit"]!.GetValue<int>());
     }
 
     /// <summary>

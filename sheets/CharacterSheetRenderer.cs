@@ -325,8 +325,19 @@ public static class CharacterSheetRenderer
                 ["id"]          = tier.Id,
                 ["name"]        = tier.Name,
                 ["hero_points"] = tier.HeroPoints,
+
+                // The tier's own ceiling, which is a fact about the tier and stays one. The cap
+                // this character is actually built to is the top-level `trait_cap` below, and it
+                // differs whenever a table has imposed a house rule.
                 ["trait_cap"]   = tier.TraitCapRank
             },
+
+            // <b>The ceiling this character is built to</b>, which is the house cap on the sheet
+            // where there is one and the tier's otherwise. Top-level rather than inside `tier`
+            // because it is not always the tier's — and it is here at all because it is the datum
+            // `derived.resolve` further down is measured from, so a sheet that printed the figure
+            // and not the cap would be unreadable the first time a campaign tightened one.
+            ["trait_cap"] = DerivedStatsCalculator.EffectiveTraitCap(sheet, tier),
             ["package"] = pkg is null ? JsonValue.Create<string?>(null) : new JsonObject
             {
                 ["id"]   = pkg.Id,

@@ -90,6 +90,11 @@ public sealed class BuildCommand
                                effective rank is above n, and the Trait a Power's baseline is
                                derived from, so a reader can see whether the Power justifies
                                the rank.
+           --trait-cap <n>     Build every character in this run to a house Trait Cap of n
+                               rather than the tier's, overriding the field on the file. A
+                               campaign may cap tighter than any tier does. It MOVES Resolve,
+                               which is measured from the cap, and the report carries both the
+                               cap in force and the tier's under tier_trait_cap.
            --help              This text.
 
          Run it as `dotnet run --no-build -- {Verb} ...` whenever anything else may be
@@ -148,7 +153,7 @@ public sealed class BuildCommand
 
         var inputs = options.From
             .Select(path => ReadCharacter(path, stdin, out var sheet, out var readError)
-                ? new Input(path, sheet, null)
+                ? new Input(path, HouseCapped(sheet, options), null)
                 : new Input(path, null, readError))
             .ToList();
 
@@ -192,6 +197,29 @@ public sealed class BuildCommand
 
     /// <summary>One input path, and either the character it held or why it did not.</summary>
     private sealed record Input(string Path, CharacterSheet? Sheet, string? Error);
+
+    /// <summary>
+    /// <c>--trait-cap</c> applied, which is <b>every character in the run</b> and <b>over the
+    /// field on the file</b>.
+    ///
+    /// <para>Both halves are deliberate. A house cap is a fact about the table rather than about
+    /// one character, so a roster checked against a campaign's rule is checked whole — the flag
+    /// exists because the alternative is editing twenty-eight files. And a flag a file could
+    /// silently win against would answer a question nobody asked: the caller who typed
+    /// <c>--trait-cap 6</c> wants to know what these characters look like at 6d, including the
+    /// one that thinks it is built to 8d.</para>
+    ///
+    /// <para>It is not written back. The exports carry the cap in force, the report says which it
+    /// was, and the character's own file is left exactly as it was found — this command reports
+    /// and never repairs, and rewriting somebody's sheet from a command-line flag is the largest
+    /// repair it could make.</para>
+    /// </summary>
+    private static CharacterSheet? HouseCapped(CharacterSheet? sheet, Options options)
+    {
+        if (sheet is not null && options.TraitCap is { } cap) sheet.TraitCapRank = cap;
+
+        return sheet;
+    }
 
     /// <summary>
     /// The export base names more than one character in this run would write to, each mapped
@@ -289,7 +317,12 @@ public sealed class BuildCommand
                 ["budget"]    = tier?.HeroPoints,
                 ["remaining"] = spent is null || tier is null ? null : tier.HeroPoints - spent
             },
-            ["trait_cap"] = tier?.TraitCapRank,
+            // <b>The cap in force, and the tier's beside it.</b> They are the same figure until
+            // a table tightens one, and then a caller reading only the first cannot tell whether
+            // a Resolve of 4 is a specialist or a house rule. Resolve is measured from
+            // `trait_cap`, never from `tier_trait_cap`.
+            ["trait_cap"]      = DerivedStatsCalculator.EffectiveTraitCap(sheet, tier),
+            ["tier_trait_cap"] = tier?.TraitCapRank,
             ["derived"]   = new JsonObject
             {
                 ["edge"]    = Answer(() => _derived.CalculateEdge(sheet)),
@@ -721,9 +754,10 @@ public sealed class BuildCommand
         bool WriteExports,
         bool Overwrite,
         int? TraitsAbove,
+        int? TraitCap,
         bool Help);
 
-    private static readonly Options NoOptions = new([], null, true, false, null, false);
+    private static readonly Options NoOptions = new([], null, true, false, null, null, false);
 
     /// <summary>
     /// Hand-rolled rather than a parser package, because the whole surface is seven flags and
@@ -741,6 +775,7 @@ public sealed class BuildCommand
         var writeExports = true;
         var overwrite = false;
         int? traitsAbove = null;
+        int? traitCap = null;
         var help = false;
         error = "";
         options = NoOptions;
@@ -761,7 +796,7 @@ public sealed class BuildCommand
                     overwrite = true;
                     break;
 
-                case "--from" or "--out" or "--from-dir" or "--traits-above":
+                case "--from" or "--out" or "--from-dir" or "--traits-above" or "--trait-cap":
                 {
                     if (i + 1 >= args.Count)
                     {
@@ -787,15 +822,20 @@ public sealed class BuildCommand
                             from.AddRange(found);
                             break;
 
+                        // <b>A rank that is not a number is an argument fault; a number that makes
+                        // no sense is not.</b> A cap of 0d, or one above the tier's, is reported by
+                        // the validator as a finding on the character — the same finding it gets
+                        // when the file carries it — so the flag and the field cannot disagree
+                        // about what a nonsensical cap means.
                         default:
                             if (!int.TryParse(value, System.Globalization.NumberStyles.AllowLeadingSign,
                                               System.Globalization.CultureInfo.InvariantCulture, out var rank))
                             {
-                                error = $"--traits-above needs a rank, and '{value}' is not a whole number.";
+                                error = $"{args[i - 1]} needs a rank, and '{value}' is not a whole number.";
                                 return false;
                             }
 
-                            traitsAbove = rank;
+                            if (args[i - 1] == "--trait-cap") traitCap = rank; else traitsAbove = rank;
                             break;
                     }
 
@@ -808,7 +848,7 @@ public sealed class BuildCommand
             }
         }
 
-        options = new(from, outputDirectory, writeExports, overwrite, traitsAbove, help);
+        options = new(from, outputDirectory, writeExports, overwrite, traitsAbove, traitCap, help);
 
         if (help) return true;
 

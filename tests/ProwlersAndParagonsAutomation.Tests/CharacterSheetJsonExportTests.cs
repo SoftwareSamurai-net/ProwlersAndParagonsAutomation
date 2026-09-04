@@ -87,7 +87,7 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
     {
         string[] expected =
         [
-            "meta", "name", "tier", "package", "hp_budget", "abilities", "talents",
+            "meta", "name", "tier", "package", "hp_budget", "trait_cap", "abilities", "talents",
             "source_groups", "powers", "perks", "flaws", "gear", "derived", "narrative",
             "validation"
         ];
@@ -120,6 +120,28 @@ public sealed class CharacterSheetJsonExportTests : IClassFixture<RulesFixture>
         Assert.Equal("standard", tier["id"]!.GetValue<string>());
         Assert.Equal(_f.Rules.GetTier("standard")!.HeroPoints, tier["hero_points"]!.GetValue<int>());
         Assert.Equal(_f.Rules.GetTier("standard")!.TraitCapRank, tier["trait_cap"]!.GetValue<int>());
+    }
+
+    /// <summary>
+    /// <b>The cap the character is built to, beside the tier's own.</b> They are the same figure
+    /// until a table tightens one, and then they are not: <c>tier.trait_cap</c> stays a fact about
+    /// the tier and the top-level one is what <c>derived.resolve</c> was measured from. A document
+    /// carrying only the first would say 12d over a Resolve computed from 6d.
+    /// </summary>
+    [Fact]
+    public void TheTopLevelTraitCapIsTheOneTheCharacterIsBuiltTo()
+    {
+        Assert.Equal(_f.Rules.GetTier("standard")!.TraitCapRank,
+            Hero()["trait_cap"]!.GetValue<int>());
+
+        var housed = SampleCharacters.Hero();
+        housed.TraitCapRank = 6;
+
+        var rendered = Render(housed);
+
+        Assert.Equal(6, rendered["trait_cap"]!.GetValue<int>());
+        Assert.Equal(_f.Rules.GetTier("standard")!.TraitCapRank,
+            rendered["tier"]!["trait_cap"]!.GetValue<int>());
     }
 
     [Fact]
