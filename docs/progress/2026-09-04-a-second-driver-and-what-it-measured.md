@@ -81,9 +81,27 @@ compiled perfectly with both. So the run that counts is one branch, both drivers
 | `--driver dotnet` | 6 green | 6 driven, all red | **6m14s** |
 
 Local, Windows, Chrome 152. Before `--only`, the node run was 6m17s — so the twin filter paid for
-the second driver's twins and most of the first's. Against the runner's 333s for the node driver
-today, both together should land the Build job around 13–14 minutes, against a 30-minute cap and
-the ~20 minutes this repository treats as the working budget.
+the second driver's twins and most of the first's.
+
+**On the runner, and this is the number that matters rather than the projection:** the whole Build
+job went from **533s to 1103s (18m23s)**, against a 30-minute cap. I projected 13–14 minutes from
+the local ratios and was wrong, which is the argument for measuring: the runner is far more
+variable than a laptop. The node driver alone was **200s** on one run and **392s** on the next,
+same code, same commit range — a 2× spread the local runs never show. Playwright was 521s on the
+green run.
+
+**So there is headroom but not a lot of it, and the levers are named here so nobody has to rederive
+them.** In order of what they cost:
+
+1. **Drop one driver from the job.** Cheapest and reversible — the file stays, and this is what
+   `PROGRESS.md` item 10 says to do if CI gets tight rather than deleting anything.
+2. **Scan fewer palettes in A11Y.** 45s of every drive is the four-palette loop, and only
+   `color-contrast` can tell the palettes apart. One palette costs ~12s. This trades the coverage
+   the check was built for, so it is the second choice and not the first.
+3. **Publish once and share it** — already done; both steps set `PP_E2E_SITE_ALREADY_BUILT=1`.
+
+Do not reach for a `timeout-minutes` increase: the 30-minute cap exists because a hung step ran to
+GitHub's own six-hour limit, and `docs/guide/hosting.md` says why raising it is the wrong direction.
 
 `dotnet test` is green at 4,065 engine tests, including the seven new cross-driver guards.
 

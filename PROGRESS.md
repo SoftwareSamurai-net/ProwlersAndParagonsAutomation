@@ -529,9 +529,16 @@ on every pull request.
 hand-rolled DevTools Protocol client; `tests/e2e` is a C# one over `Microsoft.Playwright`, which
 runs the same five plus `A11Y` — axe-core inside the page, which the hand-rolled client cannot do.
 `e2e.sh --driver node|dotnet` picks one and owns everything around a drive either way. The
-Playwright driver adds **+4 seconds** to the runner's Restore step and nothing else: `Channel =
-"chrome"` launches the Chrome already on the machine, so there is no `playwright install`, nothing
-to cache, and no third renderer to invalidate the pixel goldens against.
+Playwright driver adds **+4 seconds** to the runner's Restore step: `Channel = "chrome"` launches
+the Chrome already on the machine, so there is no `playwright install`, nothing to cache, and no
+third renderer to invalidate the pixel goldens against.
+
+**What it does cost is a second drive, and the Build job is now 18m23s against a 30-minute cap**
+(533s before this, 1103s after; measured, not projected — a projection from local timings said
+13–14 minutes and was wrong). Runner variance is wide: the node driver alone measured 200s on one
+run and 392s on the next, same code. **If that becomes tight, drop one driver from `build.yml`** —
+cheapest, reversible, and the file stays. Scanning fewer palettes in A11Y is the second lever and
+costs real coverage. Raising `timeout-minutes` is not a lever; see `docs/guide/hosting.md`.
 
 **How it works, and every limit of it, is in [`docs/guide/testing.md`](docs/guide/testing.md)** —
 read that before changing it. The account of building it, including four faults the harness found
