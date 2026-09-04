@@ -14,6 +14,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This used to live in two places (the README roadmap and a gaps list further down this file) and drifted out of step with the code. Both now point at `PROGRESS.md`. Do not reintroduce a second list.
 
+### Working under an orchestrator: you do not write `PROGRESS.md`
+
+**When you are a sub-agent in a fan-out, the obligation above is discharged by reporting, not by
+editing.** Hand back what changed and what is now true; the orchestrator writes the file. Do not
+edit `PROGRESS.md` yourself, and do not tick a box in it.
+
+**Two reasons, and the first is arithmetic.** 61% of the commits that have ever touched that file
+touch its 23-line `Current state` table — so concurrent branches do not merely risk a conflict
+there, they are odds-on to collide, and a re-push costs a ~19-minute CI job. The second is that a
+tick is a claim about verification, and **the agent that did the work is the worst-placed party to
+make it**: this repository has shipped a feature that was built, tested, adversarially reviewed by
+two independent agents and merged, while nothing in the application ever wrote to the store it read
+from. Each review honestly checked what the one before it had checked.
+
+**So the orchestrator ticks a box only after re-running the check itself and reading the verdict** —
+not after reading a report that says it passed — and it transcribes against `git show --stat`
+rather than against the agent's prose. `PROGRESS.md`'s own list says what a tick requires.
+
+Working alone, outside a fan-out, none of this applies: keep the file current as above.
+
 ## Name a pull request the way a changelog would
 
 **Conventional Commits, and the subject says what the change *does*.** `feat: swap characters from

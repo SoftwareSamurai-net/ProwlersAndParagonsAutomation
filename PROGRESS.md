@@ -17,7 +17,7 @@ Keep it honest. A half-finished item stays open with a note on what is missing. 
 | Power-specific Pros/Cons | 106 entries across 62 Powers, verified |
 | Custom gear features | 12 entries, verified against Ch.6 p.93 |
 | Other rules data | Tiers, abilities, talents, pros, cons, perks, flaws, sources — all verified, nothing flagged |
-| Tests | **Five suites, and the figures are not written down here.** Run `./scripts/count-tests.sh` — it runs all five, reads each count out of the line that runner printed, and refuses to total anything when a suite did not report. **The figures used to be in this cell and went wrong four separate ways**; the four are recorded in [`docs/guide/testing.md`](docs/guide/testing.md), where the lesson keeps being true after the numbers stop being. The five are the engine, the components under bUnit, the accounts server over real SQLite, the pixel comparator, and the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **A sixth thing drives the assembled application and is deliberately not one of the five**: `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages dev` version the deploy pins, and drives real Chrome — six checks with a positive control each and a deliberately-broken twin of the whole site each, through either of two drivers (`--driver node|dotnet`; the second is Playwright and adds the axe-core accessibility check). It reports verdicts rather than a test count, so `count-tests.sh` does not know about it; see [item 10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) for what it does and does not reach. |
+| Tests | **Five suites, and the figures are not written down here.** Run `./scripts/count-tests.sh` — it runs all five, reads each count out of the line that runner printed, and refuses to total anything when a suite did not report. **The figures used to be in this cell and went wrong four separate ways**; the four are recorded in [`docs/guide/testing.md`](docs/guide/testing.md), where the lesson keeps being true after the numbers stop being. The five are the engine, the components under bUnit, the accounts server over real SQLite, the pixel comparator, and the deploy's migration gate (`./scripts/test-deploy-gate.sh`, a fifth suite because the gate is a decision over wrangler's output and a workflow cannot be executed by any of the other four). **A sixth thing drives the assembled application and is deliberately not one of the five**: `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages dev` version the deploy pins, and drives real Chrome — five checks with a positive control each and a deliberately-broken twin of the whole site each, and a sixth — the axe-core accessibility check — on the `--driver dotnet` half alone (`node` is the default and is the hand-rolled client, which cannot run axe). It reports verdicts rather than a test count, so `count-tests.sh` does not know about it; see [item 10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) for what it does and does not reach. |
 | Wizard | All six creation steps working, with back-navigation and `.txt` + `.json` export |
 | Front ends | Two interactive, plus two for a machine — the terminal wizard, a Blazor WebAssembly app, `build --from`, and an MCP server somebody can connect to their own Claude. All on the same engine assembly |
 | Hosting | **Live** at [superheroes.softwaresamurai.net](https://superheroes.softwaresamurai.net), with the `prowlers-and-paragons-chargen.pages.dev` fallback; deployed from `main` by GitHub Actions. **The deploy applies pending D1 migrations before the Pages upload, and the apply half is now proven rather than assumed.** The first run failed on a file mode rather than the credential everybody was watching; the run after it read the live database, found nothing pending, and shipped — which established D1 *Read* only, because a token holding just Read produces that exact log and then fails on the first migration that actually has to be applied. **`0007_decision_recorded.sql` was that migration.** On the deploy of `a978806` the gate read one pending file, classified it additive, applied it (`0007_decision_recorded.sql ✅`), **and then asked the database again** — `No migrations to apply!`, the script's own positive control, which is what makes this "the schema moved" rather than "wrangler exited 0". So **D1: Edit is granted and the whole mechanism has now run end to end.** See [`docs/guide/hosting.md`](docs/guide/hosting.md) |
@@ -33,46 +33,70 @@ The engine reproduces the printed Edge, Health and Resolve of all 20 pre-built H
 
 ## Remaining work
 
-Roughly in the order that unblocks the most. **[Item 11](#11-answered-it-is-a-tool-for-running-and-playing-pp)
+**This section is a todo list, and the tick is the orchestrator's signature.** It is not a
+summary of the work — that is what the pull request is for, and duplicating it here is how this
+file went stale in the first place. Each box names an item and nothing more; the entry below it is
+the brief, and the PR is the account.
+
+### What a tick means, and what it does not
+
+**A box is ticked by the orchestrator, never by the agent that did the work**, and only after the
+orchestrator has verified the work *itself* rather than read a report saying it was done. That
+distinction is the whole point of the mechanism: this repository has shipped a feature that was
+built, tested, adversarially reviewed by two independent agents and merged, while nothing in the
+application ever wrote to the store it read from — see item 10. Every one of those reviews was
+honest and every one was wrong, because each checked the thing the one before it had checked.
+
+So, for a tick:
+
+- **The orchestrator ran the check, and read the verdict.** Not "the agent reports the twin went
+  red" — the orchestrator re-ran the twin and saw `FAIL`, and re-ran the real page and saw `PASS`.
+  An agent asked to confirm its own guard fails will confirm it.
+- **The mutation was not null.** A break that changes nothing observable proves nothing; the honest
+  report is that the mutation was a no-op, not that the guard has a hole. See `CLAUDE.md`.
+- **The suite is green, measured after the change and not before it.** A green run taken before a
+  revert says nothing about the tree being committed.
+- **The diff contains what the message claims.** `git show --stat HEAD` against the PR title; a
+  missing file in that list is the whole failure, visible in one line.
+
+**An item that was attempted and failed verification stays unticked and is marked `RELITIGATE`,
+with one line saying what failed and a link to the run or PR.** It does not silently return to the
+pool: an unticked box with no history is indistinguishable from work nobody has started, and the
+next agent to pick it up would repeat the failure rather than answer it.
+
+**Only ticked items are reported to the owner as done.**
+
+### The list
+
+Ordered roughly by what unblocks the most. **[Item 11](#11-answered-it-is-a-tool-for-running-and-playing-pp)
 is answered and is the entry to read first** — the owner has said this is a tool for running *and*
 playing P&P, which unblocks all eight of the things that entry lists and widens what item 3 counts
-as in scope. **Nothing here is a defect.** The tool creates, prices, validates, prints and exports characters
-through four front ends, a visitor with no account can watch a real conversation build one, and the
-last thing that *was* broken — the MCP server, [item 18](#18-the-mcp-server-did-not-start--closed-nothing-had-started-and-there-is-now-nowhere-for-that-to-hide)
-— is closed. What is left sorts into three kinds, and **the kind matters more than the number**,
-because two of them are not work an agent can pick up:
+as in scope. **Nothing here is a defect.**
 
-- **Waiting on the owner, not on effort.** [13](#13-the-owners-branding-and-the-sign-in-email)
-  (branding, and a kit that lives outside this repository),
-  [21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job) (whether
-  character variants deserve a mechanism — left ajar on purpose, and its own entry recommends
-  deferring). **Item 10's second stage left this group on 2026-09-02**: the danger it was waiting on
-  a decision about was an artefact of the plan, not of the problem, and seeding the local database
-  needs no application change at all.
-- **Ready to build, specified enough to start.**
-  [12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer) (the three-door
-  rearrangement, unblocked now item 11 is answered),
-  [14](#14-a-combat-simulator--a-second-engine-and-the-balance-question-is-now-live) (a combat
-  simulator, explicitly a *second* engine),
-  [15](#15-the-trait-cap-is-the-tiers-and-a-campaign-may-want-a-tighter-one) (a campaign-tighter
-  Trait Cap), [16](#16-the-tool-costs-one-character-and-a-campaign-is-a-roster) (the tool costs one
-  character and a campaign is a roster),
-  [19](#19-the-account-cap-is-set-by-hand-in-sql-and-a-gm-cannot-see-what-a-player-holds) (a screen
-  over behaviour that is already correct), [1](#1-close-the-last-four-heroes) (the last four Heroes,
-  1 HP out each), and **stage two of
-  [10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort)**
-  — the signed-in half of the driver, which is a change to `scripts/e2e.sh`'s server setup plus a
-  seeded login row, and no longer waiting on anybody. **Stage one is built**, so the rest of this
-  group is no longer landing on top of a hole: a slice here now has something that would notice if
-  it broke the running app.
-- **Recorded, with nothing asking for them.** [1b](#1b-semantic-procon-constraints-are-still-unenforced)
-  (semantic Pro/Con constraints, no consumer), [2](#2-what-the-sheet-still-cannot-say) (a mid-sheet
-  page is anonymous, with no portable CSS answer),
-  [5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect) (payload size),
-  [20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done) (a test-platform
-  migration, measured and blocked on MTP v2 versus the .NET 10 SDK),
-  [3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)
-  (the play chapters, in scope in principle since item 11 was answered).
+**Waiting on the owner — not work an agent can pick up**
+
+- [ ] **[13](#13-the-owners-branding-and-the-sign-in-email)** — branding, and a kit that lives outside this repository
+- [ ] **[21](#21-variants-of-one-character-are-a-naming-convention-doing-a-structures-job)** — whether character variants deserve a mechanism; its own entry recommends deferring
+
+**Ready to build, specified enough to start**
+
+- [ ] **[1](#1-close-the-last-four-heroes)** — the last four Heroes, 1 HP out each
+- [ ] **[10](#10-driving-the-assembled-app--stage-one-is-built-stage-two-is-only-a-decision-about-effort) stage two** — the signed-in half of the driver. **Includes the `kill_tree` Linux leak, which must be proved directly and not by outcome**
+- [ ] **[12](#12-the-interface-the-owner-asked-for-which-needed-none-of-item-11s-answer)** — the three-door rearrangement. **The third avenue is already shipped** (`1613c95`); what is left is the rulebook corpus behind `Ctrl`/`⌘`+`K`
+- [ ] **[14](#14-a-combat-simulator--a-second-engine-and-the-balance-question-is-now-live)** — a combat simulator, explicitly a *second* engine beside `engine/`
+- [ ] **[15](#15-the-trait-cap-is-the-tiers-and-a-campaign-may-want-a-tighter-one)** — a campaign-tighter Trait Cap. **The design question is answered** — see the entry
+- [ ] **[16](#16-the-tool-costs-one-character-and-a-campaign-is-a-roster)** — the tool costs one character and a campaign is a roster
+- [ ] **[19](#19-the-account-cap-is-set-by-hand-in-sql-and-a-gm-cannot-see-what-a-player-holds)** — a screen over behaviour that is already correct
+
+**Recorded, with nothing asking for them**
+
+- [ ] **[1b](#1b-semantic-procon-constraints-are-still-unenforced)** — semantic Pro/Con constraints, no consumer
+- [ ] **[2](#2-what-the-sheet-still-cannot-say)** — a mid-sheet page is anonymous, with no portable CSS answer
+- [ ] **[3](#3-remaining-rulebook-chapters--mostly-not-this-tools-business-while-it-was-only-a-character-generator)** — the play chapters, in scope in principle since item 11 was answered
+- [ ] **[5](#5-the-browser-payload-is-large--a-characteristic-not-a-defect)** — payload size
+- [ ] **[20](#20-xunitv3-400-is-a-test-platform-migration-and-it-is-measured-but-not-done)** — a test-platform migration, blocked on MTP v2 versus the .NET 10 SDK
+- [ ] **[22](#22-the-current-state-table-is-where-this-file-actually-conflicts)** — the Current state table is 61% of this file's churn; convert its measured cells to pointers. **Last, deliberately** — contention, not a defect
+- [ ] **[23](#23-this-files-own-claims-went-stale-in-sixteen-places)** — 21 dead pointers and ten factual drifts in this file, plus the guard that would stop it recurring
 
 (Item 4, the Power search's vocabulary, is closed — see below.)
 
@@ -1267,6 +1291,25 @@ override changes derived stats, and whether a *house* cap should move Resolve, o
 validation while the tier's cap keeps doing the arithmetic, is the actual design question. The flag
 is the easy half.
 
+**Answered by the owner, 2026-09-05: the house cap moves Resolve. Substitute it, do not merely gate
+on it.** The rules tie the two together, and the trade is the player's to make — spend the room
+under the cap on power, or leave it unspent and take the Resolve.
+
+The arithmetic is why there was no honest alternative. `DerivedStatsCalculator.CalculateResolve`
+computes `baseResolve = max(0, (traitCap - highestRelevantRank) * 2)`, so **the cap *is* the datum
+Resolve is measured from**. Gate on a house cap of 6d while the tier's 12d keeps doing the
+arithmetic, and a character sitting at 4d is paid `(12-4)x2 = 16` Resolve for a restraint the
+campaign imposed on them rather than one they chose; substituting gives `(6-4)x2 = 4`, and staying
+low becomes a decision with a price. So the substitution happens at the one read of
+`tier.TraitCapRank` in that method.
+
+**Two consequences to carry into the slice, neither a blocker.** A tighter cap lowers the Resolve
+*ceiling* too — 24 at a 12d cap, 12 at 6d — which is what "tied to" means in the other direction
+and will read as a nerf the first time somebody sees it. And it is **noise on a Villain**: only
+Heroes have Resolve, so on the NPC sheets that surfaced this the house cap is doing validation work
+and the Resolve half is a figure nobody should quote. Both halves still land; only one is visible
+per kind of character.
+
 Not started.
 
 ### 16. The tool costs one character, and a campaign is a roster
@@ -1450,8 +1493,10 @@ player's characters that are not in one of their campaigns, and should not.**
 **Show `label`, `updated_at` and the count. Do not open the payload.** `characters.payload` is an
 opaque blob the server never parses — the same property that keeps `campaigns` dumb — so listing a
 character's *tier* would mean parsing sheets server-side and giving the accounts server an opinion
-about what a character is. It has never had one. If a tier column is wanted later, the honest way is
-a column written by the client that already knows, not a server that learns to read.
+about what a character is. It has never had one. **The tier column arrived
+that way already**, on 2026-09-01: `d1/migrations/0008_character_index_fields.sql` adds `kind`,
+`tier_id` and `spent`, every one written by the client, and `putCharacter` binds all three without
+the server parsing a word. That question is settled — do not re-open it as part of this item.
 
 Not started.
 
@@ -1491,6 +1536,112 @@ So the trap the guide exists to warn about is **closed**, not reworded. But that
 
 **Not started.** Dependabot will re-raise both when 4.0.1 or 4.1.0 lands, which is a fine moment to do it properly. The measurements above are from 2026-09-01 and are worth re-taking rather than trusting — they were made against SDK 10.0.303 and MTP 2.3.3.
 
+### 22. The Current state table is where this file actually conflicts
+
+**Measured rather than assumed, on 2026-09-05.** Of the 201 commits that have touched this file,
+**122 touch the 23-line `Current state` table** — 61% of all churn on the file, concentrated in
+about 1.5% of its lines. The `Remaining work` preamble, which looked like the obvious culprit,
+accounts for 15.
+
+```bash
+git log --oneline -L 11,33:PROGRESS.md | grep -c '^[0-9a-f]\{7\} '   # the table
+git log --oneline -L 34,86:PROGRESS.md | grep -c '^[0-9a-f]\{7\} '   # the preamble
+```
+
+**That matters because it says what the fix is not.** Splitting `Remaining work` into one file per
+item — the move that worked for the completed-work archive — would be a large restructure aimed at
+the 7%, and it would cost the property that makes the section work: a reader needs every open item
+*in one place* to notice that two of them collide, which is exactly what the paragraph above the
+list warns about. Nobody ever needed to read all the completed slices together, which is why the
+same fix does not transfer. It would also sit badly against `CLAUDE.md`'s "do not reintroduce a
+second list".
+
+**The fix is the one the Tests row already demonstrates.** That row used to carry five figures in
+prose, went wrong four separate ways, and now names `./scripts/count-tests.sh` instead. The rule it
+implies: **a cell whose content is a measured figure should name the command that measures it,
+rather than quoting the answer.** `Powers: 141 entries` is fine — it moves when the data moves, and
+that is the point. These are not:
+
+- **Static analysis** — a Qodana count that has been 2, 5, 2, 3, 37 and 23. The cell already
+  contains the instruction *"Do not name this commit's own sha here"*, because a sha put there went
+  stale within the hour.
+- **Hosting** and **Accounts** — live deployment and migration state, which changes when somebody
+  deploys rather than when somebody edits this file. Both carry long narrative reconstructions of
+  which migration was applied when.
+
+**What guards it.** A test over the `Current state` table that fails on a cell carrying a bare
+measured figure with no command beside it that would reproduce it, with a positive control so a
+scan matching no cells fails rather than passing vacuously — the shape `RepositoryGuideTests` and
+`ProgressArchiveTests` already use. Break it by pasting a Qodana count back into the Static
+analysis cell and watching it go red.
+
+**Churn is not the same as conflict, and both were measured, against different questions.** The
+figures above count *how often a region changes*. A separate experiment on 2026-09-05 ran real
+three-way merges in a throwaway clone and found that **two branches editing two different `###`
+items merge clean today** — even adjacent ones, even when one deletes its whole block. What
+conflicted there were two shared anchors: the triage preamble that used to name every open item in
+wrapped prose, so any two closures collided inside one bullet, and the `## Completed work`
+boundary that every new item is appended at.
+
+**The preamble half is fixed** — it is now the one-line-per-item checklist above, so two closures
+touch two different lines. The append boundary is not, and this entry sits on it. Neither
+experiment tested the case the churn figures point at, which is two branches both editing the
+`Current state` table; at 61% of all commits that is the likely collision rather than a
+hypothetical one, and it stays the substance of this item.
+
+**One concrete defect found alongside, and it is not contention: `### 9.` is used twice** — line
+1091 (durable telemetry, deferred) and line 1205 (visual regression, closed). Two headings with one
+number means an ambiguous anchor, and this file is full of anchor links. There are also references
+of the form `PROGRESS.md item N` in the code — 21 of them under `--include='*.cs' --include='*.razor'
+--include='*.js' --include='*.sh'` — with nothing guarding that any of them resolves. A dead pointer
+is worse than no pointer; the guard this item proposes should cover them too.
+
+**Not started, and deliberately last.** Nothing is broken; this is contention, and it only bites
+when several branches are open at once. The cheaper half of the answer is a process rule rather
+than a restructure and is already in `CLAUDE.md`: the orchestrator writes this file, not the agents.
+
+### 23. This file's own claims went stale in sixteen places
+
+**Found by auditing it against the code on 2026-09-05, entry by entry** — all nine `Current state`
+rows and all 24 anchors below. The audit exists because a stale claim here is inherited by every
+agent at once: `PROGRESS.md` is the first thing `CLAUDE.md` sends anybody to, and one of these
+findings had already sent a reader to build something that shipped three days earlier.
+
+**Five were fixed on the spot** because they would have misdirected somebody immediately: the
+headline "a visitor with no account can watch a real conversation build one" (the replay has been
+`/admin/portfolio/replay` inside `<AdminOnly>` since `9e65abc`), item 19's "if a tier column is
+wanted later" (it shipped as `0008_character_index_fields.sql`), the Tests row claiming six e2e
+checks "through either of two drivers" when the default `node` driver has five, `count-tests.sh`
+being unable to run three of the five suites, and the maintenance step that still demanded a
+slice write-up `CLAUDE.md` forbids.
+
+**What is left is a sweep, which is why it is an item rather than a footnote:**
+
+- **Twenty-one dead pointers.** Sixteen bare `see [the archive](docs/progress/)` links and five
+  `see the completed entry at the top of this file` references. `88e8a1b` deleted the 6,723-line
+  file holding all 92 pre-split entries and never repointed this file; `## Completed work` is a
+  pointer rather than a place. The four *named* archive links still resolve. This is the repository's
+  own "a dead pointer is worse than no pointer" standard, failing in its index. The fix is
+  per-site judgement — inline the sentence that mattered, or drop the pointer and let the claim
+  stand alone — not a find-and-replace.
+- **Ten smaller factual drifts**, each with evidence in the audit: seven D1 migrations recorded
+  where there are eight; Chapter 9 named "Creating Villains" when the book calls it "Superhero
+  Gaming"; the visual check covering eight pages and recorded as seven; a `wrangler pages … tail`
+  command naming `prowlers-and-paragons` when the project is `prowlers-and-paragons-chargen`, which
+  a reader would copy and watch fail; "this Windows machine" describing a Mac; `CLAUDE.md` measured
+  at 290 lines; item 7's token side recorded as costed-but-unimplemented when `acbc6a6` implemented
+  it, still quoting this file at 5,069 lines against an actual 1,528.
+- **`### 9.` is used twice** — see item 22, which carries this along with the 21 code comments
+  referencing `PROGRESS.md item N` that nothing guards.
+
+**The guard is the point, not the sweep.** Fixing sixteen claims once buys nothing durable; this
+file has gone stale before and will again. `RepositoryGuideTests` already proves every path
+`CLAUDE.md` names exists — the same shape applied here would hold every file path, every migration
+number and every `docs/progress/` link in this file to resolving. Claims about *behaviour* cannot
+be guarded that way and will still need an audit; say so rather than implying the test covers them.
+
+Not started.
+
 ## Completed work
 
 **It is in [`docs/progress/`](docs/progress/), one file per slice, and it is not here for a
@@ -1513,16 +1664,18 @@ that would have caught it.
 
 When you finish a piece of work:
 
-1. Take it out of **Remaining**, and write the account of it in **a file of its own** —
-   `docs/progress/YYYY-MM-DD-a-short-slug.md`. Say what changed and *why*; the reasoning is the part
-   that is expensive to recover. See [`docs/progress/README.md`](docs/progress/README.md) — it is a
-   directory rather than a section here because a shared anchor made every concurrent branch
-   conflict on it.
+1. **Tick its box in the list above — and write no account of it here.** The pull request is the
+   account; `CLAUDE.md` says so in as many words, and `docs/progress/` is **closed**, not a
+   directory to add to. This step used to require a `docs/progress/YYYY-MM-DD-a-short-slug.md`
+   write-up and it no longer does: the owner's position is that these narrate a session rather than
+   a change, and the reasoning worth keeping belongs in a doc comment beside the guard it explains
+   or in the message the test prints. **The tick is not a formality** — see what it requires, above;
+   under an orchestrator it is the orchestrator's to make and never the author's.
 2. Update **Current state** if the headline numbers moved (entry counts, coverage). **The test
    figures are not among them any more** — that row names `./scripts/count-tests.sh` instead,
    because a number recorded in prose here went wrong four times and the script cannot.
 3. If the work revealed new gaps, add them to **Remaining** rather than leaving them in a commit
    message.
-4. Link the PR.
+4. Link the PR. It carries what changed and why, so nothing here has to repeat it.
 
 If a task turns out to be partly blocked, say so explicitly in the item and name the blocker. An item that quietly narrows its own scope is worse than one that stays open.
