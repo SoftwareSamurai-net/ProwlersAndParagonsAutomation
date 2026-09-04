@@ -84,8 +84,29 @@ public sealed class FakeApi : HttpMessageHandler
     /// <para>Still a counter underneath, because ordering is the only property anything here reads
     /// — the list comes back most-recently-touched first — and a counter cannot hand out two equal
     /// stamps the way a fast clock can.</para>
+    ///
+    /// <para><b>It starts a minute <i>behind</i> now, and the minute is headroom this had none
+    /// of.</b> <see cref="Ages.Since"/> answers null for a stamp it has not reached — correctly,
+    /// because a character edited in the future is not a thing to narrate — so a row whose stamp is
+    /// ahead of the render draws no time at all, and the two tests that count those phrases go red.
+    /// <b>That is not reasoning, it is watched</b>: seed this a minute forward instead and
+    /// <c>RosterTests.TheTimeBelongsToTheRecentOrder</c> and
+    /// <c>ATimeIsShownOnlyOnceThereAreTwoCharactersToTellApart</c> both fail on the spot, with the
+    /// same <c>Assert.Equal</c> shape those tests failed with in the wild. Starting exactly at now
+    /// left single-digit milliseconds of that headroom, because the counter is pre-incremented: the
+    /// first save of a fixture is stamped a millisecond ahead, the eighth eight, and the render is
+    /// what has to catch up.</para>
+    ///
+    /// <para><b>What is <i>not</i> established is that this was the cause of the flake it was found
+    /// through.</b> <c>TheTimeBelongsToTheRecentOrder</c> failed three times here — twice under
+    /// <c>scripts/count-tests.sh</c>, once replicating its <c>dotnet test</c> line — and would not
+    /// reproduce on demand either before or after this line changed, including twenty runs of the
+    /// same suites and three under deliberate load. So this removes a real and provable way for
+    /// those tests to fail; whether it removes the one that fired is not something the runs
+    /// support, and a later recurrence should be read as this hypothesis being wrong rather than as
+    /// a new fault.</para>
     /// </summary>
-    private long _clock = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    private long _clock = DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeMilliseconds();
 
     /// <summary>This account's cap, as the list endpoint reports it. Five, like the server's default.</summary>
     public int Limit { get; set; } = 5;
