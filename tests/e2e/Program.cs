@@ -47,7 +47,7 @@ if (string.IsNullOrEmpty(baseUrl))
 Check[] checks =
 [
     Boot.Check,
-    NotYetPorted.Check("BUILD"),
+    Build.Check,
     NotYetPorted.Check("THEME"),
     NotYetPorted.Check("PALETTE"),
     NotYetPorted.Check("ROUTES"),
