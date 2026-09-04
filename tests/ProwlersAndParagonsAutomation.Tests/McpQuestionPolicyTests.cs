@@ -209,6 +209,44 @@ public sealed class McpQuestionPolicyTests
     }
 
     /// <summary>
+    /// <b>The house Trait Cap, and both halves of what it does.</b> A campaign can cap tighter
+    /// than any tier — the finding this whole slice came from — and the document has to say three
+    /// things about it or a conversation goes wrong in a way nobody sees: that it is a field on
+    /// the character, that it <em>moves</em> Resolve rather than only gating validation, and what
+    /// that costs in the other direction. The ceiling figures are asserted as figures because
+    /// "lower" is satisfied by any wrong number.
+    ///
+    /// <para>The Villain half is asserted too. Only Heroes have Resolve, so on the NPC sheets that
+    /// surfaced this the cap is doing validation work and the Resolve figure is noise — a document
+    /// that taught the trade without that exception would have a model quoting Resolve at a GM
+    /// building a Villain to a table's cap.</para>
+    /// </summary>
+    [Fact]
+    public void TheGuideSaysAHouseTraitCapMovesResolveAndWhatItCosts()
+    {
+        Assert.Contains("TraitCapRank", Flowed, StringComparison.Ordinal);
+        Assert.Contains("house Trait Cap", Flowed, StringComparison.OrdinalIgnoreCase);
+
+        // It substitutes rather than gates, said as the arithmetic rather than as an adjective.
+        Assert.Contains("moves Resolve", Flowed, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("(6−4)×2 = 4", Flowed, StringComparison.Ordinal);
+
+        // The ceiling, which is the half that reads as a nerf.
+        Assert.Contains("24 at 12d and 12 at 6d", Flowed, StringComparison.Ordinal);
+
+        // Read the report's figure, not the tier's.
+        Assert.Contains("trait_cap", Flowed, StringComparison.Ordinal);
+        Assert.Contains("tier_trait_cap", Flowed, StringComparison.Ordinal);
+
+        // Noise on a Villain, which is where this feature is actually used.
+        Assert.Contains("validation work", Flowed, StringComparison.OrdinalIgnoreCase);
+
+        // And the two refusals, which are reported and still used.
+        Assert.Contains("TRAIT_CAP_ABOVE_TIER", Flowed, StringComparison.Ordinal);
+        Assert.Contains("TRAIT_CAP_BELOW_MINIMUM", Flowed, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// <b><c>IsVillain</c> exists and decides nothing mechanical.</b> The document said there was
     /// no such flag, which is two errors: the field is real and a model following that sentence
     /// omits it, and a model that finds it may then expect it to change a cost. Proved by flipping
