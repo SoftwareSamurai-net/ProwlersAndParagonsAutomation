@@ -203,6 +203,42 @@ jobs:
             exit 1
           fi
 
+      - name: Prove the process-tree kill really kills the tree
+        # `scripts/e2e.sh`'s `stop_server` leaked a `workerd` on every Linux run until it stopped
+        # using `pkill -P`, which kills direct children only — and **nothing has ever watched that
+        # fix work.** Every server in that harness takes a fresh port, so a leaked listener changes
+        # no verdict: the runs were green before the fix and green after it. This drives
+        # `scripts/e2e/process-tree.sh` — the same file the harness sources, not a copy — against a
+        # tree built on purpose.
+        #
+        # **Seconds, not minutes**: no publish, no server, no browser. It is here rather than
+        # inside `e2e.sh` because it must fail loudly on its own rather than inside a step whose
+        # verdict is about the application.
+        #
+        # **Assert the verdict line, not the exit code**, the same trap as the two steps above: a
+        # script that died before reaching its assertions exits non-zero for a reason that is not
+        # a finding, and one that never ran its fixture would exit zero having proved nothing.
+        run: |
+          set -euo pipefail
+
+          status=0
+          bash tests/shell/kill-tree.test.sh | tee /tmp/kill-tree.log || status=$?
+
+          # A skip is what the script says when there is no /proc to read. It exits zero, prints no
+          # verdict, and on this runner means the proof did not happen — named first so the
+          # message is about that rather than about a missing PASS.
+          if grep -q '^SKIP' /tmp/kill-tree.log; then
+            echo "::error::the kill-tree proof skipped itself on a Linux runner, so it proved"
+            echo "::error::nothing. It reads /proc; something about this environment has changed."
+            exit 1
+          fi
+
+          if ! grep -q '^KILL-TREE: PASS' /tmp/kill-tree.log; then
+            echo "::error::the kill-tree proof did not report PASS (exit $status). A missing"
+            echo "::error::verdict is not a pass — see /tmp/kill-tree.log above."
+            exit 1
+          fi
+
       - name: Test the visual-regression comparator
         # scripts/visual/diff.mjs is the pixel-comparator behind the visual-regression check
         # below, and scripts/visual/png.mjs is the hand-written PNG codec it depends on — neither

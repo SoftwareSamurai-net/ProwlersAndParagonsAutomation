@@ -5,6 +5,15 @@
 *.cs        text diff=csharp
 *.csproj    text
 *.sln       text eol=crlf
+
+# **LF even on Windows, and this is a bug fix rather than a preference.** A shell script checked
+# out CRLF works under Git Bash, which tolerates the carriage returns — and is a syntax error the
+# moment the same file is read by a Linux bash, which is what happens whenever one of these is run
+# in a container against a mounted Windows checkout. `tests/shell/kill-tree.test.sh` drives the
+# Linux half of `scripts/e2e.sh`'s process handling and can only be run that way from here; it
+# failed with `syntax error near unexpected token $'{\r'` until this line existed. Its own positive
+# control is what caught it, which is the argument for having one.
+*.sh        text eol=lf
 *.json      text
 *.md        text
 *.yml       text
