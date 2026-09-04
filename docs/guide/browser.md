@@ -798,6 +798,17 @@ Two more of the same family. **A zero width is not a visible edge** — `border-
 - **`aria-controls` only while the target exists.** The breakdown renders inside an `@if`, so naming it unconditionally leaves a dangling IDREF. `aria-expanded` is what carries the state.
 - Whether the disclosure is open is a field on the component, **never on `CharacterSheet`** — that is a fact about a screen, and the sheet is what gets exported and restored.
 
+**Opacity is a contrast decision, and `.btn.disabled` is where that was learned.** Fading an element
+fades its ink towards whatever is behind it, so a disabled control's contrast is whatever the fade
+leaves — and no token names it, which is why `EveryScreenPairInUseHoldsItsContrastFloor` cannot see
+it. At `opacity: 0.45` the wizard's Next control measured **2.23:1 (Hero/Light), 3.28:1 (Hero/Dark),
+2.54:1 (Villain/Light), 3.22:1 (Villain/Dark)** against a 4.5:1 floor, found by axe in the running
+app and by nothing else. It is **0.8** now — Hero/Light is the binding palette at 4.89:1 — and the
+accessibility check measures it like every other element rather than exempting it. WCAG 1.4.3 would
+have allowed the exemption; the owner decided legibility separately. **Do not lower it to make a
+disabled control look more disabled**: `cursor: not-allowed` and `pointer-events: none` are what say
+that, and they cost no contrast.
+
 **`--accent-soft` and `--danger-soft` are grounds for tints, not for text.** Villain `--heading` on `--accent-soft` measures **4.08:1** and `--danger` on `--danger-soft` **3.94:1**, both under the 4.5:1 text needs — and WCAG 1.4.3 applies to a **hover state**, which is where all three instances were. Hover grounds are `--panel-sunk`. This was found twice: the first fix moved the tier card and left `.btn:hover` and `.btn.danger:hover` on the same pairs, so the file carried a comment naming the fault eleven lines above two live instances of it. **Re-measure; the screen palette has no luminance test, unlike print.**
 
 Two Razor traps this surface has already hit:

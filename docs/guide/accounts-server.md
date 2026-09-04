@@ -222,6 +222,16 @@ Setting it up is `docs/ACCOUNTS-SETUP.md`; the reasoning is in `PROGRESS.md`.
   write a guard there with `Contains`: the first version was one, and a rename walked through it
   because the same word occurred elsewhere in the server's own source.
 
+  **There is now a second thing that reads both, and it reads them by using them.**
+  `./scripts/e2e.sh --driver dotnet` serves this server for real — `wrangler pages dev` from the
+  repository root, so `functions/` is bundled, against a migrated local D1 — and drives a browser
+  through a sign-in, the gated rulebook and the admin refusal. It is not a replacement for the
+  contract test, which compares *names*; it answers a different question, which is whether a person
+  can get through the front door at all. See
+  [`docs/guide/testing.md`](testing.md)'s *Signing in, without a seam in the application* — and note
+  that the harness adds nothing to the shipped bundle: it writes the `login_tokens` row an email
+  would have caused and lets `auth.verify` do the rest.
+
   **That warning was already in this file and the routing guard was still a `Contains`.** It
   concatenated every `worker/*.js` and asked whether the literal `'/api/me'` appeared anywhere, so
   renaming the real routing condition passed — the literal survives in `worker/errors.js`'s

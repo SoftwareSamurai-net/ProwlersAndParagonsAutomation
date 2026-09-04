@@ -81,6 +81,16 @@ does the strip actually stick, does anything overflow at 375px, does the theme s
 and seven proof pages are pixel-diffed against goldens rendered on Linux. Four palettes are more
 pixels than a person can hold in their head.
 
+**And the assembled application is driven, not just its parts.** Every pull request publishes the
+site, serves it with the same `wrangler pages dev` the deploy uses, and drives real Chrome through
+it: the app boots, a character is built by clicking and typing and survives a reload, a chosen
+theme is stamped before the framework starts, all four palettes are reached through the settings
+menu, nine addresses are served at their own paths, axe-core finds no accessibility violation
+anywhere, somebody who asked for less movement gets none, Ctrl-K opens the command palette, and the
+rulebook is refused to a stranger and served to an account. **Each check has a deliberately-broken
+copy of the site it is required to fail against**, so a check that has stopped being able to notice
+anything is a red run rather than a quiet one.
+
 ---
 
 ## Prerequisites

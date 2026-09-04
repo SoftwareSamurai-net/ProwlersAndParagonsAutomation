@@ -212,28 +212,31 @@ asymmetry is not a flourish; it falls straight out of where the data lives.
    The kit exists outside this repository. Anything sent is outward-facing and costs the hourly
    allowance to test, so it is proofed with `scripts/probe-mail.mjs` and not against a real inbox.
 
-1. **`PROGRESS.md` item 10's stage one is built; stage two is what is left of it.**
+1. **`PROGRESS.md` item 10 is built, both stages; what is left is the deployed site.**
    `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages dev` version the
-   deploy pins, and drives real Chrome — boot, a character built and surviving a reload, a theme
-   surviving a reload, the four palettes, nine addresses, and axe-core across four palettes. Six
-   checks, a positive control on each, and a deliberately-broken twin of the whole published site
-   that each must go red against. There are two drivers: `scripts/e2e/drive.mjs` and, behind
-   `--driver dotnet`, a Playwright one that adds the accessibility check. Both run on every pull
-   request. **Read
+   deploy pins — from the repository root, so `functions/` is bundled and a migrated local D1 is
+   bound — and drives real Chrome. Ten checks, a positive control on each, and a
+   deliberately-broken twin each must go red against: boot, a character built and surviving a
+   reload, a theme surviving a reload, the four palettes, nine addresses, axe-core across four
+   palettes with nothing exempt, reduced motion, the Ctrl-K chord, the rulebook gated and served,
+   and the admin page refusing an ordinary account. There are two drivers: `scripts/e2e/drive.mjs`,
+   which runs five of them, and behind `--driver dotnet` a Playwright one that runs all ten. Both
+   run on every pull request. **Read
    [`docs/guide/testing.md`](guide/testing.md)'s *Driving the assembled app* before touching it**;
    the rules there about not reaching past the browser are the whole point of it.
 
-   **What is left is the signed-in half**, and it needs no approval about danger any more: seed a
-   hashed login token into the local D1 and drive `/signin?token=…`, which runs the application's
-   real verify path and puts nothing in the shipped bundle. It does need `functions/` bundled and a
-   D1 binding, which is a change to how `scripts/e2e.sh` starts its server rather than only new
-   checks. A second target — the same driver against the *deployed* site, anonymously — proves the
-   real edge and is independent of it.
+   **The signed-in half needed no seam in the application.** `scripts/e2e/seed.mjs` writes the
+   `login_tokens` row an email would have caused — hashing with `worker/crypto.js` itself, not a
+   copy — and the driver clicks `/signin?t=…`, which runs the app's real verify path. Nothing was
+   added to the shipped bundle, so there is nothing to compile out and no test needed to assert its
+   absence.
 
-   **Three things stage one does not reach, so nobody over-reads six green checks**: `motion.js`
-   and `palette.js` (still only a `file://` proof page), a `_redirects` regression (wrangler
-   rejects this site's own SPA rule locally and falls back by its own default, so deep links work
-   there for a different reason than in production), and screen readers, which stay owed.
+   **Three things it still does not reach, so nobody over-reads ten green checks**: the *deployed*
+   site (everything here is local — the same driver pointed at production would prove the real
+   edge, anonymously, and is the largest thing open on this item), a `_redirects` regression
+   (wrangler rejects this site's own SPA rule locally and falls back by its own default, so deep
+   links work there for a different reason than in production), and screen readers, which stay
+   owed.
 
 2. **The codebase half of item 7**, untouched: dead code, engine hot paths, payload waste, the token
    side. `PROGRESS.md` is now over 5,600 lines and is read at the start of every slice by
