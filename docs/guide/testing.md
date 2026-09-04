@@ -108,6 +108,10 @@ verdicts rather than test counts, and cannot run without publishing a site first
 checks" alongside four suites' thousands would make the total meaningless. See **Driving the
 assembled app** at the end of this file.
 
+**And a seventh, for the same reason: `./scripts/test-kill-tree.sh`.** It reports three verdicts
+about whether the harness can stop a server it started — see **Proving `kill_tree`** below. It is a
+step in `build.yml` and is not totalled anywhere either.
+
 **`tests/e2e` is a .NET project and is still not a `dotnet test` project, for the same reason.** It
 is the Playwright driver `e2e.sh` can be pointed at, it prints verdicts, and `dotnet test` would
 report it as a suite of zero. It is in the solution so that `dotnet build` compiles it under the
@@ -316,6 +320,68 @@ nothing else reaches it. So four rules, and each of them is load-bearing:
 `ProofPages.WithDefect` property, against a published site rather than a single file. Zero
 occurrences means the twin has stopped reproducing anything and would pass for the wrong reason;
 more than one means it is not the single change it documents.
+
+### Proving `kill_tree`, and why a green run was never evidence about it
+
+```bash
+./scripts/test-kill-tree.sh                  # both trees; ~9s
+./scripts/test-kill-tree.sh --skip-wrangler  # the synthetic one only. NOT a full run
+```
+
+**The harness's own cleanup was the one fix in it that had never been watched to work.**
+`stop_server` used `pkill -P` on Linux, which kills *direct* children only. A real
+`wrangler pages dev` tree is **four processes deep** — measured on 2026-09-05, not assumed:
+
+```
+npm exec wrangler@4.127.0 pages dev …    <- $!, the pid stop_server is handed
+ node                                    <- npx's own runner
+  node                                   <- wrangler
+   workerd                               <- holds 127.0.0.1:<port>
+```
+
+so `workerd` outlived its step still holding a port. The recursive `/proc/<pid>/stat` walk fixed
+that, and the identical defect then reappeared on macOS, which has no `/proc` — `children_of`
+returned nothing there too, silently, and `kill_tree` again killed only the wrapper.
+
+**Both fixes were verified by outcome — "no leaked processes after a run" — and that check cannot
+see this leak.** `next_free_port` steps over a held port and never asks for it again, so the run is
+green either way; the runner emitted `something is still listening on port N after 30s` for every
+twin of every run for weeks underneath a green tick. **Do not accept an outcome check as proof for
+this again.**
+
+So the script asks it the other way round, and three properties are load-bearing:
+
+- **The tree is enumerated with `ps -eo pid,ppid`, never with `children_of`.** Using the function
+  under test to collect the pids it is then asked about makes an empty answer look like a clean
+  kill — which is the exact fault being hunted.
+- **The positive control comes first and is reported as its own sentence.** "Everything is dead" is
+  satisfied by a tree that never started and "the port is free" by a fixture that never bound it,
+  so the run asserts ≥3 live processes at three depths *and* `port_in_use` saying busy, before it
+  stops anything. `[CONTROL]` and `[OUTCOME]` are different bug reports here as everywhere else.
+- **The fixture is a genuine multi-process tree.** `bash -c 'node … & node … & wait'` collapses:
+  `bash -c` with a single command *execs* it, so you get one process where you meant three, and a
+  `kill_tree` that only kills the pid it was handed passes against it. The synthetic case is a
+  bash wrapper that backgrounds a node spawner which spawns a node listener; the second case is a
+  real `wrangler pages dev`, because nothing synthetic reproduces four levels by accident.
+
+**The `/proc` arm is driven on macOS too, and that needs a seam.** `children_of` reads
+`$proc_root`, which is `/proc` in every real use and which the test points at a synthetic tree of
+`stat` files built from the real process table — so the parse (the `(comm) ` longest-match trim,
+the field offset, the ppid comparison) is exercised wherever this is run. That is a test of the
+*parse* and not of the kill. Only CI runs the Linux arm against real processes, which is why the
+script is a step in `build.yml` before the two e2e steps.
+
+**What is still unknown, stated because guessing it would be the same mistake again.** The `/proc`
+walk is *correct* when driven against a synthetic table — measured, three levels deep, including a
+command name containing `) ` — and `workerd` is an ordinary child of wrangler's node rather than a
+detached one, read out of miniflare's own `spawn` options in the pinned version. So the fault the
+runner has been reporting is not any of: a wrong field offset, a naive `(comm)` parse, `set -- $stat`
+misbehaving under `set -u`, or `workerd` reparenting away from the tree. One real defect was found
+and fixed on the way past — `children_of` returned the exit status of whichever `/proc` entry it
+looked at last, which is fatal in `x="$(children_of …)"` under `set -e` and invisible in the
+`for child in $(children_of …)` form the harness happens to use. **Whether that was the fault is
+what the CI step answers**, and a `WRANGLER_TREE: FAIL` line naming the surviving pids is what
+disproves the fix rather than another green run.
 
 ### Three things about the server, each of which cost a debugging round
 

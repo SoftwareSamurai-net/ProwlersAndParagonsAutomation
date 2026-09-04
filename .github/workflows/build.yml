@@ -577,6 +577,34 @@ jobs:
           }
           echo "Bundled $(wc -c < "$out/worker.js") bytes."
 
+      - name: Prove the harness can stop a server it started
+        # **The one fix in the e2e harness that was never watched to work, now watched.**
+        # `PROGRESS.md` item 10 records `stop_server`'s Linux arm leaking `workerd` on every run:
+        # it was `pkill -P`, which kills direct children only, and a real `wrangler pages dev`
+        # tree is four processes deep with the port held at the bottom. The recursive
+        # `/proc/<pid>/stat` walk was written to fix that and **the runner has been emitting**
+        # `something is still listening on port N after 30s` **for every twin of every run ever
+        # since**, while the run stayed green — because `next_free_port` steps over the held port
+        # and never asks for it again.
+        #
+        # **So the green e2e steps below are not evidence about this and never could be.** Both
+        # fixes were verified by outcome ("no leaked processes after a run"), and on Linux that
+        # check passes while the leak continues. This step asks the question the other way round:
+        # it starts a tree — a synthetic three-deep one and a real `wrangler pages dev` — records
+        # every pid in it from `ps` rather than from the function under test, calls `stop_server`,
+        # and probes each pid with `kill -0`. A survivor is named in an `::error::` line with its
+        # command and the port it held.
+        #
+        # **It runs before the e2e steps because it costs seconds and they cost fifteen minutes**,
+        # and because a harness that cannot stop what it starts is worth knowing about before two
+        # drivers start fourteen servers. Measured locally on macOS at 8.9s wall, of which the
+        # real wrangler case is about seven; the wrangler download is already cached by the step
+        # above, keyed on the same version this script parses out of `deploy.yml`.
+        #
+        # It is deliberately not in `./scripts/count-tests.sh` — it reports verdicts rather than
+        # a test count, which is the same reason `docs/guide/testing.md` gives for `e2e.sh`.
+        run: ./scripts/test-kill-tree.sh
+
       - name: Drive the assembled app in a browser
         # **The first thing in this repository that runs the application.** Everything above is a
         # part of it: `dotnet test` drives the engine, bUnit renders components, the proof
