@@ -590,8 +590,25 @@ the storage half, which shipped a slice earlier.
   Resolve, which is `(TraitCap − highestRelevantRank) × 2`. `AnEmptyTierIsInherited` is the positive
   control that keeps the mismatch assertion from being an absence satisfied by a join that does
   nothing.
-- **A campaign's Trait Cap is copied onto the character and is read from there, never from the
-  campaign.** That deferral is over: the owner settled on 2026-09-05 that a house cap *substitutes*
+- **Joining copies a campaign's Trait Cap into a character that has none, and never over one that
+  has.** That is the tier rule one field at a time: an empty field is filled — alongside the tier
+  where the tier was empty, and on its own where it was not — and a character already built to a
+  cap keeps it, with `CAMPAIGN_TRAIT_CAP_MISMATCH` handed back by `Inspect`. Writing over one would
+  move Resolve on somebody's finished character in the course of typing a join code, which is the
+  same objection as lowering a tier. **A cap mismatch does not block the join and a tier mismatch
+  does**: a character at the wrong power level is at the wrong table, and one whose table caps
+  tighter than it does is a character with a finding on it. The finding carries the two ranks as
+  fields rather than in its sentence, the way the tier finding carries the two ids.
+  `AnEmptyTraitCapInheritsTheCampaigns` is the positive control and asserts the Resolve it moves,
+  because a join that wrote a field nothing read would satisfy an assertion about the field alone.
+- **`CharacterSession.TraitCap` is the cap in force, not the tier's**, and it is
+  `DerivedStatsCalculator.EffectiveTraitCap` rather than a second spelling of the coalesce. Every
+  rank field on every step is bounded by it, and the number the browser bounds by has to be the
+  number the validator judges by and the number Resolve was measured from. **Wherever the cap is
+  printed — the budget strip, the printed sheet's meta line, the Resolve breakdown, a replay's
+  verdict — the tier's is named beside it when the two differ**, because "Trait Cap 6d" at the
+  Standard tier looks like a mistake to anybody who knows the tier allows 12d.
+- **A campaign's Trait Cap is read from the character, never from the campaign.** That deferral is over: the owner settled on 2026-09-05 that a house cap *substitutes*
   for the tier's, so it moves Resolve — see [`rules-engine.md`](rules-engine.md) for the
   arithmetic and why gating was not an honest alternative. What survives unchanged is the route.
   `CharacterSheet.TraitCapRank` is a field on the character; `Campaign.TraitCapRank` is still read

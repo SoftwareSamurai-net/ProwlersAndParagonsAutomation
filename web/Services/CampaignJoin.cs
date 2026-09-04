@@ -13,7 +13,9 @@ public enum CampaignJoinOutcome
 
     /// <summary>
     /// The character already agreed with the campaign — same tier, or a campaign that names no
-    /// tier — so it now names the campaign and nothing else moved.
+    /// tier — so it now names the campaign. <b>A house Trait Cap it did not have may still have
+    /// been copied in</b>, which is inheriting into an empty field one field at a time; a cap it
+    /// already had is left alone and the disagreement is reported by <see cref="CampaignJoin.Inspect"/>.
     /// </summary>
     Joined,
 
@@ -36,6 +38,14 @@ public enum CampaignJoinOutcome
 /// <param name="Message">What to put in front of a person.</param>
 /// <param name="CharacterTierId">The tier the character is built to, where the finding is about one.</param>
 /// <param name="CampaignTierId">The tier the campaign is played at, where the finding is about one.</param>
+/// <param name="CharacterTraitCapRank">
+/// The Trait Cap the character is built to, where the finding is about the cap.
+/// </param>
+/// <param name="CampaignTraitCapRank">
+/// The Trait Cap the campaign has set, where the finding is about the cap. Carried rather than
+/// written into the sentence for the reason the tier ids are: a screen renders the pair, and the
+/// message stays true without them.
+/// </param>
 /// <remarks>
 /// <b>The two ids are carried rather than written into the sentence</b>, because an id is not what
 /// a tier is called: the rulebook prints names, and every other finding in this application names
@@ -43,7 +53,8 @@ public enum CampaignJoinOutcome
 /// and says them; the message stays true without them.
 /// </remarks>
 public sealed record CampaignFinding(
-    string Code, string Message, string? CharacterTierId = null, string? CampaignTierId = null);
+    string Code, string Message, string? CharacterTierId = null, string? CampaignTierId = null,
+    int? CharacterTraitCapRank = null, int? CampaignTraitCapRank = null);
 
 /// <summary>
 /// Putting a character into a campaign: <b>inherit into an empty field, offer into a full
@@ -66,10 +77,20 @@ public sealed record CampaignFinding(
 /// while nobody is looking at it. So the disagreement is handed back for somebody to decide
 /// about.</para>
 ///
-/// <para><b>And the trait cap is reported, never enforced, in this slice at all.</b>
-/// <see cref="Campaign.TraitCapRank"/> is carried, listed and shown; nothing applies it. There is
-/// a test that a campaign whose cap differs from its tier's leaves <c>CalculateResolve</c>
-/// returning exactly what it returns with no campaign in the picture.</para>
+/// <para><b>The Trait Cap follows the same rule as the tier, one field at a time.</b> A campaign's
+/// cap is copied into <see cref="CharacterSheet.TraitCapRank"/> when the character has none, and a
+/// character that already has one keeps it and the disagreement is handed back. That is a real
+/// change to what the character is: the cap <em>substitutes</em> for the tier's, so it moves
+/// Resolve — see <c>docs/guide/rules-engine.md</c> for the owner's answer and the arithmetic.
+/// Which is exactly why it is never written over a cap somebody already set.</para>
+///
+/// <para><b>The cap is inherited even where the tier is not.</b> The tier is not copied into a
+/// character that already has one, because raising or lowering it is the repair this class exists
+/// not to make; the cap is copied into a character that has <em>none</em>, which is not a repair
+/// but the empty field being filled — the same thing that happens to the tier when the tier is
+/// empty. A cap mismatch does not block the join either, and the tier mismatch does: a character
+/// at the wrong power level is at the wrong table, and one whose table caps tighter than it does
+/// is a character with a finding on it.</para>
 /// </summary>
 public static class CampaignJoin
 {
@@ -102,6 +123,7 @@ public static class CampaignJoin
             sheet.CampaignId = campaign.Id;
             sheet.SelectedTierId = campaign.TierId;
             sheet.UnlimitedBudget = campaign.UnlimitedBudget;
+            sheet.TraitCapRank ??= campaign.TraitCapRank;
 
             return CampaignJoinOutcome.Inherited;
         }
@@ -115,6 +137,12 @@ public static class CampaignJoin
         }
 
         sheet.CampaignId = campaign.Id;
+
+        // <b>An empty cap is filled even where the tier was not empty.</b> `??=` is the whole of
+        // it: a character that has already been built to a house cap keeps it, and the
+        // disagreement is Inspect's to report. Writing over one would move Resolve on somebody's
+        // finished character in the course of typing a join code.
+        sheet.TraitCapRank ??= campaign.TraitCapRank;
 
         return CampaignJoinOutcome.Joined;
     }
@@ -132,6 +160,11 @@ public static class CampaignJoin
     ///   <item><c>CAMPAIGN_TIER_MISMATCH</c> — the character and its campaign disagree about the
     ///     power level. Reported for as long as it is true, so a disagreement that arrived by the
     ///     GM changing the campaign is as visible as one that arrived by a failed join.</item>
+    ///   <item><c>CAMPAIGN_TRAIT_CAP_MISMATCH</c> — both have set a house Trait Cap and they are
+    ///     not the same one. The character's is what everything computes from, so this is the
+    ///     character being judged and paid against a ceiling its table did not set. Reported
+    ///     after the tier, because a character at the wrong power level has a bigger problem than
+    ///     a cap and only one finding comes back.</item>
     /// </list>
     /// </summary>
     /// <param name="sheet">The character.</param>
@@ -153,15 +186,27 @@ public static class CampaignJoin
                 + "deleted.");
         }
 
-        if (campaign.TierId is null || sheet.SelectedTierId is null
-            || string.Equals(campaign.TierId, sheet.SelectedTierId, StringComparison.Ordinal))
+        if (campaign.TierId is not null && sheet.SelectedTierId is not null
+            && !string.Equals(campaign.TierId, sheet.SelectedTierId, StringComparison.Ordinal))
         {
-            return null;
+            return new CampaignFinding("CAMPAIGN_TIER_MISMATCH",
+                "This character is built to a different tier from the campaign it belongs to. "
+                + "Nothing has been changed either way.",
+                sheet.SelectedTierId, campaign.TierId);
         }
 
-        return new CampaignFinding("CAMPAIGN_TIER_MISMATCH",
-            "This character is built to a different tier from the campaign it belongs to. "
-            + "Nothing has been changed either way.",
-            sheet.SelectedTierId, campaign.TierId);
+        // Both set and different. A campaign that has set no cap is not overruling anybody, and a
+        // character with none has already inherited the campaign's — so the only case left is two
+        // deliberate answers that disagree, and the character's is the one in force.
+        if (campaign.TraitCapRank is { } theirs && sheet.TraitCapRank is { } ours && ours != theirs)
+        {
+            return new CampaignFinding("CAMPAIGN_TRAIT_CAP_MISMATCH",
+                "This character is built to a different Trait Cap from the campaign it belongs "
+                + "to. The character's own is what its ranks are checked against and what its "
+                + "Resolve is worked out from. Nothing has been changed either way.",
+                CharacterTraitCapRank: ours, CampaignTraitCapRank: theirs);
+        }
+
+        return null;
     }
 }

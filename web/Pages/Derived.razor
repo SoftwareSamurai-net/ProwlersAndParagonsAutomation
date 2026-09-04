@@ -55,7 +55,13 @@
         Determination: @DerivedStatsCalculator.DeterminationHpPerResolve Hero Points a point.
     </p>
     <ul class="small muted">
-        <li>Trait Cap @(Session.TraitCap)d.</li>
+        <li>
+            Trait Cap @(Session.TraitCap)d.
+            @if (Session.TraitCapIsNotTheTiers)
+            {
+                @: This game caps tighter than its tier's @(Session.TierTraitCap)d, and Resolve is measured from the cap in force.
+            }
+        </li>
         <li>@Plural(ResolveFlaws, "Condition or Plot Hook flaw", "Condition or Plot Hook flaws").</li>
         @if (DeterminationResolve > 0)
         {

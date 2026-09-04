@@ -237,6 +237,73 @@ public sealed class CampaignStorageTests
     }
 
     /// <summary>
+    /// <b>A campaign's Trait Cap lands in a character that has none.</b> That is the finding this
+    /// whole slice came from — a table caps a non-superhuman at 6d and the character has to carry
+    /// it, because the character is what everything computes from. Inherited alongside the tier
+    /// where the tier was empty, and alongside nothing where it was not: an empty field is filled
+    /// either way.
+    ///
+    /// <para>The positive control is the figure it moves. Resolve is measured from the cap, so an
+    /// inherited cap is a real change to the character rather than a label — and a join that
+    /// wrote the field and nothing that read it would pass an assertion about the field alone.</para>
+    /// </summary>
+    [Fact]
+    public void AnEmptyTraitCapInheritsTheCampaigns()
+    {
+        // With no tier of its own: the cap arrives with the tier.
+        var fresh = new CharacterSheet();
+        Assert.Equal(CampaignJoinOutcome.Inherited,
+            CampaignJoin.Apply(fresh, ACampaign(tierId: "standard", traitCap: 6)));
+        Assert.Equal(6, fresh.TraitCapRank);
+
+        // With a tier that already agrees: the cap still arrives, because the field was empty.
+        var built = new CharacterSheet
+        {
+            SelectedTierId = "standard",
+            AbilityRanks = { ["might"] = 4 },
+        };
+
+        var before = Derived.CalculateResolve(built);
+        Assert.Equal(16, before);   // (12 - 4) x 2 at the Standard tier's cap
+
+        Assert.Equal(CampaignJoinOutcome.Joined,
+            CampaignJoin.Apply(built, ACampaign(tierId: "standard", traitCap: 6)));
+
+        Assert.Equal(6, built.TraitCapRank);
+        Assert.Equal(4, Derived.CalculateResolve(built));   // (6 - 4) x 2
+    }
+
+    /// <summary>
+    /// <b>A cap the character already has is kept, and the disagreement is handed back.</b> Same
+    /// rule as the tier and for a sharper reason: writing over it would move Resolve on somebody's
+    /// finished character in the course of typing a join code.
+    /// </summary>
+    [Fact]
+    public void ATraitCapTheCharacterAlreadyHasIsKeptAndTheDisagreementIsReported()
+    {
+        var sheet = new CharacterSheet { SelectedTierId = "standard", TraitCapRank = 8 };
+        var campaign = ACampaign(tierId: "standard", traitCap: 6);
+
+        Assert.Equal(CampaignJoinOutcome.Joined, CampaignJoin.Apply(sheet, campaign));
+        Assert.Equal(8, sheet.TraitCapRank);
+
+        var finding = CampaignJoin.Inspect(sheet, campaign);
+
+        Assert.NotNull(finding);
+        Assert.Equal("CAMPAIGN_TRAIT_CAP_MISMATCH", finding!.Code);
+        Assert.Equal(8, finding.CharacterTraitCapRank);
+        Assert.Equal(6, finding.CampaignTraitCapRank);
+
+        // The sentence carries neither figure, the way the tier finding carries neither id.
+        Assert.DoesNotContain("8d", finding.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("6d", finding.Message, StringComparison.Ordinal);
+
+        // And agreement is not a finding, so the check above is not satisfied by any two caps.
+        var agreeing = new CharacterSheet { SelectedTierId = "standard", TraitCapRank = 6 };
+        Assert.Null(CampaignJoin.Inspect(agreeing, campaign));
+    }
+
+    /// <summary>
     /// A campaign that names no tier overrules nobody, and a campaign that agrees is simply
     /// joined. Both are the "nothing to disagree about" half of the rule above.
     /// </summary>
