@@ -70,7 +70,7 @@ public sealed class BuyCharacteristicsStep : IWizardStep
                 getId:     () => sheet.GetAbilityRank(ability.Id),
                 setId:     rank => sheet.AbilityRanks[ability.Id] = rank,
                 min:       1,
-                max:       tier.TraitCapRank,
+                max:       Cap(sheet, tier),
                 packageMin: PackageFloorForAbility(sheet, rules));
         }
     }
@@ -117,10 +117,23 @@ public sealed class BuyCharacteristicsStep : IWizardStep
                 getId:     () => sheet.GetTalentRank(talent.Id),
                 setId:     rank => sheet.TalentRanks[talent.Id] = rank,
                 min:       0,
-                max:       tier.TraitCapRank,
+                max:       Cap(sheet, tier),
                 packageMin: PackageFloorForTalent(sheet, rules));
         }
     }
+
+    /// <summary>
+    /// The ceiling this character is built to: its own house cap where it has one, and the tier's
+    /// otherwise.
+    ///
+    /// <para><b>The same figure the validator judges by and Resolve is measured from</b>, read
+    /// through <c>DerivedStatsCalculator.EffectiveTraitCap</c> rather than spelled out again —
+    /// a rank field bounded by one number and judged against another is how the two disagree.
+    /// The wizard has no step that sets a house cap; a character built in the browser or handed
+    /// to <c>build --from</c> can arrive carrying one.</para>
+    /// </summary>
+    private static int Cap(CharacterSheet sheet, TierModel tier) =>
+        DerivedStatsCalculator.EffectiveTraitCap(sheet, tier) ?? tier.TraitCapRank;
 
     // ── Sources on Abilities and Talents ──────────────────────────────────
 

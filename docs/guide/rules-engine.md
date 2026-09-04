@@ -44,11 +44,23 @@ Two consequences come with it, both intended:
   surfaced this the house cap is doing validation work and the Resolve half is a figure nobody
   should quote. Both halves land; only one is visible per kind of character.
 
-**Read the cap through `EffectiveTraitCap` and nowhere else.** Six places answer “what is this
-character’s cap” — `CalculateResolve`, `CharacterValidator.CheckTraitCap`,
-`CharacterSession.TraitCap`, `BuildCommand`, `Judgement` and the JSON export — and a seventh
-spelling of `sheet.TraitCapRank ?? tier.TraitCapRank` is how one of them ends up disagreeing with
-the figure printed beside it.
+**Read the cap through `EffectiveTraitCap` and nowhere else** — *every* surface that answers “what
+is this character built to”, and there is deliberately no number in that sentence. They are
+`CalculateResolve`, `CharacterValidator.CheckTraitCap`, `CharacterSession.TraitCap`,
+`SheetView`’s meta line, `ReplayVerdict`, `BuildCommand`, `Judgement`, the JSON export, and the
+three rank prompts in the terminal wizard (`HpBudgetDisplay`, `PowerBrowser`,
+`BuyCharacteristicsStep`). A second spelling of `sheet.TraitCapRank ?? tier.TraitCapRank` is how one
+of them ends up disagreeing with the figure printed beside it.
+
+**This paragraph said “six places” while there were eight, and that is why it no longer counts.**
+A number in a sentence is not a guard: nothing re-counted it, and the two surfaces it had missed
+were the ones a reader would have trusted it about. `TraitCapReadTests` holds the rule instead — it
+scans `web/`, `cli/`, `mcp/` and `sheets/` for a **tier-shaped** read of `TraitCapRank` and requires
+each one to be listed there by file, with a count and the reason it really is about the tier: the
+tier catalogue somebody chooses from, or the tier’s own ceiling printed *beside* the character’s.
+It is an allowlist of receivers rather than a denylist of them, so a new read under a name nobody
+anticipated is flagged rather than missed, and a listed entry whose reads have gone is flagged too
+— an exemption for something that is no longer there permits its whole file for nothing.
 
 **Nonsense is reported and still used, like everything else here.** A house cap above the tier’s is
 `TRAIT_CAP_ABOVE_TIER` (`Value` the house cap, `Limit` the tier’s) and one below 1d is

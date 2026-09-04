@@ -211,10 +211,18 @@ public class CharacterSheet
     /// empty and reports a disagreement otherwise — never repairs one.</para>
     ///
     /// <para><b>Read it through <see cref="DerivedStatsCalculator.EffectiveTraitCap"/> and
-    /// nowhere else.</b> Six places answer "what is this character's cap" — Resolve, the
-    /// validator, the browser's session, the two report builders and the JSON export — and a
-    /// seventh spelling of <c>sheet.TraitCapRank ?? tier.TraitCapRank</c> is how one of them
-    /// ends up disagreeing with the figure beside it.</para>
+    /// nowhere else</b> — <em>every</em> surface that answers "what is this character built to",
+    /// which is Resolve, the validator, the browser's session, the printed sheet, a replay's
+    /// verdict, both report builders, the JSON export and all three rank prompts in the terminal
+    /// wizard. A second spelling of <c>sheet.TraitCapRank ?? tier.TraitCapRank</c> is how one of
+    /// them ends up disagreeing with the figure beside it.</para>
+    ///
+    /// <para><b>The list is not a count, and it used to be one.</b> This paragraph said "six
+    /// places" while there were eight, because a number in a sentence is not a guard and nothing
+    /// re-counted it. <c>TraitCapReadTests</c> is the guard: it scans <c>web/</c>, <c>cli/</c>,
+    /// <c>mcp/</c> and <c>sheets/</c> for a tier-shaped read of this property and requires each
+    /// one to be named there with the reason it is about the tier rather than about a
+    /// character.</para>
     ///
     /// <para><b>Nonsense here is reported, never repaired</b>, like everything else: a cap above
     /// the tier's, or below 1d, is an error and the arithmetic still uses the number as written.
