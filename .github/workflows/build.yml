@@ -285,6 +285,8 @@ jobs:
           proof-motion.html:MOTION: PASS:--force-prefers-reduced-motion
           proof-motion-broken.html:MOTION: FAIL:
           proof-motion-broken.html:MOTION: FAIL:--force-prefers-reduced-motion
+          proof-motion-node-broken.html:MOTION: FAIL:
+          proof-motion-node-broken.html:MOTION: FAIL:--force-prefers-reduced-motion
           proof-shortcut.html:SHORTCUT: PASS:
           proof-shortcut-broken.html:SHORTCUT: FAIL:
           proof-theme.html:THEME: PASS:

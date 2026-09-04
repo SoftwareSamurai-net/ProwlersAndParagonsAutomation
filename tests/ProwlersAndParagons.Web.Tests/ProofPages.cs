@@ -736,6 +736,22 @@ public sealed class ProofPages
         "if (!document.startViewTransition || !still()) return;");
 
     /// <summary>
+    /// <c>js/motion.js</c> with <c>write()</c>'s node-preserving path reverted to the
+    /// <c>element.textContent =</c> assignment it replaced — the defect that shipped: the count
+    /// lands on the right number while orphaning the text node Blazor's renderer holds, so every
+    /// later render by Blazor updates a node that is no longer in the document.
+    ///
+    /// <para><b>A separate twin from <see cref="MotionBrokenScript"/> because it is a separate
+    /// property.</b> The reduced-motion inversion that twin injects leaves the counting path
+    /// untouched, so it cannot fail the node-identity checks; and those checks were added because
+    /// every existing check in the harness passed against this defect. A twin that does not
+    /// reproduce the thing under test proves nothing about it.</para>
+    /// </summary>
+    private static string MotionNodeBrokenScript() => WithDefect("js/motion.js",
+        "node.nodeValue = value;",
+        "element.textContent = value; /* defect: replaces the node the renderer owns */");
+
+    /// <summary>
     /// <c>js/palette.js</c> with Ctrl-K reaching the component but the browser default never taken —
     /// the harness's own check names this exact failure: "Ctrl-K takes the key from the browser...
     /// a version that listened without suppressing the default would look right here and be
@@ -880,6 +896,13 @@ public sealed class ProofPages
         // defeated an `|| true`-weakened motion harness in both directions — see
         // docs/notes/s4-harness.md.
         WritePage("proof-motion-broken.html", "hero", MotionHarness(AsScriptSrc(MotionBrokenScript())));
+
+        // The second negative control, for the second property. The twin above inverts the
+        // reduced-motion gate and leaves the counting path alone, so it cannot fail the
+        // node-identity checks — and those exist precisely because every other check in this
+        // harness passed while `ppCount` was orphaning the text node Blazor renders into.
+        WritePage("proof-motion-node-broken.html", "hero",
+            MotionHarness(AsScriptSrc(MotionNodeBrokenScript())));
     }
 
     /// <summary>
@@ -1522,6 +1545,42 @@ public sealed class ProofPages
           check('an interrupted count leaves one live clock, not two',
                 reduced ? busy.getAnimations().length === 0 : busy.getAnimations().length === 1,
                 `reduced=${reduced} live clocks on the figure: ${busy.getAnimations().length}`);
+
+          // ── The text node the renderer owns ──────────────────────────────────────────
+          //
+          // **`element.textContent = value` replaces the element's children**, including the
+          // text node Blazor's renderer holds a reference to. From the first count onward
+          // Blazor's own updates to that figure land on a node that is no longer in the
+          // document, and what a reader sees is whatever this script last wrote — correct only
+          // for as long as every change is followed by a count. It is not: an unchanged
+          // `_shown`, a clock frozen because the tab was hidden, a swallowed interop failure.
+          // Seen in a browser as a spent figure reading 97 beside "99 left", with the detached
+          // node holding the right answer all along.
+          //
+          // **Every check above passed against that defect**, because each counts into a bare
+          // <span> with no children — `write()`'s fallback path — so the node the bug is about
+          // never existed. This renders the figure the way Blazor does, text node already in
+          // place, which is the only arrangement that can see it.
+          const owned = document.createElement('strong');
+          owned.textContent = '12';            // as Blazor rendered it
+          document.body.appendChild(owned);
+          const ownedNode = owned.firstChild;  // the node Blazor would go on updating
+
+          window.ppCount(owned, 12, 34);
+          if (!reduced) { owned.ppCount.clock.currentTime = enterMs; owned.ppCount.draw(); }
+
+          check('a count keeps the text node the renderer owns',
+                owned.firstChild === ownedNode && ownedNode.parentNode === owned,
+                `reduced=${reduced} sameNode=${owned.firstChild === ownedNode} `
+                + `attached=${ownedNode.parentNode === owned}`);
+
+          // The positive control on the check above: node identity is also preserved perfectly
+          // by a script that does nothing at all, so the figure must have reached the answer
+          // through that same node — and through exactly one of them, since a second text node
+          // beside it renders as the two values run together.
+          check('and the engine answer arrives through that node',
+                owned.textContent === '34' && owned.childNodes.length === 1,
+                `showed ${owned.textContent} across ${owned.childNodes.length} node(s)`);
 
           // **An interrupt that takes an early return.** The check above uses 78 -> 42, which
           // never hits one — so moving the cancel *below* the early returns passed it, while
@@ -2310,6 +2369,10 @@ public sealed class ProofPages
             "ppCount", "ppMotionStats", "positive control",
             "currentTime", "resting frame is the engine number",
             "ppLand", "getAnimations", "ease-emphasised",
+            // The node-identity half. Every other counting check here writes into a bare <span>,
+            // which has no text node to orphan — so without these the defect is invisible to
+            // this harness, which is exactly how it shipped.
+            "text node the renderer owns", "ownedNode", "childNodes.length",
         ],
         // The 375px harnesses. `clientWidth`/`scrollWidth` is the measurement; naming the widest
         // overflowing element is what turns a failure into a fix.
@@ -2403,6 +2466,19 @@ public sealed class ProofPages
             "ppCount", "ppMotionStats", "positive control",
             "currentTime", "resting frame is the engine number",
             "ppLand", "getAnimations", "ease-emphasised",
+            "text node the renderer owns", "ownedNode", "childNodes.length",
+        ],
+        // The second twin: the same harness script against a motion.js whose write() helper
+        // replaces the text node again. It must say FAIL, and it fails on the node-identity
+        // checks specifically — the reduced-motion twin above cannot reach them.
+        ["proof-motion-node-broken.html"] =
+        [
+            "data:text/javascript;base64,", "prefers-reduced-motion", "startViewTransition",
+            "MOTION: PASS", "MOTION: FAIL", "measuring",
+            "checks.every", "document.title",
+            "css/theme.css", "--enter resolves",
+            "ppCount", "ppMotionStats", "positive control",
+            "text node the renderer owns", "ownedNode", "childNodes.length",
         ],
         ["proof-narrow-broken.html"] =
         [
@@ -2722,6 +2798,7 @@ public sealed class ProofPages
         ["proof-align-broken.html"] = ["say(true"],
         ["proof-sticky-broken.html"] = ["say(true"],
         ["proof-motion-broken.html"] = ["window.ppMotion = {"],
+        ["proof-motion-node-broken.html"] = ["window.ppMotion = {"],
         ["proof-slider-broken.html"] = ["window.ppSlider = {"],
     };
 

@@ -3389,6 +3389,95 @@ public sealed class WebPresentationTests
     /// <em>and</em> in the browser harness, which drives only the entry points it knows about.
     /// Comments are stripped first now, and every occurrence is checked rather than the first.</para>
     /// </summary>
+    /// <summary>
+    /// <b>No script replaces a DOM node Blazor rendered.</b>
+    ///
+    /// <para><c>element.textContent = value</c> removes every child of the element and inserts a
+    /// new text node — including the node Blazor's renderer holds a reference to. Once that has
+    /// happened the renderer's own updates to that element land on a node no longer in the
+    /// document, and what a reader sees is whatever the script last wrote. It stays correct only
+    /// while every change is followed by another call from the script, and it is not: an
+    /// unchanged guard value, a clock frozen because the tab was hidden, an interop failure
+    /// <c>Motion</c> swallows by design. <c>ppCount</c> shipped this, and the Hero Point strip
+    /// showed a spent figure of 97 beside "99 left" with the right answer sitting in the
+    /// detached node.</para>
+    ///
+    /// <para><b>The whole of <c>wwwroot/js</c>, not just the file it happened in.</b> Every
+    /// script here runs against markup Blazor owns, so the next one to write into an element is
+    /// as exposed as <c>motion.js</c> was — and the browser harness only drives the entry points
+    /// it already knows about. <c>motion.js</c>'s <c>write()</c> helper is the single sanctioned
+    /// assignment: it is the fallback for an element with no text node to preserve, and it is
+    /// named here so that adding a second one has to be a deliberate edit to this test.</para>
+    ///
+    /// <para><b>This is the cheap half and it is not the guarantee.</b> A denylist of spellings
+    /// cannot close an unbounded spelling space — <c>replaceChildren</c>, <c>innerHTML</c> via a
+    /// computed property, a helper in another file. What actually proves the property is
+    /// behavioural: <c>proof-motion.html</c> counts into an element that already has a text node
+    /// and asserts the node survives, with <c>proof-motion-node-broken.html</c> as the twin that
+    /// must say <c>FAIL</c>. Keep both; this one catches the lazy spelling in review, that one
+    /// catches the behaviour in CI.</para>
+    /// </summary>
+    [Fact]
+    public void NoScriptReplacesANodeTheRendererOwns()
+    {
+        // The one sanctioned assignment: write()'s fallback, for an element Blazor rendered with
+        // no text node to preserve. Named by its whole line so that moving it is visible here.
+        const string sanctioned = "element.textContent = value;";
+
+        var writes = new List<(string Where, bool Sanctioned)>();
+
+        foreach (var (name, text) in Scripts)
+        {
+            var source = WithoutJsComments(text);
+            var lines = source.Split('\n');
+
+            foreach (var property in new[] { "textContent", "innerHTML", "innerText" })
+            {
+                // `.property =` but not `==`/`===`, so a comparison is not read as a write.
+                var pattern = new Regex(
+                    $@"\.{property}\s*=\s*(?!=)",
+                    RegexOptions.None,
+                    TimeSpan.FromSeconds(2));
+
+                foreach (var match in pattern.Matches(source).Cast<Match>())
+                {
+                    var line = source[..match.Index].Count(c => c == '\n') + 1;
+                    var body = lines[line - 1].Trim();
+
+                    writes.Add((
+                        $"{name}:{line}  {body}",
+                        name == "motion.js" && body.StartsWith(sanctioned, StringComparison.Ordinal)));
+                }
+            }
+        }
+
+        // **Counted, not matched by spelling — and this test passed against the real defect
+        // before it was.** The exemption used to skip any line whose text equalled the
+        // sanctioned one, so reintroducing the bug produced a *second* identical line and both
+        // were waved through. An exemption keyed on content exempts the copy as readily as the
+        // original; the sanctioned assignment is therefore allowed exactly once.
+        var sanctionedCount = writes.Count(w => w.Sanctioned);
+
+        Assert.True(
+            sanctionedCount == 1,
+            $"write()'s fallback assignment appears {sanctionedCount} times in motion.js, not once. "
+            + "Zero means the helper has gone and this test has lost its subject — the exemption "
+            + "below would then hide nothing and pass vacuously. More than one means the "
+            + "node-replacing assignment has been reintroduced beside it, which is the defect "
+            + "this test exists to catch, wearing the sanctioned line's clothes.");
+
+        var offenders = writes.Where(w => !w.Sanctioned).Select(w => w.Where).ToList();
+
+        Assert.True(
+            offenders.Count == 0,
+            "A script assigns into an element Blazor renders, which replaces the text node the "
+            + "renderer holds and strands every later update on a node that is no longer in the "
+            + "document — the Hero Point strip shipped exactly this, showing a stale figure "
+            + "beside a correct one. Set `nodeValue` on the existing node instead, the way "
+            + "motion.js's write() helper does. Offenders:\n  "
+            + string.Join("\n  ", offenders));
+    }
+
     [Fact]
     public void EveryScriptedAnimationAsksWhetherMovementIsWanted()
     {
