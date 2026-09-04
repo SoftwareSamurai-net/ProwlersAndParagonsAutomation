@@ -188,6 +188,46 @@ public sealed class DerivedStatsCalculator
     }
 
     /// <summary>
+    /// The Trait ids a Power's baseline rank is read from, in the order the rulebook
+    /// names them — Armor answers <c>toughness</c>, Strike answers <c>might</c> and
+    /// <c>martial_arts</c>, Boost answers whatever was nominated on the selection.
+    ///
+    /// <para><b>It answers "from where", never "how much"</b>, which is
+    /// <see cref="GetBaselineRank"/>'s question. A reader asking whether a Power justifies
+    /// an effective rank needs both: the rank on its own says nothing about whether it was
+    /// bought or derived, and a derived one is only as good as the Trait underneath it.</para>
+    ///
+    /// <para>Empty where there is nothing to name: a Power with no prerequisite, a fixed
+    /// baseline printed in the entry (Running's 3d), or a nominated Trait nobody has
+    /// nominated yet — which the validator reports separately.</para>
+    /// </summary>
+    public static IReadOnlyList<string> BaselineTraitIds(PowerModel power, SelectedPower? selection = null)
+    {
+        ArgumentNullException.ThrowIfNull(power);
+
+        var prereq = power.Prerequisite;
+        if (prereq is null) return [];
+
+        return prereq.Relationship switch
+        {
+            "baseline_equal" or "baseline_half" =>
+                prereq.Ability is null ? [] : [prereq.Ability],
+
+            "baseline_fixed" => [],
+
+            "baseline_greater_of" =>
+                [.. (prereq.Ability is null ? Array.Empty<string>() : [prereq.Ability])
+                    .Concat(prereq.Powers)],
+
+            "baseline_selected_trait" =>
+                selection?.BaselineTraitId is { } traitId ? [traitId] : [],
+
+            _ => throw new InvalidOperationException(
+                     $"Unknown prerequisite relationship '{prereq.Relationship}' on power '{power.Id}'.")
+        };
+    }
+
+    /// <summary>
     /// Rank of any Trait by id — ability, talent or power — for the Powers whose
     /// baseline is whatever Trait the player nominated.
     /// </summary>

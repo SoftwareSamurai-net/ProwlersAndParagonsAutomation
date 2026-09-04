@@ -237,6 +237,87 @@ public sealed class DerivedStatsCalculatorTests
         Assert.Equal(0, _f.Derived.GetBaselineRank(boost, SheetWithAbilities()));
     }
 
+    /// <summary>
+    /// <b>Where a baseline comes from is a different question from how big it is</b>, and a
+    /// roster report needs both: a 9d Power bought outright and a 9d Power sitting on a 9d
+    /// Ability are the same number and different characters.
+    ///
+    /// <para>Each case is asserted with the rank beside it, so an answer that has stopped
+    /// naming the Trait cannot pass by naming nothing on a Power whose baseline is 0 anyway.</para>
+    /// </summary>
+    [Theory]
+    [InlineData("armor", "toughness")]        // baseline_half
+    [InlineData("evasion", "agility")]        // baseline_equal
+    [InlineData("danger_sense", "perception")]
+    [InlineData("martial_arts", "might")]
+    public void ABaselineNamesTheTraitItIsReadFrom(string powerId, string traitId)
+    {
+        var power = _f.Rules.GetPower(powerId)!;
+
+        Assert.Equal([traitId], DerivedStatsCalculator.BaselineTraitIds(power));
+        Assert.True(_f.Derived.GetBaselineRank(power, SheetWithAbilities()) > 0,
+            "The positive control failed: this Power derives no baseline on the fixture sheet, "
+            + "so naming its Trait would prove nothing.");
+    }
+
+    /// <summary>
+    /// Strike reads from an Ability <em>and</em> a Power, and both are named — dropping either
+    /// would leave a reader unable to tell which of the two put the rank there.
+    /// </summary>
+    [Fact]
+    public void AGreaterOfBaselineNamesEveryTraitItChoosesBetween()
+    {
+        var strike = _f.Rules.GetPower("strike")!;
+
+        Assert.Equal(["might", "martial_arts"], DerivedStatsCalculator.BaselineTraitIds(strike));
+    }
+
+    /// <summary>
+    /// A nominated baseline names whatever was nominated, and names nothing when nothing was —
+    /// which is the state the validator reports, not a Trait to invent.
+    /// </summary>
+    [Fact]
+    public void ANominatedBaselineNamesTheNominationOrNothing()
+    {
+        var boost = _f.Rules.GetPower("boost")!;
+
+        Assert.Equal(["might"], DerivedStatsCalculator.BaselineTraitIds(
+            boost, new SelectedPower("boost", 0) { BaselineTraitId = "might" }));
+
+        Assert.Empty(DerivedStatsCalculator.BaselineTraitIds(boost));
+    }
+
+    /// <summary>
+    /// A baseline printed in the Power's own entry is read from no Trait at all, and Running
+    /// is the one that has one — so an empty answer here is a fact rather than a gap.
+    /// </summary>
+    [Fact]
+    public void AFixedBaselineNamesNoTrait()
+    {
+        var running = _f.Rules.GetPower("running")!;
+
+        Assert.Equal(3, _f.Derived.GetBaselineRank(running, SheetWithAbilities()));
+        Assert.Empty(DerivedStatsCalculator.BaselineTraitIds(running));
+    }
+
+    /// <summary>
+    /// Every Power the rules ship, so a relationship added to the data without a case here
+    /// fails at the line rather than through a roster report that lost a column.
+    /// </summary>
+    [Fact]
+    public void EveryPowerWithAPrerequisiteCanSayWhereItsBaselineComesFrom()
+    {
+        var withPrerequisite = _f.Rules.Powers.Where(p => p.Prerequisite is not null).ToList();
+
+        Assert.True(withPrerequisite.Count >= 27,
+            $"Only {withPrerequisite.Count} Powers carry a prerequisite; the rules ship 27 or more. "
+            + "Fix the loading rather than this number.");
+
+        Assert.All(withPrerequisite, power =>
+            DerivedStatsCalculator.BaselineTraitIds(
+                power, new SelectedPower(power.Id, 0) { BaselineTraitId = "might" }));
+    }
+
     [Fact]
     public void EffectiveRankIsBaselinePlusPurchased()
     {
