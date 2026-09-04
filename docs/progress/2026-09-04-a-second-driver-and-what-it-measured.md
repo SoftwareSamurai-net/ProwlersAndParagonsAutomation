@@ -77,12 +77,13 @@ compiled perfectly with both. So the run that counts is one branch, both drivers
 
 | | checks | twins | wall clock |
 |---|---|---|---|
-| `--driver node` | 5 green | 5 driven, all red; `html-lang-dropped` skipped and said so | **4m14s** |
-| `--driver dotnet` | 6 green | 6 driven, all red | **6m01s** |
+| `--driver node` | 5 green | 5 driven, all red; `html-lang-dropped` skipped and said so | **4m02s** |
+| `--driver dotnet` | 6 green | 6 driven, all red | **6m14s** |
 
 Local, Windows, Chrome 152. Before `--only`, the node run was 6m17s — so the twin filter paid for
-the second driver's twins and some of the first's. Against the runner's 333s for the node driver
-today, both together should land the Build job around 13–14 minutes, against a 30-minute cap.
+the second driver's twins and most of the first's. Against the runner's 333s for the node driver
+today, both together should land the Build job around 13–14 minutes, against a 30-minute cap and
+the ~20 minutes this repository treats as the working budget.
 
 `dotnet test` is green at 4,065 engine tests, including the seven new cross-driver guards.
 
@@ -97,7 +98,7 @@ Each against the existing twin for its check, driven by the byte-identical harne
 | THEME | 2.8s | `theme-not-restored` | `[OUTCOME] after a reload the document was stamped "" before boot` |
 | PALETTE | 1.8s | `villain-palette-missing` | `[OUTCOME] Hero/Light and Villain/Light are the same palette` |
 | ROUTES | 14.5s | `base-href-dropped` | `[OUTCOME] /build/gear: waited 45000ms for the framework to start` |
-| A11Y | 50.7s | `html-lang-dropped` (new) | `[OUTCOME] 20 accessibility violation(s): … html-has-lang …` |
+| A11Y | 47.9s | `html-lang-dropped` (new) | `[OUTCOME] 16 accessibility violation(s): … html-has-lang …` |
 
 **THEME's twin is the one that proves the two verdict kinds are worth separating.** That defect
 leaves `js/theme.js` running and incrementing its own counter — the positive control passes — and
