@@ -84,11 +84,14 @@ Local, Windows, Chrome 152. Before `--only`, the node run was 6m17s — so the t
 the second driver's twins and most of the first's.
 
 **On the runner, and this is the number that matters rather than the projection:** the whole Build
-job went from **533s to 1103s (18m23s)**, against a 30-minute cap. I projected 13–14 minutes from
-the local ratios and was wrong, which is the argument for measuring: the runner is far more
-variable than a laptop. The node driver alone was **200s** on one run and **392s** on the next,
-same code, same commit range — a 2× spread the local runs never show. Playwright was 521s on the
-green run.
+job went from **533s to 1103s and 1132s** on two consecutive green runs — 18m23s and 18m52s,
+against a 30-minute cap. I projected 13–14 minutes from the local ratios and was wrong, which is
+the argument for measuring rather than scaling a laptop's figures.
+
+Per step, over those two runs: node 392s and 395s, Playwright 521s and 528s — steady to within one
+percent. **A third, earlier run put the node driver at 200s, and that one is the outlier**: worth
+recording because a single fast reading is exactly what a budget gets set from. Two agreeing runs
+beat one convenient one.
 
 **So there is headroom but not a lot of it, and the levers are named here so nobody has to rederive
 them.** In order of what they cost:
