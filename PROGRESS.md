@@ -508,30 +508,40 @@ rather than dropped for being hard. None of the 39 new sentences were edited aft
 measured — every miss above is a real gap, not a sentence that could as honestly have named a
 different Power.
 
-### 10. Driving the assembled app — **stage one is built; stage two is only a decision about effort**
+### 10. Driving the assembled app — **stage two is built; what is left is the deployed site and a screen reader**
 
 **Asked for by the owner after a slice where two real defects were found by screenshotting and none
 by the suites.** Both were in the same class: they existed only once markup, stylesheet and layout
 were put together on a page. The question was what would have caught them without a person looking.
 
-**Stage one is built.** `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages
-dev` version `.github/workflows/deploy.yml` pins, and drives real Chrome — six checks, anonymous
-only, no credential and no bypass: the app boots; a character is built by clicking and typing and
-survives a reload; a chosen theme survives a reload and is stamped before the app boots; all four
-palettes are reached through the two switches in the settings menu and resolve to four different
-sets of colours; nine addresses are served at their own paths, with client-side routing proved by a
-token that survives the click; and axe-core finds no accessibility violation across four palettes
-and four addresses. Each check states a positive control before its outcome, and each has a
-deliberately-broken twin of the whole published site that it is required to go red against. It runs
-on every pull request.
+**Both stages are built.** `./scripts/e2e.sh` publishes the site, serves it with the `wrangler pages
+dev` version `.github/workflows/deploy.yml` pins — **from the repository root, so `functions/` is
+bundled and a local D1 is bound** — and drives real Chrome. Ten checks: the app boots; a character
+is built by clicking and typing and survives a reload; a chosen theme survives a reload and is
+stamped before the app boots; all four palettes are reached through the two switches in the settings
+menu and resolve to four different sets of colours; nine addresses are served at their own paths,
+with client-side routing proved by a token that survives the click; axe-core finds no accessibility
+violation across four palettes and four addresses, **with nothing exempt**; a reader who asked for
+less movement gets none, and gets the end state anyway; Ctrl-K opens the command palette and Escape
+gives focus back; the rulebook is refused to an anonymous reader and served to an account; and the
+admin page refuses an ordinary account. Each check states a positive control before its outcome, and
+each has a deliberately-broken twin it is required to go red against. It runs on every pull request.
 
-**There are two drivers and the sixth check is why.** `scripts/e2e/drive.mjs` is the original, a
-hand-rolled DevTools Protocol client; `tests/e2e` is a C# one over `Microsoft.Playwright`, which
-runs the same five plus `A11Y` — axe-core inside the page, which the hand-rolled client cannot do.
-`e2e.sh --driver node|dotnet` picks one and owns everything around a drive either way. The
-Playwright driver adds **+4 seconds** to the runner's Restore step: `Channel = "chrome"` launches
-the Chrome already on the machine, so there is no `playwright install`, nothing to cache, and no
-third renderer to invalidate the pixel goldens against.
+**The signed-in half needed no seam in the application, which was the whole question.** See the
+stage-two section below: the harness writes the row an email would have caused and the app runs its
+own verify path.
+
+**There are two drivers and the gap between them is now five checks wide.** `scripts/e2e/drive.mjs`
+is the original, a hand-rolled DevTools Protocol client running five; `tests/e2e` is a C# one over
+`Microsoft.Playwright` running those five plus `A11Y`, `MOTION`, `COMMAND`, `RULES` and `ADMIN`.
+Every one of the five needs something Playwright has and the hand-rolled client does not: axe-core
+inside the page, a second browser context differing only in `prefers-reduced-motion`, a real key
+chord, and a signed-in session. `e2e.sh --driver node|dotnet` picks one and owns everything around
+a drive either way; a twin whose check the chosen driver does not run is skipped **and named**, so
+a `node` run cannot report "all twins green" over a quietly shorter list. The Playwright driver
+adds **+4 seconds** to the runner's Restore step: `Channel = "chrome"` launches the Chrome already
+on the machine, so there is no `playwright install`, nothing to cache, and no third renderer to
+invalidate the pixel goldens against.
 
 **What it does cost is a second drive, and the Build job is now 18–19 minutes against a 30-minute
 cap** — 533s before this, then 1103s and 1132s on two consecutive green runs, steady to within one
@@ -550,45 +560,61 @@ around:
 | Was not exercised by anything | Now |
 |---|---|
 | Blazor WebAssembly actually booting | **Closed.** The framework starting, its payload arriving with bytes in it, and the boot screen being replaced by a rendered page are three separate assertions, and the real `_headers` is in force so a Content-Security-Policy that refuses one of the app's own scripts is a red check |
-| Every `js/*.js` interop | **Closed for `ppStore` and `theme.js`.** The character-storage path is driven by clicking, and `ppThemeStats.stamps` is read across a genuine reload rather than a re-executed module. `motion.js` and `palette.js` are still only a proof harness and a bUnit recorder |
+| Every `js/*.js` interop | **Closed.** The character-storage path is driven by clicking; `ppThemeStats.stamps` is read across a genuine reload rather than a re-executed module; `motion.js` is driven in two contexts differing only in `prefers-reduced-motion`, with both of its mechanisms exercised; and `palette.js`'s chord is pressed for the first time in the running app. `slider.js` and `download.js` are reached only incidentally |
 | Client-side routing | **Closed.** A `NavLink` is clicked, and a per-document token surviving the click is what proves the router handled it rather than the browser reloading |
-| Pages Functions against the real edge | **Open, and now deliberately so rather than by omission.** Nothing is bundled: wrangler takes `functions/` from the working directory, and the harness runs from one without it, so `/api/` falls through `_redirects` and the app reads an unparseable answer as anonymous — which is its own documented behaviour. Binding a local D1 is stage two's first step |
-| **Anything behind sign-in** | **Open — stage two, below.** `/rules`, `/admin`, the portfolio, the replay and every account-storage path |
-| Accessibility of the *rendered* app | **Closed for what a machine can see, and it found one thing.** axe's full default ruleset, four palettes by four addresses: 536 passing rule instances and a single violation — the wizard's disabled Next control, exempt under WCAG 1.4.3 and dropped by name with the figures written down (see the judgement call below). `theme.css`'s own contrast claims hold. **Screen readers stay owed** |
+| Pages Functions against the real edge | **Closed for the local edge.** The harness runs wrangler from the repository root, so `functions/` is bundled and `worker/` answers every `/api/` address, against a migrated local D1 bound as `DB`. `start_server` refuses if wrangler reports "No Functions", so a regression here is a red run rather than a silent return to stage one. The *deployed* edge is still unexercised — see below |
+| **Anything behind sign-in** | **Closed for the rulebook and the admin gate**, which are the two that decide who may read what. `/rules` is refused anonymously and served to an account; `/admin` refuses an ordinary account with the sentence meant for it. The portfolio, the replay and account-storage are reachable the same way now and nobody has written those checks |
+| Accessibility of the *rendered* app | **Closed for what a machine can see, it found one thing, and the thing is fixed.** axe's full default ruleset, four palettes by four addresses: 536 passing rule instances and a single violation — the wizard's disabled Next control. **Nothing is exempt now**: the owner's answer was to make it legible (`opacity` 0.45 → 0.8, measured 4.89:1 at the tightest palette), so the exemption went with the reason for it. `theme.css`'s own contrast claims hold. **Screen readers stay owed** |
 
-**Three gaps stage one does not close and did not claim to**, each named here so nobody reads the
-five green checks as more than they are:
+**Three gaps remain, each named here so nobody reads ten green checks as more than they are:**
 
 - **A `_redirects` regression is invisible locally.** `wrangler pages dev` *rejects* this site's
   own `/* /index.html 200` rule as an infinite loop and ignores it, then serves `index.html` for
   unmatched paths by its own default. So deep links work in the harness for a different reason
   than they work in production. Measured rather than assumed — wrangler names the rule in its
   startup output as the one invalid rule it found.
-- **`motion.js` and `palette.js`.** The reduced-motion behaviour and the Ctrl-K chord are both
-  behavioural and both still only asserted by a `file://` proof page.
+- **The deployed site.** Everything here is local: the real edge, the real Functions and the real
+  bundle are exercised by nobody. Pointing the same driver at the deployed site would close it
+  anonymously and needs no credential and no seeding — it is a decision about effort, and the
+  reason it did not land with stage two is that it is a second job in `build.yml` rather than a
+  check in this one.
 - **Screen readers**, which stay owed and which no harness closes: it needs a person with a screen
   reader, and asserting `aria-pressed` is the string `"true"` is not the same as having been
   listened to. `docs/HANDOVER.md` says so and should keep saying so.
 
-#### One thing the accessibility check found that is a decision, not a defect
+**And two that were gaps and are not any more.** `motion.js` and `palette.js` were "behavioural and
+still only asserted by a `file://` proof page"; `MOTION` and `COMMAND` are those two, driven in the
+running app. `MOTION` is the one worth reading about — it was written twice and passed both times
+while measuring less than it claimed. See [the archive](docs/progress/).
 
-**The wizard's Next control, before a tier is chosen, is faint in every palette**: measured in real
-Chrome against the published site on 2026-09-04, `.disabled` on `/build` resolves to **2.23:1
+#### One thing the accessibility check found that was a decision — **answered, and the exemption is gone**
+
+**The wizard's Next control, before a tier is chosen, was faint in every palette**: measured in real
+Chrome against the published site on 2026-09-04, `.disabled` on `/build` resolved to **2.23:1
 (Hero/Light), 3.28:1 (Hero/Dark), 2.54:1 (Villain/Light), 3.22:1 (Villain/Dark)** against a 4.5:1
-floor. `StepButtons.razor` renders it as an anchor with `aria-disabled="true"` and `app.css` paints
+floor. `StepButtons.razor` renders it as an anchor with `aria-disabled="true"` and `app.css` painted
 it at `opacity: 0.45`.
 
-**It is not a conformance failure.** WCAG 1.4.3 exempts text that is part of an inactive user
-interface component, and this control is inactive — `aria-disabled="true"`, `pointer-events: none`.
-axe reports it only because it recognises the `disabled` *attribute*, which an anchor cannot carry.
-The A11Y check therefore drops those nodes by name, counts them, and prints the count.
+**It was not a conformance failure**, which is why it was put to the owner rather than fixed.
+WCAG 1.4.3 exempts text that is part of an inactive user interface component, and this control is
+inactive — `aria-disabled="true"`, `pointer-events: none`. axe reported it only because it
+recognises the `disabled` *attribute*, which an anchor cannot carry, so the A11Y check dropped those
+nodes by name and counted them.
 
-**It might still be worth changing, and that is the owner's call rather than a harness's.** A
-disabled Next is exactly the thing a reader looks at to work out why they cannot go on, and 2.23:1
-is faint enough that some readers will not. Raising `opacity` on `.btn.disabled` — or giving the
-step a sentence saying what is missing, which the Campaigns page already does for a disabled Join —
-would answer it. Nothing is broken until somebody decides that; the figures are here so the
-decision is made against numbers rather than a glance.
+**The owner's answer was to raise the opacity**, of the two options offered — the other was to give
+the step a sentence saying what is missing, the way the Campaigns page does for a disabled Join.
+`opacity` is **0.8**, which clears 4.5:1 in all four palettes with Hero/Light tightest at **4.89:1**,
+composited the way axe composites. **The exemption is gone from `Checks/Accessibility.cs`**, and
+what replaces its positive control is a count of disabled controls on `/build`: a scan that saw
+none says nothing about this element and goes red.
+
+**Watched to fail**, as CLAUDE.md requires: put back to 0.45 in a published copy, A11Y reports four
+`color-contrast` violations naming those four original figures. The arithmetic used to choose 0.8
+reproduces axe's own readings at 0.45 to within 0.01, which is why it can be trusted about 0.8.
+
+**What was not done, and it is the better shape.** Making a dead control readable does not tell
+anybody *why* it is dead. The sentence-on-the-step option is still the one this file argued for and
+is still unwritten; it is now a smaller change than it was, because the legibility half is done.
 
 #### What has to be true before `scripts/e2e/` is deleted
 
@@ -610,6 +636,13 @@ gh run list --repo SoftwareSamurai-net/ProwlersAndParagonsAutomation \
 
 and read the `E2E: PASS` line out of the Playwright step of the oldest one in the window, so the
 count is of runs that actually drove it rather than of runs that skipped it.
+
+**Counted on 2026-09-04, after stage two: the answer is one.** `ae03aaef` is the only `Build` run on
+`main` that has ever had a `--driver dotnet` step in it — everything older predates the merge. So
+this is emphatically not the change that deletes `scripts/e2e/`, and the honest report is the
+number rather than a feeling about it. **The count also restarts in spirit, if not by the letter of
+the condition**: the Playwright driver ten checks from now is not the one that had six, and the
+twenty runs are for the driver that is actually running.
 
 **Two things that are not the condition, said because they are the tempting shortcuts.** "The
 Playwright one is nicer" is not a reason to delete a working check. And "CI is slow" is a reason to
@@ -658,7 +691,37 @@ three were found by a reader who was told to look for data loss and given nothin
 reachable"; a hostile reader answers "what does this do when something goes wrong". That slice
 needed both and neither would have been enough.
 
-#### Stage two: seed the database, do not open a seam
+#### Stage two: seed the database, do not open a seam — **built**
+
+**What landed, in one paragraph.** `scripts/e2e/seed.mjs` mints a token with the shipped
+`newSecret`, hashes it with the shipped `hash` — *imported from `worker/crypto.js`, not copied* —
+and writes a `login_tokens` row and an `invitations` row into the local D1. The driver navigates to
+`/signin?t=<raw token>` and the application runs its own verify path. `scripts/e2e.sh` runs wrangler
+from the repository root with `--d1` and `--persist-to`, migrates the database, and re-seeds before
+every drive because a token is single-use. **Nothing was added to the shipped bundle**, so there is
+no seam to compile out and no test needed to assert its absence.
+
+**Four things that had to be discovered and are written down where they bite:**
+
+- **The query parameter is `?t=`, not `?token=`** — the plan for this slice said the latter in as
+  many words. Wrong is silent: the page shows its ordinary form and the token stays unspent.
+- **`ADMIN_EMAIL` names an address nothing signs in as.** Pointing it at the seeded account would
+  make the driver the owner, and `ADMIN` would be measuring nothing.
+- **Node will not spawn `npx.cmd` without a shell**, so the seed writes SQL to a file and the shell
+  runs `wrangler d1 execute --file`. Passing `shell: true` instead would put the seed's SQL through
+  `cmd.exe`'s quoting, which is the thing that restriction exists to prevent.
+- **A signed-in check cannot have a file twin**, because the application's logic is inside
+  `_framework/*.wasm` and both the real site and the twin are served by the same `functions/`. So
+  `defects.mjs` grew a second kind: a **seed** defect. `signin-token-already-expired` turns `RULES`
+  red on its control; `seeded-account-is-the-owner` sets `grants_admin = 1` and turns `ADMIN` red on
+  its **outcome**, which is the stronger of the two and is why the admin check is worth more than
+  the rulebook one.
+
+**And the cost question answered itself.** All six anonymous checks pass unchanged against the
+functions-bundled server, so there is **one** server configuration and not two — the failure mode
+that would have doubled an already-tight job.
+
+**What follows is the argument that got here, kept because the conclusion is easy to lose.**
 
 **Stage two as originally written was the wrong solution to a solved problem, and the whole of its
 danger was self-inflicted.** The plan assumed the only way to reach a signed-in session locally was
@@ -692,7 +755,8 @@ is not a browser's, and the deployed site, which cannot be seeded by anybody and
 **And the zero-risk alternative stops being a fallback and becomes a second target.** Pointing the
 same driver at the *deployed* site verifies the real edge, the real Functions and the real bundle
 anonymously — so the local run seeds and signs in, and a deployed run proves production. Neither
-needs an approval about danger any more; both are a decision about effort.
+needs an approval about danger any more; both are a decision about effort. **The local half is
+done; the deployed half is not, and it is the largest thing this item still has open.**
 
 **The brief written to hand this to an agent is
 [`docs/progress/2026-09-04-the-stage-two-brief.md`](docs/progress/2026-09-04-the-stage-two-brief.md).**

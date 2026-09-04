@@ -41,6 +41,14 @@ public static class Rules
         // ---- Control, half one: anonymous, the book is refused. ------------------------------
         await harness.Open("/rules");
 
+        // **Settled, not merely rendered, and this was a real flake rather than a precaution.**
+        // `RulesReference` sets `_refused` only once `/api/rulebook/contents` has answered, so
+        // until then it renders its *un-refused* branch — "Search the book", with nothing in it.
+        // Read a moment too early, an anonymous reader looks exactly like a signed-in one, and the
+        // check reported the gate as gone. It passed in isolation and failed inside a full run,
+        // which is the tell for a race: the same page, a busier machine.
+        await Settled(harness, "anonymous");
+
         var anonymous = await harness.Eval<string[]>(Account.PanelTitles);
 
         Harness.Control(anonymous.Contains("Sign in first"),
@@ -61,10 +69,9 @@ public static class Rules
 
         try
         {
-            await harness.WaitFor($"{Account.PanelTitles}.includes('What is here')",
-                "the chapter list to arrive from the server", 20_000);
+            await Settled(harness, "signed in");
         }
-        catch (CheckFailedException)
+        catch (ControlFailedException)
         {
             var titles = await harness.Eval<string[]>(Account.PanelTitles);
 
@@ -112,5 +119,36 @@ public static class Rules
 
         return $"anonymous /rules refused, signed in it served {chapters} chapters and answered a "
             + $"search for \"{Query}\"";
+    }
+
+    /// <summary>
+    /// Wait until <c>/rules</c> has heard back from the server, whichever way it went.
+    ///
+    /// <para><b>The page has three states and only two of them are answers.</b> It renders its
+    /// un-refused branch — "Search the book", empty — from the first render until
+    /// <c>/api/rulebook/contents</c> replies, because <c>_refused</c> is a bool that starts false.
+    /// So "is the book on screen" is a question with a wrong answer available for as long as the
+    /// round trip takes, and reading it early makes an anonymous reader look signed in.</para>
+    ///
+    /// <para>Reported as a control failure: a page that never heard back is the work not having
+    /// happened, and it is a different bug report from the gate being wrong.</para>
+    /// </summary>
+    private static async Task Settled(Harness harness, string who)
+    {
+        try
+        {
+            await harness.WaitFor(
+                $"{Account.PanelTitles}.includes('Sign in first') "
+                + $"|| {Account.PanelTitles}.includes('What is here')",
+                "/rules to hear back from the server", 20_000);
+        }
+        catch (CheckFailedException)
+        {
+            var titles = await harness.Eval<string[]>(Account.PanelTitles);
+
+            throw new ControlFailedException(
+                $"{who}, /rules never settled — it is showing [{string.Join(", ", titles)}]. "
+                + "Until it does, neither the refusal nor the book is on screen for a reason.");
+        }
     }
 }

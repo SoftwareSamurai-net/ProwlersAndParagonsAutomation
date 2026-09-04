@@ -24,8 +24,11 @@
 # the condition under which `scripts/e2e/` goes, and removing a working harness before its
 # replacement has a record is how an upgrade becomes a regression.
 #
-# Stage one of `PROGRESS.md` item 10, and **anonymous only**: no account, no credential, no
-# bypass. Everything behind sign-in is stage two's business and nothing here reaches for it.
+# Both stages of `PROGRESS.md` item 10. **There is a signed-in session and there is still no
+# bypass**: `scripts/e2e/seed.mjs` writes the `login_tokens` row an email would have caused, into
+# the local D1, and the driver clicks the link. Nothing was added to the shipped bundle, there is
+# no credential anywhere, and the application runs its own verify path — read that file's header
+# before changing anything about how a session is arrived at here.
 #
 # ------------------------------------------------------------------------------------------------
 # WHAT THIS ANSWERS THAT NOTHING ELSE DID.

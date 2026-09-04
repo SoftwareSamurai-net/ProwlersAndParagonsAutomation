@@ -243,7 +243,14 @@ second driver cost a flag rather than a rewrite.
 | `--driver` | What it is | Checks |
 |---|---|---|
 | `node` (default) | `scripts/e2e/drive.mjs` over `scripts/e2e/cdp.mjs`, a hand-rolled DevTools Protocol client against Node's own global `WebSocket` — the same trade `scripts/visual/png.mjs` makes against an image library | BOOT, BUILD, THEME, PALETTE, ROUTES |
-| `dotnet` | `tests/e2e`, over `Microsoft.Playwright` and `Deque.AxeCore.Playwright` | the same five, plus **A11Y** |
+| `dotnet` | `tests/e2e`, over `Microsoft.Playwright` and `Deque.AxeCore.Playwright` | the same five, plus **A11Y**, **MOTION**, **COMMAND**, **RULES** and **ADMIN** |
+
+**The gap between the two columns has widened and every entry in it needs Playwright to exist.**
+`A11Y` runs axe-core inside the page. `MOTION` needs two browser contexts differing only in
+`prefers-reduced-motion`, which is a context option. `COMMAND` needs a real Ctrl-K chord. `RULES`
+and `ADMIN` need a signed-in session. `e2e.sh` skips a twin whose check the driver it was told to
+run does not have, and says which — so a `node` run reports five checks and five twins rather than
+quietly reporting "all twins green" over a shorter list.
 
 **Neither is retired.** `PROGRESS.md` item 10 states the condition under which `scripts/e2e/` goes,
 and removing a working harness before its replacement has a record is how an upgrade becomes a
@@ -315,14 +322,30 @@ more than one means it is not the single change it documents.
 
 ### Three things about the server, each of which cost a debugging round
 
-- **`wrangler pages dev` is run from `.e2e/`, and the placement is the configuration.** Wrangler
-  bundles a `functions/` directory found in the *working directory* — there is no flag for it — so
-  running from the repository root would bundle the accounts API, which needs a D1 binding stage
-  one deliberately does not have. From `.e2e/` there is none to find, every `/api/` address falls
-  through `_redirects` to `index.html`, and the app reads an unparseable answer as "anonymous",
-  which is its own documented behaviour rather than a special case for the harness. The site
-  directories are named *relative* to that directory for a second reason: wrangler is Node and
-  cannot read a Git Bash path like `/c/Users/…`.
+- **`wrangler pages dev` is run from the repository root, and the placement is the configuration.**
+  Wrangler bundles a `functions/` directory found in the *working directory* — there is no flag for
+  it — so running from the root bundles the accounts API, and the server the harness drives is the
+  whole application rather than its static half. It is given `--d1 DB=<id>` and `--persist-to`, and
+  the site directories are named *relative* to the root because wrangler is Node and cannot read a
+  Git Bash path like `/c/Users/…`.
+
+  **It ran from `.e2e/` for the whole of stage one, specifically so that no `functions/` was
+  found**, and the reversal is the change worth reading. Then, wrangler said "No Functions.
+  Shimming…", every `/api/` address fell through `_redirects` to `index.html`, and the app read an
+  unparseable answer as "anonymous" — a real answer to a real question, since stage one had no
+  database to bind. It also meant nothing behind sign-in was reachable and the six anonymous checks
+  were passing against a server that was not the deployed shape.
+
+  **What made the reversal cheap is measured rather than assumed: all six anonymous checks pass
+  unchanged against the bundled server.** `/api/me` answers `401 {"error":"Nobody is signed in."}`
+  instead of an unparseable `index.html`, and the app treats both as anonymous. So there is one
+  server configuration and not two — which mattered, because two would have meant two starts and
+  two drives per run against a Build job already at 18–19 minutes.
+
+  **And the harness says so rather than trusting it.** `start_server` greps wrangler's log for
+  "No Functions" and refuses: a `functions/` moved or a `cd` lost in an edit would otherwise put
+  the harness silently back in stage one's shape, with every signed-in check red and blaming the
+  application for refusing a session it was never offered.
 - **Readiness is the served body, not the status code and not wrangler's own log line.** Wrangler
   prints `Ready on http://…` and then, if its worker has died, answers requests by hanging for
   ever — which is exactly what happened here, twice, and read as a broken page. The probe requires
@@ -336,11 +359,76 @@ more than one means it is not the single change it documents.
   `kill` stops the wrapper, and the port's listener — a real Windows pid, read out of `netstat` —
   is cleared afterwards.
 
+### Signing in, without a seam in the application
+
+**Two checks run against an account, and nothing was added to the shipped bundle to let them.**
+`worker/tokens.js` stores **only the SHA-256** of a sign-in token (`worker/crypto.js`'s `hash`,
+plain WebCrypto, which Node provides identically), the raw token travels by email, and
+`db.spendLoginToken` verifies by hash lookup and burns the row in one statement. So the harness does
+what an email does:
+
+1. `scripts/e2e/seed.mjs` mints a token with the shipped `newSecret` and hashes it with the shipped
+   `hash` — **imported, not copied**, so there is no second implementation of the one function that
+   decides whether a token matches;
+2. it writes the `login_tokens` row, and an `invitations` row for the address, into the **local**
+   D1;
+3. the driver navigates to `/signin?t=<raw token>`.
+
+The application then runs **its real verify path** — hash lookup, expiry test, single-use burn, the
+invitation gate, the session cookie. Nothing is faked but a row, which is what an email would have
+caused. **This is why "nothing reaches past the browser" is still true**: the row is the mail, and
+everything after it is a real navigation the app answers for itself.
+
+Three details that are not obvious and each cost something:
+
+- **The query parameter is `?t=`, not `?token=`.** `signInLink` builds it and `SignIn.razor` reads
+  it. The wrong name is silent: the page shows its ordinary form, the token stays unspent, and
+  every signed-in check goes red with nothing saying why.
+- **`ADMIN_EMAIL` names an address nothing signs in as.** `worker/invitations.js` makes whoever it
+  names the bootstrap administrator, so pointing it at the seeded account would sign the driver in
+  as the owner — and `ADMIN`, which exists to prove an ordinary account is refused, would measure
+  nothing.
+- **A token is single-use, so the world is re-seeded before every drive**, twins included. One
+  token cannot serve the real run and then a twin: the second drive would find it spent and report
+  the application as broken.
+
+**Node cannot run wrangler here and that is a constraint, not a preference.** `seed.mjs` used
+`execFileSync('npx.cmd', …)` and Node refuses to spawn a `.cmd` without `shell: true` — a
+deliberate change made for a command-injection CVE — so it died on Windows with an `EINVAL` and a
+stack trace naming a hundred-character SQL string. Passing `shell: true` would put that SQL through
+`cmd.exe`'s quoting, which is what the CVE was about. So Node writes the statements to a file and
+the shell runs `wrangler d1 execute --file`, as it does for every other wrangler invocation here.
+
+### The one thing about this harness that is tested outside it
+
+```bash
+bash tests/shell/kill-tree.test.sh                        # on Linux, or a Linux CI runner
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/work" -w /work bash:5 \
+    bash tests/shell/kill-tree.test.sh                    # from Windows
+```
+
+**`stop_server` leaked a `workerd` on every Linux run until it stopped using `pkill -P`, and
+nothing had ever watched the fix work.** Every server here takes a fresh port, so a leaked listener
+changes no verdict: the runs were green before the fix and green after it. `children_of` and
+`kill_tree` live in `scripts/e2e/process-tree.sh` — sourced by `e2e.sh`, driven by that test, one
+implementation — and `build.yml` runs the test in seconds with no publish, no server and no browser.
+
+**The fixture that collapses is written into both files.** `bash -c` with a single simple command
+*execs* it rather than forking, so `bash -c 'bash -c "sleep 300"'` is one `sleep` wearing three
+hats — and a test built on it passes against a `kill_tree` that kills only the pid it was handed,
+which is the bug. Every level ends `; true`, and the first assertion in the file is that the tree
+really is deeper than one process.
+
+**`.gitattributes` pins `*.sh` to `eol=lf` because of this test.** A CRLF checkout runs fine under
+Git Bash and is a syntax error to a Linux `bash`, which is what reads these files inside a container
+against a mounted Windows tree.
+
 ### What it does not cover, stated so nobody assumes otherwise
 
-- **Anything behind sign-in.** Stage two of `PROGRESS.md` item 10, which seeds a login token into
-  the local D1 rather than opening a seam in the application.
-- **Pages Functions and D1.** Nothing is bundled, on purpose — see above.
+- **The deployed site.** Everything here is local. Pointing the same driver at the deployed site
+  would verify the real edge, the real Functions and the real bundle anonymously; nothing does yet.
+- **The mail send.** `scripts/probe-mail.mjs`'s job, and not a browser's. The harness seeds the row
+  an email would have caused and never asks a provider for anything.
 - **A `_redirects` regression.** `wrangler pages dev` **rejects** this site's own
   `/* /index.html 200` rule as an infinite loop and ignores it, then serves `index.html` for
   unmatched paths by its own default — so deep links work locally for a different reason than they
@@ -360,15 +448,21 @@ its ratios into its comments as claims beside its own "re-measure if you change 
 two of its tokens are `color-mix()` which only a browser resolves, and
 `EveryScreenPairInUseHoldsItsContrastFloor` measures the *tokens*, not every rendered combination.
 
-**The one finding, with its figures, because somebody has to decide about it.** The wizard's Next
-control on `/build` before a tier is chosen — `StepButtons.razor` renders an anchor with
-`aria-disabled="true"`, `app.css` paints it at `opacity: 0.45` — measures 2.23:1 Hero/Light, 3.28:1
-Hero/Dark, 2.54:1 Villain/Light, 3.22:1 Villain/Dark, against 4.5:1. WCAG 1.4.3 exempts text in an
-*inactive* component and this one is inactive; axe cannot apply that exemption because it looks for
-the `disabled` attribute, which an anchor cannot carry. So the check drops those nodes **node by
-node rather than turning `color-contrast` off**, counts them, prints the count in its verdict, and
-goes red if the exemption ever matches nothing. Whether a disabled Next should be legible anyway is
-a design decision, not a conformance one — `PROGRESS.md` item 10 carries it.
+**The one finding, and what was done about it — there is no exemption in this check now.** The
+wizard's Next control on `/build` before a tier is chosen — `StepButtons.razor` renders an anchor
+with `aria-disabled="true"`, `app.css` painted it at `opacity: 0.45` — measured 2.23:1 Hero/Light,
+3.28:1 Hero/Dark, 2.54:1 Villain/Light, 3.22:1 Villain/Dark against 4.5:1. WCAG 1.4.3 exempts text
+in an *inactive* component and this one is inactive; axe cannot apply that exemption because it
+looks for the `disabled` attribute, which an anchor cannot carry. So the check dropped those nodes
+node by node, counted them, and printed the count.
+
+**The owner's answer was to make it legible rather than to keep exempting it**, and the exemption
+went with the reason for it: `opacity` is 0.8, which clears 4.5:1 in all four palettes with
+Hero/Light tightest at 4.89:1. **Watched to fail** — put back to 0.45 in a published copy, the
+check reports four `color-contrast` violations naming those four original figures. What replaces
+the exemption's positive control is a count of disabled controls on `/build`: if there is not one
+on the page, the run says nothing about the element and goes red, which is the same trap A11Y's
+position in `Program.cs` already guards against.
 
 **Getting there produced two wrong readings and nearly discarded a right one.** The first said 32
 violations; the second said 2, then 3, then 2, on different elements each run, reporting one
