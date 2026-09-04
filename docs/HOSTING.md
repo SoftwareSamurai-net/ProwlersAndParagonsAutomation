@@ -25,10 +25,12 @@ Cloudflare Pages project — one hostname, superheroes.softwaresamurai.net
   │     │      (accounts, sessions, characters, all as opaque bytes;
   │     │      migrations in d1/migrations/*.sql, wrangler-applied)
   │     │
-  │     └─ Env vars (all encrypted):
+  │     └─ Env vars (all encrypted, all required):
   │            RESEND_API_KEY  — auth for the mail send
   │            MAIL_FROM       — no-reply@superheroes.softwaresamurai.net
   │            SITE_URL        — https://superheroes.softwaresamurai.net
+  │            ADMIN_EMAIL     — always allowed, always an administrator;
+  │                              the address that breaks the sign-up circle
   │
   └─ Sign-in flow
         Browser → /api/auth/request { email }

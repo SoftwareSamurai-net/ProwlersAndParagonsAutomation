@@ -98,16 +98,26 @@ ProwlersAndParagonsAutomation/
 │
 ├── web/                          # Blazor WebAssembly front end — the engine, in a browser
 │   ├── Program.cs                # Fetches the rules over HTTP into an InMemoryRulesSource
-│   ├── Pages/                    # The six creation steps, mirroring the CLI, plus the replay
+│   ├── Pages/                    # The six creation steps, mirroring the CLI; plus the replay,
+│   │                              # sign-in, the character/campaign manager, campaign approval,
+│   │                              # the rulebook reader, the portfolio and the admin page —
+│   │                              # this list is illustrative, not exhaustive; see the directory
 │   ├── Components/               # Panel, Field, SheetSection, OptionRow… and SheetView
 │   ├── Services/CharacterSession.cs  # The CharacterSheet plus the calculators
 │   ├── Services/Labels.cs        # Turns a rules key into something a player can read
-│   ├── Services/CharacterStore.cs    # Keeps the character in the browser between visits
+│   ├── Services/ICharacterStore.cs   # Plural now — see docs/CHARACTERS-API.md; CharacterStore.cs
+│   │                                  # is the local-storage half, AccountCharacterStore.cs and
+│   │                                  # ApiCharacterStore.cs the account half, with the same shape
+│   │                                  # again for campaigns (AccountCampaignStore/ApiCampaignStore)
 │   ├── Services/ReplayLibrary.cs # The recorded conversations. Has no method that returns a number
 │   └── wwwroot/
 │       ├── css/theme.css         # Hero, Villain and print palettes, as CSS custom properties
 │       ├── css/app.css           # Layout, components and the print stylesheet. Names no colour
-│       ├── js/download.js        # The whole of the JavaScript: a blob download and the mode switch
+│       ├── js/download.js        # A blob download, the mode switch and the local-storage wrapper
+│       ├── js/theme.js           # Stamps light/dark before first paint, render-blocking in <head>
+│       ├── js/motion.js          # View Transitions API, counting numbers — docs/FRONT-END-PLAN.md
+│       ├── js/palette.js         # The command palette's one document-level key listener (Ctrl/Cmd+K)
+│       ├── js/slider.js          # Suppresses Home/End's page-scroll on a rank's role="slider"
 │       ├── _redirects            # Cloudflare: every path serves the app, with a 200
 │       ├── data/rules/           # Staged from data/rules/ by the build (gitignored)
 │       └── data/transcripts/     # Staged from data/transcripts/ the same way (gitignored)
@@ -162,7 +172,6 @@ ProwlersAndParagonsAutomation/
 ├── docs/guide/                   # One file per area: the decisions that are expensive to re-derive
 ├── docs/HANDOVER.md              # Where the last session stopped and what the next one is for
 ├── docs/MCP-SETUP.md             # Connecting the server to Claude Code or Claude Desktop
-├── docs/RULES_EXTRACTION_GUIDE.md
 └── Program.cs                    # CLI entry point
 ```
 

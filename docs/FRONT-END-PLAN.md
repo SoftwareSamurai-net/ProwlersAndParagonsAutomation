@@ -15,7 +15,7 @@ breaks one of them is not a plan.
 ## The decision that shapes everything: no animation library
 
 **Recommendation: none. Use the platform.** This is not caution, and it is not "no JavaScript" —
-the app already ships `wwwroot/js/download.js` and calls into it for the palette, the download
+the app already ships `web/wwwroot/js/download.js` and calls into it for the palette, the download
 and local storage. More JS is easy and the Content-Security-Policy already allows it: a
 same-origin `<script src>` needs no hash and no policy change. Only an *inline* script would,
 and the header script hashes exactly one of those today.
@@ -37,7 +37,7 @@ The argument against a library is specific rather than ideological:
    scroll-driven animations run off the compositor with no script at all.
 
 **If a library is wanted anyway**, the honest shortlist is Motion One (~5 KB, WAAPI wrapper) or
-anime.js (~17 KB). Both would need to be committed under `wwwroot/js/` with their licence. I
+anime.js (~17 KB). Both would need to be committed under `web/wwwroot/js/` with their licence. I
 would still start without one and add it only where the platform actually falls short.
 
 ---

@@ -184,12 +184,14 @@ gh run list --limit 100 --json name,status,createdAt,updatedAt --jq '
   burning to completion on a commit nobody would merge. **`deploy.yml` sets the opposite on
   purpose and must keep it**: cancelling a half-finished deploy is how a site ends up serving a
   partial upload.
-- **Two documentation files are skipped, and only two.** `PROGRESS.md` and `docs/HANDOVER.md`.
-  **"It is only docs" is false here far more often than it looks** — `CLAUDE.md` and
-  `docs/guide/*.md` are read by `RepositoryGuideTests`, `docs/ACCOUNTS-SETUP.md` by
-  `AccountsContractTests`, `docs/MCP-SETUP.md` and `README.md` by `McpSetupDocumentationTests`,
-  `mcp/QUESTION-POLICY.md` by `McpQuestionPolicyTests`. Editing the index past its line budget, or
-  adding a guide the routing table does not name, is a red build.
+- **One documentation file is skipped, and only one: `docs/HANDOVER.md`.** It used to be two —
+  `PROGRESS.md` came off the list once `ProgressArchiveTests` started opening it, to hold its
+  completed-work section to being a pointer rather than a place entries pile up. **"It is only
+  docs" is false here far more often than it looks** — `CLAUDE.md` and `docs/guide/*.md` are read
+  by `RepositoryGuideTests`, `docs/ACCOUNTS-SETUP.md` by `AccountsContractTests`,
+  `docs/MCP-SETUP.md` and `README.md` by `McpSetupDocumentationTests`, `mcp/QUESTION-POLICY.md` by
+  `McpQuestionPolicyTests`. Editing the index past its line budget, or adding a guide the routing
+  table does not name, is a red build.
 
   `WorkflowFilterTests` holds the list to that claim, and it is honest about which half it can
   prove: **that no file a test opens by name is skipped** is checked by scanning the test sources,

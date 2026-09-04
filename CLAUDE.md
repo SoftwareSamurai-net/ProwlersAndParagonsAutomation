@@ -6,9 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 [`PROGRESS.md`](PROGRESS.md) is the single source of truth for what is done and what remains. Read it before starting anything so you do not re-implement finished work or re-verify locked data.
 
-**Updating it is part of the task, not a follow-up.** Any change that finishes a piece of work, moves a headline number, or uncovers a new gap updates `PROGRESS.md` in the same commit series. Do not leave the reasoning only in a commit message — commit messages are hard to find six months later.
+**Keep it current where it is wrong.** A change that finishes a tracked item, moves a headline number, or uncovers a new gap should leave `PROGRESS.md` saying something true about what is left. That is the whole of the obligation.
 
-**But the account of what you *finished* goes in a file of its own** — `docs/progress/YYYY-MM-DD-a-short-slug.md`, not in `PROGRESS.md`. It used to go at the head of that file's Completed work section, which made every two concurrent branches conflict on the same anchor: one slice rebased five times in an afternoon and every conflict was that heading. `PROGRESS.md` keeps what is *not* done. See [`docs/progress/README.md`](docs/progress/README.md).
+**Do not write a slice write-up.** There is no per-slice account to produce, and `docs/progress/YYYY-MM-DD-a-short-slug.md` is **not** a file to add to — the archive there is closed. This reverses a standing instruction, deliberately: the owner's position is that these accounts are superfluous to humans, and the evidence agrees. The reasoning that is worth keeping is worth putting where it is read — in a doc comment beside the guard it explains, or in the failure message the test prints — and the reasoning that only narrates a session is worth nothing later.
+
+**What markdown is still for**: an ADR, documentation of the code (how to use it, how to set it up), or a genuinely useful reference. If a new document is none of those three, it should not exist.
 
 This used to live in two places (the README roadmap and a gaps list further down this file) and drifted out of step with the code. Both now point at `PROGRESS.md`. Do not reintroduce a second list.
 
@@ -18,6 +20,15 @@ This used to live in two places (the README roadmap and a gaps list further down
 any step`, `fix: stop sign-out deleting an untouched draft`, `docs: record the owner's reports`,
 `test:`, `refactor:`, `chore:`. The owner reads these as notifications — a title is often the whole
 of what they see, so it has to carry the change on its own.
+
+**It is a convention here and not yet a gate, and this paragraph exists because the two halves of
+this repository disagreed about that in writing.** `README.md`'s Versioning section says Semantic
+Versioning and Conventional Commits are adopted *at 1.0*; this file read as though both were
+already in force. Measured against the last 200 non-merge commits, 156 conform — so what was
+actually true was neither document's version of it. Nothing enforces the shape: there is no
+`commit-msg` hook and no CI check, and there are no version tags at all. **Follow it because the
+titles are what the owner reads, not because anything will stop you.** If it ever becomes a gate,
+the guard goes in first and this sentence comes out.
 
 **What that rules out** is the shape this repository kept producing: a title that narrates the
 session rather than the diff. *"Record the owner's three reports, and defer accessibility"* says
