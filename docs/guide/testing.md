@@ -169,6 +169,10 @@ commits is `git worktree add` and a second run.
 
 **A typographic rule lives in the stylesheet, where no rendering test can see it.** Emptying `.hp` puts Hero Point costs back in the same size, weight and ink as ranks and every bUnit test still passes, because the class is still on the element. Anything whose whole substance is CSS — the `.hp` treatment, print font sizes, the break rules — is asserted in `WebPresentationTests` against the parsed rule, not inferred from markup.
 
+**And when you do measure in a browser instead, the units bite — the instrument is as capable of being wrong as the thing it measures.** A contrast probe read `getComputedStyle`, which returns a colour as `rgb(0–255)` *or* as `color(srgb 0–1)` depending on how it was written, and read both on one scale. Everything was therefore measured against black, and it reported **1.00 for a pair that is plainly legible**. It carries a **white-on-black positive control that must read 21**, and nothing it says is worth reading until that passes.
+
+This is the sibling of the `getBoundingClientRect` border-box failure in `CLAUDE.md`'s list of checks that passed for the wrong reason — same genus, and only that one was written down. Both say: *a measurement is a claim about the instrument before it is a claim about the page.* The C# contrast resolver in `WebPresentationTests` never had this failure mode, because it works from parsed CSS source rather than from a computed style — so if a browser-side probe is ever built again, this is the trap, and it will not be caught by the existing tests.
+
 bUnit pulls AngleSharp transitively at a version carrying a published advisory, so `web/`'s test project pins AngleSharp forward. Do not suppress NU1902 instead — see the comment in its csproj.
 
 

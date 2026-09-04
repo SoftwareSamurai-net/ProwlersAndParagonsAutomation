@@ -1,6 +1,6 @@
 # The build spent a third of its four minutes on work it had already done
 
-**[The earlier CI entry](2026-09-01-everything-before-the-split.md#ci-cost-three-times-what-it-needed-to-and-the-measurement-is-the-interesting-part) cut the *number* of runs; this one cuts what one run costs, and it is
+**[The earlier CI entry](../guide/hosting.md#what-each-workflow-costs-and-the-three-things-that-hold-it-down) cut the *number* of runs; this one cuts what one run costs, and it is
 a different exercise.** That one was about triggers — cancelling superseded runs, taking Qodana off
 pull requests, skipping two documentation files. None of it touched a step. This started from the
 per-step timings of a single green run and asked what each second was buying.
@@ -137,7 +137,7 @@ get today's is to run the script.
 - **Splitting the job.** Node's three suites need no .NET and the publish half needs no test result;
   three parallel jobs would put wall clock near 100 seconds. It costs roughly **twice the runner
   minutes**, because the web job re-pays restore and build. Worth it if pull-request latency is what
-  you are buying and not if the Actions bill is — and [the earlier CI entry](2026-09-01-everything-before-the-split.md#ci-cost-three-times-what-it-needed-to-and-the-measurement-is-the-interesting-part) records that the bill was
+  you are buying and not if the Actions bill is — and [the earlier CI entry](../guide/hosting.md#what-each-workflow-costs-and-the-three-things-that-hold-it-down) records that the bill was
   never the binding constraint.
 - **Qodana's 329 seconds.** 69 of them are `docker pull` of the linter, which nothing on a hosted
   runner can cache. 14 are the `bootstrap:` line reinstalling SDK 10.0.100 the image already
@@ -147,7 +147,7 @@ get today's is to run the script.
   separate change; it is off the pull-request path, so it blocks nobody.
 - **Build at 40 seconds**, which is a solution-wide compile that is already parallel.
 - **Build running again on push to `main`.** A scan of `main` as merged is a different claim from a
-  scan of the branches that went into it — the same reasoning [the earlier CI entry](2026-09-01-everything-before-the-split.md#ci-cost-three-times-what-it-needed-to-and-the-measurement-is-the-interesting-part) turns on.
+  scan of the branches that went into it — the same reasoning [the earlier CI entry](../guide/hosting.md#what-each-workflow-costs-and-the-three-things-that-hold-it-down) turns on.
 ### The Qodana scan left its export behind, and on Windows that orphaned a worktree
 
 **`scripts/qodana-scan.sh` deleted its staging directory at the *start* of a run and never at the

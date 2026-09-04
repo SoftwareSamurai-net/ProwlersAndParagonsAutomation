@@ -172,6 +172,18 @@ month, and a single busy session measured **403 minutes across 98 runs**. Qodana
 Build 150, and everything else 39. The three changes below took that down without dropping a check
 that matters. Measure before changing any of it:
 
+**That 403 was billed to a personal account this repository has since left, and the trimming below
+was therefore worth doing on its own merits rather than being the rescue it looks like.** Actions
+bill to whoever owned the repository at the time; the organisation's own meter read 77 minutes and
+net $0, around 4% of its allowance. Read the *organisation's* usage before concluding anything
+about the budget, and note the endpoint has moved — `orgs/…/settings/billing/actions` answers
+`410 Gone`, and the equivalent user endpoint needs a `user` scope the default token does not carry:
+
+```bash
+gh api "organizations/<org>/settings/billing/usage" --jq '
+[.usageItems[] | select(.product=="actions")] | {minutes: (map(.quantity)|add), net_usd: (map(.netAmount)|add)}'
+```
+
 ```bash
 gh run list --limit 100 --json name,status,createdAt,updatedAt --jq '
 [.[] | select(.status=="completed") | {name, secs: ((.updatedAt|fromdateiso8601) - (.createdAt|fromdateiso8601))}]
