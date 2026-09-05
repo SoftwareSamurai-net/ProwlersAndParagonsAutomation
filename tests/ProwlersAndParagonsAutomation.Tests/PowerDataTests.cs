@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using ProwlersAndParagonsAutomation.Engine;
 using ProwlersAndParagonsAutomation.Engine.Models;
 using ProwlersAndParagonsAutomation.Sheets;
@@ -270,12 +271,13 @@ public sealed class PowerDataTests
     /// nominations that overturn it. <see cref="ExpertiseCombatSkillNominations"/> carries the
     /// reading and where each half of it comes from.
     ///
-    /// <para><b>Both edges are asserted, because widening is the likelier error and it is silent.</b>
-    /// A set that had grown a Talent, or an Ability the book never puts in a fight, would quietly
-    /// stop exempting Expertises the page exempts — Resolve is measured from the gap, so the sheet
-    /// simply comes out lower and nothing looks wrong. So: the ids are exactly the reading, every
-    /// one of them is a real Ability, none is a Talent, and no other Power in the file carries the
-    /// field at all.</para>
+    /// <para><b>Both edges are asserted, because either error is silent.</b> A set that had grown
+    /// a Talent would quietly stop exempting Expertises the page exempts, and one that had lost an
+    /// Ability would start exempting ones it counts — Resolve is measured from the gap, so the
+    /// sheet simply comes out at the wrong number and nothing looks wrong. So: the ids are exactly
+    /// the reading, every one of them is a real Ability, none is a Talent, the two Abilities the
+    /// p.75 table never names are absent, and no other Power in the file carries the field at
+    /// all.</para>
     /// </summary>
     [Fact]
     public void OnlyExpertiseCarriesTheCombatSkillCarveOutAndItNamesTheCombatAbilities()
@@ -300,11 +302,64 @@ public sealed class PowerDataTests
         Assert.All(expertise.AffectsResolveWhenNominated, id => Assert.Contains(id, abilityIds));
         Assert.All(expertise.AffectsResolveWhenNominated, id => Assert.DoesNotContain(id, talentIds));
 
+        // The other half of the reading, stated as the exclusion it is: Intellect and Perception
+        // appear nowhere in the p.75 table, so an Expertise under either is exempt however high it
+        // is bought. Naming them here means widening the set has to disagree with a line.
+        Assert.DoesNotContain("intellect", expertise.AffectsResolveWhenNominated, StringComparer.Ordinal);
+        Assert.DoesNotContain("perception", expertise.AffectsResolveWhenNominated, StringComparer.Ordinal);
+
         var others = _f.Rules.Powers
             .Where(p => p.Id != "expertise" && p.AffectsResolveWhenNominated.Count > 0)
             .Select(p => p.Id);
 
         Assert.Empty(others);
+    }
+
+    /// <summary>
+    /// <b><c>notes</c> is shown to a player verbatim, so it may not name a JSON field.</b>
+    /// <c>PowerEditor.razor</c> prints it under the Power in the browser and
+    /// <c>PowerBrowser</c> prints it in the terminal, neither with any framing — so a sentence
+    /// written for whoever maintains the file arrives at somebody choosing a Power for their
+    /// character. Two of them did: Expertise's explained <c>affects_resolve</c> and
+    /// <c>affects_resolve_when_nominated</c>, and Force Field's explained why
+    /// <c>pros_allowed_by_own_text</c> exists. The derivation belongs in
+    /// <c>docs/guide/rules-engine.md</c>; the note belongs to the reader.
+    ///
+    /// <para><b>A field name is the detectable half and that is why it is what is checked.</b>
+    /// This cannot tell a player-facing sentence from a maintainer's one in general — it catches
+    /// the tell those two shared, which is a snake_case identifier no printed page contains.</para>
+    /// </summary>
+    [Fact]
+    public void NoPowersNoteNamesAJsonField()
+    {
+        var snakeCase = new Regex(
+            @"\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b", RegexOptions.None, TimeSpan.FromSeconds(5));
+
+        var scanned = 0;
+        var withNotes = 0;
+        var faults = new List<string>();
+
+        foreach (var power in _f.Rules.Powers)
+        {
+            scanned++;
+            if (string.IsNullOrWhiteSpace(power.Notes)) continue;
+
+            withNotes++;
+            var found = snakeCase.Matches(power.Notes).Select(m => m.Value).Distinct().ToList();
+            if (found.Count > 0)
+                faults.Add($"{power.Id}: {string.Join(", ", found)}");
+        }
+
+        // Positive controls: the scan reached the whole file, and reached notes to read. A lookup
+        // that had stopped returning entries, or a Notes property that had stopped being
+        // populated, would fault nothing and look exactly like agreement.
+        Assert.Equal(141, scanned);
+        Assert.True(withNotes >= 25, $"Only {withNotes} of {scanned} entries carried a note to read.");
+
+        Assert.True(faults.Count == 0,
+            "A player is shown these notes verbatim and they name a JSON field, which is a "
+            + "sentence written for the wrong reader — move the derivation to docs/guide/ and "
+            + "say what the rule is instead:\n  " + string.Join("\n  ", faults));
     }
 
     /// <summary>
@@ -315,26 +370,53 @@ public sealed class PowerDataTests
     /// <see cref="RulebookCorpusTests.ThePagesBehindTheCombatSkillReadingSayWhatItRestsOn"/> holds
     /// each of them to the page it is claimed from.
     ///
+    /// <para><b>The reading: a combat skill is an Expertise whose nomination is one of the four
+    /// Abilities the book's own Attack and Defense table uses to attack or defend.</b> Ch.4 p.75
+    /// prints five rows and they name four Abilities between them — "Unarmed Might Agility or
+    /// Toughness or Power", "Melee Weapon Might Agility or ½ Toughness or Power", "Ranged Weapon
+    /// Agility Agility or ½ Toughness or Power", "Physical Power Power Agility or ½ Toughness or
+    /// Power", "Mental Power Power Willpower or Power". Might, Agility, Toughness, Willpower.
+    /// <b>Intellect and Perception are in no row</b>, which is the whole of why they are out.</para>
+    ///
+    /// <para><b>Defending is not a lesser kind of combat, which is where an earlier reading went
+    /// wrong.</b> It took the set to be Might and Agility on the ground that Toughness and Willpower
+    /// are <em>passive</em> defences and "resisting is not a skill exercised" — a distinction p.75
+    /// does draw, under Active and Passive Defenses, and draws for a different purpose entirely:
+    /// it says only that you cannot use an active defence while immobilised or surprised. Both
+    /// kinds are defences you roll, and p.17 says so of each: Toughness "is used to resist Powers
+    /// that affect you physically, as well as physical agents or toxins", Willpower "is used to
+    /// defend against Powers that affect the mind or soul, and to resist negative emotions and
+    /// impulses". An Expertise (Toughness: Shrugging Off Poison) bought to the cap is a combat
+    /// number on the sheet whatever it is called.</para>
+    ///
     /// <para><b>No Talent is a combat Talent</b> — p.18 names all twelve (Academics, Charm, Command,
     /// Covert, Investigation, Medicine, Professional, Science, Streetwise, Survival, Technology,
-    /// Vehicles) and not one of them attacks or defends.</para>
+    /// Vehicles), none of them attacks or defends, and none is in the p.75 table. <b>The one printed
+    /// datum agrees</b>: Scáthach (Ch.8 p.135) has Expertise (Academics: Strategy and Tactics) at
+    /// 12d, which is the Standard Trait Cap, and her printed Resolve is 5. That figure only comes
+    /// out if the Expertise is exempt — counting it gives 3. See
+    /// <c>PrebuiltHeroTests.ScathachsPrintedResolveIsWhatSaysATalentNominationDoesNotCount</c>.</para>
     ///
-    /// <para><b>Two Abilities are.</b> p.17, Might: "It is used to perform armed and unarmed close
-    /// combat attacks". p.17, Agility: "Agility also applies when firing mundane ranged weapons and
-    /// defending against attacks." Toughness and Willpower are p.75's <em>passive</em> defences —
-    /// resisting is not a skill exercised — and Intellect and Perception are neither.</para>
+    /// <para><b>And an Ability or a Talent is the whole of what a nomination may be.</b> Ch.2 p.28:
+    /// "Your specialization must fall under one of your Abilities or Talents … For example, you
+    /// could have Expertise (Agility: Firearms)". Firearms is the book's own combat specialisation,
+    /// so a set without Agility would exclude the printed example. A nomination to a <em>Power</em>
+    /// is not a legal Expertise and is not modelled here at all —
+    /// <c>CharacterValidator</c> reports it as <c>EXPERTISE_NOMINATION_NOT_A_TRAIT</c>.</para>
     ///
-    /// <para><b>And an Ability is the granularity a nomination has.</b> Ch.2 p.28: "Your
-    /// specialization must fall under one of your Abilities or Talents … For example, you could have
-    /// Expertise (Agility: Firearms)". Firearms is the book's own combat specialisation, so a set
-    /// without Agility would exclude the printed example.</para>
-    ///
-    /// <para>What that granularity costs is recorded as an <c>ambiguity</c> on
-    /// <c>resolve_exceptions</c>: the specialisation itself is free text, so Expertise (Agility:
-    /// Acrobatics) counts here where a GM probably would not count it. p.83 gives the GM the last
-    /// word in every case.</para>
+    /// <para><b>The reading errs towards counting, and therefore towards less Resolve for a
+    /// Hero.</b> The nomination is a Trait id and the specialisation itself is free text, so
+    /// Expertise (Agility: Firearms) and Expertise (Agility: Acrobatics) cannot be told apart and
+    /// both count, where a GM would probably count only the first. The rival reading — that the
+    /// specialisation decides, not the nomination — is not modelled for exactly that reason, and it
+    /// has textual support of its own: p.83 says "skills" where the book's own word for the twelve
+    /// on p.18 is Talents, so "combat skills" may have been meant to reach a Talent. p.83 gives the
+    /// GM the last word in every case, which is the release valve. The book's silence is recorded
+    /// as an <c>ambiguity</c> on <c>resolve_exceptions</c>; the reading is not, and lives in
+    /// <c>powers.json</c> and <c>docs/guide/rules-engine.md</c>.</para>
     /// </summary>
-    private static readonly string[] ExpertiseCombatSkillNominations = ["might", "agility"];
+    private static readonly string[] ExpertiseCombatSkillNominations =
+        ["might", "agility", "toughness", "willpower"];
 
     // ── Verification bookkeeping ─────────────────────────────────────────────
 

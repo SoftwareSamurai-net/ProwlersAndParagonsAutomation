@@ -195,19 +195,22 @@ public sealed class DerivedStatsCalculator
     /// either way, because <see cref="PowerModel.AffectsResolveWhenNominated"/> is empty on all
     /// of them.</para>
     ///
-    /// <para><b>Two readings decide a nomination, and both come off p.83 itself.</b> A
-    /// nominated <em>Ability or Talent</em> counts when the entry names it — the book defines no
-    /// combat skill and prints no combat Talent, so <c>powers.json</c> carries the two Abilities
-    /// p.17 puts to work in a fight and says so in its <c>notes</c>. A nominated <em>Power</em>
-    /// is not listed anywhere and must not be: p.83's criterion — "cannot be used for attack,
-    /// defense, or to affect other characters or objects" — is exactly the combat question, it is
-    /// already decided for all 141 entries, and a second hand-kept list of combat Powers beside
-    /// it is the duplicate transcription this repository has been bitten by. So the nominated
-    /// Power is asked the same question the nominating one was.</para>
+    /// <para><b>The nomination is looked up in the entry's list and nowhere else.</b> Ch.2 p.28
+    /// says "Your specialization must fall under one of your Abilities or Talents", so those are
+    /// the only two kinds of nomination an Expertise can legally carry, and
+    /// <see cref="PowerModel.AffectsResolveWhenNominated"/> names the ones that count: Might,
+    /// Agility, Toughness and Willpower, the four Abilities Ch.4 p.75's Attack and Defense table
+    /// uses to attack or defend. A nomination to a <em>Power</em> is not a legal Expertise at all
+    /// and gets no branch here — <c>CharacterValidator</c> reports it as
+    /// <c>EXPERTISE_NOMINATION_NOT_A_TRAIT</c>, and an illegal character is reported, never
+    /// repaired. An earlier version of this method asked the nominated Power p.83's own
+    /// attack-or-defence question instead, which quietly gave an illegal sheet a defensible
+    /// Resolve and hid the finding.</para>
     ///
     /// <para>An unknown Power id answers false rather than throwing, matching
     /// <see cref="CalculateResolve"/>'s existing tolerance — an id nobody can resolve is
-    /// <c>CharacterValidator</c>'s finding to report, not a crash in a derived stat.</para>
+    /// <c>CharacterValidator</c>'s finding to report, not a crash in a derived stat. A nomination
+    /// this list does not name falls through to the entry's own answer for the same reason.</para>
     /// </summary>
     /// <param name="selected">The purchase, whose <see cref="SelectedPower.BaselineTraitId"/> is the nomination.</param>
     public bool ResolveAffectedBySelection(SelectedPower selected)
@@ -217,26 +220,11 @@ public sealed class DerivedStatsCalculator
         var power = _rules.GetPower(selected.PowerId);
         if (power is null) return false;
 
-        if (power.AffectsResolveWhenNominated.Count > 0
-            && selected.BaselineTraitId is { Length: > 0 } traitId
-            && NominationCountsTowardsResolve(power, traitId))
+        if (selected.BaselineTraitId is { Length: > 0 } traitId
+            && power.AffectsResolveWhenNominated.Contains(traitId, StringComparer.Ordinal))
             return true;
 
         return ResolveAffectedByPower(power);
-    }
-
-    /// <summary>
-    /// Whether one nomination is a combat skill — see
-    /// <see cref="ResolveAffectedBySelection"/> for where each half comes from.
-    ///
-    /// <para>The Power branch cannot recurse: it reads the nominated Power's own flag and
-    /// category, never its nomination, so an Expertise nominated to an Expertise stops here.</para>
-    /// </summary>
-    private bool NominationCountsTowardsResolve(PowerModel power, string traitId)
-    {
-        if (power.AffectsResolveWhenNominated.Contains(traitId, StringComparer.Ordinal)) return true;
-
-        return _rules.GetPower(traitId) is { } nominated && ResolveAffectedByPower(nominated);
     }
 
     // ── Baseline rank ─────────────────────────────────────────────────────

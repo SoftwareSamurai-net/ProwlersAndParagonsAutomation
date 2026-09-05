@@ -67,8 +67,14 @@ public record SelectedPower(
 
     /// <summary>
     /// The Trait the player nominated for a baseline_selected_trait Power (Boost,
-    /// Expertise). Holds an ability, talent or power id. For Boost this also sets
-    /// the per-rank cost, which matches the affected Trait's own cost per rank.
+    /// Expertise). For Boost this also sets the per-rank cost, which matches the affected
+    /// Trait's own cost per rank.
+    ///
+    /// <para><b>What may go in here differs between the two, because their printed entries
+    /// differ.</b> Boost (Ch.2 p.24) raises "one specific Ability, Talent, or Power", so all
+    /// three kinds of id are legal. An Expertise's specialisation "must fall under one of your
+    /// Abilities or Talents" (Ch.2 p.28), so a Power id on one is an error —
+    /// <c>CharacterValidator</c> reports it as <c>EXPERTISE_NOMINATION_NOT_A_TRAIT</c>.</para>
     /// </summary>
     public string? BaselineTraitId { get; init; }
 

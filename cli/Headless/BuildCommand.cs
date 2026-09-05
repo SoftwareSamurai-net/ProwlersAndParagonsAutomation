@@ -476,9 +476,13 @@ public sealed class BuildCommand
     /// purchased ranks, the baseline rank and the Trait ids it is read from all travel with
     /// the row.</para>
     ///
-    /// <para><b>Nothing is filtered by opinion.</b> A Power whose <c>AffectsResolve</c> is
-    /// false is still listed — it is excluded from the Resolve arithmetic, not from being a
-    /// high rank on somebody's sheet — and the flag is reported so a reader can tell.</para>
+    /// <para><b>Nothing is filtered by opinion.</b> A Power that does not affect Resolve is still
+    /// listed — it is excluded from the Resolve arithmetic, not from being a high rank on
+    /// somebody's sheet — and the flag is reported so a reader can tell. That flag is
+    /// <see cref="DerivedStatsCalculator.ResolveAffectedBySelection"/> and not the entry's
+    /// <c>AffectsResolve</c>: Ch.5 p.83's Expertise carve-out means two characters can hold the
+    /// same Power at the same rank and get different answers, so the row about a purchase has to
+    /// carry the purchase's answer or it contradicts the Resolve figure beside it.</para>
     /// </summary>
     private JsonArray TraitsAbove(IReadOnlyList<Input> read, int rank)
     {

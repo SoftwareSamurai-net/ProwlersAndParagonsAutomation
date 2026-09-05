@@ -1080,11 +1080,11 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
-    /// <b>The eleven Powers Chapter 5 names as Resolve-exempt, checked against the flags
-    /// <c>powers.json</c> actually carries.</b> The character rules answer this question through
-    /// <see cref="DerivedStatsCalculator.ResolveAffectedByPower"/> — an explicit
-    /// <c>affects_resolve</c> if there is one, and the Movement/Sensory category default otherwise —
-    /// and until now nothing compared that answer to the page it came from.
+    /// <b>The eleven Powers Chapter 5 names as Resolve-exempt, checked against what
+    /// <c>powers.json</c> actually makes the engine answer.</b> The character rules answer this
+    /// question through <see cref="DerivedStatsCalculator.ResolveAffectedByPower"/> — an explicit
+    /// <c>affects_resolve</c> if there is one, and the Movement/Sensory category default otherwise
+    /// — and until now nothing compared that answer to the page it came from.
     ///
     /// <para><b>One of the eleven needs a mapping and it is ours, not the book's.</b> "Swinging" is
     /// <c>swing_line</c> in the rules data. "Super Senses" needs none — its sixteen entries are all
@@ -1092,17 +1092,16 @@ public sealed class PlayRulesDataTests
     /// and the mapping lives here rather than in the JSON precisely because it is a reading:
     /// <c>resolve.json</c> transcribes the printed names and nothing else.</para>
     ///
-    /// <para><b>Eleven of eleven, and the eleventh used to be excluded.</b> p.83 exempts "Expertise
-    /// (except for combat skills)", which is a carve-out and not an exemption, and while
-    /// <c>affects_resolve</c> was the only flag on the entry, requiring <c>false</c> here would have
-    /// made a green test ratify an answer the page contradicts — so Expertise was skipped by name
-    /// and the gap asserted separately. The carve-out now lives on the nomination
-    /// (<c>affects_resolve_when_nominated</c>, read by
-    /// <see cref="DerivedStatsCalculator.ResolveAffectedBySelection"/>), which leaves
-    /// <c>affects_resolve: false</c> as the entry's *default* answer and makes it exactly the right
-    /// thing to require here: an Expertise nominated to anything but a combat skill is exempt, and
-    /// this loop asks about the Power with no nomination in hand.
-    /// <see cref="AnExpertiseNominatedToACombatSkillCountsTowardsResolve"/> covers the other side.</para>
+    /// <para><b>Ten of the eleven are exemptions and are checked as exemptions. The eleventh is
+    /// not one, and asking the entry about it answers a different question.</b> p.83 exempts
+    /// "Expertise (except for combat skills)", which is a carve-out: what the page governs is the
+    /// <em>purchase</em>, and the entry's <c>affects_resolve: false</c> is only the default the
+    /// carve-out is an exception to. A loop that required <c>false</c> of that flag would be
+    /// satisfied by an engine that had lost the carve-out entirely — the flag is what stays put
+    /// when the rule is deleted. So Expertise is asked per selection instead, both ways round:
+    /// nominated to a Talent it is exempt, and nominated to one of the Abilities in
+    /// <c>affects_resolve_when_nominated</c> it counts. That is what p.83 actually says, and it is
+    /// the one printed name on this list whose answer is not a property of an entry.</para>
     /// </summary>
     [Fact]
     public void EveryPowerChapterFiveNamesAsExemptIsExemptInTheRulesData()
@@ -1114,6 +1113,7 @@ public sealed class PlayRulesDataTests
 
         var faults = new List<string>();
         var matched = 0;
+        var askedPerSelection = 0;
 
         foreach (var printedName in named.NamedPowers)
         {
@@ -1134,6 +1134,36 @@ public sealed class PlayRulesDataTests
             {
                 matched++;
 
+                // The carve-out entry: the page's claim is about a purchase, so ask about one.
+                if (power.AffectsResolveWhenNominated.Count > 0)
+                {
+                    askedPerSelection++;
+
+                    var exemptNomination = _f.Rules.Talents[0].Id;
+                    var countingNomination = power.AffectsResolveWhenNominated[0];
+
+                    if (_f.Derived.ResolveAffectedBySelection(
+                            new SelectedPower(power.Id, 1) { BaselineTraitId = exemptNomination }))
+                    {
+                        faults.Add(
+                            $"'{printedName}' is named on p.{CanonicalResolveRules.ExceptionsPage} as a "
+                            + $"Power that does not affect Resolve, and entry '{power.Id}' nominated to "
+                            + $"the Talent '{exemptNomination}' counts towards it");
+                    }
+
+                    if (!_f.Derived.ResolveAffectedBySelection(
+                            new SelectedPower(power.Id, 1) { BaselineTraitId = countingNomination }))
+                    {
+                        faults.Add(
+                            $"p.{CanonicalResolveRules.ExceptionsPage} exempts '{printedName}' "
+                            + $"'{CanonicalResolveRules.ExpertiseQualifier}', and entry '{power.Id}' "
+                            + $"nominated to '{countingNomination}' is exempt anyway — the carve-out "
+                            + "is gone and only the entry's default is left");
+                    }
+
+                    continue;
+                }
+
                 if (DerivedStatsCalculator.ResolveAffectedByPower(power))
                 {
                     faults.Add(
@@ -1149,6 +1179,11 @@ public sealed class PlayRulesDataTests
         // sixteen entries, so a lookup that had stopped matching would fault nothing and prove
         // nothing.
         Assert.True(matched >= 26, $"Only {matched} powers.json entries were reached for {named.NamedPowers.Count} printed names.");
+
+        // And the carve-out branch was actually taken, or the paragraph above describes a check
+        // that did not run and every Expertise assertion held by not being made.
+        Assert.Equal(1, askedPerSelection);
+
         Assert.True(faults.Count == 0, string.Join("; ", faults));
     }
 
@@ -1166,14 +1201,23 @@ public sealed class PlayRulesDataTests
     /// "Expertise (except for combat skills)", so an Expertise nominated to a combat skill
     /// <em>does</em> count towards the opening pool while one nominated to anything else does not.
     /// A Standard-tier 6d character with Expertise at the 12d cap therefore opens on 0 Resolve when
-    /// the nomination is Martial Arts and on 12 when it is Science — the same sheet, the same rank,
-    /// two answers, and the nomination is the only thing that moved.
+    /// the nomination is Might, Agility or Willpower and on 12 when it is Science — the same sheet,
+    /// the same rank, two answers, and the nomination is the only thing that moved.
+    ///
+    /// <para><b>The nominations here are Abilities, which is all an Expertise may be nominated
+    /// to.</b> Ch.2 p.28: "Your specialization must fall under one of your Abilities or Talents".
+    /// This test used to nominate the Martial Arts <em>Power</em>, which is not a legal Expertise
+    /// at all — the engine answered p.83's attack-or-defence question of that Power, so the case
+    /// passed while asserting the carve-out against a sheet
+    /// <c>EXPERTISE_NOMINATION_NOT_A_TRAIT</c> now refuses. Willpower is here because it is the
+    /// half of Ch.4 p.75's Attack and Defense table an earlier reading of "combat skills" left
+    /// out: defending against a Mental Power is its own row.</para>
     ///
     /// <para><b>This replaces a test that pinned the wrong answer on purpose.</b>
-    /// <c>ADivergenceTheEngineCannotYetExpress</c> asserted the engine's 12 for the Martial Arts
-    /// case and was written to go red the day the carve-out landed, because a divergence recorded
-    /// as a test that would still pass after the fix is one nobody notices was closed. It went red,
-    /// and this is what it was replaced with.</para>
+    /// <c>ADivergenceTheEngineCannotYetExpress</c> asserted the engine's 12 for the combat case and
+    /// was written to go red the day the carve-out landed, because a divergence recorded as a test
+    /// that would still pass after the fix is one nobody notices was closed. It went red, and this
+    /// is what it was replaced with.</para>
     ///
     /// <para><b>Both halves are here deliberately.</b> Asserting only the combat case would be
     /// satisfied by an entry whose <c>affects_resolve</c> had simply been flipped to true, which is
@@ -1189,44 +1233,22 @@ public sealed class PlayRulesDataTests
         const int abilityRank = 6;
         var cap = tier.TraitCapRank;
 
-        // A 6d martial artist whose Martial Arts specialisation is bought up to the cap: Martial
-        // Arts sits at its Might baseline, and Expertise nominated to it is bought the rest of the
-        // way. No Determination and no Condition or Plot Hook Flaw, so the figure below is the
-        // chapter's base table and nothing else.
+        // A 6d character with one specialisation bought up to the cap. Every Ability and every
+        // Talent is at 6d, so the Expertise reaches the cap whatever it is nominated to and the
+        // only thing that differs between the sheets below is the nomination. No Determination and
+        // no Condition or Plot Hook Flaw, so the figure is the chapter's base table and nothing
+        // else.
         CharacterSheet Character(string nomination)
         {
             var built = RulesFixture.StandardSheet();
             foreach (var ability in _f.Rules.Abilities) built.AbilityRanks[ability.Id] = abilityRank;
+            foreach (var talent in _f.Rules.Talents) built.TalentRanks[talent.Id] = abilityRank;
 
-            built.SelectedPowers.Add(new SelectedPower("martial_arts", 0));
             built.SelectedPowers.Add(
                 new SelectedPower("expertise", cap - abilityRank) { BaselineTraitId = nomination });
 
             return built;
         }
-
-        var sheet = Character("martial_arts");
-
-        // Positive controls on the fixture, because every assertion below is about a rank the
-        // character has to actually reach. An Expertise that came out at 6 would produce the same
-        // Resolve for a reason that has nothing to do with the carve-out.
-        var expertise = sheet.GetPower("expertise");
-        Assert.NotNull(expertise);
-        Assert.Equal(cap, _f.Derived.GetEffectiveRank(expertise, sheet));
-        Assert.Equal(abilityRank, sheet.AbilityRanks.Values.Max());
-        Assert.Null(sheet.GetPower("determination"));
-        Assert.Empty(sheet.Flaws);
-
-        // And the entry's own flag is still the exemption, because the carve-out rides on the
-        // nomination. A flipped flag would pass the first assertion below and break the second.
-        var entry = _f.Rules.GetPower("expertise");
-        Assert.NotNull(entry);
-        Assert.False(
-            DerivedStatsCalculator.ResolveAffectedByPower(entry),
-            "powers.json now says Expertise affects Resolve unconditionally, which is the opposite "
-            + $"error: p.{CanonicalResolveRules.ExceptionsPage} exempts it '"
-            + $"{CanonicalResolveRules.ExpertiseQualifier}', so an Expertise nominated to anything "
-            + "else must still be exempt. The carve-out needs the nomination, not a flipped flag.");
 
         var fromTheTable = ResolveEntryById("starting_resolve").StartingResolve;
         Assert.NotNull(fromTheTable);
@@ -1242,8 +1264,39 @@ public sealed class PlayRulesDataTests
 
         Assert.NotEqual(atTheCap, sixDiceUnderTheCap);
 
-        Assert.Equal(atTheCap, _f.Derived.CalculateResolve(sheet));
-        Assert.Equal(sixDiceUnderTheCap, _f.Derived.CalculateResolve(Character("science")));
+        // The entry's own flag is still the exemption, because the carve-out rides on the
+        // nomination. A flipped flag would pass the combat cases below and break the Science one.
+        var entry = _f.Rules.GetPower("expertise");
+        Assert.NotNull(entry);
+        Assert.False(
+            DerivedStatsCalculator.ResolveAffectedByPower(entry),
+            "powers.json now says Expertise affects Resolve unconditionally, which is the opposite "
+            + $"error: p.{CanonicalResolveRules.ExceptionsPage} exempts it '"
+            + $"{CanonicalResolveRules.ExpertiseQualifier}', so an Expertise nominated to anything "
+            + "else must still be exempt. The carve-out needs the nomination, not a flipped flag.");
+
+        foreach (var (nomination, expected) in new[]
+                 {
+                     ("might",     atTheCap),
+                     ("agility",   atTheCap),
+                     ("willpower", atTheCap),
+                     ("science",   sixDiceUnderTheCap)
+                 })
+        {
+            var sheet = Character(nomination);
+
+            // Positive controls per sheet, because every assertion is about a rank the character
+            // has to actually reach. An Expertise that came out at 6 would produce the Science
+            // figure for a reason that has nothing to do with the carve-out.
+            var expertise = sheet.GetPower("expertise");
+            Assert.NotNull(expertise);
+            Assert.Equal(cap, _f.Derived.GetEffectiveRank(expertise, sheet));
+            Assert.Equal(abilityRank, sheet.AbilityRanks.Values.Max());
+            Assert.Null(sheet.GetPower("determination"));
+            Assert.Empty(sheet.Flaws);
+
+            Assert.Equal(expected, _f.Derived.CalculateResolve(sheet));
+        }
     }
 
     /// <summary>

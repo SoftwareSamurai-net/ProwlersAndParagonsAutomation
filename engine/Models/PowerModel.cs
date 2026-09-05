@@ -133,13 +133,11 @@ public record PowerModel
     /// and one flag on one entry has no room to say that. So <see cref="AffectsResolve"/> stays
     /// the default answer and this names the nominations that overturn it.</para>
     ///
-    /// <para><b>It holds Ability and Talent ids only</b>, which is the scope Ch.2 p.28 gives a
-    /// nomination — "Your specialization must fall under one of your Abilities or Talents". A
-    /// nominated <em>Power</em> is not listed here and never should be: p.83's own criterion
-    /// already answers "can it be used for attack, defense, or to affect other characters or
-    /// objects" for every Power in the file, so
-    /// <see cref="DerivedStatsCalculator.ResolveAffectedBySelection"/> asks that question of the
-    /// nominated Power instead of duplicating a list of combat Powers here.</para>
+    /// <para><b>It holds Ability and Talent ids only</b>, which is the whole scope Ch.2 p.28
+    /// gives a nomination — "Your specialization must fall under one of your Abilities or
+    /// Talents". A nominated <em>Power</em> is not listed here and never should be, because it is
+    /// not a legal Expertise in the first place: <c>CharacterValidator</c> reports it as
+    /// <c>EXPERTISE_NOMINATION_NOT_A_TRAIT</c> rather than the engine finding it an answer.</para>
     ///
     /// <para>Empty on every other entry, which is what makes the carve-out inert everywhere the
     /// book does not print one.</para>

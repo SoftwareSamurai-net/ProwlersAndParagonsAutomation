@@ -530,10 +530,16 @@ public sealed class RulebookCorpusTests
     /// asserts too. So the reading in <c>affects_resolve_when_nominated</c> rests on Chapter 2
     /// instead, and a reading resting on quotes nobody checks is a claim nobody can check.
     ///
+    /// <para><b>The set comes off one printed table, which is why that table is pinned row by
+    /// row.</b> Ch.4 p.75's Attack and Defense table is the book's own statement of which Traits
+    /// attack and which defend, and its five rows name four Abilities between them: Might, Agility,
+    /// Toughness, Willpower. Intellect and Perception appear in no row, and this asserts that too —
+    /// the exclusion is half the reading, and it is the half a widened set would break silently.</para>
+    ///
     /// <para><b>The Talents half is the load-bearing one and it is a negative.</b> "Martial Arts"
     /// is a <em>Power</em> in this game, not a Talent, so the natural first guess at the set — the
     /// combat Talents — has no members at all. p.18 names all twelve, and this requires each of
-    /// them to be printed there and none of the two chosen Abilities to be among them: if a combat
+    /// them to be printed there and none of the four chosen Abilities to be among them: if a combat
     /// Talent ever turns out to exist, the set is wrong and this is where it shows.</para>
     ///
     /// <para>See <c>PowerDataTests.OnlyExpertiseCarriesTheCombatSkillCarveOutAndItNamesTheCombatAbilities</c>
@@ -544,6 +550,7 @@ public sealed class RulebookCorpusTests
     {
         var chapters = All();
         var ch2 = chapters.Single(c => c.Number == 2);
+        var ch4 = chapters.Single(c => c.Number == 4);
 
         string Section(string heading, int printedPage)
         {
@@ -566,7 +573,31 @@ public sealed class RulebookCorpusTests
 
         Assert.Equal(1, uses);
 
-        // Might and Agility are the two Abilities the book puts to work in a fight.
+        // Ch.4 p.75, the Attack and Defense table: five rows, and the four Abilities in them are
+        // the set. Held row by row rather than by searching the page, so a row that lost its
+        // Toughness or gained an Intellect has to disagree with a line here.
+        var table = ch4.Sections.Single(s =>
+            s.PrintedPage == 75
+            && s.Heading.StartsWith("ATTACK AND DEFENSE", StringComparison.Ordinal));
+
+        string[] rows =
+        [
+            "Unarmed Might Agility or Toughness or Power",
+            "Melee Weapon Might Agility or ½ Toughness or Power",
+            "Ranged Weapon Agility Agility or ½ Toughness or Power",
+            "Physical Power Power Agility or ½ Toughness or Power",
+            "Mental Power Power Willpower or Power"
+        ];
+
+        Assert.All(rows, row => Assert.Contains(row, table.Text, StringComparison.Ordinal));
+
+        // And the two Abilities that are in no row at all. This is the exclusion the reading turns
+        // on, so it is asserted of the page rather than inferred from the four that are there.
+        Assert.DoesNotContain("Intellect", table.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Perception", table.Text, StringComparison.Ordinal);
+
+        // Ch.2 p.17 on each of the four, in the book's own words. Might and Agility attack;
+        // Toughness and Willpower defend, and defending is what p.75's table is half about.
         Assert.Contains(
             "used to perform armed and unarmed close combat attacks",
             Section("MIGHT", 17),
@@ -577,6 +608,16 @@ public sealed class RulebookCorpusTests
             Section("AGILITY", 17),
             StringComparison.Ordinal);
 
+        Assert.Contains(
+            "used to resist Powers that affect you physically",
+            Section("TOUGHNESS", 17),
+            StringComparison.Ordinal);
+
+        Assert.Contains(
+            "used to defend against Powers that affect the mind or soul",
+            Section("WILLPOWER", 17),
+            StringComparison.Ordinal);
+
         // And not one of the twelve Talents is a combat Talent, which is why the set holds none.
         var talents = Section("TALENTS", 18);
         var rules = new RulesRepository(RulesFixture.DataPath);
@@ -584,7 +625,7 @@ public sealed class RulebookCorpusTests
         Assert.Equal(12, rules.Talents.Count);
         Assert.All(rules.Talents, t => Assert.Contains(t.Name, talents, StringComparison.Ordinal));
 
-        var combatAbilities = new[] { "Might", "Agility" };
+        var combatAbilities = new[] { "Might", "Agility", "Toughness", "Willpower" };
         Assert.All(
             combatAbilities,
             name => Assert.DoesNotContain(
