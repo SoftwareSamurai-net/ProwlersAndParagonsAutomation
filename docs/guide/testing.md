@@ -361,6 +361,21 @@ needs the pinned wrangler version, the database id out of `d1/wrangler.toml`, th
 directory and the migration state — four things `scripts/e2e.sh` already owns and a driver has no
 business knowing. And there are two drivers, so a seed inside one is a seed the other cannot have.
 
+**The server is given no `ADMIN_EMAIL`, and that is arranged rather than left out.**
+`worker/invitations.js` treats that address as an administrator who is never in the table, so with
+none bound, every answer about who may sign in and who may manage the list comes from the seeded
+`invitations` rows — which is what makes `ADMIN`'s subject the invitation list rather than an
+environment variable. But *not binding it* is not the same as *it not being bound*: wrangler runs
+from the repository root and loads `$root/.dev.vars` if there is one, so on a developer's machine
+that variable arrived anyway and the check quietly changed subject. The server is now started with
+`--env-file .e2e/no-env.vars` — an empty file of the harness's own, so the files wrangler would
+otherwise find are never asked for — and an explicit `--binding ADMIN_EMAIL=`, which
+`bootstrapAdmin` maps to `null` because it requires an `@`. **Nothing reads, copies, moves or
+deletes `.dev.vars`**; a run on a machine that has one prints a `::warning::` naming what would be
+at stake if either flag ever stopped working. That the binding reaches `worker/invitations.js` at
+all is measured, not assumed: binding it to a seeded address turns `ADMIN` red against the real
+site.
+
 **`scripts/apply-migrations.sh` is not what migrates it, and both `PROGRESS.md` and the stage-two
 brief said it was.** Every one of that script's wrangler invocations carries `--remote`; its body is
 `scripts/d1-migrations/gate.mjs` deciding whether it is safe to *deploy*. What the harness needs is

@@ -163,6 +163,19 @@ seed_sql="$work/seed.sql"
 seed_sql_from_d1="../.e2e/seed.sql"
 seed_plan="$work/seed.json"
 
+# The only environment file the server is allowed to load, and it is empty on purpose.
+#
+# **`wrangler pages dev` is run from `$root`, and wrangler loads `$root/.dev.vars` if there is
+# one** — a developer's real deployment secrets, arriving in `env` beside the bindings below.
+# `start_server`'s own comment says the *absence* of `ADMIN_EMAIL` is load-bearing; a `.dev.vars`
+# on the machine silently reverses that, and the ADMIN check would keep passing on a laptop while
+# measuring something else. `--env-file` names the files to load instead of the ones wrangler
+# would find, so pointing it at an empty file of this harness's own is the whole fix.
+#
+# **Nothing here reads, copies, moves or deletes `.dev.vars`.** It is only never asked for.
+env_file="$work/no-env.vars"
+env_file_rel=".e2e/no-env.vars"
+
 # The first port tried. Each server gets its own rather than waiting for one to be released:
 # a stale listener on a port a new server then fails to bind is not hypothetical — it happened
 # while this script was being written, and the symptom was a server that answered nothing while
@@ -312,6 +325,25 @@ fi
 
 rm -rf "$twins" "$logs" "$db_state" "$seed_sql" "$seed_plan"
 mkdir -p "$work" "$twins" "$logs"
+
+# Written every run rather than committed, so it cannot quietly acquire a line.
+printf '# Written by scripts/e2e.sh. Deliberately empty - see its header.\n' > "$env_file"
+
+# **Said out loud when there is one, because the two flags above cannot be proved on a machine that
+# has none.** `--env-file` should mean wrangler never looks for `$root/.dev.vars`, and
+# `--binding ADMIN_EMAIL=` should win over it if it did; neither was watched to happen here, since
+# this harness must never read, copy, move or delete that file to find out. So a run on a machine
+# that has one says what would be at stake if both were wrong, rather than being quietly different
+# from the same run in CI. Its existence is all that is looked at.
+if [ -e "$root/.dev.vars" ]; then
+  echo "::warning::$root/.dev.vars exists. This harness starts wrangler from the repository root,"
+  echo "::warning::so that file is what wrangler would load if it were asked for — and it is not:"
+  echo "::warning::the server is started with --env-file .e2e/no-env.vars and an explicit empty"
+  echo "::warning::--binding ADMIN_EMAIL=. If either of those ever stopped working, an ADMIN_EMAIL"
+  echo "::warning::in that file would make its address an administrator who is never in the table,"
+  echo "::warning::and the ADMIN check's subject would silently become an environment variable"
+  echo "::warning::rather than the invitation list this run seeds. Nothing here reads it."
+fi
 
 # An array and not a string, which is where `WRANGLER_BIN`'s shape does not carry over: that one
 # is `npx --yes wrangler@<version>` and word-splits safely because it contains no path.
@@ -478,11 +510,27 @@ trap stop_server EXIT INT TERM
 # database it finds the one migrated and seeded above. `DB` is the binding name `worker/index.js`
 # reaches for as `env.DB`; it has to match or every account request answers 500.
 #
-# **No `ADMIN_EMAIL` binding, and its absence is load-bearing.** `worker/invitations.js` treats
-# that address as an administrator who is never in the table and can never be locked out — so a
-# deployment with none allows nobody by that route, and *every* answer about who may sign in and
-# who may manage the list comes from the `invitations` rows this run seeded. That is what makes the
-# ADMIN check's subject the invitation list rather than an environment variable.
+# **No `ADMIN_EMAIL`, and its absence is load-bearing — so it is arranged rather than assumed.**
+# `worker/invitations.js` treats that address as an administrator who is never in the table and can
+# never be locked out — so a deployment with none allows nobody by that route, and *every* answer
+# about who may sign in and who may manage the list comes from the `invitations` rows this run
+# seeded. That is what makes the ADMIN check's subject the invitation list rather than an
+# environment variable.
+#
+# **Not binding it is not the same as it not being bound**, which is the hole this closes: wrangler
+# runs from `$root`, loads `$root/.dev.vars` if there is one, and `ADMIN_EMAIL` then arrives anyway.
+# Two flags, because neither alone can be proved on a machine that has no `.dev.vars` to test with:
+#
+#   * `--env-file` points at an empty file of this harness's own, so the files wrangler would
+#     otherwise find are never asked for.
+#   * `--binding ADMIN_EMAIL=` binds it explicitly to the empty string, which `bootstrapAdmin`
+#     maps to `null` — it requires an `@` — so this *is* the "no administrator by that route"
+#     state, arranged on the command line where nothing on the filesystem can reverse it.
+#
+# **Measured rather than reasoned**: binding it to a seeded address instead turns the ADMIN check
+# red against the real site, which is the positive control that this flag reaches
+# `worker/invitations.js` at all. A flag that silently did nothing would leave every sentence above
+# a claim.
 start_server() {
   local dir="$1" port="$2" name="$3"
   local log="$logs/$name.log"
@@ -494,6 +542,7 @@ start_server() {
     CI=1 WRANGLER_SEND_METRICS=false CLOUDFLARE_API_TOKEN='' \
       exec npx --yes "wrangler@${wrangler_version}" pages dev "$dir" \
         --ip 127.0.0.1 --port "$port" \
+        --env-file "$env_file_rel" --binding 'ADMIN_EMAIL=' \
         --d1 "DB=${d1_database_id}" --persist-to "$db_state_rel" > "$log" 2>&1
   ) &
   server_pid=$!
