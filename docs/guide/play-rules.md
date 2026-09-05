@@ -74,7 +74,9 @@ Two properties are load-bearing. The walk carries a **positive control** on itse
 
 Every entry also carries a `source_ref` in the existing spelling (`"Ultimate Edition, Ch.3 Action, p.67"`) naming a page in its **own** chapter — 67–72 for the two Chapter 3 files, 73–82 for `combat.json` and `gritty.json`, 83–86 for `resolve.json` — or p.7 for the Glossary's rounding rule. `EverySourceRefNamesAPageInItsOwnChapterOrTheGlossary` reads the bound per file rather than per directory, because one 67–86 window across the store would accept a Chapter 4 page in either chapter's file and a Chapter 3 page in Chapter 5's.
 
-**Chapter 5's entries carry a `printed_under` as well, and it is checked against the corpus rather than against a constant.** A page in a six‑page chapter is a wide target; the heading the mechanic was transcribed from is a narrow one. `EveryEntryNamesAHeadingPrintedOnThePageItCites` requires the value to be a heading the extractor found *on that page* of `ch05-resolve-and-adversity.json`, so a wrong page and a wrong heading both fail, and the field is exempt from the canonical walk only because that check is the stronger of the two.
+**Chapter 4's and Chapter 5's entries carry a `printed_under` as well, and it is checked against the corpus rather than against a constant.** A page in a six‑page chapter is a wide target; the heading the mechanic was transcribed from is a narrow one. `EveryEntryNamesAHeadingPrintedOnThePageItCites` requires the value to be a heading the extractor found *on that page* of `ch05-resolve-and-adversity.json`, so a wrong page and a wrong heading both fail, and the field is exempt from the canonical walk only because that check is the stronger of the two.
+
+`EveryChapterFourEntryNamesAHeadingPrintedOnThePageItCites` does the same for `combat.json` and `gritty.json`, and **checks the two files together on purpose**: they are one chapter split by what a rule *is* rather than by where it is printed, so three of the Gritty headings sit on p.79 beside two of the ordinary ones, and a check scoped to one file would accept a Gritty rule citing a combat heading and the other way round. Its negative control is the pair the chapter itself invites confusion between — p.79's Gritty `ACTIVE DEFENSES` against p.75's `ACTIVE AND PASSIVE DEFENSES`. **One entry's heading does not cover the whole of it and says so**: `pages_and_turns` takes what a page is from p.73's `EDGE` and the sentence that ends a page from `ACTIONS` beside it, so it carries a `printed_under_note`, and `TheOneEntrySplitAcrossTwoHeadingsSaysWhereItsOtherHalfIsPrinted` requires both that the note is there and that it is the only one — a second entry quietly acquiring the same narrowness is a second unrecorded reading.
 
 ## `corroborated_by`, and the three rules the book prints twice
 
@@ -131,7 +133,7 @@ The counting function is a test helper and is not the start of an engine. Keep i
 
 `combat.json` holds fifty-one entries for pp.73–79 and `gritty.json` eleven for pp.79–81 — the ten optional rules and the paragraph that offers them. They are two files rather than one because the Gritty rules are **settings for a whole table**, taken or not taken before play, where everything in `combat.json` is a thing that happens during one. `TheTenGrittyRulesAreEachATableSetting` holds that split to the `kind` field and to a named list of ten, because a rule quietly dropped from the file would leave every other test green.
 
-**The chapter's worked two-page fight is not an entry, and that is the point.** A worked example is not a mechanic; it is the thing that proves the mechanics, and `TheExampleOfCombatOnPagesEightyOneAndEightyTwoResolvesThroughTheData` steps six of its rolls through the JSON's own tables — the damage rate, the Grappling table, the Minion rate, and then, for its last roll, Chapter 3's narrative-control bands. That is the only fixture in this store that crosses two chapters' files, and it is the strongest thing here: two transcriptions can agree and both be wrong, and the authors' own arithmetic cannot.
+**The chapter's worked fight is not an entry, and that is the point.** A worked example is not a mechanic; it is the thing that proves the mechanics, and `TheExampleOfCombatOnPageEightyOneResolvesThroughTheData` steps six of its rolls through the JSON's own tables — the damage rate, the Grappling table, the Minion rate, and then, for its last roll, Chapter 3's narrative-control bands. That is the only fixture in this store that crosses two chapters' files, and it is the strongest thing here: two transcriptions can agree and both be wrong, and the authors' own arithmetic cannot.
 
 Five more of the chapter's printed examples are pinned the same way — p.74's movement, p.74's chase, p.76's Mind Control and the escape from it, and p.79's Clint Castle, who is killed at exactly −5 and saved at −4.
 
@@ -206,7 +208,7 @@ Both are reading-order faults rather than heading-recognition ones, and both are
 From Chapter 4:
 
 - **The chapter opening (p.73)**, an essay about tone, and the **Special Cases preamble (p.78)**, which introduces the eleven entries under it and states nothing of its own.
-- **The Example of Combat (pp.81–82)** — a worked fight rather than a mechanic, and exercised as a fixture against the entries instead, which is the stronger use for it.
+- **The Example of Combat (p.81)** — a worked fight rather than a mechanic, and exercised as a fixture against the entries instead, which is the stronger use for it.
 - **Two more worked examples in `gritty.json`**: p.80's sword, which shows Gear Limit arithmetic the entry already states as numbers, and p.79's Clint Castle, likewise a fixture rather than a second transcription.
 
 From Chapter 5:

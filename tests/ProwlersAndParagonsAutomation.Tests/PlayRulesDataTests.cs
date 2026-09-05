@@ -1025,6 +1025,8 @@ public sealed class PlayRulesDataTests
         string Id,
         string Name,
         string Kind,
+        string PrintedUnder,
+        string? PrintedUnderNote,
         string Description,
         IReadOnlyList<string> VerifiedFields,
         string SourceRef,
@@ -1090,6 +1092,7 @@ public sealed class PlayRulesDataTests
         string Id,
         string Name,
         string Kind,
+        string PrintedUnder,
         string Description,
         IReadOnlyList<string> VerifiedFields,
         string SourceRef,
@@ -2256,11 +2259,97 @@ public sealed class PlayRulesDataTests
         Assert.True(faults.Count == 0, string.Join("; ", faults));
     }
 
-    /// <summary>Every (printed page, heading) pair in the Chapter 5 corpus.</summary>
-    private static HashSet<(int Page, string Heading)> ChapterFiveHeadings()
+    /// <summary>
+    /// <b>Chapter 4's two files, held to the same structural link Chapter 5 is.</b> Same argument
+    /// as <see cref="EveryEntryNamesAHeadingPrintedOnThePageItCites"/>: a <c>source_ref</c> alone
+    /// names a page, and a page carrying nine or ten printed blocks is a wide target, so every
+    /// entry names the heading it was transcribed from and that heading has to exist on the page
+    /// the entry cites. A wrong page and a wrong heading both fail.
+    ///
+    /// <para>The two files are checked together and reported together, because they are one
+    /// chapter split by what a rule <em>is</em> rather than by where it is printed — three of
+    /// <c>gritty.json</c>'s headings sit on p.79 beside two of <c>combat.json</c>'s, so a check
+    /// scoped to one file would accept a Gritty rule citing a heading that belongs to the ordinary
+    /// combat rules and the other way round.</para>
+    /// </summary>
+    [Fact]
+    public void EveryChapterFourEntryNamesAHeadingPrintedOnThePageItCites()
+    {
+        var headings = ChapterHeadings("ch04-combat.json");
+
+        // Positive control: the corpus lookup has to have found the chapter's headings. An empty
+        // set would fault every entry, which is loud — but a set missing one page would fault only
+        // the entries on it and read as a data error, so the count is asserted.
+        Assert.True(headings.Count >= 55, $"Only {headings.Count} headings were read out of Chapter 4.");
+
+        // Negative control, and it has to be a heading that really exists somewhere else: a made-up
+        // one is rejected by a lookup that had lost every page number too. ACTIVE DEFENSES is the
+        // Gritty rule printed on p.79 and on no other page — p.75's near-namesake is the different
+        // heading ACTIVE AND PASSIVE DEFENSES, which is exactly the confusion this pairing catches.
+        Assert.Contains((79, "ACTIVE DEFENSES"), headings);
+        Assert.DoesNotContain((75, "ACTIVE DEFENSES"), headings);
+        Assert.Contains((75, "ACTIVE AND PASSIVE DEFENSES"), headings);
+
+        var faults = new List<string>();
+
+        void Check(string file, string id, string sourceRef, string printedUnder)
+        {
+            var page = int.Parse(
+                Regex.Match(sourceRef, @"\bp\.(\d+)\b").Groups[1].Value,
+                CultureInfo.InvariantCulture);
+
+            if (!headings.Contains((page, printedUnder)))
+            {
+                faults.Add(
+                    $"{file}/{id}: printed_under '{printedUnder}' is not a heading on p.{page} "
+                    + "of Chapter 4 — either the heading or the source_ref page is wrong");
+            }
+        }
+
+        foreach (var entry in Combat().Entries)
+            Check("combat.json", entry.Id, entry.SourceRef, entry.PrintedUnder);
+
+        foreach (var entry in Gritty().Entries)
+            Check("gritty.json", entry.Id, entry.SourceRef, entry.PrintedUnder);
+
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+    }
+
+    /// <summary>
+    /// <b>The one entry whose heading does not cover the whole of it says so.</b>
+    /// <c>pages_and_turns</c> takes what a page is and the one-turn-per-character rule from p.73's
+    /// <c>EDGE</c>, and the sentence that ends a page from <c>ACTIONS</c> beside it. Naming one
+    /// heading is therefore a slightly narrow claim, and the entry carries a note saying where the
+    /// rest is — asserted here so the note cannot quietly disappear and leave a reader hunting the
+    /// section named for a sentence that is not in it.
+    /// </summary>
+    [Fact]
+    public void TheOneEntrySplitAcrossTwoHeadingsSaysWhereItsOtherHalfIsPrinted()
+    {
+        var entry = Combat().Entries.Single(e => e.Id == "pages_and_turns");
+
+        Assert.Equal("EDGE", entry.PrintedUnder);
+        Assert.False(string.IsNullOrWhiteSpace(entry.PrintedUnderNote));
+        Assert.Contains("ACTIONS", entry.PrintedUnderNote!, StringComparison.Ordinal);
+
+        // Both headings really are on p.73, which is what makes the note a statement about the
+        // page rather than about this file.
+        var headings = ChapterHeadings("ch04-combat.json");
+        Assert.Contains((73, "EDGE"), headings);
+        Assert.Contains((73, "ACTIONS"), headings);
+
+        // And it is the only one: any other entry carrying the note would be an unrecorded second
+        // case of the same narrowness.
+        Assert.Equal(
+            ["pages_and_turns"],
+            Combat().Entries.Where(e => e.PrintedUnderNote is not null).Select(e => e.Id));
+    }
+
+    /// <summary>Every (printed page, heading) pair in one chapter of the corpus.</summary>
+    private static HashSet<(int Page, string Heading)> ChapterHeadings(string file)
     {
         using var document = JsonDocument.Parse(
-            File.ReadAllText(Path.Combine(RulebookPath, "ch05-resolve-and-adversity.json")));
+            File.ReadAllText(Path.Combine(RulebookPath, file)));
 
         var headings = new HashSet<(int, string)>();
 
@@ -2279,6 +2368,10 @@ public sealed class PlayRulesDataTests
 
         return headings;
     }
+
+    /// <summary>Every (printed page, heading) pair in the Chapter 5 corpus.</summary>
+    private static HashSet<(int Page, string Heading)> ChapterFiveHeadings() =>
+        ChapterHeadings("ch05-resolve-and-adversity.json");
 
     /// <summary>
     /// <b>Which of the six ways to earn a simulator could apply on its own is ours, and it is
@@ -2641,7 +2734,7 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
-    /// <b>The Example of Combat, pp.81-82, stepped through the data.</b> Six of its rolls resolve
+    /// <b>The Example of Combat, p.81, stepped through the data.</b> Six of its rolls resolve
     /// against three different files — Chapter 4's damage rule, its Grappling table, its Minion rule,
     /// and Chapter 3's narrative-control bands for the last one — and every threshold and rate comes
     /// out of the JSON rather than out of this test.
@@ -2652,7 +2745,7 @@ public sealed class PlayRulesDataTests
     /// worked fight is not a mechanic, and it is worth more as the thing that proves the mechanics.</para>
     /// </summary>
     [Fact]
-    public void TheExampleOfCombatOnPagesEightyOneAndEightyTwoResolvesThroughTheData()
+    public void TheExampleOfCombatOnPageEightyOneResolvesThroughTheData()
     {
         var damage = CombatEntryById("damage").Damage;
         var grappling = CombatEntryById("grappling_table").GrapplingTable;
@@ -3809,9 +3902,11 @@ public sealed class PlayRulesDataTests
     ///   <item><c>ambiguity</c> —
     ///   <see cref="TheKnownAmbiguitiesAreRecordedOnTheEntryTheyAffect"/></item>
     ///   <item><c>printed_under</c> —
-    ///   <see cref="EveryEntryNamesAHeadingPrintedOnThePageItCites"/>, which is a comparison
-    ///   against the corpus rather than against a canonical constant, and is why registering
-    ///   twenty-eight near-identical checks here would have been the weaker option</item>
+    ///   <see cref="EveryEntryNamesAHeadingPrintedOnThePageItCites"/> for Chapter 5 and
+    ///   <see cref="EveryChapterFourEntryNamesAHeadingPrintedOnThePageItCites"/> for Chapter 4's
+    ///   two files, both comparisons against the corpus rather than against a canonical constant,
+    ///   which is why registering ninety near-identical checks here would have been the weaker
+    ///   option</item>
     ///   <item><c>who</c> —
     ///   <see cref="EveryResolveSpendIsTheHerosAndEveryAdversitySpendIsTheGms"/>, which compares
     ///   both values against <see cref="CanonicalResolveRules"/> and requires every spend to carry

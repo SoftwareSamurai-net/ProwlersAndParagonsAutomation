@@ -400,8 +400,8 @@ public sealed class PageReaderTests
     // ------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// <b>Printed p.81, and the defect it shipped.</b> "EXAMPLE OF COMBAT" titles a two-page
-    /// worked example set full width, but it is set at the left margin, so its x-extent sits
+    /// <b>Printed p.81, and the defect it shipped.</b> "EXAMPLE OF COMBAT" titles a worked
+    /// example set full width, but it is set at the left margin, so its x-extent sits
     /// wholly inside the left column and it reads as that column's last line. Emitted with the
     /// column it landed <em>before</em> the right-hand sidebar's own heading, "WOUND PENALTIES" —
     /// and because <c>Program.cs</c> lets a heading with no body of its own qualify the headings

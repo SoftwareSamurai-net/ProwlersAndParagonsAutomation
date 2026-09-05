@@ -1120,10 +1120,10 @@ public static class CanonicalCombatRules
         public const bool UseSparingly = true;
     }
 
-    // ── The Example of Combat, pp.81-82 ──────────────────────────────────────
+    // ── The Example of Combat, p.81 ──────────────────────────────────────────
 
     /// <summary>
-    /// <b>The worked two-page fight, transcribed as figures so the data can be made to resolve it.</b>
+    /// <b>The worked fight, transcribed as figures so the data can be made to resolve it.</b>
     /// It is not an entry in <c>combat.json</c> — a worked example is not a mechanic — and this is the
     /// stronger use for it: every step below is reached through the JSON's own tables rather than
     /// through a number typed into the test.

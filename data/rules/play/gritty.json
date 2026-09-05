@@ -20,6 +20,7 @@
       "id": "gritty_overview",
       "name": "Using the Gritty Combat Rules",
       "kind": "narrative",
+      "printed_under": "GRITTY COMBAT RULES",
       "overview": {
         "default_combat_is": "four-color, and modelled on superhero cartoons more than on comics or movies",
         "rules_are_optional": true,
@@ -39,6 +40,7 @@
       "id": "gritty_active_defenses",
       "name": "Active defenses cost something",
       "kind": "table_setting",
+      "printed_under": "ACTIVE DEFENSES",
       "active_defense_penalty": {
         "active_defenses_are_minor_actions": true,
         "cumulative_penalty_dice_per_extra_active_defense": -1,
@@ -60,6 +62,7 @@
       "id": "gritty_close_range",
       "name": "Ranged attacks up close",
       "kind": "table_setting",
+      "printed_under": "CLOSE RANGE",
       "close_range_penalty": {
         "penalty_dice_to_active_defense": -2,
         "applies_against": "ranged attacks made from within Close Range",
@@ -79,6 +82,7 @@
       "id": "gritty_the_drop",
       "name": "The Drop",
       "kind": "table_setting",
+      "printed_under": "THE DROP",
       "the_drop": {
         "held_by": "a character with a weapon or Power aimed and ready to strike",
         "held_against": "everyone who does not have one aimed and ready",
@@ -103,6 +107,7 @@
       "id": "gritty_fatal_damage",
       "name": "Fatal Damage",
       "kind": "table_setting",
+      "printed_under": "FATAL DAMAGE",
       "fatal_damage": {
         "health_can_go_negative": true,
         "killed_at": "the negative value of your full Health",
@@ -136,6 +141,7 @@
       "id": "gritty_friendly_fire",
       "name": "Friendly Fire",
       "kind": "table_setting",
+      "printed_under": "FRIENDLY FIRE",
       "friendly_fire": {
         "penalty_dice": -4,
         "applies_when": "firing a ranged attack at a target engaged in close combat or otherwise bunched up with other characters",
@@ -159,6 +165,7 @@
       "id": "gritty_hard_targets",
       "name": "Hard Targets",
       "kind": "table_setting",
+      "printed_under": "HARD TARGETS",
       "hard_targets": {
         "applies_to": "machines, vehicles, and thick inanimate objects",
         "passive_defense_rank": "doubled",
@@ -180,6 +187,7 @@
       "id": "gritty_raised_gear_limit",
       "name": "Raised Gear Limit",
       "kind": "table_setting",
+      "printed_under": "RAISED GEAR LIMIT",
       "gear_limit": {
         "what_it_is": "the maximum effective Trait rank you can bring to bear when using mundane equipment",
         "default_rank": 6,
@@ -206,6 +214,7 @@
       "id": "gritty_slow_healing",
       "name": "Slow Healing",
       "kind": "table_setting",
+      "printed_under": "SLOW HEALING",
       "slow_healing": {
         "bands": [
           {
@@ -256,6 +265,7 @@
       "id": "gritty_tough_minions",
       "name": "Tough Minions",
       "kind": "table_setting",
+      "printed_under": "TOUGH MINIONS",
       "tough_minions": {
         "net_successes_per_minion_defeated": 2,
         "full_net_successes_required": true,
@@ -279,6 +289,7 @@
       "id": "gritty_wound_penalties",
       "name": "Wound Penalties",
       "kind": "table_setting",
+      "printed_under": "WOUND PENALTIES",
       "wound_penalties": {
         "at_or_below_half_full_health_penalty_dice": -2,
         "at_or_below_zero_health_penalty_dice": -4,

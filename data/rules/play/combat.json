@@ -3,7 +3,7 @@
     "what_this_is": "Every mechanic printed in Chapter 4, Combat, pp.73-79, as data: the page, the order of action, range and movement, the attack and defense machinery, damage, Health, special effects, grappling, stunts, Minions, and the eleven special cases. The ten optional Gritty Combat Rules (pp.79-81) are in gritty.json beside this file. The dice model these entries are expressed in - pool, success map, net successes, and the book-wide rounding rule - is in play_meta.json, and the challenge roll itself is in challenge.json.",
     "placement_note": "Every csproj copies data\\rules\\*.json non-recursively, so a file one level down reaches no host. Nothing in data/rules/play/ is served to a browser, published with the MCP server, or read by engine/. See docs/guide/play-rules.md.",
     "not_logic": "Data only. No engine reads this file, and none may. Two of the figures here - the Edge formula and the Health formula - are already implemented in engine/DerivedStatsCalculator because they are also printed in Chapter 2 as part of building a character; tests hold the two statements to the same answer and nothing wires the engine to these bytes.",
-    "deliberately_omitted": "The chapter opening (p.73) is not here: it is an essay about tone, with no number and no procedure in it. Neither is the Special Cases preamble (p.78), which introduces the eleven entries that follow it and states nothing of its own. The Example of Combat (pp.81-82) is not an entry either - it is a worked two-page fight rather than a mechanic - and it is exercised as a test fixture against these entries instead, which is the stronger use for it. The corpus filed that example's heading and the Wound Penalties rule as one section until the extractor was fixed in this slice; see docs/guide/rulebook-corpus.md.",
+    "deliberately_omitted": "The chapter opening (p.73) is not here: it is an essay about tone, with no number and no procedure in it. Neither is the Special Cases preamble (p.78), which introduces the eleven entries that follow it and states nothing of its own. The Example of Combat (p.81) is not an entry either - it is a worked fight rather than a mechanic - and it is exercised as a test fixture against these entries instead, which is the stronger use for it. The corpus filed that example's heading and the Wound Penalties rule as one section until the extractor was fixed in this slice; see docs/guide/rulebook-corpus.md.",
     "verified_fields_closed_list": [
       "trigger",
       "roll",
@@ -20,11 +20,13 @@
       "id": "pages_and_turns",
       "name": "Pages and turns",
       "kind": "scalar",
+      "printed_under": "EDGE",
       "page": {
         "a_page_is": "a few seconds of time in the game world",
         "turns_per_character_per_page": 1,
         "page_ends_when": "everyone has taken their turn or chosen to skip it"
       },
+      "printed_under_note": "This is the one entry in the file whose printed_under does not cover the whole of it. What a page is and that every character gets one turn in it are printed under EDGE; the sentence that ends the page - everyone having acted or skipped - is printed under ACTIONS, on the same page. printed_under names the heading the mechanic is chiefly transcribed from, so it names EDGE, and this says where the rest of it is rather than leaving a reader to find the sentence missing from the section cited.",
       "description": "Combat is cut into fixed slices, each standing for a handful of seconds, and everybody caught up in the fight gets exactly one turn inside each slice. A new slice opens only once the last character has either acted or waived the chance.",
       "verified_fields": [
         "duration",
@@ -37,6 +39,7 @@
       "id": "edge_order",
       "name": "Edge and the order of action",
       "kind": "formula",
+      "printed_under": "EDGE",
       "edge": {
         "formula": "edge = perception + max(agility, intellect)",
         "acts_in_order": "highest Edge first",
@@ -60,6 +63,7 @@
       "id": "edge_ties",
       "name": "Ties, and where Minions fall",
       "kind": "table",
+      "printed_under": "EDGE",
       "tie_break": {
         "order": [
           "heroes",
@@ -85,6 +89,7 @@
       "id": "holding_an_action",
       "name": "Holding your action",
       "kind": "narrative",
+      "printed_under": "EDGE",
       "holding": {
         "may_hold_in_reserve": true,
         "waiting_for": "something that might happen later on the same page",
@@ -105,6 +110,7 @@
       "id": "seizing_initiative",
       "name": "Seizing the initiative",
       "kind": "formula",
+      "printed_under": "SEIZING INITIATIVE",
       "seize_initiative": {
         "cost_resolve": 1,
         "effect": "you act ahead of everyone else",
@@ -126,6 +132,7 @@
       "id": "seize_initiative_gm_alternative",
       "name": "The GM's alternative to seizing the initiative",
       "kind": "table_setting",
+      "printed_under": "SEIZING INITIATIVE",
       "gm_alternative": {
         "instead_of": "letting the buyer act first automatically",
         "effect": "doubles the buyer's effective Edge",
@@ -149,6 +156,7 @@
       "id": "actions",
       "name": "Actions and free actions",
       "kind": "narrative",
+      "printed_under": "ACTIONS",
       "actions": {
         "on_your_turn": "you may move and perform one or more actions",
         "an_action_is": "a brief act that requires a bit of attention",
@@ -176,6 +184,7 @@
       "id": "multiple_actions",
       "name": "Multiple actions",
       "kind": "formula",
+      "printed_under": "MULTIPLE ACTIONS",
       "multiple_actions": {
         "penalty_dice_per_extra_action": -2,
         "applies_to": "every challenge roll made for the actions taken",
@@ -198,6 +207,7 @@
       "id": "range_classes",
       "name": "The three range classes",
       "kind": "table",
+      "printed_under": "RANGE",
       "ranges": [
         {
           "class": "Close",
@@ -235,6 +245,7 @@
       "id": "range_distance_estimates",
       "name": "Rough distances for the three classes",
       "kind": "scalar",
+      "printed_under": "SUPER TIP!",
       "estimates": {
         "close_feet": 50,
         "distant_feet": 500,
@@ -253,6 +264,7 @@
       "id": "throwing_range",
       "name": "How far you can throw",
       "kind": "formula",
+      "printed_under": "THROWING RANGE",
       "throwing": {
         "ordinary_people_reach": "Close Range",
         "table_used_when_might_exceeds": 6,
@@ -273,6 +285,7 @@
       "id": "throwing_table",
       "name": "Throwing table",
       "kind": "table",
+      "printed_under": "THROWING — THROWING RANK THROWING RANGE",
       "throwing_table": [
         {
           "min_rank": 3,
@@ -307,6 +320,7 @@
       "id": "movement",
       "name": "Movement",
       "kind": "formula",
+      "printed_under": "MOVEMENT",
       "movement": {
         "pages_to_close_or_open_within_close_range": 1,
         "pages_per_range_class": 2,
@@ -329,6 +343,7 @@
       "id": "movement_contest",
       "name": "Rolling for movement",
       "kind": "formula",
+      "printed_under": "MOVEMENT",
       "movement_contest": {
         "trigger": "any question of how far or how fast a character moves in one page, or who arrives somewhere first",
         "roll": "Agility or a Travel Power",
@@ -349,6 +364,7 @@
       "id": "chases",
       "name": "Chases",
       "kind": "formula",
+      "printed_under": "CHASES",
       "chase": {
         "structure": "a contest with an unlimited number of exchanges",
         "pages_per_exchange": 1,
@@ -377,6 +393,7 @@
       "id": "attacks_and_defenses",
       "name": "Attacks and defenses",
       "kind": "formula",
+      "printed_under": "ATTACKS AND DEFENSES",
       "attack": {
         "roll": "the Trait that corresponds to the attack",
         "threshold_source": "the target's own defense roll",
@@ -400,6 +417,7 @@
       "id": "attack_and_defense_table",
       "name": "Attack and Defense table",
       "kind": "table",
+      "printed_under": "ATTACK AND DEFENSE — TYPE TRAIT TRAITS",
       "attack_defense_table": [
         {
           "type": "Unarmed",
@@ -459,6 +477,7 @@
       "id": "active_and_passive_defenses",
       "name": "Active and passive defenses",
       "kind": "narrative",
+      "printed_under": "ACTIVE AND PASSIVE DEFENSES",
       "defenses": {
         "active_represent": "attempts to block, dodge, or parry an attack",
         "passive_represent": "the ability to resist or withstand an attack",
@@ -494,6 +513,7 @@
       "id": "lethal_and_subdual",
       "name": "Lethal and subdual attacks",
       "kind": "narrative",
+      "printed_under": "LETHAL AND SUBDUAL ATTACKS",
       "damage_types": {
         "lethal_is_the_more_dangerous": true,
         "toughness_against_lethal": "half",
@@ -518,6 +538,7 @@
       "id": "modifier_cover",
       "name": "Cover",
       "kind": "table",
+      "printed_under": "MODIFIERS",
       "cover": {
         "affects": "attack rolls",
         "bands": [
@@ -551,6 +572,7 @@
       "id": "modifier_size",
       "name": "Size",
       "kind": "table",
+      "printed_under": "MODIFIERS",
       "size": {
         "affects": "active defense rolls",
         "bands": [
@@ -585,6 +607,7 @@
       "id": "modifier_visibility",
       "name": "Visibility",
       "kind": "table",
+      "printed_under": "MODIFIERS",
       "visibility": {
         "affects": "attack rolls and active defense rolls",
         "bands": [
@@ -625,6 +648,7 @@
       "id": "damage",
       "name": "Damage",
       "kind": "formula",
+      "printed_under": "DAMAGE",
       "damage": {
         "damage_per_net_success": 1,
         "reduces": "the target's Health",
@@ -644,6 +668,7 @@
       "id": "health",
       "name": "Health",
       "kind": "formula",
+      "printed_under": "HEALTH",
       "health": {
         "formula": "health = max(average(toughness, might), average(toughness, willpower))",
         "villains_use_the_same_formula": true,
@@ -670,6 +695,7 @@
       "id": "npc_health",
       "name": "Where an NPC's Health actually comes from",
       "kind": "narrative",
+      "printed_under": "HEALTH",
       "reference": {
         "transcribed_here": false,
         "detail_chapter": "Ultimate Edition, Ch.8 Friends and Foes",
@@ -689,6 +715,7 @@
       "id": "healing",
       "name": "Healing",
       "kind": "formula",
+      "printed_under": "HEALING",
       "healing": {
         "roll": "Toughness",
         "after_a_fight_difficulty": "Hard",
@@ -715,6 +742,7 @@
       "id": "special_effects",
       "name": "Special effects",
       "kind": "formula",
+      "printed_under": "SPECIAL EFFECTS",
       "special_effect": {
         "sources_given": [
           "Ensnare",
@@ -744,6 +772,7 @@
       "id": "breaking_free",
       "name": "Breaking free",
       "kind": "formula",
+      "printed_under": "BREAKING FREE",
       "breaking_free": {
         "available_when": "suffering a special effect without having been defeated by it",
         "taken_on": "your turn to act",
@@ -777,6 +806,7 @@
       "id": "keeping_hold",
       "name": "Keeping hold",
       "kind": "formula",
+      "printed_under": "KEEPING HOLD",
       "keeping_hold": {
         "trigger": "defeating a target with a special effect",
         "cost_resolve": 1,
@@ -797,6 +827,7 @@
       "id": "instant_recovery",
       "name": "Instant recovery",
       "kind": "formula",
+      "printed_under": "INSTANT RECOVERY",
       "instant_recovery": {
         "cost_resolve": 1,
         "taken_on": "your next turn to act",
@@ -820,6 +851,7 @@
       "id": "grappling",
       "name": "Grappling",
       "kind": "formula",
+      "printed_under": "GRAPPLING",
       "grappling": {
         "a_grab_is": "an attempt to take a weapon or other handheld item away from an opponent",
         "a_hold_is": "an attempt to control or restrain an opponent",
@@ -843,6 +875,7 @@
       "id": "grappling_table",
       "name": "Grappling table",
       "kind": "table",
+      "printed_under": "GRAPPLING — SUCCESSES RESULT RESULT RESULT",
       "grappling_table": [
         {
           "min_net_successes": null,
@@ -878,6 +911,7 @@
       "id": "grab",
       "name": "Grabs",
       "kind": "narrative",
+      "printed_under": "GRAB",
       "grab": {
         "partial_means": "both characters are fighting over the item and neither can use it",
         "partial_blocks_active_defenses_against_anyone_else": true,
@@ -901,6 +935,7 @@
       "id": "hold",
       "name": "Holds",
       "kind": "narrative",
+      "printed_under": "HOLD",
       "hold": {
         "partial_means": "both characters are wrestling and neither can move or do anything else",
         "partial_blocks_active_defenses_against_anyone_else": true,
@@ -932,6 +967,7 @@
       "id": "escape",
       "name": "Escapes",
       "kind": "narrative",
+      "printed_under": "ESCAPE",
       "escape": {
         "partial_out_of_a_partial_hold": "you slip out of it",
         "partial_out_of_a_full_hold": "it becomes a partial hold",
@@ -950,6 +986,7 @@
       "id": "combat_stunts",
       "name": "Combat stunts",
       "kind": "formula",
+      "printed_under": "COMBAT STUNTS",
       "combat_stunt": {
         "what_it_is": "an attempt to outmaneuver, outsmart, or gain an advantage over an opponent without harming them",
         "works_like": "an ordinary attack",
@@ -1019,6 +1056,7 @@
       "id": "combat_stunts_table",
       "name": "Combat Stunts table",
       "kind": "table",
+      "printed_under": "COMBAT STUNTS — NET SUCCESSES SAMPLE EFFECTS",
       "combat_stunt_bands": [
         {
           "min_net_successes": null,
@@ -1063,6 +1101,7 @@
       "id": "minions_in_combat",
       "name": "Minions in combat",
       "kind": "narrative",
+      "printed_under": "MINIONS IN COMBAT",
       "minions": {
         "only_characteristic": "Threat",
         "act_in_groups_rather_than_as_individuals": true
@@ -1079,6 +1118,7 @@
       "id": "threat_ranks",
       "name": "Threat Ranks table",
       "kind": "table",
+      "printed_under": "THREAT RANKS — DESCRIPTION THREAT",
       "threat_ranks": [
         {
           "category": "Civilians",
@@ -1126,6 +1166,7 @@
       "id": "attacking_minions",
       "name": "Attacking Minions",
       "kind": "formula",
+      "printed_under": "ATTACKING MINIONS",
       "attacking_minions": {
         "minions_have_health": false,
         "minions_defeated_per_net_success": 1,
@@ -1149,6 +1190,7 @@
       "id": "minions_attacking",
       "name": "Minions attacking",
       "kind": "formula",
+      "printed_under": "MINIONS ATTACKING",
       "minions_attacking": {
         "a_group_acts_like": "a single character",
         "a_group_may_split_to_attack_multiple_enemies": true,
@@ -1173,6 +1215,7 @@
       "id": "minion_group_attack_table",
       "name": "Minion Group Attack table",
       "kind": "table",
+      "printed_under": "MINION GROUP ATTACK — MINIONS BONUS",
       "minion_group_attack": [
         {
           "min_minions": 1,
@@ -1208,6 +1251,7 @@
       "id": "ambushes",
       "name": "Ambushes",
       "kind": "formula",
+      "printed_under": "AMBUSHES",
       "ambush": {
         "roll": "Covert",
         "deception_or_seduction_roll": "Charm",
@@ -1238,6 +1282,7 @@
       "id": "area_attacks",
       "name": "Area attacks",
       "kind": "formula",
+      "printed_under": "AREA ATTACKS",
       "area_attack": {
         "targets": "everyone and everything in the area of effect",
         "attack_rolls": 1,
@@ -1264,6 +1309,7 @@
       "id": "charge_attacks",
       "name": "Charge attacks",
       "kind": "formula",
+      "printed_under": "CHARGE ATTACKS",
       "charge": {
         "what_it_is": "an attack in which you slam into your target",
         "attack_traits": [
@@ -1293,6 +1339,7 @@
       "id": "clobbering_attacks",
       "name": "Clobbering attacks",
       "kind": "formula",
+      "printed_under": "CLOBBERING ATTACKS",
       "clobbering": {
         "what_it_is": "using one enemy to hit another",
         "attack_rolls": 1,
@@ -1318,6 +1365,7 @@
       "id": "defending_others",
       "name": "Defending others",
       "kind": "formula",
+      "printed_under": "DEFENDING OTHERS",
       "defending_others": {
         "cost": "forego your next turn to act",
         "range": "Close Range",
@@ -1340,6 +1388,7 @@
       "id": "going_all_out",
       "name": "Going all-out",
       "kind": "formula",
+      "printed_under": "GOING ALL-OUT",
       "all_out_attack": {
         "attack_bonus_dice": 2,
         "defense_ranks": "halved",
@@ -1371,6 +1420,7 @@
       "id": "knockback",
       "name": "Knockback",
       "kind": "formula",
+      "printed_under": "KNOCKBACK",
       "knockback": {
         "requires_damage_type": "subdual",
         "minimum_damage": 6,
@@ -1397,6 +1447,7 @@
       "id": "luring",
       "name": "Luring",
       "kind": "formula",
+      "printed_under": "LURING",
       "luring": {
         "what_it_is": "letting an enemy attack you and moving aside so their attack strikes what is behind you",
         "applies_to_attack_types": [
@@ -1426,6 +1477,7 @@
       "id": "team_attacks",
       "name": "Team attacks",
       "kind": "formula",
+      "printed_under": "TEAM ATTACKS",
       "team_attack": {
         "what_it_is": "several characters coordinating their attacks against a single opponent",
         "participants_act_at": "the end of the page",

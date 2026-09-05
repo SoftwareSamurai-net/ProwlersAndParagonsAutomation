@@ -240,7 +240,7 @@ public sealed class PageReader
         // Emitting it with its column put it <em>before</em> the right-hand sidebar's own heading,
         // "WOUND PENALTIES", and since a heading with no body of its own qualifies the headings
         // beneath it, the two sections merged into one called "EXAMPLE OF COMBAT — WOUND
-        // PENALTIES" — carrying a Gritty Combat rule and a two-page worked example under a heading
+        // PENALTIES" — carrying a Gritty Combat rule and the worked example under a heading
         // that inverts which is which.</para>
         //
         // <para>The signal is positional and does not depend on recognising either title: the line
