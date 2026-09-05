@@ -265,7 +265,6 @@ public sealed class PlayEnginePropertyTests
     /// </summary>
     [Theory]
     [InlineData(ResolveSpend.KeepingHold)]
-    [InlineData(ResolveSpend.InstantRecovery)]
     [InlineData(ResolveSpend.Knockback)]
     [InlineData(ResolveSpend.Luring)]
     [InlineData(ResolveSpend.TeamAttack)]

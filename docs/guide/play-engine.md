@@ -92,20 +92,21 @@ Three properties of it are load-bearing:
 
 ## What is real, and what says `NotYetImplemented`
 
-**Real intents**: `Attack` (with lethal/subdual/psychic, one of p.75's five `AttackType` rows, a special effect, all-out, charge and area), `Move`, `Hold`, `GrappleIntent` (grab, hold, escape), `BreakFree`, `EndTurn`, `EndPage`, and four spends — `ExtraDice`, `Reroll`, `SeizeInitiative`, `AvoidFatalDamage`.
+**Real intents**: `Attack` (with lethal/subdual/psychic, one of p.75's five `AttackType` rows, a special effect, all-out, charge and area), `Move`, `Hold`, `GrappleIntent` (grab, hold, escape), `BreakFree`, `Stabilise`, `EndTurn`, `EndPage`, and six spends — `ExtraDice`, `Reroll`, `SeizeInitiative`, `AvoidFatalDamage`, `Stabilise` and `InstantRecovery`.
 
 **Intents that leave a `not yet implemented` ledger line and change nothing**:
 
 | Intent | Entry it will read |
 |---|---|
 | `SpendResolve(KeepingHold)` | `keeping_hold`, Ch.4 p.76 |
-| `SpendResolve(InstantRecovery)` | `instant_recovery`, Ch.4 p.76 |
 | `SpendResolve(Knockback)` | `knockback`, Ch.4 p.78 |
 | `SpendResolve(Luring)` | `luring`, Ch.4 p.79 |
 | `SpendResolve(TeamAttack)` | `team_attacks`, Ch.4 p.79 |
 | every `SpendAdversity` | the four `adversity_spend_*` entries, Ch.5 p.85 |
 
 **Table settings recorded but not yet applied** — `Encounter.SwitchesNotYetApplied`, announced on page one of every run that turns one on: `CloseRangePenalty`, `TheDrop`, `FriendlyFire`, `HardTargets`, `SlowHealing`, and the two Gear Limit switches. The other five gritty rules are applied: `FatalDamage`, `ToughMinions`, `WoundPenalties`, `ActiveDefensesCost`, and the initiative variant beside them.
+
+**Fatal Damage is a clock, not a floor.** With that setting on, lethal damage past `dying_begins_when_lethal_damage_reduces_you_to` starts a character bleeding at `dying_damage_per_page`, ticked at `EndPage`, until `dying_ends_at` — stabilisation or the negative of their full Health. Three things stop it: p.79's `Stabilise` roll (the Trait `stabilise_roll` names, at its own difficulty and threshold), `cost_resolve_to_stabilise_immediately`, and the Fatal Damage rescue itself, which `resolve_also_stabilises_if_necessary` makes do both. `instant_recovery_requires_being_stable` is why p.76's instant recovery is implemented here rather than listed as unimplemented: a rule *about* a purchase cannot be read while the purchase is a stub. `stabilise_also_by` — "a Power like Healing" — is prose and a GM's call, so the ledger names it rather than applying it.
 
 **Two ways to be out of the fight, and both are on `Combatant`**: beaten down to `damage.defeated_at_health`, and p.76's `DefeatedByEffect` — an effect whose duration reached what was left of the target, which lasts the rest of the scene and is not a Health total (an Ensnare that ends a fight does it without a point of damage). `Defeated` reads both, so `Over`, `RunToEnd` and the policy all see either. **A defeated combatant is refused rather than resolved**: every intent that is a character *doing* something — `Attack`, `Move`, `Hold`, `GrappleIntent`, `BreakFree` — is refused for a defeated actor and against a defeated target, citing whichever of the two rules put them there. The Resolve purchases are deliberately not guarded, because Chapter 5's spends are exactly what a character who has just gone down does: p.76's instant recovery and p.79's Fatal Damage rescue are both bought from there.
 
@@ -134,6 +135,8 @@ Three properties of it are load-bearing:
 | **The GM's alternative multiplies an Edge by two.** The factor is supplied here, not read. | `seize_initiative_gm_alternative`'s effect is a sentence — "doubles the buyer's effective Edge" — and the entry carries no multiplier. The engine requires the word *doubles* to still be there and throws if it is not, rather than defaulting to 2 against a rule that has changed. |
 | **A "Travel Power" is one of eight named ids.** | The entry says "a Travel Power" and Ch.2 has no such category flag; the Movement category is the closest thing and holds Powers nobody would call travel. |
 | **The id breaks a tie the ladder cannot.** | p.73 says characters on the same figure and the same rung act *simultaneously*; a stepped engine has to pick an order to step in. |
+
+| **A Resolve purchase is not turn-gated.** `instant_recovery.taken_on` is "your next turn to act" and this engine does not enforce it. | A defeated character has no turn to be theirs, and p.79's Fatal Damage rescue is bought in the middle of somebody else's. Enforcing the phrase would make the two purchases the book prints for a character who has just gone down unreachable. |
 
 And one the engine **consumes** rather than makes, with a doc comment naming the entry: `gritty_fatal_damage`'s `interpretation` — a spent Resolve leaves you one point *above* the fatal threshold, which is what the worked example computes, against a printed word that says below. The ledger line quotes both.
 

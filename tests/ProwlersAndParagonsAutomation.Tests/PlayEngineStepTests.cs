@@ -680,6 +680,199 @@ public sealed class PlayEngineStepTests
         Assert.EndsWith("2 defeated", line.Text, StringComparison.Ordinal);
     }
 
+    // ── Fatal Damage ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>A character taken below nothing by lethal damage bleeds out, a page at a time, until
+    /// somebody stops it.</b>
+    ///
+    /// <para>p.79's Fatal Damage rule was documented as applied and was half-built: Health went
+    /// negative and the killing line was announced, and <c>dying_begins_when_lethal_damage_reduces_you_to</c>,
+    /// <c>dying_damage_per_page</c> and everything that stops the clock were modelled and never read.
+    /// So a character bled out on paper and then lay at a fixed Health for the rest of the fight,
+    /// which is the opposite of what the setting is for — and the guide said it was applied.</para>
+    ///
+    /// <para>Every figure is read off the entry rather than typed, so the fixture is about the
+    /// shipped rule and not about a second reading of the page. The controls come first: the
+    /// character really is past the threshold, and really is dying, before anything is asserted about
+    /// what the clock does.</para>
+    /// </summary>
+    [Fact]
+    public void LethalDamagePastTheThresholdBleedsOutAPageAtATimeUntilItIsStopped()
+    {
+        var fatal = _play.GetGritty("gritty_fatal_damage").FatalDamage!;
+
+        // The controls on the data: the figures the arithmetic below is built on.
+        Assert.Equal(-1, fatal.DyingBeginsWhenLethalDamageReducesYouTo);
+        Assert.Equal(1, fatal.DyingDamagePerPage);
+        Assert.Equal(1, fatal.CostResolveToStabiliseImmediately);
+
+        var table = TableRules.Book with { FatalDamage = true };
+
+        // A Health of 4, on 1, taking 3 lethal damage: -2, which is past the threshold.
+        var victim = Combatant.Hero("victim", "the victim", edge: 4, health: 4, resolve: 2,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2, ["might"] = 3 },
+            ["toughness"]).WithHealth(1);
+
+        var killer = Combatant.Villain("killer", "the killer", edge: 9, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 10 }, ["toughness"]);
+
+        // 4 successes against the victim's 1d Toughness (2, halved for a lethal blow) scoring 1.
+        var dice = new ScriptedDice([.. FacesFor(10, 4), .. FacesFor(1, 1)]);
+        var encounter = new Encounter(_play, dice, table);
+
+        var state = encounter.Begin([killer, victim]);
+        var struck = encounter.Step(state, new Attack(
+            "killer", "victim", "might", DamageKind.Lethal, AttackType.MeleeWeapon));
+
+        state = struck.State;
+
+        // The controls: the roll is the one this is about, and the clock has actually started.
+        Assert.Equal(0, dice.Remaining);
+        Assert.Equal(-2, state["victim"].CurrentHealth);
+        Assert.True(state["victim"].Dying);
+        Assert.False(state["victim"].Stable);
+
+        Assert.Contains(struck.Added, l =>
+            string.Equals(l.Rule, "gritty_fatal_damage", StringComparison.Ordinal)
+            && l.Text.Contains("dying begins at -1", StringComparison.Ordinal));
+
+        // A page later they are one worse, and not dead: -4 is the killing line for a Health of 4.
+        state = encounter.Step(state, new EndTurn("killer")).State;
+        state = encounter.Step(state, new EndTurn("victim")).State;
+
+        var turned = encounter.Step(state, new EndPage(""));
+        state = turned.State;
+
+        Assert.Equal(-3, state["victim"].CurrentHealth);
+        Assert.True(state["victim"].Dying);
+
+        Assert.Contains(turned.Added, l =>
+            string.Equals(l.Rule, "gritty_fatal_damage", StringComparison.Ordinal)
+            && l.Text.Contains("bleeding out", StringComparison.Ordinal));
+
+        // One Resolve stops it, with no roll — cost_resolve_to_stabilise_immediately.
+        var steadied = encounter.Step(state, new SpendResolve("victim", ResolveSpend.Stabilise));
+        state = steadied.State;
+
+        Assert.False(state["victim"].Dying);
+        Assert.True(state["victim"].Stable);
+        Assert.Equal(1, state["victim"].Resolve);
+        Assert.Equal(-3, state["victim"].CurrentHealth);
+
+        // And the clock has stopped: another page takes nothing more off.
+        state = encounter.Step(state, new EndTurn("killer")).State;
+        state = encounter.Step(state, new EndTurn("victim")).State;
+        state = encounter.Step(state, new EndPage("")).State;
+
+        Assert.Equal(-3, state["victim"].CurrentHealth);
+    }
+
+    /// <summary>
+    /// <b>The clock runs to the killing line and stops there.</b> p.79 puts death at the negative of
+    /// full Health, and this drives the same character down to it a page at a time — which is what
+    /// separates a clock that ticks from a clock that ticks forever.
+    /// </summary>
+    [Fact]
+    public void BleedingOutReachesTheNegativeOfFullHealthAndStops()
+    {
+        var table = TableRules.Book with { FatalDamage = true };
+
+        var victim = Combatant.Hero("victim", "the victim", edge: 4, health: 4, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["toughness"] = 2, ["might"] = 3 },
+            ["toughness"]).WithHealth(-2).Bleeding(dying: true);
+
+        var watcher = Combatant.Villain("watcher", "the watcher", edge: 9, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 }, ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(17), table);
+        var state = encounter.Begin([watcher, victim]);
+
+        // The control: this fixture starts with the clock already running.
+        Assert.True(state["victim"].Dying);
+
+        for (var page = 0; page < 3; page++)
+        {
+            state = encounter.Step(state, new EndTurn("watcher")).State;
+            state = encounter.Step(state, new EndTurn("victim")).State;
+            state = encounter.Step(state, new EndPage("")).State;
+        }
+
+        Assert.Equal(-4, state["victim"].CurrentHealth);
+        Assert.Equal(-state["victim"].FullHealth, state["victim"].CurrentHealth);
+
+        // Dead rather than dying: the clock has nothing left to run.
+        Assert.False(state["victim"].Dying);
+        Assert.Contains(state.Ledger.Lines, l =>
+            string.Equals(l.Rule, "gritty_fatal_damage", StringComparison.Ordinal)
+            && l.Text.Contains("which reaches -4", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>Nothing brings a bleeding character back to their feet until the clock has stopped</b> —
+    /// <c>instant_recovery_requires_being_stable</c>, which was modelled, unread, and unreadable while
+    /// the purchase it governs was on the unimplemented list.
+    ///
+    /// <para>The roll is p.79's own: the Trait <c>stabilise_roll</c> names, at the threshold beside
+    /// it. Both sides of it are driven, because a fixture that only watched the roll succeed would
+    /// pass against an engine that stabilised everybody.</para>
+    /// </summary>
+    [Fact]
+    public void InstantRecoveryWaitsForTheClockToStop()
+    {
+        var fatal = _play.GetGritty("gritty_fatal_damage").FatalDamage!;
+
+        // The controls on the data.
+        Assert.True(fatal.InstantRecoveryRequiresBeingStable);
+        Assert.Equal("Medicine", fatal.StabiliseRoll);
+        Assert.Equal(2, fatal.StabiliseThreshold);
+
+        var table = TableRules.Book with { FatalDamage = true };
+
+        var victim = Combatant.Hero("victim", "the victim", edge: 9, health: 6, resolve: 3,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["medicine"] = 6, ["toughness"] = 3 },
+            ["toughness"]).WithHealth(-2).Bleeding(dying: true);
+
+        var watcher = Combatant.Villain("watcher", "the watcher", edge: 4, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6 }, ["toughness"]);
+
+        // A Medicine roll that falls short, then one that clears the threshold.
+        var dice = new ScriptedDice([.. FacesFor(6, 1), .. FacesFor(6, 2)]);
+        var encounter = new Encounter(_play, dice, table);
+
+        var state = encounter.Begin([victim, watcher]);
+
+        // While the clock runs, the purchase is refused and cites the rule that refuses it.
+        var tooSoon = encounter.Step(state, new SpendResolve("victim", ResolveSpend.InstantRecovery));
+
+        Assert.Contains(tooSoon.Added, l =>
+            string.Equals(l.Rule, "gritty_fatal_damage", StringComparison.Ordinal)
+            && l.Text.Contains("still bleeding out", StringComparison.Ordinal));
+        Assert.Equal(3, tooSoon.State["victim"].Resolve);
+        Assert.Equal(-2, tooSoon.State["victim"].CurrentHealth);
+
+        // A roll of 1 against a threshold of 2 does not steady them.
+        state = encounter.Step(state, new Stabilise("victim", "victim")).State;
+        Assert.True(state["victim"].Dying);
+
+        // A roll of 2 does.
+        var steadied = encounter.Step(state, new Stabilise("victim", "victim"));
+        state = steadied.State;
+
+        Assert.Equal(0, dice.Remaining);
+        Assert.False(state["victim"].Dying);
+        Assert.Contains(steadied.Added, l =>
+            l.Text.Contains("rolls Medicine 6d for 2 against a Hard threshold of 2", StringComparison.Ordinal));
+
+        // And now the purchase works.
+        var recovered = encounter.Step(state, new SpendResolve("victim", ResolveSpend.InstantRecovery));
+
+        Assert.Equal(
+            _play.GetCombat("instant_recovery").InstantRecovery!.AfterADamagingDefeatRestoresHealth,
+            recovered.State["victim"].CurrentHealth);
+        Assert.Equal(2, recovered.State["victim"].Resolve);
+    }
+
     // ── Grappling ────────────────────────────────────────────────────────────
 
     /// <summary>Three characters: a grappler, somebody to grapple, and a bystander to be dodged.</summary>
@@ -1007,13 +1200,17 @@ public sealed class PlayEngineStepTests
             && l.Text.Contains("not the target of anything", StringComparison.Ordinal));
         Assert.Null(onDown.State.LastAttack);
 
-        // A Resolve purchase is not refused: p.76 and p.79 are both bought from exactly here.
+        // A Resolve purchase is not refused: p.76 and p.79 are both bought from exactly here, and
+        // p.76's instant recovery is the one that brings a defeated character back to their feet.
         var spend = encounter.Step(state, new SpendResolve("down", ResolveSpend.InstantRecovery));
 
-        Assert.Contains(spend.Added, l =>
-            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
         Assert.DoesNotContain(spend.Added, l =>
             l.Text.Contains("not the actor of anything", StringComparison.Ordinal));
+
+        var restored = _play.GetCombat("instant_recovery").InstantRecovery!.AfterADamagingDefeatRestoresHealth;
+
+        Assert.Equal(restored, spend.State["down"].CurrentHealth);
+        Assert.False(spend.State["down"].Defeated(encounter.DefeatFloor));
     }
 
     // ── Citations ────────────────────────────────────────────────────────────
@@ -1062,7 +1259,8 @@ public sealed class PlayEngineStepTests
             new SpendResolve("hero", ResolveSpend.Reroll),            // no roll on the table
             new SpendResolve("hero", ResolveSpend.ExtraDice),         // ditto
             new SpendResolve("hero", ResolveSpend.KeepingHold),
-            new SpendResolve("hero", ResolveSpend.InstantRecovery),
+            new SpendResolve("hero", ResolveSpend.InstantRecovery),  // refused: nothing to recover from
+            new SpendResolve("hero", ResolveSpend.Stabilise),        // refused: nobody is dying
             new SpendResolve("hero", ResolveSpend.Knockback),
             new SpendResolve("hero", ResolveSpend.Luring),
             new SpendResolve("hero", ResolveSpend.TeamAttack),

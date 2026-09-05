@@ -89,7 +89,10 @@ public enum ResolveSpend
     TeamAttack,
 
     /// <summary>Ch.4 p.79: one point buys the damage down from the Fatal Damage threshold.</summary>
-    AvoidFatalDamage
+    AvoidFatalDamage,
+
+    /// <summary>Ch.4 p.79: one point stops a dying character's clock at once, without a roll.</summary>
+    Stabilise
 }
 
 /// <summary>The GM's purchases, from Ch.5 pp.85–86.</summary>
@@ -182,6 +185,17 @@ public sealed record SpendResolve(string Actor, ResolveSpend Kind, int Points = 
 
 /// <summary>One of the GM's purchases out of the Adversity pool.</summary>
 public sealed record SpendAdversity(string Actor, AdversitySpend Kind, int Points = 1) : Intent(Actor);
+
+/// <summary>
+/// p.79's Fatal Damage rule: spending a turn steadying somebody who is bleeding out, rolling the
+/// Trait <c>gritty_fatal_damage.stabilise_roll</c> names against the threshold beside it.
+///
+/// <para>A character may steady themselves — the entry puts no range or helper on it — and the roll,
+/// the difficulty and the threshold are all the entry's.</para>
+/// </summary>
+/// <param name="Actor">Who is making the roll.</param>
+/// <param name="Target">Who is bleeding out.</param>
+public sealed record Stabilise(string Actor, string Target) : Intent(Actor);
 
 /// <summary>Done: pass the turn to whoever is next in the order.</summary>
 public sealed record EndTurn(string Actor) : Intent(Actor);

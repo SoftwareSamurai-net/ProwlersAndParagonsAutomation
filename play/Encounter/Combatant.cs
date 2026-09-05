@@ -59,7 +59,9 @@ public sealed class Combatant
         int groupSize,
         IReadOnlyDictionary<string, int> traitRanks,
         IReadOnlyList<string> defences,
-        string? defeatedByEffect)
+        string? defeatedByEffect,
+        bool dying,
+        int instantRecoveriesUsed)
     {
         Id = id;
         Name = name;
@@ -73,6 +75,8 @@ public sealed class Combatant
         TraitRanks = traitRanks;
         Defences = defences;
         DefeatedByEffect = defeatedByEffect;
+        Dying = dying;
+        InstantRecoveriesUsed = instantRecoveriesUsed;
     }
 
     /// <summary>The side the book's own fights are written from: the player characters'.</summary>
@@ -146,6 +150,25 @@ public sealed class Combatant
     /// </summary>
     public string? DefeatedByEffect { get; }
 
+    /// <summary>
+    /// Whether lethal damage has this combatant bleeding out — p.79's Fatal Damage clock, which runs
+    /// at <c>dying_damage_per_page</c> a page until it is stopped or they die.
+    ///
+    /// <para>Only reachable with that table setting on: it is the rule that lets Health go below the
+    /// defeat figure at all.</para>
+    /// </summary>
+    public bool Dying { get; }
+
+    /// <summary>
+    /// Whether the clock has stopped — the <c>instant_recovery_requires_being_stable</c> gate, and
+    /// the other half of <c>dying_ends_at: "stabilization or death"</c>. A character who was never
+    /// dying is stable.
+    /// </summary>
+    public bool Stable => !Dying;
+
+    /// <summary>How many instant recoveries this combatant has taken, against p.76's one a scene.</summary>
+    public int InstantRecoveriesUsed { get; }
+
     /// <summary>Whether this combatant holds Resolve at all — true for a Hero and nobody else.</summary>
     public bool HoldsResolve => Kind == CombatantKind.Hero;
 
@@ -207,7 +230,20 @@ public sealed class Combatant
     /// <summary>This combatant with a different Health. Nothing else moves.</summary>
     public Combatant WithHealth(int health) =>
         new(Id, Name, Kind, Side, Edge, FullHealth, health, Resolve, GroupSize, TraitRanks, Defences,
-            DefeatedByEffect);
+            DefeatedByEffect, Dying, InstantRecoveriesUsed);
+
+    /// <summary>This combatant bleeding out, or steadied. p.79's clock, started and stopped.</summary>
+    public Combatant Bleeding(bool dying) =>
+        new(Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
+            Defences, DefeatedByEffect, dying, InstantRecoveriesUsed);
+
+    /// <summary>
+    /// This combatant brought round by p.76's instant recovery: on their feet at
+    /// <paramref name="health"/>, free of whatever effect had them, and one nearer the scene's limit.
+    /// </summary>
+    public Combatant Recovered(int health) =>
+        new(Id, Name, Kind, Side, Edge, FullHealth, health, Resolve, GroupSize, TraitRanks, Defences,
+            defeatedByEffect: null, Dying, InstantRecoveriesUsed + 1);
 
     /// <summary>
     /// This combatant put out of the fight by <paramref name="effect"/> — p.76's defeat by special
@@ -219,7 +255,7 @@ public sealed class Combatant
 
         return new Combatant(
             Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, GroupSize, TraitRanks,
-            Defences, effect);
+            Defences, effect, Dying, InstantRecoveriesUsed);
     }
 
     /// <summary>
@@ -247,7 +283,7 @@ public sealed class Combatant
 
         return new Combatant(
             Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve - points, GroupSize, TraitRanks,
-            Defences, DefeatedByEffect);
+            Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed);
     }
 
     /// <summary>This Minion group with fewer bodies in it.</summary>
@@ -255,7 +291,7 @@ public sealed class Combatant
         Kind == CombatantKind.MinionGroup
             ? new Combatant(
                 Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, Math.Max(0, groupSize),
-                TraitRanks, Defences, DefeatedByEffect)
+                TraitRanks, Defences, DefeatedByEffect, Dying, InstantRecoveriesUsed)
             : throw new InvalidOperationException($"{Name} is a {Kind}, not a group of Minions.");
 
     private static Combatant Build(
@@ -272,6 +308,6 @@ public sealed class Combatant
             id, name, kind, side, edge, health, health, resolve, groupSize,
             new Dictionary<string, int>(traitRanks, StringComparer.Ordinal),
             [.. defences],
-            defeatedByEffect: null);
+            defeatedByEffect: null, dying: false, instantRecoveriesUsed: 0);
     }
 }

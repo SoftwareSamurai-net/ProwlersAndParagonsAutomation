@@ -70,6 +70,11 @@ public sealed record DefencePenalty(int UntilPage, bool ActiveOnly);
 /// <param name="EffectsBefore">The effects list as it was before the outcome landed.</param>
 /// <param name="Effect">The special effect the attack inflicts, or null for a damaging attack.</param>
 /// <param name="Area">Whether it was an area attack, which doubles the rate against Minions.</param>
+/// <param name="Damage">
+/// Lethal, subdual or psychic. Kept because re-applying the outcome after a purchase has to know:
+/// p.79's dying clock starts on <em>lethal</em> damage, and a rebuilt attack that had forgotten
+/// which kind it was would start it on a knockout blow.
+/// </param>
 public sealed record ResolvedAttack(
     string Actor,
     string Target,
@@ -79,7 +84,8 @@ public sealed record ResolvedAttack(
     Combatant TargetBefore,
     IReadOnlyList<SpecialEffect> EffectsBefore,
     string? Effect,
-    bool Area);
+    bool Area,
+    DamageKind Damage);
 
 /// <summary>
 /// The whole of a fight at one instant, immutable.

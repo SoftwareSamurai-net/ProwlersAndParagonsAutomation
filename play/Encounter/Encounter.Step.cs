@@ -25,6 +25,7 @@ public sealed partial class Encounter
             Hold hold => ResolveHold(state, hold, lines),
             GrappleIntent grapple => ResolveGrapple(state, grapple, lines),
             BreakFree free => ResolveBreakFree(state, free, lines),
+            Stabilise steady => ResolveStabilise(state, steady, lines),
             SpendResolve spend => ResolveResolveSpend(state, spend, lines),
             SpendAdversity spend => ResolveAdversitySpend(state, spend, lines),
             EndTurn => ResolveEndTurn(state, lines),
@@ -98,7 +99,7 @@ public sealed partial class Encounter
 
         var resolved = new ResolvedAttack(
             actor.Id, target.Id, pool, attackRoll.Successes, defenceRoll.Successes,
-            target, state.Effects, attack.Effect, attack.Area);
+            target, state.Effects, attack.Effect, attack.Area, attack.Damage);
 
         after = ApplyAttackOutcome(after, attack, resolved, lines);
 
@@ -748,7 +749,7 @@ public sealed partial class Encounter
         if (target.Kind == CombatantKind.MinionGroup) return DefeatMinions(after, attack, target, net, lines);
         if (attack.Effect is not null) return StartSpecialEffect(after, actor, target, attack.Effect, net, lines);
 
-        return InflictDamage(after, actor, target, net, lines);
+        return InflictDamage(after, actor, target, attack, net, lines);
     }
 
     /// <summary>
@@ -872,8 +873,24 @@ public sealed partial class Encounter
         return state.With(target.OutForTheScene(effect));
     }
 
+    /// <summary>
+    /// Health off, and — under p.79's Fatal Damage rule — the clock that starts when it goes far
+    /// enough below nothing.
+    ///
+    /// <para><b>Half the rule used to be missing.</b> Health went negative and the killing line was
+    /// announced, and <c>dying_begins_when_lethal_damage_reduces_you_to</c>,
+    /// <c>dying_damage_per_page</c> and everything that stops the clock were modelled and unread —
+    /// so a character bled out on paper and lay there at a fixed Health for the rest of the fight,
+    /// which is the opposite of what the setting is for. The guide said it was applied.</para>
+    ///
+    /// <para><b>It is the <em>lethal</em> kind that starts it</b>, which is why
+    /// <see cref="ResolvedAttack"/> now carries the damage kind: a knockout blow that takes somebody
+    /// past the threshold does not start them dying, and a re-applied attack that had forgotten which
+    /// kind it was would have started it anyway.</para>
+    /// </summary>
     private EncounterState InflictDamage(
-        EncounterState state, Combatant actor, Combatant target, int net, List<LedgerLine> lines)
+        EncounterState state, Combatant actor, Combatant target, Attack attack, int net,
+        List<LedgerLine> lines)
     {
         var entry = _play.GetCombat("damage");
         var rule = entry.Damage!;
@@ -893,21 +910,71 @@ public sealed partial class Encounter
         }
 
         var gritty = _play.GetGritty("gritty_fatal_damage");
-        var fatal = -target.FullHealth;
+        var fatal = gritty.FatalDamage!;
+        var killedAt = -target.FullHealth;
 
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
             $"{net} net successes is {damage} damage; {target.Name} is on {health} Health"));
 
-        if (health <= fatal)
+        var hurt = target.WithHealth(health);
+
+        if (health <= killedAt)
         {
             lines.Add(new LedgerLine(
                 state.Page, target.Id, gritty.Id, gritty.SourceRef,
-                $"{health} reaches {fatal}, the negative of {target.Name}'s full Health of "
-                + $"{target.FullHealth}, which is fatal — 1 Resolve buys it back"));
+                $"{health} reaches {killedAt}, the negative of {target.Name}'s full Health of "
+                + $"{target.FullHealth}, which is {fatal.KilledAt} — "
+                + $"{fatal.CostResolveToAvoid} Resolve buys it back"));
+
+            return state.With(hurt.Bleeding(dying: false));
         }
 
-        return state.With(target.WithHealth(health));
+        if (attack.Damage != DamageKind.Lethal
+            || health > fatal.DyingBeginsWhenLethalDamageReducesYouTo
+            || target.Dying)
+        {
+            return state.With(hurt);
+        }
+
+        lines.Add(new LedgerLine(
+            state.Page, target.Id, gritty.Id, gritty.SourceRef,
+            $"lethal damage has taken {target.Name} to {health}, and dying begins at "
+            + $"{fatal.DyingBeginsWhenLethalDamageReducesYouTo}: {fatal.DyingDamagePerPage} a page "
+            + $"until {fatal.DyingEndsAt}"));
+
+        return state.With(hurt.Bleeding(dying: true));
+    }
+
+    /// <summary>
+    /// p.79's clock, one page on: <c>dying_damage_per_page</c> off everybody who is bleeding out,
+    /// and death at the negative of their full Health.
+    /// </summary>
+    private EncounterState TickTheDying(EncounterState state, int page, List<LedgerLine> lines)
+    {
+        if (!state.Table.FatalDamage) return state;
+
+        var gritty = _play.GetGritty("gritty_fatal_damage");
+        var fatal = gritty.FatalDamage!;
+
+        foreach (var dying in state.Combatants.Values.Where(c => c.Dying).ToList())
+        {
+            var health = dying.CurrentHealth - fatal.DyingDamagePerPage;
+            var killedAt = -dying.FullHealth;
+
+            lines.Add(new LedgerLine(
+                page, dying.Id, gritty.Id, gritty.SourceRef,
+                $"{dying.Name} is bleeding out: {fatal.DyingDamagePerPage} more off, to {health}"
+                + (health <= killedAt
+                    ? $", which reaches {killedAt} and is {fatal.KilledAt}"
+                    : $", and {fatal.DyingEndsAt} is what stops it")));
+
+            state = state.With(health <= killedAt
+                ? dying.WithHealth(health).Bleeding(dying: false)
+                : dying.WithHealth(health));
+        }
+
+        return state;
     }
 
     /// <summary>
@@ -1231,6 +1298,8 @@ public sealed partial class Encounter
             ResolveSpend.Reroll => BuyReroll(state, actor, lines),
             ResolveSpend.SeizeInitiative => SeizeInitiative(state, actor, lines),
             ResolveSpend.AvoidFatalDamage => AvoidFatalDamage(state, actor, lines),
+            ResolveSpend.Stabilise => StabiliseWithResolve(state, actor, lines),
+            ResolveSpend.InstantRecovery => InstantRecovery(state, actor, lines),
             _ => Unimplemented(state, actor.Id, spend.Kind, lines)
         };
     }
@@ -1320,7 +1389,7 @@ public sealed partial class Encounter
         EncounterState state, ResolvedAttack resolved, List<LedgerLine> lines)
     {
         var attack = new Attack(
-            resolved.Actor, resolved.Target, "(already rolled)",
+            resolved.Actor, resolved.Target, "(already rolled)", resolved.Damage,
             Effect: resolved.Effect, Area: resolved.Area);
 
         return ApplyAttackOutcome(state, attack, resolved, lines);
@@ -1405,7 +1474,161 @@ public sealed partial class Encounter
             + $"entry's ambiguity records the contradiction: {fatal.ResolveReducesDamageTo} is what "
             + "p.79 says, and the example is what this follows"));
 
-        return state.With(actor.Spending(fatal.CostResolveToAvoid).WithHealth(rescued));
+        var rescuedActor = actor.Spending(fatal.CostResolveToAvoid).WithHealth(rescued);
+
+        if (fatal.ResolveAlsoStabilisesIfNecessary && actor.Dying)
+        {
+            lines.Add(new LedgerLine(
+                state.Page, actor.Id, entry.Id, entry.SourceRef,
+                $"the same point steadies {actor.Name}: the entry says a spent Resolve also "
+                + "stabilises if necessary, so the dying clock stops"));
+
+            rescuedActor = rescuedActor.Bleeding(dying: false);
+        }
+
+        return state.With(rescuedActor);
+    }
+
+    /// <summary>
+    /// p.79's <c>cost_resolve_to_stabilise_immediately</c>: a point stops the clock with no roll.
+    /// </summary>
+    private EncounterState StabiliseWithResolve(
+        EncounterState state, Combatant actor, List<LedgerLine> lines)
+    {
+        var entry = _play.GetGritty("gritty_fatal_damage");
+        var fatal = entry.FatalDamage!;
+
+        if (!state.Table.FatalDamage)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                "Fatal Damage is not one of this table's settings, so nobody is dying to be steadied");
+        }
+
+        if (!actor.Dying)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{actor.Name} is not dying, so there is no clock to stop");
+        }
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{actor.Name} spends {fatal.CostResolveToStabiliseImmediately} Resolve to stabilise at "
+            + $"once, on {actor.CurrentHealth} Health"));
+
+        return state.With(actor.Spending(fatal.CostResolveToStabiliseImmediately).Bleeding(dying: false));
+    }
+
+    /// <summary>
+    /// p.76's instant recovery, and the one place p.79 reaches into it:
+    /// <c>instant_recovery_requires_being_stable</c>.
+    ///
+    /// <para><b>It was on the unimplemented list, and that made the Fatal Damage gate unreadable.</b>
+    /// The field is a rule about this purchase, so leaving the purchase unresolved left the field
+    /// decorative — which is the shape the whole store exists to prevent. The purchase is small and
+    /// entirely stated: a point brings a character round with <c>after_a_damaging_defeat_restores_health</c>
+    /// back, or shakes off a special effect whether or not the effect had beaten them, once a
+    /// scene.</para>
+    ///
+    /// <para>What is <em>not</em> applied is <c>taken_on: "your next turn to act"</c>. This engine
+    /// does not turn-gate a Resolve purchase — a defeated character has no turn to be theirs — and
+    /// the guide records it as a reading rather than leaving it silent.</para>
+    /// </summary>
+    private EncounterState InstantRecovery(EncounterState state, Combatant actor, List<LedgerLine> lines)
+    {
+        var entry = _play.GetCombat("instant_recovery");
+        var rule = entry.InstantRecovery!;
+        var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
+
+        if (actor.InstantRecoveriesUsed >= rule.LimitPerScene)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{actor.Name} has already taken {rule.LimitPerScene} instant recovery this scene");
+        }
+
+        if (state.Table.FatalDamage && actor.Dying)
+        {
+            var gritty = _play.GetGritty("gritty_fatal_damage");
+
+            if (gritty.FatalDamage!.InstantRecoveryRequiresBeingStable)
+            {
+                return Refuse(state, actor.Id, gritty.Id, gritty.SourceRef, lines,
+                    $"{actor.Name} is still bleeding out, and under Fatal Damage nothing brings a "
+                    + "character back to their feet until the clock has been stopped");
+            }
+        }
+
+        var effects = state.Effects
+            .Where(e => !string.Equals(e.Target, actor.Id, StringComparison.Ordinal))
+            .ToList();
+
+        var freed = effects.Count != state.Effects.Count;
+
+        if (!freed && actor.CurrentHealth > floor && actor.DefeatedByEffect is null)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{actor.Name} is on their feet and free of any effect, so there is nothing to recover from");
+        }
+
+        var health = actor.CurrentHealth <= floor
+            ? rule.AfterADamagingDefeatRestoresHealth
+            : actor.CurrentHealth;
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{actor.Name} spends {rule.CostResolve} Resolve on an instant recovery: "
+            + (actor.CurrentHealth <= floor
+                ? $"back on their feet with {health} Health"
+                : $"still on {health} Health")
+            + (freed ? ", and free of the effect that had them" : "")
+            + $" — {rule.LimitPerScene} a scene"));
+
+        return state.With(actor.Spending(rule.CostResolve).Recovered(health)) with { Effects = effects };
+    }
+
+    /// <summary>
+    /// p.79's stabilisation roll: the Trait <c>stabilise_roll</c> names, at the difficulty and
+    /// threshold beside it.
+    ///
+    /// <para><c>stabilise_also_by</c> — "a Power like Healing" — is prose and a GM's call, so it is
+    /// named on the line rather than applied.</para>
+    /// </summary>
+    private EncounterState ResolveStabilise(EncounterState state, Stabilise steady, List<LedgerLine> lines)
+    {
+        if (NotTheirTurn(state, steady.Actor, lines)) return state;
+
+        var entry = _play.GetGritty("gritty_fatal_damage");
+        var fatal = entry.FatalDamage!;
+
+        var actor = state[steady.Actor];
+        var patient = state[steady.Target];
+
+        if (!state.Table.FatalDamage)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                "Fatal Damage is not one of this table's settings, so nobody is dying to be steadied");
+        }
+
+        if (!patient.Dying)
+        {
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+                $"{patient.Name} is not dying, so there is no clock to stop");
+        }
+
+        var trait = Normalise(fatal.StabiliseRoll);
+        var roll = _counter.Roll(actor.Rank(trait) + WoundPenalty(state, actor, lines), _dice);
+        var net = roll.Successes - fatal.StabiliseThreshold;
+
+        lines.Add(new LedgerLine(
+            state.Page, actor.Id, entry.Id, entry.SourceRef,
+            $"{actor.Name} rolls {fatal.StabiliseRoll} {actor.Rank(trait)}d for {roll.Successes} "
+            + $"against a {fatal.StabiliseDifficulty} threshold of {fatal.StabiliseThreshold}: "
+            + (net >= 0
+                ? $"{patient.Name} is stable"
+                : $"{patient.Name} is still bleeding out")
+            + $". {fatal.StabiliseAlsoBy} would do it too, which is the GM's call and not this "
+            + "engine's"));
+
+        return net >= 0 ? state.With(patient.Bleeding(dying: false)) : state;
     }
 
     private EncounterState ResolveAdversitySpend(
@@ -1476,6 +1699,8 @@ public sealed partial class Encounter
                 $"{state[holder].Name} held an action and the cue never came: "
                 + holding.Holding!.IfItNeverHappens));
         }
+
+        state = TickTheDying(state, page, lines);
 
         var order = TurnOrder(state.Combatants, state.EffectiveEdge, state.Seized, lines, page);
 
@@ -1666,7 +1891,6 @@ public sealed partial class Encounter
         var entry = _play.GetCombat(kind switch
         {
             ResolveSpend.KeepingHold => "keeping_hold",
-            ResolveSpend.InstantRecovery => "instant_recovery",
             ResolveSpend.Knockback => "knockback",
             ResolveSpend.Luring => "luring",
             ResolveSpend.TeamAttack => "team_attacks",
