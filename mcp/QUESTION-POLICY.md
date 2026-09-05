@@ -53,11 +53,22 @@ sentence what it cost, and let them move if they want the other one.
 
 **And Expertise is the cheap way past that trade, except in a fight.** At 1 HP per 2 ranks on top
 of a Trait's rank it is the cheapest high number on the sheet, and Ch.5 p.83 exempts it from
-Resolve — *"except for combat skills"*. So an Expertise nominated to **Might or Agility** counts at
-its full rank and drives Resolve down exactly as the Ability would; one nominated to a Talent, or to
-a Power the same page exempts, costs nothing. A 6d Hero with Expertise (Agility: Firearms) at a 12d
-cap opens on 0 Resolve, not 12. Do not quote the figure yourself — ask `check_character` — but do
-not sell a combat Expertise as free Resolve either.
+Resolve — *"except for combat skills"*. So an Expertise nominated to **Might, Agility, Toughness or
+Willpower** — the four Abilities Ch.4 p.75's Attack and Defense table uses to attack or defend —
+counts at its full rank and drives Resolve down exactly as that Ability would; one nominated to a
+Talent, or to Intellect or Perception, costs nothing. A 6d Hero with Expertise (Agility: Firearms)
+at a 12d cap opens on **0 base Resolve rather than 12**, before Determination and any Condition or
+Plot Hook Flaws are added. Do not quote the figure yourself — ask `check_character` — but do not
+sell a combat Expertise as free Resolve either.
+
+**Nominate an Ability or a Talent and nothing else.** Ch.2 p.28: *"Your specialization must fall
+under one of your Abilities or Talents"*. An Expertise whose `BaselineTraitId` names a Power is
+refused with `EXPERTISE_NOMINATION_NOT_A_TRAIT` — Boost is the one Power that may be nominated to
+another Power. **The book never defines a combat skill**, so which nominations count is this
+repository's reading of p.83, and it errs towards counting: the specialisation itself is free text,
+so Expertise (Agility: Acrobatics) counts here where a GM probably would not count it. Erring that
+way means *less* Resolve, so it never flatters a Hero — and p.83 gives the GM the final say. Say so
+if somebody's build turns on it.
 
 **That trade is a Hero's alone.** Only Heroes have Resolve, so for a Villain there is nothing on
 the other side of it — cap everything the concept supports and do not mention the figure. See
