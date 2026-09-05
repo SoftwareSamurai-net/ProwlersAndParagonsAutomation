@@ -129,6 +129,30 @@ public sealed class PaletteBookTests
     /// </summary>
     private static readonly TimeSpan Occupation = TimeSpan.FromMilliseconds(250);
 
+    /// <summary>
+    /// Whatever is subscribed to one of <see cref="Commands"/>' events, as the objects that will
+    /// be woken.
+    ///
+    /// <para><b>Read out of the running app rather than out of the source.</b> Which bell a
+    /// component is on is decided in <c>OnInitialized</c> and undone in <c>Dispose</c>, and a check
+    /// that grepped a razor file for a <c>+=</c> would pass over a subscription that is added and
+    /// never removed, or added in a branch that does not run. A field-like event compiles to a
+    /// private delegate field of the same name, which is what this reads; a run where the field has
+    /// gone missing throws here rather than passing quietly.</para>
+    /// </summary>
+    private static IReadOnlyList<object?> ListeningTo(Commands commands, string bell)
+    {
+        var field = typeof(Commands).GetField(bell,
+                        System.Reflection.BindingFlags.Instance
+                        | System.Reflection.BindingFlags.NonPublic)
+                    ?? throw new InvalidOperationException(
+                        $"Commands has no event called {bell} any more.");
+
+        return field.GetValue(commands) is Action subscribed
+            ? [.. subscribed.GetInvocationList().Select(d => d.Target)]
+            : [];
+    }
+
     /// <summary>Wait for something the renderer is not going to redraw when it happens.</summary>
     private static async Task Until(Func<bool> ready, string what)
     {
@@ -240,6 +264,136 @@ public sealed class PaletteBookTests
 
         Assert.Empty(layout.FindAll(".palette"));
         Assert.Equal("", layout.Find(".palette-field").GetAttribute("value"));
+    }
+
+    /// <summary>
+    /// <b>A word carried from the banner reaches the book even when the sign-in happened after the
+    /// palette had already settled who was asking.</b>
+    ///
+    /// <para><b>The test above hides this by waiting.</b> It waits for
+    /// <see cref="Commands.BookIsOffered"/> before it types, which is the right control for what it
+    /// is about — that the word reaches the book once — and it is also the one arrangement in which
+    /// the ordering below cannot go wrong. This drives the other one.</para>
+    ///
+    /// <para><b>The ordering, and why it is a defect rather than a race.</b> The palette asks the
+    /// book on the way *in*, from <c>Refresh</c>, and settles who is asking one interop hop later
+    /// in <c>OnAfterRenderAsync</c>. Signing in at <c>/account</c> is pure SPA state with no
+    /// reload, so a reader who signs in and then types into the banner arrives here with
+    /// <c>Accounts</c> saying yes and <c>BookIsOffered</c> still saying no: the carried word takes
+    /// the "not offered" branch, no request goes, and the offer flipping a moment later only
+    /// redraws. What the reader sees is "Nothing here matches what you typed" over a rulebook with
+    /// three entries for their word, and their only way out is to type it again.</para>
+    ///
+    /// <para><b>Every absence here has its positive control, because "no rows" is what the defect
+    /// looks like.</b> The offer is asserted off before the keystroke — otherwise this is the test
+    /// above with more words — and the rows and the single request are asserted after it.</para>
+    /// </summary>
+    [Fact]
+    public async Task AWordFromTheBannerReachesABookOfferedOnlyAfterThePaletteHadAsked()
+    {
+        using var ctx = new RenderContext();
+        ctx.With(SheetMode.Hero);
+
+        var layout = ctx.Render<MainLayout>();
+
+        // **Anonymous when the palette first rendered, and waited for rather than assumed.** The
+        // question has to have been asked and answered "nobody" before the sign-in below, or this
+        // is a test about a palette that had not got round to asking yet — a different thing, and
+        // one the ordering under test would survive.
+        await Until(() => ctx.Api.Asked.Any(a => a.Contains("/api/me", StringComparison.Ordinal)),
+            "the palette asked who was here");
+
+        // Signing in the way `/account` does: no reload, and `Accounts` is the only thing that
+        // learns. `Commands` is not told, and that is the whole of the defect.
+        ctx.Api.SignedIn = ("acct_reader", "A reader");
+        Assert.True(await ctx.Services.GetRequiredService<Accounts>().CompleteSignInAsync("a-link"));
+
+        // The precondition, stated. Without this the drive below is the ordinary path.
+        Assert.False(CommandsOf(ctx).BookIsOffered,
+            "the palette had already noticed the sign-in, so this drive is not the ordering "
+            + "this test is about.");
+
+        ctx.Api.Asked.Clear();
+
+        layout.Find(".palette-field").Input("knockback");
+
+        // The book answered, for a word that was typed before anything here knew it could be asked.
+        await layout.WaitForAssertionAsync(
+            () => Assert.NotEmpty(layout.FindAll(".palette-group")), Patient);
+
+        Assert.Contains("KNOCKBACK",
+            layout.FindAll(".palette-group ~ .palette-row")
+                  .Select(r => r.QuerySelector(".palette-label")!.TextContent.Trim()));
+
+        // And the sentence that is what the reader actually sees when this is broken is not up.
+        Assert.Empty(layout.FindAll(".palette-empty"));
+
+        // Once. The ask that was refused for who was asking never reached the wire, so settling and
+        // then asking is one request rather than two.
+        Assert.Single(Searches(ctx));
+        Assert.Contains("q=knockback", Searches(ctx)[0], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// <b>The shell follows the offer of the book and is not woken by the book's answers.</b>
+    ///
+    /// <para><b>The banner's field is labelled with <see cref="Commands.Prompt"/></b>, and the
+    /// layout was subscribed to <see cref="Commands.BookAnswered"/> for it — a bell that rings once
+    /// per burst of typing into a box behind the palette's own scrim. Every one of those called
+    /// <c>StateHasChanged</c> on the whole shell — the banner, the step band, the budget strip and
+    /// the body — to recompute a sentence that moves when somebody signs in or out and at no other
+    /// time.</para>
+    ///
+    /// <para><b>Read off the delegates rather than off a render count, and that is a measurement
+    /// decision rather than a shortcut.</b> bUnit's <c>RenderCount</c> on a rendered component moves
+    /// when any of its descendants re-renders, and the palette is a child of this layout and
+    /// <em>does</em> redraw on every answer — correctly, because its own box carries the same
+    /// sentence. So a count cannot tell the two apart: measured, it goes up by one either way. What
+    /// separates them is which bell the shell is on, and that is a fact about the running app that
+    /// this reads out of the running app.</para>
+    ///
+    /// <para><b>Three assertions, because each of the other two alone is satisfied by a shell
+    /// subscribed to nothing.</b> The palette is asserted to be on <c>BookAnswered</c>, so an event
+    /// that had been renamed or that nobody listens to cannot pass this vacuously; the shell is
+    /// asserted to be on <see cref="Commands.OfferChanged"/>; and the sentence is then driven
+    /// through a refusal, which is the second place the offer moves and the one that moves it
+    /// without touching <c>Accounts</c> — so what the last half measures is the shell following the
+    /// palette rather than the shell following a sign-out it watches separately.</para>
+    /// </summary>
+    [Fact]
+    public async Task TheShellFollowsTheOfferAndIsNotWokenByTheBooksAnswers()
+    {
+        using var ctx = new RenderContext();
+        ctx.Api.SignedIn = ("acct_reader", "A reader");
+        ctx.With(SheetMode.Hero);
+
+        var layout = ctx.Render<MainLayout>();
+
+        await layout.WaitForAssertionAsync(
+            () => Assert.Contains("book", layout.Find(".palette-field").GetAttribute("aria-label")!,
+                StringComparison.Ordinal), Patient);
+
+        var commands = CommandsOf(ctx);
+
+        // The positive control on the instrument itself: `BookAnswered` really does have a
+        // listener, so "no layout on it" below is a statement about the layout rather than about an
+        // event nobody uses any more.
+        Assert.Contains(ListeningTo(commands, "BookAnswered"), t => t is CommandPalette);
+
+        Assert.DoesNotContain(ListeningTo(commands, "BookAnswered"), t => t is MainLayout);
+        Assert.Contains(ListeningTo(commands, "OfferChanged"), t => t is MainLayout);
+
+        // And the sentence really does follow. A refusal is the second place the offer moves.
+        ctx.Api.BookRefusesTheSession = true;
+
+        await commands.AskTheBookAsync("trait cap");
+
+        Assert.False(commands.BookIsOffered);
+
+        await layout.WaitForAssertionAsync(
+            () => Assert.DoesNotContain("book",
+                layout.Find(".palette-field").GetAttribute("aria-label")!, StringComparison.Ordinal),
+            Patient);
     }
 
     /// <summary>

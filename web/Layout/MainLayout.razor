@@ -466,10 +466,17 @@
         Session.Saved += HandleCharacterSaved;
         Accounts.Changed += WhoChanged;
 
-        // Both of the palette's bells, for the two things the banner's field draws off it: whether
-        // the palette is open, and what it promises. See PaletteMoved.
+        // The two of the palette's bells that say something about this band: whether the palette is
+        // open, and what it promises. See PaletteMoved.
+        //
+        // **Deliberately not `BookAnswered`, and that was the subscription that was here.** It
+        // rings once per burst of typing into a box behind the palette's own scrim, and this
+        // handler calls `StateHasChanged` on the whole shell — so a reader searching the rulebook
+        // was redrawing the banner, the step band, the budget strip and the body to recompute a
+        // sentence that only moves when somebody signs in or out. `OfferChanged` is that moment and
+        // nothing else.
         Commands.Changed += PaletteMoved;
-        Commands.BookAnswered += PaletteMoved;
+        Commands.OfferChanged += PaletteMoved;
 
         // The shell has to redraw on a navigation as well as on a change to the character:
         // walking from a recording back into the wizard has to bring the budget bar back.
@@ -635,7 +642,7 @@
         Session.Saved -= HandleCharacterSaved;
         Accounts.Changed -= WhoChanged;
         Commands.Changed -= PaletteMoved;
-        Commands.BookAnswered -= PaletteMoved;
+        Commands.OfferChanged -= PaletteMoved;
         Nav.LocationChanged -= Moved;
         _leaving?.Dispose();
     }

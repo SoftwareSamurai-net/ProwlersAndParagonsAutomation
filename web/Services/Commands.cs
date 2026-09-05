@@ -448,6 +448,25 @@ public sealed class Commands
     /// </summary>
     public event Action? BookAnswered;
 
+    /// <summary>
+    /// Raised when <see cref="BookIsOffered"/> moves, and only then — so when
+    /// <see cref="Prompt"/> changes, which is the same thing said the other way round.
+    ///
+    /// <para><b>It exists because <see cref="BookAnswered"/> is the wrong bell for a label.</b>
+    /// That one rings on every answer the book gives, which is once per burst of typing, and the
+    /// shell was subscribed to it for one reason: the banner's field is labelled with
+    /// <see cref="Prompt"/>. So every keystroke behind the palette's own scrim redrew the whole
+    /// layout — the banner, the step band, the budget strip and the body — to recompute a sentence
+    /// that moves when somebody signs in or out and at no other time.</para>
+    ///
+    /// <para><b>Two events rather than a flag the shell compares.</b> A shell that redrew and then
+    /// checked whether the sentence had moved would still have redrawn; the point is not to be
+    /// woken. Raised beside <see cref="BookAnswered"/> rather than instead of it, because the
+    /// palette does have to redraw when the offer moves — the box's own label says the same
+    /// sentence.</para>
+    /// </summary>
+    public event Action? OfferChanged;
+
     /// <summary>How many searches have been started. The newest one is the one that counts.</summary>
     private int _asked;
 
@@ -516,7 +535,28 @@ public sealed class Commands
 
         if (!BookIsOffered) StopAsking();
 
+        OfferChanged?.Invoke();
         BookAnswered?.Invoke();
+
+        // **The offer turning *on* has to re-ask whatever is already on screen, and a word carried
+        // in from the banner is the case that made this a defect rather than a nicety.**
+        //
+        // The palette asks the book on the way in — see the component's `Refresh` — and settles who
+        // is asking one interop hop later, in `OnAfterRenderAsync`. For the chord that ordering
+        // costs nothing, because the box opens empty and there is nothing to ask about. For a word
+        // typed into the banner there is: after a sign-in inside the visit, with no reload, this
+        // flag is still false when that word arrives, so the ask takes the "not offered" branch,
+        // no request goes, and the palette prints "Nothing here matches what you typed" over a
+        // rulebook that has three entries for it. The reader's only way out is to type the word
+        // again.
+        //
+        // **Fire-and-forget on purpose.** `NoteWhoIsAskingAsync` is awaited immediately before the
+        // caret is moved into the box, and this ask holds a fifth-of-a-second pause and a round
+        // trip — awaiting it here would put the palette's focus call behind both, which is a box
+        // that cannot be typed into for as long as the network takes. The ask is built to be left
+        // running: it takes a sequence number on entry, re-reads this flag after its pause, and
+        // reports everything it does through `BookAnswered`.
+        if (BookIsOffered && _wanted.Length >= BookThreshold) _ = AskTheBookAsync(_wanted);
     }
 
     /// <summary>
@@ -652,6 +692,10 @@ public sealed class Commands
         {
             _refusedBy = _asking;
             BookIsOffered = false;
+
+            // The other place the offer moves, and so the other place the banner's label has to
+            // follow it. See OfferChanged.
+            OfferChanged?.Invoke();
         }
 
         // An answer for a query nobody is asking any more shows nothing, whatever it found. The

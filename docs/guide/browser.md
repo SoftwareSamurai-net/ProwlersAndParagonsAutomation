@@ -99,7 +99,7 @@ placeholder.
   says *search* while searching six step names and 141 Powers promises the rulebook and does not
   have it, and the rulebook was behind an account. **The corpus is behind the chord now** — see the
   section below — so the promise the box makes is true, and the field is what was left of the
-  decision. Six things hold it in place:
+  decision. Nine things hold it in place:
   - **It searches nothing itself, and that is the line.** Typing hands the word to
     `Commands.Open(query)`; the palette takes it on the way in and matches it exactly as if it had
     been typed into the box — the steps, the Powers, the pause, the race guard, the book. There is
@@ -107,6 +107,25 @@ placeholder.
     banner is the thing to refuse. It is asserted **on the wire**, not on screen: one request for
     one keystroke, because a field that also asked on its own behalf would put two requests up and
     look perfectly correct, the second answer landing on the first one's rows.
+  - **Who is asking is settled *before* the carried word is asked about, and this was a defect.**
+    The palette asks the book from `Refresh`, on the way in, and asks who is here one interop hop
+    later in `OnAfterRenderAsync`. For the chord that costs nothing — the box opens empty. For a
+    word from the banner it cost the whole feature after a sign-in inside the visit: `Accounts`
+    said yes, `Commands.BookIsOffered` still said no, the carried word took the "not offered"
+    branch, no request went, the offer flipping a moment later only redrew, and the reader was
+    shown *Nothing here matches what you typed* over a rulebook with three entries for their word.
+    So the offer turning **on** re-asks whatever `_wanted` already holds. It is fire-and-forget on
+    purpose: `NoteWhoIsAskingAsync` is awaited immediately before the caret is moved into the box,
+    and awaiting a fifth-of-a-second pause and a round trip there is a box that cannot be typed
+    into for as long as the network takes.
+  - **The shell is not woken by the book's answers.** The banner's label follows `Commands.Prompt`,
+    which moves on a sign-in, a sign-out or a refusal and at no other time — so the layout is on
+    `Commands.OfferChanged` and deliberately not on `BookAnswered`, which rings once per burst of
+    typing into a box behind the palette's own scrim. It was on `BookAnswered`, and every keystroke
+    redrew the banner, the step band, the budget strip and the body. **A render count cannot see
+    this**: bUnit's `RenderCount` moves when a descendant re-renders, and the palette is a child of
+    the layout and does redraw on every answer, correctly. The guard reads the delegates off the
+    running `Commands` instead.
   - **The first keystroke opens it; focus does not.** A field that opened the overlay when the
     caret landed in it is a keyboard trap for everybody tabbing *past* it towards the page — the
     palette takes the screen and leaving it means dismissing something nobody asked for. Typing is
