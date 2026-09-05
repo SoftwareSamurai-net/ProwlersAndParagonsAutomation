@@ -34,10 +34,10 @@ Ten files, one per chapter, holding the printed text of the whole Ultimate Editi
 - **Regenerating the corpus is a check, and it is one command.** This file used to say nothing did it. It does now:
 
   ```bash
-  dotnet run --project tools/RulebookExtractor -- "docs/Prowlers_&_Paragons_Ultimate_Edition.pdf" data/rulebook
+  dotnet run --project tools/RulebookExtractor -- "$HOME/Downloads/P&P/Prowlers_&_Paragons_Ultimate_Edition.pdf" data/rulebook
   git status --porcelain data/rulebook/
   ```
 
-  A clean second line means the committed corpus is exactly what today's extractor produces — all ten chapters, 1,525 sections. **Give the PDF's real path**, since `*.pdf` is gitignored and so is in no checkout at all — the tool takes an absolute path and runs fine from a worktree; this slice regenerated all ten chapters from one. **And read the blob hash, not `git status`**: regenerating rewrites every file, so the stat cache reports all ten as modified until something refreshes it, and on Windows the raw bytes genuinely differ — `JsonSerializer` writes `Environment.NewLine`, so the working file is CRLF where the blob is LF. `.gitattributes` normalises `*.json`, so `git hash-object` against `git rev-parse HEAD:<file>` is the comparison that means anything. Do not "fix" the extractor's newline on the strength of the raw bytes; that was nearly done here and would have been wrong.
+  A clean second line means the committed corpus is exactly what today's extractor produces — all ten chapters, 1,525 sections. **That first path is wherever the owner keeps the book, and nothing more** — `*.pdf` is gitignored, so the file is in no checkout at all and there is no in-repo location to name. The path above is where it sits on the machine this was last run from; give your own. The tool takes an absolute path and runs fine from a worktree; this slice regenerated all ten chapters from one. **And read the blob hash, not `git status`**: regenerating rewrites every file, so the stat cache reports all ten as modified until something refreshes it, and on Windows the raw bytes genuinely differ — `JsonSerializer` writes `Environment.NewLine`, so the working file is CRLF where the blob is LF. `.gitattributes` normalises `*.json`, so `git hash-object` against `git rev-parse HEAD:<file>` is the comparison that means anything. Do not "fix" the extractor's newline on the strength of the raw bytes; that was nearly done here and would have been wrong.
 
 
