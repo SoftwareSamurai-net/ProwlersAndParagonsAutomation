@@ -67,6 +67,12 @@ internal static class PlayWorkedExamples
     /// dice with a test helper of its own. This one goes through <see cref="SuccessCounter"/> and
     /// <see cref="ScriptedDice"/> — the code an encounter actually uses — so an engine that read the
     /// map wrongly fails here where the data test stays green.</para>
+    ///
+    /// <para><b>It does not go through <see cref="Encounter.Step"/>, and cannot.</b> An arm-wrestle
+    /// is a Chapter 3 challenge roll between two people and this engine resolves Chapter 4's fight:
+    /// there is no challenge intent, because a challenge has no attacker, no defence table and no
+    /// damage, and inventing one to route this example through would be adding a mechanic to satisfy
+    /// a fixture. What the two share is the dice path, which is what this drives.</para>
     /// </summary>
     private static void ArmWrestling(PlayRulesRepository play)
     {
@@ -354,16 +360,30 @@ internal static class PlayWorkedExamples
 
         // "Using its 13d Might, the mecha rolls 7 successes. The Soldier … only manages to score 4 …
         // With 3 net successes, the mecha places our Hero in a full hold."
-        state = encounter.Step(state, new GrappleIntent("mecha", "soldier", GrappleMove.Hold)).State;
+        //
+        // <b>The counts come before the kind.</b> A grapple leaves no LastAttack to read, so the
+        // successes are read out of the line the engine wrote — and without them a full hold is a
+        // full hold whatever the dice did, which is a check on the table rather than on the roll.
+        var hold = encounter.Step(state, new GrappleIntent("mecha", "soldier", GrappleMove.Hold));
+        state = hold.State;
+
+        RequireGrappleRoll(hold, "7 against 4 is 3 net", "the mecha's hold");
+
         Require(state.Grapples.Count == 1, $"{state.Grapples.Count} grapples are in progress, not 1");
         Require(state.Grapples[0].Kind == GrappleKind.Full, $"the mecha has a {state.Grapples[0].Kind} hold");
+        Require(state.Grapples[0].Move == GrappleMove.Hold,
+            $"the mecha has a {state.Grapples[0].Move}, and the page prints a hold");
         Require(string.Equals(state.Grapples[0].Held, "soldier", StringComparison.Ordinal),
             "the wrong character is held");
         state = encounter.Step(state, new EndTurn("mecha")).State;
 
         // "He makes a Might roll and gets 6 successes, but the mecha … also gets 6. With no net
         // successes, the Soldier remains trapped."
-        state = encounter.Step(state, new GrappleIntent("soldier", "mecha", GrappleMove.Escape)).State;
+        var escape = encounter.Step(state, new GrappleIntent("soldier", "mecha", GrappleMove.Escape));
+        state = escape.State;
+
+        RequireGrappleRoll(escape, "6 against 6 is 0 net", "the Soldier's escape");
+
         Require(state.Grapples.Count == 1 && state.Grapples[0].Kind == GrappleKind.Full,
             "the Soldier got out of a hold he should still be in");
         state = encounter.Step(state, new EndTurn("soldier")).State;
@@ -489,6 +509,24 @@ internal static class PlayWorkedExamples
             .. Enumerable.Repeat(4, four),
             .. Enumerable.Repeat(1, pool - sixes - four)
         ];
+    }
+
+    /// <summary>
+    /// The successes a grapple actually rolled, out of the line the engine wrote.
+    ///
+    /// <para>A grapple leaves no <c>LastAttack</c> behind — it is not an attack — so this is the
+    /// only place the counts appear. It is the same positive control every other example carries:
+    /// the roll first, the consequence second. Without it, "the mecha has a full hold" is a check on
+    /// the table rather than on the dice, and any roll of three or more net satisfies it.</para>
+    /// </summary>
+    private static void RequireGrappleRoll(StepResult step, string printed, string what)
+    {
+        var line = step.Added.FirstOrDefault(l =>
+            string.Equals(l.Rule, "grappling_table", StringComparison.Ordinal));
+
+        Require(line is not null, $"{what} produced no grappling roll at all");
+        Require(line!.Text.Contains(printed, StringComparison.Ordinal),
+            $"{what}: the page prints \"{printed}\" and the engine said \"{line.Text}\"");
     }
 
     private static void RequireRoll(EncounterState state, int attack, int defence, string what)
