@@ -250,6 +250,7 @@ public sealed partial class Encounter
         var candidates = DefenceCandidates(target, attack, lines, state);
 
         var best = ("", 0, false);
+        var guarded = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var (trait, tableHalves) in candidates)
         {
@@ -270,7 +271,19 @@ public sealed partial class Encounter
             // p.78: dodging a blast is deliberately awkward. See DodgingAnAreaAttack.
             if (active && attack.Area) rank = Halve(rank);
 
-            if (halved is not null && (!halved.ActiveOnly || active)) rank = Halve(rank);
+            if (halved is not null && (!halved.ActiveOnly || active))
+            {
+                // p.78's guard on going all-out: an opponent who could not penetrate the passive
+                // defence at its full rank still cannot, so for them it is not halved at all.
+                if (active || CouldPenetrate(state[attack.Actor], attack, target.Rank(trait)))
+                {
+                    rank = Halve(rank);
+                }
+                else
+                {
+                    guarded.Add(trait);
+                }
+            }
 
             if (rank > best.Item2) best = (trait, rank, active);
         }
@@ -283,6 +296,7 @@ public sealed partial class Encounter
         }
 
         if (attack.Area && best.Item3) DodgingAnAreaAttack(state, target, lines);
+        if (guarded.Contains(best.Item1)) StillCannotPenetrate(state, target, best.Item1, lines);
 
         var pool = best.Item2 + WoundPenalty(state, target, lines);
 
@@ -397,6 +411,55 @@ public sealed partial class Encounter
             state.Page, target.Id, entry.Id, entry.SourceRef,
             $"{target.Name} dodges an area attack, so the defence must either {string.Join(" or ", options)}: "
             + $"this engine takes \"{halving}\" and not \"{string.Join(" or ", alternative)}\""));
+    }
+
+    /// <summary>
+    /// p.78's one guard on going all-out: <c>opponents_who_could_not_penetrate_your_passive_defense:
+    /// "still cannot"</c>.
+    ///
+    /// <para><b>It was modelled and never read, and what that cost was the whole point of the
+    /// clause.</b> Going all-out halves every defence, so an Armor of 15 became a 7 and an attacker
+    /// who could never have got through it started getting through it — which is the one outcome the
+    /// page writes a sentence to forbid. The halving still applies to everybody who could already
+    /// hurt them, and to every active defence; it is only the opponent the guard names who sees the
+    /// full rank.</para>
+    ///
+    /// <para><b>What "penetrate" means is a reading, and it is derived rather than invented.</b>
+    /// Chapter 4 states the test once, under Cover: <c>modifier_cover.attacking_through_cover_requires</c>
+    /// is "an attack rank greater than the cover's Structure". So an attack penetrates a passive
+    /// defence when the attacking Trait's rank is greater than the defence's, and the phrase is read
+    /// out of that entry rather than typed — an entry that stops saying "greater than" is a rule this
+    /// engine cannot apply. <c>docs/guide/play-engine.md</c> records it as a reading.</para>
+    /// </summary>
+    private bool CouldPenetrate(Combatant attacker, Attack attack, int passiveRank)
+    {
+        var cover = _play.GetCombat("modifier_cover");
+        var test = cover.Cover!.AttackingThroughCoverRequires;
+
+        if (!test.Contains("greater than", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"modifier_cover now says getting through an obstacle requires '{test}'. That "
+                + "phrase is the only place Chapter 4 says what penetrating a passive defence means, "
+                + "and p.78's guard on going all-out is read out of it; a different test is a rule "
+                + "this engine cannot apply. See docs/guide/play-engine.md's readings table.");
+        }
+
+        return attacker.Rank(attack.TraitId) > passiveRank;
+    }
+
+    /// <summary>The ledger line for an attack that p.78's guard has kept out.</summary>
+    private void StillCannotPenetrate(
+        EncounterState state, Combatant target, string trait, List<LedgerLine> lines)
+    {
+        var entry = _play.GetCombat("going_all_out");
+
+        lines.Add(new LedgerLine(
+            state.Page, target.Id, entry.Id, entry.SourceRef,
+            $"{target.Name} went all-out, so every defence of theirs is halved — but an opponent who "
+            + $"could not penetrate their {trait} of {target.Rank(trait)} "
+            + $"{entry.AllOutAttack!.OpponentsWhoCouldNotPenetrateYourPassiveDefense}, so this one "
+            + "meets it at its full rank"));
     }
 
     /// <summary>The table's own name for the column that means "one of the target's Powers".</summary>

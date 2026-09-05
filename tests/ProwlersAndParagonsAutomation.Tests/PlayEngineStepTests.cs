@@ -378,6 +378,68 @@ public sealed class PlayEngineStepTests
         }
     }
 
+    /// <summary>
+    /// <b>Going all-out halves every defence, except against an opponent who could never get through
+    /// the passive one anyway.</b>
+    ///
+    /// <para>p.78 writes one sentence of guard onto the rule — <c>opponents who could not penetrate
+    /// your passive defense: "still cannot"</c> — and it was modelled and never read, so an Armor of
+    /// 15 became a 7 and an attacker who could never have hurt its wearer started hurting them. That
+    /// is the one outcome the clause exists to forbid.</para>
+    ///
+    /// <para>The fixture drives both sides of the guard against the same all-out attacker: 10d
+    /// against 15d Armor still meets 15d, and 16d against the same 15d meets the halved 8d. Without
+    /// the second half the first would be satisfied by an engine that had simply stopped halving
+    /// passives at all.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(10, 15, false)]
+    [InlineData(16, 8, true)]
+    public void GoingAllOutDoesNotOpenAPassiveDefenceToSomebodyWhoCouldNeverGetThroughIt(
+        int attackRank, int expectedPool, bool penetrates)
+    {
+        // The armoured character goes all-out on their own turn, which halves every defence of
+        // theirs until after their next turn — and then takes a blow.
+        var armoured = Combatant.Hero("armoured", "the armoured Hero", edge: 9, health: 30, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["armor"] = 15 },
+            ["armor"]);
+
+        var attacker = Combatant.Villain("attacker", "the attacker", edge: 8, health: 30,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = attackRank }, ["toughness"]);
+
+        var encounter = new Encounter(_play, new SeededDice(12));
+        var state = encounter.Begin([armoured, attacker]);
+
+        var committed = encounter.Step(state, new Attack("armoured", "attacker", "might", AllOut: true));
+        state = committed.State;
+
+        // The control: the all-out attack really was taken, so there is a halving to be guarded
+        // against. Without this the fixture would pass against an engine that ignored AllOut.
+        Assert.Contains(committed.Added, l =>
+            string.Equals(l.Rule, "going_all_out", StringComparison.Ordinal)
+            && l.Text.Contains("every defence", StringComparison.Ordinal));
+        Assert.True(state.DefencesHalved.ContainsKey("armoured"));
+
+        state = encounter.Step(state, new EndTurn("armoured")).State;
+
+        var struck = encounter.Step(state, new Attack("attacker", "armoured", "might"));
+
+        Assert.Contains($"defends with armor {expectedPool}d",
+            struck.Added.Single(l =>
+                string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+                && l.Text.Contains("defends with", StringComparison.Ordinal)).Text,
+            StringComparison.Ordinal);
+
+        var guard = _play.GetCombat("going_all_out").AllOutAttack!
+            .OpponentsWhoCouldNotPenetrateYourPassiveDefense;
+
+        var said = struck.Added.Any(l =>
+            string.Equals(l.Rule, "going_all_out", StringComparison.Ordinal)
+            && l.Text.Contains(guard, StringComparison.Ordinal));
+
+        Assert.Equal(!penetrates, said);
+    }
+
     // ── Defeat ───────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -711,17 +773,17 @@ public sealed class PlayEngineStepTests
     /// </summary>
     private static string DefenceAgainst(PlayRulesRepository play, DamageKind damage, bool allOut)
     {
-        var traits = new Dictionary<string, int>(StringComparer.Ordinal)
-        {
-            ["might"] = 4, ["toughness"] = 5
-        };
-
         // The target has the higher Edge, so they act first and can commit to an all-out attack of
-        // their own before the blow that measures their defences lands.
+        // their own before the blow that measures their defences lands. The attacker's 8d Might is
+        // greater than the target's 5d Toughness, so p.78's "still cannot" guard does not fire and
+        // the all-out halving is what this fixture is measuring.
         var target = Combatant.Hero("target", "the target", edge: 9, health: 12, resolve: 0,
-            traits, ["toughness"]);
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 4, ["toughness"] = 5 },
+            ["toughness"]);
+
         var attacker = Combatant.Villain("attacker", "the attacker", edge: 8, health: 12,
-            traits, ["toughness"]);
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 8, ["toughness"] = 5 },
+            ["toughness"]);
 
         var encounter = new Encounter(play, new SeededDice(2));
         var state = encounter.Begin([target, attacker]);
