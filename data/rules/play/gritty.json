@@ -1,0 +1,301 @@
+{
+  "header": {
+    "what_this_is": "The ten optional Gritty Combat Rules printed in Chapter 4, pp.79-81, plus the paragraph that introduces them, as data. Each is a setting for the whole table rather than something one character does, which is why every one of them carries the kind table_setting. The combat rules they modify are in combat.json beside this file; the dice model is in play_meta.json.",
+    "placement_note": "Every csproj copies data\\rules\\*.json non-recursively, so a file one level down reaches no host. Nothing in data/rules/play/ is served to a browser, published with the MCP server, or read by engine/. See docs/guide/play-rules.md.",
+    "not_logic": "Data only. No engine reads this file, and none may; the models arrive with the simulator.",
+    "deliberately_omitted": "Two worked examples are not transcribed as mechanics. p.80's sword shows the Gear Limit arithmetic that gritty_raised_gear_limit already states as numbers, and p.79's Clint Castle shows the Fatal Damage threshold that gritty_fatal_damage already states as a formula - a worked example is exercised as a test fixture against the entry, which is a stronger use for it than a second transcription that could disagree with the first.",
+    "verified_fields_closed_list": [
+      "trigger",
+      "roll",
+      "threshold",
+      "effect",
+      "duration",
+      "cost",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.4 Combat, pp.73-82"
+  },
+  "entries": [
+    {
+      "id": "gritty_overview",
+      "name": "Using the Gritty Combat Rules",
+      "kind": "narrative",
+      "overview": {
+        "default_combat_is": "four-color, and modelled on superhero cartoons more than on comics or movies",
+        "rules_are_optional": true,
+        "any_subset_may_be_used": true,
+        "review_before_adopting": true,
+        "a_retcon_or_do_over_is_allowed_if_a_rule_is_dropped_after_play": true
+      },
+      "description": "Ten switches sit beside the ordinary combat rules for a table that wants fights to hurt. They are taken one at a time rather than as a block, some of them change the game sharply, and the book explicitly permits unwinding whatever happened while one was on if the table decides against it.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.79",
+      "ambiguity": null
+    },
+    {
+      "id": "gritty_active_defenses",
+      "name": "Active defenses cost something",
+      "kind": "table_setting",
+      "active_defense_penalty": {
+        "active_defenses_are_minor_actions": true,
+        "cumulative_penalty_dice_per_extra_active_defense": -1,
+        "first_active_defense_on_a_page_is_unpenalised": true,
+        "counted_per": "page",
+        "affects_passive_defenses": false
+      },
+      "description": "Dodging stops being free once it is happening repeatedly: the first one in a slice is clean and every one after it is a die worse than the last, so a character answering three attacks rolls the third two dice down. Soaking is untouched.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.79",
+      "ambiguity": null
+    },
+    {
+      "id": "gritty_close_range",
+      "name": "Ranged attacks up close",
+      "kind": "table_setting",
+      "close_range_penalty": {
+        "penalty_dice_to_active_defense": -2,
+        "applies_against": "ranged attacks made from within Close Range",
+        "applies_only_to_attacks_usable_at": "Distant or Extreme Range",
+        "ignored_for": "ordinary thrown weapons and other attacks that can only be used at Close Range"
+      },
+      "description": "A gun in your face is hard to dodge, so the dodger loses two dice against anything shot at them from inside the nearest band. It applies only to weapons that could have been used from farther off; something that only ever works up close does not get the bonus.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.79",
+      "ambiguity": null
+    },
+    {
+      "id": "gritty_the_drop",
+      "name": "The Drop",
+      "kind": "table_setting",
+      "the_drop": {
+        "held_by": "a character with a weapon or Power aimed and ready to strike",
+        "held_against": "everyone who does not have one aimed and ready",
+        "effect": "the holder's effective Edge is doubled against them",
+        "also_held_by": "a character with a ranged weapon or ranged attack Power, against anyone closing to engage them in close combat",
+        "examples_given": [
+          "a crook with a gun aimed at a character whose sidearm is holstered",
+          "a crook holding a knife to a hostage's throat"
+        ],
+        "final_say": "gm"
+      },
+      "description": "A weapon already levelled beats one still holstered: the character holding it counts twice their usual order number against anyone who is not similarly ready, and the same applies to a shooter against anybody walking into arm's reach. Powers make this murky enough that the GM decides.",
+      "verified_fields": [
+        "trigger",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.79",
+      "ambiguity": null
+    },
+    {
+      "id": "gritty_fatal_damage",
+      "name": "Fatal Damage",
+      "kind": "table_setting",
+      "fatal_damage": {
+        "health_can_go_negative": true,
+        "killed_at": "the negative value of your full Health",
+        "cost_resolve_to_avoid": 1,
+        "resolve_reduces_damage_to": "1 point above the fatal threshold",
+        "resolve_may_be_spent_on_damage_you_inflict_on_someone_else": true,
+        "resolve_also_stabilises_if_necessary": true,
+        "dying_begins_when_lethal_damage_reduces_you_to": -1,
+        "dying_damage_per_page": 1,
+        "dying_ends_at": "stabilization or death",
+        "stabilise_roll": "Medicine",
+        "stabilise_difficulty": "Hard",
+        "stabilise_threshold": 2,
+        "stabilise_also_by": "a Power like Healing",
+        "cost_resolve_to_stabilise_immediately": 1,
+        "instant_recovery_requires_being_stable": true
+      },
+      "description": "The pool keeps going below nothing, and a character dies when it reaches the negative of what they started with - so a bigger character has further to fall. One point of the Hero currency buys the damage down to a single point short of that line, on either side of the blow, and steadies them into the bargain. Anything of the killing sort that leaves them below nothing starts a clock: a point a slice until somebody stops it, by a roll, by a Power, or by another point spent. Nothing brings a character back on their feet until that clock has been stopped.",
+      "verified_fields": [
+        "roll",
+        "threshold",
+        "cost",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.79",
+      "ambiguity": null
+    },
+    {
+      "id": "gritty_friendly_fire",
+      "name": "Friendly Fire",
+      "kind": "table_setting",
+      "friendly_fire": {
+        "penalty_dice": -4,
+        "applies_when": "firing a ranged attack at a target engaged in close combat or otherwise bunched up with other characters",
+        "second_attack_triggered_at_net_successes": 0,
+        "second_attack_is_against": "another target involved in the melee",
+        "second_attack_penalty_dice": 0,
+        "second_target_selected_by": "gm",
+        "second_target_selected": "randomly"
+      },
+      "description": "Shooting into a scrum costs four dice, and a shot that fails to land - nothing left over after the target's defence - has to go somewhere: a second attack, unpenalised this time, against somebody else in the tangle, chosen at random by the GM.",
+      "verified_fields": [
+        "roll",
+        "trigger",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.80",
+      "ambiguity": null
+    },
+    {
+      "id": "gritty_hard_targets",
+      "name": "Hard Targets",
+      "kind": "table_setting",
+      "hard_targets": {
+        "applies_to": "machines, vehicles, and thick inanimate objects",
+        "passive_defense_rank": "doubled",
+        "penalty_dice_to_negate_it": -4,
+        "negation_available_against": "the vulnerable parts of a complex machine or vehicle",
+        "recommended_pro_for_vehicle_scale_weapons": "Penetrating",
+        "recommended_pro_for_the_physical_attacks_of_powerful_superhuman_characters": "Penetrating"
+      },
+      "description": "Things rather than people get twice the durability they otherwise would, on the grounds that the ordinary numbers make machinery too fragile. An attacker willing to give up four dice can aim at the weak points of anything complex and cancel the doubling. The book pairs the switch with a recommendation that heavy weapons and the strongest characters carry the option that ignores armour.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.80",
+      "ambiguity": null
+    },
+    {
+      "id": "gritty_raised_gear_limit",
+      "name": "Raised Gear Limit",
+      "kind": "table_setting",
+      "gear_limit": {
+        "what_it_is": "the maximum effective Trait rank you can bring to bear when using mundane equipment",
+        "default_rank": 6,
+        "raised_options": [
+          9,
+          12
+        ],
+        "raised_options_are_open_ended": true,
+        "worked_example_weapon": "a basic sword",
+        "worked_example_weapon_bonus_dice": 2,
+        "worked_example_maximum_effective_rank_at_the_default_limit": 8,
+        "detail_chapter": "Ultimate Edition, Ch.6 Equipment"
+      },
+      "description": "Ordinary equipment has a ceiling on how much of a character's own figure it will carry, six dice in most games, so a sword worth two dice tops out at eight however strong the wielder is. Raising the ceiling to nine, twelve or beyond makes mundane armour and weapons matter to superhuman characters, which is the point of the switch.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.80",
+      "ambiguity": null
+    },
+    {
+      "id": "gritty_slow_healing",
+      "name": "Slow Healing",
+      "kind": "table_setting",
+      "slow_healing": {
+        "bands": [
+          {
+            "min_toughness": null,
+            "max_toughness": 6,
+            "health_per_day": 1,
+            "one_point_every_hours": 24
+          },
+          {
+            "min_toughness": 7,
+            "max_toughness": 12,
+            "health_per_day": 2,
+            "one_point_every_hours": 12
+          },
+          {
+            "min_toughness": 13,
+            "max_toughness": 24,
+            "health_per_day": 3,
+            "one_point_every_hours": 8
+          },
+          {
+            "min_toughness": 25,
+            "max_toughness": null,
+            "health_per_day": 4,
+            "one_point_every_hours": 6
+          }
+        ],
+        "healing_after_each_battle": false,
+        "healing_on_regaining_consciousness_after_a_defeat": false,
+        "you_may_be_conscious_at_zero_or_negative_health": true,
+        "in_that_condition_any_damage_at_all_defeats_you": true,
+        "stabilization_available_as_often_as_necessary": true,
+        "medicine_healing_limit": "once per week",
+        "medicine_health_per_net_successes": 1,
+        "medicine_net_successes_per_point": 2
+      },
+      "description": "The roll that patches a character up between fights goes away and time takes its place, at a rate set by how durable they are: a point a day at the bottom and four a day at the top, which also means a character can be walking around on nothing or less and go down again to a single point of damage. A doctor helps once a week and only a little.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.80",
+      "ambiguity": null
+    },
+    {
+      "id": "gritty_tough_minions",
+      "name": "Tough Minions",
+      "kind": "table_setting",
+      "tough_minions": {
+        "net_successes_per_minion_defeated": 2,
+        "full_net_successes_required": true,
+        "rounding": "down",
+        "rounding_is_a_named_unique_exception": true,
+        "worked_example_net_successes": 5,
+        "worked_example_minions_defeated": 2,
+        "area_attack_minions_per_net_success": 1,
+        "area_attack_rate_it_replaces": 2,
+        "alternative_offered": "do away with Minions entirely and use Foes in their place"
+      },
+      "description": "The mob stops evaporating: two whole net successes are needed per body rather than one, and the leftover is thrown away rather than kept, which the page flags in as many words as the one place in the book where a half goes downward. An attack covering an area drops from two per net success to one.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.81",
+      "ambiguity": null
+    },
+    {
+      "id": "gritty_wound_penalties",
+      "name": "Wound Penalties",
+      "kind": "table_setting",
+      "wound_penalties": {
+        "at_or_below_half_full_health_penalty_dice": -2,
+        "at_or_below_zero_health_penalty_dice": -4,
+        "zero_or_less_is_reachable_only_with": "the Fatal Damage rule",
+        "applies_to": "all challenge rolls",
+        "cost_resolve_to_ignore": 1,
+        "pages_ignored_per_resolve_point": 1
+      },
+      "description": "Being hurt shows: everything a character rolls is two dice worse once half their pool is gone, and four dice worse once the pool is empty or past it. A point of the Hero currency buys one slice free of it, and buying more slices costs more points.",
+      "verified_fields": [
+        "cost",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.81",
+      "ambiguity": "The corpus filed this rule's heading and the Example of Combat's heading as one section, with the qualifier inverted - EXAMPLE OF COMBAT - WOUND PENALTIES - because the example's title is set at the left margin of p.81 and read as the left column's last line. The rule's own text was never damaged, only its heading; the extractor was fixed in this slice and the corpus regenerated, so the section is now its own. Recorded here because a reader comparing this entry against an older corpus would find the heading and not the rule. Separately, the two bands are stated as thresholds rather than as steps and the page does not say whether they stack, though at zero Health a character is already below half of any positive Health, so the -4d is read as replacing the -2d rather than adding to it."
+    }
+  ]
+}

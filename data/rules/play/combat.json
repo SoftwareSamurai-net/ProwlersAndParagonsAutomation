@@ -1,0 +1,1453 @@
+{
+  "header": {
+    "what_this_is": "Every mechanic printed in Chapter 4, Combat, pp.73-79, as data: the page, the order of action, range and movement, the attack and defense machinery, damage, Health, special effects, grappling, stunts, Minions, and the eleven special cases. The ten optional Gritty Combat Rules (pp.79-81) are in gritty.json beside this file. The dice model these entries are expressed in - pool, success map, net successes, and the book-wide rounding rule - is in play_meta.json, and the challenge roll itself is in challenge.json.",
+    "placement_note": "Every csproj copies data\\rules\\*.json non-recursively, so a file one level down reaches no host. Nothing in data/rules/play/ is served to a browser, published with the MCP server, or read by engine/. See docs/guide/play-rules.md.",
+    "not_logic": "Data only. No engine reads this file, and none may. Two of the figures here - the Edge formula and the Health formula - are already implemented in engine/DerivedStatsCalculator because they are also printed in Chapter 2 as part of building a character; tests hold the two statements to the same answer and nothing wires the engine to these bytes.",
+    "deliberately_omitted": "The chapter opening (p.73) is not here: it is an essay about tone, with no number and no procedure in it. Neither is the Special Cases preamble (p.78), which introduces the eleven entries that follow it and states nothing of its own. The Example of Combat (pp.81-82) is not an entry either - it is a worked two-page fight rather than a mechanic - and it is exercised as a test fixture against these entries instead, which is the stronger use for it. The corpus filed that example's heading and the Wound Penalties rule as one section until the extractor was fixed in this slice; see docs/guide/rulebook-corpus.md.",
+    "verified_fields_closed_list": [
+      "trigger",
+      "roll",
+      "threshold",
+      "effect",
+      "duration",
+      "cost",
+      "description"
+    ],
+    "source_ref": "Ultimate Edition, Ch.4 Combat, pp.73-82"
+  },
+  "entries": [
+    {
+      "id": "pages_and_turns",
+      "name": "Pages and turns",
+      "kind": "scalar",
+      "page": {
+        "a_page_is": "a few seconds of time in the game world",
+        "turns_per_character_per_page": 1,
+        "page_ends_when": "everyone has taken their turn or chosen to skip it"
+      },
+      "description": "Combat is cut into fixed slices, each standing for a handful of seconds, and everybody caught up in the fight gets exactly one turn inside each slice. A new slice opens only once the last character has either acted or waived the chance.",
+      "verified_fields": [
+        "duration",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.73",
+      "ambiguity": null
+    },
+    {
+      "id": "edge_order",
+      "name": "Edge and the order of action",
+      "kind": "formula",
+      "edge": {
+        "formula": "edge = perception + max(agility, intellect)",
+        "acts_in_order": "highest Edge first",
+        "optional_random_initiative": "have everyone make an Edge roll when the fight starts",
+        "random_initiative_effective_edge": "the successes rolled",
+        "random_initiative_lasts": "that battle"
+      },
+      "description": "Who goes first is settled by a single derived number: Perception added to whichever of Agility or Intellect is larger, counted downward. A table that would rather roll for the order can instead have everyone roll that number once at the start and use the result in its place for the fight.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.73",
+      "corroborated_by": [
+        "Ultimate Edition, Ch.2 Characters, p.60"
+      ],
+      "ambiguity": null
+    },
+    {
+      "id": "edge_ties",
+      "name": "Ties, and where Minions fall",
+      "kind": "table",
+      "tie_break": {
+        "order": [
+          "heroes",
+          "villains",
+          "foes",
+          "extras"
+        ],
+        "still_tied_act": "simultaneously",
+        "simultaneous_characters_can_knock_each_other_out": true,
+        "minions_have_an_edge": false,
+        "minions_act": "after everyone else",
+        "minion_allies_and_enemies_act": "simultaneously"
+      },
+      "description": "Equal numbers are broken by what kind of character each one is, running down a four-step ladder of importance. Where that settles nothing - two Heroes on the same figure - both act at once, which is how two characters can put each other down in the same instant. Minions carry no such number at all and are left until last.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.73",
+      "ambiguity": null
+    },
+    {
+      "id": "holding_an_action",
+      "name": "Holding your action",
+      "kind": "narrative",
+      "holding": {
+        "may_hold_in_reserve": true,
+        "waiting_for": "something that might happen later on the same page",
+        "if_it_never_happens": "the turn to act is lost",
+        "order_among_holders": "edge"
+      },
+      "description": "Rather than spending a turn when it arrives, a character can sit on it and wait for a cue. The gamble is real: a cue that never comes costs the turn outright. Two characters waiting on the same cue resolve in the usual order once it lands.",
+      "verified_fields": [
+        "trigger",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.73",
+      "ambiguity": null
+    },
+    {
+      "id": "seizing_initiative",
+      "name": "Seizing the initiative",
+      "kind": "formula",
+      "seize_initiative": {
+        "cost_resolve": 1,
+        "effect": "you act ahead of everyone else",
+        "duration": "every page of the action from that point on",
+        "seizers_go_before_everyone_else": true,
+        "order_among_seizers": "edge"
+      },
+      "description": "A point of the Hero currency buys a permanent place at the front of the order for the rest of the fight, not merely for the current slice. Where several characters have bought it, they all precede the rest and sort themselves out among each other on the usual number.",
+      "verified_fields": [
+        "cost",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.73",
+      "ambiguity": null
+    },
+    {
+      "id": "seize_initiative_gm_alternative",
+      "name": "The GM's alternative to seizing the initiative",
+      "kind": "table_setting",
+      "gm_alternative": {
+        "instead_of": "letting the buyer act first automatically",
+        "effect": "doubles the buyer's effective Edge",
+        "chosen_by": "gm",
+        "rationale": "so the purchase bites less against opponents with truly superhuman reflexes"
+      },
+      "interpretation": {
+        "what_this_is": "ours, and it is about duration rather than effect: the page prints one duration for this purchase - every page of the action from that point on - and the alternative is offered as a different effect for the same purchase, not as a different purchase. So it is read as running exactly as long as the version it replaces. The page never says so, which is why the value is here and not in the block above; it is derived from seizing_initiative's own duration rather than typed.",
+        "duration_is_inherited_from": "seizing_initiative"
+      },
+      "description": "A table that finds a guaranteed first slot too strong can swap the purchase's effect for a doubling of the buyer's order number instead, which leaves genuinely fast opponents ahead of them. It is the GM's choice, not the buyer's.",
+      "verified_fields": [
+        "cost",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.73",
+      "ambiguity": "The alternative is printed as a single clause with no duration attached to it, and no page says whether the GM's preference between the two effects is fixed for a table, fixed for a campaign, or taken fresh at each purchase. Chapter 5's own account of the combat spends raises the same question from the other side and leaves it open."
+    },
+    {
+      "id": "actions",
+      "name": "Actions and free actions",
+      "kind": "narrative",
+      "actions": {
+        "on_your_turn": "you may move and perform one or more actions",
+        "an_action_is": "a brief act that requires a bit of attention",
+        "attacks_are_the_commonest_action": true,
+        "defending_yourself_is_available": true,
+        "free_actions_allowed": "as many as the GM considers reasonable",
+        "free_action_examples": [
+          "drawing an item",
+          "sheathing an item",
+          "dropping an item",
+          "opening or closing a door",
+          "saying a few words to someone within Close Range"
+        ]
+      },
+      "description": "A turn carries movement plus at least one deliberate act, and in a fight that act is almost always an attack. Beside those sit the trivia - pulling a weapon, shutting a door, calling out a warning - which cost nothing and are allowed in whatever quantity the GM thinks fair.",
+      "verified_fields": [
+        "trigger",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.73",
+      "ambiguity": null
+    },
+    {
+      "id": "multiple_actions",
+      "name": "Multiple actions",
+      "kind": "formula",
+      "multiple_actions": {
+        "penalty_dice_per_extra_action": -2,
+        "applies_to": "every challenge roll made for the actions taken",
+        "must_be_declared_before_any_challenge_roll": true,
+        "applies_to_defense_rolls": false,
+        "applies_to_other_challenge_rolls": false,
+        "same_target_more_than_once_per_page": false,
+        "extra_actions_buy_extra_movement": false
+      },
+      "description": "More than one act in a slice is allowed and priced: each additional act costs two dice off every one of them, so three attacks are all made four dice down. The bill has to be accepted before any dice are thrown, it never touches a roll made in defence, and no single opponent can be attacked twice in the same slice however many acts are bought.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.73",
+      "ambiguity": null
+    },
+    {
+      "id": "range_classes",
+      "name": "The three range classes",
+      "kind": "table",
+      "ranges": [
+        {
+          "class": "Close",
+          "covers": "physical contact out to the distance an ordinary person can move in one page"
+        },
+        {
+          "class": "Distant",
+          "covers": "beyond Close Range but within reach of most weapons and Powers"
+        },
+        {
+          "class": "Extreme",
+          "covers": "beyond Distant Range but still close enough to see"
+        }
+      ],
+      "range_rules": {
+        "measured_precisely": false,
+        "initial_range_class_set_by": "gm",
+        "close_combat_attacks_require": "an adjacent target, which may mean moving up to them first",
+        "close_combat_attacks_reach": "anyone within Close Range, as long as you can move",
+        "ranged_attacks_reach": "Close Range or Distant Range",
+        "exceptions_given": [
+          "thrown weapons normally only work within Close Range",
+          "sniper rifles can often reach Extreme Range"
+        ]
+      },
+      "description": "Nothing is measured in feet. Three widening bands stand in for distance: touching or nearly so, out to where ordinary weapons still carry, and out to the limit of sight. The GM says which band a fight opens in. Hand-to-hand work needs the first band and a step to close it; shooting reaches the first two.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.73",
+      "ambiguity": null
+    },
+    {
+      "id": "range_distance_estimates",
+      "name": "Rough distances for the three classes",
+      "kind": "scalar",
+      "estimates": {
+        "close_feet": 50,
+        "distant_feet": 500,
+        "extreme_feet": 5000,
+        "stated_as": "rough estimates, offered only as an aid to imagining the bands"
+      },
+      "description": "For anyone who wants a number to picture, the book offers one order of magnitude per band and immediately disclaims it. The figures are not a measurement rule and nothing in the game reads them.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.74",
+      "ambiguity": null
+    },
+    {
+      "id": "throwing_range",
+      "name": "How far you can throw",
+      "kind": "formula",
+      "throwing": {
+        "ordinary_people_reach": "Close Range",
+        "table_used_when_might_exceeds": 6,
+        "rank_formula": "throwing rank = Might - the object's weight rank",
+        "minimum_rank": 0,
+        "accuracy_is_what_is_measured": true
+      },
+      "description": "Anyone can accurately throw a light object as far as the nearest band. Past six dice of strength the distance is worked out instead by subtracting whatever the object weighs from the thrower's strength, floored at nothing, and reading the answer off a table.",
+      "verified_fields": [
+        "trigger",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.74",
+      "ambiguity": null
+    },
+    {
+      "id": "throwing_table",
+      "name": "Throwing table",
+      "kind": "table",
+      "throwing_table": [
+        {
+          "min_rank": 3,
+          "max_rank": 6,
+          "range": "Close Range"
+        },
+        {
+          "min_rank": 7,
+          "max_rank": 12,
+          "range": "Distant Range"
+        },
+        {
+          "min_rank": 13,
+          "max_rank": 24,
+          "range": "Extreme Range"
+        },
+        {
+          "min_rank": 25,
+          "max_rank": null,
+          "range": "Past Extreme Range"
+        }
+      ],
+      "description": "Four rows turn a throwing figure into one of the bands, doubling roughly every rung and running off the end of the last one at twenty-five.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.74",
+      "ambiguity": "The table's first row opens at 3d and the formula beside it floors at 0d, so nothing is printed for a throwing figure of 0d, 1d or 2d. The gap is reachable in play - a strong character throwing something heavy enough - and the two obvious readings differ: either the row above the table applies and the throw reaches Close Range like anyone else's, or a figure below the table is not a throw the table describes at all."
+    },
+    {
+      "id": "movement",
+      "name": "Movement",
+      "kind": "formula",
+      "movement": {
+        "pages_to_close_or_open_within_close_range": 1,
+        "pages_per_range_class": 2,
+        "pages_per_range_class_with_a_travel_power": 1,
+        "travel_power_rank_required": 6,
+        "moving_prevents_actions": false,
+        "assumed_terrain": "an ordinary environment whose terrain limits how fast a Travel Power can move",
+        "open_terrain_gm_may_allow_range_classes_per_page": 3
+      },
+      "description": "Distance is spent in slices rather than in feet. Stepping up to or away from somebody already in the nearest band takes one, and it does not use up the slice's act. Crossing a whole band takes two, halved to one by a Power meant for travelling at six dice or better; in genuinely open country the GM may let a fast character cross two or three bands at once.",
+      "verified_fields": [
+        "duration",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.74",
+      "ambiguity": null
+    },
+    {
+      "id": "movement_contest",
+      "name": "Rolling for movement",
+      "kind": "formula",
+      "movement_contest": {
+        "trigger": "any question of how far or how fast a character moves in one page, or who arrives somewhere first",
+        "roll": "Agility or a Travel Power",
+        "on_foot_against_a_travel_power_uses": "half Agility",
+        "winner_gets": "to describe what happens"
+      },
+      "description": "Where the flat rates above do not settle it, everyone involved rolls - the running character on their own quickness, the flying one on the Power that carries them - and the best result earns the right to say how it went. A character on foot rolling against a Power meant for travel counts only half their quickness.",
+      "verified_fields": [
+        "trigger",
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.74",
+      "ambiguity": null
+    },
+    {
+      "id": "chases",
+      "name": "Chases",
+      "kind": "formula",
+      "chase": {
+        "structure": "a contest with an unlimited number of exchanges",
+        "pages_per_exchange": 1,
+        "roll": "Agility or a Travel Power",
+        "on_foot_against_a_travel_power_uses": "half Agility",
+        "the_roll_is_an_action": false,
+        "each_pursuer_picks_one_quarry": true,
+        "exchange_win_bonus_dice_next_exchange": 2,
+        "net_successes_to_move_one_range_class": 3,
+        "ends_closer_than": "Close Range",
+        "ends_farther_than": "Extreme Range",
+        "at_closer_than_close_range": "the quarry is cornered or outmaneuvered and can go no farther, though they can still fight",
+        "at_farther_than_extreme_range": "the quarry escapes"
+      },
+      "description": "A pursuit is run as a contest that keeps going until it resolves rather than over a set number of stages, one stage per slice. The rolls sit outside the action economy, so both parties can still fight while running. Winning a stage lends two dice to the next; clearing three net successes actually moves the pair a whole band. The pursuit stops when they are closer than the nearest band or farther than the outermost one.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.74",
+      "ambiguity": null
+    },
+    {
+      "id": "attacks_and_defenses",
+      "name": "Attacks and defenses",
+      "kind": "formula",
+      "attack": {
+        "roll": "the Trait that corresponds to the attack",
+        "threshold_source": "the target's own defense roll",
+        "on_more_successes_than_the_target": "the attack hits and inflicts damage or a special effect",
+        "on_failing_the_threshold": "the attack misses, or hits with no effect",
+        "accuracy_and_damage_are_one_trait": true,
+        "defense_and_damage_resistance_are_one_trait": true,
+        "defender_uses": "whichever of defense or damage resistance is better"
+      },
+      "description": "An attack is an ordinary contested roll wearing different clothes: the attacker rolls, the target rolls, and the target's result is the number to beat. What the game does not do is split hitting from hurting, or dodging from soaking - one figure on each side carries both jobs.",
+      "verified_fields": [
+        "roll",
+        "threshold",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.75",
+      "ambiguity": null
+    },
+    {
+      "id": "attack_and_defense_table",
+      "name": "Attack and Defense table",
+      "kind": "table",
+      "attack_defense_table": [
+        {
+          "type": "Unarmed",
+          "attack_trait": "Might",
+          "defense_traits": [
+            "Agility",
+            "Toughness",
+            "Power"
+          ]
+        },
+        {
+          "type": "Melee Weapon",
+          "attack_trait": "Might",
+          "defense_traits": [
+            "Agility",
+            "1/2 Toughness",
+            "Power"
+          ]
+        },
+        {
+          "type": "Ranged Weapon",
+          "attack_trait": "Agility",
+          "defense_traits": [
+            "Agility",
+            "1/2 Toughness",
+            "Power"
+          ]
+        },
+        {
+          "type": "Physical Power",
+          "attack_trait": "Power",
+          "defense_traits": [
+            "Agility",
+            "1/2 Toughness",
+            "Power"
+          ]
+        },
+        {
+          "type": "Mental Power",
+          "attack_trait": "Power",
+          "defense_traits": [
+            "Willpower",
+            "Power"
+          ]
+        }
+      ],
+      "description": "Five rows say which figure each side rolls. Strength swings fists and melee weapons, quickness aims a gun, a Power rolls itself. On the other side the choices are wider, and only the unarmed row lets a target soak with the whole of their durability; every other physical row halves it.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.75",
+      "ambiguity": null
+    },
+    {
+      "id": "active_and_passive_defenses",
+      "name": "Active and passive defenses",
+      "kind": "narrative",
+      "defenses": {
+        "active_represent": "attempts to block, dodge, or parry an attack",
+        "passive_represent": "the ability to resist or withstand an attack",
+        "common_active_traits": [
+          "Agility"
+        ],
+        "common_passive_traits": [
+          "Toughness",
+          "Willpower",
+          "Armor",
+          "Force Field"
+        ],
+        "active_unusable_when": [
+          "immobilized",
+          "surprised",
+          "unconscious",
+          "otherwise unable to actively defend yourself"
+        ],
+        "a_cramped_or_awkward_position_prevents_active_defenses": false,
+        "losing_your_next_turn_prevents_active_defenses": false,
+        "defenses_used_per_attack": 1,
+        "defense_chosen": "normally the one with the greatest rank"
+      },
+      "description": "Defences come in two flavours - getting out of the way, and being hard to hurt - and the only thing that turns on the distinction is availability: pinned, ambushed or unconscious characters lose the first kind and keep the second. Being in an awkward spot does not, and neither does having forfeited an upcoming turn. Whatever is available, exactly one figure answers each attack, and it is the biggest.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.75",
+      "ambiguity": null
+    },
+    {
+      "id": "lethal_and_subdual",
+      "name": "Lethal and subdual attacks",
+      "kind": "narrative",
+      "damage_types": {
+        "lethal_is_the_more_dangerous": true,
+        "toughness_against_lethal": "half",
+        "toughness_against_subdual": "full",
+        "subdual_sources_given": [
+          "unarmed attacks",
+          "attacks made with light clubbing weapons"
+        ],
+        "physical_damage_default": "lethal",
+        "psychic_damage_is": "neither lethal nor subdual",
+        "psychic_damage_resisted_with": "Willpower"
+      },
+      "description": "Damage is either the kind that kills or the kind that knocks out, and the difference shows up entirely in how much of a target's durability answers it - half against the first, all of it against the second. Bare hands and blunt instruments do the gentler sort; everything physical is assumed to do the other unless told otherwise. Damage to the mind sits outside the pair and is always answered by force of will.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.75",
+      "ambiguity": null
+    },
+    {
+      "id": "modifier_cover",
+      "name": "Cover",
+      "kind": "table",
+      "cover": {
+        "affects": "attack rolls",
+        "bands": [
+          {
+            "cover": "light",
+            "dice": -1
+          },
+          {
+            "cover": "heavy",
+            "dice": -2
+          },
+          {
+            "cover": "almost full",
+            "dice": -3
+          }
+        ],
+        "a_completely_hidden_target_cannot_be_hit": true,
+        "attacking_through_cover_requires": "an attack rank greater than the cover's Structure",
+        "target_may_use_the_covers_structure_as_a_passive_defense": true
+      },
+      "description": "Something between the attacker and the target costs the attacker one, two or three dice depending on how much of the target it hides, and a target hidden altogether cannot be shot at. A hard enough attack goes through the obstacle instead, at which point the obstacle's own durability answers the roll.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.75",
+      "ambiguity": null
+    },
+    {
+      "id": "modifier_size",
+      "name": "Size",
+      "kind": "table",
+      "size": {
+        "affects": "active defense rolls",
+        "bands": [
+          {
+            "attacker_relative_size": "at least twice your size",
+            "dice": 1
+          },
+          {
+            "attacker_relative_size": "at least 5 times your size",
+            "dice": 2
+          },
+          {
+            "attacker_relative_size": "no more than half your size",
+            "dice": -1
+          },
+          {
+            "attacker_relative_size": "no more than one-fifth your size",
+            "dice": -2
+          }
+        ]
+      },
+      "description": "A large attacker is easier to duck and a small one is harder, so the defender's dodging figure moves up or down by one or two dice at factors of two and five in either direction. It touches only the dodging kind of defence.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.75",
+      "ambiguity": null
+    },
+    {
+      "id": "modifier_visibility",
+      "name": "Visibility",
+      "kind": "table",
+      "visibility": {
+        "affects": "attack rolls and active defense rolls",
+        "bands": [
+          {
+            "visibility": "poor",
+            "dice": -1
+          },
+          {
+            "visibility": "none",
+            "dice": -3
+          }
+        ],
+        "poor_examples": [
+          "dim lighting",
+          "fog",
+          "smoke"
+        ],
+        "none_examples": [
+          "blindness",
+          "darkness"
+        ],
+        "an_invisible_opponent_counts_as_no_visibility": true,
+        "powers_that_compensate_given": [
+          "Blind Fighting",
+          "Radar"
+        ]
+      },
+      "description": "Not being able to see costs one die when sight is merely bad and three when it is gone, and it costs them on attacking and on dodging alike. An opponent who cannot be seen at all counts as the second case unless the character carries something that sees round the problem.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.75",
+      "ambiguity": null
+    },
+    {
+      "id": "damage",
+      "name": "Damage",
+      "kind": "formula",
+      "damage": {
+        "damage_per_net_success": 1,
+        "reduces": "the target's Health",
+        "defeated_at_health": 0,
+        "defeated_means": "knocked out for the rest of the scene",
+        "death_only_under_the_gritty_combat_rules": true
+      },
+      "description": "Every net success is one point off the target's pool, and a pool at nothing ends that character's fight for the scene. Nothing worse than that happens unless the table has switched the optional harsher rules on.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.75",
+      "ambiguity": null
+    },
+    {
+      "id": "health",
+      "name": "Health",
+      "kind": "formula",
+      "health": {
+        "formula": "health = max(average(toughness, might), average(toughness, willpower))",
+        "villains_use_the_same_formula": true,
+        "foes_halve_the_result": true,
+        "npc_totals_are_suggestions": true,
+        "minions_use_health": false
+      },
+      "interpretation": {
+        "what_this_is": "ours: p.75 prints an average and says nothing about an odd total, so 3 and 4 could give either 3 or 4. The Glossary's book-wide convention (p.7) is the only rounding rule the book has, and it pushes a half upward. Derived from that rule rather than typed here, and it is also what engine/DerivedStatsCalculator.CalculateHealth already does.",
+        "average_rounds": "up"
+      },
+      "description": "The pool a character can lose is the mean of their durability and whichever of brawn or will suits them better. Villains are worked out the same way, ordinary opposition gets half as much, and the nameless sort has no pool at all. For anyone the GM runs, the number this produces is a suggestion rather than a ruling.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.75",
+      "corroborated_by": [
+        "Ultimate Edition, Ch.2 Characters, p.60"
+      ],
+      "ambiguity": null
+    },
+    {
+      "id": "npc_health",
+      "name": "Where an NPC's Health actually comes from",
+      "kind": "narrative",
+      "reference": {
+        "transcribed_here": false,
+        "detail_chapter": "Ultimate Edition, Ch.8 Friends and Foes",
+        "deferred_topics": [
+          "how a GM settles an NPC's Health"
+        ]
+      },
+      "description": "The formula beside this one is explicitly only a suggestion for characters the GM runs, and the page hands the real answer to a much later chapter. It is recorded here as a pointer and nothing else: copying that chapter in would create a second transcription to disagree with the first.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.75",
+      "ambiguity": null
+    },
+    {
+      "id": "healing",
+      "name": "Healing",
+      "kind": "formula",
+      "healing": {
+        "roll": "Toughness",
+        "after_a_fight_difficulty": "Hard",
+        "after_a_fight_threshold": 2,
+        "health_per_net_success": 1,
+        "also_available_after": "every night of rest",
+        "full_rest_hours": 24,
+        "full_rest_difficulty": "Average",
+        "full_rest_threshold": 1,
+        "removed_npcs_recover": "as quickly as the plot requires"
+      },
+      "description": "Once the fighting stops a character rolls their durability against a fixed number and gets back a point for every net success, and may do it again after each night's sleep. A full day spent doing nothing else lowers the number to beat. Opposition carted off the stage heals at the speed of the story.",
+      "verified_fields": [
+        "roll",
+        "threshold",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.76",
+      "ambiguity": null
+    },
+    {
+      "id": "special_effects",
+      "name": "Special effects",
+      "kind": "formula",
+      "special_effect": {
+        "sources_given": [
+          "Ensnare",
+          "Mind Control",
+          "Stun"
+        ],
+        "duration_formula": "pages = half the net successes rolled on the attack",
+        "expires_at": "the end of your turn to act on that page",
+        "duration_stacks_by_attacking_the_same_target_again": true,
+        "defeated_when_the_duration_reaches": "the target's current Health",
+        "defeat_by_effect_lasts": "the rest of the scene"
+      },
+      "interpretation": {
+        "what_this_is": "ours: p.76 says half the net successes and never states the rounding, but the worked example on the same page settles it - five net successes give three pages, which only round-up produces. So the value here is the Glossary's book-wide convention (p.7) applied, derived from that rule and checked against the printed example rather than typed.",
+        "duration_rounds": "up"
+      },
+      "description": "Some Powers do something other than hurt - they bind, dominate or stun - and what they buy is time rather than damage, measured at one slice per two net successes and running out at the end of the attacker's turn. Hitting the same target again lengthens it. Where the time bought reaches the size of what is left of the target's pool, the target is out for the scene.",
+      "verified_fields": [
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.76",
+      "ambiguity": null
+    },
+    {
+      "id": "breaking_free",
+      "name": "Breaking free",
+      "kind": "formula",
+      "breaking_free": {
+        "available_when": "suffering a special effect without having been defeated by it",
+        "taken_on": "your turn to act",
+        "roll": "the passive defense named in the Power's description",
+        "roll_examples_given": [
+          "Might",
+          "Toughness",
+          "Willpower"
+        ],
+        "threshold_source": "the Power's rank",
+        "duration_reduced_by": "half your net successes",
+        "free_when_the_duration_reaches": 0,
+        "may_act_on_the_same_page_when_freed": true
+      },
+      "interpretation": {
+        "what_this_is": "ours, and the same derivation as special_effects: the page says half your net successes and the worked example beside it turns three net successes into two pages, which is round-up. Taken from the Glossary's rule (p.7) rather than typed, and asserted against the printed example.",
+        "reduction_rounds": "up"
+      },
+      "description": "A character still inside an effect but not put out by it may spend their turn wrestling with it, rolling whatever the Power says answers it against the Power's own figure. Success knocks a slice off for every two net successes, and taking the remaining time to nothing or below frees them at once, in time to act on the same slice.",
+      "verified_fields": [
+        "roll",
+        "threshold",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.76",
+      "ambiguity": null
+    },
+    {
+      "id": "keeping_hold",
+      "name": "Keeping hold",
+      "kind": "formula",
+      "keeping_hold": {
+        "trigger": "defeating a target with a special effect",
+        "cost_resolve": 1,
+        "extends_to": "the end of the following scene",
+        "may_be_repeated_scene_after_scene": true
+      },
+      "description": "Where an effect has actually put somebody out, a point of the Hero currency carries it past the end of the scene into the next one, and paying again carries it further still.",
+      "verified_fields": [
+        "trigger",
+        "cost",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.76",
+      "ambiguity": null
+    },
+    {
+      "id": "instant_recovery",
+      "name": "Instant recovery",
+      "kind": "formula",
+      "instant_recovery": {
+        "cost_resolve": 1,
+        "taken_on": "your next turn to act",
+        "after_a_damaging_defeat_regains_consciousness": true,
+        "after_a_damaging_defeat_restores_health": 3,
+        "also_frees_you_from_a_special_effect": true,
+        "requires_being_defeated_to_free_yourself_from_an_effect": false,
+        "limit_per_scene": 1
+      },
+      "description": "Being knocked out need not end a character's fight: a point spent on the following turn brings them round with a little of their pool back, and the same point will instead shake off an effect whether or not the effect had beaten them. Once in a scene, either way.",
+      "verified_fields": [
+        "cost",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.76",
+      "ambiguity": null
+    },
+    {
+      "id": "grappling",
+      "name": "Grappling",
+      "kind": "formula",
+      "grappling": {
+        "a_grab_is": "an attempt to take a weapon or other handheld item away from an opponent",
+        "a_hold_is": "an attempt to control or restrain an opponent",
+        "an_escape_is": "an attempt to break out of a hold",
+        "roll": "Might",
+        "threshold_source": "the opponent's Might",
+        "opponent_may_use_an_active_defense_instead_when_not_already_grappling": true,
+        "inflicting_ordinary_damage_in_close_combat_needs_no_special_rules": true
+      },
+      "description": "Wrestling somebody only needs rules of its own when the point is to take something off them, pin them, or get loose. All three are strength against strength, except that an opponent not yet tangled up may dodge instead.",
+      "verified_fields": [
+        "roll",
+        "threshold",
+        "description",
+        "trigger"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.76",
+      "ambiguity": null
+    },
+    {
+      "id": "grappling_table",
+      "name": "Grappling table",
+      "kind": "table",
+      "grappling_table": [
+        {
+          "min_net_successes": null,
+          "max_net_successes": 0,
+          "grab": "no effect",
+          "hold": "no effect",
+          "escape": "no effect"
+        },
+        {
+          "min_net_successes": 1,
+          "max_net_successes": 2,
+          "grab": "partial grab",
+          "hold": "partial hold",
+          "escape": "partial escape"
+        },
+        {
+          "min_net_successes": 3,
+          "max_net_successes": null,
+          "grab": "full grab",
+          "hold": "full hold",
+          "escape": "full escape"
+        }
+      ],
+      "description": "One three-row table serves all three moves: nothing at all below one, a half-measure at one or two, and the whole thing at three or more.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.76",
+      "ambiguity": null
+    },
+    {
+      "id": "grab",
+      "name": "Grabs",
+      "kind": "narrative",
+      "grab": {
+        "partial_means": "both characters are fighting over the item and neither can use it",
+        "partial_blocks_active_defenses_against_anyone_else": true,
+        "partial_resolved_by": "an opposed Might roll on each character's turn to act",
+        "may_exit_by_letting_go_of_the_object": true,
+        "full_means": "control of the object",
+        "full_allows_using_or_tossing_it_the_same_page": true,
+        "full_suffers_the_multiple_action_penalty": false,
+        "full_is_in_effect_a_free_action": true
+      },
+      "description": "A half-measure leaves two characters with their hands on the same object and neither able to use it, both stuck rolling strength against each other every turn and neither able to dodge anybody else - a deadlock either can quit by simply letting go. The full version hands the object over and lets the winner use or discard it in the same slice at no cost.",
+      "verified_fields": [
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.76",
+      "ambiguity": null
+    },
+    {
+      "id": "hold",
+      "name": "Holds",
+      "kind": "narrative",
+      "hold": {
+        "partial_means": "both characters are wrestling and neither can move or do anything else",
+        "partial_blocks_active_defenses_against_anyone_else": true,
+        "partial_only_physical_action": "an opposed Might roll, aiming for a full hold or an escape",
+        "full_means": "control over the opponent",
+        "full_leaves_the_held_character_only": "trying to escape",
+        "full_allows_attacks_on_subsequent_pages": true,
+        "full_damage_roll": "Might",
+        "full_damage_threshold_source": "the greater of the target's Might or Toughness",
+        "full_submission_roll": "Might",
+        "full_submission_threshold_source": "the greater of the target's Toughness or Willpower",
+        "a_held_character_may_use": "any Power they could reasonably use while physically restrained",
+        "powers_probably_unavailable_when_held": [
+          "Powers that need to be aimed",
+          "Powers that require freedom of movement"
+        ],
+        "adjudicated_case_by_case_by": "gm"
+      },
+      "description": "The half-measure ties both characters up equally: neither goes anywhere, neither dodges anyone else, and the only physical thing either can do is roll strength again. The full version is one-sided - the loser can only try to get out while the winner may keep hitting them, either for damage against the tougher of two figures or to force a submission against a different pair. Powers cut across all of it: anything that does not need aiming or room to move is probably still available, and the rest is the GM's call.",
+      "verified_fields": [
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.76",
+      "ambiguity": null
+    },
+    {
+      "id": "escape",
+      "name": "Escapes",
+      "kind": "narrative",
+      "escape": {
+        "partial_out_of_a_partial_hold": "you slip out of it",
+        "partial_out_of_a_full_hold": "it becomes a partial hold",
+        "full": "you slip out of any hold",
+        "may_also_exit_grappling_completely": true
+      },
+      "description": "Getting loose is graded the same way. A half-measure is enough against the mutual version and downgrades the one-sided version by a step; the full result gets a character out of either. Whoever gets out may also walk away from the tangle altogether.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.77",
+      "ambiguity": null
+    },
+    {
+      "id": "combat_stunts",
+      "name": "Combat stunts",
+      "kind": "formula",
+      "combat_stunt": {
+        "what_it_is": "an attempt to outmaneuver, outsmart, or gain an advantage over an opponent without harming them",
+        "works_like": "an ordinary attack",
+        "traits_used_are_chosen_by": "gm",
+        "effect_described_by": "the character performing it",
+        "duration": "until the end of your next turn to act",
+        "delaying_your_next_action_extends_it": false,
+        "penalties_from_multiple_stunts_are_cumulative": true
+      },
+      "sample_stunts": [
+        {
+          "name": "Fancy Footwork",
+          "attack_traits": [
+            "Agility",
+            "a Travel Power"
+          ],
+          "defense_traits": [
+            "Agility",
+            "a Travel Power"
+          ]
+        },
+        {
+          "name": "Flashy Move",
+          "attack_traits": [
+            "a regular attack roll"
+          ],
+          "defense_traits": [
+            "an active defense",
+            "Agility",
+            "Might",
+            "Toughness"
+          ]
+        },
+        {
+          "name": "Overpower",
+          "attack_traits": [
+            "Might",
+            "a Power that affects physical objects"
+          ],
+          "defense_traits": [
+            "Might",
+            "any active defense the opponent prefers"
+          ]
+        },
+        {
+          "name": "Taunt",
+          "attack_traits": [
+            "Charm",
+            "Command"
+          ],
+          "defense_traits": [
+            "Willpower"
+          ]
+        }
+      ],
+      "description": "Anything aimed at getting the better of an opponent without hurting them runs on the attack machinery, with the GM naming the figures on both sides because they change with what is being attempted. Whatever comes of it lasts one round trip of the initiative order and cannot be stretched by waiting. Four worked shapes are offered - footwork, a flourish, brute leverage and mockery - and their penalties pile up.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.77",
+      "ambiguity": null
+    },
+    {
+      "id": "combat_stunts_table",
+      "name": "Combat Stunts table",
+      "kind": "table",
+      "combat_stunt_bands": [
+        {
+          "min_net_successes": null,
+          "max_net_successes": 0,
+          "sample_effects": []
+        },
+        {
+          "min_net_successes": 1,
+          "max_net_successes": 2,
+          "sample_effects": [
+            "-1d to challenge rolls",
+            "speed halved"
+          ]
+        },
+        {
+          "min_net_successes": 3,
+          "max_net_successes": 4,
+          "sample_effects": [
+            "-2d to challenge rolls",
+            "drop item or weapon",
+            "can't move"
+          ]
+        },
+        {
+          "min_net_successes": 5,
+          "max_net_successes": null,
+          "sample_effects": [
+            "-3d to challenge rolls",
+            "lose next turn to act"
+          ]
+        }
+      ],
+      "description": "Four bands of net successes, each offering sample outcomes that get steeper as the margin grows: a die off everything and halved speed at the bottom, two dice and a dropped weapon or rooted feet in the middle, three dice and a lost turn at the top.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.77",
+      "ambiguity": null
+    },
+    {
+      "id": "minions_in_combat",
+      "name": "Minions in combat",
+      "kind": "narrative",
+      "minions": {
+        "only_characteristic": "Threat",
+        "act_in_groups_rather_than_as_individuals": true
+      },
+      "description": "The nameless opposition carries one number and nothing else, and it is handled a mob at a time rather than a body at a time.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.77",
+      "ambiguity": null
+    },
+    {
+      "id": "threat_ranks",
+      "name": "Threat Ranks table",
+      "kind": "table",
+      "threat_ranks": [
+        {
+          "category": "Civilians",
+          "min_threat": 2,
+          "max_threat": 2
+        },
+        {
+          "category": "Bruisers",
+          "min_threat": 3,
+          "max_threat": 3
+        },
+        {
+          "category": "Professionals",
+          "min_threat": 4,
+          "max_threat": 4
+        },
+        {
+          "category": "Elites",
+          "min_threat": 5,
+          "max_threat": 5
+        },
+        {
+          "category": "Enhanced",
+          "min_threat": 6,
+          "max_threat": 6
+        },
+        {
+          "category": "Super",
+          "min_threat": 7,
+          "max_threat": null
+        }
+      ],
+      "description": "Six labels, from bystanders up to the genuinely superhuman, each pinned to one figure except the last, which is open-ended. The chapter reprints it from where the characters themselves are built.",
+      "verified_fields": [
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.77",
+      "corroborated_by": [
+        "Ultimate Edition, Ch.2 Characters, p.13"
+      ],
+      "ambiguity": null
+    },
+    {
+      "id": "attacking_minions",
+      "name": "Attacking Minions",
+      "kind": "formula",
+      "attacking_minions": {
+        "minions_have_health": false,
+        "minions_defeated_per_net_success": 1,
+        "minions_defeated_per_net_success_with_an_area_attack": 2,
+        "capped_by": "the number of Minions in the area of effect or within reach",
+        "maximum_minions_per_net_success": 2,
+        "effects_that_double_the_rate_do_not_stack": true,
+        "on_a_damaging_attack": "the defeated Minions are knocked out",
+        "on_a_special_effect": "the defeated Minions are subject to it for the rest of the scene"
+      },
+      "description": "With no pool to whittle down, a hit simply removes one of the mob per net success, or two per net success when the attack covers an area - never more than two however the effects are combined, and never more than are actually there. A damaging hit lays them out; an effect holds them for the scene.",
+      "verified_fields": [
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.77",
+      "ambiguity": null
+    },
+    {
+      "id": "minions_attacking",
+      "name": "Minions attacking",
+      "kind": "formula",
+      "minions_attacking": {
+        "a_group_acts_like": "a single character",
+        "a_group_may_split_to_attack_multiple_enemies": true,
+        "targets_per_group_per_page": 1,
+        "attack_rolls_per_group_per_page": 1,
+        "defense_rolls_opposing_it": 1,
+        "the_group_bonus_applies_to": "attack rolls only",
+        "the_group_bonus_does_not_apply_to": "penetrating cover, or harming characters using Powers like Armor or Force Field",
+        "maximum_attacking_one_target_in_close_combat": 6,
+        "maximum_attacking_one_target_at_range": 12
+      },
+      "description": "A mob rolls once, at one target, and is answered once, however many bodies are in it - which is why the mob gets extra dice for its size. Those dice buy nothing outside the attack roll itself. How many can pile onto one character depends on whether they have to reach them or merely shoot at them.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.77",
+      "ambiguity": "The clause limiting the size bonus says it does not apply when working out whether an attack can get through cover or hurt somebody behind Armor or Force Field, but both of those are decided by the same attack roll the bonus is explicitly granted to. Read strictly it asks for two attack totals against a single defence roll - one with the bonus and one without - and the page neither says that nor offers any other mechanism. Whether it is a rule about the roll or a rule about the comparison is unstated, and the two readings change how often a mob hurts an armoured character at all."
+    },
+    {
+      "id": "minion_group_attack_table",
+      "name": "Minion Group Attack table",
+      "kind": "table",
+      "minion_group_attack": [
+        {
+          "min_minions": 1,
+          "max_minions": 2,
+          "bonus_dice": 2
+        },
+        {
+          "min_minions": 3,
+          "max_minions": 5,
+          "bonus_dice": 4
+        },
+        {
+          "min_minions": 6,
+          "max_minions": 8,
+          "bonus_dice": 6
+        },
+        {
+          "min_minions": 9,
+          "max_minions": 12,
+          "bonus_dice": 8
+        }
+      ],
+      "description": "Four rows pay two dice per step as the mob grows, starting at a pair of them and topping out at a dozen. Even a single straggler collects the first row's dice.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.78",
+      "ambiguity": null
+    },
+    {
+      "id": "ambushes",
+      "name": "Ambushes",
+      "kind": "formula",
+      "ambush": {
+        "roll": "Covert",
+        "deception_or_seduction_roll": "Charm",
+        "threshold_source": "the target's Perception",
+        "on_success": "the target is surprised",
+        "a_surprised_target_can_act": false,
+        "a_surprised_target_can_use_active_defenses": false,
+        "surprise_lasts": "the first page of combat",
+        "embellishment_rights_allow_partial_surprise": true,
+        "partial_surprise_keeps": "active defenses, and nothing else",
+        "on_failure": "the target is not surprised and acts normally",
+        "multiple_ambushers_may_roll_as_a_group": true,
+        "every_target_rolls_their_own_perception": true,
+        "minions_roll_perception_in_groups": true
+      },
+      "description": "Jumping somebody is stealth against their alertness, or charm against it where the trick is flirtation rather than shadows. Winning costs the target their whole first slice - no act and no dodging - though a target holding the loser's right to add a detail may claim they were only half caught and keep their dodge. Each target answers for themselves, the nameless in mobs.",
+      "verified_fields": [
+        "roll",
+        "threshold",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.78",
+      "ambiguity": null
+    },
+    {
+      "id": "area_attacks",
+      "name": "Area attacks",
+      "kind": "formula",
+      "area_attack": {
+        "targets": "everyone and everything in the area of effect",
+        "attack_rolls": 1,
+        "defense_rolls": "one from every character in the area",
+        "an_active_defense_must_either": [
+          "halve its rank",
+          "forfeit the next turn to act"
+        ],
+        "examples_given": [
+          "explosions",
+          "blasts of dragon fire"
+        ]
+      },
+      "description": "One roll covers everything inside the blast and everyone in it answers separately. Dodging a blast is deliberately awkward: the dodger either counts half their figure or gets clear at the cost of their next slice.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.78",
+      "ambiguity": null
+    },
+    {
+      "id": "charge_attacks",
+      "name": "Charge attacks",
+      "kind": "formula",
+      "charge": {
+        "what_it_is": "an attack in which you slam into your target",
+        "attack_traits": [
+          "any Trait usable for a close combat attack",
+          "Density",
+          "Growth",
+          "any Travel Power"
+        ],
+        "swimming_may_be_used_only_underwater": true,
+        "attack_bonus_dice": 2,
+        "own_active_defense_ranks": "halved",
+        "penalty_lasts": "until after your next turn to act",
+        "if_the_target_uses_a_passive_defense": "the charger makes their own passive defense roll against the attack to see whether the impact hurts them",
+        "self_damage_reduced_by": "the damage inflicted on the target"
+      },
+      "description": "Running somebody down trades safety for force: two extra dice on the way in, halved dodging until the attacker's next slice has passed. Weight and speed count, so bulk and travel Powers may be rolled instead of the usual figure. Against a target who simply braces, the charger takes the impact too, less whatever they managed to deal out.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.78",
+      "ambiguity": null
+    },
+    {
+      "id": "clobbering_attacks",
+      "name": "Clobbering attacks",
+      "kind": "formula",
+      "clobbering": {
+        "what_it_is": "using one enemy to hit another",
+        "attack_rolls": 1,
+        "attack_penalty_dice": -2,
+        "defense_rolls": "one from each target",
+        "targets": [
+          "primary",
+          "secondary"
+        ],
+        "the_primary_target_is": "the one being pushed, thrown, or swung into the other",
+        "stops_if_the_primary_defends_actively_and_takes_no_damage": true
+      },
+      "description": "Swinging one opponent into another is a single roll two dice down, answered separately by each of them. The one being swung is the first target; if they dodge it cleanly and take nothing, the blow never reaches the second.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.78",
+      "ambiguity": null
+    },
+    {
+      "id": "defending_others",
+      "name": "Defending others",
+      "kind": "formula",
+      "defending_others": {
+        "cost": "forego your next turn to act",
+        "range": "Close Range",
+        "effect": "your defense roll is substituted for theirs",
+        "may_use_an_active_or_a_passive_defense": true,
+        "an_active_defense_leaves_the_damage_on": "the character being protected",
+        "the_protected_character_may_still_use_a_passive_defense": true,
+        "a_passive_defense_leaves_the_damage_on": "the defender"
+      },
+      "description": "Giving up an upcoming slice lets a character answer an attack aimed at somebody beside them. Which kind of defence they use decides who ends up hurt: shoving the target aside still leaves the target to soak whatever lands, while taking the hit personally puts it on the rescuer.",
+      "verified_fields": [
+        "cost",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.78",
+      "ambiguity": null
+    },
+    {
+      "id": "going_all_out",
+      "name": "Going all-out",
+      "kind": "formula",
+      "all_out_attack": {
+        "attack_bonus_dice": 2,
+        "defense_ranks": "halved",
+        "affects_active_defenses": true,
+        "affects_passive_defenses": true,
+        "lasts": "until after your next turn to act",
+        "opponents_who_could_not_penetrate_your_passive_defense": "still cannot"
+      },
+      "all_out_defense": {
+        "defense_bonus_dice": 2,
+        "lasts": "until your next turn to act comes around",
+        "prevents_attacking": true,
+        "prevents_other_actions": true,
+        "allows_movement": true,
+        "allows_free_actions": true,
+        "a_travel_power_or_speed_may_be_used_as_an_active_defense": true
+      },
+      "description": "A character can commit entirely to one half of a fight. Attacking that way buys two dice and halves everything defensive until their next slice has passed - with one guard on it, that an opponent who could never get through their armour still cannot. Defending that way buys two dice on defence and costs the whole of the next slice's act, though moving and trivia remain, and a Power meant for travel may be rolled to dodge with.",
+      "verified_fields": [
+        "roll",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.78",
+      "ambiguity": null
+    },
+    {
+      "id": "knockback",
+      "name": "Knockback",
+      "kind": "formula",
+      "knockback": {
+        "requires_damage_type": "subdual",
+        "minimum_damage": 6,
+        "cost_resolve": 1,
+        "target_is_thrown_as_if_by_a_might_rank_equal_to": "your attack rank",
+        "target_falls_prone": true,
+        "target_loses_their_next_turn_to_act": true,
+        "damage_on_striking_a_solid_object": "half the original attack's damage",
+        "the_object_must_be_tougher_than_the_target": true,
+        "a_passive_defense_above_the_objects_structure": "the target smashes through unharmed"
+      },
+      "description": "A knockout blow of at least six points can be turned into a spectacular flight for one point of the Hero currency: the target sails off as though thrown by somebody as strong as the blow was hard, lands flat and loses their next slice. Hitting something solid on the way costs them half as much again, unless they are hard enough to go straight through it.",
+      "verified_fields": [
+        "trigger",
+        "cost",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.78",
+      "ambiguity": null
+    },
+    {
+      "id": "luring",
+      "name": "Luring",
+      "kind": "formula",
+      "luring": {
+        "what_it_is": "letting an enemy attack you and moving aside so their attack strikes what is behind you",
+        "applies_to_attack_types": [
+          "physical",
+          "energy"
+        ],
+        "declared_before": "the attacker makes their attack roll",
+        "requires_an_active_defense": true,
+        "defense_must_exceed_the_attack_roll_by": 3,
+        "cost_resolve": 1,
+        "redirects_to": "whatever lies directly behind you",
+        "may_redirect_onto_a_person": true,
+        "redirecting_onto_a_person_costs": "your next turn to act",
+        "the_new_target_makes_their_own_defense_roll": true
+      },
+      "description": "Announced before the enemy rolls and paid for only if it works, this turns a dodge into a redirection: beat the attack by three and a point of the Hero currency sends it into whatever was standing behind. Aiming it at a person rather than a wall costs the dodger their next slice as well, and that person gets to defend themselves.",
+      "verified_fields": [
+        "trigger",
+        "cost",
+        "effect",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.79",
+      "ambiguity": null
+    },
+    {
+      "id": "team_attacks",
+      "name": "Team attacks",
+      "kind": "formula",
+      "team_attack": {
+        "what_it_is": "several characters coordinating their attacks against a single opponent",
+        "participants_act_at": "the end of the page",
+        "all_participants_must_target_the_same_enemy": true,
+        "attack_bonus_dice": 2,
+        "cost_resolve_to_make_sixes_explode": 1,
+        "explosion_recurses_while_sixes_keep_coming": true,
+        "limit_per_target_per_battle": 1,
+        "the_limit_may_be_lifted_by": "the Heroes being clever about it, or the GM ruling otherwise",
+        "use_sparingly": true
+      },
+      "description": "A coordinated strike costs everybody involved their place in the order - they all wait for the end of the slice - and pays two dice, with an optional point of the Hero currency to let the best die faces reroll themselves for as long as they keep coming up. It is meant for the big moment, and one opponent can only be on the receiving end of it once a fight.",
+      "verified_fields": [
+        "cost",
+        "effect",
+        "duration",
+        "description"
+      ],
+      "source_ref": "Ultimate Edition, Ch.4 Combat, p.79",
+      "ambiguity": null
+    }
+  ]
+}
