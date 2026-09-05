@@ -68,6 +68,7 @@ public sealed class PlayRulesDataTests
         string Description,
         IReadOnlyList<string> VerifiedFields,
         string SourceRef,
+        IReadOnlyList<string>? CorroboratedBy,
         string? Ambiguity,
         int? DieSides,
         string? PoolFormula,
@@ -182,6 +183,7 @@ public sealed class PlayRulesDataTests
         string Description,
         IReadOnlyList<string> VerifiedFields,
         string SourceRef,
+        IReadOnlyList<string>? CorroboratedBy,
         string? Ambiguity,
         IReadOnlyList<BandModel>? Bands,
         ActorSelectionModel? ActorSelection,
@@ -749,14 +751,24 @@ public sealed class PlayRulesDataTests
     /// A <c>source_ref</c> is the only thing that makes a value checkable, so every entry has to
     /// name a page this chapter actually occupies — or p.7, which is where the Glossary states
     /// the rounding rule the chapter's arithmetic depends on.
+    ///
+    /// <para><b><c>corroborated_by</c> is the deliberate exception, and it points the other way.</b>
+    /// Chapter 1 reprints three of these rules in its summary — the Challenge Rolls bands and the
+    /// success rule on p.9, the Thresholds table on p.10 — and refusing those pages would have
+    /// thrown away the only place in the book where a Chapter 3 value is printed twice. A
+    /// corroborating reference must name a page <em>outside</em> 67-72, because a second citation
+    /// of the same chapter is not a second printing, and
+    /// <see cref="TheThreeRulesChapterOneReprintsAgreeWithTheTranscription"/> holds it to the
+    /// corpus rather than letting it be a decorative citation.</para>
     /// </summary>
     [Fact]
     public void EverySourceRefNamesAPageInChapterThreeOrTheGlossary()
     {
         var faults = new List<string>();
         var checkedCount = 0;
+        var corroborations = 0;
 
-        foreach (var (id, sourceRef) in AllEntries())
+        foreach (var (id, sourceRef, corroboratedBy) in AllEntries())
         {
             checkedCount++;
 
@@ -774,12 +786,131 @@ public sealed class PlayRulesDataTests
             {
                 faults.Add($"{id}: source_ref names p.{page}, which is outside Ch.3 (67-72) and is not the Glossary (p.7)");
             }
+
+            foreach (var reference in corroboratedBy ?? [])
+            {
+                corroborations++;
+
+                var second = Regex.Match(reference, @"\bp\.(\d+)\b");
+
+                if (!second.Success)
+                {
+                    faults.Add($"{id}: corroborated_by names no page ('{reference}')");
+                    continue;
+                }
+
+                var elsewhere = int.Parse(second.Groups[1].Value, CultureInfo.InvariantCulture);
+
+                if (elsewhere is >= 67 and <= 72)
+                {
+                    faults.Add(
+                        $"{id}: corroborated_by names p.{elsewhere}, which is inside Ch.3 — a second "
+                        + "citation of the same chapter is not a second printing");
+                }
+            }
         }
 
         // Positive control: an extraction that stopped matching would fault nothing and prove
         // nothing, which is the shape of guard failure this repository has shipped four times.
         Assert.True(checkedCount >= 15, $"Only {checkedCount} entries were read across the two play rules files.");
+        Assert.True(corroborations >= 3, $"Only {corroborations} corroborating references were read; Ch.1 reprints three of these rules.");
         Assert.True(faults.Count == 0, string.Join("; ", faults));
+    }
+
+    /// <summary>
+    /// <b>Chapter 1 prints three of Chapter 3's rules a second time, and this is the only place in
+    /// the book where a transcription here can be checked against an independent printing.</b>
+    /// Everything else in this file compares one transcription to another; the arm-wrestling fixture
+    /// answers that for the chain as a whole, and this answers it for the three tables.
+    ///
+    /// <para><b>The printed row is derived from the canonical record, not typed out again.</b> A
+    /// threshold row prints as "Superhuman 6 to 8" or "Godlike 12 or more" exactly as its min, max
+    /// and null-ceiling say it should, and a band row prints as "−1 to 0 Opponent with
+    /// Embellishment" exactly as its bounds, outcome and embellishment flag say — so a wrong value
+    /// in <see cref="CanonicalChallengeRules"/> builds a string Chapter 1 does not contain. Typing
+    /// the expected strings out would only have added a fourth transcription to disagree with.</para>
+    ///
+    /// <para>Two normalisations, both load-bearing: the book sets a real minus sign (U+2212) and the
+    /// corpus keeps it, and Ch.1's success sentence uses "or" where Ch.3 uses "and".</para>
+    /// </summary>
+    [Fact]
+    public void TheThreeRulesChapterOneReprintsAgreeWithTheTranscription()
+    {
+        var bandsPage = ChapterOnePage(9);
+        var thresholdsPage = ChapterOnePage(10);
+
+        // Positive control: the corpus lookup has to have found the pages at all. An empty haystack
+        // satisfies nothing below and would look exactly like agreement.
+        Assert.True(bandsPage.Length > 500, $"Ch.1 p.9 came back as {bandsPage.Length} characters.");
+        Assert.True(thresholdsPage.Length > 200, $"Ch.1 p.10 came back as {thresholdsPage.Length} characters.");
+
+        var faults = new List<string>();
+
+        foreach (var row in CanonicalChallengeRules.Thresholds)
+        {
+            var printed = $"{row.Difficulty} {PrintedRange(row.Min, row.Max)}";
+
+            if (!thresholdsPage.Contains(printed, StringComparison.Ordinal))
+                faults.Add($"Ch.1 p.10 does not print the Thresholds row '{printed}'");
+        }
+
+        foreach (var band in CanonicalChallengeRules.NarrativeControl)
+        {
+            var outcome = band.Outcome == "actor" ? "Actor" : "Opponent";
+            var printed = $"{PrintedRange(band.Min, band.Max)} {outcome}"
+                          + (band.Embellishment == true ? " with Embellishment" : string.Empty);
+
+            if (!bandsPage.Contains(printed, StringComparison.Ordinal))
+                faults.Add($"Ch.1 p.9 does not print the Challenge Rolls row '{printed}'");
+        }
+
+        // The success rule, with the faces read out of the canonical map rather than written here.
+        var ones = CanonicalChallengeRules.SuccessMap.Where(f => f.Value == 1).Select(f => f.Key).Order().ToList();
+        var twos = CanonicalChallengeRules.SuccessMap.Where(f => f.Value == 2).Select(f => f.Key).Order().ToList();
+
+        var onesClause = $"one success for every {string.Join(" or ", ones)} rolled";
+        var twosClause = $"two successes for every {string.Join(" or ", twos)} rolled";
+
+        if (!bandsPage.Contains(onesClause, StringComparison.Ordinal))
+            faults.Add($"Ch.1 p.9 does not print '{onesClause}'");
+
+        if (!bandsPage.Contains(twosClause, StringComparison.Ordinal))
+            faults.Add($"Ch.1 p.9 does not print '{twosClause}'");
+
+        Assert.True(faults.Count == 0, string.Join("; ", faults));
+    }
+
+    /// <summary>How a net-success band or a threshold row is printed in either chapter's table.</summary>
+    private static string PrintedRange(int? min, int? max) => (min, max) switch
+    {
+        (null, not null) => $"{max} or less",
+        (not null, null) => $"{min} or more",
+        (not null, not null) when min == max => $"{min}",
+        _ => $"{min} to {max}"
+    };
+
+    /// <summary>
+    /// Every Chapter 1 section printed on <paramref name="printedPage"/>, joined, with the book's
+    /// minus sign folded to a hyphen so a bound formatted from an <c>int</c> can be found in it.
+    /// </summary>
+    private static string ChapterOnePage(int printedPage)
+    {
+        using var document = JsonDocument.Parse(
+            File.ReadAllText(Path.Combine(RulebookPath, "ch01-basics.json")));
+
+        var builder = new StringBuilder();
+
+        foreach (var section in document.RootElement.GetProperty("sections").EnumerateArray())
+        {
+            if (section.TryGetProperty("printed_page", out var page)
+                && page.ValueKind == JsonValueKind.Number
+                && page.GetInt32() == printedPage)
+            {
+                builder.Append(section.GetProperty("text").GetString()).Append('\n');
+            }
+        }
+
+        return builder.ToString().Replace('−', '-');
     }
 
     /// <summary>
@@ -1137,7 +1268,10 @@ public sealed class PlayRulesDataTests
     /// </summary>
     private static readonly HashSet<string> EnvelopeFields =
         new HashSet<string>(StringComparer.Ordinal)
-        { "id", "name", "kind", "description", "verified_fields", "source_ref", "ambiguity" };
+        {
+            "id", "name", "kind", "description", "verified_fields", "source_ref", "corroborated_by",
+            "ambiguity"
+        };
 
     /// <summary>
     /// <b>Prose is identified by name, not by a hand-kept list of exemptions.</b> A list of "this
@@ -1586,10 +1720,10 @@ public sealed class PlayRulesDataTests
         Meta().Entries.Select(e => (e.Id, (object)e))
             .Concat(Challenge().Entries.Select(e => (e.Id, (object)e)));
 
-    /// <summary>Both files, as (id, source_ref) pairs.</summary>
-    private static IEnumerable<(string Id, string SourceRef)> AllEntries() =>
-        Meta().Entries.Select(e => ($"play_meta.json/{e.Id}", e.SourceRef))
-            .Concat(Challenge().Entries.Select(e => ($"challenge.json/{e.Id}", e.SourceRef)));
+    /// <summary>Both files, as (id, source_ref, corroborated_by) triples.</summary>
+    private static IEnumerable<(string Id, string SourceRef, IReadOnlyList<string>? CorroboratedBy)> AllEntries() =>
+        Meta().Entries.Select(e => ($"play_meta.json/{e.Id}", e.SourceRef, e.CorroboratedBy))
+            .Concat(Challenge().Entries.Select(e => ($"challenge.json/{e.Id}", e.SourceRef, e.CorroboratedBy)));
 
     /// <summary>Both files, as (id, description) pairs.</summary>
     private static IEnumerable<(string Id, string Description)> AllDescriptions() =>

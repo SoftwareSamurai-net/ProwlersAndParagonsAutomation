@@ -29,6 +29,7 @@
       "description": "The net figure is looked up on a four-row band table that says which of the two parties tells the table what happened, and whether the loser may add a detail to it. Both middle bands hand out that right; the outer two do not.",
       "verified_fields": ["effect", "description"],
       "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
+      "corroborated_by": ["Ultimate Edition, Ch.1 Basics, p.9"],
       "ambiguity": null
     },
     {
@@ -70,6 +71,7 @@
       "description": "With nobody resisting, the GM picks the number to beat off a nine-step ladder running from a standing start up to twelve or more. The bottom six steps are a single number each; the top three are ranges, so the GM chooses within them.",
       "verified_fields": ["threshold", "description"],
       "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
+      "corroborated_by": ["Ultimate Edition, Ch.1 Basics, p.10"],
       "ambiguity": "The top three steps are bands rather than values, and nothing says how to place an action inside one - a Superhuman action might be set at 6, 7 or 8 with no stated tie-breaker, and Godlike has no ceiling at all. Which rows that leaves to the GM is recorded under interpretation rather than in the table, because the book prints no such column: it is derived from the rows whose printed threshold is a range, and it exists so a simulator cannot silently pick the low end and call it the rule."
     },
     {

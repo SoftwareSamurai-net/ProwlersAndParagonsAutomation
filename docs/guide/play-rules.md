@@ -71,6 +71,14 @@ Two properties are load-bearing. The walk carries a **positive control** on itse
 
 Every entry also carries a `source_ref` in the existing spelling (`"Ultimate Edition, Ch.3 Action, p.67"`) naming a page in 67–72, or p.7 for the Glossary's rounding rule. A test enforces the range, so a value pasted in from another chapter cannot pass as Chapter 3's.
 
+## `corroborated_by`, and the three rules the book prints twice
+
+Chapter 1's summary reprints three of Chapter 3's rules — the Challenge Rolls bands and the success rule on p.9, the Thresholds table on p.10. Refusing those pages under the range rule would have thrown away **the only place in the book where a value here is printed a second time**, so an entry may carry a `corroborated_by` list, and a reference on it must name a page *outside* 67–72: a second citation of the same chapter is not a second printing.
+
+**It is not a decorative citation.** `TheThreeRulesChapterOneReprintsAgreeWithTheTranscription` reads Ch.1 out of the corpus and finds each row there — and **derives the printed row from the canonical record rather than typing it out again**. A threshold row prints as `Superhuman 6 to 8` or `Godlike 12 or more` exactly as its min, max and null ceiling say it should; a band prints as `−1 to 0 Opponent with Embellishment` exactly as its bounds, outcome and embellishment flag say; the success clause is built from the canonical map's own faces. So a wrong value in `CanonicalChallengeRules` builds a string Chapter 1 does not contain, and typing the expected strings out would only have added a fourth transcription to disagree with.
+
+This is the same argument as the fixture rule below, one step weaker and one step wider: a worked example proves the whole chain on one case, and a second printing proves three tables outright.
+
 ## A reading of the page is not a transcription of it: label it, and derive it
 
 `CanonicalChallengeRules` has the same standing as `CanonicalPowers` — **it is the rulebook** — so a value that is this project's reading rather than the book's words has no place in it, and no place in an entry's transcribed rows either.

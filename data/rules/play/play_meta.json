@@ -41,6 +41,7 @@
       "description": "Each die is scored on its own face. A two or a four is worth a single success, a six is worth a pair of them, and the odd faces other than six score nothing at all.",
       "verified_fields": ["roll", "effect", "description"],
       "source_ref": "Ultimate Edition, Ch.3 Action, p.67",
+      "corroborated_by": ["Ultimate Edition, Ch.1 Basics, p.9"],
       "ambiguity": null
     },
     {
