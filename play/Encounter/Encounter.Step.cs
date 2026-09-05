@@ -49,6 +49,27 @@ public sealed partial class Encounter
             $"not yet implemented: {intent.GetType().Name}");
     }
 
+    /// <summary>
+    /// Whether a Hero can pay for what they asked for, refused on the ledger where they cannot.
+    ///
+    /// <para><b>An unaffordable purchase used to reach <see cref="Combatant.Spending"/> and throw an
+    /// exception out of <see cref="Step"/>.</b> That type's throw is right — a spend charged to a
+    /// pool that does not hold it is a rule applied to the wrong character — but it is a
+    /// programming-error guard, and asking for something you cannot afford is not a programming
+    /// error: it is an intent the rules refuse. A run that dies on one has no verdict at all.</para>
+    /// </summary>
+    private bool CannotAfford(
+        EncounterState state, Combatant actor, int cost, string ruleId, string sourceRef,
+        List<LedgerLine> lines)
+    {
+        if (actor.Resolve >= cost) return false;
+
+        Refuse(state, actor.Id, ruleId, sourceRef, lines,
+            $"{actor.Name} has {actor.Resolve} Resolve and this costs {cost}");
+
+        return true;
+    }
+
     /// <summary>One of the Resolve purchases this slice records but does not resolve.</summary>
     private EncounterState Unimplemented(
         EncounterState state, string actor, ResolveSpend kind, List<LedgerLine> lines)
@@ -1358,6 +1379,9 @@ public sealed partial class Encounter
 
         var cost = spend.CostResolve!.Value * points;
         var extra = spend.DiceGained!.Value * points;
+
+        if (CannotAfford(state, actor, cost, entry.Id, entry.SourceRef, lines)) return state;
+
         var roll = _counter.Roll(extra, _dice);
 
         lines.Add(new LedgerLine(
@@ -1394,6 +1418,9 @@ public sealed partial class Encounter
         }
 
         var cost = entry.Spend!.CostResolve!.Value;
+
+        if (CannotAfford(state, actor, cost, entry.Id, entry.SourceRef, lines)) return state;
+
         var roll = _counter.Roll(last.AttackPool, _dice);
 
         var kept = floor.RerollFloor!.KeepTheFirstRollIfTheRerollIsWorse
@@ -1433,6 +1460,8 @@ public sealed partial class Encounter
             return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
                 $"{actor.Name} has already seized the initiative, and it lasts {rule.Duration}");
         }
+
+        if (CannotAfford(state, actor, rule.CostResolve, entry.Id, entry.SourceRef, lines)) return state;
 
         var alternative = state.Table.GmAlternativeToSeizingInitiative
             ? _play.GetCombat("seize_initiative_gm_alternative")
@@ -1558,6 +1587,12 @@ public sealed partial class Encounter
                 $"{actor.Name} is not dying, so there is no clock to stop");
         }
 
+        if (CannotAfford(
+                state, actor, fatal.CostResolveToStabiliseImmediately, entry.Id, entry.SourceRef, lines))
+        {
+            return state;
+        }
+
         lines.Add(new LedgerLine(
             state.Page, actor.Id, entry.Id, entry.SourceRef,
             $"{actor.Name} spends {fatal.CostResolveToStabiliseImmediately} Resolve to stabilise at "
@@ -1616,6 +1651,8 @@ public sealed partial class Encounter
             return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
                 $"{actor.Name} is on their feet and free of any effect, so there is nothing to recover from");
         }
+
+        if (CannotAfford(state, actor, rule.CostResolve, entry.Id, entry.SourceRef, lines)) return state;
 
         var health = actor.CurrentHealth <= floor
             ? rule.AfterADamagingDefeatRestoresHealth

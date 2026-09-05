@@ -1003,6 +1003,59 @@ public sealed class PlayEngineStepTests
         Assert.Equal("might", Assert.IsType<Attack>(typed.Choose(state, state["exotic"])).TraitId);
     }
 
+    // ── The dice ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>What may be asserted about <see cref="SeededDice"/>, and what may not.</b>
+    ///
+    /// <para><c>Random</c>'s seeded sequence is deterministic for a given .NET implementation and
+    /// explicitly not across versions or platforms — the algorithm changed at .NET 6. So a checked-in
+    /// ledger, report or Health total produced from a seed is a check that passes on the machine that
+    /// wrote it and goes red on the next runtime the CI image picks up, for a reason nobody can
+    /// reproduce locally. There is no such golden in this repository and this fixture is the reason
+    /// there will not be one: it asserts only what is true of any d6 stream.</para>
+    ///
+    /// <para>Faces are in range; a seed repeats within one run; different seeds diverge; and every
+    /// face turns up across enough throws, which is the loosest possible statement that a source
+    /// returning a constant would fail.</para>
+    /// </summary>
+    [Fact]
+    public void SeededDiceAreDiceAndNothingIsGoldenAboutThem()
+    {
+        var faces = new SeededDice(101).Roll(6000);
+
+        // In range, and the count asked for.
+        Assert.Equal(6000, faces.Length);
+        Assert.All(faces, face => Assert.InRange(face, 1, 6));
+
+        // Every face turns up. A source returning a constant, or one missing a face, fails here —
+        // and nothing about the *order* is asserted, which is what keeps this runtime-independent.
+        foreach (var face in Enumerable.Range(1, 6))
+        {
+            var count = faces.Count(f => f == face);
+
+            Assert.True(count > 0, $"6000 throws produced no {face}s at all");
+
+            // A very wide band: half to double the expected share. This is a smoke test for a broken
+            // generator, not a claim about the quality of one.
+            Assert.InRange(count, 500, 2000);
+        }
+
+        // The same seed repeats within a run, which is what makes a balance figure reproducible...
+        Assert.Equal(new SeededDice(101).Roll(50), new SeededDice(101).Roll(50));
+
+        // ...and a different seed does not, which is what makes a spread of seeds worth running.
+        Assert.NotEqual(new SeededDice(101).Roll(50), new SeededDice(102).Roll(50));
+
+        // The seed and the throw count are properties, because a figure without its seed is a figure
+        // nobody can reproduce.
+        var counted = new SeededDice(7);
+        counted.Roll(9);
+
+        Assert.Equal(7, counted.Seed);
+        Assert.Equal(9, counted.Thrown);
+    }
+
     // ── The unimplemented list ───────────────────────────────────────────────
 
     /// <summary>The guide the two lists below are a claim about.</summary>

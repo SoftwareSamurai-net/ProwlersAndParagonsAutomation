@@ -103,18 +103,32 @@ public sealed class PlayEnginePropertyTests
     /// <para>The control is that the step actually produced a different state — an engine whose
     /// <c>Step</c> returned its argument unchanged would satisfy the immutability assertion
     /// perfectly.</para>
+    ///
+    /// <para><b>It is driven by <see cref="RandomPolicy"/> and not by the shipped one, because a
+    /// property is only as wide as what drives it.</b> <see cref="AttackTheWeakest"/> emits an
+    /// attack, a hold and a reroll: this used to be a purity claim about four of the ten intent
+    /// types, with every grapple, every other purchase, the stabilisation roll and half the
+    /// refusals unexamined. The generator emits all of them, including purchases the actor cannot
+    /// afford and moves that make no sense where they are, because a refusal is a branch of
+    /// <c>Step</c> like any other. Its own list of what it emitted is the second control: a
+    /// generator that had quietly narrowed would fail here rather than pass with less to say.</para>
+    ///
+    /// <para>Both table settings that change what <c>Step</c> reaches for are on, so the Fatal
+    /// Damage clock and the wound penalties are inside the property rather than beside it.</para>
     /// </summary>
     [Theory]
     [MemberData(nameof(Seeds))]
     public void AStepNeverChangesTheStateItWasGiven(int seed)
     {
-        var encounter = new Encounter(_play, new SeededDice(seed));
-        var state = encounter.Begin(Party());
+        var table = TableRules.Book with { FatalDamage = true, WoundPenalties = true };
+        var encounter = new Encounter(_play, new SeededDice(seed), table);
 
-        var policy = new AttackTheWeakest(_play);
+        var state = encounter.Begin(Party()) with { Table = table };
+
+        var policy = new RandomPolicy(new SeededDice(seed * 7919));
         var moved = false;
 
-        for (var i = 0; i < 12 && !state.Over; i++)
+        for (var i = 0; i < 60 && !state.Over; i++)
         {
             var actor = state.Current;
 
@@ -125,10 +139,22 @@ public sealed class PlayEnginePropertyTests
             }
 
             state = StepAndCheck(encounter, state, policy.Choose(state, actor), ref moved);
+
+            if (policy.AfterRoll(state, state[actor.Id]) is { } follow)
+                state = StepAndCheck(encounter, state, follow, ref moved);
+
             state = StepAndCheck(encounter, state, new EndTurn(actor.Id), ref moved);
         }
 
         Assert.True(moved, "no step changed the state at all, so the comparison proved nothing.");
+
+        // The second control: the generator really did reach every kind of intent it claims to.
+        Assert.Equal(
+            [
+                nameof(Attack), nameof(BreakFree), nameof(GrappleIntent), nameof(Hold),
+                nameof(Move), nameof(SpendAdversity), nameof(SpendResolve), nameof(Stabilise)
+            ],
+            policy.Emitted.Order(StringComparer.Ordinal));
     }
 
     private static EncounterState StepAndCheck(
@@ -162,6 +188,14 @@ public sealed class PlayEnginePropertyTests
     /// <para>The control is that the fight really used the sheet — the combatant built from it has
     /// the Edge, Health and Resolve the character engine computes, so a factory that had quietly
     /// stopped reading the sheet would fail here rather than pass by touching nothing.</para>
+    ///
+    /// <para><b>The sheet carries Powers, and it did not.</b> The round trip used to run against a
+    /// character with an empty <c>SelectedPowers</c>, which is the one shape of sheet for which the
+    /// whole of <c>CombatantFactory.TraitRanks</c>'s Power loop never executes — so the guard proved
+    /// the factory does not modify a sheet it had barely read. Three Powers go on it now, one of them
+    /// with a Pro and one bought per unit, because those are the fields
+    /// <see cref="DerivedStatsCalculator.GetEffectiveRank"/> reaches for and the ones a factory
+    /// mutating a sheet would mutate.</para>
     /// </summary>
     [Fact]
     public void AnEncounterLeavesTheCharacterSheetByteIdentical()
@@ -176,15 +210,29 @@ public sealed class PlayEnginePropertyTests
         sheet.AbilityRanks["agility"] = 5;
         sheet.AbilityRanks["perception"] = 4;
 
+        sheet.SelectedPowers.Add(new SelectedPower("armor", 5, [new SelectedProCon("penetrating")], []));
+        sheet.SelectedPowers.Add(new SelectedPower("running", 4));
+        sheet.SelectedPowers.Add(new SelectedPower("immunity", 1) { Units = 3 });
+
         var before = CharacterSheetJson.Write(sheet);
 
         var hero = CombatantFactory.From(sheet, rules.Rules, derived, _play, CombatantKind.Hero, "subject");
 
-        // The control: the snapshot really came from the sheet, through the character engine.
+        // The control: the snapshot really came from the sheet, through the character engine — and
+        // through the Power loop, which an empty SelectedPowers would have skipped entirely.
         Assert.Equal(derived.CalculateEdge(sheet), hero.Edge);
         Assert.Equal(derived.CalculateHealth(sheet), hero.FullHealth);
         Assert.Equal(derived.CalculateResolve(sheet), hero.Resolve);
         Assert.Equal(8, hero.Rank("might"));
+
+        foreach (var power in sheet.SelectedPowers)
+            Assert.Equal(derived.GetEffectiveRank(power, sheet), hero.Rank(power.PowerId));
+
+        // The two ranked ones came through with a rank, so the loop above is not comparing zeroes:
+        // Immunity is priced per unit and is rankless by design, which is why it is on the sheet.
+        Assert.True(hero.Rank("armor") > 0, "the Armor came back at 0d");
+        Assert.True(hero.Rank("running") > 0, "the Running came back at 0d");
+        Assert.Contains("armor", hero.Defences, StringComparer.Ordinal);
 
         var villain = Combatant.Villain(
             "villain", "the Villain", edge: 7, health: 12,
@@ -195,7 +243,10 @@ public sealed class PlayEnginePropertyTests
         var final = encounter.RunToEnd(encounter.Begin([hero, villain]), new AttackTheWeakest(_play), MaxPages);
 
         Assert.True(final.Over);
-        Assert.Equal(before, CharacterSheetJson.Write(sheet));
+
+        // Byte for byte, not "equivalent": a reordered list or a defaulted field is exactly the kind
+        // of change a round trip is supposed to catch.
+        Assert.Equal(before, CharacterSheetJson.Write(sheet), StringComparer.Ordinal);
     }
 
     /// <summary>
