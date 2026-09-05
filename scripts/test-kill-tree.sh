@@ -569,15 +569,20 @@ EOF
 #
 # So it asserts the property the freeze actually buys: **nothing in the tree spawned anything while
 # the tree was being killed.** Every sibling here is a marker script that the supervisor replaces
-# when it dies — miniflare's behaviour, applied to a process cheap enough to have twenty-five of.
+# when it dies — miniflare's behaviour, applied to a process cheap enough to have a hundred of.
 # A depth-first kill starts killing siblings one at a time, the supervisor answers each death with
 # a new marker, and the ones born after the enumeration are orphaned onto init holding nothing.
 # They are invisible to "the port is free" and they are exactly what leaked.
 #
-# **Twenty-five siblings, and the count is the window rather than padding.** wrangler's supervisor
-# has four children and the one holding the port is not the last of them, so the old code ran
-# `children_of` for every remaining sibling *after* killing it and before killing their parent. A
-# fixture whose supervisor has one child gives that code no window at all and passes against it.
+# **A hundred siblings, and the count was measured rather than picked.** wrangler's supervisor has
+# four children and the one holding the port is not the last of them, so the old code ran
+# `children_of` for every remaining sibling *after* killing it and before killing their parent —
+# and that interval is the whole of the window. On Linux it was a `/proc` scan forking `cat` per
+# entry, which is why the runner leaked on a tree of four. On macOS it is one `pgrep`, so the
+# window has to be bought with siblings instead: at twenty-five the mutation below went red once in
+# four runs, at a hundred it went red four times in four, and the fix stayed green four times in
+# four. A fixture whose supervisor has one child gives that code no window at all and passes
+# against it, which is the version of this case that shipped for an hour.
 #
 # The positive control is that the markers were really there before the stop: "no marker survived"
 # is satisfied perfectly by a fixture that never spawned one.
@@ -621,7 +626,7 @@ const sibling = () => {
   const child = spawn(join(here, 'marker.sh'), [], { stdio: 'ignore' });
   child.on('exit', () => sibling());
 };
-for (let i = 0; i < 25; i++) sibling();
+for (let i = 0; i < 100; i++) sibling();
 
 setInterval(() => {}, 1 << 30);
 EOF
