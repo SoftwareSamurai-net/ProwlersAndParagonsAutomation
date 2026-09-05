@@ -64,6 +64,7 @@ public sealed partial class Encounter
         if (NotTheirTurn(state, attack.Actor, lines)) return state;
         if (OutOfTheFight(state, attack.Actor, "actor", lines)) return state;
         if (OutOfTheFight(state, attack.Target, "target", lines)) return state;
+        if (GrappleForbids(state, attack.Actor, null, lines)) return state;
 
         var actor = state[attack.Actor];
         var target = state[attack.Target];
@@ -353,8 +354,7 @@ public sealed partial class Encounter
             .Select(Normalise)
             .ToHashSet(StringComparer.Ordinal);
 
-        var immobilised = state.Grapples.Any(g =>
-            string.Equals(g.Held, target.Id, StringComparison.Ordinal) && g.Kind == GrappleKind.Full);
+        var immobilised = NoActiveDefenceAgainst(state, target, attack.Actor, lines);
 
         var halved = state.DefencesHalved.TryGetValue(target.Id, out var penalty) && state.Page <= penalty.UntilPage
             ? penalty
@@ -573,6 +573,129 @@ public sealed partial class Encounter
             + $"could not penetrate their {trait} of {target.Rank(trait)} "
             + $"{entry.AllOutAttack!.OpponentsWhoCouldNotPenetrateYourPassiveDefense}, so this one "
             + "meets it at its full rank"));
+    }
+
+    /// <summary>
+    /// Whether a grapple has taken this target's active defences away against this attacker.
+    ///
+    /// <para><b>Two printed rules, and the engine used to apply half of one.</b> p.75 lists being
+    /// immobilized among the states that take active defences away, which is what a <em>full hold</em>
+    /// does — and the engine applied it to every full grapple, so a character who had lost their
+    /// sword to a full grab could not dodge either. p.76 says a <em>partial</em> grab and a partial
+    /// hold each block active defences "against anyone else", on both characters, and that was not
+    /// applied at all: the other party of the grapple is exactly who a character can still dodge, and
+    /// everybody else is exactly who they cannot.</para>
+    ///
+    /// <para>Both booleans are read off <c>grab</c> and <c>hold</c> rather than assumed, so a
+    /// corrected entry moves this with it.</para>
+    /// </summary>
+    private bool NoActiveDefenceAgainst(
+        EncounterState state, Combatant target, string attacker, List<LedgerLine> lines)
+    {
+        var held = state.Grapples.FirstOrDefault(g =>
+            g.Move == GrappleMove.Hold
+            && g.Kind == GrappleKind.Full
+            && string.Equals(g.Held, target.Id, StringComparison.Ordinal));
+
+        if (held is not null)
+        {
+            var entry = _play.GetCombat("active_and_passive_defenses");
+
+            lines.Add(new LedgerLine(
+                state.Page, target.Id, entry.Id, entry.SourceRef,
+                $"{target.Name} is in a full hold, and p.75 lists "
+                + $"{entry.Defenses!.ActiveUnusableWhen[0]} among the states that take an active "
+                + "defence away"));
+
+            return true;
+        }
+
+        foreach (var grapple in state.Grapples.Where(g =>
+                     g.Kind == GrappleKind.Partial
+                     && (string.Equals(g.Held, target.Id, StringComparison.Ordinal)
+                         || string.Equals(g.Holder, target.Id, StringComparison.Ordinal))))
+        {
+            var other = string.Equals(grapple.Held, target.Id, StringComparison.Ordinal)
+                ? grapple.Holder
+                : grapple.Held;
+
+            // "Against anyone else" — the character they are tangled with is the one they can still
+            // meet.
+            if (string.Equals(other, attacker, StringComparison.Ordinal)) continue;
+
+            var entry = _play.GetCombat(grapple.Move == GrappleMove.Grab ? "grab" : "hold");
+
+            var blocks = grapple.Move == GrappleMove.Grab
+                ? entry.Grab!.PartialBlocksActiveDefensesAgainstAnyoneElse
+                : entry.Hold!.PartialBlocksActiveDefensesAgainstAnyoneElse;
+
+            if (!blocks) continue;
+
+            lines.Add(new LedgerLine(
+                state.Page, target.Id, entry.Id, entry.SourceRef,
+                $"{target.Name} is in a partial {grapple.Move.ToString().ToLowerInvariant()} with "
+                + $"{state[other].Name}, so they have no active defence against anybody else"));
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether a grapple leaves this character unable to take the action they asked for, refused on
+    /// the ledger.
+    ///
+    /// <para><b>p.76 restrains both parties and the engine restrained neither.</b> A fully held
+    /// character "can only try to escape" and was still attacking third parties; a partial hold
+    /// leaves both characters with one physical action, "an opposed Might roll, aiming for a full
+    /// hold or an escape", and both were free to do anything. A partial <em>grab</em> restrains
+    /// nothing but the defences above — the page says the two are fighting over an item, not that
+    /// they are pinned — so it is deliberately not here.</para>
+    ///
+    /// <para><b>What is refused rather than adjudicated is stated out loud.</b> <c>hold</c> also says
+    /// a held character may use "any Power they could reasonably use while physically restrained",
+    /// adjudicated case by case by the GM. That is a judgement and this engine has nobody to ask, so
+    /// it refuses and the line says which clause it applied and which one it could not — recorded in
+    /// the guide rather than silently resolved either way.</para>
+    /// </summary>
+    private bool GrappleForbids(
+        EncounterState state, string actorId, GrappleMove? move, List<LedgerLine> lines)
+    {
+        var entry = _play.GetCombat("hold");
+        var rule = entry.Hold!;
+
+        var fullyHeld = state.Grapples.Any(g =>
+            g.Move == GrappleMove.Hold
+            && g.Kind == GrappleKind.Full
+            && string.Equals(g.Held, actorId, StringComparison.Ordinal));
+
+        if (fullyHeld)
+        {
+            if (move == GrappleMove.Escape) return false;
+
+            Refuse(state, actorId, entry.Id, entry.SourceRef, lines,
+                $"{state[actorId].Name} is in a full hold, which leaves them only "
+                + $"{rule.FullLeavesTheHeldCharacterOnly}. Whether "
+                + $"\"{rule.AHeldCharacterMayUse}\" covers this is "
+                + $"{rule.AdjudicatedCaseByCaseBy} discretion, which this engine has nobody to ask");
+
+            return true;
+        }
+
+        var partiallyHeld = state.Grapples.Any(g =>
+            g.Move == GrappleMove.Hold
+            && g.Kind == GrappleKind.Partial
+            && (string.Equals(g.Held, actorId, StringComparison.Ordinal)
+                || string.Equals(g.Holder, actorId, StringComparison.Ordinal)));
+
+        if (!partiallyHeld || move is not null) return false;
+
+        Refuse(state, actorId, entry.Id, entry.SourceRef, lines,
+            $"{state[actorId].Name} is in a partial hold: {rule.PartialMeans}, and the only physical "
+            + $"action either of them has is {rule.PartialOnlyPhysicalAction}");
+
+        return true;
     }
 
     /// <summary>The table's own name for the column that means "one of the target's Powers".</summary>
@@ -812,6 +935,7 @@ public sealed partial class Encounter
     {
         if (NotTheirTurn(state, move.Actor, lines)) return state;
         if (OutOfTheFight(state, move.Actor, "actor", lines)) return state;
+        if (GrappleForbids(state, move.Actor, null, lines)) return state;
 
         var actor = state[move.Actor];
         var entry = _play.GetCombat("movement");
@@ -858,6 +982,7 @@ public sealed partial class Encounter
     {
         if (NotTheirTurn(state, hold.Actor, lines)) return state;
         if (OutOfTheFight(state, hold.Actor, "actor", lines)) return state;
+        if (GrappleForbids(state, hold.Actor, null, lines)) return state;
 
         var entry = _play.GetCombat("holding_an_action");
         var actor = state[hold.Actor];
@@ -874,6 +999,7 @@ public sealed partial class Encounter
         if (NotTheirTurn(state, grapple.Actor, lines)) return state;
         if (OutOfTheFight(state, grapple.Actor, "actor", lines)) return state;
         if (OutOfTheFight(state, grapple.Target, "target", lines)) return state;
+        if (GrappleForbids(state, grapple.Actor, grapple.Move, lines)) return state;
 
         var entry = _play.GetCombat("grappling");
         var table = _play.GetCombat("grappling_table");
@@ -881,6 +1007,8 @@ public sealed partial class Encounter
 
         var actor = state[grapple.Actor];
         var target = state[grapple.Target];
+
+        if (grapple.Move == GrappleMove.Escape && NothingToEscape(state, actor, lines)) return state;
 
         // p.76: Might against Might, both ways. The roll and the threshold are the entry's own.
         var trait = Normalise(rule.Roll);
@@ -909,20 +1037,88 @@ public sealed partial class Encounter
 
         return grapple.Move == GrappleMove.Escape
             ? ApplyEscape(state, actor, result, lines)
-            : ApplyGrappleResult(state, actor, target, result);
+            : ApplyGrappleResult(state, actor, target, grapple.Move, result, lines);
     }
 
-    private static EncounterState ApplyGrappleResult(
-        EncounterState state, Combatant actor, Combatant target, string result)
+    /// <summary>
+    /// Whether there is a hold to get out of at all, refused on the ledger where there is not.
+    ///
+    /// <para><b>An escape by the character doing the holding used to print "a partial escape" and
+    /// change nothing.</b> <c>escape</c> defines the move as "an attempt to break out of a hold", and
+    /// the holder is not in one — so the roll was made, the table was read, the result was announced
+    /// and the state was untouched, which is a ledger line that describes something that did not
+    /// happen.</para>
+    /// </summary>
+    private bool NothingToEscape(EncounterState state, Combatant actor, List<LedgerLine> lines)
+    {
+        var entry = _play.GetCombat("escape");
+        var grappling = _play.GetCombat("grappling").Grappling!;
+
+        if (state.Grapples.Any(g =>
+                g.Move == GrappleMove.Hold
+                && string.Equals(g.Held, actor.Id, StringComparison.Ordinal)))
+        {
+            return false;
+        }
+
+        var holding = state.Grapples.Any(g =>
+            string.Equals(g.Holder, actor.Id, StringComparison.Ordinal));
+
+        Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
+            $"{actor.Name} is not in a hold, and an escape is {grappling.AnEscapeIs}"
+            + (holding ? " — they are the one doing the holding" : ""));
+
+        return true;
+    }
+
+    /// <summary>
+    /// What a grab or a hold leaves behind.
+    ///
+    /// <para><b>A grab and a hold are different states and were stored as the same one.</b> The old
+    /// code keyed on the word "full" in the table's result and recorded every one of them as a hold,
+    /// so a full grab — which p.76 defines as control of an <em>object</em> — immobilised the
+    /// character who lost it. A character who had had their sword taken could not dodge.</para>
+    ///
+    /// <para><b>The item a full grab wins is not modelled, and the ledger says so rather than
+    /// implying it is.</b> This engine has no inventory, so "use or toss it the same page" is a
+    /// consequence it cannot apply; it is on the guide's unimplemented list and the line names it.
+    /// </para>
+    /// </summary>
+    private EncounterState ApplyGrappleResult(
+        EncounterState state, Combatant actor, Combatant target, GrappleMove move, string result,
+        List<LedgerLine> lines)
     {
         if (result.Contains("no effect", StringComparison.Ordinal)) return state;
 
         var kind = result.Contains("full", StringComparison.Ordinal) ? GrappleKind.Full : GrappleKind.Partial;
+        var entry = _play.GetCombat(move == GrappleMove.Grab ? "grab" : "hold");
+
+        if (move == GrappleMove.Grab && kind == GrappleKind.Full)
+        {
+            var grab = entry.Grab!;
+
+            lines.Add(new LedgerLine(
+                state.Page, actor.Id, entry.Id, entry.SourceRef,
+                $"a full grab is {grab.FullMeans}, and {actor.Name} may use or toss it on this page "
+                + "as a free action — the item itself is not yet implemented, so nothing about it is "
+                + $"carried; {target.Name} is not restrained by it"));
+        }
+        else
+        {
+            var means = move == GrappleMove.Grab
+                ? entry.Grab!.PartialMeans
+                : kind == GrappleKind.Full ? entry.Hold!.FullMeans : entry.Hold!.PartialMeans;
+
+            lines.Add(new LedgerLine(
+                state.Page, actor.Id, entry.Id, entry.SourceRef,
+                $"a {kind.ToString().ToLowerInvariant()} {move.ToString().ToLowerInvariant()}: {means}"));
+        }
 
         var grapples = state.Grapples
             .Where(g => !(string.Equals(g.Holder, actor.Id, StringComparison.Ordinal)
-                          && string.Equals(g.Held, target.Id, StringComparison.Ordinal)))
-            .Append(new Grapple(actor.Id, target.Id, kind))
+                          && string.Equals(g.Held, target.Id, StringComparison.Ordinal)
+                          && g.Move == move))
+            .Append(new Grapple(actor.Id, target.Id, move, kind))
             .ToList();
 
         return state with { Grapples = grapples };
@@ -936,8 +1132,11 @@ public sealed partial class Encounter
         var entry = _play.GetCombat("escape");
         var escape = entry.Escape!;
 
+        // p.77 defines an escape as getting out of a hold. A grab is left where it is: the two are
+        // fighting over an item, and letting go of it is the exit the grab entry prints.
         var held = state.Grapples
-            .Where(g => string.Equals(g.Held, actor.Id, StringComparison.Ordinal))
+            .Where(g => g.Move == GrappleMove.Hold
+                        && string.Equals(g.Held, actor.Id, StringComparison.Ordinal))
             .ToList();
 
         var grapples = state.Grapples.ToList();
@@ -970,6 +1169,7 @@ public sealed partial class Encounter
     {
         if (NotTheirTurn(state, free.Actor, lines)) return state;
         if (OutOfTheFight(state, free.Actor, "actor", lines)) return state;
+        if (GrappleForbids(state, free.Actor, null, lines)) return state;
 
         var entry = _play.GetCombat("breaking_free");
         var rule = entry.BreakingFree!;

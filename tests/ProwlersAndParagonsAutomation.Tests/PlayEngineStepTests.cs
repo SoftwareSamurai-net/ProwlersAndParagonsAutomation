@@ -680,6 +680,199 @@ public sealed class PlayEngineStepTests
         Assert.EndsWith("2 defeated", line.Text, StringComparison.Ordinal);
     }
 
+    // ── Grappling ────────────────────────────────────────────────────────────
+
+    /// <summary>Three characters: a grappler, somebody to grapple, and a bystander to be dodged.</summary>
+    private static List<Combatant> Wrestlers() =>
+    [
+        Combatant.Villain("holder", "the holder", edge: 10, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["might"] = 10, ["agility"] = 8, ["toughness"] = 4
+            },
+            ["agility", "toughness"]),
+
+        Combatant.Hero("held", "the held Hero", edge: 8, health: 20, resolve: 0,
+            new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["might"] = 10, ["agility"] = 8, ["toughness"] = 4
+            },
+            ["agility", "toughness"]),
+
+        Combatant.Villain("bystander", "the bystander", edge: 6, health: 20,
+            new Dictionary<string, int>(StringComparer.Ordinal) { ["might"] = 6, ["toughness"] = 4 },
+            ["toughness"])
+    ];
+
+    /// <summary>
+    /// <b>A grab is stored as a grab and a hold as a hold, in both bands.</b>
+    ///
+    /// <para>The engine keyed on the word "full" in p.76's table and wrote every result down as a
+    /// hold, so a full grab — which the page defines as control of an <em>object</em> — became
+    /// control of a person. The four rows are driven here through the table itself, with the net
+    /// successes each band needs.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(GrappleMove.Grab, 5, GrappleKind.Full)]
+    [InlineData(GrappleMove.Grab, 2, GrappleKind.Partial)]
+    [InlineData(GrappleMove.Hold, 5, GrappleKind.Full)]
+    [InlineData(GrappleMove.Hold, 2, GrappleKind.Partial)]
+    public void AGrappleIsStoredAsTheMoveItWas(GrappleMove move, int net, GrappleKind expected)
+    {
+        // The control: the band this fixture is aiming at is the band the shipped table names.
+        var row = _play.GetCombat("grappling_table").GrapplingTable!.Single(r =>
+            (r.MinNetSuccesses is null || net >= r.MinNetSuccesses)
+            && (r.MaxNetSuccesses is null || net <= r.MaxNetSuccesses));
+
+        var printed = move == GrappleMove.Grab ? row.Grab : row.Hold;
+        Assert.Contains(expected.ToString().ToLowerInvariant(), printed, StringComparison.Ordinal);
+
+        var dice = new ScriptedDice([.. FacesFor(10, net), .. FacesFor(10, 0)]);
+        var encounter = new Encounter(_play, dice);
+
+        var step = encounter.Step(
+            encounter.Begin(Wrestlers()), new GrappleIntent("holder", "held", move));
+
+        Assert.Equal(0, dice.Remaining);
+
+        var grapple = Assert.Single(step.State.Grapples);
+
+        Assert.Equal(move, grapple.Move);
+        Assert.Equal(expected, grapple.Kind);
+        Assert.Equal("holder", grapple.Holder);
+        Assert.Equal("held", grapple.Held);
+    }
+
+    /// <summary>
+    /// <b>Each band of p.76 does what the page says it does, to both characters.</b>
+    ///
+    /// <para>Four things were wrong at once. A full grab immobilised the character who lost the item,
+    /// which is a rule about an object applied to a person. A partial grab and a partial hold each
+    /// say active defences are gone "against anyone else" and neither was applied, so a character
+    /// wrestling one opponent dodged a third as though nothing were happening. A partial hold leaves
+    /// both characters one physical action and both were free to do anything. And a full hold leaves
+    /// its loser "only trying to escape" while the engine let them attack somebody across the
+    /// room.</para>
+    ///
+    /// <para>Each row asserts against the party it is about — the dodge the character keeps as well
+    /// as the one they lose — so an engine that had simply switched every active defence off would
+    /// fail here rather than pass.</para>
+    /// </summary>
+    [Fact]
+    public void EachGrappleBandDoesWhatThePageSaysToBothCharacters()
+    {
+        // A full grab restrains nobody: p.76 gives the winner the item, not the loser's balance.
+        var fullGrab = InGrapple(GrappleMove.Grab, GrappleKind.Full);
+        Assert.Contains("defends with agility", DefenceOf(fullGrab, "held", "bystander"), StringComparison.Ordinal);
+        Assert.True(MayAct(fullGrab, "held"));
+
+        // A partial grab: still dodging the character they are wrestling, and nobody else.
+        var partialGrab = InGrapple(GrappleMove.Grab, GrappleKind.Partial);
+        Assert.Contains("defends with agility", DefenceOf(partialGrab, "held", "holder"), StringComparison.Ordinal);
+        Assert.Contains("defends with toughness", DefenceOf(partialGrab, "held", "bystander"), StringComparison.Ordinal);
+        Assert.Contains("defends with toughness", DefenceOf(partialGrab, "holder", "bystander"), StringComparison.Ordinal);
+
+        // ...and it does not stop either of them acting: the page has them fighting over an item,
+        // not pinned.
+        Assert.True(MayAct(partialGrab, "held"));
+        Assert.True(MayAct(partialGrab, "holder"));
+
+        // A partial hold: the same loss of defences, and one physical action each.
+        // (There is no "against each other" case to check here: a partial hold leaves neither of
+        // them able to attack the other, so the only attack that can be made against them is a third
+        // party's — which is the one the page takes the dodge away from.)
+        var partialHold = InGrapple(GrappleMove.Hold, GrappleKind.Partial);
+        Assert.Contains("defends with toughness", DefenceOf(partialHold, "held", "bystander"), StringComparison.Ordinal);
+        Assert.Contains("defends with toughness", DefenceOf(partialHold, "holder", "bystander"), StringComparison.Ordinal);
+        Assert.False(MayAct(partialHold, "held"));
+        Assert.False(MayAct(partialHold, "holder"));
+
+        // A full hold: no active defence against anybody, and the held character may only escape.
+        var fullHold = InGrapple(GrappleMove.Hold, GrappleKind.Full);
+        Assert.Contains("defends with toughness", DefenceOf(fullHold, "held", "holder"), StringComparison.Ordinal);
+        Assert.Contains("defends with toughness", DefenceOf(fullHold, "held", "bystander"), StringComparison.Ordinal);
+        Assert.False(MayAct(fullHold, "held"));
+
+        // The holder of a full hold is not restrained by it — p.76 lets them keep hitting.
+        Assert.True(MayAct(fullHold, "holder"));
+        Assert.Contains("defends with agility", DefenceOf(fullHold, "holder", "bystander"), StringComparison.Ordinal);
+    }
+
+    /// <summary>An encounter opened with one grapple already in progress, of the band asked for.</summary>
+    private EncounterState InGrapple(GrappleMove move, GrappleKind kind)
+    {
+        var encounter = new Encounter(_play, new SeededDice(15));
+
+        return encounter.Begin(Wrestlers()) with
+        {
+            Grapples = [new Grapple("holder", "held", move, kind)]
+        };
+    }
+
+    /// <summary>The ledger sentence for one attack, with the attacker moved to the front of the order.</summary>
+    private string DefenceOf(EncounterState state, string target, string attacker)
+    {
+        var encounter = new Encounter(_play, new SeededDice(15));
+
+        var turn = state with { TurnIndex = state.TurnOrder.ToList().IndexOf(attacker) };
+
+        return encounter
+            .Step(turn, new Attack(attacker, target, "might"))
+            .Added
+            .Single(l => string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+                         && l.Text.Contains("defends with", StringComparison.Ordinal))
+            .Text;
+    }
+
+    /// <summary>Whether an ordinary attack by this character is resolved rather than refused.</summary>
+    private bool MayAct(EncounterState state, string actor)
+    {
+        var encounter = new Encounter(_play, new SeededDice(15));
+
+        var turn = state with { TurnIndex = state.TurnOrder.ToList().IndexOf(actor) };
+
+        return encounter
+            .Step(turn, new Attack(actor, "bystander", "might"))
+            .Added
+            .Any(l => string.Equals(l.Rule, "attacks_and_defenses", StringComparison.Ordinal)
+                      && l.Text.Contains("defends with", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// <b>An escape by the character doing the holding is refused, not announced.</b>
+    ///
+    /// <para><c>escape</c> defines the move as "an attempt to break out of a hold", and the holder is
+    /// not in one — but the engine rolled, read the table, announced "a partial escape" and changed
+    /// nothing, which is a ledger line describing something that did not happen. It refuses now, and
+    /// says which of them is doing the holding.</para>
+    /// </summary>
+    [Fact]
+    public void AnEscapeByTheHolderIsRefused()
+    {
+        var state = InGrapple(GrappleMove.Hold, GrappleKind.Full);
+        var encounter = new Encounter(_play, new SeededDice(16));
+
+        var refused = encounter.Step(state, new GrappleIntent("holder", "held", GrappleMove.Escape));
+
+        Assert.Contains(refused.Added, l =>
+            string.Equals(l.Rule, "escape", StringComparison.Ordinal)
+            && l.Text.Contains("they are the one doing the holding", StringComparison.Ordinal));
+
+        // Nothing was announced and nothing moved.
+        Assert.DoesNotContain(refused.Added, l => l.Text.Contains("escape:", StringComparison.Ordinal));
+        Assert.DoesNotContain(refused.Added, l =>
+            string.Equals(l.Rule, "grappling_table", StringComparison.Ordinal));
+        Assert.Equal(state.Grapples, refused.State.Grapples);
+
+        // The control: the character who IS held gets a roll, so the refusal is about who asked and
+        // not about escapes being switched off.
+        var held = state with { TurnIndex = state.TurnOrder.ToList().IndexOf("held") };
+        var tried = encounter.Step(held, new GrappleIntent("held", "holder", GrappleMove.Escape));
+
+        Assert.Contains(tried.Added, l =>
+            string.Equals(l.Rule, "grappling_table", StringComparison.Ordinal));
+    }
+
     // ── Defeat ───────────────────────────────────────────────────────────────
 
     /// <summary>

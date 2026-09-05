@@ -35,11 +35,20 @@ public enum GrappleKind
     Full
 }
 
-/// <summary>A hold or a grab in progress, from the winner's point of view.</summary>
+/// <summary>
+/// A hold or a grab in progress, from the winner's point of view.
+///
+/// <para><b>Which of the two it is has to be recorded, because p.76 gives them different
+/// consequences.</b> A full hold is control over a person and leaves them only trying to escape; a
+/// full grab is control of an <em>object</em> and restrains nobody. Storing both as one thing made
+/// every full grab immobilise its loser — a character who had lost their sword could not dodge.
+/// </para>
+/// </summary>
 /// <param name="Holder">Who has the upper hand, or either of them in a partial.</param>
 /// <param name="Held">The other one.</param>
+/// <param name="Move">A grab or a hold. An escape is not a state; it ends one.</param>
 /// <param name="Kind">Partial or full.</param>
-public sealed record Grapple(string Holder, string Held, GrappleKind Kind);
+public sealed record Grapple(string Holder, string Held, GrappleMove Move, GrappleKind Kind);
 
 /// <summary>A character's own defences halved by something they chose to do.</summary>
 /// <param name="UntilPage">The last page on which the penalty still applies.</param>
