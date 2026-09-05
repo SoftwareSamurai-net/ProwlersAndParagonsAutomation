@@ -1217,7 +1217,12 @@ public sealed class PlayRulesDataTests
         // And the flag really is the unconditional one the page cannot be expressed through.
         var entry = _f.Rules.GetPower("expertise");
         Assert.NotNull(entry);
-        Assert.False(DerivedStatsCalculator.ResolveAffectedByPower(entry));
+        Assert.False(
+            DerivedStatsCalculator.ResolveAffectedByPower(entry),
+            "powers.json now says Expertise affects Resolve unconditionally, which is the opposite "
+            + $"error: p.{CanonicalResolveRules.ExceptionsPage} exempts it '"
+            + $"{CanonicalResolveRules.ExpertiseQualifier}', so an Expertise nominated to anything "
+            + "else must still be exempt. The carve-out needs the nomination, not a flipped flag.");
 
         var fromTheTable = ResolveEntryById("starting_resolve").StartingResolve;
         Assert.NotNull(fromTheTable);
