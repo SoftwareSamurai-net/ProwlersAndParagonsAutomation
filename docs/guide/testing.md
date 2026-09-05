@@ -108,7 +108,7 @@ verdicts rather than test counts, and cannot run without publishing a site first
 checks" alongside four suites' thousands would make the total meaningless. See **Driving the
 assembled app** at the end of this file.
 
-**And a seventh, for the same reason: `./scripts/test-kill-tree.sh`.** It reports three verdicts
+**And a seventh, for the same reason: `./scripts/test-kill-tree.sh`.** It reports seven verdicts
 about whether the harness can stop a server it started — see **Proving `kill_tree`** below. It is a
 step in `build.yml` and is not totalled anywhere either.
 
@@ -529,8 +529,9 @@ against a pre-built site.
 ### Proving `kill_tree`, and why a green run was never evidence about it
 
 ```bash
-./scripts/test-kill-tree.sh                  # both trees, plus the log redactor; ~9s
-./scripts/test-kill-tree.sh --skip-wrangler  # the synthetic one only. NOT a full run
+./scripts/test-kill-tree.sh                  # seven checks: the parses, three trees, the
+                                             # orphan backstop, the log redactor; ~11s
+./scripts/test-kill-tree.sh --skip-wrangler  # the synthetic ones only. NOT a full run
 ```
 
 **The harness's own cleanup was the one fix in it that had never been watched to work.**
@@ -576,17 +577,85 @@ the field offset, the ppid comparison) is exercised wherever this is run. That i
 *parse* and not of the kill. Only CI runs the Linux arm against real processes, which is why the
 script is a step in `build.yml` before the two e2e steps.
 
-**What is still unknown, stated because guessing it would be the same mistake again.** The `/proc`
-walk is *correct* when driven against a synthetic table — measured, three levels deep, including a
-command name containing `) ` — and `workerd` is an ordinary child of wrangler's node rather than a
-detached one, read out of miniflare's own `spawn` options in the pinned version. So the fault the
-runner has been reporting is not any of: a wrong field offset, a naive `(comm)` parse, `set -- $stat`
-misbehaving under `set -u`, or `workerd` reparenting away from the tree. One real defect was found
-and fixed on the way past — `children_of` returned the exit status of whichever `/proc` entry it
-looked at last, which is fatal in `x="$(children_of …)"` under `set -e` and invisible in the
-`for child in $(children_of …)` form the harness happens to use. **Whether that was the fault is
-what the CI step answers**, and a `WRANGLER_TREE: FAIL` line naming the surviving pids is what
-disproves the fix rather than another green run.
+#### What the CI step answered: the holder is not in the tree, and it is not a missing level
+
+**The paragraph that used to sit here listed what was still unknown. Run `33949251306` on
+`ubuntu-latest` answered it, and the answer was none of the candidates it named:**
+
+```
+KILL-TREE CHECK WRANGLER_TREE: FAIL — [OUTCOME] every pid in the tree is gone and port 8880
+is still listening, so something outside the tree of 10448 is holding it.
+```
+
+Every pid the check enumerated *died*, and the port stayed. So the fault was never a wrong field
+offset, a naive `(comm)` parse, or a walk that stopped a level short — a correct walk cannot reach
+a process that is not in the tree. **This is also the first thing that separated the platforms:
+macOS had been green throughout, and that green was never evidence about Linux.**
+
+**Where the holder comes from, measured on a real `wrangler pages dev` rather than reasoned about.**
+Kill the `workerd` that holds the port and miniflare starts another one, which rebinds the same port
+within a second. Its own log says so:
+
+```
+[wrangler:warn] The Workers runtime crashed unexpectedly and is being restarted (crash #1).
+[wrangler:info] Updated and ready on http://127.0.0.1:8860
+```
+
+The mechanism is in the pinned miniflare: `Runtime.updateConfig` attaches an exit handler to the
+`workerd` child that calls `onWorkerdCrashRestart`, which reassembles the config and spawns a
+replacement. **`SIGKILL` is indistinguishable from a crash.** So the replacement is a pid that did
+not exist when the tree was enumerated; kill its supervisor next and it is reparented onto init,
+where a ppid of 1 puts it outside any walk of parent links. That is the whole of the `FAIL` line.
+
+**Why the old depth-first kill lost this race on Linux and won it on macOS.** The real tree is
+`npm exec` → node → node → {esbuild, esbuild, workerd, workerd}. The killed `workerd` is not the
+last child, so the old code ran `children_of` for each remaining sibling *after* killing it. On
+Linux that was a `/proc` scan forking `cat` ~150 times — hundreds of milliseconds of window, which
+is exactly the interval the supervisor respawns in. On macOS it is one `pgrep` fork, so macOS won
+the race and looked fixed. **The platform difference is the size of a window, not a missing arm.**
+
+**The fix removes the window rather than shortening it, and adds a backstop for when that is not
+enough.** Both, because they answer different questions:
+
+- **`freeze_tree` first.** `SIGSTOP` the whole tree before killing any of it — root before its
+  children are enumerated, each child before its own are read. A stopped supervisor cannot run the
+  exit handler, so it cannot spawn a replacement, and the set being killed cannot grow. Only then
+  `SIGKILL`, children before parents. No `SIGCONT` is ever sent: continuing a supervisor is
+  precisely what must not happen.
+- **`port_holders` after.** Parent links cannot find a process that was never in the tree, so
+  `stop_server` asks the other question — *who has this socket open* — and kills that answer's tree
+  too, before `release_port` starts waiting.
+
+**`port_holders` reads `/proc` alone, and that constraint is the design.** `ss`, `lsof`, `pgrep`
+and `python3` may all be missing — `port_in_use` already learned that about `ss`, which is not in
+`mcr.microsoft.com/dotnet/sdk:10.0`. `/proc/net/tcp` cannot be missing on Linux. So: `/proc/net/tcp`
+and `/proc/net/tcp6`, field 4 == `0A` (TCP_LISTEN) and field 2's port half matching the port in
+hex, gives the socket inode in field 10; then one `ls -l` of each `/proc/<pid>/fd` finds the process
+whose fd is `socket:[<inode>]`. **Field 2 and not field 3** — field 3 is the *remote* address, and a
+connection *to* the listener carries the wanted port there, so the wrong column names the client
+instead of the server. macOS has no `/proc` and takes an `lsof` arm; Windows keeps `netstat`.
+
+**A process-group kill was considered and rejected on evidence, not taste.** The obvious reading of
+the `FAIL` is "it escaped into a session of its own", and it is wrong twice: miniflare spawns
+`workerd` with **no `detached`**, and neither `setsid` nor `process.setpgid` appears anywhere in
+wrangler or miniflare on the `pages dev` path — so there is no second group to reach for. And
+`( … ) &` in a non-interactive shell is not a group leader, so the tree's pgid is the *harness's
+own*: `kill -- -$pgid` would take out `e2e.sh` itself.
+
+**Two new checks hold this, and both were watched red.** `RESPAWNING_TREE` starts 203 processes of
+which 100 are siblings a supervisor replaces on sight, and fails if anything was spawned *while*
+the tree was being killed — remove the `SIGSTOP` from `freeze_tree` and 11 marked processes survive.
+`ORPHANED_LISTENER` binds a port from a process reparented onto init, asserts as a control that it
+is genuinely outside the tree, and fails if it outlives `stop_server` — disable the port-holder
+backstop and it goes red. `PROC_NET_PARSE` drives the socket lookup against a synthetic
+`/proc/net/tcp{,6}` and five decoys: reading field 3 instead of field 2 names the client decoy,
+and matching a state other than `0A` names the connected-not-listening one.
+
+**And the failure message names the holder now.** A still-held port used to print a number nobody
+could act on; `::error::` and `::warning::` both carry the holder's pid and cmdline, so the next run
+that fails this way is diagnostic on its own. **What would disprove the fix is a `WRANGLER_TREE` or
+`ORPHANED_LISTENER: FAIL` naming a surviving pid — not another green run**, for the reason this
+whole section opens with.
 
 ### Three things about the server, each of which cost a debugging round
 
