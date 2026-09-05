@@ -143,6 +143,110 @@ public sealed class PlayEngineStepTests
         Assert.Single(sidesStanding);
     }
 
+    // ── Citations ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <b>Every line the engine writes names a real entry and carries that entry's page.</b>
+    ///
+    /// <para>The ledger's whole value is that any figure in a run traces to a printed page, and a
+    /// refusal is a rule applied just as much as a hit is — so the class of line a reader most needs
+    /// to check must not be the one class that cannot be checked. Refusals used to print <c>—</c>
+    /// where the citation goes, an unimplemented spend printed a C# enum member's name where the
+    /// rule id goes, and <c>NotTheirTurn</c> printed one entry's id against a different entry's page.
+    /// </para>
+    ///
+    /// <para>Both halves are checked against the store itself rather than against a list written
+    /// here: the id has to be an entry <see cref="PlayRulesRepository.EntryIds"/> knows, and the
+    /// citation has to be that entry's own <c>source_ref</c>.</para>
+    /// </summary>
+    [Fact]
+    public void EveryLedgerLineCitesAnEntryThatExistsAndThatEntrysPage()
+    {
+        var hero = Combatant.Hero("hero", "the Hero", edge: 9, health: 8, resolve: 4,
+            new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["might"] = 8, ["toughness"] = 5, ["agility"] = 4
+            },
+            ["toughness", "agility"]);
+
+        var villain = Combatant.Villain("villain", "the Villain", edge: 7, health: 10,
+            new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["might"] = 8, ["toughness"] = 5, ["agility"] = 4
+            },
+            ["toughness", "agility"]);
+
+        var encounter = new Encounter(_play, new SeededDice(6), TableRules.Book with { FatalDamage = true });
+        var state = encounter.Begin([hero, villain]);
+
+        // Every refusal this slice can produce, and then a whole fight on top of them.
+        var refusals = new List<Intent>
+        {
+            new Attack("villain", "hero", "might"),                  // not their turn
+            new Attack("hero", "villain", "no_such_trait"),           // no rank to throw
+            new BreakFree("hero", "willpower", Threshold: 3),         // no effect to break out of
+            new SpendResolve("villain", ResolveSpend.Reroll),         // holds no Resolve
+            new SpendResolve("hero", ResolveSpend.Reroll),            // no roll on the table
+            new SpendResolve("hero", ResolveSpend.ExtraDice),         // ditto
+            new SpendResolve("hero", ResolveSpend.KeepingHold),
+            new SpendResolve("hero", ResolveSpend.InstantRecovery),
+            new SpendResolve("hero", ResolveSpend.Knockback),
+            new SpendResolve("hero", ResolveSpend.Luring),
+            new SpendResolve("hero", ResolveSpend.TeamAttack),
+            new SpendAdversity("villain", AdversitySpend.Villainy),
+            new SpendAdversity("villain", AdversitySpend.Misfortune, Points: 999)
+        };
+
+        foreach (var intent in refusals) state = encounter.Step(state, intent).State;
+
+        state = encounter.RunToEnd(state, new AttackTheWeakest(), maxPages: 20);
+
+        // The control: the refusals really happened, so the assertions below are about lines that
+        // exist. A run that produced only ordinary lines would satisfy them trivially.
+        Assert.Contains(state.Ledger.Lines, l =>
+            l.Text.Contains("holds no Resolve", StringComparison.Ordinal));
+        Assert.Contains(state.Ledger.Lines, l =>
+            l.Text.Contains("not yet implemented", StringComparison.Ordinal));
+        Assert.Contains(state.Ledger.Lines, l =>
+            l.Text.Contains("is not the Villain's turn", StringComparison.Ordinal));
+
+        var pages = _play.EntryIds()
+            .Select(e => e.Id)
+            .Distinct(StringComparer.Ordinal)
+            .ToDictionary(id => id, SourceRefOf, StringComparer.Ordinal);
+
+        foreach (var line in state.Ledger.Lines)
+        {
+            Assert.True(pages.ContainsKey(line.Rule),
+                $"the ledger names a rule '{line.Rule}' that is in none of the five play files: {line.Text}");
+
+            Assert.True(string.Equals(pages[line.Rule], line.SourceRef, StringComparison.Ordinal),
+                $"the ledger cites '{line.SourceRef}' for {line.Rule}, whose own source_ref is "
+                + $"'{pages[line.Rule]}': {line.Text}");
+        }
+    }
+
+    /// <summary>One entry's <c>source_ref</c>, whichever of the five files it is in.</summary>
+    private string SourceRefOf(string id)
+    {
+        foreach (var (file, entryId) in _play.EntryIds())
+        {
+            if (!string.Equals(entryId, id, StringComparison.Ordinal)) continue;
+
+            return file switch
+            {
+                PlayRulesRepository.PlayMetaFile => _play.GetMeta(id).SourceRef,
+                PlayRulesRepository.ChallengeFile => _play.GetChallenge(id).SourceRef,
+                PlayRulesRepository.CombatFile => _play.GetCombat(id).SourceRef,
+                PlayRulesRepository.GrittyFile => _play.GetGritty(id).SourceRef,
+                PlayRulesRepository.ResolveFile => _play.GetResolve(id).SourceRef,
+                var other => throw new InvalidOperationException($"Unknown play rules file {other}.")
+            };
+        }
+
+        throw new KeyNotFoundException($"No entry '{id}' in the play rules.");
+    }
+
     // ── Rounding, and the one factor that is prose ───────────────────────────
 
     /// <summary>

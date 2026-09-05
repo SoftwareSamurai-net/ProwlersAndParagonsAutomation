@@ -29,18 +29,39 @@ public sealed partial class Encounter
             SpendAdversity spend => ResolveAdversitySpend(state, spend, lines),
             EndTurn => ResolveEndTurn(state, lines),
             EndPage => ResolveEndPage(state, lines),
-            _ => Refuse(state, intent.Actor, "unknown_intent", lines,
-                     $"not yet implemented: {intent.GetType().Name}")
+            _ => RefuseUnknownIntent(state, intent, lines)
         };
 
         return new StepResult(next with { Ledger = next.Ledger.Plus(lines) }, lines);
+    }
+
+    /// <summary>
+    /// An intent type this engine does not know at all, refused against <c>actions</c> — the entry
+    /// that says what a character may do on their turn, and so the rule such a request falls outside
+    /// of.
+    /// </summary>
+    private EncounterState RefuseUnknownIntent(EncounterState state, Intent intent, List<LedgerLine> lines)
+    {
+        var entry = _play.GetCombat("actions");
+
+        return Refuse(state, intent.Actor, entry.Id, entry.SourceRef, lines,
+            $"not yet implemented: {intent.GetType().Name}");
+    }
+
+    /// <summary>One of the Resolve purchases this slice records but does not resolve.</summary>
+    private EncounterState Unimplemented(
+        EncounterState state, string actor, ResolveSpend kind, List<LedgerLine> lines)
+    {
+        var (id, sourceRef) = UnimplementedSpendEntry(kind);
+
+        return NotYetImplementedSpend(state, actor, kind.ToString(), id, sourceRef, lines);
     }
 
     // ── Attacks ──────────────────────────────────────────────────────────────
 
     private EncounterState ResolveAttack(EncounterState state, Attack attack, List<LedgerLine> lines)
     {
-        if (NotTheirTurn(state, attack.Actor, lines, "attacks_and_defenses")) return state;
+        if (NotTheirTurn(state, attack.Actor, lines)) return state;
 
         var actor = state[attack.Actor];
         var target = state[attack.Target];
@@ -50,7 +71,7 @@ public sealed partial class Encounter
 
         if (rank <= 0)
         {
-            return Refuse(state, actor.Id, entry.Id, lines,
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
                 $"{actor.Name} has no rank in {attack.TraitId}, so there is no pool to throw");
         }
 
@@ -441,7 +462,7 @@ public sealed partial class Encounter
 
     private EncounterState ResolveMove(EncounterState state, Move move, List<LedgerLine> lines)
     {
-        if (NotTheirTurn(state, move.Actor, lines, "movement")) return state;
+        if (NotTheirTurn(state, move.Actor, lines)) return state;
 
         var actor = state[move.Actor];
         var entry = _play.GetCombat("movement");
@@ -486,7 +507,7 @@ public sealed partial class Encounter
 
     private EncounterState ResolveHold(EncounterState state, Hold hold, List<LedgerLine> lines)
     {
-        if (NotTheirTurn(state, hold.Actor, lines, "holding_an_action")) return state;
+        if (NotTheirTurn(state, hold.Actor, lines)) return state;
 
         var entry = _play.GetCombat("holding_an_action");
         var actor = state[hold.Actor];
@@ -500,7 +521,7 @@ public sealed partial class Encounter
 
     private EncounterState ResolveGrapple(EncounterState state, GrappleIntent grapple, List<LedgerLine> lines)
     {
-        if (NotTheirTurn(state, grapple.Actor, lines, "grappling")) return state;
+        if (NotTheirTurn(state, grapple.Actor, lines)) return state;
 
         var entry = _play.GetCombat("grappling");
         var table = _play.GetCombat("grappling_table");
@@ -595,7 +616,7 @@ public sealed partial class Encounter
 
     private EncounterState ResolveBreakFree(EncounterState state, BreakFree free, List<LedgerLine> lines)
     {
-        if (NotTheirTurn(state, free.Actor, lines, "breaking_free")) return state;
+        if (NotTheirTurn(state, free.Actor, lines)) return state;
 
         var entry = _play.GetCombat("breaking_free");
         var rule = entry.BreakingFree!;
@@ -606,7 +627,7 @@ public sealed partial class Encounter
 
         if (effect is null)
         {
-            return Refuse(state, actor.Id, entry.Id, lines,
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
                 $"{actor.Name} is not suffering a special effect, so there is nothing to break free of");
         }
 
@@ -644,7 +665,9 @@ public sealed partial class Encounter
 
         if (!actor.HoldsResolve)
         {
-            return Refuse(state, actor.Id, "spend_combat", lines,
+            var combat = _play.GetResolve("spend_combat");
+
+            return Refuse(state, actor.Id, combat.Id, combat.SourceRef, lines,
                 $"{actor.Name} is a {actor.Kind} and holds no Resolve — only Heroes have any, and "
                 + "the GM spends Adversity on an NPC instead");
         }
@@ -655,7 +678,7 @@ public sealed partial class Encounter
             ResolveSpend.Reroll => BuyReroll(state, actor, lines),
             ResolveSpend.SeizeInitiative => SeizeInitiative(state, actor, lines),
             ResolveSpend.AvoidFatalDamage => AvoidFatalDamage(state, actor, lines),
-            _ => NotYetImplementedSpend(state, actor.Id, spend.Kind.ToString(), lines)
+            _ => Unimplemented(state, actor.Id, spend.Kind, lines)
         };
     }
 
@@ -672,7 +695,7 @@ public sealed partial class Encounter
 
         if (state.LastAttack is not { } last || !string.Equals(last.Actor, actor.Id, StringComparison.Ordinal))
         {
-            return Refuse(state, actor.Id, entry.Id, lines,
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
                 $"{actor.Name} has no roll on the table to buy dice for");
         }
 
@@ -704,7 +727,7 @@ public sealed partial class Encounter
 
         if (state.LastAttack is not { } last || !string.Equals(last.Actor, actor.Id, StringComparison.Ordinal))
         {
-            return Refuse(state, actor.Id, entry.Id, lines,
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
                 $"{actor.Name} has no challenge roll on the table to pick back up");
         }
 
@@ -745,7 +768,7 @@ public sealed partial class Encounter
 
         if (state.Seized.Contains(actor.Id, StringComparer.Ordinal))
         {
-            return Refuse(state, actor.Id, entry.Id, lines,
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
                 $"{actor.Name} has already seized the initiative, and it lasts {rule.Duration}");
         }
 
@@ -784,7 +807,7 @@ public sealed partial class Encounter
 
         if (!state.Table.FatalDamage)
         {
-            return Refuse(state, actor.Id, entry.Id, lines,
+            return Refuse(state, actor.Id, entry.Id, entry.SourceRef, lines,
                 "Fatal Damage is not one of this table's settings, so there is no threshold to buy back from");
         }
 
@@ -834,11 +857,12 @@ public sealed partial class Encounter
 
         if (state.Adversity < spend.Points)
         {
-            return Refuse(state, spend.Actor, entry.Id, lines,
+            return Refuse(state, spend.Actor, entry.Id, entry.SourceRef, lines,
                 $"the GM has {state.Adversity} Adversity and the spend costs {spend.Points}");
         }
 
-        return NotYetImplementedSpend(state, spend.Actor, entry.Id, lines);
+        return NotYetImplementedSpend(
+            state, spend.Actor, spend.Kind.ToString(), entry.Id, entry.SourceRef, lines);
     }
 
     // ── Turns and pages ──────────────────────────────────────────────────────
@@ -965,14 +989,25 @@ public sealed partial class Encounter
         return state with { ActiveDefencesThisPage = used };
     }
 
-    private bool NotTheirTurn(EncounterState state, string actor, List<LedgerLine> lines, string ruleId)
+    /// <summary>
+    /// Whether it is somebody else's turn, refused on the ledger citing the entry the refusal is
+    /// about.
+    ///
+    /// <para><b>The citation is <c>pages_and_turns</c>, in both halves of the line.</b> It used to
+    /// print the id of whatever the character was trying to do — <c>attacks_and_defenses</c>,
+    /// <c>movement</c> — against <c>pages_and_turns</c>'s page reference, so the rule named and the
+    /// page cited were two different entries and a reader chasing the citation landed on a rule that
+    /// says nothing about turn order. The rule this refusal applies is "every character gets one
+    /// turn a page", and that is the entry it names.</para>
+    /// </summary>
+    private bool NotTheirTurn(EncounterState state, string actor, List<LedgerLine> lines)
     {
         if (string.Equals(state.Current?.Id, actor, StringComparison.Ordinal)) return false;
 
         var entry = _play.GetCombat("pages_and_turns");
 
         lines.Add(new LedgerLine(
-            state.Page, actor, ruleId, entry.SourceRef,
+            state.Page, actor, entry.Id, entry.SourceRef,
             $"it is not {state[actor].Name}'s turn — every character gets "
             + $"{entry.Page!.TurnsPerCharacterPerPage} turn a page, and this one belongs to "
             + $"{state.Current?.Name ?? "nobody: the page is out of turns"}"));
@@ -980,22 +1015,60 @@ public sealed partial class Encounter
         return true;
     }
 
+    /// <summary>
+    /// A refusal, on the ledger, <b>citing the entry it is about</b>.
+    ///
+    /// <para>Every line the engine writes carries the <c>source_ref</c> of the rule it applied, so
+    /// any figure in a run traces to a printed page — and a refusal is a rule applied just as much as
+    /// a hit is. These used to print <c>—</c> where the citation goes, which made the one class of
+    /// line a reader most needs to check the least checkable.</para>
+    /// </summary>
     private static EncounterState Refuse(
-        EncounterState state, string actor, string ruleId, List<LedgerLine> lines, string why)
+        EncounterState state, string actor, string ruleId, string sourceRef,
+        List<LedgerLine> lines, string why)
     {
-        lines.Add(new LedgerLine(state.Page, actor, ruleId, "—", why));
+        lines.Add(new LedgerLine(state.Page, actor, ruleId, sourceRef, why));
         return state;
     }
 
+    /// <summary>
+    /// A spend this slice does not resolve, named on the ledger and changing nothing.
+    ///
+    /// <para><b>The <c>Rule</c> is the entry's id and not the enum member's name.</b> A ledger whose
+    /// rule column reads <c>KeepingHold</c> names a C# identifier, which is not a thing anybody can
+    /// look up in the book; <c>keeping_hold</c> is. The sentence still carries the enum name, because
+    /// that is what a caller passed in and what they will search for.</para>
+    /// </summary>
     private static EncounterState NotYetImplementedSpend(
-        EncounterState state, string actor, string what, List<LedgerLine> lines)
+        EncounterState state, string actor, string what, string ruleId, string sourceRef,
+        List<LedgerLine> lines)
     {
         lines.Add(new LedgerLine(
-            state.Page, actor, what, "—",
+            state.Page, actor, ruleId, sourceRef,
             $"not yet implemented: {what}. Nothing was spent and nothing changed — see "
             + "docs/guide/play-engine.md for the list"));
 
         return state;
+    }
+
+    /// <summary>
+    /// The entry behind each Resolve purchase this slice does not resolve, so its refusal can cite a
+    /// page. Chapter 4 prints four of the five and Chapter 5 the other.
+    /// </summary>
+    private (string Id, string SourceRef) UnimplementedSpendEntry(ResolveSpend kind)
+    {
+        var entry = _play.GetCombat(kind switch
+        {
+            ResolveSpend.KeepingHold => "keeping_hold",
+            ResolveSpend.InstantRecovery => "instant_recovery",
+            ResolveSpend.Knockback => "knockback",
+            ResolveSpend.Luring => "luring",
+            ResolveSpend.TeamAttack => "team_attacks",
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(kind), kind, "That purchase is resolved, so it has no not-yet-implemented entry.")
+        });
+
+        return (entry.Id, entry.SourceRef);
     }
 
     /// <summary>Half, in the direction the entry's own reading names.</summary>
