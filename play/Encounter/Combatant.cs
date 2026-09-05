@@ -51,6 +51,7 @@ public sealed class Combatant
         string id,
         string name,
         CombatantKind kind,
+        string side,
         int edge,
         int fullHealth,
         int currentHealth,
@@ -62,6 +63,7 @@ public sealed class Combatant
         Id = id;
         Name = name;
         Kind = kind;
+        Side = side;
         Edge = edge;
         FullHealth = fullHealth;
         CurrentHealth = currentHealth;
@@ -71,6 +73,12 @@ public sealed class Combatant
         Defences = defences;
     }
 
+    /// <summary>The side the book's own fights are written from: the player characters'.</summary>
+    public const string HeroSide = "heroes";
+
+    /// <summary>The side everything the book's fights point at is on, by default.</summary>
+    public const string OpposingSide = "villains";
+
     /// <summary>The id the encounter refers to this combatant by.</summary>
     public string Id { get; }
 
@@ -79,6 +87,23 @@ public sealed class Combatant
 
     /// <summary>Which rung of p.73's ladder this combatant is on.</summary>
     public CombatantKind Kind { get; }
+
+    /// <summary>
+    /// Whose side this combatant is on, as a free-form name the caller chooses.
+    ///
+    /// <para><b>It is a field because it is not derivable, and deriving it was a defect.</b> Nothing
+    /// in Chapters 3–5 says who is on whose side — p.73's ladder is about precedence, not teams — so
+    /// an engine that read <see cref="Kind"/> for it was answering a different question, and it got
+    /// two printed cases wrong: p.73's Heroes fighting each other (which the page names, and which
+    /// that reading made unresolvable), and a Villain's Minions against a Foe. <see cref="Kind"/>
+    /// still decides tie order, Health and who holds Resolve; this decides who is fighting whom, and
+    /// nothing else may.</para>
+    ///
+    /// <para>The factories default to <see cref="HeroSide"/> for a Hero and
+    /// <see cref="OpposingSide"/> for everybody else, which is the arrangement every fight the book
+    /// works through happens to have. A caller who wants another says so.</para>
+    /// </summary>
+    public string Side { get; }
 
     /// <summary>Ch.4 p.73's order of action, already derived by the character engine.</summary>
     public int Edge { get; }
@@ -123,26 +148,30 @@ public sealed class Combatant
     /// <summary>A Hero, with the Resolve the character engine computed for them.</summary>
     public static Combatant Hero(
         string id, string name, int edge, int health, int resolve,
-        IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences) =>
-        Build(id, name, CombatantKind.Hero, edge, health, resolve, 0, traitRanks, defences);
+        IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences,
+        string side = HeroSide) =>
+        Build(id, name, CombatantKind.Hero, side, edge, health, resolve, 0, traitRanks, defences);
 
     /// <summary>A Villain: the Hero rules, the same Health formula, and no Resolve.</summary>
     public static Combatant Villain(
         string id, string name, int edge, int health,
-        IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences) =>
-        Build(id, name, CombatantKind.Villain, edge, health, 0, 0, traitRanks, defences);
+        IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences,
+        string side = OpposingSide) =>
+        Build(id, name, CombatantKind.Villain, side, edge, health, 0, 0, traitRanks, defences);
 
     /// <summary>A Foe, whose Health has already been halved by <see cref="CombatantFactory"/>.</summary>
     public static Combatant Foe(
         string id, string name, int edge, int health,
-        IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences) =>
-        Build(id, name, CombatantKind.Foe, edge, health, 0, 0, traitRanks, defences);
+        IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences,
+        string side = OpposingSide) =>
+        Build(id, name, CombatantKind.Foe, side, edge, health, 0, 0, traitRanks, defences);
 
     /// <summary>An Extra.</summary>
     public static Combatant Extra(
         string id, string name, int edge, int health,
-        IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences) =>
-        Build(id, name, CombatantKind.Extra, edge, health, 0, 0, traitRanks, defences);
+        IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences,
+        string side = OpposingSide) =>
+        Build(id, name, CombatantKind.Extra, side, edge, health, 0, 0, traitRanks, defences);
 
     /// <summary>
     /// A group of Minions: one Threat rank, no Health, no Edge, and a body count.
@@ -152,15 +181,17 @@ public sealed class Combatant
     /// rules that read them go through <see cref="Kind"/>, so a Minion group with a Health of zero
     /// is never mistaken for a character who has been beaten down to zero.</para>
     /// </summary>
-    public static Combatant Minions(string id, string name, int threat, int groupSize, string threatTraitId) =>
+    public static Combatant Minions(
+        string id, string name, int threat, int groupSize, string threatTraitId,
+        string side = OpposingSide) =>
         Build(
-            id, name, CombatantKind.MinionGroup, edge: 0, health: 0, resolve: 0, groupSize: groupSize,
+            id, name, CombatantKind.MinionGroup, side, edge: 0, health: 0, resolve: 0, groupSize: groupSize,
             traitRanks: new Dictionary<string, int>(StringComparer.Ordinal) { [threatTraitId] = threat },
             defences: [threatTraitId]);
 
     /// <summary>This combatant with a different Health. Nothing else moves.</summary>
     public Combatant WithHealth(int health) =>
-        new(Id, Name, Kind, Edge, FullHealth, health, Resolve, GroupSize, TraitRanks, Defences);
+        new(Id, Name, Kind, Side, Edge, FullHealth, health, Resolve, GroupSize, TraitRanks, Defences);
 
     /// <summary>
     /// This combatant with <paramref name="points"/> taken out of their Resolve pool.
@@ -185,26 +216,30 @@ public sealed class Combatant
                 $"{Name} has {Resolve} Resolve and the spend costs {points}.");
         }
 
-        return new Combatant(Id, Name, Kind, Edge, FullHealth, CurrentHealth, Resolve - points, GroupSize, TraitRanks, Defences);
+        return new Combatant(
+            Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve - points, GroupSize, TraitRanks, Defences);
     }
 
     /// <summary>This Minion group with fewer bodies in it.</summary>
     public Combatant WithGroupSize(int groupSize) =>
         Kind == CombatantKind.MinionGroup
-            ? new Combatant(Id, Name, Kind, Edge, FullHealth, CurrentHealth, Resolve, Math.Max(0, groupSize), TraitRanks, Defences)
+            ? new Combatant(
+                Id, Name, Kind, Side, Edge, FullHealth, CurrentHealth, Resolve, Math.Max(0, groupSize),
+                TraitRanks, Defences)
             : throw new InvalidOperationException($"{Name} is a {Kind}, not a group of Minions.");
 
     private static Combatant Build(
-        string id, string name, CombatantKind kind, int edge, int health, int resolve, int groupSize,
-        IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences)
+        string id, string name, CombatantKind kind, string side, int edge, int health, int resolve,
+        int groupSize, IReadOnlyDictionary<string, int> traitRanks, IReadOnlyList<string> defences)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(side);
         ArgumentNullException.ThrowIfNull(traitRanks);
         ArgumentNullException.ThrowIfNull(defences);
 
         return new Combatant(
-            id, name, kind, edge, health, health, resolve, groupSize,
+            id, name, kind, side, edge, health, health, resolve, groupSize,
             new Dictionary<string, int>(traitRanks, StringComparer.Ordinal),
             [.. defences]);
     }

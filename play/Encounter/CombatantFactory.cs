@@ -36,13 +36,20 @@ public static class CombatantFactory
     /// <param name="play">The play rules, for the Health halving and the defence lists.</param>
     /// <param name="kind">Which rung of p.73's ladder this character occupies in this fight.</param>
     /// <param name="id">The id the encounter refers to them by; their name by default.</param>
+    /// <param name="side">
+    /// Whose side they are on. <b>The caller says, and nothing derives it</b> — see
+    /// <see cref="Combatant.Side"/>: p.73 names a fight between Heroes, and a Villain's Minions
+    /// stand beside their Villain against a Foe who has changed sides. Defaults to the arrangement
+    /// every fight the book works through happens to have.
+    /// </param>
     public static Combatant From(
         CharacterSheet sheet,
         RulesRepository rules,
         DerivedStatsCalculator derived,
         PlayRulesRepository play,
         CombatantKind kind,
-        string? id = null)
+        string? id = null,
+        string? side = null)
     {
         ArgumentNullException.ThrowIfNull(sheet);
         ArgumentNullException.ThrowIfNull(rules);
@@ -66,11 +73,15 @@ public static class CombatantFactory
 
         return kind switch
         {
-            CombatantKind.Hero =>
-                Combatant.Hero(id ?? name, name, edge, health, derived.CalculateResolve(sheet), traits, defences),
-            CombatantKind.Villain => Combatant.Villain(id ?? name, name, edge, health, traits, defences),
-            CombatantKind.Foe => Combatant.Foe(id ?? name, name, edge, health, traits, defences),
-            CombatantKind.Extra => Combatant.Extra(id ?? name, name, edge, health, traits, defences),
+            CombatantKind.Hero => Combatant.Hero(
+                id ?? name, name, edge, health, derived.CalculateResolve(sheet), traits, defences,
+                side ?? Combatant.HeroSide),
+            CombatantKind.Villain => Combatant.Villain(
+                id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide),
+            CombatantKind.Foe => Combatant.Foe(
+                id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide),
+            CombatantKind.Extra => Combatant.Extra(
+                id ?? name, name, edge, health, traits, defences, side ?? Combatant.OpposingSide),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unknown kind of combatant.")
         };
     }

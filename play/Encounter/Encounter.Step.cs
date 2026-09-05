@@ -904,18 +904,27 @@ public sealed partial class Encounter
     }
 
     /// <summary>
-    /// Whether one side has nobody standing. See this class's own summary: the split into Heroes and
-    /// everybody else is this engine's reading, not a rule the book prints.
+    /// Whether one side has nobody standing.
+    ///
+    /// <para><b>It partitions on <see cref="Combatant.Side"/> and never on
+    /// <see cref="Combatant.Kind"/>.</b> Reading the Kind for it made p.73's fight between Heroes
+    /// unendable — every combatant was on the Hero side, so no side could ever be down — and put a
+    /// Villain's Minions on the same side as the Foe they were fighting. Kind still decides tie
+    /// order, Health and who holds Resolve.</para>
+    ///
+    /// <para>A fight with everybody on one side is never over by this rule, which is the same answer
+    /// the previous reading gave for a party with no opposition in it: there is no side to have been
+    /// beaten.</para>
     /// </summary>
     private bool OneSideIsDown(EncounterState state)
     {
         var floor = _play.GetCombat("damage").Damage!.DefeatedAtHealth;
 
-        var heroes = state.Combatants.Values.Where(c => c.Kind == CombatantKind.Hero).ToList();
-        var others = state.Combatants.Values.Where(c => c.Kind != CombatantKind.Hero).ToList();
+        var sides = state.Combatants.Values
+            .GroupBy(c => c.Side, StringComparer.Ordinal)
+            .ToList();
 
-        return (heroes.Count > 0 && heroes.TrueForAll(c => c.Defeated(floor)))
-            || (others.Count > 0 && others.TrueForAll(c => c.Defeated(floor)));
+        return sides.Count > 1 && sides.Exists(side => side.All(c => c.Defeated(floor)));
     }
 
     // ── Shared ───────────────────────────────────────────────────────────────

@@ -28,11 +28,12 @@ public sealed record StepResult(EncounterState State, IReadOnlyList<LedgerLine> 
 /// apart is a simulator that is confidently wrong. <c>docs/guide/play-engine.md</c> lists them.
 /// </para>
 ///
-/// <para><b>Two sides, and it is this file's reading rather than the book's.</b> Nothing in
-/// Chapters 3–5 says who is on whose side; the tie-break ladder on p.73 is about precedence, not
-/// teams. So <see cref="EncounterState.Over"/> and every policy here read the Heroes as one side
-/// and everybody else as the other, which is true of every fight the book works through and is
-/// wrong for a Hero fighting a Hero. It is recorded in the guide as a reading, not as a rule.</para>
+/// <para><b>Sides are a field the caller sets, not something derived.</b> Nothing in Chapters 3–5
+/// says who is on whose side; the tie-break ladder on p.73 is about precedence, not teams. So
+/// <see cref="Combatant.Side"/> carries it, <see cref="EncounterState.Over"/> and every policy
+/// partition on that and on nothing else, and <see cref="CombatantKind"/> is left to do what the
+/// ladder actually uses it for. Deriving the side from the kind was a defect: p.73 prints a fight
+/// between Heroes, and a Villain's Minions can stand against a Foe.</para>
 /// </summary>
 public sealed partial class Encounter
 {

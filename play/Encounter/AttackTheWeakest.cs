@@ -10,8 +10,9 @@ namespace ProwlersAndParagonsAutomation.Play.Encounter;
 /// made under this policy is a measurement about a party that plays this way. Its name goes in every
 /// report for exactly that reason.</para>
 ///
-/// <para><b>Sides are Heroes against everybody else</b>, which is <c>Encounter</c>'s reading rather
-/// than a rule the book prints; see that class's own summary.</para>
+/// <para><b>Whose side somebody is on is <see cref="Combatant.Side"/>, which the caller set.</b>
+/// This policy never reads <see cref="CombatantKind"/> for it: a fight between Heroes (p.73) and a
+/// Villain's Minions against a Foe are both fights this would otherwise refuse to see.</para>
 /// </summary>
 public sealed class AttackTheWeakest : IPolicy
 {
@@ -87,9 +88,9 @@ public sealed class AttackTheWeakest : IPolicy
     }
 
     /// <summary>
-    /// Whether the second combatant is on the other side from the first. Heroes against everybody
-    /// else — <c>Encounter</c>'s reading, recorded in the guide.
+    /// Whether the second combatant is on the other side from the first — the field the caller set,
+    /// never the kind of character they are.
     /// </summary>
     private static bool IsEnemyOf(Combatant actor, Combatant other) =>
-        (actor.Kind == CombatantKind.Hero) != (other.Kind == CombatantKind.Hero);
+        !string.Equals(actor.Side, other.Side, StringComparison.Ordinal);
 }

@@ -115,7 +115,6 @@ Three properties of it are load-bearing:
 
 | Reading | Why the data cannot answer it |
 |---|---|
-| **Sides are Heroes against everybody else.** `Over` and every policy read it this way. | Nothing in Ch.3–5 says who is on whose side; p.73's ladder is about precedence, not teams. It is true of every fight the book works through and wrong for a Hero fighting a Hero. |
 | **An odd pool banks the even half.** 11d taking automatic successes banks 5. | `automatic_successes`'s own `ambiguity`: the rule is priced in pairs and the printed example is 12d, which settles nothing. Integer division is the reading that never gives a character more than the page promises. |
 | **The Minion cap applies to both rates.** An attack cannot defeat more Minions than are present. | `attacking_minions`'s `ambiguity`: the parenthesis is printed on the area-attack clause alone, but its second half — "or within reach" — is the phrase for an ordinary attack. |
 | **Wound Penalties' deeper band replaces the shallower one.** | The entry's own `ambiguity`: the two are printed as thresholds rather than steps, and at zero Health a character is already below half of any positive Health. |
@@ -131,6 +130,8 @@ And one the engine **consumes** rather than makes, with a doc comment naming the
 `CombatantFactory.From(sheet, rules, derived, play, kind)` is the only code in `play/` that touches a `CharacterSheet`. Everything after it works on immutable `Combatant` snapshots, which is what makes `Encounter.Step` pure and is checked from the other side by the byte-identical round-trip test.
 
 **The caller supplies the `Kind`.** It is an argument and not something read off the sheet: the flag on a character is presentation, no rules code may see it, and the same sheet is a Villain in one game and a Foe in another. `Kind` is the only thing that decides whether Health is halved and whether Resolve is held.
+
+**The caller supplies the `Side` too, and it is a separate field on purpose.** Nothing in Ch.3–5 says who is on whose side — p.73's ladder is about precedence, not teams — so `Combatant.Side` is a free-form name the caller chooses, and `OneSideIsDown`, `Over` and `AttackTheWeakest.IsEnemyOf` partition on it and on nothing else. Deriving it from `Kind` was a defect rather than a reading: it made p.73's fight between Heroes unendable (every combatant was on the Hero side, so no side could ever be down) and put a Villain's Minions on the same side as the Foe they were fighting. The factories default to `heroes` for a Hero and `villains` for everybody else, which is the arrangement every fight the book works through happens to have; `Kind` still decides tie order, Health and who holds Resolve.
 
 **Only a Hero can hold Resolve, and the type is what says so** — the constructor is private and `Combatant.Hero` is the only factory that takes a pool, so a spend charged to anybody else is a throw rather than a silent draw on nothing. Ch.2 says it twice; the character engine computes the figure for everybody and it is noise on a Villain. Here it is not noise, it is unconstructible.
 
