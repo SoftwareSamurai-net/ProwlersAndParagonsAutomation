@@ -267,7 +267,7 @@
         "description"
       ],
       "source_ref": "Ultimate Edition, Ch.4 Combat, p.80",
-      "ambiguity": null
+      "ambiguity": "medicine_net_successes_per_point is the same 'per 2 net successes' construction as Tough Minions' net_successes_per_minion_defeated, and the page states no rounding direction for it. Tough Minions names its own rounding down in as many words, as the Glossary's (p.7) one recorded exception to rounding up; this entry has no equivalent sentence, so whether an odd net-successes roll on a Medicine check rounds up (the book-wide default) or down (like Tough Minions) is unstated."
     },
     {
       "id": "gritty_tough_minions",

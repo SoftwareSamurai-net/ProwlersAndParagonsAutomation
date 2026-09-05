@@ -2977,6 +2977,15 @@ public sealed class PlayRulesDataTests
     /// rather than about the book: a rounding rule with no exception recorded and an exception with no
     /// rule to except from would each pass on their own.
     ///
+    /// <para><b>"One place" means the one the book NAMES, and that distinction is load-bearing.</b>
+    /// It is not a claim that no other rate in Chapter 4 halves something: <c>gritty_slow_healing</c>'s
+    /// Medicine rate is the identical "1 point per 2 net successes" construction on p.80, and p.80
+    /// prints no direction for it at all. Tough Minions is the exception because p.81 says "note that
+    /// you are rounding down in this unique case"; Slow Healing is silent, which is a third state —
+    /// neither the book-wide rule confirmed nor a second exception — and a simulator that reads "the
+    /// one place" as "the only rate of this shape" would settle it by accident. So the silence is
+    /// asserted here beside the exception, on the entry's own <c>ambiguity</c>.</para>
+    ///
     /// <para>The worked example is what makes it bite. Five net successes defeat two Minions, and the
     /// book-wide direction would defeat three — so the two directions are computed and the printed
     /// answer picks one.</para>
@@ -2992,7 +3001,16 @@ public sealed class PlayRulesDataTests
 
         Assert.Equal("up", rounding.Direction);
 
-        var exception = Assert.Single(rounding.Exceptions);
+        Assert.True(
+            rounding.Exceptions.Count == 1,
+            $"p.7 names one exception to the half-rounds-up rule; play_meta.json records "
+            + $"{rounding.Exceptions.Count}. \"The one place a half goes downward\" is a claim about "
+            + "what the book NAMES, not about which rates halve something — p.80's Medicine rate is "
+            + "the same 'per 2 net successes' shape with no direction printed for it, and is silent "
+            + "rather than a second exception. A new entry here has to be a rule that prints its own "
+            + "direction, the way p.81 does.");
+
+        var exception = rounding.Exceptions[0];
         Assert.Equal("Tough Minions", exception.Name);
         Assert.Equal("down", exception.Direction);
         Assert.Contains(
@@ -3014,6 +3032,23 @@ public sealed class PlayRulesDataTests
         Assert.NotEqual(
             CanonicalGrittyRules.ToughMinions.WorkedExampleMinionsDefeated,
             HalfBy(net, rounding.Direction));
+
+        // And the other rate of this shape is on record as unresolved rather than quietly assumed.
+        // Slow Healing's Medicine roll heals 1 point per 2 net successes on p.80 with no direction
+        // printed beside it — the same construction, without the sentence that makes this one an
+        // exception. Asserting the shapes match is what stops the ambiguity from being about some
+        // other field: if the rate ever stops being "per 2", this pairing stops being the point.
+        var healing = GrittyEntryById("gritty_slow_healing");
+
+        Assert.NotNull(healing.SlowHealing);
+        Assert.Equal(
+            tough.NetSuccessesPerMinionDefeated,
+            healing.SlowHealing.MedicineNetSuccessesPerPoint);
+        Assert.False(
+            string.IsNullOrWhiteSpace(healing.Ambiguity),
+            "gritty_slow_healing carries the same 'per 2 net successes' rate as Tough Minions with "
+            + "no printed rounding direction, and records no ambiguity — which leaves the direction "
+            + "for an odd roll to be decided silently by whoever implements it first.");
     }
 
     /// <summary>
@@ -3986,11 +4021,14 @@ public sealed class PlayRulesDataTests
     [InlineData("resolve.json", "resolve_exceptions")]
     // Chapter 4. The throwing gap and the Minion group bonus change results outright; the GM's
     // alternative to seizing the initiative is the one Chapter 5 pointed at and could not answer;
-    // and Wound Penalties records the extraction fault that filed it under another heading.
+    // and Wound Penalties records the extraction fault that filed it under another heading. Slow
+    // Healing is the fifth: its Medicine rate is Tough Minions' construction without Tough Minions'
+    // sentence about which way a half goes.
     [InlineData("combat.json", "throwing_table")]
     [InlineData("combat.json", "minions_attacking")]
     [InlineData("combat.json", "seize_initiative_gm_alternative")]
     [InlineData("gritty.json", "gritty_wound_penalties")]
+    [InlineData("gritty.json", "gritty_slow_healing")]
     public void TheKnownAmbiguitiesAreRecordedOnTheEntryTheyAffect(string file, string id)
     {
         var ambiguity = file switch

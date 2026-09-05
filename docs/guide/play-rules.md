@@ -159,6 +159,8 @@ There is a fourth, and it is about duration rather than arithmetic: p.73 offers 
 
 `ToughMinionsIsTheOnePlaceAHalfGoesDownward` asserts the pair together and by name, because **either half alone is a statement about a file rather than about the book** — a rounding rule with no exception recorded, and an exception with no rule to except from, would each pass on their own. The printed example separates them: five net successes defeat two Minions, and the book-wide direction would defeat three.
 
+**"One place" means the one the book *names*, and the test says so because the other reading is wrong.** Slow Healing's Medicine roll heals "1 point of damage per 2 net successes rolled" (p.80) — the identical construction — and p.80 prints no direction for it at all. Tough Minions is the exception because p.81 spells its direction out; Slow Healing is **silent**, which is a third state, neither the book-wide rule confirmed nor a second exception. So `gritty_slow_healing` carries an `ambiguity` saying the direction of an odd Medicine roll is unstated, the test asserts that silence beside the exception it is not, and both `CanonicalGrittyRules.ToughMinions` and the exception count's failure message say which claim is being made. Read as "the only rate of this shape", the name would settle a question the book leaves open.
+
 ### The two figures the character engine already computes
 
 Chapter 4 prints the Edge formula (p.73) and the Health formula (p.75), and `DerivedStatsCalculator` has implemented both since long before this store existed — so this file reads into `engine/` twice, the same way `resolve.json` does once for the Resolve table. `TheEngineComputesTheEdgeThisChapterPrints` and `TheEngineComputesTheHealthThisChapterPrintsIncludingTheRounding` hold each pair to one answer.
@@ -167,11 +169,12 @@ Chapter 4 prints the Edge formula (p.73) and the Health formula (p.75), and `Der
 
 ### The ambiguities, and the one that is about the corpus
 
-Four are pinned by name.
+Five are pinned by name.
 
 - **The Throwing table opens at 3d and the formula beside it floors at 0d**, so a throwing rank of 0d, 1d or 2d is reachable in play and printed nowhere. Either the sentence above the table applies and the throw reaches Close Range, or a figure below the table is not a throw the table describes.
 - **The Minion group bonus "does not apply when determining whether an attack can penetrate cover or harm characters using Powers like Armor or Force Field"** — but both are decided by the very attack roll the bonus is granted to. Read strictly it asks for two attack totals against one defence roll, and the page offers no such mechanism.
 - **The GM's alternative to seizing the initiative** has no stated duration, and no page says whether the GM's choice between the two effects is fixed for a table, for a campaign, or taken per purchase. Chapter 5 raised the same question from the other side and left it open.
+- **Slow Healing's Medicine rate halves without saying which way.** "1 point of damage per 2 net successes rolled" is Tough Minions' construction minus Tough Minions' sentence about rounding, so an odd roll goes up by the book-wide default or down by analogy, and p.80 says neither. See the Tough Minions section above.
 - **Wound Penalties' `ambiguity` records an extraction fault as well as a rules one**, because a reader comparing the entry against an older corpus would find the heading and not the rule. See below.
 
 ### The two extraction faults this slice fixed
