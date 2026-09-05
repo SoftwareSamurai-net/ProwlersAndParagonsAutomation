@@ -506,7 +506,8 @@ public sealed class PlayRulesDataTests
         string? AverageRounds,
         string? DurationRounds,
         string? ReductionRounds,
-        string? ResolveReducesDamageTo);
+        string? ResolveReducesDamageTo,
+        int? OnePointEveryHoursForTheLowestBand);
 
     private sealed record ActionsModel(
         string OnYourTurn,
@@ -990,7 +991,7 @@ public sealed class PlayRulesDataTests
         int? MinToughness,
         int? MaxToughness,
         int HealthPerDay,
-        int OnePointEveryHours);
+        int? OnePointEveryHours);
 
     private sealed record SlowHealingModel(
         IReadOnlyList<SlowHealingBandsRowModel> Bands,
@@ -2833,6 +2834,39 @@ public sealed class PlayRulesDataTests
     }
 
     /// <summary>
+    /// <b>Finding 2's proof.</b> p.80 states an hourly parenthetical for the three higher Slow
+    /// Healing bands — "(1 every 12 hours)", "(1 every 8 hours)", "(1 every 6 hours)" — but the
+    /// lowest band's clause is only "1 point of damage per day if your Toughness is 6d or less",
+    /// with none. So the lowest band's row carries a null <c>one_point_every_hours</c>, and its
+    /// 24-hour reading is <em>derived</em> — a day's hours divided by that band's own transcribed
+    /// rate — rather than typed as a fourth transcribed parenthetical the page does not print.
+    /// </summary>
+    [Fact]
+    public void TheSlowHealingLowestBandHasNoPrintedHourlyFigureAndItsReadingIsDerived()
+    {
+        var section = ChapterFourSectionText("SLOW HEALING");
+        Assert.False(string.IsNullOrEmpty(section));
+
+        Assert.Contains("1 point of damage per day if your Toughness is 6d or less", section, StringComparison.Ordinal);
+        Assert.Contains("2 points per day (1 every 12 hours)", section, StringComparison.Ordinal);
+
+        var entry = GrittyEntryById("gritty_slow_healing");
+        var lowestBand = entry.SlowHealing!.Bands[0];
+
+        Assert.Null(lowestBand.MinToughness);
+        Assert.Equal(6, lowestBand.MaxToughness);
+        Assert.Equal(1, lowestBand.HealthPerDay);
+        Assert.Null(lowestBand.OnePointEveryHours);
+
+        Assert.NotNull(entry.Interpretation);
+        Assert.False(string.IsNullOrWhiteSpace(entry.Interpretation.WhatThisIs));
+
+        var derivedHours = CanonicalGrittyRules.SlowHealing.HoursPerDay / lowestBand.HealthPerDay;
+        Assert.Equal(24, derivedHours);
+        Assert.Equal(derivedHours, entry.Interpretation.OnePointEveryHoursForTheLowestBand);
+    }
+
+    /// <summary>
     /// <b>The Example of Combat, p.81, stepped through the data.</b> Six of its rolls resolve
     /// against three different files — Chapter 4's damage rule, its Grappling table, its Minion rule,
     /// and Chapter 3's narrative-control bands for the last one — and every threshold and rate comes
@@ -4050,7 +4084,11 @@ public sealed class PlayRulesDataTests
             // gritty.json's Fatal Damage: the printed word and its own worked example disagree
             // (see CanonicalGrittyRules.FatalDamage), and this is the reading the arithmetic
             // supports rather than a second transcription of the contradicted word.
-            "gritty_fatal_damage.interpretation.resolve_reduces_damage_to"
+            "gritty_fatal_damage.interpretation.resolve_reduces_damage_to",
+            // gritty.json's Slow Healing: only the top three bands print an hourly figure. The
+            // lowest band's 24-hour reading is 24 (a day's hours, not a page reference) divided by
+            // itself, i.e. a day converted to hours — arithmetic, not a transcription.
+            "gritty_slow_healing.interpretation.one_point_every_hours_for_the_lowest_band"
         };
 
     /// <summary>

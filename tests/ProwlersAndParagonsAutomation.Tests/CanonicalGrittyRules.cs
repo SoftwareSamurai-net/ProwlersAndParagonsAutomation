@@ -17,8 +17,12 @@ namespace ProwlersAndParagonsAutomation.Tests;
 /// </summary>
 public static class CanonicalGrittyRules
 {
-    /// <summary>One band of the Slow Healing table (p.80). A null bound is open-ended.</summary>
-    public sealed record HealingBand(int? MinToughness, int? MaxToughness, int HealthPerDay, int OneEvery);
+    /// <summary>
+    /// One band of the Slow Healing table (p.80). A null Toughness bound is open-ended. A null
+    /// <c>OneEvery</c> means the page prints no hourly figure for that band — only the lowest band
+    /// is like this; see the class comment.
+    /// </summary>
+    public sealed record HealingBand(int? MinToughness, int? MaxToughness, int HealthPerDay, int? OneEvery);
 
     // ── The preamble, p.79 ───────────────────────────────────────────────────
 
@@ -231,12 +235,23 @@ public static class CanonicalGrittyRules
     /// point of damage in this condition. Last, ordinary medical care is less effective. Although you can be
     /// stabilized as often as necessary, you can only be healed with the Medicine Talent once per week, and a
     /// successful Medicine roll heals only 1 point of damage per 2 net successes rolled."
+    ///
+    /// <para><b>Only the top three bands print an hourly figure.</b> The lowest band's clause is just
+    /// "1 point of damage per day if your Toughness is 6d or less" — no "(1 every N hours)" beside it,
+    /// unlike the three above it. <see cref="Bands"/>'s first row carries <c>OneEvery: null</c> for
+    /// exactly that reason; <see cref="HoursPerDay"/> is the ordinary meaning of "day" and is not a
+    /// page reference, which is why the 24-hour figure for that band lives in the entry's
+    /// <c>interpretation</c> rather than in its transcribed row.</para>
     /// </summary>
     public static class SlowHealing
     {
+        /// <summary>Not printed — the ordinary length of a day, used to derive (never transcribe)
+        /// the lowest band's hourly figure.</summary>
+        public const int HoursPerDay = 24;
+
         public static readonly IReadOnlyList<HealingBand> Bands =
         [
-            new(null, 6, 1, 24),
+            new(null, 6, 1, null),
             new(7, 12, 2, 12),
             new(13, 24, 3, 8),
             new(25, null, 4, 6)

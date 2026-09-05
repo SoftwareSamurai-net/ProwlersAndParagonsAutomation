@@ -225,7 +225,7 @@
             "min_toughness": null,
             "max_toughness": 6,
             "health_per_day": 1,
-            "one_point_every_hours": 24
+            "one_point_every_hours": null
           },
           {
             "min_toughness": 7,
@@ -254,6 +254,10 @@
         "medicine_healing_limit": "once per week",
         "medicine_health_per_net_successes": 1,
         "medicine_net_successes_per_point": 2
+      },
+      "interpretation": {
+        "what_this_is": "This repository's reading, for the lowest Slow Healing band only. p.80 states an hourly parenthetical for each of the three higher bands - '(1 every 12 hours)', '(1 every 8 hours)', '(1 every 6 hours)' - but the lowest band's clause is only '1 point of damage per day if your Toughness is 6d or less', with no hourly figure beside it. 24 hours to a day is arithmetic, not a page reference, so it is recorded here rather than folded into the transcribed row.",
+        "one_point_every_hours_for_the_lowest_band": 24
       },
       "description": "The roll that patches a character up between fights goes away and time takes its place, at a rate set by how durable they are: a point a day at the bottom and four a day at the top, which also means a character can be walking around on nothing or less and go down again to a single point of damage. A doctor helps once a week and only a little.",
       "verified_fields": [
