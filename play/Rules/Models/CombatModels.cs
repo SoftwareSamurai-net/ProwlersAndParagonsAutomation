@@ -124,7 +124,10 @@ public sealed record CombatMovementModel(
     int TravelPowerRankRequired,
     bool MovingPreventsActions,
     string AssumedTerrain,
-    int OpenTerrainGmMayAllowRangeClassesPerPage
+    int OpenTerrainGmMayAllowRangeClassesPerPageMin,
+    int OpenTerrainGmMayAllowRangeClassesPerPageMax,
+    string OpenTerrainAllowanceAppliesTo,
+    bool OpenTerrainAllowanceIsGmDiscretion
 );
 
 public sealed record CombatMovementContestModel(
@@ -376,7 +379,7 @@ public sealed record CombatAttackingMinionsModel(
     bool MinionsHaveHealth,
     int MinionsDefeatedPerNetSuccess,
     int MinionsDefeatedPerNetSuccessWithAnAreaAttack,
-    string CappedBy,
+    string AreaAttackCappedBy,
     int MaximumMinionsPerNetSuccess,
     bool EffectsThatDoubleTheRateDoNotStack,
     string OnADamagingAttack,
@@ -411,6 +414,7 @@ public sealed record CombatAmbushModel(
     string SurpriseLasts,
     bool EmbellishmentRightsAllowPartialSurprise,
     string PartialSurpriseKeeps,
+    string PartialSurpriseLimitPrintedAs,
     string OnFailure,
     bool MultipleAmbushersMayRollAsAGroup,
     bool EveryTargetRollsTheirOwnPerception,

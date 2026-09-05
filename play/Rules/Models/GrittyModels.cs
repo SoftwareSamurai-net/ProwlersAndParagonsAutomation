@@ -63,7 +63,8 @@ public sealed record GrittyFatalDamageModel(
 public sealed record GrittyInterpretationModel(
     string WhatThisIs,
     string? ResolveReducesDamageTo,
-    int? OnePointEveryHoursForTheLowestBand
+    int? OnePointEveryHoursForTheLowestBand,
+    int? FatalDamageIsRequiredBelowHealth
 );
 
 public sealed record GrittyFriendlyFireModel(
@@ -130,7 +131,7 @@ public sealed record GrittyToughMinionsModel(
 public sealed record GrittyWoundPenaltiesModel(
     int AtOrBelowHalfFullHealthPenaltyDice,
     int AtOrBelowZeroHealthPenaltyDice,
-    string ZeroOrLessIsReachableOnlyWith,
+    string ZeroOrLessParenthetical,
     string AppliesTo,
     int CostResolveToIgnore,
     int PagesIgnoredPerResolvePoint
