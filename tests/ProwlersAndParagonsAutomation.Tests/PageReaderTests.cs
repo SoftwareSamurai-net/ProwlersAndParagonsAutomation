@@ -445,6 +445,13 @@ public sealed class PageReaderTests
     /// the foot of the left column whose own body continues at the top of the right column. Its
     /// column runs on past it — <c>L7</c> is lower — so it is not the lowest line in the band and
     /// stays where it is. Deferring this one would file an entry's heading after its own text.
+    ///
+    /// <para><b>This case is rejected on the "lowest line" clause alone, and so it does not
+    /// exercise the "a full-width run follows" clause at all.</b> That is real coverage of a real
+    /// layout, but it is not a discriminating negative — it would still pass with the second
+    /// clause deleted. <see cref="AHeadingLowestInItsBandIsDeferredEvenWhenItsOwnColumnResumesBelow"/>
+    /// is the case that actually probes the rule's edge, and what it shows is that there is no
+    /// second clause to lean on.</para>
     /// </summary>
     [Fact]
     public void AHeadingTheRestOfItsColumnRunsPastStaysWithThatColumn()
@@ -468,6 +475,85 @@ public sealed class PageReaderTests
         Assert.True(lines[headingIndex].IsHeading);
         Assert.True(headingIndex < firstRight,
             "a heading its own column runs past belongs to that column, not to the block below the band.");
+    }
+
+    /// <summary>
+    /// <b>The discriminating case, and the limit it exposes.</b> Everything the deferral rule
+    /// keys on is present — the left column ends in a heading, that heading is the lowest line in
+    /// the band, the right column stopped higher, and a full-width run starts below it — but the
+    /// heading's <em>own column carries on underneath the full-width block</em>. So there are two
+    /// readings of what it titles: the full-width block (printed p.81's <c>EXAMPLE OF COMBAT</c>),
+    /// or the continuation of its own column below that block, with the block itself finishing the
+    /// section above.
+    ///
+    /// <para><b>Nothing positional separates them</b> — the geometry asserted here is identical in
+    /// both — and no amount of tuning the rule would, because the difference is about what the
+    /// prose means, not about where it sits. The rule defers, and this test pins that.</para>
+    ///
+    /// <para><b>Deferring is nonetheless right on the half the rule is actually deciding.</b> What
+    /// the deferral moves is the heading past the rest of its band, and the precondition makes
+    /// that safe under either reading: the right column stopped <em>above</em> the heading, so
+    /// there is nothing in the band the heading could title. Leaving it in place would file the
+    /// right column's tail under it — which is the p.81 defect — and that is wrong whichever of
+    /// the two readings is the true one.</para>
+    ///
+    /// <para><b>What is genuinely lost is the block's ownership, and no reading order can express
+    /// it.</b> The full-width block sits physically between the heading and the column
+    /// continuation, so in a linear stream it lands under the heading whether it belongs there or
+    /// not. This is recorded as a limit in <c>docs/guide/rulebook-corpus.md</c> rather than
+    /// papered over: no case of it is known in the book, and the fix if one is found is not a
+    /// better geometric rule.</para>
+    /// </summary>
+    [Fact]
+    public void AHeadingLowestInItsBandIsDeferredEvenWhenItsOwnColumnResumesBelow()
+    {
+        const string heading = "A HEADING AT THE FOOT OF ITS COLUMN";
+        const string block = "THE FULL WIDTH BLOCK THAT RUNS ACROSS THE WHOLE PAGE FROM MARGIN TO MARGIN";
+
+        var glyphs = new List<RawLetter>();
+
+        // Left column runs to 616 and is then closed by the heading at 602, the lowest line in the
+        // band. The right column stops at 630 — above the heading, which is the precondition.
+        for (var i = 0; i < 7; i++) glyphs.AddRange(FilledLine($"L{i}", 45, 270, 700 - i * 14));
+        for (var i = 0; i < 6; i++) glyphs.AddRange(FilledLine($"R{i}", 340, 567, 700 - i * 14));
+        glyphs.AddRange(Glyphs(heading, left: 45, baseline: 602,
+            font: "AAAAAA+LeagueGothic-Regular", size: 18));
+
+        glyphs.AddRange(Glyphs(block, left: 45, baseline: 580));
+
+        // ...and the heading's own column carries on below the full-width block, which is the whole
+        // point of this fixture: on p.81 nothing followed the block at all.
+        for (var i = 0; i < 6; i++) glyphs.AddRange(FilledLine($"M{i}", 45, 270, 560 - i * 14));
+        for (var i = 0; i < 6; i++) glyphs.AddRange(FilledLine($"N{i}", 340, 567, 560 - i * 14));
+
+        var lines = new PageReader().Read(glyphs, PageWidth).ToList();
+
+        // Positive control: every line of all four column-runs, the heading and the block itself
+        // came through — 7 + 6 above the band's break, the heading, the block, then 6 + 6 below.
+        Assert.Equal(27, lines.Count);
+        Assert.Contains(lines, l => l.Text.StartsWith("L0 ", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.Text.StartsWith("R5 ", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.Text.StartsWith("N5 ", StringComparison.Ordinal));
+
+        var headingIndex = lines.FindIndex(l => l.Text == heading);
+        var blockIndex = lines.FindIndex(l => l.Text == block);
+        var lastBandRight = lines.FindLastIndex(l => l.Text.StartsWith('R'));
+        var resumedLeft = lines.FindIndex(l => l.Text.StartsWith("M0 ", StringComparison.Ordinal));
+
+        Assert.True(lines[headingIndex].IsHeading);
+
+        Assert.True(headingIndex > lastBandRight,
+            $"the heading is the lowest line in its band and the right column stopped above it, so "
+          + $"nothing in the band can be under it: it must follow the whole band rather than sit "
+          + $"inside the left column. It landed at {headingIndex}, ahead of the right column's last "
+          + $"line at {lastBandRight}.");
+
+        // The block lands under the heading. That is the reading this rule cannot check: it is
+        // right if the heading titles the block, and wrong if the block finishes the section above
+        // and the heading titles only the column continuation. Both look like this.
+        Assert.Equal(headingIndex + 1, blockIndex);
+        Assert.True(blockIndex < resumedLeft,
+            "the column continuation must still follow the block it is printed under.");
     }
 
     // ------------------------------------------------------------------------------------------
